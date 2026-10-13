@@ -221,6 +221,7 @@ local function packet()
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
     items = items,
+    lastError = st.lastError and st.lastError.msg, lastErrorAt = st.lastError and st.lastError.at,
   }
 end
 
@@ -231,6 +232,25 @@ local function publish(force)
   lastSent = os.clock()
   local p = packet()
   if hubId then pcall(rednet.send, hubId, p, PROTOCOL) else pcall(rednet.broadcast, p, PROTOCOL) end
+end
+
+-- Remember an error: shown on the dashboard and appended to miner.log (last 40 lines)
+local function logError(msg)
+  msg = tostring(msg)
+  st.lastError = { msg = msg, at = os.epoch("utc") }
+  pcall(function()
+    local lines = {}
+    if fs.exists("miner.log") then
+      local h = fs.open("miner.log", "r")
+      for line in h.readAll():gmatch("[^\n]+") do lines[#lines + 1] = line end
+      h.close()
+    end
+    lines[#lines + 1] = os.date("%Y-%m-%d %H:%M") .. " " .. pos.x .. "," .. pos.y .. "," .. pos.z .. " " .. msg
+    while #lines > 40 do table.remove(lines, 1) end
+    local h = fs.open("miner.log", "w")
+    h.write(table.concat(lines, "\n") .. "\n")
+    h.close()
+  end)
 end
 
 local function setStatus(s)
@@ -1457,6 +1477,7 @@ local function worker()
     if ok then break end
     if err == "Terminated" then error(err, 0) end
     if tostring(err):find("^" .. LOST) then lostBeacon(err) end
+    logError(err)
     setStatus("STUCK: " .. tostring(err))
     sleep(60)
   end
@@ -1508,11 +1529,13 @@ local function worker()
         elseif not ok then
           if err == "Terminated" then error(err, 0) end
           if tostring(err):find("^" .. LOST) then lostBeacon(err) end
+          logError(err)
           setStatus("Error: " .. tostring(err))
           local ok2, err2 = pcall(goHome, "after error")
           if not ok2 then
             if err2 == "Terminated" then error(err2, 0) end
             if tostring(err2):find("^" .. LOST) then lostBeacon(err2) end
+            logError(err2)
             setStatus("STUCK: " .. tostring(err2))
             sleep(30)
             pcall(recover)

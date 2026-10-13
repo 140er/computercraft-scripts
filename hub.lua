@@ -458,6 +458,39 @@ local function draw(s)
     y = y + 1
   end
 
+  -- Detail line: full status + last error of the selected turtle,
+  -- or else the most recent error of any turtle (last 30 minutes)
+  local function ago(ms)
+    local sec = math.max(0, (nowMs() - ms) / 1000)
+    if sec < 60 then return math.floor(sec) .. "s ago" end
+    if sec < 3600 then return math.floor(sec / 60) .. "m ago" end
+    return math.floor(sec / 3600) .. "h ago"
+  end
+  local detail = {}
+  local sel = selected and turtles[selected]
+  if sel then
+    detail[#detail + 1] = { (sel.p.label or ("#" .. selected)) .. ": " .. tostring(sel.p.status), colors.white }
+    if sel.p.lastError then
+      detail[#detail + 1] = { "Last error " .. ago(sel.p.lastErrorAt or 0) .. ": " .. sel.p.lastError, colors.orange }
+    end
+  else
+    local best
+    for id, r in pairs(turtles) do
+      if r.p.lastError and r.p.lastErrorAt and (not best or r.p.lastErrorAt > best.p.lastErrorAt) then best = r end
+    end
+    if best and nowMs() - best.p.lastErrorAt < 30 * 60 * 1000 then
+      detail[#detail + 1] = { (best.p.label or "?") .. " error " .. ago(best.p.lastErrorAt) .. ": " .. best.p.lastError, colors.orange }
+    end
+  end
+  for _, d in ipairs(detail) do
+    local text = d[1]
+    while #text > 0 and y <= H - 4 do
+      at(1, y, text:sub(1, W), d[2])
+      text = text:sub(W + 1)
+      y = y + 1
+    end
+  end
+
   -- What is in the turtles right now (last reported inventory of each turtle)
   local sum = {}
   for _, r in pairs(turtles) do
