@@ -96,7 +96,7 @@ if args[1] == "client" then
     proto = PROTOCOL .. "_relay"
     print("Connected through the board computer (#" .. id .. ").")
   end
-  print("Commands: list [text], find <item>, get <item> [n], quit")
+  print("Commands: list [text], find <item>, get <item> [n], build, status, quit")
   local history = {}
   while true do
     write("> ")
@@ -1238,6 +1238,11 @@ local function buildChests()
   while freeSlot() do
     if not placeStorage() then return end
   end
+  -- Chests left but nowhere to put them: say so
+  local t = totals()
+  local spare = carriedCount(function(n) return CHEST_ITEMS[n] ~= nil end)
+  for name in pairs(CHEST_ITEMS) do spare = spare + (t[name] or 0) end
+  status.roomNote = (spare > 0 and not freeSlot()) and ("Room is full: " .. spare .. " chests can't be placed") or nil
 end
 
 ---------------------------------------------------------------------------
@@ -1658,11 +1663,24 @@ local function command(cmd, text, n)
     requests[#requests + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Getting " .. n .. " " .. pretty(name) .. "..." }
+  elseif cmd == "build" then
+    -- Build right away with the chests/barrels/furnaces it has (normally automatic)
+    local t = totals()
+    local chests = carriedCount(function(x) return CHEST_ITEMS[x] ~= nil end)
+    local furn = carriedCount(function(x) return FURNACE_ITEMS[x] ~= nil end)
+    for name in pairs(CHEST_ITEMS) do chests = chests + (t[name] or 0) end
+    for name in pairs(FURNACE_ITEMS) do furn = furn + (t[name] or 0) end
+    local spots = 0
+    for _, sl in ipairs(map.slots) do if not idx[sl.cell] and not (map.bad and map.bad[sl.cell]) then spots = spots + 1 end end
+    os.queueEvent("room_request")
+    return { ("Built: %d chests/barrels, %d furnaces. Room for %d more."):format(chestCount(), #furnaces(), spots),
+      chests + furn > 0 and ("%d chests/barrels and %d furnaces not built yet: building now."):format(chests, furn)
+        or "Nothing left to build. New chests/barrels in the drop-off chest get built by themselves." }
   elseif cmd == "status" then
     local used, size = usedSlots()
     return { status.state, ("Storage %d/%d slots, %d furnaces"):format(used, size, #furnaces()) }
   end
-  return { "Commands: list [text], find <item>, get <item> [n], status" }
+  return { "Commands: list [text], find <item>, get <item> [n], build, status" }
 end
 
 ---------------------------------------------------------------------------
@@ -1709,6 +1727,7 @@ local function draw(t)
   if status.full then line("Put chests/barrels in the input chest", colors.red) end
   if status.noFuel then line("Furnaces need coal!", colors.red) end
   if status.note then line(status.note, colors.orange) end
+  if status.roomNote then line(status.roomNote, colors.orange) end
   if status.lastSmelt then line("Smelted " .. status.lastSmelt, colors.lightGray) end
   y = y + 1
   local l = {}

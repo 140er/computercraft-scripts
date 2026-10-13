@@ -299,6 +299,7 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 | `get iron ingot 32` | brings 32 iron ingots to the output chest (default: 1 stack) |
 | `find diamond` | how many there are |
 | `list` | everything in storage |
+| `build` | shows how many chests/furnaces are built and how much room is left, and builds any that aren't yet (it normally does that by itself) |
 | `pause` / `resume` / `quit` | on the turtle only |
 
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
