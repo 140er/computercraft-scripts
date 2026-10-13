@@ -10,7 +10,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 ## Quick start
 
 1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest directly **behind** it, and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
-2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons).
+2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons), and a second monitor becomes an info screen.
 3. **Copy the files:** drag `miner.lua` onto each turtle's screen and `hub.lua` onto the hub's screen. (Or, if the repo is public and `http` is enabled: `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install`, then `install`.)
 4. **Set up each turtle once** (see below), then on the hub: `hub install`, `hub`.
 5. On the dashboard: pick a time, pick an ore. Done.
@@ -116,6 +116,30 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.
 - **Detail line** (under the turtle table): the full status and last error of the turtle you tapped, or otherwise the most recent error of any turtle in the last 30 minutes. "Going home: after error" means a trip hit an error; the detail line says which. Each turtle also keeps its last 40 errors in `miner.log` (read it on the turtle with `edit miner.log`).
+
+### Info screen (second monitor)
+Put a second monitor next to the hub (a normal one is fine) and reboot the hub. The advanced monitor keeps the dashboard with the buttons; the other one becomes an info screen:
+```
+MINE ARMY                         14:30
+---------------------------------------
+Mining Diamond (Y -58)
+Time left                       0:18:00
+4 turtles: 2 out, 2 home
+
+THIS SESSION            12m, 425 ores/h
+ Redstone                            40
+ Diamond                             14
+
+TURTLES                       Y    fuel
+ east   going home          -40   24120
+ south  home                 65    2200
+
+ALL TIME
+ Raw iron                           540
+ Diamond                            212
+```
+- "This session" counts what the turtles delivered to their chests since you started the session, and the ores per hour. After the session ends it shows the last session.
+- It uses a smaller text size on small monitors and leaves out the sections that don't fit.
 
 ### Radio range
 A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~384 near the build limit). A message gets through when it is within range of *either* modem.

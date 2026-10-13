@@ -159,6 +159,7 @@ local function sessionLeft()
 end
 local function startSession()
   hub.sessionEnd = hub.sessionLen and (nowMs() + hub.sessionLen * 1000) or nil
+  hub.session = { start = nowMs(), haul = {} } -- for the info screen
 end
 local function anyMining()
   if hub.target then return true end
@@ -196,7 +197,10 @@ local function handle(id, m)
   elseif m.type == "report" then
     mergeProgress(m.role, m.progress)
     for name, n in pairs(m.haul or {}) do
-      if type(n) == "number" then hub.totals[name] = (hub.totals[name] or 0) + n end
+      if type(n) == "number" then
+        hub.totals[name] = (hub.totals[name] or 0) + n
+        if hub.session then hub.session.haul[name] = (hub.session.haul[name] or 0) + n end
+      end
     end
     save()
   end
@@ -206,12 +210,27 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
-local mon = peripheral.find("monitor")
-if mon then
+-- Monitors: the (biggest) advanced monitor gets the dashboard with touch buttons,
+-- a normal monitor gets the info screen. A single monitor always gets the dashboard.
+local mons = { peripheral.find("monitor") }
+local function monSize(m) local w, h = m.getSize() return w * h end
+table.sort(mons, function(a, b)
+  if a.isColor() ~= b.isColor() then return a.isColor() end
+  return monSize(a) > monSize(b)
+end)
+if mons[1] then
+  local mon = mons[1]
   mon.setTextScale(1)
   local w = mon.getSize()
   if w < 50 then mon.setTextScale(0.5) end
   screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {} }
+end
+if mons[2] then
+  local mon = mons[2]
+  mon.setTextScale(1)
+  local w, h = mon.getSize()
+  if w < 26 or h < 12 then mon.setTextScale(0.5) end
+  screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {}, info = true }
 end
 
 local function setTarget(ore)
@@ -540,8 +559,100 @@ local function draw(s)
   at(1, H, ("Tap a turtle = only that one. 1-7 ore s stop r recall u update q quit"):sub(1, W), colors.gray)
 end
 
+-- Info screen for a normal (grey) monitor: no buttons, just the overview
+local function drawInfo(s)
+  local t = s.t
+  local W, H = t.getSize()
+  t.setBackgroundColor(colors.black)
+  t.clear()
+  local y = 1
+  local function line(text, c, right, rc)
+    if y > H then return end
+    t.setCursorPos(1, y)
+    t.setTextColor(c or colors.white)
+    t.write(text:sub(1, W))
+    if right and #text + #right + 1 <= W then
+      t.setCursorPos(W - #right + 1, y)
+      t.setTextColor(rc or colors.lightGray)
+      t.write(right)
+    end
+    y = y + 1
+  end
+  local function hr() line(string.rep("-", W), colors.gray) end
+  local function itemLines(tbl, max)
+    local l = {}
+    for name, n in pairs(tbl) do if not COMMON[name] then l[#l + 1] = { name = name, n = n } end end
+    table.sort(l, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.name < b.name end)
+    for i = 1, math.min(#l, max) do line(" " .. prettyName(l[i].name), colors.white, tostring(l[i].n), colors.white) end
+    if #l == 0 then line(" nothing yet", colors.gray) end
+  end
+
+  line("MINE ARMY", colors.white, textutils.formatTime(os.time(), true), colors.lightGray)
+  hr()
+  -- Job and time
+  if hub.recallAll then line("RECALLED", colors.white)
+  elseif hub.target then line("Mining " .. ORES[hub.target].label .. " (Y " .. ORES[hub.target].y .. ")", colors.white)
+  else line("Stopped", colors.lightGray) end
+  local left = sessionLeft()
+  if left then
+    local sec = math.floor(left)
+    line("Time left", colors.lightGray, string.format("%d:%02d:%02d", math.floor(sec / 3600), math.floor(sec / 60) % 60, sec % 60), colors.white)
+  end
+  -- Fleet
+  local out, home, trouble, fuel, n = 0, 0, 0, 0, 0
+  for _, r in pairs(turtles) do
+    n = n + 1
+    local p = r.p
+    if p.phase == "lost" or tostring(p.status):find("^STUCK") or tostring(p.status):find("^ERROR") then trouble = trouble + 1
+    elseif p.phase == "home" then home = home + 1 else out = out + 1 end
+    if type(p.fuel) == "number" then fuel = fuel + p.fuel end
+  end
+  local fleet = n .. " turtles: " .. out .. " out, " .. home .. " home"
+  if trouble > 0 then fleet = fleet .. ", " .. trouble .. " need you!" end
+  line(fleet, trouble > 0 and colors.white or colors.lightGray)
+  y = y + 1
+
+  -- This session: what was delivered to the chests, and how fast
+  local sess = hub.session
+  local title = (hub.sessionEnd and "THIS SESSION") or "LAST SESSION"
+  local rate = ""
+  if sess and sess.start then
+    local mins = math.max(1, ((sess.stop or nowMs()) - sess.start) / 60000)
+    local ores = 0
+    for name, c in pairs(sess.haul) do if not COMMON[name] then ores = ores + c end end
+    rate = math.floor(mins) .. "m, " .. math.floor(ores * 60 / mins) .. " ores/h"
+  end
+  line(title, colors.lightGray, rate, colors.gray)
+  itemLines(sess and sess.haul or {}, 4)
+  y = y + 1
+
+  -- The turtles, one line each
+  if y + 1 <= H - 4 then
+    line("TURTLES", colors.lightGray, "Y    fuel", colors.gray)
+    for _, id in ipairs(ids()) do
+      if y > H - 5 then break end
+      local p = turtles[id].p
+      local name = (p.label or ("#" .. id)):gsub("^Miner%-", "")
+      local PH = { mining = "mining", returning = "going home", descending = "going down", home = "home", lost = "LOST!" }
+      local where = PH[p.phase] or p.phase or "?"
+      if os.clock() - turtles[id].seen > STALE and p.phase ~= "home" then where = "underground" end
+      local right = string.format("%4s %5s", tostring(p.y or "?"), type(p.fuel) == "number" and tostring(p.fuel) or "inf")
+      line(" " .. string.format("%-6s %s", name:sub(1, 6), where), p.phase == "lost" and colors.white or colors.lightGray, right, colors.gray)
+    end
+    y = y + 1
+  end
+
+  -- All time
+  if y < H then
+    line("ALL TIME", colors.lightGray)
+    itemLines(hub.totals, H - y + 1)
+  end
+end
+
 local function redraw()
-  for _, s in ipairs(screens) do draw(s) end
+  for _, s in ipairs(screens) do
+    if s.info then drawInfo(s) else draw(s) end
+  end
 end
 
 local function click(screenName, x, y)
@@ -580,6 +691,7 @@ local function uiLoop()
         hub.target = nil
         hub.overrides = {}
         hub.sessionEnd = nil
+        if hub.session then hub.session.stop = nowMs() end
         save()
         flash("Time is up: turtles come home and stay there.")
       end
