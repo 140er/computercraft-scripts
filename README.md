@@ -58,7 +58,7 @@ A turtle never goes more than **96 blocks** (6 chunks) from its shaft, ore veins
 - When a level is mined out within that reach, it starts a new layer 3 blocks higher with its branches shifted so they fall between the old ones (diamond: Y -58, -55, -52, -49).
 - After 4 layers the dashboard shows "Area full": pick another ore or raise `reach` in `hub.state` (don't go above your server's simulation distance × 16 minus a margin).
 - If it still runs into an unloaded chunk (you walked away), it keeps its progress, goes home and waits a minute.
-- If the main tunnel hits something it can't get through (e.g. the reinforced deepslate of an ancient city, or lava it couldn't seal) at the same spot on 2 trips, that layer counts as full and it moves on to the next layer. The reason shows on the dashboard's detail line and in `miner.log`.
+- If the main tunnel hits something it can't get through (e.g. the reinforced deepslate of an ancient city, or lava that still won't seal after backing off 3 times) at the same spot on 2 trips, that layer counts as full and it moves on to the next layer. The reason shows on the dashboard's detail line and in `miner.log`.
 
 ### Mining modes: Thorough and Fast
 Toggle with the button at the top right of the dashboard. A switch applies from the next branch on.
@@ -75,6 +75,8 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 ### Caves, water and lava
 - An opening into a cave (air or water) next to, above or below a tunnel is plugged with cobble. A branch that runs into a cave is closed off and the next one starts; the main tunnel goes straight through and walls itself in. Water in front of a tunnel is plugged and dug through.
 - It never steps into lava. Lava sources are scooped with its empty bucket and burned as fuel (+1000), then the spot is sealed. Flowing lava is just sealed. Water is never scooped.
+- Out of blocks to seal with? It digs one out of the rock next to it (the floor first). While walking its old tunnels it tops up to 8 blocks from the floor, because lava can flow into a tunnel between trips.
+- Lava it can't seal (it keeps flowing in): it backs off 2 blocks through its own tunnel, waits a few seconds, comes back and tries again, up to 3 times, before giving up.
 
 ### Junk, loot and the chest
 - **Kept:** all ores and what they drop (raw ores, diamond, emerald, lapis, redstone, quartz, gems, dusts, modded ores), fuel and buckets.

@@ -461,6 +461,14 @@ local function scoopLava(d)
   turtle.select(1)
 end
 
+-- Blocks that never lie on a route the turtle dug itself (gravel/sand can fall in,
+-- seal blocks are cobble, so those are fine). Finding one means position/heading is off.
+local NATURAL = {}
+for _, n in ipairs({ "stone", "deepslate", "tuff", "granite", "diorite", "andesite", "calcite",
+  "dirt", "grass_block", "smooth_basalt", "netherrack", "bedrock" }) do
+  NATURAL["minecraft:" .. n] = true
+end
+
 -- Lava: scoop it as fuel first, then seal with the first placeable non-ore block
 local function seal(d)
   scoopLava(d)
@@ -474,6 +482,38 @@ local function seal(d)
   end
   turtle.select(1)
   return not isLava(inspect(d))
+end
+
+local function sealCount()
+  local n = 0
+  for s = 1, 16 do
+    if turtle.getItemCount(s) > 0 and sealable(s) then n = n + turtle.getItemCount(s) end
+  end
+  return n
+end
+
+-- Get a seal block by digging natural rock next to the turtle, below first, then
+-- above, then the walls (never in the direction it is going). Used when it ran out.
+local function digSealBlock(notDir)
+  for _, d in ipairs({ DOWN, UP, 0, 1, 2, 3 }) do
+    if d ~= notDir then
+      local info = inspect(d)
+      if info and NATURAL[info.name] and info.name ~= "minecraft:bedrock" then
+        local ok
+        if d == DOWN then ok = turtle.digDown() elseif d == UP then ok = turtle.digUp()
+        else face(d) ok = turtle.dig() end
+        if ok and sealCount() > 0 then return true end
+      end
+    end
+  end
+  return false
+end
+
+-- Seal lava, digging a block for it first when the turtle has none left
+local function sealLava(d)
+  if seal(d) and not isLava(inspect(d)) then return true end
+  if sealCount() == 0 and digSealBlock(d) then return seal(d) and not isLava(inspect(d)) end
+  return false
 end
 
 -- The one junk stack kept for sealing lava: cobbled deepslate/cobblestone first,
@@ -574,14 +614,44 @@ end
 -- CC refuses to move a turtle into a chunk that is not loaded ("Cannot leave loaded world")
 local UNLOADED = "outside loaded chunks"
 
+-- Lava it can't seal: step back up to 2 blocks through its own (empty) tunnel, wait
+-- for the flow to settle, then step forward again as far as it can. Callers work by
+-- position, so it's fine if it ends up a block or two further back.
+local function backOff(d)
+  setStatus("Lava ahead, backing off")
+  local back = OPP[d]
+  local n = 0
+  for _ = 1, 2 do
+    if inspect(back) ~= nil or turtle.getFuelLevel() == 0 then break end
+    if not rawMove(back) then break end
+    n = n + 1
+  end
+  sleep(5)
+  for _ = 1, n do
+    local info = inspect(d)
+    if isLava(info) and not sealLava(d) then return end
+    info = inspect(d)
+    if info and not isLiquid(info) and not dig(d) then return end
+    if not rawMove(d) then return end
+  end
+end
+
 -- Safe movement: never step into lava (seal it first), dig where needed.
 local function move(d, inVein)
+  local lavaTries = 0
   for attempt = 1, RETRY do
     local info = inspect(d)
-    if isLava(info) then
-      if not seal(d) then return false, "lava" end
-      info = inspect(d)
-      if isLava(info) then return false, "lava" end
+    while isLava(info) do
+      if sealLava(d) then
+        info = inspect(d)
+      else
+        -- Can't seal it (e.g. lava keeps flowing in): back off a few blocks out of its
+        -- way, give it time to settle or burn out, come back and try again.
+        lavaTries = lavaTries + 1
+        if lavaTries > 3 or d >= 4 or inVein then return false, "lava" end
+        backOff(d)
+        info = inspect(d)
+      end
     end
     if info and not isLiquid(info) then
       local ok, why = dig(d)
@@ -603,13 +673,6 @@ local function move(d, inVein)
   return false, "blocked"
 end
 
--- Blocks that never lie on a route the turtle dug itself (gravel/sand can fall in,
--- seal blocks are cobble, so those are fine). Finding one means position/heading is off.
-local NATURAL = {}
-for _, n in ipairs({ "stone", "deepslate", "tuff", "granite", "diorite", "andesite", "calcite",
-  "dirt", "grass_block", "smooth_basalt", "netherrack", "bedrock" }) do
-  NATURAL["minecraft:" .. n] = true
-end
 local LOST = "LOST"
 
 -- Move along a route the turtle dug itself (shaft, main tunnel, branches, way home)
@@ -719,7 +782,7 @@ local function scanFor(dirs)
     if not veinSeen[k] then
       veinSeen[k] = true
       local info = inspect(d)
-      if isLava(info) then seal(d)
+      if isLava(info) then sealLava(d)
       elseif isOre(info) then mineVein(d, isTarget(info)) end
     end
   end
@@ -794,7 +857,7 @@ end
 -- Look in direction d: seal lava, mine ore (with its vein)
 local function check(d)
   local info = inspect(d)
-  if isLava(info) then seal(d) return "lava" end
+  if isLava(info) then sealLava(d) return "lava" end
   if isOre(info) then vein(d, info) return "ore" end
   return info
 end
@@ -821,6 +884,8 @@ local function guard(d)
   if isOpen(r) then
     if r == nil then pourWaterBucket(d) end
     seal(d)
+    local i = inspect(d)
+    if (not i or isLiquid(i)) and sealCount() == 0 and digSealBlock(d) then seal(d) end
   end
 end
 
@@ -829,7 +894,6 @@ end
 -- caveStop: if it runs into a cave, seal the tunnel end and stop (branches).
 local function excavate(d, wa, wb, caveStop)
   local r = check(d)
-  if r == "lava" and isLava(inspect(d)) then return false, "lava" end
   if caveStop and r == nil then
     seal(d)
     return false, "cave"
@@ -846,8 +910,7 @@ end
 
 -- Shaft: dig a new cell down and check the 4 walls once (3 turns)
 local function excavateDown()
-  local r = check(DOWN)
-  if r == "lava" and isLava(inspect(DOWN)) then return false, "lava" end
+  check(DOWN)
   local ok, why = move(DOWN)
   if not ok then return false, why end
   local h = st.h
@@ -952,6 +1015,9 @@ local function workLevel(j)
       local r = stopReason()
       if r then return r end
       if along(SPINE) < L.spine then
+        -- Walking its old tunnel digs nothing: top up the seal blocks from the floor
+        -- first, so lava that flowed in since the last trip can be sealed.
+        if sealCount() < 8 then digSealBlock(UP) end
         moveOrFail(SPINE, "Main tunnel blocked")
       else
         local ok, why
