@@ -59,11 +59,17 @@ local function pretty(name)
 end
 
 if args[1] == "client" then
-  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
-  if not modem then print("Needs a wireless (or ender) modem.") return end
+  -- A wireless modem, or a wired modem with a cable to the board computer (which passes
+  -- the messages on to the turtle)
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end) or peripheral.find("modem")
+  if not modem then print("Needs a wireless modem, or a wired modem + cable to the board computer.") return end
   rednet.open(peripheral.getName(modem))
   local id = rednet.lookup(PROTOCOL)
-  if not id then print("No storage turtle found. Is it running, with a wireless modem?") return end
+  if not id then
+    print("No storage turtle found. Is it running, with a wireless modem?")
+    if not modem.isWireless() then print("Wired: is the board computer running, and are both modems red (right-click them)?") end
+    return
+  end
   print("Connected to the storage turtle. Commands: list [text], find <item>, get <item> [n], quit")
   local history = {}
   while true do
@@ -326,7 +332,25 @@ local function board()
   end
 end
 
-if args[1] == "board" then board() return end
+if args[1] == "board" then
+  -- A wired modem too: pass rednet messages between the cable and the air, so a request
+  -- computer on the cable can reach the turtle without its own wireless modem
+  local wired = peripheral.find("modem", function(_, m) return not m.isWireless() end)
+  if wired then
+    parallel.waitForAny(board, function()
+      sleep(0.5)
+      local w = term.current()
+      local tw, th = w.getSize()
+      -- with a monitor the terminal is free for the relay's messages, else keep it hidden
+      local relayWin = window.create(w, 1, 2, tw, th - 1, peripheral.find("monitor") ~= nil)
+      term.redirect(relayWin)
+      shell.run("repeat")
+    end)
+  else
+    board()
+  end
+  return
+end
 
 if not turtle then print("Run this on a turtle (or 'roomsorter client' / 'roomsorter board' on a computer).") return end
 

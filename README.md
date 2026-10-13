@@ -303,6 +303,8 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
 
+**No wireless modem for the request computer?** Connect it to the board computer with a cable: a wired modem on each of the two computers, networking cable between them, right-click both modems so they turn red. The board computer (which has a wireless modem) then passes the messages on to the turtle; it does that by itself when it sees the wired modem. Run `roomsorter client` on the request computer as usual.
+
 ### Stock board (monitor outside the room)
 A stock-exchange style screen of what's in storage, on a computer with a **wireless modem** and a **monitor** next to it. The turtle needs a wireless modem too.
 
