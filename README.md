@@ -39,7 +39,13 @@ Zo krijgt elke turtle zijn eigen kwadrant, en geen gang kruist een schacht van e
 
 ### Benodigd
 - Per turtle: mining turtle (pickaxe) + wireless modem (gewoon of ender).
-- Per turtle: een kist direct **achter** de turtle, met kolen erin.
+- Per turtle: een kist direct **achter** de turtle. Brandstof: kolen of lava-emmers (in de kist of in de turtle zelf).
+
+### Brandstof: lava-emmers
+- Een volle lava-emmer = 1000 fuel. De turtle verbrandt volle emmers uit zijn eigen inventory en uit de kist.
+- Lege emmers houdt hij. Komt hij onderweg een lava-bron tegen, dan schept hij die op met een lege emmer, verbrandt hem meteen (+1000 fuel) en dicht het gat daarna af met een blok. Op Y -58 zit veel lava, dus een turtle met een emmer tankt zichzelf.
+- 2 volle emmers per turtle is genoeg om te beginnen. Werk je alleen met kolen, geef hem dan toch 1 lege emmer.
+- Stromende lava kan niet in een emmer, die wordt alleen afgedicht.
 - Basis-computer (advanced voor kleur/klikken) + wireless modem. Monitor optioneel (advanced monitor = aanraakknoppen).
 
 ### Gewone wireless modems

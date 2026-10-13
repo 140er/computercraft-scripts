@@ -169,7 +169,7 @@ local function packet()
     x = pos.x, y = pos.y, z = pos.z,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
-    found = st.found, dug = st.dug, recall = recall,
+    found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
   }
 end
 
@@ -328,8 +328,40 @@ local function placeDir(d)
   return turtle.place()
 end
 
--- Lava afdichten met het eerste neerzetbare non-ore blok
+local BUCKET, LAVA_BUCKET = "minecraft:bucket", "minecraft:lava_bucket"
+
+local function findItem(name, skip)
+  for s = 1, 16 do
+    if s ~= skip then
+      local d = turtle.getItemDetail(s)
+      if d and d.name == name then return s end
+    end
+  end
+  return nil
+end
+
+-- Lava opscheppen met een lege emmer en meteen verbranden (+1000 fuel).
+-- Werkt alleen op een lava-bron; stromende lava wordt gewoon afgedicht.
+local function scoopLava(d)
+  local f = turtle.getFuelLevel()
+  if f == "unlimited" or f > turtle.getFuelLimit() - 1000 then return end
+  local s = findItem(BUCKET)
+  if not s then return end
+  turtle.select(s)
+  if placeDir(d) then
+    local lb = findItem(LAVA_BUCKET)
+    if lb then
+      turtle.select(lb)
+      turtle.refuel(1)
+      st.scooped = (st.scooped or 0) + 1
+    end
+  end
+  turtle.select(1)
+end
+
+-- Lava: eerst opscheppen als brandstof, dan afdichten met het eerste neerzetbare non-ore blok
 local function seal(d)
+  scoopLava(d)
   for s = 1, 16 do
     if turtle.getItemCount(s) > 0 and sealable(s) then
       turtle.select(s)
@@ -339,7 +371,7 @@ local function seal(d)
     end
   end
   turtle.select(1)
-  return false
+  return not isLava(inspect(d))
 end
 
 local function keepOneSealStack(dropFn)
@@ -738,7 +770,8 @@ end
 ---------------------------------------------------------------------------
 -- Thuis: lossen en tanken
 ---------------------------------------------------------------------------
-local FUEL_NAMES = { ["minecraft:coal"] = true, ["minecraft:charcoal"] = true, ["minecraft:coal_block"] = true }
+local FUEL_NAMES = { ["minecraft:coal"] = true, ["minecraft:charcoal"] = true, ["minecraft:coal_block"] = true,
+  ["minecraft:lava_bucket"] = true }
 
 local function haulInto(h, s)
   local d = turtle.getItemDetail(s)
@@ -750,7 +783,10 @@ local function unload()
   local haul = {}
   local kept = false
   for s = 1, 16 do
-    if turtle.getItemCount(s) > 0 then
+    local d = turtle.getItemDetail(s)
+    if d and (d.name == BUCKET or d.name == LAVA_BUCKET) then
+      -- emmers houden: lege om lava te scheppen, volle om te verbranden
+    elseif d then
       if not kept and isJunk(s) and sealable(s) then
         kept = true -- 1 stapel seal-blok houden
       elseif isJunk(s) then
@@ -797,6 +833,13 @@ local function refuelFromChest(target)
   if turtle.getFuelLevel() == "unlimited" then return end
   local limit = turtle.getFuelLimit()
   if target > limit - 100 then target = limit - 100 end
+  -- Eerst volle lava-emmers uit de turtle zelf
+  local lb = findItem(LAVA_BUCKET)
+  while lb and turtle.getFuelLevel() < limit - 1000 do
+    turtle.select(lb)
+    turtle.refuel(1)
+    lb = findItem(LAVA_BUCKET)
+  end
   local tries = 0
   local held = {}
   while turtle.getFuelLevel() < target and tries < 32 do
@@ -810,7 +853,9 @@ local function refuelFromChest(target)
       while turtle.getFuelLevel() < target and turtle.getItemCount(s) > 0 do
         if not turtle.refuel(1) then break end
       end
-      if turtle.getItemCount(s) > 0 then turtle.drop() end
+      local left = turtle.getItemDetail(s)
+      -- 1 lege emmer houden om onderweg lava te scheppen, de rest terug in de kist
+      if left and not (left.name == BUCKET and not findItem(BUCKET, s)) then turtle.drop() end
     else
       held[#held + 1] = s -- geen brandstof: even vasthouden, straks terug
     end
