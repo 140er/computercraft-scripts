@@ -33,7 +33,7 @@ General form: `miner setup <x> <y> <z> <facing> <role>`. Setup writes a `startup
 2. It moves 1 block forward into its hole and goes down. The shaft is finished to the ore level **once** and reused every trip after (iron is above diamond, so one shaft serves every level). The hole is covered with a block at floor level while the turtle is down there, and again after it comes home.
 3. At the ore level it digs a **main tunnel** with **branch tunnels** off one side, all 1x1. It inspects the blocks above and below every tunnel block (no extra digging, and mobs can't spawn in 1-high tunnels).
 4. Ore it sees is followed as a vein. For the target ore (e.g. diamond) it also checks the edge neighbours (18 of 26).
-5. It comes home when: the inventory is full, it needs its remaining fuel to get back, the session time is up (it leaves early enough to be home when the clock hits 0), the trip time is up (`mineMinutes`, 15; only with NO LIMIT), or the hub recalls it.
+5. It comes home when: the inventory is full, it needs its remaining fuel to get back, the session time is up (it leaves early enough to be home when the clock hits 0), or the hub recalls it.
 
 | Ore button | Level (Y) |
 |---|---|
@@ -93,22 +93,27 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 ## Dashboard
 
 ```
- MINE ARMY HUB                 MINING: DIAMOND (Y -58)
- (red LOST line / notices)
- Orders for: ALL turtles                     THOROUGH
-  Diamond  Redstone  Gold  Lapis  Iron  Copper  Coal
- STOP  RECALL  UPDATE (2)
- Time  30m  1h  2h  4h  NO LIMIT  0:42:10
+ Mining Diamond (Y -58)                    THOROUGH
+
+  Diamond   Redstone   Gold   Lapis   Iron   Copper
+
+  Coal
+
+  STOP   RECALL   UPDATE (2)
+
+ Time  10m   20m   30m   45m   1h  0:42:10
+
  Turtle       Job      Status            Y   Fuel Free
  ...
  IN TURTLES NOW
  Diamond 7  Raw iron 14  Redstone 8 ...
 ```
+- **Top line:** the current job. It shows "Orders for: <turtle>" while a turtle is selected, and a red `LOST:` alert or a short notice when there is one.
 - **Ore buttons:** the whole fleet mines that ore. Tap a turtle in the list first to give only that turtle an order; `ALL` goes back to the whole fleet.
 - **THOROUGH / FAST:** mining mode (see above).
-- **Time:** session length, default 1 hour. Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
+- **Time:** session length, 10 minutes up to 1 hour (default 30 minutes). Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
-- **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name. While a new `miner.lua` is waiting to be sent, the second line says "New miner.lua on the hub: press UPDATE".
+- **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name.
 - **IN TURTLES NOW:** the loot currently in all turtles together (last reported for turtles out of range).
 - Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.

@@ -63,8 +63,12 @@ hub.mineMinutes = hub.mineMinutes or 15
 -- Max distance (blocks) a turtle goes from its shaft. Keep it inside the chunks
 -- that are loaded while you are at your base (6 chunks = 96 blocks).
 hub.reach = hub.reach or 96
--- Session timer: how long the fleet mines after you pick an ore (seconds, false = no limit)
-if hub.sessionLen == nil then hub.sessionLen = 3600 end
+-- Session timer: how long the fleet mines after you pick an ore (seconds)
+-- Session lengths on the dashboard: 10 minutes up to 1 hour
+local TIMES = { { " 10m ", 600 }, { " 20m ", 1200 }, { " 30m ", 1800 }, { " 45m ", 2700 }, { " 1h ", 3600 } }
+local validLen = false
+for _, opt in ipairs(TIMES) do if hub.sessionLen == opt[2] then validLen = true end end
+if not validLen then hub.sessionLen = 1800 end -- also replaces an old "no limit" or 2h/4h
 -- Mining mode: "thorough" (branches every 4, wall checks) or "fast" (every 2, no turning)
 hub.mode = hub.mode or "thorough"
 hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
@@ -331,49 +335,43 @@ local function draw(s)
   end
 
   bg(colors.black) t.clear()
-  -- Title
-  at(1, 1, string.rep(" ", W), colors.white, colors.gray)
-  at(2, 1, "MINE ARMY HUB", colors.yellow, colors.gray)
-  local mode
-  if hub.recallAll then mode = "RECALLED"
-  elseif hub.target then mode = "MINING: " .. ORES[hub.target].label:upper() .. " (Y " .. ORES[hub.target].y .. ")"
-  else mode = "STOPPED" end
-  at(math.max(16, W - #mode), 1, mode, hub.target and not hub.recallAll and colors.lime or colors.red, colors.gray)
-
-  -- Lost turtles: red alert line with where to find them (overrides other notices)
+  -- Top line: the current job (or a LOST alert / notice), mode button on the right.
+  -- One empty line between every row of buttons, so they are easy to tap.
   local lost = {}
   for id, r in pairs(turtles) do
     if r.p.phase == "lost" then
       lost[#lost + 1] = (r.p.label or ("#" .. id)) .. " at " .. tostring(r.p.x) .. "," .. tostring(r.p.y) .. "," .. tostring(r.p.z)
     end
   end
-  local fileHash = minerVersion()
-  if #lost > 0 then
-    at(1, 2, "LOST: " .. table.concat(lost, "  "), colors.red)
-  elseif notice and os.clock() < noticeUntil then
-    at(1, 2, notice, colors.yellow)
-  elseif fileHash and fileHash ~= hub.released then
-    at(1, 2, "New miner.lua on the hub: press UPDATE to send it", colors.yellow)
-  end
-
-  -- Ore buttons
-  local y = 3
-  local x = 1
-  local applyTo = "Orders for: "
-  if selected and turtles[selected] then applyTo = applyTo .. (turtles[selected].p.label or ("#" .. selected))
-  else applyTo = applyTo .. "ALL turtles" end
-  at(1, y, applyTo, colors.lightGray)
   local modeLabel = (hub.mode == "fast") and " FAST " or " THOROUGH "
+  local topW = W - #modeLabel - 1
+  local y = 1
+  if #lost > 0 then
+    at(1, y, ("LOST: " .. table.concat(lost, "  ")):sub(1, topW), colors.red)
+  elseif notice and os.clock() < noticeUntil then
+    at(1, y, notice:sub(1, topW), colors.yellow)
+  elseif selected and turtles[selected] then
+    at(1, y, ("Orders for: " .. (turtles[selected].p.label or ("#" .. selected))):sub(1, topW), colors.yellow)
+  else
+    local job, jc
+    if hub.recallAll then job, jc = "RECALLED", colors.red
+    elseif hub.target then job, jc = "Mining " .. ORES[hub.target].label .. " (Y " .. ORES[hub.target].y .. ")", colors.lime
+    else job, jc = "Stopped", colors.red end
+    at(1, y, job:sub(1, topW), jc)
+  end
   button(W - #modeLabel + 1, y, modeLabel, colors.black, (hub.mode == "fast") and colors.orange or colors.cyan, function()
     hub.mode = (hub.mode == "fast") and "thorough" or "fast"
     save()
     flash("Mode: " .. hub.mode .. " (from the next branch on)")
   end)
-  y = y + 1
+
+  -- Ore buttons
+  y = y + 2
+  local x = 1
   for i, ore in ipairs(ORDER) do
     local o = ORES[ore]
     local label = " " .. o.label .. " "
-    if x + #label - 1 > W then x = 1 y = y + 1 end
+    if x + #label - 1 > W then x = 1 y = y + 2 end
     local active = (selected and oreFor(selected) == ore) or (not selected and hub.target == ore)
     x = button(x, y, label, active and colors.black or colors.white, active and colors.lime or o.color,
       function() setTarget(ore) end)
@@ -389,11 +387,11 @@ local function draw(s)
   if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
 
   -- Session timer
-  y = y + 1
+  y = y + 2
   x = 1
   at(x, y, "Time", colors.lightGray)
   x = 6
-  for _, opt in ipairs({ { " 30m ", 1800 }, { " 1h ", 3600 }, { " 2h ", 7200 }, { " 4h ", 14400 }, { " NO LIMIT ", false } }) do
+  for _, opt in ipairs(TIMES) do
     local active = hub.sessionLen == opt[2]
     local sec = opt[2]
     x = button(x, y, opt[1], active and colors.black or colors.white, active and colors.lime or colors.gray,
