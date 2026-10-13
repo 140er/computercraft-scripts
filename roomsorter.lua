@@ -1181,17 +1181,75 @@ local function usedSlots()
 end
 
 -- Spots from the plan that are still free
+-- Another free spot next to 'cell' the turtle can get to (a road spot if possible):
+-- used when the normal spot above/below a chest is blocked, e.g. by a cable
+local planned -- set of all plan spots (chests and furnaces)
+local function isPlanned(k)
+  if not planned then
+    planned = {}
+    for _, s in ipairs(map.slots) do planned[s.cell] = true end
+    for _, st in ipairs(map.stations or {}) do planned[st.floor.cell], planned[st.top.cell] = true, true end
+  end
+  return planned[k]
+end
+
+local function sideAccess(cell, notPlanned)
+  local r = reachable()
+  local best, bestRoad
+  for _, d in ipairs(ALL_DIRS) do
+    local n = step(cell, d)
+    if free(n) and r[n] and not (notPlanned and isPlanned(n)) then
+      local _, y = unkey(n)
+      local road = (y - (map.floorY or 0)) % 3 == 1
+      if not best or (road and not bestRoad) then best, bestRoad = n, road end
+    end
+  end
+  if best then return best, dirBetween(best, cell) end
+end
+
+-- How a plan spot can be reached: its normal spot, or else from the side
+local function accessFor(s)
+  if free(s.acc) and reachable()[s.acc] then return s.acc, s.dir end
+  -- only from a spot that isn't meant for a chest itself (else nothing is won)
+  return sideAccess(s.cell, true)
+end
+
+-- A spot where placing just failed (someone standing there?) waits a minute
+local function waiting(cell)
+  local f = map.placeFails and map.placeFails[cell]
+  return type(f) == "table" and f.t and os.epoch("utc") - f.t < 60000
+end
+
 local function freeSlot(filter)
   for _, s in ipairs(map.slots) do
-    if not idx[s.cell] and not (map.bad and map.bad[s.cell]) and free(s.cell) and reachable()[s.acc]
-      and (not filter or filter(s)) and safeToFill(s.cell) then return s end
+    if not idx[s.cell] and not (map.bad and map.bad[s.cell]) and free(s.cell) and not waiting(s.cell)
+      and (not filter or filter(s)) then
+      local acc, dir = accessFor(s)
+      if acc and safeToFill(s.cell) then return { cell = s.cell, acc = acc, dir = dir } end
+    end
   end
+end
+
+-- Storage chests whose spot got blocked: open them from another side from now on
+local function fixAccess()
+  local changed = false
+  for k, e in pairs(idx) do
+    if e.kind == "store" and not e.merged and not canReach(e) then
+      local acc, dir = sideAccess(k)
+      if acc then
+        e.acc, e.dir = acc, dir
+        changed = true
+        log("Chest at " .. k .. " is opened from the side now")
+      end
+    end
+  end
+  if changed then saveIdx() end
 end
 -- Spots it can still build on (free and reachable)
 local function usableSpots()
   local n = 0
   for _, sl in ipairs(map.slots) do
-    if not idx[sl.cell] and not (map.bad and map.bad[sl.cell]) and free(sl.cell) and reachable()[sl.acc] then n = n + 1 end
+    if not idx[sl.cell] and not (map.bad and map.bad[sl.cell]) and free(sl.cell) and accessFor(sl) then n = n + 1 end
   end
   return n
 end
@@ -1214,7 +1272,7 @@ end
 local function placeAt(s, tslot, kind)
   local side = goToInv(s)
   local d = detail(tslot)
-  if d and d.name == "minecraft:chest" then
+  if d and d.name == "minecraft:chest" and side ~= "front" then
     -- Chests in a row all face the same way (along the row), the next row the other
     -- way: then no two of them join into a double chest
     local _, _, z = unkey(s.cell)
@@ -1222,6 +1280,12 @@ local function placeAt(s, tslot, kind)
   end
   turtle.select(tslot)
   local ok = PLACE[side]()
+  for _ = 1, 3 do -- someone standing there? wait a moment and try again
+    if ok or inspectDir(s.dir) then break end
+    sleep(1)
+    turtle.select(tslot)
+    ok = PLACE[side]()
+  end
   turtle.select(1)
   if not ok then
     local isBlock, data = inspectDir(s.dir == "up" and "up" or s.dir == "down" and "down" or s.dir)
@@ -1232,12 +1296,24 @@ local function placeAt(s, tslot, kind)
       log("Something in the way at " .. s.cell .. ": skipping that spot")
       saveMap()
     else
-      log("Can't place at " .. s.cell, true)
-      markBad(s.cell)
+      -- nothing visible there: try again next round, give up after 5 rounds in a row
+      map.placeFails = map.placeFails or {}
+      local f = map.placeFails[s.cell] or { n = 0 }
+      if type(f) ~= "table" then f = { n = f } end
+      f.n, f.t = f.n + 1, os.epoch("utc")
+      map.placeFails[s.cell] = f
+      if f.n >= 5 then
+        log("Can't place at " .. s.cell .. " (5 tries), skipping it", true)
+        markBad(s.cell)
+      else
+        log("Couldn't place at " .. s.cell .. ", trying again later")
+        saveMap()
+      end
     end
     return nil
   end
   map.cells[s.cell] = d and d.name or "p"
+  if map.placeFails then map.placeFails[s.cell] = nil end
   saveMap()
   local e = { kind = kind, acc = s.acc, dir = s.dir, size = 27, items = {} }
   idx[s.cell] = e
@@ -1274,7 +1350,8 @@ local function placeStorage()
   local s = freeSlot()
   if not s then return false end
   setState("Building a chest")
-  return placeAt(s, tslot, "store") ~= nil
+  placeAt(s, tslot, "store") -- if it fails, that spot waits and the next one is tried
+  return true
 end
 
 local function furnaces()
@@ -1290,6 +1367,7 @@ local function freeStation()
   for _, st in ipairs(map.stations or {}) do
     if not idx[st.floor.cell] and not (map.bad and (map.bad[st.floor.cell] or map.bad[st.top.cell]))
       and free(st.floor.cell) and (idx[st.top.cell] or free(st.top.cell)) and reachable()[st.floor.acc]
+      and not waiting(st.floor.cell) and not waiting(st.top.cell)
       and safeToFill(st.floor.cell) and (idx[st.top.cell] or safeToFill(st.top.cell)) then return st end
   end
 end
@@ -1323,6 +1401,14 @@ end
 -- Every chest/barrel it has (or has in storage) gets built right away
 local function buildChests()
   while freeSlot() do
+    -- Keep a chest back for every spot that waits for a retry, so no hole stays behind
+    local waitingSpots, have = 0, carriedCount(function(n) return CHEST_ITEMS[n] ~= nil end)
+    for _, sl in ipairs(map.slots) do
+      if not idx[sl.cell] and waiting(sl.cell) and not (map.bad and map.bad[sl.cell]) then waitingSpots = waitingSpots + 1 end
+    end
+    local t = totals()
+    for name in pairs(CHEST_ITEMS) do have = have + (t[name] or 0) end
+    if have <= waitingSpots then break end
     if not placeStorage() then return end
   end
   -- Chests left but nowhere to put them: say so
@@ -1849,6 +1935,7 @@ end
 -- Main
 ---------------------------------------------------------------------------
 local function round()
+  fixAccess()
   serveRequests()
   pullInput()
   refuelSelf()
@@ -1863,6 +1950,10 @@ local function round()
 end
 
 local function worker()
+  if not map.badCleared then -- older versions gave up on a spot after 1 failed try
+    map.bad, map.badCleared = nil, true
+    saveMap()
+  end
   if map.layout ~= 2 then log("Old room plan: pick up what it built and run 'roomsorter scan force' for the tidy layout", true) end
   setState("Checking position")
   local ok, err = pcall(verifyPose)
