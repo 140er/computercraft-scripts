@@ -65,6 +65,8 @@ hub.mineMinutes = hub.mineMinutes or 15
 hub.reach = hub.reach or 96
 -- Session timer: how long the fleet mines after you pick an ore (seconds, false = no limit)
 if hub.sessionLen == nil then hub.sessionLen = 3600 end
+-- Mining mode: "thorough" (branches every 4, wall checks) or "fast" (every 2, no turning)
+hub.mode = hub.mode or "thorough"
 hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
@@ -111,7 +113,7 @@ local function mergeProgress(role, p)
     local c = cur.levels[y]
     if not c or (L.branch or 0) > (c.branch or 0)
       or (L.branch == c.branch and (L.step or 0) > (c.step or 0)) then
-      c = { branch = L.branch, step = L.step, spine = math.max(L.spine or 0, c and c.spine or 0),
+      c = { branch = L.branch, step = L.step, junction = L.junction, spine = math.max(L.spine or 0, c and c.spine or 0),
         full = L.full or (c and c.full), offset = L.offset or (c and c.offset) }
       cur.levels[y] = c
     else
@@ -165,7 +167,7 @@ local function handle(id, m)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left,
+      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode,
       progress = hub.progress[m.role],
       update = releasedVersion(),
     })
@@ -357,6 +359,12 @@ local function draw(s)
   if selected and turtles[selected] then applyTo = applyTo .. (turtles[selected].p.label or ("#" .. selected))
   else applyTo = applyTo .. "ALL turtles" end
   at(1, y, applyTo, colors.lightGray)
+  local modeLabel = (hub.mode == "fast") and " FAST " or " THOROUGH "
+  button(W - #modeLabel + 1, y, modeLabel, colors.black, (hub.mode == "fast") and colors.orange or colors.cyan, function()
+    hub.mode = (hub.mode == "fast") and "thorough" or "fast"
+    save()
+    flash("Mode: " .. hub.mode .. " (from the next branch on)")
+  end)
   y = y + 1
   for i, ore in ipairs(ORDER) do
     local o = ORES[ore]

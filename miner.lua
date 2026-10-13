@@ -10,6 +10,7 @@
 -- Then:
 --   miner            listens to the hub (dashboard) for orders
 --   miner diamond    works without a hub, mines diamonds (also: iron, gold, ...)
+--   miner diamond fast   same, in fast mode
 --   miner home       after putting it back on its home spot by hand: reset position
 --
 -- Chest with fuel directly BEHIND the turtle. Turtle needs a pickaxe + wireless/ender modem.
@@ -36,7 +37,8 @@ local PROTOCOL = "minearmy"
 local CFG_FILE, STATE_FILE = "miner.cfg", "miner.state"
 
 local BRANCH_LEN = 64      -- default branch length (the hub can override this)
-local BRANCH_GAP = 4       -- a branch every 4 blocks = 3 blocks between
+local BRANCH_GAP = 4       -- thorough mode: a branch every 4 blocks = 3 blocks between
+local FAST_GAP = 2         -- fast mode: a branch every 2 blocks = 1 block between, no wall checks
 local FUEL_MARGIN = 64     -- extra fuel on top of the way home
 local MIN_TRIP_FUEL = 2000 -- try to refuel at least this much
 local JUNK_EVERY = 10      -- drop junk every ~10 dug blocks
@@ -814,8 +816,8 @@ local function excavate(d, wa, wb, caveStop)
   if not ok then return false, why end
   guard(UP)
   guard(DOWN)
-  guard(wa)
-  guard(wb)
+  if wa then guard(wa) end -- fast mode passes no walls: no turning
+  if wb then guard(wb) end
   return true
 end
 
@@ -884,12 +886,22 @@ local AREA_FULL = "area full"
 
 -- Pick the layer to work on: the ore level, or a layer higher up when the lower
 -- ones are full (every other layer has its branches shifted by 2 blocks).
+local mode = "thorough" -- "thorough" or "fast", set per trip from the hub
+
+-- Where branch L.branch starts along the main tunnel. Stored, so the spacing can
+-- change between branches when you switch modes (older saves get it computed).
+local function junctionOf(L)
+  if L.junction == nil then L.junction = L.branch * BRANCH_GAP + (L.offset or 0) end
+  return L.junction
+end
+
 local function pickLevel(base)
   for n = 0, MAX_LAYERS - 1 do
     local y = base + LAYER_STEP * n
     if y > HOME.y - 8 then break end
     local L = level(y)
-    if L.offset == nil then L.offset = (n % 2 == 1) and 2 or 0 end
+    -- every other layer: branches shifted by half the spacing, so they fall in between
+    if L.offset == nil then L.offset = (n % 2 == 1) and ((mode == "fast") and 1 or 2) or 0 end
     if not L.full then return y end
   end
   return nil
@@ -903,7 +915,8 @@ local function workLevel(j)
   mineUntil = j.mineMinutes and (os.clock() + j.mineMinutes * 60) or nil
   while true do
     local k = L.branch
-    local junction = k * BRANCH_GAP + (L.offset or 0)
+    local junction = junctionOf(L)
+    local fast = (mode == "fast")
     if junction > reach then
       -- This layer is done within the reach; next trip takes the next layer
       L.full = true
@@ -918,7 +931,8 @@ local function workLevel(j)
       if along(SPINE) < L.spine then
         moveOrFail(SPINE, "Main tunnel blocked")
       else
-        local ok, why = excavate(SPINE, BRANCH, OPP[BRANCH])
+        local ok, why
+        if fast then ok, why = excavate(SPINE) else ok, why = excavate(SPINE, BRANCH, OPP[BRANCH]) end
         if not ok and why == UNLOADED then return UNLOADED end
         if not ok then
           L.blocked = why
@@ -938,7 +952,9 @@ local function workLevel(j)
       if i <= L.step then
         moveOrFail(BRANCH, "Branch blocked")
       else
-        local ok, why = excavate(BRANCH, SPINE, OPP[SPINE], true)
+        local ok, why
+        if fast then ok, why = excavate(BRANCH, nil, nil, true)
+        else ok, why = excavate(BRANCH, SPINE, OPP[SPINE], true) end
         if not ok and why == UNLOADED then return UNLOADED end -- not done: resume later
         if not ok then
           print("Branch " .. k .. " ended: " .. tostring(why))
@@ -950,6 +966,7 @@ local function workLevel(j)
       end
     end
     L.branch = k + 1
+    L.junction = junction + (fast and FAST_GAP or BRANCH_GAP)
     L.step = 0
     save()
     goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
@@ -1164,7 +1181,7 @@ end
 local function tripFuel(j)
   local L = st.levels[j.y] or { branch = 1 }
   local down = HOME.y - j.y
-  local far = (L.branch + 2) * BRANCH_GAP + (j.branchLen or BRANCH_LEN)
+  local far = math.min(reach, (L.junction or L.branch * BRANCH_GAP) + 8) + (j.branchLen or BRANCH_LEN)
   return math.max(MIN_TRIP_FUEL, 2 * (down + far) + 600)
 end
 
@@ -1187,6 +1204,7 @@ local function mergeProgress(hp)
     local L = level(y)
     if (h.branch or 0) > L.branch then
       L.branch, L.step = h.branch, h.step or 0
+      if h.junction then L.junction = h.junction end
     elseif h.branch == L.branch and (h.step or 0) > L.step then
       L.step = h.step
     end
@@ -1249,7 +1267,8 @@ end
 local function getJob()
   if standaloneOre then
     local o = ORES[standaloneOre]
-    return { ore = standaloneOre, y = o.y, targets = o.targets, branchLen = BRANCH_LEN }
+    return { ore = standaloneOre, y = o.y, targets = o.targets, branchLen = BRANCH_LEN,
+      mode = (args[2] == "fast") and "fast" or "thorough" }
   end
   local reply = askHub()
   if reply then
@@ -1259,7 +1278,7 @@ local function getJob()
     if reply.paused or not reply.ore then return nil, "waiting for orders" end
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
-      mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn }
+      mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn, mode = reply.mode }
   end
   return nil, "no hub found (staying home)"
 end
@@ -1404,6 +1423,7 @@ end
 
 local function trip(j0)
   reach = j0.reach or REACH
+  mode = (j0.mode == "fast") and "fast" or "thorough"
   st.sessionEnd = j0.stopIn and (nowMs() + j0.stopIn * 1000) or nil
   local base = j0.baseY or j0.y
   local Y = pickLevel(base)
