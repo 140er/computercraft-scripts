@@ -64,28 +64,39 @@ if args[1] == "client" then
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end) or peripheral.find("modem")
   if not modem then print("Needs a wireless modem, or a wired modem + cable to the board computer.") return end
   rednet.open(peripheral.getName(modem))
-  print("Looking for the storage turtle (" .. (modem.isWireless() and "wireless" or "wired") .. " modem)...")
-  local id = rednet.lookup(PROTOCOL)
-  if not id then
-    -- The turtle also sends its stock every 10 s: wait for that
-    local timer = os.startTimer(15)
-    while not id do
-      local ev, a, b, c = os.pullEvent()
-      if ev == "rednet_message" and c == PROTOCOL .. "_stock" then id = a
-      elseif ev == "timer" and a == timer then break end
+  local id, proto
+  if modem.isWireless() then
+    print("Looking for the storage turtle...")
+    id = rednet.lookup(PROTOCOL)
+    if not id then
+      -- The turtle also sends its stock every 10 s: wait for that
+      local timer = os.startTimer(15)
+      while not id do
+        local ev, a, b, c = os.pullEvent()
+        if ev == "rednet_message" and c == PROTOCOL .. "_stock" then id = a
+        elseif ev == "timer" and a == timer then break end
+      end
     end
-  end
-  if not id then
-    print("No storage turtle found. Check:")
-    print("- the turtle runs roomsorter and has a wireless modem")
-    print("- the board monitor says LIVE (then the turtle is heard)")
-    if not modem.isWireless() then
-      print("- the board computer runs the new roomsorter.lua (reboot it); its own screen should say '2 modems found'")
-      print("- the cable goes from this computer's modem to the board computer's modem")
+    if not id then
+      print("No storage turtle found. Is it running roomsorter, with a wireless modem, within ~64 blocks?")
+      return
     end
-    return
+    proto = PROTOCOL
+    print("Connected to the storage turtle.")
+  else
+    -- Wired: the board computer on the other end of the cable passes requests on
+    print("Looking for the board computer on the cable...")
+    id = rednet.lookup(PROTOCOL .. "_relay")
+    if not id then
+      print("Board computer not found on the cable. Check:")
+      print("- the board computer runs the NEW roomsorter.lua and was rebooted (its own screen says 'Passing requests')")
+      print("- a wired modem sits on the board computer itself, one on this computer, cable between them")
+      return
+    end
+    proto = PROTOCOL .. "_relay"
+    print("Connected through the board computer (#" .. id .. ").")
   end
-  print("Connected to the storage turtle. Commands: list [text], find <item>, get <item> [n], quit")
+  print("Commands: list [text], find <item>, get <item> [n], quit")
   local history = {}
   while true do
     write("> ")
@@ -97,8 +108,9 @@ if args[1] == "client" then
     if #words > 0 then
       local n = tonumber(words[#words])
       local text = table.concat(words, " ", 2, n and #words - 1 or #words)
-      rednet.send(id, { cmd = words[1]:lower(), text = text, n = n }, PROTOCOL)
-      local from, reply = rednet.receive(PROTOCOL, 5)
+      rednet.send(id, { cmd = words[1]:lower(), text = text, n = n }, proto)
+      local from, reply
+      repeat from, reply = rednet.receive(proto, 8) until not from or from == id
       if not from then print("No answer (out of range?)")
       elseif type(reply) == "table" then for _, l in ipairs(reply) do print(l) end
       else print(tostring(reply)) end
@@ -118,6 +130,7 @@ local function fmtNum(n)
   return (n < 0 and "-" or "") .. s
 end
 
+local boardTurtle -- id of the turtle, learned from its stock messages
 local function board()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then print("Needs a wireless (or ender) modem.") return end
@@ -333,7 +346,7 @@ local function board()
           if n ~= old then flash[name] = { now() + 4000, n > old and 1 or -1 } end
         end
       end
-      data, lastMsg = b, now()
+      data, lastMsg, boardTurtle = b, now(), a
       sample()
     elseif ev == "timer" and a == frame then
       tick = tick + 1
@@ -352,14 +365,28 @@ if args[1] == "board" then
   -- computer on the cable can reach the turtle without its own wireless modem
   local wired = peripheral.find("modem", function(_, m) return not m.isWireless() end)
   if wired then
+    rednet.open(peripheral.getName(wired))
+    rednet.host(PROTOCOL .. "_relay", "board" .. os.getComputerID())
+    if peripheral.find("monitor") then print("Passing requests from the cable on to the turtle.") end
     parallel.waitForAny(board, function()
-      sleep(0.5)
-      local w = term.current()
-      local tw, th = w.getSize()
-      -- with a monitor the terminal is free for the relay's messages, else keep it hidden
-      local relayWin = window.create(w, 1, 2, tw, th - 1, peripheral.find("monitor") ~= nil)
-      term.redirect(relayWin)
-      shell.run("repeat")
+      while true do
+        local from, msg = rednet.receive(PROTOCOL .. "_relay")
+        if type(msg) == "table" then
+          local reply
+          if not boardTurtle then
+            reply = { "The board doesn't hear the turtle (yet). Wait for LIVE on the board." }
+          else
+            rednet.send(boardTurtle, msg, PROTOCOL)
+            local deadline = os.clock() + 5
+            while not reply do
+              local f, r = rednet.receive(PROTOCOL, math.max(0.1, deadline - os.clock()))
+              if not f then reply = { "The turtle didn't answer (busy or out of range?)." }
+              elseif f == boardTurtle then reply = r end
+            end
+          end
+          rednet.send(from, reply, PROTOCOL .. "_relay")
+        end
+      end
     end)
   else
     board()
