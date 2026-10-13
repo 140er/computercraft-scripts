@@ -100,9 +100,9 @@ if args[1] == "setup" then
     if gx then hx, hy, hz = math.floor(gx + 0.5), math.floor(gy + 0.5), math.floor(gz + 0.5) end
   end
   if not (hx and hy and hz and facing and role) then
-    print("Gebruik: miner setup <x> <y> <z> <facing> <rol>")
-    print("  facing/rol: north, east, south of west")
-    print("  bv: miner setup -216 65 -743 south east")
+    print("Usage: miner setup <x> <y> <z> <facing> <role>")
+    print("  facing/role: north, east, south or west")
+    print("  e.g. miner setup -216 65 -743 south east")
     return
   end
   local found, info = false, nil
@@ -110,7 +110,7 @@ if args[1] == "setup" then
   found, info = turtle.inspect()
   turtle.turnLeft() turtle.turnLeft()
   if not (found and info.name:find("chest") or found and info.name:find("barrel")) then
-    print("LET OP: geen kist gevonden achter de turtle!")
+    print("WARNING: no chest found behind the turtle!")
   end
   saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
@@ -118,16 +118,16 @@ if args[1] == "setup" then
   h.write('shell.run("miner")\n')
   h.close()
   os.setComputerLabel("Miner-" .. DIRNAME[role])
-  print("Opgeslagen. Thuis " .. hx .. "," .. hy .. "," .. hz .. " kijkt " .. DIRNAME[facing])
-  print("Hoofdgang " .. DIRNAME[role] .. ", zijgangen " .. DIRNAME[(role + 1) % 4])
-  print("Start met: miner   (of herstart de turtle)")
+  print("Saved. Home " .. hx .. "," .. hy .. "," .. hz .. " facing " .. DIRNAME[facing])
+  print("Main tunnel " .. DIRNAME[role] .. ", branches " .. DIRNAME[(role + 1) % 4])
+  print("Start with: miner   (or reboot the turtle)")
   return
 end
 
-if not turtle then error("miner.lua draait alleen op een turtle", 0) end
+if not turtle then error("miner.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
 if not cfg then
-  print("Nog niet ingesteld. Eerst: miner setup <x> <y> <z> <facing> <rol>")
+  print("Not set up yet. First: miner setup <x> <y> <z> <facing> <role>")
   return
 end
 local HOME = cfg.home
@@ -147,14 +147,14 @@ if args[1] == "home" then
   s0.vein = {}
   s0.pending = nil
   saveTable(STATE_FILE, s0)
-  print("Positie gezet op startplek " .. HOME.x .. "," .. HOME.y .. "," .. HOME.z .. " (kijkt " .. DIRNAME[cfg.facing] .. ").")
-  print("Zorg dat hij daar echt staat, kist erachter. Start met: miner")
+  print("Position reset to home " .. HOME.x .. "," .. HOME.y .. "," .. HOME.z .. " (facing " .. DIRNAME[cfg.facing] .. ").")
+  print("Make sure it really stands there, chest behind it. Start with: miner")
   return
 end
 
 local standaloneOre = args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
-  print("Onbekend erts: " .. standaloneOre)
+  print("Unknown ore: " .. standaloneOre)
   return
 end
 
@@ -175,7 +175,7 @@ local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
 
-local status = "Opstarten"
+local status = "Starting"
 local recall = false
 local updateWanted = false -- hub heeft een nieuwe versie vrijgegeven: naar huis om te updaten
 local hubId = nil
@@ -194,6 +194,11 @@ end
 
 local function packet()
   local j = st.job or {}
+  local items = {}
+  for s = 1, 16 do
+    local d = turtle.getItemDetail(s)
+    if d then items[d.name] = (items[d.name] or 0) + d.count end
+  end
   local L = j.y and st.levels[j.y] or {}
   return {
     type = "status", v = VERSION, hash = MY_HASH, id = os.getComputerID(),
@@ -203,6 +208,7 @@ local function packet()
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
+    items = items,
   }
 end
 
@@ -446,7 +452,7 @@ local function dig(d)
   for _ = 1, RETRY do
     local info = inspect(d)
     if not info or isLiquid(info) then return true end
-    if isUnbreakable(info) then return false, "onbreekbaar (" .. info.name .. ")" end
+    if isUnbreakable(info) then return false, "unbreakable (" .. info.name .. ")" end
     if isTarget(info) then st.found = st.found + 1 end
     if digf() then
       afterDig()
@@ -455,7 +461,7 @@ local function dig(d)
       sleep(0.3)
     end
   end
-  return false, "blijft dicht"
+  return false, "stays blocked"
 end
 
 local function applyMove(d)
@@ -494,7 +500,7 @@ local function move(d, inVein)
         else return false, why end
       end
     end
-    if turtle.getFuelLevel() == 0 then return false, "geen fuel" end
+    if turtle.getFuelLevel() == 0 then return false, "out of fuel" end
     if rawMove(d, inVein) then
       publish(false)
       return true
@@ -502,12 +508,12 @@ local function move(d, inVein)
     if d == UP then turtle.attackUp() elseif d == DOWN then turtle.attackDown() else turtle.attack() end
     sleep(0.2 * math.min(attempt, 5))
   end
-  return false, "geblokkeerd"
+  return false, "blocked"
 end
 
 local function moveOrFail(d, what)
   local ok, why = move(d)
-  if not ok then error((what or "Vast") .. ": " .. tostring(why), 0) end
+  if not ok then error((what or "Stuck") .. ": " .. tostring(why), 0) end
 end
 
 ---------------------------------------------------------------------------
@@ -543,7 +549,7 @@ local function unwindVein()
   while #st.vein > 0 do
     local d = st.vein[#st.vein]
     local ok = move(OPP[d])
-    if not ok then error("Kan niet terug uit ader", 0) end
+    if not ok then error("Cannot get back out of vein", 0) end
     st.vein[#st.vein] = nil
     save()
   end
@@ -558,7 +564,7 @@ local function goAxis(axis, target)
     if axis == "y" then d = (target > cur) and UP or DOWN
     elseif axis == "x" then d = (target > cur) and 1 or 3
     else d = (target > cur) and 2 or 0 end
-    moveOrFail(d, "Terugweg geblokkeerd")
+    moveOrFail(d, "Way home blocked")
   end
 end
 
@@ -568,7 +574,7 @@ local function axisOf(d) return (d == 1 or d == 3) and "x" or "z" end
 local function goHome(reason)
   st.phase = "returning"
   save()
-  setStatus("Naar huis: " .. (reason or ""))
+  setStatus("Going home: " .. (reason or ""))
   unwindVein()
   if pos.y < HOME.y - 2 then dropJunk() end
   -- Let op: ook de hoogte vergelijken. De hoofdgang van de "north"-turtle loopt
@@ -581,7 +587,7 @@ local function goHome(reason)
       goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
     end
     goAxis("y", HOME.y)
-    moveOrFail(OPP[cfg.facing], "Startplek geblokkeerd") -- 1 blok terug, kist weer achter hem
+    moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 blok terug, kist weer achter hem
   end
   st.phase = "home"
   save()
@@ -641,7 +647,7 @@ local function scanEdges()
           scanFor(dirs)
           while #st.vein > depth do
             local back = st.vein[#st.vein]
-            if not move(OPP[back]) then error("Kan niet terug uit ader", 0) end
+            if not move(OPP[back]) then error("Cannot get back out of vein", 0) end
             st.vein[#st.vein] = nil
             save()
           end
@@ -659,14 +665,14 @@ mineVein = function(d, target)
   veinCount = veinCount + 1
   local depth = #st.vein
   local prev = status
-  status = "Ader volgen"
+  status = "Following vein"
   if not move(d, true) then status = prev return end
   veinSeen[key(pos.x, pos.y, pos.z)] = true
   scanFor({ UP, DOWN, st.h, (st.h + 1) % 4, (st.h + 3) % 4, (st.h + 2) % 4 })
   if target then scanEdges() end
   while #st.vein > depth do
     local back = st.vein[#st.vein]
-    if not move(OPP[back]) then error("Kan niet terug uit ader", 0) end
+    if not move(OPP[back]) then error("Cannot get back out of vein", 0) end
     st.vein[#st.vein] = nil
     save()
   end
@@ -707,7 +713,7 @@ local function excavate(d, wa, wb, caveStop)
   if r == "lava" and isLava(inspect(d)) then return false, "lava" end
   if caveStop and isOpen(r) then
     seal(d)
-    return false, "grot"
+    return false, "cave"
   end
   local ok, why = move(d)
   if not ok then return false, why end
@@ -732,14 +738,14 @@ end
 local mineUntil = nil -- os.clock() waarop hij terug moet (max. graaftijd per trip)
 
 local function stopReason()
-  if recall then return "teruggeroepen" end
+  if recall then return "recalled" end
   if updateWanted then return "update" end
-  if mineUntil and os.clock() > mineUntil then return "trip-tijd om" end
+  if mineUntil and os.clock() > mineUntil then return "trip time up" end
   if not fuelOk(8) then
     burnMinedFuel()
-    if not fuelOk(8) then return "fuel bijna op" end
+    if not fuelOk(8) then return "fuel low" end
   end
-  if not roomLeft() then return "inventory vol" end
+  if not roomLeft() then return "inventory full" end
   return nil
 end
 
@@ -755,15 +761,15 @@ end
 -- Naar beneden door de (bestaande) schacht
 local function descend(Y)
   st.phase = "descending"
-  setStatus("Schacht omlaag naar Y " .. Y)
+  setStatus("Down the shaft to Y " .. Y)
   while pos.y > Y do
     local r = stopReason()
     if r then return r end
     if pos.y - 1 >= st.shaft then
-      moveOrFail(DOWN, "Schacht geblokkeerd")
+      moveOrFail(DOWN, "Shaft blocked")
     else
       local ok, why = excavateDown()
-      if not ok then error("Schacht: " .. tostring(why), 0) end
+      if not ok then error("Shaft: " .. tostring(why), 0) end
       st.shaft = pos.y
       save()
     end
@@ -783,40 +789,40 @@ local function workLevel(j)
     local k = L.branch
     local junction = k * BRANCH_GAP
     -- Hoofdgang tot kruising k
-    setStatus("Hoofdgang naar zijgang " .. k)
+    setStatus("Main tunnel to branch " .. k)
     while along(SPINE) < junction do
       local r = stopReason()
       if r then return r end
       if along(SPINE) < L.spine then
-        moveOrFail(SPINE, "Hoofdgang geblokkeerd")
+        moveOrFail(SPINE, "Main tunnel blocked")
       else
         local ok, why = excavate(SPINE, BRANCH, OPP[BRANCH])
         if not ok then
           L.blocked = why
           save()
-          return "hoofdgang dicht: " .. tostring(why)
+          return "main tunnel blocked: " .. tostring(why)
         end
         L.spine = along(SPINE)
         save()
       end
     end
     -- Zijgang
-    setStatus("Zijgang " .. k .. " (" .. L.step .. "/" .. BL .. ")")
+    setStatus("Branch " .. k .. " (" .. L.step .. "/" .. BL .. ")")
     while along(BRANCH) < BL do
       local r = stopReason()
       if r then return r end
       local i = along(BRANCH) + 1
       if i <= L.step then
-        moveOrFail(BRANCH, "Zijgang geblokkeerd")
+        moveOrFail(BRANCH, "Branch blocked")
       else
         local ok, why = excavate(BRANCH, SPINE, OPP[SPINE], true)
         if not ok then
-          print("Zijgang " .. k .. " gestopt: " .. tostring(why))
+          print("Branch " .. k .. " ended: " .. tostring(why))
           break
         end
         L.step = i
         save()
-        if i % 8 == 0 then setStatus("Zijgang " .. k .. " (" .. i .. "/" .. BL .. ")") end
+        if i % 8 == 0 then setStatus("Branch " .. k .. " (" .. i .. "/" .. BL .. ")") end
       end
     end
     L.branch = k + 1
@@ -861,7 +867,7 @@ local function unload()
       else
         haulInto(haul, s)
         turtle.select(s)
-        if not turtle.drop() then print("Kist vol!") end
+        if not turtle.drop() then print("Chest full!") end
       end
     end
   end
@@ -988,19 +994,19 @@ end
 -- Nieuwe miner.lua van de hub halen, controleren, opslaan en herstarten.
 -- Gebeurt alleen thuis (na het lossen), dus er gaat geen voortgang verloren.
 local function selfUpdate(wanted)
-  setStatus("Update ophalen van de hub")
+  setStatus("Downloading update from hub")
   local r = request({ type = "get_miner", id = os.getComputerID() }, "miner_file", 10)
-  if not r or type(r.code) ~= "string" then print("Update mislukt: geen antwoord") return end
-  if hashOf(r.code) ~= wanted then print("Update mislukt: beschadigd") return end
+  if not r or type(r.code) ~= "string" then print("Update failed: no answer") return end
+  if hashOf(r.code) ~= wanted then print("Update failed: corrupted") return end
   local fn, err = load(r.code, "miner", "t", _ENV)
-  if not fn then print("Update mislukt: " .. tostring(err)) return end
+  if not fn then print("Update failed: " .. tostring(err)) return end
   local tmp = PROGRAM .. ".new"
   local h = fs.open(tmp, "w")
   h.write(r.code)
   h.close()
   if fs.exists(PROGRAM) then fs.delete(PROGRAM) end
   fs.move(tmp, PROGRAM)
-  setStatus("Bijgewerkt, herstarten")
+  setStatus("Updated, rebooting")
   sleep(1)
   os.reboot()
 end
@@ -1023,13 +1029,13 @@ local function getJob()
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     updateWanted = false
     mergeProgress(reply.progress)
-    if reply.paused or not reply.ore then return nil, "wacht op opdracht (hub)" end
+    if reply.paused or not reply.ore then return nil, "waiting for orders" end
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
       mineMinutes = reply.mineMinutes }
   end
-  if st.job then return st.job, "hub niet bereikbaar, vorige opdracht" end
-  return nil, "geen hub gevonden"
+  if st.job then return st.job, "hub unreachable, previous job" end
+  return nil, "no hub found"
 end
 
 ---------------------------------------------------------------------------
@@ -1049,7 +1055,7 @@ local function calibrateAtHome()
       st.vein = {}
       st.pending = nil
       save()
-      if i > 0 then print("Kist gevonden: ik sta op mijn startplek") end
+      if i > 0 then print("Chest found: I am on my home spot") end
       return true
     end
     turtle.turnRight() -- 4x rechts = weer de oude richting als er geen kist is
@@ -1073,8 +1079,8 @@ local function recover()
   end
   if st.job then setTargets(st.job.targets) end
   if st.phase ~= "home" or pos.x ~= HOME.x or pos.y ~= HOME.y or pos.z ~= HOME.z then
-    print("Herstart onderweg, terug naar huis")
-    goHome("herstart")
+    print("Rebooted away from home, going back")
+    goHome("reboot")
   end
 end
 
@@ -1083,11 +1089,11 @@ local function trip(j)
   st.found = 0
   setTargets(j.targets)
   save()
-  if j.y > HOME.y - 3 then error("Niveau " .. j.y .. " ligt te dicht bij huis", 0) end
+  if j.y > HOME.y - 3 then error("Level " .. j.y .. " is too close to home", 0) end
   mineUntil = nil
   if pos.x == HOME.x and pos.y == HOME.y and pos.z == HOME.z then
     st.phase = "descending"
-    moveOrFail(cfg.facing, "Gat voor de turtle geblokkeerd")
+    moveOrFail(cfg.facing, "Hole in front of the turtle blocked")
   end
   local reason = descend(j.y)
   if not reason then reason = workLevel(j) end
@@ -1101,41 +1107,41 @@ local function worker()
     face(OPP[cfg.facing])
     while not chestInFront() do
       -- Geen kist = hij staat niet waar hij denkt. Niets weggooien, niet verder graven.
-      setStatus("FOUT: geen kist achter me. Zet me op mijn startplek, Ctrl+T, typ: miner home")
+      setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: miner home")
       sleep(30)
       face(OPP[cfg.facing])
     end
-    setStatus("Lossen")
+    setStatus("Unloading")
     local haul = unload()
     for n, c in pairs(haul) do st.total[n] = (st.total[n] or 0) + c end
     save()
     report(haul)
     local j, why = getJob()
     if not j then
-      setStatus("Wacht: " .. tostring(why))
+      setStatus((tostring(why):gsub("^%l", string.upper)))
       sleep(10)
     elseif recall then
-      setStatus("Teruggeroepen, wacht op hub")
+      setStatus("Recalled, waiting for hub")
       sleep(10)
     else
-      setStatus("Tanken")
+      setStatus("Refueling")
       local need = tripFuel(j)
       refuelFromChest(need)
       local f = turtle.getFuelLevel()
       local minimum = 2 * (HOME.y - j.y) + 200
       if f ~= "unlimited" and f < minimum then
-        setStatus("Te weinig kolen in de kist (" .. f .. "/" .. minimum .. ")")
+        setStatus("Not enough fuel in the chest (" .. f .. "/" .. minimum .. ")")
         sleep(30)
       else
-        setStatus("Op weg: " .. j.ore .. " op Y " .. j.y)
+        setStatus("Heading out: " .. j.ore .. " at Y " .. j.y)
         local ok, err = pcall(trip, j)
         if not ok then
           if err == "Terminated" then error(err, 0) end
-          setStatus("Fout: " .. tostring(err))
-          local ok2, err2 = pcall(goHome, "na fout")
+          setStatus("Error: " .. tostring(err))
+          local ok2, err2 = pcall(goHome, "after error")
           if not ok2 then
             if err2 == "Terminated" then error(err2, 0) end
-            setStatus("VAST: " .. tostring(err2))
+            setStatus("STUCK: " .. tostring(err2))
             sleep(30)
             pcall(recover)
           end
@@ -1170,6 +1176,6 @@ local function heartbeat()
 end
 
 openModem()
-if not radio then print("Geen wireless modem: hub/dashboard werkt niet.") end
+if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
 parallel.waitForAny(worker, listener, heartbeat)

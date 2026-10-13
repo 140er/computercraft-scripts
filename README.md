@@ -53,9 +53,9 @@ Zo krijgt elke turtle zijn eigen kwadrant, en geen gang kruist een schacht van e
 ### Gewone wireless modems
 Een gewone wireless modem reikt ongeveer 64 blokken. Diep onder de grond hoort de hub de turtles dus niet. Dat is geen probleem:
 - Opdrachten haalt een turtle op als hij thuis is, en daar lost hij ook zijn buit. Dat werkt altijd, zolang de hub binnen ~64 blokken van de turtles staat (naast ze is prima).
-- Op het dashboard staat een turtle die onderweg is in oranje als "Onder de grond". Rood "GEEN SIGNAAL" betekent dat hij thuis zou moeten zijn maar niets laat horen.
+- Op het dashboard staat een turtle die onderweg is in oranje als "Underground". Rood "NO SIGNAL" betekent dat hij thuis zou moeten zijn maar niets laat horen.
 - Een turtle graaft maximaal `mineMinutes` (standaard 15) minuten per trip en komt dan terug, ook als hij nog niet vol is. Zo wordt een nieuwe erts-keuze binnen een kwartier opgepikt. Aan te passen in `hub.state`.
-- `TERUG NU` bereikt alleen turtles binnen bereik. De hub blijft de oproep herhalen, maar een turtle diep beneden komt pas terug na zijn trip-tijd. `STOP` werkt altijd: thuis blijft hij staan.
+- `RECALL` bereikt alleen turtles binnen bereik. De hub blijft de oproep herhalen, maar een turtle diep beneden komt pas terug na zijn trip-tijd. `STOP` werkt altijd: thuis blijft hij staan.
 - Met ender modems werkt alles live, zonder deze beperkingen.
 
 ### Installeren
@@ -89,14 +89,14 @@ Herstart daarna de turtles (of typ `miner`).
 
 ### Bediening (dashboard)
 - Tik op een erts (Diamond, Iron, ...). Alle turtles gaan daarvoor graven. Een nieuwe keuze geldt vanaf de volgende trip.
-- Tik eerst op een turtle in de lijst en dan op een erts: alleen die turtle krijgt dat erts. `ALLE` gaat terug naar de hele vloot.
+- Tik eerst op een turtle in de lijst en dan op een erts: alleen die turtle krijgt dat erts. `ALL` gaat terug naar de hele vloot.
 - `STOP`: na de huidige trip thuis blijven.
-- `TERUG NU`: meteen naar huis (als hij binnen bereik is). `HERVAT` laat ze weer gaan.
-- Toetsenbord: `1`-`7` erts, `s` stop, `r` terug, `h` hervat, `a` alle, `q` afsluiten.
-- Onderaan staat het totaal dat in de kisten is gelost.
+- `RECALL`: meteen naar huis (als hij binnen bereik is). `RESUME` laat ze weer gaan.
+- Toetsenbord: `1`-`7` erts, `s` stop, `r` recall, `h` resume, `u` update, `a` alle, `q` afsluiten.
+- Onderaan ("IN TURTLES NOW") staat wat er op dit moment in de turtles zit, opgeteld. Turtles buiten bereik tellen mee met hun laatst gemelde inhoud.
 
 ### Turtle staat verkeerd / denkt dat hij thuis is
-Een turtle lost nooit iets als er geen kist achter hem staat. Dan zie je op het dashboard "FOUT: geen kist achter me".
+Een turtle lost nooit iets als er geen kist achter hem staat. Dan zie je op het dashboard "ERROR: no chest behind me".
 Oplossen: pak de turtle op (hij houdt zijn bestanden) en zet hem op zijn startplek naast de kist, in welke richting maakt niet uit. Bij het opstarten kijkt hij rond: ziet hij zijn kist, dan weet hij dat hij thuis is en zet hij positie en richting zelf goed. De voortgang blijft bewaard.
 Werkt dat niet, typ dan (Ctrl+T eerst als hij al bezig is):
 ```

@@ -20,7 +20,7 @@ if args[1] == "install" then
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("hub")\n')
   h.close()
-  print("Hub start nu automatisch bij opstarten.")
+  print("Hub will now start automatically on boot.")
   return
 end
 
@@ -34,17 +34,6 @@ local ORES = {
   coal     = { label = "Coal",     y = 48,  color = colors.gray,      targets = { "minecraft:coal_ore", "minecraft:deepslate_coal_ore" } },
 }
 local ORDER = { "diamond", "redstone", "gold", "lapis", "iron", "copper", "coal" }
--- Welke items tellen voor het totaal-overzicht
-local TALLY = {
-  { "Diamond", { "minecraft:diamond" } },
-  { "Redstone", { "minecraft:redstone" } },
-  { "Gold", { "minecraft:raw_gold", "minecraft:gold_ore", "minecraft:deepslate_gold_ore" } },
-  { "Lapis", { "minecraft:lapis_lazuli" } },
-  { "Iron", { "minecraft:raw_iron", "minecraft:iron_ore", "minecraft:deepslate_iron_ore" } },
-  { "Copper", { "minecraft:raw_copper" } },
-  { "Coal", { "minecraft:coal" } },
-  { "Emerald", { "minecraft:emerald" } },
-}
 
 ---------------------------------------------------------------------------
 -- Opslag
@@ -93,7 +82,7 @@ for _, name in ipairs(peripheral.getNames()) do
     modemFound = true
   end
 end
-if not modemFound then error("Sluit een wireless of ender modem aan op deze computer.", 0) end
+if not modemFound then error("Attach a wireless or ender modem to this computer.", 0) end
 rednet.host(PROTOCOL, "hub")
 
 local function oreFor(id)
@@ -241,13 +230,13 @@ end
 local function releaseUpdate()
   local hash = minerVersion()
   if not hash then
-    flash("Geen miner.lua op de hub. Sleep hem eerst naar dit scherm.")
+    flash("No miner.lua on the hub. Drag it onto this screen first.")
     return
   end
   hub.released = hash
   save()
   send(nil, { type = "update", hash = hash })
-  flash("Update " .. hash .. " vrijgegeven. Turtles updaten zodra ze thuis zijn.")
+  flash("Update " .. hash .. " released. Turtles update when they get home.")
 end
 
 local function outdatedCount()
@@ -259,6 +248,17 @@ local function outdatedCount()
   end
   return n
 end
+
+-- "minecraft:raw_iron" -> "Raw iron"
+local function prettyName(id)
+  local n = id:gsub("^[^:]*:", ""):gsub("_", " ")
+  return n:sub(1, 1):upper() .. n:sub(2)
+end
+local COMMON = {
+  ["minecraft:cobblestone"] = true, ["minecraft:cobbled_deepslate"] = true, ["minecraft:stone"] = true,
+  ["minecraft:deepslate"] = true, ["minecraft:tuff"] = true, ["minecraft:bucket"] = true,
+  ["minecraft:lava_bucket"] = true, ["minecraft:dirt"] = true, ["minecraft:gravel"] = true,
+}
 
 local function fmtAge(sec)
   if sec < 60 then return math.floor(sec) .. "s" end
@@ -298,9 +298,9 @@ local function draw(s)
   at(1, 1, string.rep(" ", W), colors.white, colors.gray)
   at(2, 1, "MINE ARMY HUB", colors.yellow, colors.gray)
   local mode
-  if hub.recallAll then mode = "TERUGGEROEPEN"
-  elseif hub.target then mode = "GRAAFT: " .. ORES[hub.target].label:upper() .. " (Y " .. ORES[hub.target].y .. ")"
-  else mode = "GESTOPT" end
+  if hub.recallAll then mode = "RECALLED"
+  elseif hub.target then mode = "MINING: " .. ORES[hub.target].label:upper() .. " (Y " .. ORES[hub.target].y .. ")"
+  else mode = "STOPPED" end
   at(math.max(16, W - #mode), 1, mode, hub.target and not hub.recallAll and colors.lime or colors.red, colors.gray)
 
   if notice and os.clock() < noticeUntil then at(1, 2, notice, colors.yellow) end
@@ -308,9 +308,9 @@ local function draw(s)
   -- Erts-knoppen
   local y = 3
   local x = 1
-  local applyTo = "Opdracht voor: "
+  local applyTo = "Orders for: "
   if selected and turtles[selected] then applyTo = applyTo .. (turtles[selected].p.label or ("#" .. selected))
-  else applyTo = applyTo .. "ALLE turtles" end
+  else applyTo = applyTo .. "ALL turtles" end
   at(1, y, applyTo, colors.lightGray)
   y = y + 1
   for i, ore in ipairs(ORDER) do
@@ -324,22 +324,22 @@ local function draw(s)
   y = y + 2
   x = 1
   x = button(x, y, " STOP ", colors.white, colors.red, stopAll)
-  x = button(x, y, " TERUG NU ", colors.white, colors.purple, recallNow)
-  if hub.recallAll then x = button(x, y, " HERVAT ", colors.black, colors.lime, resumeAll) end
+  x = button(x, y, " RECALL ", colors.white, colors.purple, recallNow)
+  if hub.recallAll then x = button(x, y, " RESUME ", colors.black, colors.lime, resumeAll) end
   local outdated = outdatedCount()
   x = button(x, y, outdated > 0 and (" UPDATE (" .. outdated .. ") ") or " UPDATE ", colors.white,
     outdated > 0 and colors.green or colors.gray, releaseUpdate)
-  if selected then x = button(x, y, " ALLE ", colors.black, colors.white, function() selected = nil end) end
+  if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
 
   -- Turtle-tabel
   y = y + 2
-  at(1, y, "Turtle       Taak     Status", colors.cyan)
-  local right = "Y    Fuel  Vrij"
+  at(1, y, "Turtle       Job      Status", colors.cyan)
+  local right = "Y    Fuel  Free"
   at(W - #right + 1, y, right, colors.cyan)
   y = y + 1
   local list = ids()
   if #list == 0 then
-    at(1, y, "Nog geen turtles gezien. Start 'miner' op de turtles.", colors.lightGray)
+    at(1, y, "No turtles seen yet. Run 'miner' on the turtles.", colors.lightGray)
     y = y + 1
   end
   for _, id in ipairs(list) do
@@ -356,14 +356,14 @@ local function draw(s)
     local statColor = colors.lightGray
     if age > STALE then
       if away then
-        stat = "Onder de grond (" .. fmtAge(age) .. ") " .. stat
+        stat = "Underground (" .. fmtAge(age) .. ") " .. stat
         statColor = colors.orange
       else
-        stat = "GEEN SIGNAAL " .. fmtAge(age) .. " | " .. stat
+        stat = "NO SIGNAL " .. fmtAge(age) .. " | " .. stat
         statColor = colors.red
       end
     end
-    if p.branch and p.phase == "mining" then ore = ore .. " z" .. p.branch end
+    if p.branch and p.phase == "mining" then ore = ore .. " b" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
     local want = releasedVersion()
     if want and p.hash and p.hash ~= want then
@@ -385,22 +385,36 @@ local function draw(s)
     y = y + 1
   end
 
-  -- Totalen
-  local tot = {}
-  for _, tl in ipairs(TALLY) do
-    local n = 0
-    for _, name in ipairs(tl[2]) do n = n + (hub.totals[name] or 0) end
-    if n > 0 then tot[#tot + 1] = tl[1] .. " " .. n end
+  -- Wat er nu in de turtles zit (laatst gemelde inventory van elke turtle)
+  local sum = {}
+  for _, r in pairs(turtles) do
+    if type(r.p.items) == "table" then
+      for name, n in pairs(r.p.items) do
+        if type(n) == "number" then sum[name] = (sum[name] or 0) + n end
+      end
+    end
   end
-  local line = "Totaal: " .. (#tot > 0 and table.concat(tot, "  ") or "nog niets")
-  local ty = H - 1
-  if #line > W then
-    at(1, ty - 1, line:sub(1, W), colors.lightBlue)
-    at(1, ty, line:sub(W + 1, 2 * W), colors.lightBlue)
-  else
-    at(1, ty, line, colors.lightBlue)
+  local list2 = {}
+  for name, n in pairs(sum) do list2[#list2 + 1] = { name = name, n = n, common = COMMON[name] and 1 or 0 } end
+  table.sort(list2, function(a, b)
+    if a.common ~= b.common then return a.common < b.common end -- erts eerst, cobble/emmers achteraan
+    if a.n ~= b.n then return a.n > b.n end
+    return a.name < b.name
+  end)
+  local top = y + 1
+  if top <= H - 1 then
+    at(1, top, "IN TURTLES NOW", colors.cyan)
+    local row, col = top + 1, 1
+    if #list2 == 0 then at(1, row, "nothing", colors.lightGray) end
+    for _, it in ipairs(list2) do
+      local txt = prettyName(it.name) .. " " .. it.n
+      if col > 1 and col + #txt - 1 > W then row, col = row + 1, 1 end
+      if row > H - 1 then break end
+      at(col, row, txt, it.common == 1 and colors.lightGray or colors.lightBlue)
+      col = col + #txt + 2
+    end
   end
-  at(1, H, ("Tik turtle = alleen die. 1-7 erts s stop r terug u update q uit"):sub(1, W), colors.gray)
+  at(1, H, ("Tap a turtle = only that one. 1-7 ore s stop r recall u update q quit"):sub(1, W), colors.gray)
 end
 
 local function redraw()
@@ -466,4 +480,4 @@ parallel.waitForAny(netLoop, uiLoop)
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)
-print("Hub gestopt.")
+print("Hub stopped.")
