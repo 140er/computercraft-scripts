@@ -4,6 +4,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
 - **Sorter & Smelter** (`sorter.lua`): a turtle (or computer) on a wired network of chests and furnaces. It empties the miners' chests, smelts the raw ores in all your furnaces and blast furnaces, keeps them fuelled and sorts everything into storage. See [Sorter & Smelter](#sorter--smelter).
+- **Storage Room** (`roomsorter.lua`): no modems or cables. A turtle in a closed room maps the room, builds its own chests and furnaces, sorts and smelts what you put in the input chest, remembers where everything is and brings you items in the output chest. See [Storage Room](#storage-room).
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
 
 ---
@@ -247,6 +248,60 @@ Type at the `>` line at the bottom of the turtle's screen:
 - `fuels`: fuel order, most preferred first.
 - `useStorageFuel` (true): also burn coal from storage.
 - Smelted totals are in `sorter.stats`, errors in `sorter.log`.
+
+---
+
+## Storage Room
+
+`roomsorter.lua`: the no-cables version. One turtle in a closed room does it all: it maps the room, places the chests and furnaces you give it, sorts and smelts, and **remembers which chest holds what**. It also checks each chest's contents every time it visits it, so its memory stays right.
+
+### What you need
+- A **closed room** (any size and shape, up to ~6000 blocks of air) with an **input chest** and an **output chest** built into the walls, so you can reach them from outside. At least 3 blocks high if you want furnaces.
+- A plain turtle (no tool needed). A wireless modem on it is optional (for asking from outside, see below).
+- Some coal in the turtle for the first scan.
+
+### Setup
+1. Put the turtle **on the floor, facing the input chest**, with some coal in it.
+2. `roomsorter scan`. The turtle flies through the whole room once and maps it (a 16x16 room takes ~20 minutes). If the room has a hole, it says so and comes back.
+   - More than one other chest in the walls? Put 1 item in the output chest (only there) and scan again.
+3. `roomsorter install`, then `roomsorter`.
+4. Put **chests or barrels**, **furnaces / blast furnaces** and **coal** in the input chest. The turtle builds with them.
+
+### How it builds
+```
+ y+2   [chest][chest][chest]...    <- chests/helper chests, reached from below
+ y+1    . . . turtle road . . .     <- always kept free
+ y+0   [chest][furnace][chest]...  <- chests and furnaces on the floor, reached from above
+```
+- The layer 1 block above the floor stays free as the turtle's road (in tall rooms every 3rd layer). Chests go on the floor and in the layer above the road, nearest to the input chest first. In tall rooms it keeps going up the same way.
+- It never blocks a spot it needs to get somewhere, and it keeps the blocks around its start spot and next to the wall chests free.
+- Chests next to each other alternate north/south so they don't join into double chests. Barrels work too.
+- A **furnace** goes on the floor with a helper chest straight above it (above the road). The turtle drops ores in from above and moves fuel and results through the helper chest. Up to 8 furnaces (`maxFurnaces`).
+- It keeps a stack of chests and the furnaces it can still place on board, and fetches more from storage when it runs out.
+
+### Sorting and smelting
+- Each kind of item gets its own chest: first a chest that already has it, then an empty chest, then a new chest it places, and only when all of that is full, any free slot.
+- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first). Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
+- Out of room and out of chests: the screen shows **FULL**, and new items stay in the input chest.
+
+### Getting items out
+Type on the turtle (walk into the room and right-click it), or ask from outside with a computer (below):
+| Command | What |
+|---|---|
+| `get iron ingot 32` | brings 32 iron ingots to the output chest (default: 1 stack) |
+| `find diamond` | how many there are |
+| `list` | everything in storage |
+| `pause` / `resume` / `quit` | on the turtle only |
+
+**From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands.
+
+### Restarts
+- Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.
+- Picked it up? Put it back on its start spot facing the input chest and type `roomsorter home`, then `roomsorter`.
+- Changed the room (moved a wall)? `roomsorter scan force` maps it again, but it forgets what is where, so empty the chests it built first.
+
+### Settings (`room.cfg`)
+`maxFurnaces` (8), `queue` (32 items per furnace), `interval` (5 s between looks in the input chest), `minFuel` (1000), `extraSmelt` (e.g. `{ "minecraft:oak_log" }` for charcoal), `noSmelt`, `fuels`, `maxSize` / `maxHeight` / `maxCells` (how big a room may be). The map is in `room.map`, what is where in `room.idx`, errors in `room.log`.
 
 ---
 
