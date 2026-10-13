@@ -95,9 +95,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 ```
  Mining Diamond (Y -58)                    THOROUGH
 
-  Diamond   Redstone   Gold   Lapis   Iron   Copper
-
-  Coal
+  Dia   Rstone   Gold   Lapis   Iron   Copper  Coal
 
   STOP   RECALL   UPDATE (2)
 

@@ -25,8 +25,8 @@ if args[1] == "install" then
 end
 
 local ORES = {
-  diamond  = { label = "Diamond",  y = -58, color = colors.lightBlue, targets = { "minecraft:diamond_ore", "minecraft:deepslate_diamond_ore" } },
-  redstone = { label = "Redstone", y = -58, color = colors.red,       targets = { "minecraft:redstone_ore", "minecraft:deepslate_redstone_ore" } },
+  diamond  = { label = "Diamond",  short = "Dia",  y = -58, color = colors.lightBlue, targets = { "minecraft:diamond_ore", "minecraft:deepslate_diamond_ore" } },
+  redstone = { label = "Redstone", short = "Rstone", y = -58, color = colors.red,       targets = { "minecraft:redstone_ore", "minecraft:deepslate_redstone_ore" } },
   gold     = { label = "Gold",     y = -16, color = colors.yellow,    targets = { "minecraft:gold_ore", "minecraft:deepslate_gold_ore" } },
   lapis    = { label = "Lapis",    y = 0,   color = colors.blue,      targets = { "minecraft:lapis_ore", "minecraft:deepslate_lapis_ore" } },
   iron     = { label = "Iron",     y = 16,  color = colors.orange,    targets = { "minecraft:iron_ore", "minecraft:deepslate_iron_ore" } },
@@ -368,13 +368,21 @@ local function draw(s)
   -- Ore buttons
   y = y + 2
   local x = 1
+  -- All on one line when they fit; if the gaps don't all fit, the last buttons touch
+  local sum = 0
+  for _, ore in ipairs(ORDER) do sum = sum + #(ORES[ore].short or ORES[ore].label) + 2 end
+  local gaps = W - sum
   for i, ore in ipairs(ORDER) do
     local o = ORES[ore]
-    local label = " " .. o.label .. " "
+    local label = " " .. (o.short or o.label) .. " "
     if x + #label - 1 > W then x = 1 y = y + 2 end
     local active = (selected and oreFor(selected) == ore) or (not selected and hub.target == ore)
     x = button(x, y, label, active and colors.black or colors.white, active and colors.lime or o.color,
       function() setTarget(ore) end)
+    if gaps >= 0 and gaps < #ORDER - 1 then -- squeeze: fewer gaps than buttons
+      x = x - 1
+      if gaps > 0 then x = x + 1 gaps = gaps - 1 end
+    end
   end
   y = y + 2
   x = 1
