@@ -2,7 +2,7 @@
 
 ComputerCraft (CC: Tweaked) turtle scripts.
 
-- `hub.lua` + `miner.lua`: **Mine Army**. A hub with a dashboard in your base, and a fleet of mining turtles that each go down their own shaft to the ore level, dig branch tunnels there and come back.
+- `hub.lua` + `miner.lua` (+ optional `relay.lua`): **Mine Army**. A hub with a dashboard in your base, and a fleet of mining turtles that each go down their own shaft to the ore level, dig branch tunnels there and come back.
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
 
 ## Mine Army
@@ -50,9 +50,17 @@ This gives every turtle its own quadrant, and no tunnel crosses another turtle's
 - It keeps empty buckets. When it finds a lava source on the way, it scoops it with an empty bucket, burns it right away (+1000 fuel) and then seals the spot with a block. There is a lot of lava at Y -58, so a turtle with a bucket fuels itself.
 - 2 full buckets per turtle is enough to start. If you only use coal, still give it 1 empty bucket.
 - Flowing lava can't be picked up with a bucket; it just gets sealed.
+- Water is never scooped. A water bucket from an older version gets poured into the next cave opening (which is sealed right after), so the turtle gets its empty bucket back.
 
-### Normal wireless modems
-A normal wireless modem reaches about 64 blocks, so the hub can't hear turtles deep underground. That's fine:
+### Range: put a relay up high
+A wireless modem's range grows with its height: about 64 blocks below y=96, up to about 384 blocks near the build limit. A message gets through when it is within range of *either* modem, so one modem high up covers everything.
+- Put a computer with a (normal) wireless modem high above your base, at y 250 or more (on a pillar is fine).
+- Copy `relay.lua` onto it and type `relay install`, then `relay`.
+- It runs CC's built-in `repeat` program and forwards all messages between the hub and the turtles.
+- Keep its chunk loaded (above your base is fine). During thunderstorms the range can drop.
+
+### Normal wireless modems without a relay
+Without a relay, the hub can't hear turtles that are more than ~64 blocks away. That's fine:
 - A turtle gets its orders and unloads its loot at home. That always works as long as the hub is within ~64 blocks of the turtles (right next to them is fine).
 - On the dashboard a turtle that is out on a trip shows in orange as "Underground". Red "NO SIGNAL" means it should be home but isn't answering.
 - A turtle mines at most `mineMinutes` (default 15) minutes per trip and then comes back, even if it isn't full. That way a new ore choice gets picked up within 15 minutes. Change it in `hub.state`.

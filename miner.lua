@@ -289,7 +289,7 @@ end
 -- (raw ores, gems, dusts, also modded), fuel and buckets. Everything else is junk.
 local KEEP_NAMES = {}
 for _, n in ipairs({ "diamond", "emerald", "lapis_lazuli", "redstone", "coal", "charcoal", "coal_block",
-  "quartz", "ancient_debris", "netherite_scrap", "gold_nugget", "bucket", "lava_bucket" }) do
+  "quartz", "ancient_debris", "netherite_scrap", "gold_nugget", "bucket", "lava_bucket", "water_bucket" }) do
   KEEP_NAMES["minecraft:" .. n] = true
 end
 local KEEP_TAGS = { "c:ores", "forge:ores", "c:raw_materials", "forge:raw_materials", "c:gems",
@@ -391,7 +391,7 @@ local function placeDir(d)
   return turtle.place()
 end
 
-local BUCKET, LAVA_BUCKET = "minecraft:bucket", "minecraft:lava_bucket"
+local BUCKET, LAVA_BUCKET, WATER_BUCKET = "minecraft:bucket", "minecraft:lava_bucket", "minecraft:water_bucket"
 
 local function findItem(name, skip)
   for s = 1, 16 do
@@ -408,6 +408,7 @@ end
 local function scoopLava(d)
   local f = turtle.getFuelLevel()
   if f == "unlimited" or f > turtle.getFuelLimit() - 1000 then return end
+  if not isLava(inspect(d)) then return end -- only lava: never scoop water
   local s = findItem(BUCKET)
   if not s then return end
   turtle.select(s)
@@ -717,9 +718,22 @@ local function isOpen(r) return r == nil or (type(r) == "table" and isLiquid(r))
 
 -- Like check(), but an opening into a cave (air/water) gets sealed,
 -- so no mobs, water or lava get into the tunnels.
+-- A water bucket picked up by an older version: pour it into a cave opening
+-- (sealed right after), so the turtle gets its empty bucket back for lava.
+local function pourWaterBucket(d)
+  local s = findItem(WATER_BUCKET)
+  if not s then return end
+  turtle.select(s)
+  placeDir(d)
+  turtle.select(1)
+end
+
 local function guard(d)
   local r = check(d)
-  if isOpen(r) then seal(d) end
+  if isOpen(r) then
+    if r == nil then pourWaterBucket(d) end
+    seal(d)
+  end
 end
 
 -- A new 1x1 tunnel cell in direction d (horizontal). Above, below and walls wa/wb
@@ -873,7 +887,7 @@ local function unload()
   local kept = false
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
-    if d and (d.name == BUCKET or d.name == LAVA_BUCKET) then
+    if d and (d.name == BUCKET or d.name == LAVA_BUCKET or d.name == WATER_BUCKET) then
       -- keep buckets: empty ones to scoop lava, full ones to burn
     elseif d then
       if not kept and isJunk(s) and sealable(s) then
