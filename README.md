@@ -55,7 +55,7 @@ A turtle never goes further than **96 blocks** (6 chunks) from its shaft, so it 
 ### Fuel: lava buckets
 - A full lava bucket = 1000 fuel. The turtle burns full buckets from its own inventory and from the chest.
 - It keeps empty buckets. When it finds a lava source on the way, it scoops it with an empty bucket, burns it right away (+1000 fuel) and then seals the spot with a block. There is a lot of lava at Y -58, so a turtle with a bucket fuels itself.
-- 2 full buckets per turtle is enough to start. If you only use coal, still give it 1 empty bucket.
+- 2 full buckets per turtle is enough to start. A turtle without a bucket takes one from its chest when it is home (a full lava bucket if there is one, otherwise an empty one), so keep a spare bucket in the chest.
 - Flowing lava can't be picked up with a bucket; it just gets sealed.
 - Water is never scooped. A water bucket from an older version gets poured into the next cave opening (which is sealed right after), so the turtle gets its empty bucket back.
 

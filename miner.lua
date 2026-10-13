@@ -1039,6 +1039,68 @@ local function refuelFromChest(target)
   turtle.select(1)
 end
 
+-- Move chest slot 'slot' to chest slot 1, so turtle.suck() takes exactly that stack
+local function chestToFront(chest, list, slot)
+  if slot == 1 then return true end
+  if list[1] then
+    local free
+    for e = chest.size(), 2, -1 do if not list[e] then free = e break end end
+    if not free then return false end
+    if not pcall(chest.pushItems, "front", 1, 64, free) then return false end
+  end
+  return (pcall(chest.pushItems, "front", slot, 64, 1))
+end
+
+-- Make sure the turtle carries a bucket to scoop lava with. If it has none, take one
+-- from the chest: a full lava bucket if there is one (burned when refueling), else an
+-- empty one. Without the chest peripheral: look through the first stacks with suck.
+local function ensureBucket()
+  if findItem(BUCKET) or findItem(LAVA_BUCKET) or findItem(WATER_BUCKET) then return true end
+  local chest = peripheral.wrap("front")
+  if chest and chest.list and chest.pushItems then
+    local ok, list = pcall(chest.list)
+    if ok and type(list) == "table" then
+      local pick
+      for slot, it in pairs(list) do
+        if it.name == LAVA_BUCKET then pick = slot break end
+        if it.name == BUCKET and not pick then pick = slot end
+      end
+      if pick and chestToFront(chest, list, pick) then
+        local s = emptySlot()
+        if s then
+          turtle.select(s)
+          turtle.suck(1)
+          local d = turtle.getItemDetail(s)
+          turtle.select(1)
+          if d and (d.name == BUCKET or d.name == LAVA_BUCKET) then return true end
+          if d then turtle.select(s) turtle.drop() turtle.select(1) end
+        end
+      end
+    end
+  end
+  -- Fallback: take stacks one by one, keep 1 bucket, put everything else back
+  local held, got = {}, false
+  for _ = 1, 8 do
+    local s = emptySlot()
+    if not s or freeSlots() <= 1 then break end
+    turtle.select(s)
+    if not turtle.suck(64) then break end
+    local d = turtle.getItemDetail(s)
+    held[#held + 1] = s
+    if d and (d.name == BUCKET or d.name == LAVA_BUCKET) then got = s break end
+  end
+  for _, s in ipairs(held) do
+    turtle.select(s)
+    if s == got then
+      if turtle.getItemCount(s) > 1 then turtle.drop(turtle.getItemCount(s) - 1) end
+    else
+      turtle.drop()
+    end
+  end
+  turtle.select(1)
+  return got and true or false
+end
+
 -- Clean the chest: only ores, fuel and buckets may stay. Anything else is moved
 -- to chest slot 1 (via the chest peripheral), sucked into the turtle and dropped
 -- underground on the next trip. Returns the number of stacks removed.
@@ -1063,15 +1125,7 @@ local function cleanChest()
       end
     end
     if not bad then break end
-    if bad ~= 1 then
-      if list[1] then
-        local free
-        for e = chest.size(), 2, -1 do if not list[e] then free = e break end end
-        if not free then break end
-        if not pcall(chest.pushItems, "front", 1, 64, free) then break end
-      end
-      if not pcall(chest.pushItems, "front", bad, 64, 1) then break end
-    end
+    if not chestToFront(chest, list, bad) then break end
     local s = emptySlot()
     turtle.select(s)
     if not turtle.suck(64) then break end
@@ -1278,6 +1332,7 @@ local function worker()
     setStatus("Unloading")
     local haul = unload()
     local cleaned = cleanChest()
+    if not ensureBucket() then print("No bucket: put an empty bucket in the chest to scoop lava") end
     if cleaned > 0 then print("Removed " .. cleaned .. " junk stacks from the chest") end
     for n, c in pairs(haul) do st.total[n] = (st.total[n] or 0) + c end
     save()
