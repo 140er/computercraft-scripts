@@ -121,6 +121,12 @@ miner
 ```
 `miner home` only resets the position; which tunnels are already dug is kept.
 
+### Heading safety
+- Every turn is saved before it happens, also the turns of the chest search at boot, so a reboot can't leave a turtle with a wrong idea of which way it faces.
+- At the bottom of its shaft it checks on which side its main tunnel opening is (the only opening there) and corrects its heading if needed.
+- On its own routes (shaft, tunnels, way home) it never digs through natural rock. If it finds rock where its tunnel should be, its position or heading is off: it stops and shows "STUCK: LOST at x,y,z" on the dashboard instead of digging new tunnels, possibly up into your base.
+- If it thinks it is home but sees no chest, it first turns around looking for it.
+
 ### Updating the turtles through the hub
 1. Drag the new `miner.lua` onto the **hub computer's** screen. Nothing happens yet.
 2. Press **UPDATE** (or key `u`). The number in brackets is how many turtles run a different version.

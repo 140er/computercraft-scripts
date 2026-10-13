@@ -531,12 +531,15 @@ end
 local function rawMove(d, inVein)
   local mv = turtle.forward
   if d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
+  -- inVein: true = step into a vein (push), "pop" = step back out (pop). Saved together
+  -- with the move, so a reboot right after the move can't leave the vein list wrong.
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
   save()
   local ok, why = mv()
   if ok then
     applyMove(d)
-    if inVein then st.vein[#st.vein + 1] = d end
+    if inVein == "pop" then st.vein[#st.vein] = nil
+    elseif inVein then st.vein[#st.vein + 1] = d end
   end
   st.pending = nil
   save()
@@ -575,8 +578,23 @@ local function move(d, inVein)
   return false, "blocked"
 end
 
-local function moveOrFail(d, what)
-  local ok, why = move(d)
+-- Blocks that never lie on a route the turtle dug itself (gravel/sand can fall in,
+-- seal blocks are cobble, so those are fine). Finding one means position/heading is off.
+local NATURAL = {}
+for _, n in ipairs({ "stone", "deepslate", "tuff", "granite", "diorite", "andesite", "calcite",
+  "dirt", "grass_block", "smooth_basalt", "netherrack", "bedrock" }) do
+  NATURAL["minecraft:" .. n] = true
+end
+local LOST = "LOST"
+
+-- Move along a route the turtle dug itself (shaft, main tunnel, branches, way home)
+local function moveOrFail(d, what, inVein)
+  local info = inspect(d)
+  local hatch = d == DOWN and pos.x == SHAFT.x and pos.z == SHAFT.z and pos.y - 1 == HOME.y - 1
+  if info and not hatch and (NATURAL[info.name] or isOre(info)) then
+    error(LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be", 0)
+  end
+  local ok, why = move(d, inVein)
   if not ok then error((what or "Stuck") .. ": " .. tostring(why), 0) end
 end
 
@@ -612,10 +630,7 @@ end
 local function unwindVein()
   while #st.vein > 0 do
     local d = st.vein[#st.vein]
-    local ok = move(OPP[d])
-    if not ok then error("Cannot get back out of vein", 0) end
-    st.vein[#st.vein] = nil
-    save()
+    moveOrFail(OPP[d], "Cannot get back out of vein", "pop")
   end
 end
 
@@ -713,9 +728,7 @@ local function scanEdges()
           scanFor(dirs)
           while #st.vein > depth do
             local back = st.vein[#st.vein]
-            if not move(OPP[back]) then error("Cannot get back out of vein", 0) end
-            st.vein[#st.vein] = nil
-            save()
+            moveOrFail(OPP[back], "Cannot get back out of vein", "pop")
           end
         end
       end
@@ -742,9 +755,7 @@ mineVein = function(d, target)
   if target then scanEdges() end
   while #st.vein > depth do
     local back = st.vein[#st.vein]
-    if not move(OPP[back]) then error("Cannot get back out of vein", 0) end
-    st.vein[#st.vein] = nil
-    save()
+    moveOrFail(OPP[back], "Cannot get back out of vein", "pop")
   end
   status = prev
 end
@@ -1270,7 +1281,9 @@ local function calibrateAtHome()
       if i > 0 then print("Chest found: I am on my home spot") end
       return true
     end
-    turtle.turnRight() -- 4x right = back to the old heading if there is no chest
+    -- face() saves the heading before every turn, so a reboot during this search
+    -- can't leave the turtle with a wrong idea of where it faces
+    face((st.h + 1) % 4)
   end
   return false
 end
@@ -1284,7 +1297,8 @@ local function recover()
     local f = turtle.getFuelLevel()
     if f ~= "unlimited" and f < st.pending.fuel then
       applyMove(st.pending.d)
-      if st.pending.vein then st.vein[#st.vein + 1] = st.pending.d end
+      if st.pending.vein == "pop" then st.vein[#st.vein] = nil
+      elseif st.pending.vein then st.vein[#st.vein + 1] = st.pending.d end
     end
     st.pending = nil
     save()
@@ -1293,6 +1307,25 @@ local function recover()
   if st.phase ~= "home" or pos.x ~= HOME.x or pos.y ~= HOME.y or pos.z ~= HOME.z then
     print("Rebooted away from home, going back")
     goHome("reboot")
+  end
+end
+
+-- Heading check at the bottom of the shaft: the only opening there is this level's
+-- main tunnel. If it shows up on another side than expected, correct the heading.
+local function shaftCompass(L)
+  if not L or (L.spine or 0) < 1 or pos.x ~= SHAFT.x or pos.z ~= SHAFT.z then return end
+  local open = {}
+  for _ = 1, 4 do
+    local ok, info = turtle.inspect()
+    if not ok or isLiquid(info) then open[#open + 1] = st.h end
+    face((st.h + 1) % 4)
+  end
+  if #open ~= 1 then return end -- unclear (cave, vein hole): keep what we have
+  local err = (SPINE - open[1]) % 4
+  if err ~= 0 then
+    st.h = (st.h + err) % 4
+    save()
+    print("Heading corrected at the shaft (" .. err .. " quarter turns)")
   end
 end
 
@@ -1316,6 +1349,7 @@ local function trip(j0)
   end
   local reason = descend(j.y)
   if not reason then
+    shaftCompass(level(Y))
     dropJunk() -- junk from home (shaft, cleaned chest) goes here, not in the base
     reason = workLevel(j)
   end
@@ -1324,10 +1358,18 @@ local function trip(j0)
 end
 
 local function worker()
-  recover()
+  while true do
+    local ok, err = pcall(recover)
+    if ok then break end
+    if err == "Terminated" then error(err, 0) end
+    -- e.g. LOST: don't dig around blindly, report and retry once a minute
+    setStatus("STUCK: " .. tostring(err))
+    sleep(60)
+  end
   while true do
     st.phase = "home"
     face(OPP[cfg.facing])
+    if not chestInFront() then calibrateAtHome() end
     while not chestInFront() do
       -- No chest = it is not where it thinks. Drop nothing, mine nothing.
       setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: miner home")
