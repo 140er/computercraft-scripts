@@ -14,13 +14,13 @@
 -- Kist met kolen direct ACHTER de turtle. Turtle heeft pickaxe + wireless/ender modem.
 -- De turtle graaft een schacht recht onder zich naar het erts-niveau en hergebruikt
 -- die schacht elke trip. Daar graaft hij een hoofdgang met om de 4 blokken een zijgang
--- (3 blokken steen ertussen), 3 hoog en 1 breed.
+-- (3 blokken steen ertussen), 1x1. Grot-openingen worden dichtgezet.
 
 local VERSION = 2
 local PROTOCOL = "minearmy"
 local CFG_FILE, STATE_FILE = "miner.cfg", "miner.state"
 
-local BRANCH_LEN = 32      -- standaard lengte zijgang (hub kan dit overschrijven)
+local BRANCH_LEN = 64      -- standaard lengte zijgang (hub kan dit overschrijven)
 local BRANCH_GAP = 4       -- om de 4 blokken een zijgang = 3 blokken ertussen
 local FUEL_MARGIN = 64     -- extra fuel bovenop de weg naar huis
 local MIN_TRIP_FUEL = 2000 -- probeer minstens zoveel te tanken
@@ -305,14 +305,21 @@ end
 ---------------------------------------------------------------------------
 -- Beweging
 ---------------------------------------------------------------------------
+-- Draaien. De nieuwe richting wordt VOOR elke draai opgeslagen: een draai gebeurt
+-- direct en de 8 ticks animatie daarna zijn het grootste risico bij een reboot.
 local function face(d)
-  if d >= 4 or d == st.h then return end
-  local diff = (d - st.h) % 4
-  if diff == 1 then turtle.turnRight()
-  elseif diff == 3 then turtle.turnLeft()
-  else turtle.turnRight() turtle.turnRight() end
-  st.h = d
-  save()
+  if d >= 4 then return end
+  while st.h ~= d do
+    if (d - st.h) % 4 == 3 then
+      st.h = (st.h + 3) % 4
+      save()
+      turtle.turnLeft()
+    else
+      st.h = (st.h + 1) % 4
+      save()
+      turtle.turnRight()
+    end
+  end
 end
 
 local function inspect(d)
@@ -650,18 +657,31 @@ end
 ---------------------------------------------------------------------------
 -- Tunnel graven
 ---------------------------------------------------------------------------
--- Een nieuwe tunnelcel in richting d (horizontaal): 3 hoog, wanden wa/wb scannen.
-local function excavate(d, wa, wb)
+local function isOpen(r) return r == nil or (type(r) == "table" and isLiquid(r)) end
+
+-- Als check(), maar een gat naar een grot (lucht/water) wordt dichtgezet,
+-- zodat er geen mobs, water of lava de gangen in komen.
+local function guard(d)
+  local r = check(d)
+  if isOpen(r) then seal(d) end
+end
+
+-- Een nieuwe tunnelcel in richting d (horizontaal), 1x1. Boven, onder en de wanden
+-- wa/wb worden alleen bekeken (geen extra graafwerk, geen ruimte voor mobs).
+-- caveStop: komt hij uit in een grot, dan gang dichtzetten en stoppen (zijgangen).
+local function excavate(d, wa, wb, caveStop)
   local r = check(d)
   if r == "lava" and isLava(inspect(d)) then return false, "lava" end
+  if caveStop and isOpen(r) then
+    seal(d)
+    return false, "grot"
+  end
   local ok, why = move(d)
   if not ok then return false, why end
-  for _, v in ipairs({ UP, DOWN }) do
-    local info = check(v)
-    if type(info) == "table" and not isLiquid(info) and not isUnbreakable(info) then dig(v) end
-  end
-  check(wa)
-  check(wb)
+  guard(UP)
+  guard(DOWN)
+  guard(wa)
+  guard(wb)
   return true
 end
 
@@ -672,7 +692,7 @@ local function excavateDown()
   local ok, why = move(DOWN)
   if not ok then return false, why end
   local h = st.h
-  for i = 0, 3 do check((h + i) % 4) end
+  for i = 0, 3 do guard((h + i) % 4) end
   return true
 end
 
@@ -755,7 +775,7 @@ local function workLevel(j)
       if i <= L.step then
         moveOrFail(BRANCH, "Zijgang geblokkeerd")
       else
-        local ok, why = excavate(BRANCH, SPINE, OPP[SPINE])
+        local ok, why = excavate(BRANCH, SPINE, OPP[SPINE], true)
         if not ok then
           print("Zijgang " .. k .. " gestopt: " .. tostring(why))
           break

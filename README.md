@@ -9,7 +9,9 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 ### Wat het doet
 - Elke turtle rijdt 1 blok vooruit (naar het gat dat je daar gemaakt hebt) en gaat daar omlaag. Hij maakt die 1x1 schacht **één keer** af tot het erts-niveau. Daarna gebruikt hij die schacht elke trip opnieuw. Iron ligt boven diamond, dus dezelfde schacht werkt voor elk niveau.
-- Op het erts-niveau graaft hij een hoofdgang. Om de 4 blokken komt er een zijgang (3 blokken steen ertussen), 3 hoog en 1 breed, standaard 32 lang.
+- Op het erts-niveau graaft hij een hoofdgang. Om de 4 blokken komt er een zijgang (3 blokken steen ertussen), standaard 64 lang.
+- De gangen zijn 1x1. Hij kijkt wel naar het blok erboven en eronder, dus hij vindt evenveel erts als in een 3 hoge gang, maar sneller. In 1 hoge gangen kunnen ook geen mobs spawnen.
+- Grotten: komt een wand, plafond of vloer uit in een grot (lucht of water), dan zet hij dat gat dicht met cobble. Loopt een zijgang een grot in, dan sluit hij de gang af en begint aan de volgende. De hoofdgang gaat er recht doorheen en metselt zichzelf onderweg dicht. Zo blijven de gangen vrij van mobs, water en lava.
 - Bij elke stap kijkt hij links en rechts in de wand. Ertsen volgt hij als ader. Voor het doel-erts (bv. diamond) checkt hij 18 van de 26 buren.
 - Lava wordt afgedicht met het eerste neerzetbare non-ore blok. Hij stapt nooit in lava. Kolen gebruikt hij nooit om af te dichten.
 - Troep (cobble, deepslate, tuff, grind, enz.) gooit hij om de ~10 blokken weg. Eén stapel houdt hij als seal-blok. Alle ertsen, ook modded, houdt hij.

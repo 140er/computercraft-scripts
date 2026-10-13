@@ -61,7 +61,7 @@ hub.target = hub.target           -- nil = gepauzeerd
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
 hub.progress = hub.progress or {}   -- [role] = { levels=, shaft= }
 hub.totals = hub.totals or {}
-hub.branchLen = hub.branchLen or 32
+hub.branchLen = hub.branchLen or 64
 -- Max. minuten graven per trip. Met gewone wireless modems hoort de hub de turtles
 -- alleen bij de basis, dus kortere trips = nieuwe opdrachten worden sneller opgepikt.
 hub.mineMinutes = hub.mineMinutes or 15
