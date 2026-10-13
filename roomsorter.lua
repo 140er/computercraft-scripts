@@ -1023,6 +1023,13 @@ local function holds(e, name)
 end
 local function isEmpty(e) return next(e.items or {}) == nil end
 
+-- Every chest/barrel the turtle built: storage + the helper chests above the furnaces
+local function chestCount()
+  local n = 0
+  for _, e in pairs(idx) do if e.kind == "store" or e.kind == "buffer" then n = n + 1 end end
+  return n
+end
+
 local function totals()
   local t = {}
   for _, k in ipairs(storageList()) do
@@ -1626,7 +1633,7 @@ local function draw(t)
   line(string.rep("-", w), colors.gray)
   line(status.state, colors.white, "fuel " .. tostring(turtle.getFuelLevel()))
   local used, size = usedSlots()
-  local nChests = #storageList()
+  local nChests = chestCount()
   local pct = size > 0 and math.floor(used * 100 / size) or 100
   line(("%d chests, %d/%d slots"):format(nChests, used, size), (status.full or pct >= 90) and colors.orange or colors.white,
     status.full and "FULL" or (pct .. "%"), status.full and colors.red or nil)
@@ -1756,7 +1763,7 @@ local function remote()
   local lastSent, lastSig = -1e9, nil
   local function sendStock(onlyIfChanged)
     local used, size = usedSlots()
-    local msg = { totals = totals(), used = used, size = size, chests = #storageList(),
+    local msg = { totals = totals(), used = used, size = size, chests = chestCount(),
       furnaces = #furnaces(), state = status.state, full = status.full }
     local sig = textutils.serialize(msg.totals) .. used .. tostring(status.full)
     if onlyIfChanged and sig == lastSig then return end
