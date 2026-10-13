@@ -18,7 +18,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 - It goes home when the inventory is full, when it needs the remaining fuel to get back, when its trip time is up, or when the hub recalls it. There it unloads into the chest, refuels from the same chest and goes again.
 - **Clean chest:** every time it unloads, it also cleans its chest. Only ores (raw ores, gems, dusts, modded ores), fuel and buckets may stay. Anything else is taken out and dropped underground on the next trip, never in your base.
 - It saves its position and progress in a file. After a reboot or chunk unload it first goes home safely and then continues where it was.
-- Once it is inside the hole it covers it at floor level with a block, so nobody falls in. On the way back it digs it open, comes up and moves 1 block back to its home spot (chest behind it).
+- The hole stays covered with a block at floor level, so nobody falls in: it closes it right after going down, and again after coming back up before it steps back onto its home spot (chest behind it). On the next trip it digs the block out again.
 
 | Button | Level (Y) |
 |---|---|

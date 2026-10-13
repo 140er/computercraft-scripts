@@ -651,6 +651,8 @@ local function goHome(reason)
       goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
     end
     goAxis("y", HOME.y)
+    -- Close the hole again at floor level, so nobody falls in while the turtle is home
+    if pos.x == SHAFT.x and pos.z == SHAFT.z and not turtle.detectDown() then seal(DOWN) end
     moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 block back, chest behind it again
   end
   st.phase = "home"
@@ -1054,8 +1056,10 @@ end
 -- Make sure the turtle carries a bucket to scoop lava with. If it has none, take one
 -- from the chest: a full lava bucket if there is one (burned when refueling), else an
 -- empty one. Without the chest peripheral: look through the first stacks with suck.
+local noBucketUntil = 0
 local function ensureBucket()
   if findItem(BUCKET) or findItem(LAVA_BUCKET) or findItem(WATER_BUCKET) then return true end
+  if os.clock() < noBucketUntil then return false end
   local chest = peripheral.wrap("front")
   if chest and chest.list and chest.pushItems then
     local ok, list = pcall(chest.list)
@@ -1098,6 +1102,7 @@ local function ensureBucket()
     end
   end
   turtle.select(1)
+  if not got then noBucketUntil = os.clock() + 600 end -- don't shuffle the chest every minute
   return got and true or false
 end
 
