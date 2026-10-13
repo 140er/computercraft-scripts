@@ -270,16 +270,21 @@ Type at the `>` line at the bottom of the turtle's screen:
 4. Put **chests or barrels**, **furnaces / blast furnaces** and **coal** in the input chest. The turtle builds with them.
 
 ### How it builds
+Seen from above (input chest `I` at the top, turtle `T` on its start spot):
 ```
- y+2   [chest][chest][chest]...    <- chests/helper chests, reached from below
- y+1    . . . turtle road . . .     <- always kept free
- y+0   [chest][furnace][chest]...  <- chests and furnaces on the floor, reached from above
+ ####I####       floor                upper layer (above the road)
+ #...T...#   <- row 0: stays free     #.......#
+ #.BFFFB.#   <- row 1: furnaces       #.CCCCC.#  <- their helper chests
+ #CCCCCCC#   <- row 2: storage        #CCCCCCC#
+ #CCCCCCC#   <- row 3                 #CCCCCCC#
+ #CCCC...#   <- fills left to right   #CCC....#
 ```
-- The layer 1 block above the floor stays free as the turtle's road (in tall rooms every 3rd layer). Chests go on the floor and in the layer above the road, nearest to the input chest first. In tall rooms it keeps going up the same way.
-- It never blocks a spot it needs to get somewhere, and it keeps the blocks around its start spot and next to the wall chests free.
-- Chests next to each other alternate north/south so they don't join into double chests. Barrels work too.
-- A **furnace** goes on the floor with a helper chest straight above it (above the road). The turtle drops ores in from above and moves fuel and results through the helper chest. Up to 8 furnaces (`maxFurnaces`).
-- It keeps a stack of chests and the furnaces it can still place on board, and fetches more from storage when it runs out.
+- The layer 1 block above the floor stays free as the turtle's road. Chests go on the floor and in the layer above the road (in tall rooms this repeats every 3 blocks up).
+- **Furnace row:** the row right in front of the start spot, centred on the turtle, a helper chest straight above each furnace. The turtle drops ores in from above and moves fuel and results through the helper chest. Up to 16 furnaces (`maxFurnaces`), or as many as fit in the row.
+- **Storage:** the rows behind it, one row at a time, left to right. Spots outside this pattern (the upper layer over the way in, the ends of the furnace row) are only used when the rest is full.
+- **Everything you give it is built right away:** every furnace (with a chest for its helper) and every chest or barrel. Spares are stored and built as soon as there is a spot.
+- Chests in one row all face the same way and the next row the other way, so they never join into double chests. Barrels work too.
+- It never blocks a spot it needs to get somewhere, and it keeps the blocks next to its start spot and the wall chests free.
 
 ### Sorting and smelting
 - Each kind of item gets its own chest: first a chest that already has it, then an empty chest, then a new chest it places, and only when all of that is full, any free slot.
@@ -325,7 +330,7 @@ Coal                           7    ▼-12   -63.2% █▇▆▅▄▃▂▁▁�
 - Changed the room (moved a wall)? `roomsorter scan force` maps it again, but it forgets what is where, so empty the chests it built first.
 
 ### Settings (`room.cfg`)
-`maxFurnaces` (8), `queue` (32 items per furnace), `interval` (5 s between looks in the input chest), `minFuel` (1000), `extraSmelt` (e.g. `{ "minecraft:oak_log" }` for charcoal), `noSmelt`, `fuels`, `maxSize` / `maxHeight` / `maxCells` (how big a room may be). The map is in `room.map`, what is where in `room.idx`, errors in `room.log`.
+`maxFurnaces` (16), `queue` (32 items per furnace), `interval` (5 s between looks in the input chest), `minFuel` (1000), `extraSmelt` (e.g. `{ "minecraft:oak_log" }` for charcoal), `noSmelt`, `fuels`, `maxSize` / `maxHeight` / `maxCells` (how big a room may be). The map is in `room.map`, what is where in `room.idx`, errors in `room.log`.
 
 ---
 

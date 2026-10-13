@@ -337,7 +337,8 @@ local cfg = loadTable(CFG_FILE) or {}
 cfg.maxSize = cfg.maxSize or 48       -- the room may not reach further than this from the start
 cfg.maxHeight = cfg.maxHeight or 24
 cfg.maxCells = cfg.maxCells or 6000   -- max blocks of air in the room (16x16x4 = 1024)
-cfg.maxFurnaces = cfg.maxFurnaces or 8
+cfg.maxFurnaces = cfg.maxFurnaces or 16
+if not cfg.v2 then cfg.maxFurnaces, cfg.v2 = math.max(cfg.maxFurnaces, 16), true end
 cfg.queue = cfg.queue or 32           -- max items waiting in one furnace
 cfg.interval = cfg.interval or 5      -- seconds between looks in the input chest when idle
 cfg.minFuel = cfg.minFuel or 1000     -- turtle refuels below this
@@ -716,7 +717,7 @@ local function plan()
 
   -- The spots around the start stay free, so the turtle can always tell which way it faces
   local reserved = { [home] = true }
-  for _, d in ipairs({ 1, 2, 3 }) do reserved[step(home, d)] = true end
+  for _, d in ipairs({ 1, 3 }) do reserved[step(home, d)] = true end
   local function accessOf(k)
     local best, bestD
     for _, d in ipairs(ALL_DIRS) do
@@ -801,9 +802,58 @@ local function plan()
       if i % 20 == 0 then os.queueEvent("yield") os.pullEvent("yield") end
     end
   end
-  for _, c in ipairs(slots) do c.d = nil end
-  map.slots = slots
-  return #slots, outputK
+  -- Layout, in rows parallel to the input wall:
+  --   row 0 (along the input wall): stays free on the floor, the way in
+  --   row 1: the furnace row, centred on the start spot. Furnace on the floor, its helper
+  --          chest straight above the road.
+  --   row 2 and further: storage, row by row, left to right, floor and upper layer
+  -- Spots outside that pattern are only used when everything else is full.
+  local bySpot = {}
+  for _, c in ipairs(slots) do c.d = nil bySpot[c.cell] = c end
+  local row = {}
+  for _, c in ipairs(slots) do
+    local x, y, z = unkey(c.cell)
+    if c.dir == "down" and z == 1 and y == floorY then
+      local top = bySpot[step(c.acc, "up")]
+      if top then row[#row + 1] = { floor = c, top = top, x = x } end
+    end
+  end
+  table.sort(row, function(a, b)
+    if math.abs(a.x) ~= math.abs(b.x) then return math.abs(a.x) < math.abs(b.x) end
+    return a.x > b.x
+  end)
+  local stations, used = {}, {}
+  for i = 1, math.min(#row, cfg.maxFurnaces) do
+    stations[i] = { floor = row[i].floor, top = row[i].top }
+    used[row[i].floor.cell], used[row[i].top.cell] = true, true
+  end
+  -- The spot behind the start stays free unless it holds a furnace (so the turtle can
+  -- always tell which way it faces)
+  used[step(home, 2)] = true
+  local main, extra = {}, {}
+  for _, c in ipairs(slots) do
+    if not used[c.cell] then
+      local _, _, z = unkey(c.cell)
+      if z >= 2 then main[#main + 1] = c else extra[#extra + 1] = c end
+    end
+  end
+  local function order(a, b)
+    local ax, ay, az = unkey(a.cell)
+    local bx, by, bz = unkey(b.cell)
+    local _, ar = unkey(a.acc)
+    local _, br = unkey(b.acc)
+    if ar ~= br then return ar < br end -- lowest road first
+    if az ~= bz then return az < bz end -- then row by row
+    if ax ~= bx then return ax < bx end -- left to right
+    return ay < by                      -- floor before the upper layer
+  end
+  table.sort(main, order)
+  table.sort(extra, order)
+  for _, c in ipairs(extra) do main[#main + 1] = c end
+  map.slots = main
+  map.stations = stations
+  map.layout = 2
+  return #main + #stations * 2, outputK
 end
 
 local function scanRoom(height)
@@ -1016,8 +1066,10 @@ local function placeAt(s, tslot, kind)
   local side = goToInv(s)
   local d = detail(tslot)
   if d and d.name == "minecraft:chest" then
-    local x = unkey(s.cell)
-    turnTo(x % 2 == 0 and 2 or 0)
+    -- Chests in a row all face the same way (along the row), the next row the other
+    -- way: then no two of them join into a double chest
+    local _, _, z = unkey(s.cell)
+    turnTo(z % 2 == 0 and 3 or 1)
   end
   turtle.select(tslot)
   local ok = PLACE[side]()
@@ -1076,28 +1128,42 @@ end
 
 -- A furnace goes under the road with a helper chest above the road: the turtle drops
 -- ores in from above and moves fuel and results through the helper chest.
+local function freeStation()
+  for _, st in ipairs(map.stations or {}) do
+    if not idx[st.floor.cell] and not (map.bad and (map.bad[st.floor.cell] or map.bad[st.top.cell])) then return st end
+  end
+end
+
 local function buildFurnaces()
   while #furnaces() < cfg.maxFurnaces do
+    local st = freeStation()
+    if not st then return end
     local fslot, fname = supplySlot(FURNACE_ITEMS)
-    local cslot = supplySlot(CHEST_ITEMS)
-    if not fslot or not cslot then return end
-    local s = freeSlot(function(s)
-      if s.dir ~= "down" then return false end
-      local top = slotAt(step(s.acc, "up"))
-      return top and not idx[top.cell] and not (map.bad and map.bad[top.cell])
-    end)
-    if not s then return end
-    setState("Building a furnace")
-    local top = slotAt(step(s.acc, "up"))
-    if placeAt(top, cslot, "buffer") then
-      local f = placeAt(s, fslot, "furnace")
-      if f then
-        f.blast = FURNACE_ITEMS[fname] == "blast"
-        f.buffer = top.cell
-        saveIdx()
-        log("Built a " .. (f.blast and "blast furnace" or "furnace"))
+    if not fslot then return end
+    if not idx[st.top.cell] then
+      local cslot = supplySlot(CHEST_ITEMS)
+      if not cslot then
+        status.note = "A furnace is waiting for a chest"
+        return
       end
+      setState("Building a furnace")
+      if not placeAt(st.top, cslot, "buffer") then return end
     end
+    setState("Building a furnace")
+    local f = placeAt(st.floor, fslot, "furnace")
+    if not f then return end
+    f.blast = FURNACE_ITEMS[fname] == "blast"
+    f.buffer = st.top.cell
+    status.note = nil
+    saveIdx()
+    log("Built a " .. (f.blast and "blast furnace" or "furnace"))
+  end
+end
+
+-- Every chest/barrel it has (or has in storage) gets built right away
+local function buildChests()
+  while freeSlot() do
+    if not placeStorage() then return end
   end
 end
 
@@ -1167,11 +1233,12 @@ end
 -- What the turtle keeps on board: 1 stack of chests/barrels and furnaces it can still use
 local function keepOnBoard(c, kept)
   if CHEST_ITEMS[c.name] then
-    if kept.chest then return false end
+    -- normally all built already; keep one stack for a furnace that waits for one
+    if kept.chest or not (freeSlot() or freeStation()) then return false end
     kept.chest = true
     return true
   end
-  if FURNACE_ITEMS[c.name] and #furnaces() < cfg.maxFurnaces then return true end
+  if FURNACE_ITEMS[c.name] and #furnaces() < cfg.maxFurnaces and freeStation() then return true end
   return false
 end
 
@@ -1568,6 +1635,7 @@ local function draw(t)
   line(("%d furnaces, room for %d more blocks"):format(#furnaces(), spots), colors.lightGray)
   if status.full then line("Put chests/barrels in the input chest", colors.red) end
   if status.noFuel then line("Furnaces need coal!", colors.red) end
+  if status.note then line(status.note, colors.orange) end
   if status.lastSmelt then line("Smelted " .. status.lastSmelt, colors.lightGray) end
   y = y + 1
   local l = {}
@@ -1599,6 +1667,7 @@ local function round()
   pullInput()
   refuelSelf()
   buildFurnaces()
+  buildChests()
   furnacePass()
   storeAll()
   serveRequests()
@@ -1608,6 +1677,7 @@ local function round()
 end
 
 local function worker()
+  if map.layout ~= 2 then log("Old room plan: pick up what it built and run 'roomsorter scan force' for the tidy layout", true) end
   setState("Checking position")
   local ok, err = pcall(verifyPose)
   if not ok then setState("LOST") log(tostring(err), true) return end
