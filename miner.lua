@@ -41,6 +41,9 @@ local FUEL_MARGIN = 64     -- extra fuel on top of the way home
 local MIN_TRIP_FUEL = 2000 -- try to refuel at least this much
 local JUNK_EVERY = 10      -- drop junk every ~10 dug blocks
 local MAX_VEIN = 64        -- max blocks per vein
+local REACH = 96           -- never go further than this from the shaft (stay in loaded chunks)
+local LAYER_STEP = 3       -- when a level is full: next layer this many blocks higher
+local MAX_LAYERS = 4       -- layers per ore before the area counts as full
 local RETRY = 20
 
 local ORES = {
@@ -133,6 +136,10 @@ end
 local HOME = cfg.home
 -- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
+local reach = REACH -- set per trip from the hub's job
+local function inReach(x, z)
+  return math.abs(x - SHAFT.x) <= reach and math.abs(z - SHAFT.z) <= reach
+end
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE]
@@ -492,15 +499,18 @@ local function rawMove(d, inVein)
   if d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
   save()
-  local ok = mv()
+  local ok, why = mv()
   if ok then
     applyMove(d)
     if inVein then st.vein[#st.vein + 1] = d end
   end
   st.pending = nil
   save()
-  return ok
+  return ok, why
 end
+
+-- CC refuses to move a turtle into a chunk that is not loaded ("Cannot leave loaded world")
+local UNLOADED = "outside loaded chunks"
 
 -- Safe movement: never step into lava (seal it first), dig where needed.
 local function move(d, inVein)
@@ -519,10 +529,12 @@ local function move(d, inVein)
       end
     end
     if turtle.getFuelLevel() == 0 then return false, "out of fuel" end
-    if rawMove(d, inVein) then
+    local moved, why = rawMove(d, inVein)
+    if moved then
       publish(false)
       return true
     end
+    if type(why) == "string" and why:lower():find("loaded") then return false, UNLOADED end
     if d == UP then turtle.attackUp() elseif d == DOWN then turtle.attackDown() else turtle.attack() end
     sleep(0.2 * math.min(attempt, 5))
   end
@@ -656,7 +668,7 @@ local function scanEdges()
   }
   for _, sd in ipairs(side) do
     local d, dirs = sd[1], sd[2]
-    if not allSeen(d, dirs) and fuelOk(4) and roomLeft() then
+    if not allSeen(d, dirs) and fuelOk(4) and roomLeft() and inReach(pos.x + DX[d], pos.z + DZ[d]) then
       local info = inspect(d)
       if not isLava(info) and not isUnbreakable(info) then
         local depth = #st.vein
@@ -676,6 +688,10 @@ local function scanEdges()
 end
 
 mineVein = function(d, target)
+  if not inReach(pos.x + DX[d], pos.z + DZ[d]) then
+    if roomLeft() then dig(d) end -- mine the ore block, but don't step outside the reach
+    return
+  end
   if veinCount >= MAX_VEIN or not fuelOk(4) or not roomLeft() then
     if roomLeft() then dig(d) end
     return
@@ -742,10 +758,11 @@ end
 local function excavate(d, wa, wb, caveStop)
   local r = check(d)
   if r == "lava" and isLava(inspect(d)) then return false, "lava" end
-  if caveStop and isOpen(r) then
+  if caveStop and r == nil then
     seal(d)
     return false, "cave"
   end
+  if type(r) == "table" and isLiquid(r) then seal(d) end -- water: plug it, then dig through
   local ok, why = move(d)
   if not ok then return false, why end
   guard(UP)
@@ -811,14 +828,37 @@ local function descend(Y)
 end
 
 -- Mine branches on this level until there is a reason to go home
+local LEVEL_FULL = "level full"
+local AREA_FULL = "area full"
+
+-- Pick the layer to work on: the ore level, or a layer higher up when the lower
+-- ones are full (every other layer has its branches shifted by 2 blocks).
+local function pickLevel(base)
+  for n = 0, MAX_LAYERS - 1 do
+    local y = base + LAYER_STEP * n
+    if y > HOME.y - 8 then break end
+    local L = level(y)
+    if L.offset == nil then L.offset = (n % 2 == 1) and 2 or 0 end
+    if not L.full then return y end
+  end
+  return nil
+end
+
 local function workLevel(j)
-  local Y, BL = j.y, j.branchLen or BRANCH_LEN
+  local Y = j.y
+  local BL = math.min(j.branchLen or BRANCH_LEN, reach)
   local L = level(Y)
   st.phase = "mining"
   mineUntil = j.mineMinutes and (os.clock() + j.mineMinutes * 60) or nil
   while true do
     local k = L.branch
-    local junction = k * BRANCH_GAP
+    local junction = k * BRANCH_GAP + (L.offset or 0)
+    if junction > reach then
+      -- This layer is done within the reach; next trip takes the next layer
+      L.full = true
+      save()
+      return LEVEL_FULL
+    end
     -- Main tunnel up to junction k
     setStatus("Main tunnel to branch " .. k)
     while along(SPINE) < junction do
@@ -828,6 +868,7 @@ local function workLevel(j)
         moveOrFail(SPINE, "Main tunnel blocked")
       else
         local ok, why = excavate(SPINE, BRANCH, OPP[BRANCH])
+        if not ok and why == UNLOADED then return UNLOADED end
         if not ok then
           L.blocked = why
           save()
@@ -847,6 +888,7 @@ local function workLevel(j)
         moveOrFail(BRANCH, "Branch blocked")
       else
         local ok, why = excavate(BRANCH, SPINE, OPP[SPINE], true)
+        if not ok and why == UNLOADED then return UNLOADED end -- not done: resume later
         if not ok then
           print("Branch " .. k .. " ended: " .. tostring(why))
           break
@@ -1044,6 +1086,8 @@ local function mergeProgress(hp)
       L.step = h.step
     end
     if (h.spine or 0) > L.spine then L.spine = h.spine end
+    if h.full then L.full = true end
+    if L.offset == nil and h.offset ~= nil then L.offset = h.offset end
   end
 end
 
@@ -1110,7 +1154,7 @@ local function getJob()
     if reply.paused or not reply.ore then return nil, "waiting for orders" end
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
-      mineMinutes = reply.mineMinutes }
+      mineMinutes = reply.mineMinutes, reach = reply.reach }
   end
   if st.job then return st.job, "hub unreachable, previous job" end
   return nil, "no hub found"
@@ -1162,7 +1206,14 @@ local function recover()
   end
 end
 
-local function trip(j)
+local function trip(j0)
+  reach = j0.reach or REACH
+  local base = j0.baseY or j0.y
+  local Y = pickLevel(base)
+  if not Y then return AREA_FULL end
+  local j = {}
+  for k, v in pairs(j0) do j[k] = v end
+  j.baseY, j.y = base, Y
   st.job = j
   st.found = 0
   setTargets(j.targets)
@@ -1179,6 +1230,7 @@ local function trip(j)
     reason = workLevel(j)
   end
   goHome(reason)
+  return reason
 end
 
 local function worker()
@@ -1218,7 +1270,15 @@ local function worker()
       else
         setStatus("Heading out: " .. j.ore .. " at Y " .. j.y)
         local ok, err = pcall(trip, j)
-        if not ok then
+        if ok and err == AREA_FULL then
+          setStatus("Area full for " .. j.ore .. ": pick another ore or raise the reach")
+          sleep(60)
+        elseif ok and err == UNLOADED or not ok and tostring(err):find(UNLOADED, 1, true) then
+          -- Next tunnel block is in a chunk that is not loaded: wait instead of retrying right away
+          if not ok then pcall(goHome, UNLOADED) end
+          setStatus("Waiting: work area not loaded (stay closer to it)")
+          sleep(60)
+        elseif not ok then
           if err == "Terminated" then error(err, 0) end
           setStatus("Error: " .. tostring(err))
           local ok2, err2 = pcall(goHome, "after error")

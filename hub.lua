@@ -60,6 +60,9 @@ end
 -- Max minutes of mining per trip. With normal wireless modems the hub only hears the
 -- turtles near the base, so shorter trips = new orders get picked up sooner.
 hub.mineMinutes = hub.mineMinutes or 15
+-- Max distance (blocks) a turtle goes from its shaft. Keep it inside the chunks
+-- that are loaded while you are at your base (6 chunks = 96 blocks).
+hub.reach = hub.reach or 96
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
 
@@ -105,10 +108,13 @@ local function mergeProgress(role, p)
     local c = cur.levels[y]
     if not c or (L.branch or 0) > (c.branch or 0)
       or (L.branch == c.branch and (L.step or 0) > (c.step or 0)) then
-      c = { branch = L.branch, step = L.step, spine = math.max(L.spine or 0, c and c.spine or 0) }
+      c = { branch = L.branch, step = L.step, spine = math.max(L.spine or 0, c and c.spine or 0),
+        full = L.full or (c and c.full), offset = L.offset or (c and c.offset) }
       cur.levels[y] = c
-    elseif (L.spine or 0) > (c.spine or 0) then
-      c.spine = L.spine
+    else
+      if (L.spine or 0) > (c.spine or 0) then c.spine = L.spine end
+      if L.full then c.full = true end
+      if c.offset == nil then c.offset = L.offset end
     end
   end
   hub.progress[role] = cur
@@ -154,7 +160,7 @@ local function handle(id, m)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes,
+      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach,
       progress = hub.progress[m.role],
       update = releasedVersion(),
     })

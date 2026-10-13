@@ -11,7 +11,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 - Each turtle moves 1 block forward (into the hole you made there) and goes down. It finishes that 1x1 shaft to the ore level **once** and reuses it every trip after. Iron is above diamond, so the same shaft works for every level.
 - At the ore level it digs a main tunnel with a branch every 4 blocks (3 blocks of rock between), 64 long by default.
 - Tunnels are 1x1. It still inspects the block above and below, so it finds as much ore as in a 3-high tunnel, just faster. Mobs can't spawn in 1-high tunnels either.
-- Caves: if a wall, ceiling or floor opens into a cave (air or water), it plugs the opening with cobble. If a branch runs into a cave, it closes the branch off and starts the next one. The main tunnel goes straight through and walls itself in on the way. This keeps the tunnels free of mobs, water and lava.
+- Caves: if a wall, ceiling or floor opens into a cave (air or water), it plugs the opening with cobble. If a branch runs into a cave (air), it closes the branch off and starts the next one; water in front of it gets plugged and dug through. The main tunnel goes straight through and walls itself in on the way. This keeps the tunnels free of mobs, water and lava.
 - At every step it looks left and right into the walls. Ores are followed as a vein. For the target ore (e.g. diamond) it checks 18 of the 26 neighbours.
 - Lava gets sealed with the first placeable non-ore block. It never steps into lava and never uses coal to seal.
 - Junk (cobble, deepslate, tuff, gravel, dirt, string, bones, ...) is dropped underground every ~10 blocks. It keeps one stack of blocks for sealing. All ores, including modded ones, are kept.
@@ -39,6 +39,13 @@ Each turtle has a "role" = the direction of its main tunnel. Its branches always
 | north | north | east  |
 
 This gives every turtle its own quadrant, and no tunnel crosses another turtle's shaft.
+
+### Reach: turtles stay near your base
+A turtle never goes further than **96 blocks** (6 chunks) from its shaft, so it stays in the chunks that are loaded while you are at your base and you can always reach it.
+- When a level is fully mined within that reach, it starts a new layer 3 blocks higher, with its branches shifted 2 blocks so they fall between the old ones. Diamonds: Y -58, -55, -52, -49.
+- After 4 layers the dashboard shows "Area full": pick another ore, or raise the reach.
+- Change the reach with `reach` in `hub.state` (blocks). More than your server's simulation distance (in chunks x 16, minus a margin) risks turtles stopping in unloaded chunks.
+- If a turtle still runs into an unloaded chunk (for example because you walked away), it keeps its progress, goes home and waits a minute before trying again.
 
 ### What you need
 - Per turtle: a mining turtle (pickaxe) + a wireless modem (normal or ender).
@@ -132,4 +139,4 @@ Without a hub: `miner diamond` (or `iron`, `gold`, ...) runs one turtle on its o
 ### Good to know
 - Turtles only work in loaded chunks. When the chunk unloads, the turtle stops. When it loads again, the turtle restarts, goes home and carries on.
 - The more branches there are, the longer the main tunnel and the trip. The branch length is in `hub.state` (`branchLen`).
-- Settings at the top of `miner.lua`: `BRANCH_LEN`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
+- Settings at the top of `miner.lua`: `BRANCH_LEN`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`, `REACH`, `LAYER_STEP`, `MAX_LAYERS`.
