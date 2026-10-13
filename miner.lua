@@ -17,6 +17,20 @@
 -- (3 blokken steen ertussen), 1x1. Grot-openingen worden dichtgezet.
 
 local VERSION = 2
+
+-- Versie = hash van de inhoud van dit bestand (zelfde berekening als in hub.lua)
+local function hashOf(text)
+  local h = 5381
+  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  return string.format("%08x", h)
+end
+local PROGRAM = (shell and shell.getRunningProgram()) or "miner.lua"
+local MY_HASH = "?"
+if fs.exists(PROGRAM) then
+  local fh = fs.open(PROGRAM, "r")
+  MY_HASH = hashOf(fh.readAll())
+  fh.close()
+end
 local PROTOCOL = "minearmy"
 local CFG_FILE, STATE_FILE = "miner.cfg", "miner.state"
 
@@ -165,7 +179,7 @@ local function packet()
   local j = st.job or {}
   local L = j.y and st.levels[j.y] or {}
   return {
-    type = "status", v = VERSION, id = os.getComputerID(),
+    type = "status", v = VERSION, hash = MY_HASH, id = os.getComputerID(),
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
     x = pos.x, y = pos.y, z = pos.z,
@@ -922,21 +936,46 @@ local function mergeProgress(hp)
   end
 end
 
-local function askHub()
+-- Vraag iets aan de hub en wacht op een antwoord van het gegeven type
+local function request(msg, replyType, timeout)
   if not radio then return nil end
   if not hubId then hubId = rednet.lookup(PROTOCOL, "hub") end
   if not hubId then return nil end
-  rednet.send(hubId, { type = "job?", id = os.getComputerID(), role = ROLE }, PROTOCOL)
-  local timer = os.startTimer(4)
+  rednet.send(hubId, msg, PROTOCOL)
+  local timer = os.startTimer(timeout or 4)
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == "rednet_message" and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == "job" then
+    if ev == "rednet_message" and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == replyType then
       return b
     elseif ev == "timer" and a == timer then
       hubId = nil
       return nil
     end
   end
+end
+
+local function askHub()
+  return request({ type = "job?", id = os.getComputerID(), role = ROLE, hash = MY_HASH }, "job")
+end
+
+-- Nieuwe miner.lua van de hub halen, controleren, opslaan en herstarten.
+-- Gebeurt alleen thuis (na het lossen), dus er gaat geen voortgang verloren.
+local function selfUpdate(wanted)
+  setStatus("Update ophalen van de hub")
+  local r = request({ type = "get_miner", id = os.getComputerID() }, "miner_file", 10)
+  if not r or type(r.code) ~= "string" then print("Update mislukt: geen antwoord") return end
+  if hashOf(r.code) ~= wanted then print("Update mislukt: beschadigd") return end
+  local fn, err = load(r.code, "miner", "t", _ENV)
+  if not fn then print("Update mislukt: " .. tostring(err)) return end
+  local tmp = PROGRAM .. ".new"
+  local h = fs.open(tmp, "w")
+  h.write(r.code)
+  h.close()
+  if fs.exists(PROGRAM) then fs.delete(PROGRAM) end
+  fs.move(tmp, PROGRAM)
+  setStatus("Bijgewerkt, herstarten")
+  sleep(1)
+  os.reboot()
 end
 
 local function report(haul)
@@ -954,6 +993,7 @@ local function getJob()
   end
   local reply = askHub()
   if reply then
+    if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     mergeProgress(reply.progress)
     if reply.paused or not reply.ore then return nil, "wacht op opdracht (hub)" end
     recall = false

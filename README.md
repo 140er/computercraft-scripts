@@ -95,6 +95,14 @@ Herstart daarna de turtles (of typ `miner`).
 - Toetsenbord: `1`-`7` erts, `s` stop, `r` terug, `h` hervat, `a` alle, `q` afsluiten.
 - Onderaan staat het totaal dat in de kisten is gelost.
 
+### Turtles updaten via de hub
+Sleep de nieuwe `miner.lua` naar het scherm van de **hub-computer**. Elke turtle die thuiskomt ziet dat de hub een andere versie heeft, haalt hem op, controleert of het geldige Lua is en herstart.
+- Dit gebeurt alleen thuis, na het lossen. Positie, richting en voortgang staan in `miner.state` en `miner.cfg`, die blijven gewoon staan. Na de herstart gaat hij verder bij dezelfde zijgang.
+- Turtles die nog niet bijgewerkt zijn staan op het dashboard met een `*` achter hun naam.
+- Een kapot bestand wordt geweigerd. De turtle houdt dan zijn oude versie.
+- Wil je de hub zelf bijwerken: sleep ook `hub.lua` erheen en herstart de hub-computer.
+- Let op: iedereen op de server met een computer en modem zou zich als "hub" kunnen voordoen. Op een server met vreemden is dat een risico.
+
 Zonder hub: `miner diamond` (of `iron`, `gold`, ...) laat één turtle zelfstandig werken.
 
 ### Goed om te weten

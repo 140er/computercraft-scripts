@@ -9,6 +9,7 @@
 -- Tik eerst een turtle aan in de lijst om alleen die turtle een opdracht te geven.
 -- STOP = na deze trip thuis blijven. TERUG = nu meteen naar huis.
 -- Toetsenbord: 1-7 erts, s stop, r terug, a alle turtles, q afsluiten.
+-- Update: sleep een nieuwe miner.lua naar deze computer; turtles updaten zich als ze thuis zijn.
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
@@ -118,6 +119,28 @@ local function mergeProgress(role, p)
   hub.progress[role] = cur
 end
 
+-- Turtle-updates: leg een nieuwe miner.lua op deze computer (slepen naar het scherm).
+-- Turtles die thuis zijn zien de andere versie, halen hem op en herstarten.
+local MINER_FILE = "miner.lua"
+local minerCache = { mod = nil, hash = nil, code = nil }
+local function hashOf(text)
+  local h = 5381
+  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  return string.format("%08x", h)
+end
+local function minerVersion()
+  if not fs.exists(MINER_FILE) then return nil end
+  local attr = fs.attributes and fs.attributes(MINER_FILE)
+  local mod = attr and (attr.modified .. ":" .. attr.size) or nil
+  if not minerCache.hash or not mod or mod ~= minerCache.mod then
+    local h = fs.open(MINER_FILE, "r")
+    local code = h.readAll()
+    h.close()
+    minerCache = { mod = mod, hash = hashOf(code), code = code }
+  end
+  return minerCache.hash, minerCache.code
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if m.type == "status" then
@@ -130,7 +153,11 @@ local function handle(id, m)
       type = "job", paused = paused, ore = (not paused) and ore or nil,
       y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes,
       progress = hub.progress[m.role],
+      update = minerVersion(),
     })
+  elseif m.type == "get_miner" then
+    local hash, code = minerVersion()
+    if code then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(m.role, m.progress)
     for name, n in pairs(m.haul or {}) do
@@ -291,6 +318,10 @@ local function draw(s)
     end
     if p.branch and p.phase == "mining" then ore = ore .. " z" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
+    local want = minerVersion()
+    if want and p.hash and p.hash ~= want then
+      name = (p.label or ("#" .. id)):sub(1, 11) .. "*" -- wacht op update (bij volgende keer thuis)
+    end
     local rightTxt = string.format("%-4s %5s %2s", tostring(p.y or "?"),
       type(p.fuel) == "number" and tostring(p.fuel) or "inf", tostring(p.free or "?"))
     local rowBg = isSel and colors.gray or colors.black
