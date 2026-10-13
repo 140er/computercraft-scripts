@@ -309,7 +309,18 @@ local function draw(s)
   else mode = "STOPPED" end
   at(math.max(16, W - #mode), 1, mode, hub.target and not hub.recallAll and colors.lime or colors.red, colors.gray)
 
-  if notice and os.clock() < noticeUntil then at(1, 2, notice, colors.yellow) end
+  -- Lost turtles: red alert line with where to find them (overrides other notices)
+  local lost = {}
+  for id, r in pairs(turtles) do
+    if r.p.phase == "lost" then
+      lost[#lost + 1] = (r.p.label or ("#" .. id)) .. " at " .. tostring(r.p.x) .. "," .. tostring(r.p.y) .. "," .. tostring(r.p.z)
+    end
+  end
+  if #lost > 0 then
+    at(1, 2, "LOST: " .. table.concat(lost, "  "), colors.red)
+  elseif notice and os.clock() < noticeUntil then
+    at(1, 2, notice, colors.yellow)
+  end
 
   -- Ore buttons
   local y = 3
@@ -360,6 +371,7 @@ local function draw(s)
     local stat = p.status or "?"
     local away = p.phase == "descending" or p.phase == "mining" or p.phase == "returning"
     local statColor = colors.lightGray
+    if stat:find("^LOST") or stat:find("^STUCK") or stat:find("^ERROR") then statColor = colors.red end
     if age > STALE then
       if away then
         stat = "Underground (" .. fmtAge(age) .. ") " .. stat

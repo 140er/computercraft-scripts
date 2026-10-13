@@ -1264,6 +1264,71 @@ end
 ---------------------------------------------------------------------------
 -- Main loop
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- Lost: go up to the surface, build a marker pillar and wait to be picked up
+---------------------------------------------------------------------------
+-- Blocks a lost turtle may dig on its way up: natural ground only. Never cobble,
+-- planks, logs or anything else that could be part of a base.
+local GROUND_TAGS = { "minecraft:base_stone_overworld", "minecraft:dirt", "minecraft:sand",
+  "minecraft:leaves", "minecraft:snow", "c:ores", "forge:ores", "c:gravels", "c:sands" }
+local function groundBlock(info)
+  if not info or isLiquid(info) then return true end
+  if NATURAL[info.name] or FALLING[info.name] or isOre(info) then return true end
+  for _, t in ipairs(GROUND_TAGS) do if hasTag(info, t) then return true end end
+  return false
+end
+
+local PILLAR = 8      -- marker pillar height
+local SKY_AIR = 6     -- this many air blocks in a row above Y = home means open air
+local approxPos = false
+
+local function lostWait()
+  while true do
+    setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. (approxPos and " (approx)" or ""))
+    sleep(30)
+  end
+end
+
+local function lostBeacon(why)
+  print(tostring(why))
+  st.phase = "lost"
+  st.vein = {}
+  save()
+  setStatus("LOST: going up to the surface")
+  local airRun, sidesteps = 0, 0
+  while not (pos.y >= HOME.y and airRun >= SKY_AIR) and pos.y < 250 do
+    if turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < 10 then
+      burnMinedFuel()
+      if turtle.getFuelLevel() < 10 then break end
+    end
+    local info = inspect(UP)
+    if groundBlock(info) and move(UP) then
+      if info == nil then airRun = airRun + 1 else airRun = 0 end
+    else
+      -- Not natural ground above (or stuck): step aside in any direction and try there
+      sidesteps = sidesteps + 1
+      if sidesteps > 16 then break end
+      local moved = false
+      for _ = 1, 4 do
+        face((st.h + 1) % 4)
+        local side = inspect(st.h)
+        if groundBlock(side) and not isLava(side) and move(st.h) then moved = true break end
+      end
+      if not moved then break end
+      approxPos = true -- heading is unknown, so x/z are a guess from here on
+      airRun = 0
+    end
+  end
+  setStatus("LOST: building a marker pillar")
+  for _ = 1, PILLAR do
+    if turtle.detectUp() or not move(UP) then break end
+    seal(DOWN)
+  end
+  st.lostAt = { x = pos.x, y = pos.y, z = pos.z, approx = approxPos }
+  save()
+  lostWait()
+end
+
 -- On boot: a chest next to me means I am on my home spot (there are never
 -- chests underground). Also works when the turtle was picked up and put back,
 -- facing any direction. Position and heading get reset; progress
@@ -1304,6 +1369,11 @@ local function recover()
     save()
   end
   if st.job then setTargets(st.job.targets) end
+  if st.phase == "lost" then
+    -- Waiting to be picked up: never wander off. Put me back home to continue.
+    approxPos = st.lostAt and st.lostAt.approx or false
+    lostWait()
+  end
   if st.phase ~= "home" or pos.x ~= HOME.x or pos.y ~= HOME.y or pos.z ~= HOME.z then
     print("Rebooted away from home, going back")
     goHome("reboot")
@@ -1362,7 +1432,7 @@ local function worker()
     local ok, err = pcall(recover)
     if ok then break end
     if err == "Terminated" then error(err, 0) end
-    -- e.g. LOST: don't dig around blindly, report and retry once a minute
+    if tostring(err):find("^" .. LOST) then lostBeacon(err) end
     setStatus("STUCK: " .. tostring(err))
     sleep(60)
   end
@@ -1413,10 +1483,12 @@ local function worker()
           sleep(60)
         elseif not ok then
           if err == "Terminated" then error(err, 0) end
+          if tostring(err):find("^" .. LOST) then lostBeacon(err) end
           setStatus("Error: " .. tostring(err))
           local ok2, err2 = pcall(goHome, "after error")
           if not ok2 then
             if err2 == "Terminated" then error(err2, 0) end
+            if tostring(err2):find("^" .. LOST) then lostBeacon(err2) end
             setStatus("STUCK: " .. tostring(err2))
             sleep(30)
             pcall(recover)

@@ -124,7 +124,13 @@ miner
 ### Heading safety
 - Every turn is saved before it happens, also the turns of the chest search at boot, so a reboot can't leave a turtle with a wrong idea of which way it faces.
 - At the bottom of its shaft it checks on which side its main tunnel opening is (the only opening there) and corrects its heading if needed.
-- On its own routes (shaft, tunnels, way home) it never digs through natural rock. If it finds rock where its tunnel should be, its position or heading is off: it stops and shows "STUCK: LOST at x,y,z" on the dashboard instead of digging new tunnels, possibly up into your base.
+- On its own routes (shaft, tunnels, way home) it never digs through natural rock. If it finds rock where its tunnel should be, its position or heading is off, and it is **lost**.
+
+### When a turtle is lost
+1. It goes straight up to the surface (up/down still works without knowing its heading). It only digs natural ground on the way up: stone, deepslate, dirt, sand, gravel, ores, leaves. Never cobble, planks, logs or other blocks that could be part of your base; if one of those is above it, it steps aside and goes up there.
+2. In the open air it builds a pillar of 8 of its blocks and waits on top, also after a reboot.
+3. The dashboard shows a red line at the top: `LOST: Miner-east at x,y,z`. If it had to step aside, the x/z can be a few blocks off.
+4. To get it working again: pick it up, put it on its home spot next to its chest (any direction) and type `miner`.
 - If it thinks it is home but sees no chest, it first turns around looking for it.
 
 ### Updating the turtles through the hub
