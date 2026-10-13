@@ -473,6 +473,14 @@ local function draw(s)
   local sel = selected and turtles[selected]
   if sel then
     detail[#detail + 1] = { (sel.p.label or ("#" .. selected)) .. ": " .. tostring(sel.p.status), colors.white }
+    local hubVer = minerVersion()
+    local ver = "Version " .. tostring(sel.p.hash or "old (no version)")
+    if hubVer and sel.p.hash ~= hubVer then
+      ver = ver .. ", hub has " .. hubVer .. (hubVer == hub.released and " (updates when home)" or " (press UPDATE)")
+    else
+      ver = ver .. " (up to date)"
+    end
+    detail[#detail + 1] = { ver, colors.lightGray }
     if sel.p.lastError then
       detail[#detail + 1] = { "Last error " .. ago(sel.p.lastErrorAt or 0) .. ": " .. sel.p.lastError, colors.orange }
     end
@@ -487,7 +495,7 @@ local function draw(s)
   end
   for _, d in ipairs(detail) do
     local text = d[1]
-    while #text > 0 and y <= H - 4 do
+    while #text > 0 and y <= H - 2 do
       at(1, y, text:sub(1, W), d[2])
       text = text:sub(W + 1)
       y = y + 1
