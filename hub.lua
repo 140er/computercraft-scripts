@@ -62,6 +62,9 @@ hub.overrides = hub.overrides or {} -- [turtle id] = ore
 hub.progress = hub.progress or {}   -- [role] = { levels=, shaft= }
 hub.totals = hub.totals or {}
 hub.branchLen = hub.branchLen or 32
+-- Max. minuten graven per trip. Met gewone wireless modems hoort de hub de turtles
+-- alleen bij de basis, dus kortere trips = nieuwe opdrachten worden sneller opgepikt.
+hub.mineMinutes = hub.mineMinutes or 15
 hub.recallAll = hub.recallAll or false
 
 local function save()
@@ -125,7 +128,7 @@ local function handle(id, m)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen,
+      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes,
       progress = hub.progress[m.role],
     })
   elseif m.type == "report" then
@@ -275,7 +278,17 @@ local function draw(s)
     local own = hub.overrides[id]
     if own == false then ore = "stop" end
     local stat = p.status or "?"
-    if age > STALE then stat = "GEEN SIGNAAL " .. fmtAge(age) .. " | " .. stat end
+    local away = p.phase == "descending" or p.phase == "mining" or p.phase == "returning"
+    local statColor = colors.lightGray
+    if age > STALE then
+      if away then
+        stat = "Onder de grond (" .. fmtAge(age) .. ") " .. stat
+        statColor = colors.orange
+      else
+        stat = "GEEN SIGNAAL " .. fmtAge(age) .. " | " .. stat
+        statColor = colors.red
+      end
+    end
     if p.branch and p.phase == "mining" then ore = ore .. " z" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
     local rightTxt = string.format("%-4s %5s %2s", tostring(p.y or "?"),
@@ -285,7 +298,7 @@ local function draw(s)
     at(1, y, string.format("%-12s %-8s", name, ore:sub(1, 8)), isSel and colors.yellow or colors.white, rowBg)
     local statW = W - 22 - #rightTxt - 1
     if statW > 0 then
-      at(23, y, stat:sub(1, statW), age > STALE and colors.red or colors.lightGray, rowBg)
+      at(23, y, stat:sub(1, statW), statColor, rowBg)
     end
     at(W - #rightTxt + 1, y, rightTxt, (type(p.fuel) == "number" and p.fuel < 300) and colors.red or colors.white, rowBg)
     s.buttons[#s.buttons + 1] = { x1 = 1, x2 = W, y = y, action = function()
@@ -339,10 +352,14 @@ end
 
 local function uiLoop()
   local timer = os.startTimer(1)
+  local tick = 0
   redraw()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
+      -- Gewone modems: turtles buiten bereik missen de oproep, dus blijf hem herhalen
+      tick = tick + 1
+      if hub.recallAll and tick % 5 == 0 then send(nil, { type = "recall" }) end
       redraw()
       timer = os.startTimer(1)
     elseif ev == "mouse_click" then

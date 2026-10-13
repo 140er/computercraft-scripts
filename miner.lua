@@ -639,8 +639,11 @@ local function excavateDown()
   return true
 end
 
+local mineUntil = nil -- os.clock() waarop hij terug moet (max. graaftijd per trip)
+
 local function stopReason()
   if recall then return "teruggeroepen" end
+  if mineUntil and os.clock() > mineUntil then return "trip-tijd om" end
   if not fuelOk(8) then
     burnMinedFuel()
     if not fuelOk(8) then return "fuel bijna op" end
@@ -684,6 +687,7 @@ local function workLevel(j)
   local Y, BL = j.y, j.branchLen or BRANCH_LEN
   local L = level(Y)
   st.phase = "mining"
+  mineUntil = j.mineMinutes and (os.clock() + j.mineMinutes * 60) or nil
   while true do
     local k = L.branch
     local junction = k * BRANCH_GAP
@@ -883,7 +887,8 @@ local function getJob()
     mergeProgress(reply.progress)
     if reply.paused or not reply.ore then return nil, "wacht op opdracht (hub)" end
     recall = false
-    return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN }
+    return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
+      mineMinutes = reply.mineMinutes }
   end
   if st.job then return st.job, "hub niet bereikbaar, vorige opdracht" end
   return nil, "geen hub gevonden"
@@ -915,6 +920,7 @@ local function trip(j)
   setTargets(j.targets)
   save()
   if j.y > HOME.y - 3 then error("Niveau " .. j.y .. " ligt te dicht bij huis", 0) end
+  mineUntil = nil
   local reason = descend(j.y)
   if not reason then reason = workLevel(j) end
   goHome(reason)

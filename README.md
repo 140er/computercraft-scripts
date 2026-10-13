@@ -38,9 +38,17 @@ Elke turtle heeft een "rol" = de richting van zijn hoofdgang. De zijgangen gaan 
 Zo krijgt elke turtle zijn eigen kwadrant, en geen gang kruist een schacht van een andere turtle.
 
 ### Benodigd
-- Per turtle: mining turtle (pickaxe) + **ender modem** (een gewone wireless modem haalt diep onder de grond de hub niet. Dan werkt alles nog, maar ziet de hub hem alleen als hij thuis is).
+- Per turtle: mining turtle (pickaxe) + wireless modem (gewoon of ender).
 - Per turtle: een kist direct **achter** de turtle, met kolen erin.
-- Basis-computer (advanced voor kleur/klikken) + ender modem. Monitor optioneel (advanced monitor = aanraakknoppen).
+- Basis-computer (advanced voor kleur/klikken) + wireless modem. Monitor optioneel (advanced monitor = aanraakknoppen).
+
+### Gewone wireless modems
+Een gewone wireless modem reikt ongeveer 64 blokken. Diep onder de grond hoort de hub de turtles dus niet. Dat is geen probleem:
+- Opdrachten haalt een turtle op als hij thuis is, en daar lost hij ook zijn buit. Dat werkt altijd, zolang de hub binnen ~64 blokken van de turtles staat (naast ze is prima).
+- Op het dashboard staat een turtle die onderweg is in oranje als "Onder de grond". Rood "GEEN SIGNAAL" betekent dat hij thuis zou moeten zijn maar niets laat horen.
+- Een turtle graaft maximaal `mineMinutes` (standaard 15) minuten per trip en komt dan terug, ook als hij nog niet vol is. Zo wordt een nieuwe erts-keuze binnen een kwartier opgepikt. Aan te passen in `hub.state`.
+- `TERUG NU` bereikt alleen turtles binnen bereik. De hub blijft de oproep herhalen, maar een turtle diep beneden komt pas terug na zijn trip-tijd. `STOP` werkt altijd: thuis blijft hij staan.
+- Met ender modems werkt alles live, zonder deze beperkingen.
 
 ### Installeren
 Op elke turtle en op de hub-computer (`http` moet aan staan op de server):
