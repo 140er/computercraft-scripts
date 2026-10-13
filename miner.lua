@@ -1,25 +1,25 @@
 -- miner.lua - Mine Army turtle (CC: Tweaked)
 --
--- Eenmalig instellen (zie README):
---   miner setup <x> <y> <z> <facing> <rol>
---     x y z   = wereldcoordinaten van de turtle (F3), bv. -216 65 -743
---     facing  = kant waar de turtle naar kijkt: north/east/south/west
---     rol     = richting van zijn hoofdgang: east/south/west/north
---               (oostelijkste turtle = east, westelijkste = west,
---                de twee in het midden = south en north)
--- Daarna:
---   miner            luistert naar de hub (dashboard) voor opdrachten
---   miner diamond    werkt zonder hub, mijnt diamonds (ook: iron, gold, ...)
---   miner home       na handmatig terugzetten op de startplek: positie resetten
+-- One-time setup (see README):
+--   miner setup <x> <y> <z> <facing> <role>
+--     x y z   = world coordinates of the turtle (F3), e.g. -216 65 -743
+--     facing  = direction the turtle faces: north/east/south/west
+--     role    = direction of its main tunnel: east/south/west/north
+--               (easternmost turtle = east, westernmost = west,
+--                the two in the middle = south and north)
+-- Then:
+--   miner            listens to the hub (dashboard) for orders
+--   miner diamond    works without a hub, mines diamonds (also: iron, gold, ...)
+--   miner home       after putting it back on its home spot by hand: reset position
 --
--- Kist met kolen direct ACHTER de turtle. Turtle heeft pickaxe + wireless/ender modem.
--- De turtle graaft een schacht recht onder zich naar het erts-niveau en hergebruikt
--- die schacht elke trip. Daar graaft hij een hoofdgang met om de 4 blokken een zijgang
--- (3 blokken steen ertussen), 1x1. Grot-openingen worden dichtgezet.
+-- Chest with fuel directly BEHIND the turtle. Turtle needs a pickaxe + wireless/ender modem.
+-- The turtle moves 1 block forward into its hole and digs a shaft down to the ore level,
+-- reusing that shaft every trip. There it digs a main tunnel with a branch every 4 blocks
+-- (3 blocks of rock between), 1x1. Openings into caves get sealed.
 
 local VERSION = 2
 
--- Versie = hash van de inhoud van dit bestand (zelfde berekening als in hub.lua)
+-- Version = hash of this file's contents (same calculation as in hub.lua)
 local function hashOf(text)
   local h = 5381
   for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
@@ -35,12 +35,12 @@ end
 local PROTOCOL = "minearmy"
 local CFG_FILE, STATE_FILE = "miner.cfg", "miner.state"
 
-local BRANCH_LEN = 64      -- standaard lengte zijgang (hub kan dit overschrijven)
-local BRANCH_GAP = 4       -- om de 4 blokken een zijgang = 3 blokken ertussen
-local FUEL_MARGIN = 64     -- extra fuel bovenop de weg naar huis
-local MIN_TRIP_FUEL = 2000 -- probeer minstens zoveel te tanken
-local JUNK_EVERY = 10      -- troep weggooien per ~10 gegraven blokken
-local MAX_VEIN = 64        -- max blokken per ader
+local BRANCH_LEN = 64      -- default branch length (the hub can override this)
+local BRANCH_GAP = 4       -- a branch every 4 blocks = 3 blocks between
+local FUEL_MARGIN = 64     -- extra fuel on top of the way home
+local MIN_TRIP_FUEL = 2000 -- try to refuel at least this much
+local JUNK_EVERY = 10      -- drop junk every ~10 dug blocks
+local MAX_VEIN = 64        -- max blocks per vein
 local RETRY = 20
 
 local ORES = {
@@ -53,7 +53,7 @@ local ORES = {
   coal     = { y = 48,  targets = { "minecraft:coal_ore", "minecraft:deepslate_coal_ore" } },
 }
 
--- Richtingen: 0=north(-z) 1=east(+x) 2=south(+z) 3=west(-x) 4=up 5=down
+-- Directions: 0=north(-z) 1=east(+x) 2=south(+z) 3=west(-x) 4=up 5=down
 local UP, DOWN = 4, 5
 local DIRS = { north = 0, east = 1, south = 2, west = 3, n = 0, e = 1, s = 2, w = 3 }
 local DIRNAME = { [0] = "north", "east", "south", "west", "up", "down" }
@@ -65,7 +65,7 @@ local OPP = { [0] = 2, 3, 0, 1, 5, 4 }
 local args = { ... }
 
 ---------------------------------------------------------------------------
--- Bestanden
+-- Files
 ---------------------------------------------------------------------------
 local function loadTable(path)
   for _, p in ipairs({ path, path .. ".tmp" }) do
@@ -131,15 +131,15 @@ if not cfg then
   return
 end
 local HOME = cfg.home
--- De schacht zit 1 blok VOOR de startplek (daar zitten de gaten)
+-- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE]
 
 if args[1] == "home" then
-  -- Handmatig herstel: de turtle staat (weer) op zijn startplek, kist erachter.
-  -- Voortgang (gangen, schacht) blijft bewaard.
+  -- Manual recovery: the turtle is (back) on its home spot, chest behind it.
+  -- Progress (tunnels, shaft) is kept.
   local s0 = loadTable(STATE_FILE) or {}
   s0.pos = { x = HOME.x, y = HOME.y, z = HOME.z }
   s0.h = cfg.facing
@@ -159,17 +159,17 @@ if standaloneOre and not ORES[standaloneOre] then
 end
 
 ---------------------------------------------------------------------------
--- Toestand (overleeft reboot / chunk unload)
+-- State (survives reboot / chunk unload)
 ---------------------------------------------------------------------------
 local st = loadTable(STATE_FILE) or {}
 st.pos = st.pos or { x = HOME.x, y = HOME.y, z = HOME.z }
 st.h = st.h or cfg.facing
 st.levels = st.levels or {}   -- [y] = { spine=, branch=, step= }
-st.shaft = st.shaft or HOME.y -- laagste gegraven y in de schacht
-st.vein = st.vein or {}       -- pad van de huidige ader-uitstap
+st.shaft = st.shaft or HOME.y -- lowest dug y in the shaft
+st.vein = st.vein or {}       -- path of the current vein excursion
 st.phase = st.phase or "home"
 st.dug = st.dug or 0
-st.found = st.found or 0      -- doel-ertsen deze trip
+st.found = st.found or 0      -- target ores this trip
 st.total = st.total or {}
 local pos = st.pos
 
@@ -177,14 +177,14 @@ local function save() saveTable(STATE_FILE, st) end
 
 local status = "Starting"
 local recall = false
-local updateWanted = false -- hub heeft een nieuwe versie vrijgegeven: naar huis om te updaten
+local updateWanted = false -- hub released a new version: go home to update
 local hubId = nil
 local radio = false
 
 local function job() return st.job end
 
 ---------------------------------------------------------------------------
--- Telemetrie
+-- Telemetry
 ---------------------------------------------------------------------------
 local function freeSlots()
   local n = 0
@@ -228,7 +228,7 @@ local function setStatus(s)
 end
 
 ---------------------------------------------------------------------------
--- Blok-herkenning
+-- Block recognition
 ---------------------------------------------------------------------------
 local TARGET = {}
 local function setTargets(list)
@@ -265,7 +265,7 @@ local function isUnbreakable(info)
     or info.name:find("computer") ~= nil)
 end
 
--- Troep (wordt weggegooid). Alles wat hier niet onder valt wordt bewaard.
+-- Junk (gets dropped). Everything else is kept.
 local JUNK = {}
 for _, n in ipairs({ "cobblestone", "cobbled_deepslate", "stone", "deepslate", "granite", "diorite",
   "andesite", "tuff", "calcite", "dirt", "coarse_dirt", "rooted_dirt", "grass_block", "mud", "gravel",
@@ -274,9 +274,6 @@ for _, n in ipairs({ "cobblestone", "cobbled_deepslate", "stone", "deepslate", "
   "soul_sand", "soul_soil", "end_stone", "amethyst_shard", "infested_stone", "infested_deepslate" }) do
   JUNK["minecraft:" .. n] = true
 end
-local JUNK_TAGS = { "c:cobblestones", "c:stones", "forge:cobblestone", "forge:stone", "c:gravels",
-  "forge:gravel", "c:sands", "forge:sand", "minecraft:dirt", "minecraft:stone_tool_materials",
-  "minecraft:stone_crafting_materials", "c:netherracks", "forge:netherrack" }
 local junkCache = {}
 
 local function isOreItem(d)
@@ -288,22 +285,42 @@ local function isOreItem(d)
   return false
 end
 
+-- What is worth keeping (in the turtle and in the chest): ores and what they drop
+-- (raw ores, gems, dusts, also modded), fuel and buckets. Everything else is junk.
+local KEEP_NAMES = {}
+for _, n in ipairs({ "diamond", "emerald", "lapis_lazuli", "redstone", "coal", "charcoal", "coal_block",
+  "quartz", "ancient_debris", "netherite_scrap", "gold_nugget", "bucket", "lava_bucket" }) do
+  KEEP_NAMES["minecraft:" .. n] = true
+end
+local KEEP_TAGS = { "c:ores", "forge:ores", "c:raw_materials", "forge:raw_materials", "c:gems",
+  "forge:gems", "c:dusts", "forge:dusts", "minecraft:coals" }
+
+local function keepDetail(d)
+  if not d then return false end
+  if JUNK[d.name] then return false end
+  if KEEP_NAMES[d.name] or d.name:find("_ore$") or d.name:find(":raw_") or d.name:find(":ore_") then
+    return true
+  end
+  for tag in pairs(d.tags or {}) do
+    for _, k in ipairs(KEEP_TAGS) do
+      if tag == k or tag:sub(1, #k + 1) == k .. "/" then return true end
+    end
+  end
+  return false
+end
+
 local function isJunk(slot)
   local d = turtle.getItemDetail(slot)
   if not d then return false end
   if JUNK[d.name] then return true end
+  if KEEP_NAMES[d.name] then return false end
   if junkCache[d.name] == nil then
-    local full = turtle.getItemDetail(slot, true) or d
-    local j = false
-    if not isOreItem(full) then
-      for _, t in ipairs(JUNK_TAGS) do if hasTag(full, t) then j = true break end end
-    end
-    junkCache[d.name] = j
+    junkCache[d.name] = not keepDetail(turtle.getItemDetail(slot, true) or d)
   end
   return junkCache[d.name]
 end
 
--- Seal-blok: echt neerzetbaar, geen erts, geen fuel (kolen blijven liggen), niet vallend.
+-- Seal block: really placeable, not an ore, not fuel (coal is never used), not falling.
 local NOPLACE = { "diamond", "emerald", "raw_", "coal", "redstone", "lapis", "quartz", "flint",
   "ingot", "gem", "nugget", "dust", "shard", "ball", "bone", "string", "stick", "torch", "bucket",
   "_ore", "ore_", "gravel", "concrete_powder", "seeds", "pickaxe", "modem" }
@@ -324,7 +341,7 @@ local function sealable(slot)
   if ok then
     local prev = turtle.getSelectedSlot()
     turtle.select(slot)
-    if turtle.refuel(0) then ok = false end -- brandstof (kolen, hout) niet gebruiken
+    if turtle.refuel(0) then ok = false end -- never use fuel (coal, wood)
     turtle.select(prev)
   end
   sealCache[d.name] = ok
@@ -340,10 +357,10 @@ local function isFuelSlot(slot)
 end
 
 ---------------------------------------------------------------------------
--- Beweging
+-- Movement
 ---------------------------------------------------------------------------
--- Draaien. De nieuwe richting wordt VOOR elke draai opgeslagen: een draai gebeurt
--- direct en de 8 ticks animatie daarna zijn het grootste risico bij een reboot.
+-- Turning. The new heading is saved BEFORE each turn: a turn happens immediately
+-- and the 8-tick animation after it is the biggest risk window for a reboot.
 local function face(d)
   if d >= 4 then return end
   while st.h ~= d do
@@ -386,8 +403,8 @@ local function findItem(name, skip)
   return nil
 end
 
--- Lava opscheppen met een lege emmer en meteen verbranden (+1000 fuel).
--- Werkt alleen op een lava-bron; stromende lava wordt gewoon afgedicht.
+-- Scoop lava with an empty bucket and burn it right away (+1000 fuel).
+-- Only works on a lava source; flowing lava just gets sealed.
 local function scoopLava(d)
   local f = turtle.getFuelLevel()
   if f == "unlimited" or f > turtle.getFuelLimit() - 1000 then return end
@@ -405,7 +422,7 @@ local function scoopLava(d)
   turtle.select(1)
 end
 
--- Lava: eerst opscheppen als brandstof, dan afdichten met het eerste neerzetbare non-ore blok
+-- Lava: scoop it as fuel first, then seal with the first placeable non-ore block
 local function seal(d)
   scoopLava(d)
   for s = 1, 16 do
@@ -443,7 +460,7 @@ local function afterDig()
   if sinceDrop >= JUNK_EVERY or turtle.getItemCount(16) > 0 and freeSlots() == 0 then dropJunk() end
 end
 
--- Graven met herstel (grind/zand, mobs). false + reden als het niet lukt.
+-- Digging with retries (gravel/sand, mobs). Returns false + reason on failure.
 local function dig(d)
   local digf, att
   if d == UP then digf, att = turtle.digUp, turtle.attackUp
@@ -468,7 +485,7 @@ local function applyMove(d)
   pos.x, pos.y, pos.z = pos.x + DX[d], pos.y + DY[d], pos.z + DZ[d]
 end
 
--- Een stap, met fuel-truc zodat een reboot halverwege de positie niet kwijtraakt.
+-- One step, with the fuel trick so a reboot mid-move does not lose the position.
 local function rawMove(d, inVein)
   local mv = turtle.forward
   if d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
@@ -484,7 +501,7 @@ local function rawMove(d, inVein)
   return ok
 end
 
--- Veilig bewegen: nooit in lava stappen (eerst afdichten), graven waar nodig.
+-- Safe movement: never step into lava (seal it first), dig where needed.
 local function move(d, inVein)
   for attempt = 1, RETRY do
     local info = inspect(d)
@@ -517,9 +534,9 @@ local function moveOrFail(d, what)
 end
 
 ---------------------------------------------------------------------------
--- Afstand en terugweg
+-- Distance and the way home
 ---------------------------------------------------------------------------
-local function along(d) -- afstand vanaf de schacht langs richting d
+local function along(d) -- distance from the shaft along direction d
   return (pos.x - SHAFT.x) * DX[d] + (pos.z - SHAFT.z) * DZ[d]
 end
 
@@ -533,7 +550,7 @@ local function fuelOk(extra)
   return f >= distHome() + FUEL_MARGIN + (extra or 0)
 end
 
--- Noodtanken met kolen uit de inventory
+-- Emergency refuel with fuel from the inventory
 local function burnMinedFuel()
   for s = 1, 16 do
     if isFuelSlot(s) then
@@ -555,7 +572,7 @@ local function unwindVein()
   end
 end
 
--- Rij langs een as tot de coordinaat klopt (door eigen gegraven gangen)
+-- Move along an axis until the coordinate matches (through our own tunnels)
 local function goAxis(axis, target)
   while true do
     local cur = pos[axis]
@@ -570,15 +587,15 @@ end
 
 local function axisOf(d) return (d == 1 or d == 3) and "x" or "z" end
 
--- Terug naar huis via de opgeslagen route: ader -> zijgang -> hoofdgang -> schacht
+-- Back home via the known route: vein -> branch -> main tunnel -> shaft
 local function goHome(reason)
   st.phase = "returning"
   save()
   setStatus("Going home: " .. (reason or ""))
   unwindVein()
   if pos.y < HOME.y - 2 then dropJunk() end
-  -- Let op: ook de hoogte vergelijken. De hoofdgang van de "north"-turtle loopt
-  -- precies onder de startplek door; alleen x/z checken gaf daar een vals "thuis".
+  -- Compare the height too. The "north" turtle's main tunnel runs right under
+  -- the home spot; checking only x/z gave a false "home" there.
   if pos.x ~= HOME.x or pos.y ~= HOME.y or pos.z ~= HOME.z then
     if pos.x ~= SHAFT.x or pos.z ~= SHAFT.z then
       if st.job and st.job.y and pos.y ~= st.job.y then goAxis("y", st.job.y) end
@@ -587,14 +604,14 @@ local function goHome(reason)
       goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
     end
     goAxis("y", HOME.y)
-    moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 blok terug, kist weer achter hem
+    moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 block back, chest behind it again
   end
   st.phase = "home"
   save()
 end
 
 ---------------------------------------------------------------------------
--- Ader volgen
+-- Vein following
 ---------------------------------------------------------------------------
 local veinSeen, veinCount = {}, 0
 local function key(x, y, z) return x .. "," .. y .. "," .. z end
@@ -627,7 +644,7 @@ local function allSeen(fromDir, dirs)
   return true
 end
 
--- Doelerts: ook de 12 randburen (18 van 26), via zijstapjes.
+-- Target ore: also the 12 edge neighbours (18 of 26), via side steps.
 local function scanEdges()
   local h = st.h
   local side = {
@@ -685,7 +702,7 @@ local function vein(d, info)
   mineVein(d, isTarget(info))
 end
 
--- Kijk in richting d: lava afdichten, erts uitgraven (met ader)
+-- Look in direction d: seal lava, mine ore (with its vein)
 local function check(d)
   local info = inspect(d)
   if isLava(info) then seal(d) return "lava" end
@@ -694,20 +711,20 @@ local function check(d)
 end
 
 ---------------------------------------------------------------------------
--- Tunnel graven
+-- Tunnel digging
 ---------------------------------------------------------------------------
 local function isOpen(r) return r == nil or (type(r) == "table" and isLiquid(r)) end
 
--- Als check(), maar een gat naar een grot (lucht/water) wordt dichtgezet,
--- zodat er geen mobs, water of lava de gangen in komen.
+-- Like check(), but an opening into a cave (air/water) gets sealed,
+-- so no mobs, water or lava get into the tunnels.
 local function guard(d)
   local r = check(d)
   if isOpen(r) then seal(d) end
 end
 
--- Een nieuwe tunnelcel in richting d (horizontaal), 1x1. Boven, onder en de wanden
--- wa/wb worden alleen bekeken (geen extra graafwerk, geen ruimte voor mobs).
--- caveStop: komt hij uit in een grot, dan gang dichtzetten en stoppen (zijgangen).
+-- A new 1x1 tunnel cell in direction d (horizontal). Above, below and walls wa/wb
+-- are only inspected (no extra digging, no room for mobs).
+-- caveStop: if it runs into a cave, seal the tunnel end and stop (branches).
 local function excavate(d, wa, wb, caveStop)
   local r = check(d)
   if r == "lava" and isLava(inspect(d)) then return false, "lava" end
@@ -724,7 +741,7 @@ local function excavate(d, wa, wb, caveStop)
   return true
 end
 
--- Schacht: een nieuwe cel omlaag graven en de 4 wanden 1x checken (3 draaiingen)
+-- Shaft: dig a new cell down and check the 4 walls once (3 turns)
 local function excavateDown()
   local r = check(DOWN)
   if r == "lava" and isLava(inspect(DOWN)) then return false, "lava" end
@@ -735,7 +752,7 @@ local function excavateDown()
   return true
 end
 
-local mineUntil = nil -- os.clock() waarop hij terug moet (max. graaftijd per trip)
+local mineUntil = nil -- os.clock() at which it must head back (max mining time per trip)
 
 local function stopReason()
   if recall then return "recalled" end
@@ -758,7 +775,7 @@ local function level(y)
   return L
 end
 
--- Naar beneden door de (bestaande) schacht
+-- Down through the (existing) shaft
 local function descend(Y)
   st.phase = "descending"
   setStatus("Down the shaft to Y " .. Y)
@@ -773,13 +790,13 @@ local function descend(Y)
       st.shaft = pos.y
       save()
     end
-    -- Luik dicht op vloerhoogte zodat niemand in de schacht valt
+    -- Close the hatch at floor level so nobody falls into the shaft
     if pos.y == HOME.y - 2 and not turtle.detectUp() then seal(UP) end
   end
   return nil
 end
 
--- Mijn zijgangen op dit niveau tot er een reden is om naar huis te gaan
+-- Mine branches on this level until there is a reason to go home
 local function workLevel(j)
   local Y, BL = j.y, j.branchLen or BRANCH_LEN
   local L = level(Y)
@@ -788,7 +805,7 @@ local function workLevel(j)
   while true do
     local k = L.branch
     local junction = k * BRANCH_GAP
-    -- Hoofdgang tot kruising k
+    -- Main tunnel up to junction k
     setStatus("Main tunnel to branch " .. k)
     while along(SPINE) < junction do
       local r = stopReason()
@@ -806,7 +823,7 @@ local function workLevel(j)
         save()
       end
     end
-    -- Zijgang
+    -- Branch
     setStatus("Branch " .. k .. " (" .. L.step .. "/" .. BL .. ")")
     while along(BRANCH) < BL do
       local r = stopReason()
@@ -833,7 +850,7 @@ local function workLevel(j)
 end
 
 ---------------------------------------------------------------------------
--- Thuis: lossen en tanken
+-- Home: unload and refuel
 ---------------------------------------------------------------------------
 local FUEL_NAMES = { ["minecraft:coal"] = true, ["minecraft:charcoal"] = true, ["minecraft:coal_block"] = true,
   ["minecraft:lava_bucket"] = true }
@@ -857,13 +874,12 @@ local function unload()
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
     if d and (d.name == BUCKET or d.name == LAVA_BUCKET) then
-      -- emmers houden: lege om lava te scheppen, volle om te verbranden
+      -- keep buckets: empty ones to scoop lava, full ones to burn
     elseif d then
       if not kept and isJunk(s) and sealable(s) then
-        kept = true -- 1 stapel seal-blok houden
+        kept = true -- keep 1 stack of seal blocks
       elseif isJunk(s) then
-        turtle.select(s)
-        turtle.drop() -- restje troep van de schacht
+        -- junk never goes into the chest; it gets dropped underground next trip
       else
         haulInto(haul, s)
         turtle.select(s)
@@ -880,7 +896,7 @@ local function emptySlot()
   return nil
 end
 
--- Zorg dat er brandstof op plek 1 van de kist ligt (via peripheral), anders zoeken met suck.
+-- Put fuel in slot 1 of the chest (via peripheral); otherwise search with suck.
 local function chestFuelFirst()
   local chest = peripheral.wrap("front")
   if not chest or not chest.list then return end
@@ -905,7 +921,7 @@ local function refuelFromChest(target)
   if turtle.getFuelLevel() == "unlimited" then return end
   local limit = turtle.getFuelLimit()
   if target > limit - 100 then target = limit - 100 end
-  -- Eerst volle lava-emmers uit de turtle zelf
+  -- First full lava buckets from the turtle itself
   local lb = findItem(LAVA_BUCKET)
   while lb and turtle.getFuelLevel() < limit - 1000 do
     turtle.select(lb)
@@ -926,14 +942,62 @@ local function refuelFromChest(target)
         if not turtle.refuel(1) then break end
       end
       local left = turtle.getItemDetail(s)
-      -- 1 lege emmer houden om onderweg lava te scheppen, de rest terug in de kist
+      -- keep 1 empty bucket to scoop lava on the way, the rest back in the chest
       if left and not (left.name == BUCKET and not findItem(BUCKET, s)) then turtle.drop() end
     else
-      held[#held + 1] = s -- geen brandstof: even vasthouden, straks terug
+      held[#held + 1] = s -- not fuel: hold it for now, put it back later
     end
   end
   for _, s in ipairs(held) do turtle.select(s) turtle.drop() end
   turtle.select(1)
+end
+
+-- Clean the chest: only ores, fuel and buckets may stay. Anything else is moved
+-- to chest slot 1 (via the chest peripheral), sucked into the turtle and dropped
+-- underground on the next trip. Returns the number of stacks removed.
+local function cleanChest()
+  local chest = peripheral.wrap("front")
+  if not chest or not chest.list or not chest.pushItems then return 0 end
+  local removed = 0
+  for _ = 1, 12 do
+    if freeSlots() <= 2 then break end
+    local ok, list = pcall(chest.list)
+    if not ok or type(list) ~= "table" then break end
+    local bad
+    for slot = 1, chest.size() do
+      local it = list[slot]
+      if it then
+        local d = it
+        if chest.getItemDetail then
+          local ok2, full = pcall(chest.getItemDetail, slot)
+          if ok2 and full then d = full end
+        end
+        if not keepDetail(d) then bad = slot break end
+      end
+    end
+    if not bad then break end
+    if bad ~= 1 then
+      if list[1] then
+        local free
+        for e = chest.size(), 2, -1 do if not list[e] then free = e break end end
+        if not free then break end
+        if not pcall(chest.pushItems, "front", 1, 64, free) then break end
+      end
+      if not pcall(chest.pushItems, "front", bad, 64, 1) then break end
+    end
+    local s = emptySlot()
+    turtle.select(s)
+    if not turtle.suck(64) then break end
+    local got = turtle.getItemDetail(s, true)
+    if keepDetail(got) then
+      -- moving inside the chest did not work: put it back and stop cleaning
+      turtle.drop()
+      break
+    end
+    removed = removed + 1
+  end
+  turtle.select(1)
+  return removed
 end
 
 local function tripFuel(j)
@@ -969,7 +1033,7 @@ local function mergeProgress(hp)
   end
 end
 
--- Vraag iets aan de hub en wacht op een antwoord van het gegeven type
+-- Ask the hub something and wait for a reply of the given type
 local function request(msg, replyType, timeout)
   if not radio then return nil end
   if not hubId then hubId = rednet.lookup(PROTOCOL, "hub") end
@@ -991,8 +1055,8 @@ local function askHub()
   return request({ type = "job?", id = os.getComputerID(), role = ROLE, hash = MY_HASH }, "job")
 end
 
--- Nieuwe miner.lua van de hub halen, controleren, opslaan en herstarten.
--- Gebeurt alleen thuis (na het lossen), dus er gaat geen voortgang verloren.
+-- Fetch a new miner.lua from the hub, verify it, save it and reboot.
+-- Only happens at home (after unloading), so no progress is lost.
 local function selfUpdate(wanted)
   setStatus("Downloading update from hub")
   local r = request({ type = "get_miner", id = os.getComputerID() }, "miner_file", 10)
@@ -1039,16 +1103,16 @@ local function getJob()
 end
 
 ---------------------------------------------------------------------------
--- Hoofdlus
+-- Main loop
 ---------------------------------------------------------------------------
--- Bij opstarten: staat er een kist naast me, dan sta ik op mijn startplek
--- (onder de grond staan nooit kisten). Werkt ook als de turtle is opgepakt en
--- teruggezet, in welke richting dan ook. Positie en richting worden dan gereset;
--- de voortgang (gangen, schacht) blijft bewaard.
+-- On boot: a chest next to me means I am on my home spot (there are never
+-- chests underground). Also works when the turtle was picked up and put back,
+-- facing any direction. Position and heading get reset; progress
+-- (tunnels, shaft) is kept.
 local function calibrateAtHome()
   for i = 0, 3 do
     if chestInFront() then
-      -- De kist staat achter de startplek, dus ik kijk nu tegen de kijkrichting in
+      -- The chest is behind the home spot, so I now face opposite to my facing
       st.h = OPP[cfg.facing]
       pos.x, pos.y, pos.z = HOME.x, HOME.y, HOME.z
       st.phase = "home"
@@ -1058,7 +1122,7 @@ local function calibrateAtHome()
       if i > 0 then print("Chest found: I am on my home spot") end
       return true
     end
-    turtle.turnRight() -- 4x rechts = weer de oude richting als er geen kist is
+    turtle.turnRight() -- 4x right = back to the old heading if there is no chest
   end
   return false
 end
@@ -1096,7 +1160,10 @@ local function trip(j)
     moveOrFail(cfg.facing, "Hole in front of the turtle blocked")
   end
   local reason = descend(j.y)
-  if not reason then reason = workLevel(j) end
+  if not reason then
+    dropJunk() -- junk from home (shaft, cleaned chest) goes here, not in the base
+    reason = workLevel(j)
+  end
   goHome(reason)
 end
 
@@ -1106,13 +1173,15 @@ local function worker()
     st.phase = "home"
     face(OPP[cfg.facing])
     while not chestInFront() do
-      -- Geen kist = hij staat niet waar hij denkt. Niets weggooien, niet verder graven.
+      -- No chest = it is not where it thinks. Drop nothing, mine nothing.
       setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: miner home")
       sleep(30)
       face(OPP[cfg.facing])
     end
     setStatus("Unloading")
     local haul = unload()
+    local cleaned = cleanChest()
+    if cleaned > 0 then print("Removed " .. cleaned .. " junk stacks from the chest") end
     for n, c in pairs(haul) do st.total[n] = (st.total[n] or 0) + c end
     save()
     report(haul)

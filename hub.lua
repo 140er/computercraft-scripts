@@ -1,19 +1,19 @@
 -- hub.lua - Mine Army hub + dashboard (CC: Tweaked)
--- Draai op een (advanced) computer in je basis met een wireless/ender modem.
--- Een monitor ernaast is optioneel; tikken op de monitor werkt als knoppen.
+-- Run on an (advanced) computer in your base with a wireless/ender modem.
+-- A monitor next to it is optional; tapping the monitor works as buttons.
 --
---   hub            start de hub (zet "startup.lua" neer met: hub install)
---   hub install    hub automatisch starten bij opstarten
+--   hub            start the hub
+--   hub install    start the hub automatically on boot
 --
--- Bediening: tik een erts aan -> de hele vloot gaat daarvoor graven.
--- Tik eerst een turtle aan in de lijst om alleen die turtle een opdracht te geven.
--- STOP = na deze trip thuis blijven. TERUG = nu meteen naar huis.
--- Toetsenbord: 1-7 erts, s stop, r terug, a alle turtles, q afsluiten.
--- Update: sleep een nieuwe miner.lua naar deze computer en druk op UPDATE (of u).
+-- Controls: tap an ore -> the whole fleet goes mining for it.
+-- Tap a turtle in the list first to give only that turtle an order.
+-- STOP = stay home after this trip. RECALL = come home right now.
+-- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
+-- Update: drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
-local STALE = 15 -- seconden zonder bericht = "geen signaal"
+local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
 if args[1] == "install" then
@@ -36,7 +36,7 @@ local ORES = {
 local ORDER = { "diamond", "redstone", "gold", "lapis", "iron", "copper", "coal" }
 
 ---------------------------------------------------------------------------
--- Opslag
+-- Storage
 ---------------------------------------------------------------------------
 local function loadTable(path)
   if not fs.exists(path) then return nil end
@@ -47,20 +47,20 @@ local function loadTable(path)
 end
 
 local hub = loadTable(STATE_FILE) or {}
-hub.target = hub.target           -- nil = gepauzeerd
+hub.target = hub.target           -- nil = paused
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
 hub.progress = hub.progress or {}   -- [role] = { levels=, shaft= }
 hub.totals = hub.totals or {}
 hub.branchLen = hub.branchLen or 64
--- Oude hub.state had 32 als standaard: eenmalig naar 64 (daarna blijft jouw eigen waarde staan)
+-- Old hub.state had 32 as default: bump to 64 once (after that your own value is kept)
 if not hub.branchLen64 then
   if hub.branchLen == 32 then hub.branchLen = 64 end
   hub.branchLen64 = true
 end
--- Max. minuten graven per trip. Met gewone wireless modems hoort de hub de turtles
--- alleen bij de basis, dus kortere trips = nieuwe opdrachten worden sneller opgepikt.
+-- Max minutes of mining per trip. With normal wireless modems the hub only hears the
+-- turtles near the base, so shorter trips = new orders get picked up sooner.
 hub.mineMinutes = hub.mineMinutes or 15
-hub.released = hub.released -- hash van de miner.lua die met UPDATE is vrijgegeven
+hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
 
 local function save()
@@ -70,10 +70,10 @@ local function save()
 end
 
 local turtles = {} -- [id] = { p = status packet, seen = os.clock() }
-local selected = nil -- nil = alle turtles
+local selected = nil -- nil = all turtles
 
 ---------------------------------------------------------------------------
--- Netwerk
+-- Network
 ---------------------------------------------------------------------------
 local modemFound = false
 for _, name in ipairs(peripheral.getNames()) do
@@ -114,8 +114,8 @@ local function mergeProgress(role, p)
   hub.progress[role] = cur
 end
 
--- Turtle-updates: leg een nieuwe miner.lua op deze computer (slepen naar het scherm).
--- Turtles die thuis zijn zien de andere versie, halen hem op en herstarten.
+-- Turtle updates: put a new miner.lua on this computer (drag it onto the screen).
+-- Turtles at home see the different version, download it and reboot.
 local MINER_FILE = "miner.lua"
 local minerCache = { mod = nil, hash = nil, code = nil }
 local function hashOf(text)
@@ -136,8 +136,8 @@ local function minerVersion()
   return minerCache.hash, minerCache.code
 end
 
--- Alleen een versie die met de UPDATE-knop is vrijgegeven wordt uitgedeeld
--- (en alleen zolang het bestand nog precies die versie is).
+-- Only a version released with the UPDATE button is handed out
+-- (and only while the file is still exactly that version).
 local function releasedVersion()
   local hash = minerVersion()
   if hash and hash == hub.released then return hash end
@@ -171,7 +171,7 @@ local function handle(id, m)
 end
 
 ---------------------------------------------------------------------------
--- Scherm
+-- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
 local mon = peripheral.find("monitor")
@@ -206,7 +206,7 @@ end
 
 local function recallNow()
   if selected then
-    hub.overrides[selected] = false -- blijft thuis tot je een erts kiest
+    hub.overrides[selected] = false -- stays home until you pick an ore
     send(selected, { type = "recall", target = selected })
   else
     hub.recallAll = true
@@ -226,7 +226,7 @@ local function flash(text)
   notice, noticeUntil = text, os.clock() + 8
 end
 
--- UPDATE-knop: de miner.lua op deze computer vrijgeven en de turtles roepen
+-- UPDATE button: release the miner.lua on this computer and call the turtles
 local function releaseUpdate()
   local hash = minerVersion()
   if not hash then
@@ -244,7 +244,7 @@ local function outdatedCount()
   if not hash then return 0 end
   local n = 0
   for _, r in pairs(turtles) do
-    if r.p.hash and r.p.hash ~= hash then n = n + 1 end
+    if r.p.hash ~= hash then n = n + 1 end -- no hash = very old version
   end
   return n
 end
@@ -294,7 +294,7 @@ local function draw(s)
   end
 
   bg(colors.black) t.clear()
-  -- Titel
+  -- Title
   at(1, 1, string.rep(" ", W), colors.white, colors.gray)
   at(2, 1, "MINE ARMY HUB", colors.yellow, colors.gray)
   local mode
@@ -305,7 +305,7 @@ local function draw(s)
 
   if notice and os.clock() < noticeUntil then at(1, 2, notice, colors.yellow) end
 
-  -- Erts-knoppen
+  -- Ore buttons
   local y = 3
   local x = 1
   local applyTo = "Orders for: "
@@ -331,7 +331,7 @@ local function draw(s)
     outdated > 0 and colors.green or colors.gray, releaseUpdate)
   if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
 
-  -- Turtle-tabel
+  -- Turtle table
   y = y + 2
   at(1, y, "Turtle       Job      Status", colors.cyan)
   local right = "Y    Fuel  Free"
@@ -366,8 +366,8 @@ local function draw(s)
     if p.branch and p.phase == "mining" then ore = ore .. " b" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
     local want = releasedVersion()
-    if want and p.hash and p.hash ~= want then
-      name = (p.label or ("#" .. id)):sub(1, 11) .. "*" -- wacht op update (bij volgende keer thuis)
+    if (want and p.hash ~= want) or not p.hash then
+      name = (p.label or ("#" .. id)):sub(1, 11) .. "*" -- waiting for update (next time home)
     end
     local rightTxt = string.format("%-4s %5s %2s", tostring(p.y or "?"),
       type(p.fuel) == "number" and tostring(p.fuel) or "inf", tostring(p.free or "?"))
@@ -385,7 +385,7 @@ local function draw(s)
     y = y + 1
   end
 
-  -- Wat er nu in de turtles zit (laatst gemelde inventory van elke turtle)
+  -- What is in the turtles right now (last reported inventory of each turtle)
   local sum = {}
   for _, r in pairs(turtles) do
     if type(r.p.items) == "table" then
@@ -397,7 +397,7 @@ local function draw(s)
   local list2 = {}
   for name, n in pairs(sum) do list2[#list2 + 1] = { name = name, n = n, common = COMMON[name] and 1 or 0 } end
   table.sort(list2, function(a, b)
-    if a.common ~= b.common then return a.common < b.common end -- erts eerst, cobble/emmers achteraan
+    if a.common ~= b.common then return a.common < b.common end -- ores first, cobble/buckets last
     if a.n ~= b.n then return a.n > b.n end
     return a.name < b.name
   end)
@@ -449,7 +449,7 @@ local function uiLoop()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
-      -- Gewone modems: turtles buiten bereik missen de oproep, dus blijf hem herhalen
+      -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
       if hub.recallAll and tick % 5 == 0 then send(nil, { type = "recall" }) end
       local rel = releasedVersion()

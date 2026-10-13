@@ -1,15 +1,15 @@
--- smartmine.lua v9 voor CC: Tweaked turtles
--- Gebruik: smartmine <lengte> [tunnels] [tussenruimte] [blok1,blok2,...]
--- Start: turtle kijkt de tunnel in, kist met kolen direct ACHTER de turtle.
+-- smartmine.lua v9 for CC: Tweaked turtles
+-- Usage: smartmine <length> [tunnels] [gap] [block1,block2,...]
+-- Start: turtle faces into the tunnel, chest with coal directly BEHIND the turtle.
 
 local args = { ... }
 local function usage()
-  print("Gebruik: smartmine <lengte> [tunnels] [tussenruimte] [blok1,blok2,...]")
-  print("  lengte       = lengte van elke tunnel")
-  print("  tunnels      = aantal tunnels naast elkaar (rechts), standaard 1")
-  print("  tussenruimte = blokken tussen tunnels, standaard 3")
-  print("  blokken      = doelblokken, standaard diamond_ore")
-  print("Kist met kolen achter de turtle zetten.")
+  print("Usage: smartmine <length> [tunnels] [gap] [block1,block2,...]")
+  print("  length  = length of each tunnel")
+  print("  tunnels = number of tunnels side by side (to the right), default 1")
+  print("  gap     = blocks between tunnels, default 3")
+  print("  blocks  = target blocks, default diamond_ore")
+  print("Put a chest with coal behind the turtle.")
 end
 
 local LEN = tonumber(args[1])
@@ -17,7 +17,7 @@ if not LEN or LEN < 1 then usage() return end
 local TUNNELS = tonumber(args[2]) or 1
 local GAP = tonumber(args[3]) or 3
 
--- Doelblokken
+-- Target blocks
 local TARGET = {}
 if args[4] then
   for n in string.gmatch(args[4], "[^,]+") do
@@ -29,7 +29,7 @@ else
   TARGET["minecraft:deepslate_diamond_ore"] = true
 end
 
--- Troep: wordt weggegooid
+-- Junk: gets dropped
 local JUNK = {}
 for _, n in ipairs({ "cobblestone", "cobbled_deepslate", "deepslate", "stone", "dirt",
   "gravel", "sand", "netherrack", "andesite", "diorite", "granite", "tuff", "calcite",
@@ -39,7 +39,7 @@ for _, n in ipairs({ "cobblestone", "cobbled_deepslate", "deepslate", "stone", "
   JUNK["minecraft:" .. n] = true
 end
 
--- Items die je niet kunt plaatsen (naamdelen)
+-- Items that cannot be placed (name parts)
 local NOPLACE = { "diamond", "raw_", "coal", "redstone", "lapis", "emerald", "quartz",
   "flint", "ingot", "gem", "nugget", "dust", "shard", "ball", "bone", "string",
   "stick", "torch", "bucket", "_ore", "ore_" }
@@ -49,12 +49,12 @@ local JUNK_EVERY = 10
 local MAX_VEIN = 48
 local RETRY = 30
 
--- Positie: dir 0=vooruit(+z) 1=rechts(+x) 2=achter 3=links ; 4=op 5=neer
+-- Position: dir 0=forward(+z) 1=right(+x) 2=back 3=left ; 4=up 5=down
 local x, y, z, dir = 0, 0, 0, 0
 local DX = { [0] = 0, 1, 0, -1 }
 local DZ = { [0] = 1, 0, -1, 0 }
-local path = {}        -- opgeslagen pad (stapel richtingen)
-local seen = {}        -- al geinspecteerde coordinaten
+local path = {}        -- stored path (stack of directions)
+local seen = {}        -- already inspected coordinates
 local dug = 0
 local OPP = { [0] = 2, 3, 0, 1, 5, 4 }
 
@@ -64,7 +64,7 @@ local function neighbour(d)
   return x + DX[d], y, z + DZ[d]
 end
 
--- Draaien met minimale draaiingen
+-- Turning with minimal turns
 local function face(d)
   if d >= 4 or d == dir then return end
   local diff = (d - dir) % 4
@@ -94,7 +94,7 @@ end
 local function isTarget(info) return info and TARGET[info.name] end
 local function isLava(info) return info and (info.name == "minecraft:lava" or info.name == "minecraft:flowing_lava") end
 
--- Plaatsbaar seal-blok zoeken
+-- Find a placeable seal block
 local function isFuel(slot)
   turtle.select(slot)
   return turtle.refuel(0)
@@ -125,7 +125,7 @@ local function seal(d)
   return false
 end
 
--- Graven met herstel (grind, mobs)
+-- Digging with retries (gravel, mobs)
 local function digDir(d)
   local dig, det, atk
   if d == 4 then dig, det, atk = turtle.digUp, turtle.detectUp, turtle.attackUp
@@ -140,7 +140,7 @@ local function digDir(d)
   return not det()
 end
 
--- Lava check + seal; false = lava blijft
+-- Lava check + seal; false = lava remains
 local function clearLava(d)
   local info = inspect(d)
   if isLava(info) then
@@ -167,7 +167,7 @@ local function rawMove(d)
   return false
 end
 
--- Stap met lava-check en pad-opslag
+-- Step with lava check and path recording
 local function step(d, noRecord)
   if not clearLava(d) then return false, "lava" end
   if not digDir(d) then return false, "bedrock" end
@@ -176,7 +176,7 @@ local function step(d, noRecord)
   return true
 end
 
--- Een stap terug via het pad
+-- One step back along the path
 local function back()
   local d = table.remove(path)
   if not d then return true end
@@ -195,7 +195,7 @@ local function freeSlots()
   return n
 end
 
--- Troep weggooien, een stapel plaatsbare troep houden voor lava
+-- Drop junk, keep one stack of placeable junk for lava
 local function dropJunk()
   local kept = false
   for s = 1, 16 do
@@ -203,31 +203,31 @@ local function dropJunk()
     if it and JUNK[it.name] then
       turtle.select(s)
       if not kept and sealable(s) then
-        kept = true -- 1 stapel bewaren als seal-materiaal
+        kept = true -- keep 1 stack as seal material
       else turtle.dropDown() end
     end
   end
   turtle.select(1)
 end
 
--- Naar huis, lossen, tanken, terug
+-- Go home, unload, refuel, go back
 local resumeFrom
 local function goHome()
   local saved = {}
   for i, d in ipairs(path) do saved[i] = d end
   while #path > 0 do
-    if not back() then error("Kan niet terug naar start", 0) end
+    if not back() then error("Cannot get back to start", 0) end
   end
   face(2)
   return saved
 end
 
 local function unloadAndFuel()
-  -- Lossen, brandstof houden
+  -- Unload, keep fuel
   for s = 1, 16 do
     if turtle.getItemCount(s) > 0 and not isFuel(s) then turtle.select(s) turtle.drop() end
   end
-  -- Kolen uit de kist
+  -- Coal from the chest
   local need = function() return turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < 2000 end
   local tries = 0
   while need() and tries < 20 do
@@ -237,7 +237,7 @@ local function unloadAndFuel()
     else
       tries = tries + 1
       for s = 1, 16 do turtle.select(s) turtle.refuel() end
-      if turtle.getFuelLevel() < 500 then print("Geen kolen in kist, wacht...") sleep(5) else break end
+      if turtle.getFuelLevel() < 500 then print("No coal in chest, waiting...") sleep(5) else break end
     end
   end
   turtle.select(1)
@@ -247,7 +247,7 @@ local function resume(saved)
   for _, d in ipairs(saved) do
     local ok = false
     for _ = 1, 5 do if step(d) then ok = true break end sleep(0.5) end
-    if not ok then error("Kan pad niet hervatten", 0) end
+    if not ok then error("Cannot resume path", 0) end
   end
 end
 
@@ -257,12 +257,12 @@ local function service()
   resume(saved)
 end
 
--- Lichte fuel-check: afstand naar huis + marge
+-- Light fuel check: distance home + margin
 local function checkFuel()
   local f = turtle.getFuelLevel()
   if f == "unlimited" then return end
   if f <= #path + FUEL_MARGIN then
-    print("Fuel laag, naar huis")
+    print("Fuel low, going home")
     service()
   end
 end
@@ -272,11 +272,11 @@ local function afterDig()
   if dug % JUNK_EVERY == 0 then dropJunk() end
   if freeSlots() == 0 then
     dropJunk()
-    if freeSlots() == 0 then print("Inventory vol, lossen") service() end
+    if freeSlots() == 0 then print("Inventory full, unloading") service() end
   end
 end
 
--- Vein finder: DFS met visited-set, zijstappen voor diagonalen
+-- Vein finder: DFS with visited set, side steps for diagonals
 local veinSeen = {}
 local veinCount = 0
 local mineInto
@@ -298,7 +298,7 @@ local ALL6 = { 0, 1, 2, 3, 4, 5 }
 local function explore(isDia)
   scanFor(ALL6)
   if not isDia then return end
-  -- Zijstappen: boven en onder alle 4 kanten, voor/achter de zijkanten (18 van 26)
+  -- Side steps: above and below all 4 sides, front/back the sides (18 of 26)
   local side = {
     { 4, { 0, 1, 2, 3 } }, { 5, { 0, 1, 2, 3 } },
     { 0, { 1, 3 } }, { 2, { 1, 3 } },
@@ -333,14 +333,14 @@ local function vein(d, info)
   mineInto(d, isTarget(info))
 end
 
--- Wandscan in de graafstap: links/rechts, kolom boven/onder ook voor ores
+-- Wall scan in the dig step: left/right, column above/below also for ores
 local function scanStep(fwd)
   for _, d in ipairs({ 4, 5 }) do
     local info = inspect(d)
     if isLava(info) then seal(d)
     elseif isOre(info) then vein(d, info) end
   end
-  -- Links en rechts; volgorde zo dat er weinig gedraaid wordt
+  -- Left and right; ordered to minimise turning
   local l, r = (fwd + 3) % 4, (fwd + 1) % 4
   for _, d in ipairs({ l, r }) do
     local nx, ny, nz = neighbour(d)
@@ -352,7 +352,7 @@ local function scanStep(fwd)
   end
 end
 
--- Omweg rond lava of bedrock
+-- Detour around lava or bedrock
 local function detour(fwd)
   for _, s in ipairs({ (fwd + 1) % 4, (fwd + 3) % 4, 4 }) do
     local base = #path
@@ -363,12 +363,12 @@ local function detour(fwd)
   return false
 end
 
--- Een tunnelstap: 3 hoog, middelste rij
+-- One tunnel step: 3 high, middle row
 local function tunnelStep(fwd)
   checkFuel()
   local ok, why = step(fwd)
   if not ok then
-    print("Probleem: " .. tostring(why) .. ", omweg")
+    print("Problem: " .. tostring(why) .. ", detour")
     if not detour(fwd) then return false end
   end
   afterDig()
@@ -378,7 +378,7 @@ local function tunnelStep(fwd)
   return true
 end
 
--- Hoofdprogramma
+-- Main program
 local function main()
   if turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < LEN + FUEL_MARGIN then
     face(2) unloadAndFuel() face(0)
@@ -387,23 +387,23 @@ local function main()
     local fwd = (t % 2 == 1) and 0 or 2
     local i = 0
     while i < LEN do
-      if not tunnelStep(fwd) then error("Geen veilige route", 0) end
+      if not tunnelStep(fwd) then error("No safe route", 0) end
       i = (fwd == 0) and z or (LEN - z)
       if fwd == 2 then i = LEN - z end
     end
     if t < TUNNELS then
       for _ = 1, GAP + 1 do
-        if not tunnelStep(1) then error("Geen veilige route", 0) end
+        if not tunnelStep(1) then error("No safe route", 0) end
       end
     end
   end
-  print("Klaar, terug naar start")
+  print("Done, going back to start")
 end
 
 local ok, err = pcall(main)
-if not ok then print("Fout: " .. tostring(err)) end
--- Altijd terug naar huis en lossen
+if not ok then print("Error: " .. tostring(err)) end
+-- Always go home and unload
 local ok2, err2 = pcall(function() goHome() dropJunk() unloadAndFuel() end)
-if not ok2 then print("Terugkeer mislukt: " .. tostring(err2)) end
+if not ok2 then print("Return failed: " .. tostring(err2)) end
 face(0)
-print("Gestopt op start. Gegraven: " .. dug)
+print("Stopped at start. Dug: " .. dug)

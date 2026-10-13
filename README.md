@@ -2,24 +2,25 @@
 
 ComputerCraft (CC: Tweaked) turtle scripts.
 
-- `hub.lua` + `miner.lua`: **Mine Army**. Een hub met dashboard in je basis, en een vloot mining turtles die via hun eigen schacht naar het erts-niveau gaan, daar zijgangen graven en weer terugkomen.
-- `smartmine.lua`: de oude losse tunnel-miner (zonder hub). Werkt nog steeds.
+- `hub.lua` + `miner.lua`: **Mine Army**. A hub with a dashboard in your base, and a fleet of mining turtles that each go down their own shaft to the ore level, dig branch tunnels there and come back.
+- `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
 
 ## Mine Army
 
-### Wat het doet
-- Elke turtle rijdt 1 blok vooruit (naar het gat dat je daar gemaakt hebt) en gaat daar omlaag. Hij maakt die 1x1 schacht **één keer** af tot het erts-niveau. Daarna gebruikt hij die schacht elke trip opnieuw. Iron ligt boven diamond, dus dezelfde schacht werkt voor elk niveau.
-- Op het erts-niveau graaft hij een hoofdgang. Om de 4 blokken komt er een zijgang (3 blokken steen ertussen), standaard 64 lang.
-- De gangen zijn 1x1. Hij kijkt wel naar het blok erboven en eronder, dus hij vindt evenveel erts als in een 3 hoge gang, maar sneller. In 1 hoge gangen kunnen ook geen mobs spawnen.
-- Grotten: komt een wand, plafond of vloer uit in een grot (lucht of water), dan zet hij dat gat dicht met cobble. Loopt een zijgang een grot in, dan sluit hij de gang af en begint aan de volgende. De hoofdgang gaat er recht doorheen en metselt zichzelf onderweg dicht. Zo blijven de gangen vrij van mobs, water en lava.
-- Bij elke stap kijkt hij links en rechts in de wand. Ertsen volgt hij als ader. Voor het doel-erts (bv. diamond) checkt hij 18 van de 26 buren.
-- Lava wordt afgedicht met het eerste neerzetbare non-ore blok. Hij stapt nooit in lava. Kolen gebruikt hij nooit om af te dichten.
-- Troep (cobble, deepslate, tuff, grind, enz.) gooit hij om de ~10 blokken weg. Eén stapel houdt hij als seal-blok. Alle ertsen, ook modded, houdt hij.
-- Gaat naar huis als de inventory vol is, de fuel op de terugweg nodig is, of de hub hem terugroept. Daar lost hij in de kist, tankt kolen uit dezelfde kist en gaat weer.
-- Onthoudt positie en voortgang in een bestand. Na een reboot of chunk-unload gaat hij eerst veilig naar huis en gaat dan verder waar hij was.
-- Het gat dekt hij op vloerhoogte af met een blok zodra hij erin zit, zodat niemand erin valt. Op de terugweg graaft hij het weer open, rijdt omhoog en 1 blok terug naar zijn startplek (kist achter hem).
+### What it does
+- Each turtle moves 1 block forward (into the hole you made there) and goes down. It finishes that 1x1 shaft to the ore level **once** and reuses it every trip after. Iron is above diamond, so the same shaft works for every level.
+- At the ore level it digs a main tunnel with a branch every 4 blocks (3 blocks of rock between), 64 long by default.
+- Tunnels are 1x1. It still inspects the block above and below, so it finds as much ore as in a 3-high tunnel, just faster. Mobs can't spawn in 1-high tunnels either.
+- Caves: if a wall, ceiling or floor opens into a cave (air or water), it plugs the opening with cobble. If a branch runs into a cave, it closes the branch off and starts the next one. The main tunnel goes straight through and walls itself in on the way. This keeps the tunnels free of mobs, water and lava.
+- At every step it looks left and right into the walls. Ores are followed as a vein. For the target ore (e.g. diamond) it checks 18 of the 26 neighbours.
+- Lava gets sealed with the first placeable non-ore block. It never steps into lava and never uses coal to seal.
+- Junk (cobble, deepslate, tuff, gravel, dirt, string, bones, ...) is dropped underground every ~10 blocks. It keeps one stack of blocks for sealing. All ores, including modded ones, are kept.
+- It goes home when the inventory is full, when it needs the remaining fuel to get back, when its trip time is up, or when the hub recalls it. There it unloads into the chest, refuels from the same chest and goes again.
+- **Clean chest:** every time it unloads, it also cleans its chest. Only ores (raw ores, gems, dusts, modded ores), fuel and buckets may stay. Anything else is taken out and dropped underground on the next trip, never in your base.
+- It saves its position and progress in a file. After a reboot or chunk unload it first goes home safely and then continues where it was.
+- Once it is inside the hole it covers it at floor level with a block, so nobody falls in. On the way back it digs it open, comes up and moves 1 block back to its home spot (chest behind it).
 
-| Knop | Niveau (Y) |
+| Button | Level (Y) |
 |---|---|
 | Diamond / Redstone | -58 |
 | Gold | -16 |
@@ -27,99 +28,100 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 | Iron | 16 |
 | Copper / Coal | 48 |
 
-### Regio's (geen botsingen)
-Elke turtle heeft een "rol" = de richting van zijn hoofdgang. De zijgangen gaan steeds een kwartslag met de klok mee:
+### Regions (no collisions)
+Each turtle has a "role" = the direction of its main tunnel. Its branches always go a quarter turn clockwise:
 
-| Rol | Hoofdgang | Zijgangen |
+| Role | Main tunnel | Branches |
 |---|---|---|
-| east  | oost  | zuid |
-| south | zuid  | west |
-| west  | west  | noord |
-| north | noord | oost |
+| east  | east  | south |
+| south | south | west  |
+| west  | west  | north |
+| north | north | east  |
 
-Zo krijgt elke turtle zijn eigen kwadrant, en geen gang kruist een schacht van een andere turtle.
+This gives every turtle its own quadrant, and no tunnel crosses another turtle's shaft.
 
-### Benodigd
-- Per turtle: mining turtle (pickaxe) + wireless modem (gewoon of ender).
-- Per turtle: een kist direct **achter** de turtle. Brandstof: kolen of lava-emmers (in de kist of in de turtle zelf).
+### What you need
+- Per turtle: a mining turtle (pickaxe) + a wireless modem (normal or ender).
+- Per turtle: a chest directly **behind** the turtle. Fuel: coal or lava buckets (in the chest or in the turtle itself).
+- Base computer (advanced for colour/clicking) + wireless modem. Monitor optional (advanced monitor = touch buttons).
 
-### Brandstof: lava-emmers
-- Een volle lava-emmer = 1000 fuel. De turtle verbrandt volle emmers uit zijn eigen inventory en uit de kist.
-- Lege emmers houdt hij. Komt hij onderweg een lava-bron tegen, dan schept hij die op met een lege emmer, verbrandt hem meteen (+1000 fuel) en dicht het gat daarna af met een blok. Op Y -58 zit veel lava, dus een turtle met een emmer tankt zichzelf.
-- 2 volle emmers per turtle is genoeg om te beginnen. Werk je alleen met kolen, geef hem dan toch 1 lege emmer.
-- Stromende lava kan niet in een emmer, die wordt alleen afgedicht.
-- Basis-computer (advanced voor kleur/klikken) + wireless modem. Monitor optioneel (advanced monitor = aanraakknoppen).
+### Fuel: lava buckets
+- A full lava bucket = 1000 fuel. The turtle burns full buckets from its own inventory and from the chest.
+- It keeps empty buckets. When it finds a lava source on the way, it scoops it with an empty bucket, burns it right away (+1000 fuel) and then seals the spot with a block. There is a lot of lava at Y -58, so a turtle with a bucket fuels itself.
+- 2 full buckets per turtle is enough to start. If you only use coal, still give it 1 empty bucket.
+- Flowing lava can't be picked up with a bucket; it just gets sealed.
 
-### Gewone wireless modems
-Een gewone wireless modem reikt ongeveer 64 blokken. Diep onder de grond hoort de hub de turtles dus niet. Dat is geen probleem:
-- Opdrachten haalt een turtle op als hij thuis is, en daar lost hij ook zijn buit. Dat werkt altijd, zolang de hub binnen ~64 blokken van de turtles staat (naast ze is prima).
-- Op het dashboard staat een turtle die onderweg is in oranje als "Underground". Rood "NO SIGNAL" betekent dat hij thuis zou moeten zijn maar niets laat horen.
-- Een turtle graaft maximaal `mineMinutes` (standaard 15) minuten per trip en komt dan terug, ook als hij nog niet vol is. Zo wordt een nieuwe erts-keuze binnen een kwartier opgepikt. Aan te passen in `hub.state`.
-- `RECALL` bereikt alleen turtles binnen bereik. De hub blijft de oproep herhalen, maar een turtle diep beneden komt pas terug na zijn trip-tijd. `STOP` werkt altijd: thuis blijft hij staan.
-- Met ender modems werkt alles live, zonder deze beperkingen.
+### Normal wireless modems
+A normal wireless modem reaches about 64 blocks, so the hub can't hear turtles deep underground. That's fine:
+- A turtle gets its orders and unloads its loot at home. That always works as long as the hub is within ~64 blocks of the turtles (right next to them is fine).
+- On the dashboard a turtle that is out on a trip shows in orange as "Underground". Red "NO SIGNAL" means it should be home but isn't answering.
+- A turtle mines at most `mineMinutes` (default 15) minutes per trip and then comes back, even if it isn't full. That way a new ore choice gets picked up within 15 minutes. Change it in `hub.state`.
+- `RECALL` only reaches turtles in range. The hub keeps repeating the call, but a turtle deep down only comes back when its trip time is up. `STOP` always works: it stays home.
+- With ender modems everything is live, without these limits.
 
-### Installeren
-Op elke turtle en op de hub-computer (`http` moet aan staan op de server):
+### Installing
+On every turtle and on the hub computer (`http` must be enabled on the server, and the repo must be public):
 ```
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install
 ```
-Of kopieer `miner.lua` / `hub.lua` handmatig (pastebin, diskette).
+Or copy `miner.lua` / `hub.lua` by hand: drag the file onto the computer's screen.
 
-### Instellen: jouw 4 turtles
-Ze staan op y=65, z=-743, met de kist aan de noordkant (z=-744), dus ze kijken **south**. Controleer dat even. Bij `setup` waarschuwt de turtle als hij geen kist achter zich ziet.
+### Setup: your 4 turtles
+They stand at y=65, z=-743, with the chest on the north side (z=-744), so they face **south**. `setup` warns you if the turtle doesn't see a chest behind it.
 ```
--- turtle op x=-216 (oostelijkste)
+-- turtle at x=-216 (easternmost)
 miner setup -216 65 -743 south east
--- turtle op x=-218
+-- turtle at x=-218
 miner setup -218 65 -743 south south
--- turtle op x=-220
+-- turtle at x=-220
 miner setup -220 65 -743 south north
--- turtle op x=-222 (westelijkste)
+-- turtle at x=-222 (westernmost)
 miner setup -222 65 -743 south west
 ```
-Setup zet ook een `startup.lua` neer en geeft de turtle een label (`Miner-east`, ...). Daardoor start hij na een reboot vanzelf en houdt hij zijn bestanden als je hem oppakt.
+Setup also writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...). That way it starts by itself after a reboot and keeps its files when you pick it up.
 
-Hub-computer:
+Hub computer:
 ```
 hub install
 hub
 ```
-Herstart daarna de turtles (of typ `miner`).
+Then reboot the turtles (or type `miner`).
 
-### Bediening (dashboard)
-- Tik op een erts (Diamond, Iron, ...). Alle turtles gaan daarvoor graven. Een nieuwe keuze geldt vanaf de volgende trip.
-- Tik eerst op een turtle in de lijst en dan op een erts: alleen die turtle krijgt dat erts. `ALL` gaat terug naar de hele vloot.
-- `STOP`: na de huidige trip thuis blijven.
-- `RECALL`: meteen naar huis (als hij binnen bereik is). `RESUME` laat ze weer gaan.
-- Toetsenbord: `1`-`7` erts, `s` stop, `r` recall, `h` resume, `u` update, `a` alle, `q` afsluiten.
-- Onderaan ("IN TURTLES NOW") staat wat er op dit moment in de turtles zit, opgeteld. Turtles buiten bereik tellen mee met hun laatst gemelde inhoud.
+### Controls (dashboard)
+- Tap an ore (Diamond, Iron, ...). All turtles go mining for it. A new choice applies from the next trip.
+- Tap a turtle in the list first and then an ore: only that turtle gets that ore. `ALL` goes back to the whole fleet.
+- `STOP`: stay home after the current trip.
+- `RECALL`: come home right now (if in range). `RESUME` lets them go again.
+- Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
+- At the bottom, "IN TURTLES NOW" shows what is in the turtles right now, summed up. Turtles out of range count with what they last reported.
 
-### Turtle staat verkeerd / denkt dat hij thuis is
-Een turtle lost nooit iets als er geen kist achter hem staat. Dan zie je op het dashboard "ERROR: no chest behind me".
-Oplossen: pak de turtle op (hij houdt zijn bestanden) en zet hem op zijn startplek naast de kist, in welke richting maakt niet uit. Bij het opstarten kijkt hij rond: ziet hij zijn kist, dan weet hij dat hij thuis is en zet hij positie en richting zelf goed. De voortgang blijft bewaard.
-Werkt dat niet, typ dan (Ctrl+T eerst als hij al bezig is):
+### Turtle is in the wrong place / thinks it is home
+A turtle never unloads if there is no chest behind it. The dashboard then shows "ERROR: no chest behind me".
+Fix: pick the turtle up (it keeps its files) and put it on its home spot next to the chest, facing any direction. On boot it looks around: if it sees its chest, it knows it is home and resets its position and heading itself. Progress is kept.
+If that doesn't work, type (Ctrl+T first if it is running):
 ```
 miner home
 miner
 ```
-`miner home` zet alleen de positie terug; welke gangen al gegraven zijn blijft bewaard.
+`miner home` only resets the position; which tunnels are already dug is kept.
 
-### Turtles updaten via de hub
-1. Sleep de nieuwe `miner.lua` naar het scherm van de **hub-computer**. Er gebeurt dan nog niets.
-2. Druk op **UPDATE** (of toets `u`). Tussen haakjes staat hoeveel turtles een andere versie hebben.
-   - Turtles die thuis staan updaten meteen.
-   - Turtles die onderweg zijn en de hub horen, gaan eerst naar huis en updaten daar.
-   - Turtles die te diep zitten (gewone modem) updaten zodra ze thuiskomen.
-- Updaten gebeurt alleen thuis, na het lossen. Positie, richting en voortgang staan in `miner.state` en `miner.cfg` en blijven bewaard. Na de herstart gaat hij verder bij dezelfde zijgang.
-- Turtles die de vrijgegeven update nog niet hebben staan op het dashboard met een `*` achter hun naam.
-- Een kapot bestand wordt geweigerd. De turtle houdt dan zijn oude versie.
-- Wil je de hub zelf bijwerken: sleep ook `hub.lua` erheen en herstart de hub-computer.
-- Let op: iedereen op de server met een computer en modem zou zich als "hub" kunnen voordoen. Op een server met vreemden is dat een risico.
+### Updating the turtles through the hub
+1. Drag the new `miner.lua` onto the **hub computer's** screen. Nothing happens yet.
+2. Press **UPDATE** (or key `u`). The number in brackets is how many turtles run a different version.
+   - Turtles at home update right away.
+   - Turtles out on a trip that can hear the hub go home first and update there.
+   - Turtles too deep to hear the hub (normal modem) update when they get home.
+- Updating only happens at home, after unloading. Position, heading and progress are stored in `miner.state` and `miner.cfg` and are kept. After the reboot it continues at the same branch.
+- Turtles that don't have the released update yet show a `*` after their name on the dashboard.
+- A turtle running a version from before hub updates existed can't update itself: copy `miner.lua` onto it by hand once. Its `*` never goes away until you do.
+- A broken file is rejected. The turtle keeps its old version.
+- To update the hub itself: drag `hub.lua` onto it as well and reboot the hub computer.
+- Note: anyone on the server with a computer and a modem could pretend to be the "hub". On a server with strangers, that is a risk.
 
-Zonder hub: `miner diamond` (of `iron`, `gold`, ...) laat één turtle zelfstandig werken.
+Without a hub: `miner diamond` (or `iron`, `gold`, ...) runs one turtle on its own.
 
-### Goed om te weten
-- Turtles werken alleen in geladen chunks. Gaat de chunk uit, dan stopt de turtle. Komt de chunk terug, dan start hij opnieuw, gaat naar huis en werkt verder.
-- Hoe meer zijgangen er al zijn, hoe langer de hoofdgang en de reis. De lengte van de zijgangen staat in `hub.state` (`branchLen`).
-- Instellingen bovenin `miner.lua`: `BRANCH_LEN`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
+### Good to know
+- Turtles only work in loaded chunks. When the chunk unloads, the turtle stops. When it loads again, the turtle restarts, goes home and carries on.
+- The more branches there are, the longer the main tunnel and the trip. The branch length is in `hub.state` (`branchLen`).
+- Settings at the top of `miner.lua`: `BRANCH_LEN`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
