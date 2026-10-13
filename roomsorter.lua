@@ -64,10 +64,25 @@ if args[1] == "client" then
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end) or peripheral.find("modem")
   if not modem then print("Needs a wireless modem, or a wired modem + cable to the board computer.") return end
   rednet.open(peripheral.getName(modem))
+  print("Looking for the storage turtle (" .. (modem.isWireless() and "wireless" or "wired") .. " modem)...")
   local id = rednet.lookup(PROTOCOL)
   if not id then
-    print("No storage turtle found. Is it running, with a wireless modem?")
-    if not modem.isWireless() then print("Wired: is the board computer running, and are both modems red (right-click them)?") end
+    -- The turtle also sends its stock every 10 s: wait for that
+    local timer = os.startTimer(15)
+    while not id do
+      local ev, a, b, c = os.pullEvent()
+      if ev == "rednet_message" and c == PROTOCOL .. "_stock" then id = a
+      elseif ev == "timer" and a == timer then break end
+    end
+  end
+  if not id then
+    print("No storage turtle found. Check:")
+    print("- the turtle runs roomsorter and has a wireless modem")
+    print("- the board monitor says LIVE (then the turtle is heard)")
+    if not modem.isWireless() then
+      print("- the board computer runs the new roomsorter.lua (reboot it); its own screen should say '2 modems found'")
+      print("- the cable goes from this computer's modem to the board computer's modem")
+    end
     return
   end
   print("Connected to the storage turtle. Commands: list [text], find <item>, get <item> [n], quit")
