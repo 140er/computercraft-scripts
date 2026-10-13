@@ -347,10 +347,13 @@ local function draw(s)
       lost[#lost + 1] = (r.p.label or ("#" .. id)) .. " at " .. tostring(r.p.x) .. "," .. tostring(r.p.y) .. "," .. tostring(r.p.z)
     end
   end
+  local fileHash = minerVersion()
   if #lost > 0 then
     at(1, 2, "LOST: " .. table.concat(lost, "  "), colors.red)
   elseif notice and os.clock() < noticeUntil then
     at(1, 2, notice, colors.yellow)
+  elseif fileHash and fileHash ~= hub.released then
+    at(1, 2, "New miner.lua on the hub: press UPDATE to send it", colors.yellow)
   end
 
   -- Ore buttons
@@ -438,7 +441,7 @@ local function draw(s)
     end
     if p.branch and p.phase == "mining" then ore = ore .. " b" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
-    local want = releasedVersion()
+    local want = minerVersion()
     if (want and p.hash ~= want) or not p.hash then
       name = (p.label or ("#" .. id)):sub(1, 11) .. "*" -- waiting for update (next time home)
     end

@@ -106,7 +106,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **THOROUGH / FAST:** mining mode (see above).
 - **Time:** session length, default 1 hour. Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
-- **UPDATE:** see "Updating" below. The number is how many turtles run a different version; those have a `*` after their name.
+- **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name. While a new `miner.lua` is waiting to be sent, the second line says "New miner.lua on the hub: press UPDATE".
 - **IN TURTLES NOW:** the loot currently in all turtles together (last reported for turtles out of range).
 - Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.
