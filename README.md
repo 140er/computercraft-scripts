@@ -97,7 +97,8 @@ Herstart daarna de turtles (of typ `miner`).
 
 ### Turtle staat verkeerd / denkt dat hij thuis is
 Een turtle lost nooit iets als er geen kist achter hem staat. Dan zie je op het dashboard "FOUT: geen kist achter me".
-Oplossen: pak de turtle op (hij houdt zijn bestanden), zet hem op zijn startplek met de kist erachter, en typ:
+Oplossen: pak de turtle op (hij houdt zijn bestanden) en zet hem op zijn startplek naast de kist, in welke richting maakt niet uit. Bij het opstarten kijkt hij rond: ziet hij zijn kist, dan weet hij dat hij thuis is en zet hij positie en richting zelf goed. De voortgang blijft bewaard.
+Werkt dat niet, typ dan (Ctrl+T eerst als hij al bezig is):
 ```
 miner home
 miner

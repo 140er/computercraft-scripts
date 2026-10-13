@@ -1032,7 +1032,33 @@ end
 ---------------------------------------------------------------------------
 -- Hoofdlus
 ---------------------------------------------------------------------------
+-- Bij opstarten: staat er een kist naast me, dan sta ik op mijn startplek
+-- (onder de grond staan nooit kisten). Werkt ook als de turtle is opgepakt en
+-- teruggezet, in welke richting dan ook. Positie en richting worden dan gereset;
+-- de voortgang (gangen, schacht) blijft bewaard.
+local function calibrateAtHome()
+  for i = 0, 3 do
+    if chestInFront() then
+      -- De kist staat achter de startplek, dus ik kijk nu tegen de kijkrichting in
+      st.h = OPP[cfg.facing]
+      pos.x, pos.y, pos.z = HOME.x, HOME.y, HOME.z
+      st.phase = "home"
+      st.vein = {}
+      st.pending = nil
+      save()
+      if i > 0 then print("Kist gevonden: ik sta op mijn startplek") end
+      return true
+    end
+    turtle.turnRight() -- 4x rechts = weer de oude richting als er geen kist is
+  end
+  return false
+end
+
 local function recover()
+  if calibrateAtHome() then
+    if st.job then setTargets(st.job.targets) end
+    return
+  end
   if st.pending then
     local f = turtle.getFuelLevel()
     if f ~= "unlimited" and f < st.pending.fuel then
