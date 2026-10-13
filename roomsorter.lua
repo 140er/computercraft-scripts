@@ -22,10 +22,13 @@ local PROTOCOL = "roomsorter"
 
 local args = { ... }
 if args[1] == "install" then
+  -- roomsorter install         (turtle)
+  -- roomsorter install board   (computer with the stock board monitor)
+  local mode = args[2] and (" " .. args[2]) or ""
   local h = fs.open("startup.lua", "w")
-  h.write('shell.run("roomsorter")\n')
+  h.write('shell.run("roomsorter' .. mode .. '")\n')
   h.close()
-  print("roomsorter will now start automatically on boot.")
+  print("roomsorter" .. mode .. " will now start automatically on boot.")
   return
 end
 
@@ -81,7 +84,250 @@ if args[1] == "client" then
   end
 end
 
-if not turtle then print("Run this on a turtle (or 'roomsorter client' on a computer).") return end
+---------------------------------------------------------------------------
+-- Board: stock-market display of what is in storage, on a computer with a
+-- wireless modem and a monitor (the turtle sends its stock every few seconds)
+---------------------------------------------------------------------------
+local function fmtNum(n)
+  n = math.floor(n)
+  if n >= 1000000 then return string.format("%.1fM", n / 1000000) end
+  if n >= 100000 then return string.format("%dk", math.floor(n / 1000)) end
+  local s = tostring(math.abs(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+  return (n < 0 and "-" or "") .. s
+end
+
+local function board()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then print("Needs a wireless (or ender) modem.") return end
+  rednet.open(peripheral.getName(modem))
+  local mon = peripheral.find("monitor")
+  local t = mon or term.current()
+  if mon then
+    mon.setTextScale(1)
+    local w, h = mon.getSize()
+    if w < 40 or h < 8 then mon.setTextScale(0.5) end
+    print("Stock board on " .. peripheral.getName(mon) .. ". Hold Ctrl+T to stop.")
+  end
+  local color = t.isColor()
+  local HEX = {} -- colour -> blit character
+  for i = 0, 15 do HEX[2 ^ i] = ("0123456789abcdef"):sub(i + 1, i + 1) end
+  -- Colours: green/red on an advanced monitor, shades of grey on a normal one
+  local C = color and {
+    bg = colors.black, text = colors.white, dim = colors.gray, label = colors.lightGray,
+    up = colors.lime, down = colors.red, flat = colors.lightGray,
+    title = colors.blue, titleText = colors.white, upBg = colors.green, downBg = colors.red, ticker = colors.yellow,
+  } or {
+    bg = colors.black, text = colors.white, dim = colors.gray, label = colors.lightGray,
+    up = colors.white, down = colors.lightGray, flat = colors.gray,
+    title = colors.lightGray, titleText = colors.black, upBg = colors.white, downBg = colors.gray, ticker = colors.white,
+  }
+  local UP, DOWN = "\30", "\31"
+
+  local HIST_FILE = "board.hist"
+  local hist = loadTable(HIST_FILE) or {} -- { { t = ms, v = { [item] = count } } }, 1 per minute
+  local data, lastMsg = nil, nil
+  local flash = {} -- [item] = { untilMs, dir }
+  local page, pages, nextPage, tick = 1, 1, 0, 0
+  local function now() return os.epoch("utc") end
+
+  local function sample()
+    if not data then return end
+    local last = hist[#hist]
+    if last and now() - last.t < 60000 then return end
+    local v = {}
+    for k, n in pairs(data.totals) do v[k] = n end
+    hist[#hist + 1] = { t = now(), v = v }
+    while #hist > 180 do table.remove(hist, 1) end
+    saveTable(HIST_FILE, hist)
+  end
+
+  -- Change over the last hour (or since the oldest sample)
+  local function change(name, cur)
+    local base
+    for i = #hist, 1, -1 do
+      if now() - hist[i].t >= 3600000 then base = hist[i] break end
+    end
+    base = base or hist[1]
+    if not base then return 0, nil end
+    local old = base.v[name] or 0
+    return cur - old, old > 0 and (cur - old) * 100 / old or nil
+  end
+
+  -- Little chart: 2 points per character, 3 levels, drawn with the 2x3 block characters
+  local function spark(name, cur, width)
+    local pts = {}
+    for i = math.max(1, #hist - width * 2 + 2), #hist do pts[#pts + 1] = hist[i].v[name] or 0 end
+    pts[#pts + 1] = cur
+    while #pts < width * 2 do table.insert(pts, 1, pts[1]) end
+    local lo, hi = math.huge, -math.huge
+    for _, p in ipairs(pts) do lo, hi = math.min(lo, p), math.max(hi, p) end
+    local function lvl(p) if hi == lo then return 1 end return 1 + math.floor((p - lo) * 2 / (hi - lo) + 0.5) end
+    local text, fg, bg = "", "", ""
+    local up = cur >= pts[1]
+    for i = 1, width do
+      local a, b = lvl(pts[i * 2 - 1]), lvl(pts[i * 2])
+      local bits = 0
+      if a >= 3 then bits = bits + 1 end
+      if b >= 3 then bits = bits + 2 end
+      if a >= 2 then bits = bits + 4 end
+      if b >= 2 then bits = bits + 8 end
+      if a >= 1 then bits = bits + 16 end
+      local f, g = HEX[up and C.up or C.down], HEX[C.bg]
+      if b >= 1 then bits, f, g = 31 - bits, g, f end -- bottom-right pixel = inverted character
+      text = text .. string.char(128 + bits)
+      fg, bg = fg .. f, bg .. g
+    end
+    return text, fg, bg
+  end
+
+  local function put(x, y, s, fg, bg)
+    t.setCursorPos(x, y)
+    t.setTextColor(fg or C.text)
+    t.setBackgroundColor(bg or C.bg)
+    t.write(s)
+  end
+  local function rjust(s, n) s = tostring(s) if #s >= n then return s:sub(1, n) end return (" "):rep(n - #s) .. s end
+  local function ljust(s, n) s = tostring(s) if #s >= n then return s:sub(1, n) end return s .. (" "):rep(n - #s) end
+
+  local function draw()
+    local W, H = t.getSize()
+    t.setBackgroundColor(C.bg)
+    t.clear()
+    -- Title bar
+    local clock = textutils.formatTime(os.time(), true)
+    local signal
+    if not lastMsg then signal = "CONNECTING"
+    elseif now() - lastMsg > 60000 then signal = (tick % 2 == 0) and "NO SIGNAL" or ""
+    else signal = "LIVE" end
+    put(1, 1, (" "):rep(W), C.titleText, C.title)
+    put(2, 1, W >= 30 and "ROOM EXCHANGE" or "STOCK", C.titleText, C.title)
+    local right = signal .. "  " .. clock .. " "
+    put(W - #right + 1, 1, right, C.titleText, C.title)
+    if not data then
+      put(2, 3, "Waiting for the storage turtle...", C.label)
+      return
+    end
+    local items = {}
+    local total = 0
+    for name, n in pairs(data.totals) do items[#items + 1] = { name = name, n = n } total = total + n end
+    table.sort(items, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.name < b.name end)
+
+    local y = 2
+    if H >= 7 then
+      local pct = data.size > 0 and math.floor(data.used * 100 / data.size) or 0
+      local s = ("%s items  %d kinds  %d chests %d%% full  %d furnaces  %s"):format(fmtNum(total), #items,
+        data.chests or 0, pct, data.furnaces or 0, data.full and "STORAGE FULL" or (data.state or ""))
+      put(2, y, s:sub(1, W - 2), data.full and C.down or C.label)
+      y = y + 1
+    end
+    -- Columns of entries
+    -- Name up to 24 wide, whatever is left over becomes the trend chart
+    local ncols = math.max(1, math.floor((W + 2) / 43))
+    local ew = math.floor((W - (ncols - 1) * 2) / ncols)
+    local showChg = ew >= 24
+    local showPct = ew >= 40
+    local rest = ew - 8 - (showChg and 9 or 0) - (showPct and 8 or 0)
+    local nw, tw = rest, 0
+    if rest >= 22 then
+      nw = math.min(24, rest - 7)
+      tw = rest - nw - 1
+    end
+    local function header(x)
+      local s = ljust("ITEM", nw) .. rjust("QTY", 8) .. (showChg and rjust("CHG 1H", 9) or "") .. (showPct and rjust("%", 8) or "")
+      if tw > 0 then s = s .. " " .. ljust("TREND", tw) end
+      put(x, y, s, C.dim)
+    end
+    if H >= 5 then
+      for c = 1, ncols do header(1 + (c - 1) * (ew + 2)) end
+      y = y + 1
+    end
+    local top = y
+    local rows = H - top -- last line = ticker
+    local perPage = math.max(1, rows * ncols)
+    pages = math.max(1, math.ceil(#items / perPage))
+    if page > pages then page = 1 end
+    for i = 1, perPage do
+      local it = items[(page - 1) * perPage + i]
+      if not it then break end
+      local col = math.floor((i - 1) / rows)
+      local x = 1 + col * (ew + 2)
+      local ry = top + (i - 1) % rows
+      local chg, pct = change(it.name, it.n)
+      local dc = chg > 0 and C.up or chg < 0 and C.down or C.flat
+      put(x, ry, ljust(pretty(it.name), nw - 1), C.text)
+      local f = flash[it.name]
+      if f and now() < f[1] then
+        put(x + nw, ry, rjust(fmtNum(it.n), 7) .. " ", C.bg, f[2] > 0 and C.upBg or C.downBg)
+      else
+        put(x + nw, ry, rjust(fmtNum(it.n), 7), C.text)
+      end
+      local cx = x + nw + 8
+      if showChg then
+        local arrow = chg > 0 and UP or chg < 0 and DOWN or "="
+        put(cx, ry, rjust(arrow .. (chg > 0 and "+" or "") .. (chg ~= 0 and fmtNum(chg) or ""), 9), dc)
+        cx = cx + 9
+      end
+      if showPct then
+        local ps = pct and (chg == 0 and "0.0%" or string.format("%+.1f%%", pct)) or (chg > 0 and "new" or "")
+        put(cx, ry, rjust(ps, 8), dc)
+        cx = cx + 8
+      end
+      if tw > 0 then
+        local s, fg, bg = spark(it.name, it.n, tw)
+        t.setCursorPos(cx + 1, ry)
+        t.blit(s, fg, bg)
+      end
+    end
+    if pages > 1 then
+      local p = (" %d/%d "):format(page, pages)
+      put(W - #p + 1, top - (H >= 5 and 1 or 0), p, C.dim)
+    end
+    -- Ticker tape on the last line
+    local text, fg = "", ""
+    for _, it in ipairs(items) do
+      local chg = change(it.name, it.n)
+      local seg1 = " " .. pretty(it.name):upper() .. " " .. fmtNum(it.n) .. " "
+      local seg2 = (chg > 0 and UP .. "+" or chg < 0 and DOWN or "=") .. (chg ~= 0 and fmtNum(chg) or "") .. "  \7"
+      text = text .. seg1 .. seg2
+      fg = fg .. HEX[C.ticker]:rep(#seg1) .. HEX[chg > 0 and C.up or chg < 0 and C.down or C.flat]:rep(#seg2)
+    end
+    if #text > 0 then
+      while #text < W * 2 do text, fg = text .. text, fg .. fg end
+      local off = tick % #text
+      local tt = (text .. text):sub(off + 1, off + W)
+      local tf = (fg .. fg):sub(off + 1, off + W)
+      t.setCursorPos(1, H)
+      t.blit(tt, tf, HEX[C.bg]:rep(W))
+    end
+  end
+
+  local frame = os.startTimer(0)
+  while true do
+    local ev, a, b, c = os.pullEvent()
+    if ev == "rednet_message" and c == PROTOCOL .. "_stock" and type(b) == "table" and type(b.totals) == "table" then
+      if data then
+        for name, n in pairs(b.totals) do
+          local old = data.totals[name] or 0
+          if n ~= old then flash[name] = { now() + 4000, n > old and 1 or -1 } end
+        end
+      end
+      data, lastMsg = b, now()
+      sample()
+    elseif ev == "timer" and a == frame then
+      tick = tick + 1
+      if now() >= nextPage then page = page % pages + 1 nextPage = now() + 10000 end
+      sample()
+      draw()
+      frame = os.startTimer(0.3)
+    elseif ev == "monitor_resize" then
+      draw()
+    end
+  end
+end
+
+if args[1] == "board" then board() return end
+
+if not turtle then print("Run this on a turtle (or 'roomsorter client' / 'roomsorter board' on a computer).") return end
 
 ---------------------------------------------------------------------------
 -- Settings
@@ -1276,6 +1522,7 @@ local function round()
   serveRequests()
   goHome()
   saveTable(STATS_FILE, stats)
+  os.queueEvent("room_stock")
 end
 
 local function worker()
@@ -1353,10 +1600,27 @@ local function remote()
   if not modem then while true do os.pullEvent("never") end end
   rednet.open(peripheral.getName(modem))
   rednet.host(PROTOCOL, os.getComputerLabel() or ("storage" .. os.getComputerID()))
+  -- The stock board listens to these: what's in storage, every 10 s and after each job
+  local lastSent, lastSig = -1e9, nil
+  local function sendStock(onlyIfChanged)
+    local used, size = usedSlots()
+    local msg = { totals = totals(), used = used, size = size, chests = #storageList(),
+      furnaces = #furnaces(), state = status.state, full = status.full }
+    local sig = textutils.serialize(msg.totals) .. used .. tostring(status.full)
+    if onlyIfChanged and sig == lastSig then return end
+    rednet.broadcast(msg, PROTOCOL .. "_stock")
+    lastSent, lastSig = os.clock(), sig
+  end
+  local tick = os.startTimer(1)
   while true do
-    local from, msg = rednet.receive(PROTOCOL)
-    if type(msg) == "table" then
-      rednet.send(from, command(msg.cmd, msg.text, msg.n), PROTOCOL)
+    local ev, a, b, c = os.pullEvent()
+    if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
+      rednet.send(a, command(b.cmd, b.text, b.n), PROTOCOL)
+    elseif ev == "timer" and a == tick then
+      sendStock()
+      tick = os.startTimer(10)
+    elseif ev == "room_stock" and os.clock() - lastSent > 2 then
+      sendStock(true)
     end
   end
 end

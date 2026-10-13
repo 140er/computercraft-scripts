@@ -294,7 +294,28 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 | `list` | everything in storage |
 | `pause` / `resume` / `quit` | on the turtle only |
 
-**From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands.
+**From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
+
+### Stock board (monitor outside the room)
+A stock-exchange style screen of what's in storage, on a computer with a **wireless modem** and a **monitor** next to it. The turtle needs a wireless modem too.
+
+1. Copy `roomsorter.lua` onto the computer.
+2. `roomsorter install board`, then reboot (or run `roomsorter board`).
+
+```
+ ROOM EXCHANGE                                                     LIVE  14:32
+ 3,790 items  51 kinds  7 chests 19% full  3 furnaces  Waiting for items
+ITEM                         QTY   CHG 1H       % TREND                    1/3
+Iron ingot                   668  ▲+480  +255.3% ▁▂▂▃▃▄▅▅▆▇▇█
+Redstone                     340        =    0.0% ▁▁▁▁▁▁▁▁▁▁▁▁
+Coal                           7    ▼-12   -63.2% █▇▆▅▄▃▂▁▁▁▁▁
+ IRON INGOT 668 ▲+480  • REDSTONE 340 =  • COBBLESTONE 128 =  • ...
+```
+- **QTY** how many are in storage, **CHG 1H** and **%** how much that changed in the last hour, **TREND** a small chart of about the last hour (wider monitor = longer chart).
+- A number that just changed lights up for a few seconds. The bottom line is a scrolling ticker tape of everything.
+- More items than fit: it flips pages every 10 seconds (`1/3` top right).
+- Any size of monitor works; wide monitors get two columns. A **normal (grey) monitor** shows it in greyscale with ▲/▼; an **advanced (gold) monitor** shows rises in green and drops in red.
+- The turtle sends its stock every 10 seconds and right after something changes. `LIVE` turns into a blinking `NO SIGNAL` after a minute without news. History is kept in `board.hist`, so a reboot keeps the trends.
 
 ### Restarts
 - Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.
