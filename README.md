@@ -14,7 +14,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 - Caves: if a wall, ceiling or floor opens into a cave (air or water), it plugs the opening with cobble. If a branch runs into a cave (air), it closes the branch off and starts the next one; water in front of it gets plugged and dug through. The main tunnel goes straight through and walls itself in on the way. This keeps the tunnels free of mobs, water and lava.
 - At every step it looks left and right into the walls. Ores are followed as a vein. For the target ore (e.g. diamond) it checks 18 of the 26 neighbours.
 - Lava gets sealed with the first placeable non-ore block. It never steps into lava and never uses coal to seal.
-- Junk (cobble, deepslate, tuff, gravel, dirt, string, bones, ...) is dropped underground every ~10 blocks. It keeps one stack of blocks for sealing. All ores, including modded ones, are kept.
+- Junk (cobble, deepslate, tuff, gravel, dirt, sandstone, terracotta, string, bones, ...) is dropped underground every ~10 blocks. It keeps one stack of blocks for sealing lava, preferably cobbled deepslate or cobblestone. All ores, including modded ones, are kept.
 - It goes home when the inventory is full, when it needs the remaining fuel to get back, when its trip time is up, or when the hub recalls it. There it unloads into the chest, refuels from the same chest and goes again.
 - **Clean chest:** every time it unloads, it also cleans its chest. Only ores (raw ores, gems, dusts, modded ores), fuel and buckets may stay. Anything else is taken out and dropped underground on the next trip, never in your base.
 - It saves its position and progress in a file. After a reboot or chunk unload it first goes home safely and then continues where it was.

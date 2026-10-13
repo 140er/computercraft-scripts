@@ -199,12 +199,15 @@ local function freeSlots()
   return n
 end
 
+local isLoot -- set further down, once the junk rules exist
+
 local function packet()
   local j = st.job or {}
   local items = {}
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
-    if d then items[d.name] = (items[d.name] or 0) + d.count end
+    -- only real loot: no junk, no seal blocks, no buckets
+    if d and (not isLoot or isLoot(s, d)) then items[d.name] = (items[d.name] or 0) + d.count end
   end
   local L = j.y and st.levels[j.y] or {}
   return {
@@ -316,10 +319,16 @@ local function keepDetail(d)
   return false
 end
 
+-- Name parts that are always junk (all sandstone/terracotta/cobble variants)
+local JUNK_PARTS = { "sandstone", "terracotta", "cobble" }
+
 local function isJunk(slot)
   local d = turtle.getItemDetail(slot)
   if not d then return false end
   if JUNK[d.name] then return true end
+  for _, part in ipairs(JUNK_PARTS) do
+    if d.name:find(part, 1, true) then return true end
+  end
   if KEEP_NAMES[d.name] then return false end
   if junkCache[d.name] == nil then
     junkCache[d.name] = not keepDetail(turtle.getItemDetail(slot, true) or d)
@@ -445,15 +454,40 @@ local function seal(d)
   return not isLava(inspect(d))
 end
 
-local function keepOneSealStack(dropFn)
-  local kept = false
+-- The one junk stack kept for sealing lava: cobbled deepslate/cobblestone first,
+-- then the biggest other placeable junk stack.
+local SEAL_PREF = { ["minecraft:cobbled_deepslate"] = 1, ["minecraft:cobblestone"] = 2,
+  ["minecraft:deepslate"] = 3, ["minecraft:stone"] = 4 }
+local function sealStackSlot()
+  local best, bestRank, bestCount
   for s = 1, 16 do
-    if turtle.getItemCount(s) > 0 and isJunk(s) then
-      if not kept and sealable(s) then kept = true
-      else turtle.select(s) dropFn() end
+    if turtle.getItemCount(s) > 0 and isJunk(s) and sealable(s) then
+      local d = turtle.getItemDetail(s)
+      local rank = SEAL_PREF[d.name] or 9
+      if not best or rank < bestRank or (rank == bestRank and d.count > bestCount) then
+        best, bestRank, bestCount = s, rank, d.count
+      end
+    end
+  end
+  return best
+end
+
+local function keepOneSealStack(dropFn)
+  local keep = sealStackSlot()
+  for s = 1, 16 do
+    if s ~= keep and turtle.getItemCount(s) > 0 and isJunk(s) then
+      turtle.select(s)
+      dropFn()
     end
   end
   turtle.select(1)
+end
+
+isLoot = function(slot, d)
+  if d.name == "minecraft:bucket" or d.name == "minecraft:lava_bucket" or d.name == "minecraft:water_bucket" then
+    return false
+  end
+  return not isJunk(slot)
 end
 
 local sinceDrop = 0
@@ -926,16 +960,13 @@ end
 local function unload()
   face(OPP[cfg.facing])
   local haul = {}
-  local kept = false
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
     if d and (d.name == BUCKET or d.name == LAVA_BUCKET or d.name == WATER_BUCKET) then
       -- keep buckets: empty ones to scoop lava, full ones to burn
     elseif d then
-      if not kept and isJunk(s) and sealable(s) then
-        kept = true -- keep 1 stack of seal blocks
-      elseif isJunk(s) then
-        -- junk never goes into the chest; it gets dropped underground next trip
+      if isJunk(s) then
+        -- junk never goes into the chest: the seal stack stays, the rest is dropped underground
       else
         haulInto(haul, s)
         turtle.select(s)
