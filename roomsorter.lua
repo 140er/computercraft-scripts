@@ -4,7 +4,8 @@
 -- everything you put in the input chest, smelts raw ores and remembers where it all is.
 -- Ask for items and it brings them to the output chest.
 --
---   roomsorter scan      first time: map the room (turtle facing the input chest)
+--   roomsorter scan [h]  first time: map the room (turtle on the floor facing the input
+--                        chest). h = inside height; leave it out and it measures it
 --   roomsorter           start (or: roomsorter install = start on boot)
 --   roomsorter client    on a computer/pocket computer with a wireless modem: ask from outside
 --
@@ -608,27 +609,90 @@ local function look(d)
     end
     map.cells[k] = "a"
     airCount = airCount + 1
-    if airCount % 25 == 0 then print("  " .. airCount .. " blocks of room mapped") end
+    if airCount % 25 == 0 then print("  " .. airCount .. " blocks of floor mapped") end
   end
 end
 
 local function hasUnknown(k)
-  for _, d in ipairs(ALL_DIRS) do if map.cells[step(k, d)] == nil then return true end end
+  local _, y = unkey(k)
+  if y ~= 0 then return false end
+  for d = 0, 3 do if map.cells[step(k, d)] == nil then return true end end
   return false
 end
 
+-- Only the floor layer is mapped: the turtle drives over the floor and looks at the
+-- walls around it. The walls are taken to go straight up to the ceiling.
 local function explore()
-  onStep = function()
-    look("up") look("down") look(pos.h)
-  end
+  onStep = function() look(pos.h) end
   while true do
     local target = bfs(here(), hasUnknown)
     if not target then break end
     goTo(target)
-    look("up") look("down")
     for _, o in ipairs({ 0, 1, 3, 2 }) do look((pos.h + o) % 4) end
   end
   onStep = nil
+end
+
+-- Fly up from the start spot until the ceiling: that's the height of the room
+local function measureHeight()
+  local n = 0
+  while not turtle.inspectUp() do
+    if n >= cfg.maxHeight then
+      goTo(key(0, 0, 0))
+      error("No ceiling found above the start spot. Close the room off or give the height: roomsorter scan <height>", 0)
+    end
+    map.cells[key(0, n + 1, 0)] = "a"
+    goTo(key(0, n + 1, 0))
+    n = n + 1
+  end
+  goTo(key(0, 0, 0))
+  return n + 1
+end
+
+-- Copy the floor map up to the given height ("w" = wall we haven't looked at)
+local function extrude(height)
+  local cells = map.cells
+  local floor = {}
+  for k, v in pairs(cells) do
+    local _, y = unkey(k)
+    if y == 0 then floor[#floor + 1] = { k = k, v = v } end
+  end
+  for _, f in ipairs(floor) do
+    local x, _, z = unkey(f.k)
+    if f.v == "a" then
+      for y = 1, height - 1 do cells[key(x, y, z)] = "a" end
+      cells[key(x, height, z)] = cells[key(x, height, z)] or "w"
+      cells[key(x, -1, z)] = cells[key(x, -1, z)] or "w"
+    else
+      for y = 1, height - 1 do cells[key(x, y, z)] = cells[key(x, y, z)] or "w" end
+    end
+  end
+end
+
+-- Look at the walls above the floor too (only needed when the output chest isn't at
+-- floor height)
+local function scanWalls()
+  local function unchecked(k)
+    local _, y = unkey(k)
+    if y < 1 then return false end
+    for d = 0, 3 do if map.cells[step(k, d)] == "w" then return true end end
+    return false
+  end
+  while true do
+    local target = bfs(here(), unchecked)
+    if not target then break end
+    goTo(target)
+    for _, o in ipairs({ 0, 1, 3, 2 }) do
+      local d = (pos.h + o) % 4
+      local n = step(here(), d)
+      if map.cells[n] == "w" then
+        local ok, data = inspectDir(d)
+        if not ok then error("Opening in the wall at " .. n .. ": close it and scan again", 0) end
+        map.cells[n] = data.name
+        if isInventoryBlock("front", data) then map.found[n] = data.name end
+      end
+    end
+  end
 end
 
 -- Decide where chests may go. The layer 1 block above the floor (and every 3rd layer
@@ -742,7 +806,7 @@ local function plan()
   return #slots, outputK
 end
 
-local function scanRoom()
+local function scanRoom(height)
   if fuelLeft() < 200 then
     for s = 1, 16 do turtle.select(s) turtle.refuel() end
     turtle.select(1)
@@ -752,14 +816,26 @@ local function scanRoom()
     print("Face the turtle towards the INPUT chest and stand it on the floor, then scan again.")
     return
   end
-  print("Mapping the room. This takes a while (a big room ~20 minutes).")
+  print("Mapping the floor of the room (a 16x16 room takes ~5 minutes).")
   map = { cells = { [key(0, 0, 0)] = "a" }, found = {} }
   idx = {}
   pos = { x = 0, y = 0, z = 0, h = 0 }
   savePos()
   local ok, err = pcall(function()
     look(0)
+    if not height then
+      height = measureHeight()
+      print("Room is " .. height .. " blocks high.")
+    end
     explore()
+    goTo(key(0, 0, 0))
+    extrude(height)
+    local others = 0
+    for k in pairs(map.found) do if k ~= key(0, 0, -1) then others = others + 1 end end
+    if others == 0 and height > 1 then
+      print("No output chest at floor height, looking at the walls higher up...")
+      scanWalls()
+    end
     goTo(key(0, 0, 0))
     turnTo(0)
   end)
@@ -768,7 +844,7 @@ local function scanRoom()
     pcall(function() goTo(key(0, 0, 0)) turnTo(0) end)
     return
   end
-  print(airCount .. " blocks mapped. Planning...")
+  print(airCount .. " blocks of floor, " .. height .. " high. Planning...")
   local ok2, n, out = pcall(plan)
   goTo(map.home)
   turnTo(0)
@@ -783,12 +859,18 @@ end
 if args[1] == "scan" then
   local placed = 0
   for _, e in pairs(idx) do if e.kind ~= "input" and e.kind ~= "output" then placed = placed + 1 end end
-  if placed > 0 and args[2] ~= "force" then
+  local force, height = false, nil
+  for i = 2, #args do
+    if args[i] == "force" then force = true end
+    if tonumber(args[i]) then height = math.floor(tonumber(args[i])) end
+  end
+  if height and height < 1 then print("Height must be at least 1.") return end
+  if placed > 0 and not force then
     print("This room already has " .. placed .. " chests/furnaces built by the turtle.")
     print("A new scan forgets what is where. Sure? Use: roomsorter scan force")
     return
   end
-  scanRoom()
+  scanRoom(height)
   return
 end
 
@@ -823,7 +905,7 @@ local function verifyPose()
     local v = map.cells[k]
     if v == nil then return true end
     if v == "a" or o == "a" then return v == o end
-    return v == "s" or v == "p" or v == o
+    return v == "s" or v == "p" or v == "w" or v == o
   end
   local matches = {}
   for _, c in ipairs(cands) do

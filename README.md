@@ -256,13 +256,15 @@ Type at the `>` line at the bottom of the turtle's screen:
 `roomsorter.lua`: the no-cables version. One turtle in a closed room does it all: it maps the room, places the chests and furnaces you give it, sorts and smelts, and **remembers which chest holds what**. It also checks each chest's contents every time it visits it, so its memory stays right.
 
 ### What you need
-- A **closed room** (any size and shape, up to ~6000 blocks of air) with an **input chest** and an **output chest** built into the walls, so you can reach them from outside. At least 3 blocks high if you want furnaces.
+- A **closed room** with a flat floor and ceiling (any size and floor shape) with an **input chest** and an **output chest** built into the walls, so you can reach them from outside. At least 3 blocks high if you want furnaces.
 - A plain turtle (no tool needed). A wireless modem on it is optional (for asking from outside, see below).
 - Some coal in the turtle for the first scan.
 
 ### Setup
 1. Put the turtle **on the floor, facing the input chest**, with some coal in it.
-2. `roomsorter scan`. The turtle flies through the whole room once and maps it (a 16x16 room takes ~20 minutes). If the room has a hole, it says so and comes back.
+2. `roomsorter scan 4` (4 = how many blocks high the inside of the room is). The turtle drives over the floor once and looks at the walls; the walls are taken to go straight up to the ceiling (a 16x16 room takes ~5 minutes). If the room has a hole at floor height, it says so and comes back.
+   - Leave the number out (`roomsorter scan`) and it flies up once from its start spot to measure the height.
+   - Best: both chests at floor height. If the output chest is higher up the wall, it also checks the walls above the floor (takes a bit longer).
    - More than one other chest in the walls? Put 1 item in the output chest (only there) and scan again.
 3. `roomsorter install`, then `roomsorter`.
 4. Put **chests or barrels**, **furnaces / blast furnaces** and **coal** in the input chest. The turtle builds with them.
