@@ -59,7 +59,7 @@ Een gewone wireless modem reikt ongeveer 64 blokken. Diep onder de grond hoort d
 ### Installeren
 Op elke turtle en op de hub-computer (`http` moet aan staan op de server):
 ```
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/claude/mine-lua-turtle-9o3j9v/install.lua install
+wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install
 ```
 Of kopieer `miner.lua` / `hub.lua` handmatig (pastebin, diskette).
