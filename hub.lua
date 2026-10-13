@@ -210,27 +210,28 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
--- Monitors: the (biggest) advanced monitor gets the dashboard with touch buttons,
--- a normal monitor gets the info screen. A single monitor always gets the dashboard.
-local mons = { peripheral.find("monitor") }
+-- Monitors: the biggest advanced monitor gets the dashboard (touch buttons).
+-- Normal monitors can't be tapped, so they always get the info screen.
 local function monSize(m) local w, h = m.getSize() return w * h end
-table.sort(mons, function(a, b)
-  if a.isColor() ~= b.isColor() then return a.isColor() end
-  return monSize(a) > monSize(b)
-end)
-if mons[1] then
-  local mon = mons[1]
-  mon.setTextScale(1)
-  local w = mon.getSize()
-  if w < 50 then mon.setTextScale(0.5) end
-  screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {} }
+local dash
+for _, m in ipairs({ peripheral.find("monitor") }) do
+  if m.isColor() then
+    if not dash or monSize(m) > monSize(dash) then dash = m end
+  end
 end
-if mons[2] then
-  local mon = mons[2]
-  mon.setTextScale(1)
-  local w, h = mon.getSize()
-  if w < 26 or h < 12 then mon.setTextScale(0.5) end
-  screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {}, info = true }
+if dash then
+  dash.setTextScale(1)
+  local w = dash.getSize()
+  if w < 50 then dash.setTextScale(0.5) end
+  screens[#screens + 1] = { t = dash, name = peripheral.getName(dash), buttons = {} }
+end
+for _, m in ipairs({ peripheral.find("monitor") }) do
+  if m ~= dash and peripheral.getName(m) ~= (dash and peripheral.getName(dash)) then
+    m.setTextScale(1)
+    local w, h = m.getSize()
+    if w < 26 or h < 12 then m.setTextScale(0.5) end
+    screens[#screens + 1] = { t = m, name = peripheral.getName(m), buttons = {}, info = true }
+  end
 end
 
 local function setTarget(ore)
@@ -570,6 +571,7 @@ local function drawInfo(s)
     if y > H then return end
     t.setCursorPos(1, y)
     t.setTextColor(c or colors.white)
+    if right and #right + 2 <= W then text = text:sub(1, W - #right - 1) end
     t.write(text:sub(1, W))
     if right and #text + #right + 1 <= W then
       t.setCursorPos(W - #right + 1, y)
@@ -587,16 +589,28 @@ local function drawInfo(s)
     if #l == 0 then line(" nothing yet", colors.gray) end
   end
 
-  line("MINE ARMY", colors.white, textutils.formatTime(os.time(), true), colors.lightGray)
-  hr()
-  -- Job and time
-  if hub.recallAll then line("RECALLED", colors.white)
-  elseif hub.target then line("Mining " .. ORES[hub.target].label .. " (Y " .. ORES[hub.target].y .. ")", colors.white)
-  else line("Stopped", colors.lightGray) end
+  local small = W < 26
   local left = sessionLeft()
+  local leftTxt
   if left then
     local sec = math.floor(left)
-    line("Time left", colors.lightGray, string.format("%d:%02d:%02d", math.floor(sec / 3600), math.floor(sec / 60) % 60, sec % 60), colors.white)
+    leftTxt = small and string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+      or string.format("%d:%02d:%02d", math.floor(sec / 3600), math.floor(sec / 60) % 60, sec % 60)
+  end
+  local job, jc
+  if hub.recallAll then job, jc = "RECALLED", colors.white
+  elseif hub.target then
+    local o = ORES[hub.target]
+    job, jc = small and ((o.short or o.label) .. " Y" .. o.y) or ("Mining " .. o.label .. " (Y " .. o.y .. ")"), colors.white
+  else job, jc = "Stopped", colors.lightGray end
+  if small then
+    -- Tiny monitor: job + time left on one line, no title
+    line(job, jc, leftTxt, colors.white)
+  else
+    line("MINE ARMY", colors.white, textutils.formatTime(os.time(), true), colors.lightGray)
+    hr()
+    line(job, jc)
+    if leftTxt then line("Time left", colors.lightGray, leftTxt, colors.white) end
   end
   -- Fleet
   local out, home, trouble, fuel, n = 0, 0, 0, 0, 0
@@ -607,27 +621,27 @@ local function drawInfo(s)
     elseif p.phase == "home" then home = home + 1 else out = out + 1 end
     if type(p.fuel) == "number" then fuel = fuel + p.fuel end
   end
-  local fleet = n .. " turtles: " .. out .. " out, " .. home .. " home"
-  if trouble > 0 then fleet = fleet .. ", " .. trouble .. " need you!" end
+  local fleet = small and (out .. " out, " .. home .. " home") or (n .. " turtles: " .. out .. " out, " .. home .. " home")
+  if trouble > 0 then fleet = small and (trouble .. " NEED YOU!") or (fleet .. ", " .. trouble .. " need you!") end
   line(fleet, trouble > 0 and colors.white or colors.lightGray)
-  y = y + 1
+  if small then hr() else y = y + 1 end
 
   -- This session: what was delivered to the chests, and how fast
   local sess = hub.session
-  local title = (hub.sessionEnd and "THIS SESSION") or "LAST SESSION"
+  local title = small and "SESSION" or ((hub.sessionEnd and "THIS SESSION") or "LAST SESSION")
   local rate = ""
   if sess and sess.start then
     local mins = math.max(1, ((sess.stop or nowMs()) - sess.start) / 60000)
     local ores = 0
     for name, c in pairs(sess.haul) do if not COMMON[name] then ores = ores + c end end
-    rate = math.floor(mins) .. "m, " .. math.floor(ores * 60 / mins) .. " ores/h"
+    rate = small and (math.floor(ores * 60 / mins) .. "/h") or (math.floor(mins) .. "m, " .. math.floor(ores * 60 / mins) .. " ores/h")
   end
   line(title, colors.lightGray, rate, colors.gray)
-  itemLines(sess and sess.haul or {}, 4)
+  itemLines(sess and sess.haul or {}, small and 3 or 4)
   y = y + 1
 
   -- The turtles, one line each
-  if y + 1 <= H - 4 then
+  if not small and y + 1 <= H - 4 then
     line("TURTLES", colors.lightGray, "Y    fuel", colors.gray)
     for _, id in ipairs(ids()) do
       if y > H - 5 then break end

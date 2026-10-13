@@ -118,7 +118,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **Detail line** (under the turtle table): the full status and last error of the turtle you tapped, or otherwise the most recent error of any turtle in the last 30 minutes. "Going home: after error" means a trip hit an error; the detail line says which. Each turtle also keeps its last 40 errors in `miner.log` (read it on the turtle with `edit miner.log`).
 
 ### Info screen (second monitor)
-Put a second monitor next to the hub (a normal one is fine) and reboot the hub. The advanced monitor keeps the dashboard with the buttons; the other one becomes an info screen:
+Put a normal (grey) monitor next to the hub and reboot the hub. Normal monitors can't be tapped, so they always get the info screen; the biggest advanced monitor gets the dashboard. A 1x1 monitor gets a compact version:
 ```
 MINE ARMY                         14:30
 ---------------------------------------
