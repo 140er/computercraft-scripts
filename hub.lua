@@ -147,6 +147,21 @@ local function minerVersion()
   return minerCache.hash, minerCache.code
 end
 
+-- Session timer helpers
+local function nowMs() return os.epoch("utc") end
+local function sessionLeft()
+  if not hub.sessionEnd then return nil end
+  return math.max(0, (hub.sessionEnd - nowMs()) / 1000)
+end
+local function startSession()
+  hub.sessionEnd = hub.sessionLen and (nowMs() + hub.sessionLen * 1000) or nil
+end
+local function anyMining()
+  if hub.target then return true end
+  for _, o in pairs(hub.overrides) do if o then return true end end
+  return false
+end
+
 -- Only a version released with the UPDATE button is handed out
 -- (and only while the file is still exactly that version).
 local function releasedVersion()
@@ -193,20 +208,6 @@ if mon then
   local w = mon.getSize()
   if w < 50 then mon.setTextScale(0.5) end
   screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {} }
-end
-
-local function nowMs() return os.epoch("utc") end
-local function sessionLeft()
-  if not hub.sessionEnd then return nil end
-  return math.max(0, (hub.sessionEnd - nowMs()) / 1000)
-end
-local function startSession()
-  hub.sessionEnd = hub.sessionLen and (nowMs() + hub.sessionLen * 1000) or nil
-end
-local function anyMining()
-  if hub.target then return true end
-  for _, o in pairs(hub.overrides) do if o then return true end end
-  return false
 end
 
 local function setTarget(ore)
