@@ -927,7 +927,8 @@ local function stopReason()
   if recall then return "recalled" end
   if updateWanted then return "update" end
   if mineUntil and os.clock() > mineUntil then return "trip time up" end
-  if st.sessionEnd and nowMs() > st.sessionEnd then return "session time up" end
+  -- Leave in time to be home when the session ends: ~0.5 s per block of the way back
+  if st.sessionEnd and nowMs() + (distHome() * 0.5 + 20) * 1000 > st.sessionEnd then return "session time up" end
   if not fuelOk(8) then
     burnMinedFuel()
     if not fuelOk(8) then return "fuel low" end
@@ -998,7 +999,9 @@ local function workLevel(j)
   local BL = math.min(j.branchLen or BRANCH_LEN, reach)
   local L = level(Y)
   st.phase = "mining"
-  mineUntil = j.mineMinutes and (os.clock() + j.mineMinutes * 60) or nil
+  -- Trip time limit only without a session timer; with one, the session decides
+  -- (so all turtles come home together at the end instead of one by one).
+  mineUntil = (j.mineMinutes and not st.sessionEnd) and (os.clock() + j.mineMinutes * 60) or nil
   while true do
     local k = L.branch
     local junction = junctionOf(L)
