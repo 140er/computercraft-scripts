@@ -3,6 +3,7 @@
 ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
+- **Sorter & Smelter** (`sorter.lua`): a turtle (or computer) on a wired network of chests and furnaces. It empties the miners' chests, smelts the raw ores in all your furnaces and blast furnaces, keeps them fuelled and sorts everything into storage. See [Sorter & Smelter](#sorter--smelter).
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
 
 ---
@@ -155,6 +156,97 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 - A broken file is rejected. A turtle running a version older than hub updates needs one manual copy.
 - To update the hub itself: drag `hub.lua` onto it and reboot it.
 - Anyone on the server with a computer and modem could pretend to be the hub; on a server with strangers that is a risk.
+
+---
+
+## Sorter & Smelter
+
+`sorter.lua` runs on a turtle or a computer. It doesn't move: everything goes through **wired modems**, so one sorter handles any number of chests and furnaces.
+
+```
+ [input chests] --> furnaces / blast furnaces --> [storage chests]
+        \________________ everything else ______________/
+             [fuel chest] --> furnaces        [pickup chest] <-- get
+```
+
+### Building it
+1. Place the turtle/computer and put a **wired modem** (the full block, or the small one on a block) against it.
+2. Put a wired modem on every chest and furnace you want to use and connect them all with **networking cable**.
+3. **Right-click every modem** so it turns red (connected). The chat says e.g. `Peripheral "minecraft:chest_3" connected`.
+4. Optional: a monitor on the network (or next to it) shows the status screen.
+
+Smokers are ignored. Furnaces and blast furnaces are found by themselves; only the chests need a role.
+
+### Chest roles (`sorter setup`)
+Setup walks past every chest on the network and shows what's in it (put a marker item in a chest to recognise it), then asks for its role:
+
+| Role | What it does |
+|---|---|
+| **input** | Emptied all the time. Put the miners' home chests here (wired modem on each) and the loot sorts itself. Anything you throw in gets sorted too. |
+| **fuel** | Fuel for the furnaces: coal, charcoal, coal blocks, dried kelp blocks, lava buckets. Coal from the inputs ends up here first. |
+| **storage** | Where everything goes. Give it a category to keep things apart: `any`, `ores`, `ingots`, `gems`, `fuel` or `misc`. |
+| **overflow** | Used when the storage chests are full. |
+| **pickup** | Where `get` puts the items you ask for. |
+| **ignore** | Not touched. |
+
+An item goes to: a chest of its category that already holds it → another chest of its category → an `any` chest that holds it → another `any` chest → overflow. If nothing has room, the screen shows **FULL** and the items stay in the input chests.
+
+### Smelting
+- **Smelted:** raw ores (`raw_iron`, `raw_gold`, `raw_copper`, modded `raw_*`), ore blocks (`*_ore`, from silk touch) and ancient debris. Raw ore *blocks* are stored as they are (they can't be smelted).
+- Ores go to the furnace with the shortest queue, 8 at a time, at most 32 waiting per furnace. Blast furnaces (twice as fast) are filled first.
+- If all furnaces are busy, the ores go to storage and are taken out again when a furnace has room. So raw ore never stays in storage.
+- **Fuel:** each furnace gets just enough for what is waiting in it (coal = 8 items, 4 in a blast furnace). It doesn't put a coal block in for 5 ores unless there is nothing else. Empty buckets from lava come back out and get stored. With `useStorageFuel` it also burns coal from storage when the fuel chest is empty.
+- XP: furnaces that are emptied by the sorter keep their XP. Break a furnace (or take out a result by hand) to get it.
+
+### Mine Army chests as input
+- The miners need their **buckets and lava buckets**, so those are always left in the input chests. Everything else is taken, also coal (the miners also refuel with lava they scoop up).
+- Want a stack of coal to stay for the miners? Add `["minecraft:coal"] = 64` to `leave` in `sorter.cfg`.
+
+### Status screen
+```
+SORTER & SMELTER                   12:00
+---------------------------------------
+Furnaces 3, busy 3           to smelt 30
+Fuel chest: 40 items
+Storage 7/54 slots                   12%
+Smelted 8 Iron ingot
+
+SMELTED                         77 in 3m
+ Iron ingot                           72
+ Gold ingot                            3
+
+FURNACES
+ blast_0 32 Raw copper        8 charcoal
+ furnace_0 32 Raw iron            2 coal
+```
+- Red **NO FUEL!**: a furnace has ores but no fuel and the fuel chest is empty.
+- Orange **new chest(s)**: a chest was added to the network: run `sorter setup` to give it a role (until then it's left alone).
+
+### Commands
+Type at the `>` line at the bottom of the turtle's screen:
+
+| Command | What |
+|---|---|
+| `get iron ingot 32` | put 32 iron ingots in the pickup chest (default 64) |
+| `find diamond` | how many are in storage |
+| `pause` / `resume` | stop / start moving items |
+| `quit` | stop the program |
+
+| Where | Command | What |
+|---|---|---|
+| sorter | `sorter setup` | give the chests a role (run again after adding chests) |
+| sorter | `sorter list` | show all chests and furnaces with their role |
+| sorter | `sorter install`, `sorter` | autostart, run |
+
+### Settings (`sorter.cfg`)
+- `interval` (3): seconds between rounds when there is nothing to do.
+- `queue` (32): max items waiting in one furnace.
+- `extraSmelt`: more things to smelt in normal furnaces, e.g. `{ "minecraft:oak_log", "minecraft:sand", "minecraft:cobblestone" }` for charcoal, glass and stone.
+- `noSmelt`: ores to store raw, e.g. `{ "minecraft:raw_copper" }`.
+- `leave`: what stays in the input chests and how many.
+- `fuels`: fuel order, most preferred first.
+- `useStorageFuel` (true): also burn coal from storage.
+- Smelted totals are in `sorter.stats`, errors in `sorter.log`.
 
 ---
 
