@@ -831,11 +831,15 @@ local function excavateDown()
 end
 
 local mineUntil = nil -- os.clock() at which it must head back (max mining time per trip)
+-- The hub's session timer, kept by the turtle itself (normal modems can't hear the hub
+-- underground). Stored as real time in the state file, so it survives reboots.
+local function nowMs() return os.epoch("utc") end
 
 local function stopReason()
   if recall then return "recalled" end
   if updateWanted then return "update" end
   if mineUntil and os.clock() > mineUntil then return "trip time up" end
+  if st.sessionEnd and nowMs() > st.sessionEnd then return "session time up" end
   if not fuelOk(8) then
     burnMinedFuel()
     if not fuelOk(8) then return "fuel low" end
@@ -1255,10 +1259,9 @@ local function getJob()
     if reply.paused or not reply.ore then return nil, "waiting for orders" end
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
-      mineMinutes = reply.mineMinutes, reach = reply.reach }
+      mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn }
   end
-  if st.job then return st.job, "hub unreachable, previous job" end
-  return nil, "no hub found"
+  return nil, "no hub found (staying home)"
 end
 
 ---------------------------------------------------------------------------
@@ -1401,6 +1404,7 @@ end
 
 local function trip(j0)
   reach = j0.reach or REACH
+  st.sessionEnd = j0.stopIn and (nowMs() + j0.stopIn * 1000) or nil
   local base = j0.baseY or j0.y
   local Y = pickLevel(base)
   if not Y then return AREA_FULL end

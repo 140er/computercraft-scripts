@@ -106,6 +106,10 @@ Then reboot the turtles (or type `miner`).
 ### Controls (dashboard)
 - Tap an ore (Diamond, Iron, ...). All turtles go mining for it. A new choice applies from the next trip.
 - Tap a turtle in the list first and then an ore: only that turtle gets that ore. `ALL` goes back to the whole fleet.
+- **Time** (session timer): `30m`, `1h` (default), `2h`, `4h` or `NO LIMIT`. Picking an ore starts the countdown; pressing a time while they are mining restarts it. When the time is up the hub stops everything, like `STOP`.
+  - Each turtle gets the remaining time from the hub when it leaves home and keeps its own clock (saved as real time, so it survives reboots). It comes home on time even when it can't hear the hub (normal modems).
+  - With less than 3 minutes left a turtle doesn't start a new trip.
+  - If a turtle can't reach the hub at all, it stays home.
 - `STOP`: stay home after the current trip.
 - `RECALL`: come home right now (if in range). `RESUME` lets them go again.
 - Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.

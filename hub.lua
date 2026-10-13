@@ -63,6 +63,9 @@ hub.mineMinutes = hub.mineMinutes or 15
 -- Max distance (blocks) a turtle goes from its shaft. Keep it inside the chunks
 -- that are loaded while you are at your base (6 chunks = 96 blocks).
 hub.reach = hub.reach or 96
+-- Session timer: how long the fleet mines after you pick an ore (seconds, false = no limit)
+if hub.sessionLen == nil then hub.sessionLen = 3600 end
+hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
 
@@ -156,11 +159,13 @@ local function handle(id, m)
     turtles[id] = { p = m, seen = os.clock() }
   elseif m.type == "job?" then
     local ore = oreFor(id)
-    local paused = (ore == nil) or hub.recallAll
+    local left = sessionLeft()
+    -- less than 3 minutes left: don't start a new trip
+    local paused = (ore == nil) or hub.recallAll or (left ~= nil and left < 180)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach,
+      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left,
       progress = hub.progress[m.role],
       update = releasedVersion(),
     })
@@ -188,7 +193,22 @@ if mon then
   screens[#screens + 1] = { t = mon, name = peripheral.getName(mon), buttons = {} }
 end
 
+local function nowMs() return os.epoch("utc") end
+local function sessionLeft()
+  if not hub.sessionEnd then return nil end
+  return math.max(0, (hub.sessionEnd - nowMs()) / 1000)
+end
+local function startSession()
+  hub.sessionEnd = hub.sessionLen and (nowMs() + hub.sessionLen * 1000) or nil
+end
+local function anyMining()
+  if hub.target then return true end
+  for _, o in pairs(hub.overrides) do if o then return true end end
+  return false
+end
+
 local function setTarget(ore)
+  if not anyMining() or not hub.sessionEnd then startSession() end
   if selected then
     hub.overrides[selected] = ore
   else
@@ -200,12 +220,20 @@ local function setTarget(ore)
   save()
 end
 
+-- Time buttons: set the session length; while mining, the countdown restarts
+local function setLimit(sec)
+  hub.sessionLen = sec
+  if anyMining() then startSession() end
+  save()
+end
+
 local function stopAll()
   if selected then
     hub.overrides[selected] = false
   else
     hub.target = nil
     hub.overrides = {}
+    hub.sessionEnd = nil
   end
   save()
 end
@@ -348,6 +376,24 @@ local function draw(s)
     outdated > 0 and colors.green or colors.gray, releaseUpdate)
   if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
 
+  -- Session timer
+  y = y + 1
+  x = 1
+  at(x, y, "Time", colors.lightGray)
+  x = 6
+  for _, opt in ipairs({ { " 30m ", 1800 }, { " 1h ", 3600 }, { " 2h ", 7200 }, { " 4h ", 14400 }, { " NO LIMIT ", false } }) do
+    local active = hub.sessionLen == opt[2]
+    local sec = opt[2]
+    x = button(x, y, opt[1], active and colors.black or colors.white, active and colors.lime or colors.gray,
+      function() setLimit(sec) end)
+  end
+  local left = sessionLeft()
+  if left then
+    local t = math.floor(left)
+    at(x, y, string.format("%d:%02d:%02d", math.floor(t / 3600), math.floor(t / 60) % 60, t % 60),
+      left < 300 and colors.orange or colors.white)
+  end
+
   -- Turtle table
   y = y + 2
   at(1, y, "Turtle       Job      Status", colors.cyan)
@@ -470,6 +516,14 @@ local function uiLoop()
       -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
       if hub.recallAll and tick % 5 == 0 then send(nil, { type = "recall" }) end
+      -- Session over: stop everything, like STOP (turtles finish their trip and stay home)
+      if hub.sessionEnd and nowMs() >= hub.sessionEnd then
+        hub.target = nil
+        hub.overrides = {}
+        hub.sessionEnd = nil
+        save()
+        flash("Time is up: turtles come home and stay there.")
+      end
       local rel = releasedVersion()
       if rel and tick % 10 == 0 and outdatedCount() > 0 then send(nil, { type = "update", hash = rel }) end
       redraw()
