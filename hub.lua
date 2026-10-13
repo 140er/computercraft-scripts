@@ -187,7 +187,7 @@ local function handle(id, m)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode,
+      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
       progress = hub.progress[m.role],
       update = releasedVersion(),
     })
@@ -364,7 +364,11 @@ local function draw(s)
     end
   end
   local modeLabel = (hub.mode == "fast") and " FAST " or " THOROUGH "
-  local topW = W - #modeLabel - 1
+  -- ONLY switch: keep only the chosen ore, drop every other ore underground
+  local tgt = hub.target and ORES[hub.target]
+  local onlyLabel = hub.only and (" ONLY " .. (tgt and (tgt.short or tgt.label):upper() or "ORE") .. " ") or " ALL ORES "
+  local onlyX = W - #modeLabel - #onlyLabel
+  local topW = onlyX - 2
   local y = 1
   if #lost > 0 then
     at(1, y, ("LOST: " .. table.concat(lost, "  ")):sub(1, topW), colors.red)
@@ -379,6 +383,11 @@ local function draw(s)
     else job, jc = "Stopped", colors.red end
     at(1, y, job:sub(1, topW), jc)
   end
+  button(onlyX, y, onlyLabel, hub.only and colors.black or colors.white, hub.only and colors.orange or colors.gray, function()
+    hub.only = not hub.only
+    save()
+    flash(hub.only and "Only the chosen ore is kept, other ores get dropped (next trip)" or "All ores are kept again (next trip)")
+  end)
   button(W - #modeLabel + 1, y, modeLabel, colors.black, (hub.mode == "fast") and colors.orange or colors.cyan, function()
     hub.mode = (hub.mode == "fast") and "thorough" or "fast"
     save()
@@ -601,7 +610,7 @@ local function drawInfo(s)
   if hub.recallAll then job, jc = "RECALLED", colors.white
   elseif hub.target then
     local o = ORES[hub.target]
-    job, jc = small and ((o.short or o.label) .. " Y" .. o.y) or ("Mining " .. o.label .. " (Y " .. o.y .. ")"), colors.white
+    job, jc = small and ((o.short or o.label) .. " Y" .. o.y) or ("Mining " .. o.label .. (hub.only and " only" or "") .. " (Y " .. o.y .. ")"), colors.white
   else job, jc = "Stopped", colors.lightGray end
   if small then
     -- Tiny monitor: job + time left on one line, no title

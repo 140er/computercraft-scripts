@@ -49,13 +49,13 @@ local MAX_LAYERS = 4       -- layers per ore before the area counts as full
 local RETRY = 20
 
 local ORES = {
-  diamond  = { y = -58, targets = { "minecraft:diamond_ore", "minecraft:deepslate_diamond_ore" } },
-  redstone = { y = -58, targets = { "minecraft:redstone_ore", "minecraft:deepslate_redstone_ore" } },
-  gold     = { y = -16, targets = { "minecraft:gold_ore", "minecraft:deepslate_gold_ore" } },
-  lapis    = { y = 0,   targets = { "minecraft:lapis_ore", "minecraft:deepslate_lapis_ore" } },
-  iron     = { y = 16,  targets = { "minecraft:iron_ore", "minecraft:deepslate_iron_ore" } },
-  copper   = { y = 48,  targets = { "minecraft:copper_ore", "minecraft:deepslate_copper_ore" } },
-  coal     = { y = 48,  targets = { "minecraft:coal_ore", "minecraft:deepslate_coal_ore" } },
+  diamond  = { y = -58, targets = { "minecraft:diamond_ore", "minecraft:deepslate_diamond_ore" }, drops = { "minecraft:diamond" } },
+  redstone = { y = -58, targets = { "minecraft:redstone_ore", "minecraft:deepslate_redstone_ore" }, drops = { "minecraft:redstone" } },
+  gold     = { y = -16, targets = { "minecraft:gold_ore", "minecraft:deepslate_gold_ore" }, drops = { "minecraft:raw_gold" } },
+  lapis    = { y = 0,   targets = { "minecraft:lapis_ore", "minecraft:deepslate_lapis_ore" }, drops = { "minecraft:lapis_lazuli" } },
+  iron     = { y = 16,  targets = { "minecraft:iron_ore", "minecraft:deepslate_iron_ore" }, drops = { "minecraft:raw_iron" } },
+  copper   = { y = 48,  targets = { "minecraft:copper_ore", "minecraft:deepslate_copper_ore" }, drops = { "minecraft:raw_copper" } },
+  coal     = { y = 48,  targets = { "minecraft:coal_ore", "minecraft:deepslate_coal_ore" }, drops = { "minecraft:coal" } },
 }
 
 -- Directions: 0=north(-z) 1=east(+x) 2=south(+z) 3=west(-x) 4=up 5=down
@@ -263,11 +263,21 @@ end
 -- Block recognition
 ---------------------------------------------------------------------------
 local TARGET = {}
-local function setTargets(list)
+-- "Only" mode (switch on the hub): mine only the target ore, everything else
+-- (other ores too) counts as junk and gets dropped underground.
+local ONLY = nil -- nil, or the set of item names to keep (what the target ore drops)
+local function setTargets(list, job)
   TARGET = {}
   for _, n in ipairs(list or {}) do
     if not n:find(":") then n = "minecraft:" .. n end
     TARGET[n] = true
+  end
+  ONLY = nil
+  local o = job and job.only and ORES[job.ore]
+  if o and o.drops then
+    ONLY = {}
+    for _, n in ipairs(o.drops) do ONLY[n] = true end
+    for n in pairs(TARGET) do ONLY[n] = true end -- the ore blocks themselves (silk touch)
   end
 end
 
@@ -347,6 +357,10 @@ local JUNK_PARTS = { "sandstone", "terracotta", "cobble" }
 local function isJunk(slot)
   local d = turtle.getItemDetail(slot)
   if not d then return false end
+  if ONLY then
+    if d.name:find("bucket", 1, true) then return false end
+    return not ONLY[d.name]
+  end
   if JUNK[d.name] then return true end
   for _, part in ipairs(JUNK_PARTS) do
     if d.name:find(part, 1, true) then return true end
@@ -555,6 +569,16 @@ end
 local sinceDrop = 0
 local function dropJunk()
   sinceDrop = 0
+  if ONLY then -- "only" mode: burn mined coal instead of throwing it away
+    for s = 1, 16 do
+      if turtle.getItemCount(s) > 0 and isJunk(s) then
+        turtle.select(s)
+        local f = turtle.getFuelLevel()
+        if f ~= "unlimited" and turtle.refuel(0) and f < turtle.getFuelLimit() - 1000 then turtle.refuel() end
+      end
+    end
+    turtle.select(1)
+  end
   keepOneSealStack(turtle.dropDown)
 end
 
@@ -783,7 +807,7 @@ local function scanFor(dirs)
       veinSeen[k] = true
       local info = inspect(d)
       if isLava(info) then sealLava(d)
-      elseif isOre(info) then mineVein(d, isTarget(info)) end
+      elseif isOre(info) and (isTarget(info) or not ONLY) then mineVein(d, isTarget(info)) end
     end
   end
 end
@@ -858,7 +882,7 @@ end
 local function check(d)
   local info = inspect(d)
   if isLava(info) then sealLava(d) return "lava" end
-  if isOre(info) then vein(d, info) return "ore" end
+  if isOre(info) and (isTarget(info) or not ONLY) then vein(d, info) return "ore" end
   return info
 end
 
@@ -1370,7 +1394,8 @@ local function getJob()
   if standaloneOre then
     local o = ORES[standaloneOre]
     return { ore = standaloneOre, y = o.y, targets = o.targets, branchLen = BRANCH_LEN,
-      mode = (args[2] == "fast") and "fast" or "thorough" }
+      mode = (args[2] == "fast" or args[3] == "fast") and "fast" or "thorough",
+      only = (args[2] == "only" or args[3] == "only") or nil }
   end
   local reply = askHub()
   if reply then
@@ -1380,7 +1405,8 @@ local function getJob()
     if reply.paused or not reply.ore then return nil, "waiting for orders" end
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
-      mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn, mode = reply.mode }
+      mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn, mode = reply.mode,
+      only = reply.only and true or nil }
   end
   return nil, "no hub found (staying home)"
 end
@@ -1479,7 +1505,7 @@ end
 
 local function recover()
   if calibrateAtHome() then
-    if st.job then setTargets(st.job.targets) end
+    if st.job then setTargets(st.job.targets, st.job) end
     return
   end
   if st.pending then
@@ -1492,7 +1518,7 @@ local function recover()
     st.pending = nil
     save()
   end
-  if st.job then setTargets(st.job.targets) end
+  if st.job then setTargets(st.job.targets, st.job) end
   if st.phase == "lost" then
     -- Waiting to be picked up: never wander off. Put me back home to continue.
     approxPos = st.lostAt and st.lostAt.approx or false
@@ -1535,7 +1561,7 @@ local function trip(j0)
   j.baseY, j.y = base, Y
   st.job = j
   st.found = 0
-  setTargets(j.targets)
+  setTargets(j.targets, j)
   save()
   if j.y > HOME.y - 3 then error("Level " .. j.y .. " is too close to home", 0) end
   mineUntil = nil

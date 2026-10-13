@@ -93,7 +93,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 ## Dashboard
 
 ```
- Mining Diamond (Y -58)                    THOROUGH
+ Mining Diamond (Y -58)         ALL ORES   THOROUGH
 
   Dia   Rstone   Gold   Lapis   Iron   Copper  Coal
 
@@ -109,6 +109,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **Top line:** the current job. It shows "Orders for: <turtle>" while a turtle is selected, and a red `LOST:` alert or a short notice when there is one.
 - **Ore buttons:** the whole fleet mines that ore. Tap a turtle in the list first to give only that turtle an order; `ALL` goes back to the whole fleet.
 - **THOROUGH / FAST:** mining mode (see above).
+- **ALL ORES / ONLY DIA:** with ALL ORES the turtles keep every ore they find. Switch it to ONLY and they mine just the chosen ore: other ores are not followed, and any they dig through are dropped underground like stone (coal is burned as fuel instead). Applies from the next trip; what's already in the chests stays.
 - **Time:** session length, 10 minutes up to 1 hour (default 30 minutes). Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
 - **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name.
@@ -174,7 +175,7 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 |---|---|---|
 | turtle | `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
 | turtle | `miner` | run with the hub (started automatically on boot) |
-| turtle | `miner diamond` / `miner diamond fast` | run without a hub |
+| turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
 | hub | `hub install`, `hub` | autostart, run |
 | relay | `relay install`, `relay` | autostart, run |
