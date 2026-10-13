@@ -535,8 +535,11 @@ local function dig(d)
     if not info or isLiquid(info) then return true end
     if isUnbreakable(info) then return false, "unbreakable (" .. info.name .. ")" end
     if isTarget(info) then st.found = st.found + 1 end
-    if digf() then
+    local dug, why = digf()
+    if dug then
       afterDig()
+    elseif type(why) == "string" and why:lower():find("unbreakable") then
+      return false, "unbreakable (" .. info.name .. ")" -- e.g. reinforced deepslate
     else
       att()
       sleep(0.3)
@@ -955,7 +958,17 @@ local function workLevel(j)
         if fast then ok, why = excavate(SPINE) else ok, why = excavate(SPINE, BRANCH, OPP[BRANCH]) end
         if not ok and why == UNLOADED then return UNLOADED end
         if not ok then
+          -- Something it can't get through (e.g. reinforced deepslate of an ancient city,
+          -- lava it couldn't seal). Same spot on 2 trips: give up this layer, take the next.
+          local here = along(SPINE)
+          if L.blockedAt == here then L.blockedCount = (L.blockedCount or 1) + 1
+          else L.blockedAt, L.blockedCount = here, 1 end
           L.blocked = why
+          logError("Main tunnel blocked at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": " .. tostring(why))
+          if L.blockedCount >= 2 then
+            L.full = true
+            logError("Main tunnel blocked twice at the same spot: layer Y " .. Y .. " done, next trip takes the next layer")
+          end
           save()
           return "main tunnel blocked: " .. tostring(why)
         end

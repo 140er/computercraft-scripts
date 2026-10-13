@@ -58,6 +58,7 @@ A turtle never goes more than **96 blocks** (6 chunks) from its shaft, ore veins
 - When a level is mined out within that reach, it starts a new layer 3 blocks higher with its branches shifted so they fall between the old ones (diamond: Y -58, -55, -52, -49).
 - After 4 layers the dashboard shows "Area full": pick another ore or raise `reach` in `hub.state` (don't go above your server's simulation distance × 16 minus a margin).
 - If it still runs into an unloaded chunk (you walked away), it keeps its progress, goes home and waits a minute.
+- If the main tunnel hits something it can't get through (e.g. the reinforced deepslate of an ancient city, or lava it couldn't seal) at the same spot on 2 trips, that layer counts as full and it moves on to the next layer. The reason shows on the dashboard's detail line and in `miner.log`.
 
 ### Mining modes: Thorough and Fast
 Toggle with the button at the top right of the dashboard. A switch applies from the next branch on.
