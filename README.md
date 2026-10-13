@@ -97,7 +97,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 
   Dia   Rstone   Gold   Lapis   Iron   Copper  Coal
 
-  STOP   RECALL   UPDATE (2)
+  STOP   RECALL   UPDATE (2)              CUSTOM
 
  Time  10m   20m   30m   45m   1h  0:42:10
 
@@ -109,12 +109,16 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **Top line:** the current job. It shows "Orders for: <turtle>" while a turtle is selected, and a red `LOST:` alert or a short notice when there is one.
 - **Ore buttons:** the whole fleet mines that ore. Tap a turtle in the list first to give only that turtle an order; `ALL` goes back to the whole fleet.
 - **THOROUGH / FAST:** mining mode (see above).
+- **CUSTOM** (or the `c` key on the hub computer): type any item on the **hub computer** (monitors have no keyboard), then the height (Enter = a sensible default).
+  - Rock (`cobbled deepslate`, `cobblestone`, `tuff`, `granite`, `diorite`, `andesite`, `calcite`, `gravel`, `dirt`): the turtles keep that item instead of dropping it, plus the ores they find. Their inventories fill fast (about 900 blocks per trip), so give them big chests.
+  - Anything else is taken as an ore name, also modded: `emerald`, `zinc`, `raw tin`, `osmium`. They mine every ore block with that word in its name and keep every item with it (raw zinc, ...). Check the name with F3 if nothing turns up.
+  - Custom items are never cleaned out of the chest later. Tap an ore button to go back to normal ores.
 - **ALL ORES / ONLY DIA:** with ALL ORES the turtles keep every ore they find. Switch it to ONLY and they mine just the chosen ore: other ores are not followed, and any they dig through are dropped underground like stone (coal is burned as fuel instead). Applies from the next trip; what's already in the chests stays.
 - **Time:** session length, 10 minutes up to 1 hour (default 30 minutes). Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
 - **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name.
 - **IN TURTLES NOW:** the loot currently in all turtles together (last reported for turtles out of range).
-- Keyboard: `1`-`7` ore, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
+- Keyboard: `1`-`7` ore, `c` custom item, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.
 - **Detail line** (under the turtle table): the full status and last error of the turtle you tapped, or otherwise the most recent error of any turtle in the last 30 minutes. "Going home: after error" means a trip hit an error; the detail line says which. Each turtle also keeps its last 40 errors in `miner.log` (read it on the turtle with `edit miner.log`).
 

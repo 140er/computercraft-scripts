@@ -35,6 +35,56 @@ local ORES = {
 }
 local ORDER = { "diamond", "redstone", "gold", "lapis", "iron", "copper", "coal" }
 
+-- Custom item, typed on the hub computer (CUSTOM button or the c key).
+-- Rock: the turtles keep that item (plus the ores they find) instead of dropping it.
+-- Anything else is taken as (part of) an ore name, also modded: "zinc", "emerald".
+local ROCKS = {
+  cobbled_deepslate = -16, cobblestone = 48, tuff = -16, granite = 48, diorite = 48,
+  andesite = 48, calcite = -16, gravel = 16, flint = 16, dirt = 55, smooth_basalt = -50,
+}
+local ALIAS = {
+  deepslate = "cobbled_deepslate", cobbled = "cobbled_deepslate", stone = "cobblestone", cobble = "cobblestone",
+  diamonds = "diamond", raw_iron = "iron", raw_gold = "gold", raw_copper = "copper",
+  lapis_lazuli = "lapis", basalt = "smooth_basalt",
+}
+local ORE_DEFAULT_Y = { emerald = 48, zinc = 32, tin = 32, osmium = 32, lead = 0, silver = 0,
+  uranium = 0, nickel = 16, quartz = 16, sulfur = -30 }
+
+local function prettyItem(n)
+  n = n:gsub("^[^:]*:", ""):gsub("_", " ")
+  return n:sub(1, 1):upper() .. n:sub(2)
+end
+
+-- "Cobbled Deepslate" -> kind, data. kind: "ore" (a button ore), "rock", "match", or nil + error
+local function resolveItem(text)
+  local n = text:lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("[%s%-]+", "_")
+  if n == "" then return nil end
+  local mod = n:match("^([%w_]+):") or "minecraft"
+  n = n:gsub("^[%w_]+:", "")
+  n = ALIAS[n] or n
+  if ORES[n] then return "ore", n end
+  if ROCKS[n] then
+    local keep = { "minecraft:" .. n }
+    if n == "gravel" then keep[2] = "minecraft:flint" elseif n == "flint" then keep[2] = "minecraft:gravel" end
+    return "rock", { item = "minecraft:" .. n, keep = keep, y = ROCKS[n] }
+  end
+  -- An ore name: keep the core word ("raw_zinc", "deepslate_zinc_ore" -> "zinc")
+  local word = n:gsub("^raw_", ""):gsub("^deepslate_", ""):gsub("_ore$", ""):gsub("^ore_", ""):gsub("_ingot$", "")
+  if ORES[ALIAS[word] or word] then return "ore", ALIAS[word] or word end
+  if #word < 3 then return nil, "Too short: type more of the name" end
+  for _, bad in ipairs({ "log", "plank", "wool", "wood", "leaves", "sapling", "seeds", "wheat" }) do
+    if word:find(bad, 1, true) then return nil, "Turtles can't mine " .. word .. " underground" end
+  end
+  return "match", { match = word, mod = mod, y = ORE_DEFAULT_Y[word] or 16 }
+end
+
+local function customEntry(c)
+  if type(c) ~= "table" then return nil end
+  local label = c.label or "Custom"
+  return { label = label, short = label:sub(1, 12), y = c.y, color = colors.white, targets = {},
+    keep = c.keep, match = c.match, custom = true }
+end
+
 ---------------------------------------------------------------------------
 -- Storage
 ---------------------------------------------------------------------------
@@ -71,6 +121,11 @@ for _, opt in ipairs(TIMES) do if hub.sessionLen == opt[2] then validLen = true 
 if not validLen then hub.sessionLen = 1800 end -- also replaces an old "no limit" or 2h/4h
 -- Mining mode: "thorough" (branches every 4, wall checks) or "fast" (every 2, no turning)
 hub.mode = hub.mode or "thorough"
+ORES.custom = customEntry(hub.custom)
+if not ORES.custom then
+  if hub.target == "custom" then hub.target = nil end
+  for id, o in pairs(hub.overrides) do if o == "custom" then hub.overrides[id] = nil end end
+end
 hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
@@ -83,6 +138,7 @@ end
 
 local turtles = {} -- [id] = { p = status packet, seen = os.clock() }
 local selected = nil -- nil = all turtles
+local wantAsk = false -- CUSTOM tapped: ask for the item on the hub computer
 
 ---------------------------------------------------------------------------
 -- Network
@@ -187,7 +243,7 @@ local function handle(id, m)
     local o = ore and ORES[ore]
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
-      y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
+      y = o and o.y, targets = o and o.targets, keep = o and o.keep, match = o and o.match, label = o and o.label, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
       progress = hub.progress[m.role],
       update = releasedVersion(),
     })
@@ -321,6 +377,14 @@ local COMMON = {
   ["minecraft:lava_bucket"] = true, ["minecraft:dirt"] = true, ["minecraft:gravel"] = true,
 }
 
+-- Common blocks, unless it's the custom item the turtles are collecting
+local function isCommon(name)
+  if not COMMON[name] then return false end
+  local c = ORES.custom
+  if c and c.keep then for _, k in ipairs(c.keep) do if k == name then return false end end end
+  return true
+end
+
 local function fmtAge(sec)
   if sec < 60 then return math.floor(sec) .. "s" end
   return math.floor(sec / 60) .. "m"
@@ -422,6 +486,15 @@ local function draw(s)
   x = button(x, y, outdated > 0 and (" UPDATE (" .. outdated .. ") ") or " UPDATE ", colors.white,
     outdated > 0 and colors.green or colors.gray, releaseUpdate)
   if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
+  -- Custom item: shows what it is when active; tapping it asks on the hub computer
+  do
+    local cur = selected and oreFor(selected) or (not selected and hub.target)
+    local active = cur == "custom" and ORES.custom
+    local label = active and (" " .. ORES.custom.short .. " ") or " CUSTOM "
+    local cx = math.max(x, W - #label + 1)
+    button(cx, y, label:sub(1, W - cx + 1), active and colors.black or colors.white, active and colors.lime or colors.gray,
+      function() wantAsk = true end)
+  end
 
   -- Session timer
   y = y + 2
@@ -547,7 +620,7 @@ local function draw(s)
     end
   end
   local list2 = {}
-  for name, n in pairs(sum) do list2[#list2 + 1] = { name = name, n = n, common = COMMON[name] and 1 or 0 } end
+  for name, n in pairs(sum) do list2[#list2 + 1] = { name = name, n = n, common = isCommon(name) and 1 or 0 } end
   table.sort(list2, function(a, b)
     if a.common ~= b.common then return a.common < b.common end -- ores first, cobble/buckets last
     if a.n ~= b.n then return a.n > b.n end
@@ -566,7 +639,7 @@ local function draw(s)
       col = col + #txt + 2
     end
   end
-  at(1, H, ("Tap a turtle = only that one. 1-7 ore s stop r recall u update q quit"):sub(1, W), colors.gray)
+  at(1, H, ("Tap a turtle = only that one. 1-7 ore c custom s stop r recall u update q quit"):sub(1, W), colors.gray)
 end
 
 -- Info screen for a normal (grey) monitor: no buttons, just the overview
@@ -592,7 +665,7 @@ local function drawInfo(s)
   local function hr() line(string.rep("-", W), colors.gray) end
   local function itemLines(tbl, max)
     local l = {}
-    for name, n in pairs(tbl) do if not COMMON[name] then l[#l + 1] = { name = name, n = n } end end
+    for name, n in pairs(tbl) do if not isCommon(name) then l[#l + 1] = { name = name, n = n } end end
     table.sort(l, function(a, b) if a.n ~= b.n then return a.n > b.n end return a.name < b.name end)
     for i = 1, math.min(#l, max) do line(" " .. prettyName(l[i].name), colors.white, tostring(l[i].n), colors.white) end
     if #l == 0 then line(" nothing yet", colors.gray) end
@@ -642,7 +715,7 @@ local function drawInfo(s)
   if sess and sess.start then
     local mins = math.max(1, ((sess.stop or nowMs()) - sess.start) / 60000)
     local ores = 0
-    for name, c in pairs(sess.haul) do if not COMMON[name] then ores = ores + c end end
+    for name, c in pairs(sess.haul) do if not isCommon(name) then ores = ores + c end end
     rate = small and (math.floor(ores * 60 / mins) .. "/h") or (math.floor(mins) .. "m, " .. math.floor(ores * 60 / mins) .. " ores/h")
   end
   line(title, colors.lightGray, rate, colors.gray)
@@ -676,6 +749,56 @@ local function redraw()
   for _, s in ipairs(screens) do
     if s.info then drawInfo(s) else draw(s) end
   end
+end
+
+-- Ask for a custom item on the hub computer (monitors have no keyboard)
+local function askCustom()
+  flash("Type the item on the hub PC")
+  redraw()
+  local t = term.native()
+  local prev = term.redirect(t)
+  t.setBackgroundColor(colors.black)
+  t.setTextColor(colors.white)
+  t.clear()
+  t.setCursorPos(1, 1)
+  print("Mine for which item? (Enter = cancel)")
+  print("Rock: cobbled deepslate, cobblestone, tuff,")
+  print("  granite, diorite, andesite, gravel, dirt")
+  print("Ores: emerald, zinc, tin, osmium, ...")
+  write("> ")
+  local text = read()
+  local kind, data = resolveItem(text or "")
+  if not kind then
+    if data then print(data) sleep(2) end
+    term.redirect(prev)
+    return
+  end
+  if kind == "ore" then
+    setTarget(data)
+    flash("Mining " .. ORES[data].label)
+    term.redirect(prev)
+    return
+  end
+  print("Height (Y) to mine at? (Enter = " .. data.y .. ")")
+  write("> ")
+  local y = tonumber(read() or "") or data.y
+  y = math.floor(math.max(-59, math.min(55, y)))
+  local label
+  if kind == "rock" then
+    label = prettyItem(data.item)
+    hub.custom = { label = label, y = y, keep = data.keep }
+    print("Collecting " .. label .. " at Y " .. y .. " (and the ores they find).")
+  else
+    label = prettyItem(data.match)
+    hub.custom = { label = label, y = y, match = data.match }
+    print("Mining every ore with '" .. data.match .. "' in its name at Y " .. y .. ".")
+    print("If nothing is found, check the name (e.g. with F3 on the block).")
+  end
+  ORES.custom = customEntry(hub.custom)
+  setTarget("custom")
+  flash("Mining " .. label .. " at Y " .. y)
+  sleep(2)
+  term.redirect(prev)
 end
 
 local function click(screenName, x, y)
@@ -734,10 +857,17 @@ local function uiLoop()
       elseif a == "h" then resumeAll()
       elseif a == "a" then selected = nil
       elseif a == "u" then releaseUpdate()
+      elseif a == "c" then wantAsk = true
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       redraw()
+    end
+    if wantAsk then
+      wantAsk = false
+      askCustom()
+      redraw()
+      timer = os.startTimer(1) -- the old timer fired while typing
     end
   end
 end

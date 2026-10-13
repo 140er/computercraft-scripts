@@ -265,20 +265,40 @@ end
 local TARGET = {}
 -- "Only" mode (switch on the hub): mine only the target ore, everything else
 -- (other ores too) counts as junk and gets dropped underground.
-local ONLY = nil -- nil, or the set of item names to keep (what the target ore drops)
+local ONLY = false
+-- Items this job wants: what the target ore drops, plus a custom item typed on the hub
+-- (e.g. cobbled deepslate: kept instead of dropped). MATCH: part of a (modded) ore name.
+local WANT, MATCH = {}, nil
 local function setTargets(list, job)
   TARGET = {}
   for _, n in ipairs(list or {}) do
     if not n:find(":") then n = "minecraft:" .. n end
     TARGET[n] = true
   end
-  ONLY = nil
-  local o = job and job.only and ORES[job.ore]
-  if o and o.drops then
-    ONLY = {}
-    for _, n in ipairs(o.drops) do ONLY[n] = true end
-    for n in pairs(TARGET) do ONLY[n] = true end -- the ore blocks themselves (silk touch)
+  WANT, MATCH = {}, nil
+  local o = job and ORES[job.ore]
+  for _, n in ipairs(o and o.drops or {}) do WANT[n] = true end
+  for n in pairs(TARGET) do WANT[n] = true end -- the ore blocks themselves (silk touch)
+  for _, n in ipairs(job and type(job.keep) == "table" and job.keep or {}) do WANT[n] = true end
+  if job and type(job.match) == "string" and #job.match >= 3 then MATCH = job.match end
+  ONLY = (job and job.only and (next(WANT) ~= nil or MATCH ~= nil)) and true or false
+  -- Remember custom items, so cleaning the chest never throws them out later
+  if job and (job.keep or MATCH) then
+    st.kept = st.kept or {}
+    for _, n in ipairs(type(job.keep) == "table" and job.keep or {}) do st.kept[n] = true end
+    if MATCH then st.kept["*" .. MATCH] = true end
   end
+end
+local function isWanted(name)
+  return WANT[name] or (MATCH ~= nil and name:find(MATCH, 1, true) ~= nil)
+end
+local function everKept(name)
+  if not st.kept then return false end
+  if st.kept[name] then return true end
+  for k in pairs(st.kept) do
+    if k:sub(1, 1) == "*" and name:find(k:sub(2), 1, true) then return true end
+  end
+  return false
 end
 
 local function hasTag(info, t) return info and info.tags and info.tags[t] end
@@ -294,7 +314,11 @@ local function isOre(info)
   end
   return false
 end
-local function isTarget(info) return info and TARGET[info.name] end
+local function isTarget(info)
+  if not info then return false end
+  if TARGET[info.name] then return true end
+  return MATCH ~= nil and info.name:find(MATCH, 1, true) ~= nil and isOre(info)
+end
 local function isLava(info)
   if not info then return false end
   return info.name:find(":lava$") or info.name:find(":flowing_lava$") or hasTag(info, "minecraft:lava")
@@ -357,10 +381,8 @@ local JUNK_PARTS = { "sandstone", "terracotta", "cobble" }
 local function isJunk(slot)
   local d = turtle.getItemDetail(slot)
   if not d then return false end
-  if ONLY then
-    if d.name:find("bucket", 1, true) then return false end
-    return not ONLY[d.name]
-  end
+  if isWanted(d.name) then return false end -- also a custom item like cobbled deepslate
+  if ONLY then return not d.name:find("bucket", 1, true) end
   if JUNK[d.name] then return true end
   for _, part in ipairs(JUNK_PARTS) do
     if d.name:find(part, 1, true) then return true end
@@ -1284,7 +1306,7 @@ local function cleanChest()
           local ok2, full = pcall(chest.getItemDetail, slot)
           if ok2 and full then d = full end
         end
-        if not keepDetail(d) then bad = slot break end
+        if not keepDetail(d) and not everKept(d.name) then bad = slot break end
       end
     end
     if not bad then break end
@@ -1293,7 +1315,7 @@ local function cleanChest()
     turtle.select(s)
     if not turtle.suck(64) then break end
     local got = turtle.getItemDetail(s, true)
-    if keepDetail(got) then
+    if keepDetail(got) or (got and everKept(got.name)) then
       -- moving inside the chest did not work: put it back and stop cleaning
       turtle.drop()
       break
@@ -1406,7 +1428,7 @@ local function getJob()
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
       mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn, mode = reply.mode,
-      only = reply.only and true or nil }
+      only = reply.only and true or nil, keep = reply.keep, match = reply.match, label = reply.label }
   end
   return nil, "no hub found (staying home)"
 end
