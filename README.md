@@ -286,6 +286,7 @@ Type at the `>` line at the bottom of the turtle's screen:
 
 ### Getting items out
 Type on the turtle (walk into the room and right-click it), or ask from outside with a computer (below):
+
 | Command | What |
 |---|---|
 | `get iron ingot 32` | brings 32 iron ingots to the output chest (default: 1 stack) |
