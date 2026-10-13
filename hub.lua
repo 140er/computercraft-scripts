@@ -9,7 +9,7 @@
 -- Tik eerst een turtle aan in de lijst om alleen die turtle een opdracht te geven.
 -- STOP = na deze trip thuis blijven. TERUG = nu meteen naar huis.
 -- Toetsenbord: 1-7 erts, s stop, r terug, a alle turtles, q afsluiten.
--- Update: sleep een nieuwe miner.lua naar deze computer; turtles updaten zich als ze thuis zijn.
+-- Update: sleep een nieuwe miner.lua naar deze computer en druk op UPDATE (of u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
@@ -71,6 +71,7 @@ end
 -- Max. minuten graven per trip. Met gewone wireless modems hoort de hub de turtles
 -- alleen bij de basis, dus kortere trips = nieuwe opdrachten worden sneller opgepikt.
 hub.mineMinutes = hub.mineMinutes or 15
+hub.released = hub.released -- hash van de miner.lua die met UPDATE is vrijgegeven
 hub.recallAll = hub.recallAll or false
 
 local function save()
@@ -146,6 +147,14 @@ local function minerVersion()
   return minerCache.hash, minerCache.code
 end
 
+-- Alleen een versie die met de UPDATE-knop is vrijgegeven wordt uitgedeeld
+-- (en alleen zolang het bestand nog precies die versie is).
+local function releasedVersion()
+  local hash = minerVersion()
+  if hash and hash == hub.released then return hash end
+  return nil
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if m.type == "status" then
@@ -158,11 +167,11 @@ local function handle(id, m)
       type = "job", paused = paused, ore = (not paused) and ore or nil,
       y = o and o.y, targets = o and o.targets, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes,
       progress = hub.progress[m.role],
-      update = minerVersion(),
+      update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
     local hash, code = minerVersion()
-    if code then send(id, { type = "miner_file", hash = hash, code = code }) end
+    if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(m.role, m.progress)
     for name, n in pairs(m.haul or {}) do
@@ -223,6 +232,34 @@ local function resumeAll()
   save()
 end
 
+local notice, noticeUntil = nil, 0
+local function flash(text)
+  notice, noticeUntil = text, os.clock() + 8
+end
+
+-- UPDATE-knop: de miner.lua op deze computer vrijgeven en de turtles roepen
+local function releaseUpdate()
+  local hash = minerVersion()
+  if not hash then
+    flash("Geen miner.lua op de hub. Sleep hem eerst naar dit scherm.")
+    return
+  end
+  hub.released = hash
+  save()
+  send(nil, { type = "update", hash = hash })
+  flash("Update " .. hash .. " vrijgegeven. Turtles updaten zodra ze thuis zijn.")
+end
+
+local function outdatedCount()
+  local hash = minerVersion()
+  if not hash then return 0 end
+  local n = 0
+  for _, r in pairs(turtles) do
+    if r.p.hash and r.p.hash ~= hash then n = n + 1 end
+  end
+  return n
+end
+
 local function fmtAge(sec)
   if sec < 60 then return math.floor(sec) .. "s" end
   return math.floor(sec / 60) .. "m"
@@ -266,6 +303,8 @@ local function draw(s)
   else mode = "GESTOPT" end
   at(math.max(16, W - #mode), 1, mode, hub.target and not hub.recallAll and colors.lime or colors.red, colors.gray)
 
+  if notice and os.clock() < noticeUntil then at(1, 2, notice, colors.yellow) end
+
   -- Erts-knoppen
   local y = 3
   local x = 1
@@ -287,6 +326,9 @@ local function draw(s)
   x = button(x, y, " STOP ", colors.white, colors.red, stopAll)
   x = button(x, y, " TERUG NU ", colors.white, colors.purple, recallNow)
   if hub.recallAll then x = button(x, y, " HERVAT ", colors.black, colors.lime, resumeAll) end
+  local outdated = outdatedCount()
+  x = button(x, y, outdated > 0 and (" UPDATE (" .. outdated .. ") ") or " UPDATE ", colors.white,
+    outdated > 0 and colors.green or colors.gray, releaseUpdate)
   if selected then x = button(x, y, " ALLE ", colors.black, colors.white, function() selected = nil end) end
 
   -- Turtle-tabel
@@ -323,7 +365,7 @@ local function draw(s)
     end
     if p.branch and p.phase == "mining" then ore = ore .. " z" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
-    local want = minerVersion()
+    local want = releasedVersion()
     if want and p.hash and p.hash ~= want then
       name = (p.label or ("#" .. id)):sub(1, 11) .. "*" -- wacht op update (bij volgende keer thuis)
     end
@@ -358,7 +400,7 @@ local function draw(s)
   else
     at(1, ty, line, colors.lightBlue)
   end
-  at(1, H, ("Tik turtle = alleen die. 1-7 erts, s stop, r terug, a alle, q uit"):sub(1, W), colors.gray)
+  at(1, H, ("Tik turtle = alleen die. 1-7 erts s stop r terug u update q uit"):sub(1, W), colors.gray)
 end
 
 local function redraw()
@@ -396,6 +438,8 @@ local function uiLoop()
       -- Gewone modems: turtles buiten bereik missen de oproep, dus blijf hem herhalen
       tick = tick + 1
       if hub.recallAll and tick % 5 == 0 then send(nil, { type = "recall" }) end
+      local rel = releasedVersion()
+      if rel and tick % 10 == 0 and outdatedCount() > 0 then send(nil, { type = "update", hash = rel }) end
       redraw()
       timer = os.startTimer(1)
     elseif ev == "mouse_click" then
@@ -409,6 +453,7 @@ local function uiLoop()
       elseif a == "r" then recallNow()
       elseif a == "h" then resumeAll()
       elseif a == "a" then selected = nil
+      elseif a == "u" then releaseUpdate()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then

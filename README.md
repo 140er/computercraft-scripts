@@ -106,9 +106,13 @@ miner
 `miner home` zet alleen de positie terug; welke gangen al gegraven zijn blijft bewaard.
 
 ### Turtles updaten via de hub
-Sleep de nieuwe `miner.lua` naar het scherm van de **hub-computer**. Elke turtle die thuiskomt ziet dat de hub een andere versie heeft, haalt hem op, controleert of het geldige Lua is en herstart.
-- Dit gebeurt alleen thuis, na het lossen. Positie, richting en voortgang staan in `miner.state` en `miner.cfg`, die blijven gewoon staan. Na de herstart gaat hij verder bij dezelfde zijgang.
-- Turtles die nog niet bijgewerkt zijn staan op het dashboard met een `*` achter hun naam.
+1. Sleep de nieuwe `miner.lua` naar het scherm van de **hub-computer**. Er gebeurt dan nog niets.
+2. Druk op **UPDATE** (of toets `u`). Tussen haakjes staat hoeveel turtles een andere versie hebben.
+   - Turtles die thuis staan updaten meteen.
+   - Turtles die onderweg zijn en de hub horen, gaan eerst naar huis en updaten daar.
+   - Turtles die te diep zitten (gewone modem) updaten zodra ze thuiskomen.
+- Updaten gebeurt alleen thuis, na het lossen. Positie, richting en voortgang staan in `miner.state` en `miner.cfg` en blijven bewaard. Na de herstart gaat hij verder bij dezelfde zijgang.
+- Turtles die de vrijgegeven update nog niet hebben staan op het dashboard met een `*` achter hun naam.
 - Een kapot bestand wordt geweigerd. De turtle houdt dan zijn oude versie.
 - Wil je de hub zelf bijwerken: sleep ook `hub.lua` erheen en herstart de hub-computer.
 - Let op: iedereen op de server met een computer en modem zou zich als "hub" kunnen voordoen. Op een server met vreemden is dat een risico.

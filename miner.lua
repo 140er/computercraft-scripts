@@ -177,6 +177,7 @@ local function save() saveTable(STATE_FILE, st) end
 
 local status = "Opstarten"
 local recall = false
+local updateWanted = false -- hub heeft een nieuwe versie vrijgegeven: naar huis om te updaten
 local hubId = nil
 local radio = false
 
@@ -732,6 +733,7 @@ local mineUntil = nil -- os.clock() waarop hij terug moet (max. graaftijd per tr
 
 local function stopReason()
   if recall then return "teruggeroepen" end
+  if updateWanted then return "update" end
   if mineUntil and os.clock() > mineUntil then return "trip-tijd om" end
   if not fuelOk(8) then
     burnMinedFuel()
@@ -1019,6 +1021,7 @@ local function getJob()
   local reply = askHub()
   if reply then
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
+    updateWanted = false
     mergeProgress(reply.progress)
     if reply.paused or not reply.ore then return nil, "wacht op opdracht (hub)" end
     recall = false
@@ -1151,6 +1154,9 @@ local function listener()
         if b.from then hubId = b.from end
         recall = (b.type == "recall")
         publish(true)
+      elseif b.type == "update" and type(b.hash) == "string" and b.hash ~= MY_HASH then
+        if b.from then hubId = b.from end
+        updateWanted = true
       end
     end
   end
