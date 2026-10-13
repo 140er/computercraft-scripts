@@ -288,7 +288,7 @@ Seen from above (input chest `I` at the top, turtle `T` on its start spot):
 
 ### Sorting and smelting
 - Each kind of item gets its own chest: first a chest that already has it, then an empty chest, then a new chest it places, and only when all of that is full, any free slot.
-- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first). Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
+- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first), the valuable ones first: ancient debris, gold, iron, other (modded) ores, copper last. Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
 - Out of room and out of chests: the screen shows **FULL**, and new items stay in the input chest.
 
 ### Getting items out
@@ -326,6 +326,11 @@ Coal                           7    ▼-12   -63.2% █▇▆▅▄▃▂▁▁�
 - More items than fit: it flips pages every 10 seconds (`1/3` top right).
 - Any size of monitor works; wide monitors get two columns. A **normal (grey) monitor** shows it in greyscale with ▲/▼; an **advanced (gold) monitor** shows rises in green and drops in red.
 - The turtle sends its stock every 10 seconds and right after something changes. `LIVE` turns into a blinking `NO SIGNAL` after a minute without news. History is kept in `board.hist`, so a reboot keeps the trends.
+
+### Things in the way (cables, ...)
+- Something in the turtle's way (a cable through the room, a block, or it simply can't move there 5 times in a row) is saved in its map **for good**, and it goes around it.
+- Chests it can't reach anymore are left out (their items don't show in `list` either); the screen says how many and where it's blocked. It never places a chest that would cut it off from a spot it can reach now.
+- Best: run cables outside the room or under the floor. A cable through the road layer can cut off part of the room once the rows next to it are full.
 
 ### Restarts
 - Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.

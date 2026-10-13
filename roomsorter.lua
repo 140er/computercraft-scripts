@@ -455,6 +455,22 @@ local function smeltKind(name)
   return nil
 end
 
+-- What gets smelted first: the valuable ores, copper last
+local function smeltPriority(name)
+  local n = short(name)
+  if n:find("debris") then return 100 end
+  if n:find("gold") then return 50 end
+  if n:find("iron") then return 40 end
+  if n:find("copper") then return 10 end
+  if smeltKind(name) == "extra" then return 5 end
+  return 20 -- other (modded) ores: tin, silver, zinc, ...
+end
+local function byPriority(a, b)
+  local pa, pb = smeltPriority(a.name), smeltPriority(b.name)
+  if pa ~= pb then return pa > pb end
+  return a.name < b.name
+end
+
 local maxStack = {} -- [item] = stack size, learned from the turtle's own slots
 local function stackOf(name) return maxStack[name] or 64 end
 
@@ -485,7 +501,8 @@ end
 local map = loadTable(MAP_FILE)
 local idx = loadTable(IDX_FILE) or {} -- [cell] = { kind=, acc=, dir=, size=, items= }
 local pos = loadTable(POS_FILE) or { x = 0, y = 0, z = 0, h = 0 }
-local function saveMap() saveTable(MAP_FILE, map) end
+local mapVersion = 0
+local function saveMap() mapVersion = mapVersion + 1 saveTable(MAP_FILE, map) end
 local function saveIdx() saveTable(IDX_FILE, idx) end
 local function savePos() saveTable(POS_FILE, pos) end
 local function here() return key(pos.x, pos.y, pos.z) end
@@ -577,16 +594,21 @@ local function goTo(target)
     for i = 2, #path do
       local d = dirBetween(path[i - 1], path[i])
       local ok = false
-      for _ = 1, 6 do
+      local function blocked(name)
+        -- remember it for good and go around it
+        map.cells[path[i]] = name
+        map.obstacles = map.obstacles or {}
+        map.obstacles[path[i]] = name
+        log("Something in the way at " .. path[i] .. ": going around")
+        saveMap()
+      end
+      for try = 1, 5 do
         ok = rawMove(d)
         if ok then break end
         if fuelLeft() == 0 then error("Out of fuel", 0) end
         local isBlock, data = inspectDir(d)
-        if isBlock then -- a block appeared there: remember it and find another way
-          map.cells[path[i]] = data.name or "s"
-          saveMap()
-          break
-        end
+        if isBlock then blocked(data.name or "s") break end -- a block appeared there (a cable?)
+        if try == 5 then blocked("blocked") break end   -- 5 times in a row: blocked too
         sleep(1) -- probably you standing in the way
       end
       if not ok then okAll = false break end
@@ -1056,11 +1078,55 @@ end
 ---------------------------------------------------------------------------
 -- Storage index
 ---------------------------------------------------------------------------
+-- Which free cells the turtle can get to from its start spot (redone when the map changes)
+local reachCache, reachVersion
+local function reachable()
+  if reachVersion ~= mapVersion or not reachCache then
+    reachCache = bfs(map.home)
+    reachVersion = mapVersion
+  end
+  return reachCache
+end
+local function canReach(e) return reachable()[e.acc] ~= nil end
+
+-- Storage chests it can get to (ones cut off by something in the way are left out)
 local function storageList()
   local l = {}
-  for k, e in pairs(idx) do if e.kind == "store" and not e.merged then l[#l + 1] = k end end
+  for k, e in pairs(idx) do if e.kind == "store" and not e.merged and canReach(e) then l[#l + 1] = k end end
   table.sort(l)
   return l
+end
+
+local function unreachableCount()
+  local n = 0
+  for _, e in pairs(idx) do
+    if (e.kind == "store" or e.kind == "furnace") and not e.merged and not canReach(e) then n = n + 1 end
+  end
+  return n
+end
+
+-- Filling 'cell' must not cut the turtle off from a road or a chest it can reach now
+local safeCache = {}
+local function safeToFill(cell)
+  local c = safeCache[cell]
+  if c and c.v == mapVersion then return c.ok end
+  local before = reachable()
+  local after = bfs(map.home, nil, { [cell] = true })
+  local ok = true
+  local floorY = map.floorY or 0
+  for k in pairs(before) do
+    if not after[k] and k ~= cell then
+      local _, y = unkey(k)
+      if (y - floorY) % 3 == 1 then ok = false break end -- a road cell would be cut off
+    end
+  end
+  if ok then
+    for _, e in pairs(idx) do
+      if e.acc and before[e.acc] and not after[e.acc] then ok = false break end
+    end
+  end
+  safeCache[cell] = { v = mapVersion, ok = ok }
+  return ok
 end
 
 local function refresh(k, side)
@@ -1117,9 +1183,19 @@ end
 -- Spots from the plan that are still free
 local function freeSlot(filter)
   for _, s in ipairs(map.slots) do
-    if not idx[s.cell] and not (map.bad and map.bad[s.cell]) and (not filter or filter(s)) then return s end
+    if not idx[s.cell] and not (map.bad and map.bad[s.cell]) and free(s.cell) and reachable()[s.acc]
+      and (not filter or filter(s)) and safeToFill(s.cell) then return s end
   end
 end
+-- Spots it can still build on (free and reachable)
+local function usableSpots()
+  local n = 0
+  for _, sl in ipairs(map.slots) do
+    if not idx[sl.cell] and not (map.bad and map.bad[sl.cell]) and free(sl.cell) and reachable()[sl.acc] then n = n + 1 end
+  end
+  return n
+end
+
 local function slotAt(cell)
   for _, s in ipairs(map.slots) do if s.cell == cell then return s end end
 end
@@ -1148,8 +1224,17 @@ local function placeAt(s, tslot, kind)
   local ok = PLACE[side]()
   turtle.select(1)
   if not ok then
-    log("Can't place at " .. s.cell, true)
-    markBad(s.cell)
+    local isBlock, data = inspectDir(s.dir == "up" and "up" or s.dir == "down" and "down" or s.dir)
+    if isBlock then -- something is already there (a cable?): skip that spot for good
+      map.cells[s.cell] = data.name or "s"
+      map.obstacles = map.obstacles or {}
+      map.obstacles[s.cell] = data.name or "?"
+      log("Something in the way at " .. s.cell .. ": skipping that spot")
+      saveMap()
+    else
+      log("Can't place at " .. s.cell, true)
+      markBad(s.cell)
+    end
     return nil
   end
   map.cells[s.cell] = d and d.name or "p"
@@ -1194,7 +1279,7 @@ end
 
 local function furnaces()
   local l = {}
-  for k, e in pairs(idx) do if e.kind == "furnace" then l[#l + 1] = k end end
+  for k, e in pairs(idx) do if e.kind == "furnace" and canReach(e) then l[#l + 1] = k end end
   table.sort(l)
   return l
 end
@@ -1203,7 +1288,9 @@ end
 -- ores in from above and moves fuel and results through the helper chest.
 local function freeStation()
   for _, st in ipairs(map.stations or {}) do
-    if not idx[st.floor.cell] and not (map.bad and (map.bad[st.floor.cell] or map.bad[st.top.cell])) then return st end
+    if not idx[st.floor.cell] and not (map.bad and (map.bad[st.floor.cell] or map.bad[st.top.cell]))
+      and free(st.floor.cell) and (idx[st.top.cell] or free(st.top.cell)) and reachable()[st.floor.acc]
+      and safeToFill(st.floor.cell) and (idx[st.top.cell] or safeToFill(st.top.cell)) then return st end
   end
 end
 
@@ -1491,7 +1578,9 @@ local function serviceFurnace(k, share)
   st = peripheral.call("bottom", "list")
   e.state = st
   -- 2. Ores in from above
-  for _, c in ipairs(carried(function(n) return smeltableHere(e, n) end)) do
+  local list = carried(function(n) return smeltableHere(e, n) end)
+  table.sort(list, byPriority)
+  for _, c in ipairs(list) do
     local room = furnaceRoom(e, c.name)
     local n = math.min(room, c.count, share)
     if n > 0 then
@@ -1558,10 +1647,12 @@ local function furnacePass()
   setState("Smelting")
   -- Take ores from storage for the room there is (keeps 4 slots free for results)
   if carriedSmelt < room and stored > 0 then
-    local t = totals()
-    for name, c in pairs(t) do
-      if smeltKind(name) and carriedSmelt < room and freeSlots() > 4 then
-        local got = fetch(name, math.min(c, room - carriedSmelt), freeSlots() - 4)
+    local wanted = {}
+    for name, c in pairs(totals()) do if smeltKind(name) then wanted[#wanted + 1] = { name = name, count = c } end end
+    table.sort(wanted, byPriority) -- gold and iron before copper
+    for _, w in ipairs(wanted) do
+      if carriedSmelt < room and freeSlots() > 4 then
+        local got = fetch(w.name, math.min(w.count, room - carriedSmelt), freeSlots() - 4)
         carriedSmelt = carriedSmelt + got
       end
     end
@@ -1670,8 +1761,7 @@ local function command(cmd, text, n)
     local furn = carriedCount(function(x) return FURNACE_ITEMS[x] ~= nil end)
     for name in pairs(CHEST_ITEMS) do chests = chests + (t[name] or 0) end
     for name in pairs(FURNACE_ITEMS) do furn = furn + (t[name] or 0) end
-    local spots = 0
-    for _, sl in ipairs(map.slots) do if not idx[sl.cell] and not (map.bad and map.bad[sl.cell]) then spots = spots + 1 end end
+    local spots = usableSpots()
     os.queueEvent("room_request")
     return { ("Built: %d chests/barrels, %d furnaces. Room for %d more."):format(chestCount(), #furnaces(), spots),
       chests + furn > 0 and ("%d chests/barrels and %d furnaces not built yet: building now."):format(chests, furn)
@@ -1721,13 +1811,17 @@ local function draw(t)
   local pct = size > 0 and math.floor(used * 100 / size) or 100
   line(("%d chests, %d/%d slots"):format(nChests, used, size), (status.full or pct >= 90) and colors.orange or colors.white,
     status.full and "FULL" or (pct .. "%"), status.full and colors.red or nil)
-  local spots = 0
-  for _, s in ipairs(map.slots) do if not idx[s.cell] and not (map.bad and map.bad[s.cell]) then spots = spots + 1 end end
+  local spots = usableSpots()
   line(("%d furnaces, room for %d more blocks"):format(#furnaces(), spots), colors.lightGray)
   if status.full then line("Put chests/barrels in the input chest", colors.red) end
   if status.noFuel then line("Furnaces need coal!", colors.red) end
   if status.note then line(status.note, colors.orange) end
   if status.roomNote then line(status.roomNote, colors.orange) end
+  local cut = unreachableCount()
+  if cut > 0 then
+    local where = next(map.obstacles or {})
+    line(cut .. " chests cut off" .. (where and (" (blocked at " .. where .. ")") or ""), colors.orange)
+  end
   if status.lastSmelt then line("Smelted " .. status.lastSmelt, colors.lightGray) end
   y = y + 1
   local l = {}
@@ -1777,7 +1871,12 @@ local function worker()
     if not paused then
       local ok2, err2 = pcall(round)
       if not ok2 then
-        log("Error: " .. tostring(err2), true)
+        if tostring(err2):find("^No way to") then
+          -- a spot it wanted got blocked; the map knows now, carry on without it
+          log("Can't reach " .. tostring(err2):match("^No way to (%S+)") .. ", skipping it")
+        else
+          log("Error: " .. tostring(err2), true)
+        end
         pcall(goHome)
       end
     end
