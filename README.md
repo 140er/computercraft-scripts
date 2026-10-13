@@ -95,6 +95,15 @@ Herstart daarna de turtles (of typ `miner`).
 - Toetsenbord: `1`-`7` erts, `s` stop, `r` terug, `h` hervat, `a` alle, `q` afsluiten.
 - Onderaan staat het totaal dat in de kisten is gelost.
 
+### Turtle staat verkeerd / denkt dat hij thuis is
+Een turtle lost nooit iets als er geen kist achter hem staat. Dan zie je op het dashboard "FOUT: geen kist achter me".
+Oplossen: pak de turtle op (hij houdt zijn bestanden), zet hem op zijn startplek met de kist erachter, en typ:
+```
+miner home
+miner
+```
+`miner home` zet alleen de positie terug; welke gangen al gegraven zijn blijft bewaard.
+
 ### Turtles updaten via de hub
 Sleep de nieuwe `miner.lua` naar het scherm van de **hub-computer**. Elke turtle die thuiskomt ziet dat de hub een andere versie heeft, haalt hem op, controleert of het geldige Lua is en herstart.
 - Dit gebeurt alleen thuis, na het lossen. Positie, richting en voortgang staan in `miner.state` en `miner.cfg`, die blijven gewoon staan. Na de herstart gaat hij verder bij dezelfde zijgang.

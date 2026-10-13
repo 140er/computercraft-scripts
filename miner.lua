@@ -10,6 +10,7 @@
 -- Daarna:
 --   miner            luistert naar de hub (dashboard) voor opdrachten
 --   miner diamond    werkt zonder hub, mijnt diamonds (ook: iron, gold, ...)
+--   miner home       na handmatig terugzetten op de startplek: positie resetten
 --
 -- Kist met kolen direct ACHTER de turtle. Turtle heeft pickaxe + wireless/ender modem.
 -- De turtle graaft een schacht recht onder zich naar het erts-niveau en hergebruikt
@@ -135,6 +136,21 @@ local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE]
+
+if args[1] == "home" then
+  -- Handmatig herstel: de turtle staat (weer) op zijn startplek, kist erachter.
+  -- Voortgang (gangen, schacht) blijft bewaard.
+  local s0 = loadTable(STATE_FILE) or {}
+  s0.pos = { x = HOME.x, y = HOME.y, z = HOME.z }
+  s0.h = cfg.facing
+  s0.phase = "home"
+  s0.vein = {}
+  s0.pending = nil
+  saveTable(STATE_FILE, s0)
+  print("Positie gezet op startplek " .. HOME.x .. "," .. HOME.y .. "," .. HOME.z .. " (kijkt " .. DIRNAME[cfg.facing] .. ").")
+  print("Zorg dat hij daar echt staat, kist erachter. Start met: miner")
+  return
+end
 
 local standaloneOre = args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
@@ -554,7 +570,9 @@ local function goHome(reason)
   setStatus("Naar huis: " .. (reason or ""))
   unwindVein()
   if pos.y < HOME.y - 2 then dropJunk() end
-  if pos.x ~= HOME.x or pos.z ~= HOME.z then
+  -- Let op: ook de hoogte vergelijken. De hoofdgang van de "north"-turtle loopt
+  -- precies onder de startplek door; alleen x/z checken gaf daar een vals "thuis".
+  if pos.x ~= HOME.x or pos.y ~= HOME.y or pos.z ~= HOME.z then
     if pos.x ~= SHAFT.x or pos.z ~= SHAFT.z then
       if st.job and st.job.y and pos.y ~= st.job.y then goAxis("y", st.job.y) end
       goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
@@ -817,6 +835,13 @@ local function haulInto(h, s)
   if d then h[d.name] = (h[d.name] or 0) + d.count end
 end
 
+local function chestInFront()
+  local ok, info = turtle.inspect()
+  if not ok then return false end
+  if info.name:find("chest") or info.name:find("barrel") or info.name:find("shulker") then return true end
+  return hasTag(info, "c:chests") or hasTag(info, "forge:chests") or hasTag(info, "c:barrels")
+end
+
 local function unload()
   face(OPP[cfg.facing])
   local haul = {}
@@ -1031,7 +1056,7 @@ local function trip(j)
   save()
   if j.y > HOME.y - 3 then error("Niveau " .. j.y .. " ligt te dicht bij huis", 0) end
   mineUntil = nil
-  if pos.x == HOME.x and pos.z == HOME.z then
+  if pos.x == HOME.x and pos.y == HOME.y and pos.z == HOME.z then
     st.phase = "descending"
     moveOrFail(cfg.facing, "Gat voor de turtle geblokkeerd")
   end
@@ -1044,6 +1069,13 @@ local function worker()
   recover()
   while true do
     st.phase = "home"
+    face(OPP[cfg.facing])
+    while not chestInFront() do
+      -- Geen kist = hij staat niet waar hij denkt. Niets weggooien, niet verder graven.
+      setStatus("FOUT: geen kist achter me. Zet me op mijn startplek, Ctrl+T, typ: miner home")
+      sleep(30)
+      face(OPP[cfg.facing])
+    end
     setStatus("Lossen")
     local haul = unload()
     for n, c in pairs(haul) do st.total[n] = (st.total[n] or 0) + c end
