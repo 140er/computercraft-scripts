@@ -8,14 +8,14 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 ## Mine Army
 
 ### Wat het doet
-- Elke turtle graaft **één keer** een 1x1 schacht recht onder zijn startplek. Daarna gebruikt hij die schacht elke trip opnieuw. Iron ligt boven diamond, dus dezelfde schacht werkt voor elk niveau.
+- Elke turtle rijdt 1 blok vooruit (naar het gat dat je daar gemaakt hebt) en gaat daar omlaag. Hij maakt die 1x1 schacht **één keer** af tot het erts-niveau. Daarna gebruikt hij die schacht elke trip opnieuw. Iron ligt boven diamond, dus dezelfde schacht werkt voor elk niveau.
 - Op het erts-niveau graaft hij een hoofdgang. Om de 4 blokken komt er een zijgang (3 blokken steen ertussen), 3 hoog en 1 breed, standaard 32 lang.
 - Bij elke stap kijkt hij links en rechts in de wand. Ertsen volgt hij als ader. Voor het doel-erts (bv. diamond) checkt hij 18 van de 26 buren.
 - Lava wordt afgedicht met het eerste neerzetbare non-ore blok. Hij stapt nooit in lava. Kolen gebruikt hij nooit om af te dichten.
 - Troep (cobble, deepslate, tuff, grind, enz.) gooit hij om de ~10 blokken weg. Eén stapel houdt hij als seal-blok. Alle ertsen, ook modded, houdt hij.
 - Gaat naar huis als de inventory vol is, de fuel op de terugweg nodig is, of de hub hem terugroept. Daar lost hij in de kist, tankt kolen uit dezelfde kist en gaat weer.
 - Onthoudt positie en voortgang in een bestand. Na een reboot of chunk-unload gaat hij eerst veilig naar huis en gaat dan verder waar hij was.
-- Het gat boven de schacht dekt hij af met een blok zodra hij weg is, zodat niemand erin valt.
+- Het gat dekt hij op vloerhoogte af met een blok zodra hij erin zit, zodat niemand erin valt. Op de terugweg graaft hij het weer open, rijdt omhoog en 1 blok terug naar zijn startplek (kist achter hem).
 
 | Knop | Niveau (Y) |
 |---|---|

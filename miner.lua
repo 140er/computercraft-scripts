@@ -116,6 +116,8 @@ if not cfg then
   return
 end
 local HOME = cfg.home
+-- De schacht zit 1 blok VOOR de startplek (daar zitten de gaten)
+local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE]
@@ -474,7 +476,7 @@ end
 -- Afstand en terugweg
 ---------------------------------------------------------------------------
 local function along(d) -- afstand vanaf de schacht langs richting d
-  return (pos.x - HOME.x) * DX[d] + (pos.z - HOME.z) * DZ[d]
+  return (pos.x - SHAFT.x) * DX[d] + (pos.z - SHAFT.z) * DZ[d]
 end
 
 local function distHome()
@@ -532,12 +534,15 @@ local function goHome(reason)
   unwindVein()
   if pos.y < HOME.y - 2 then dropJunk() end
   if pos.x ~= HOME.x or pos.z ~= HOME.z then
-    if st.job and st.job.y and pos.y ~= st.job.y then goAxis("y", st.job.y) end
-    goAxis(axisOf(BRANCH), HOME[axisOf(BRANCH)])
-    goAxis(axisOf(SPINE), HOME[axisOf(SPINE)])
-    goAxis(axisOf(BRANCH), HOME[axisOf(BRANCH)])
+    if pos.x ~= SHAFT.x or pos.z ~= SHAFT.z then
+      if st.job and st.job.y and pos.y ~= st.job.y then goAxis("y", st.job.y) end
+      goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
+      goAxis(axisOf(SPINE), SHAFT[axisOf(SPINE)])
+      goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
+    end
+    goAxis("y", HOME.y)
+    moveOrFail(OPP[cfg.facing], "Startplek geblokkeerd") -- 1 blok terug, kist weer achter hem
   end
-  goAxis("y", HOME.y)
   st.phase = "home"
   save()
 end
@@ -708,8 +713,8 @@ local function descend(Y)
       st.shaft = pos.y
       save()
     end
-    -- Luik dicht boven de schacht zodat niemand erin valt
-    if pos.y == HOME.y - 1 and not turtle.detectUp() then seal(UP) end
+    -- Luik dicht op vloerhoogte zodat niemand in de schacht valt
+    if pos.y == HOME.y - 2 and not turtle.detectUp() then seal(UP) end
   end
   return nil
 end
@@ -763,7 +768,7 @@ local function workLevel(j)
     L.branch = k + 1
     L.step = 0
     save()
-    goAxis(axisOf(BRANCH), HOME[axisOf(BRANCH)])
+    goAxis(axisOf(BRANCH), SHAFT[axisOf(BRANCH)])
   end
 end
 
@@ -966,6 +971,10 @@ local function trip(j)
   save()
   if j.y > HOME.y - 3 then error("Niveau " .. j.y .. " ligt te dicht bij huis", 0) end
   mineUntil = nil
+  if pos.x == HOME.x and pos.z == HOME.z then
+    st.phase = "descending"
+    moveOrFail(cfg.facing, "Gat voor de turtle geblokkeerd")
+  end
   local reason = descend(j.y)
   if not reason then reason = workLevel(j) end
   goHome(reason)
