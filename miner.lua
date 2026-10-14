@@ -897,8 +897,12 @@ end
 
 local mineVein
 
+-- Called home (recall or update): stop following veins, head back right away
+local function calledHome() return recall or updateWanted end
+
 local function scanFor(dirs)
   for _, d in ipairs(dirs) do
+    if calledHome() then return end
     local k = nkey(d)
     if not veinSeen[k] then
       veinSeen[k] = true
@@ -928,6 +932,7 @@ local function scanEdges()
   }
   for _, sd in ipairs(side) do
     local d, dirs = sd[1], sd[2]
+    if calledHome() then return end
     if not allSeen(d, dirs) and fuelOk(4) and roomLeft() and inReach(pos.x + DX[d], pos.z + DZ[d]) then
       local info = inspect(d)
       if not isLava(info) and not isUnbreakable(info) then
@@ -946,6 +951,7 @@ local function scanEdges()
 end
 
 mineVein = function(d, target)
+  if calledHome() then return end
   if not inReach(pos.x + DX[d], pos.z + DZ[d]) then
     if roomLeft() then dig(d) end -- mine the ore block, but don't step outside the reach
     return
