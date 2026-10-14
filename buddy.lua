@@ -797,9 +797,65 @@ local function chatLoop()
   end
 end
 
+-- Pocket control panel (panel.lua): chat, status and quick trips over a wireless or
+-- ender modem. Without a modem these just wait forever.
+local netJobs = {}
+local function radioLoop()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("buddy_never") end end
+  rednet.open(peripheral.getName(modem))
+  rednet.host("buddy", cfg.name)
+  while true do
+    local id, m = rednet.receive("buddy")
+    if type(m) == "table" then
+      local job = (m.cmd == "chat" and type(m.text) == "string" and m.text:find("%S"))
+        or m.cmd == "home" or (m.cmd == "goto" and memory.places[m.place or ""])
+      if job then
+        netJobs[#netJobs + 1] = { id = id, m = m }
+        os.queueEvent("buddy_net")
+      end
+      local places = {}
+      for name in pairs(memory.places) do places[#places + 1] = name end
+      table.sort(places)
+      local p = pos()
+      rednet.send(id, { type = "buddy_state", rid = m.rid, name = cfg.name, model = cfg.model,
+        fuel = turtle.getFuelLevel(), busy = busy or #netJobs > 0, places = places,
+        pos = { x = p.x, y = p.y, z = p.z } }, "buddy")
+    end
+  end
+end
+
+local function radioJobLoop()
+  while true do
+    os.pullEvent("buddy_net")
+    while #netJobs > 0 do
+      local job = table.remove(netJobs, 1)
+      local function answer(text)
+        say(cfg.name, text, colours.lime)
+        rednet.send(job.id, { type = "buddy_answer", text = text }, "buddy")
+      end
+      if job.m.cmd == "chat" then
+        say("Pocket", job.m.text, colours.lightBlue)
+        handle(job.m.text, nil, answer)
+      elseif busy then
+        answer("Hang on, I'm still busy with the last thing.")
+      else
+        busy = true
+        local place = job.m.cmd == "goto" and memory.places[job.m.place]
+        local ok, ok2, msg = pcall(function()
+          if place then return goTo(place.path, place.facing, job.m.place) end
+          return goHome()
+        end)
+        busy = false
+        answer(ok and (ok2 and ("Done: " .. msg) or ("Hmm, " .. tostring(msg))) or ("Oops: " .. ascii(ok2)))
+      end
+    end
+  end
+end
+
 term.clear()
 term.setCursorPos(1, 1)
 print(cfg.name .. " (model: " .. cfg.model .. ") - fuel " .. fuelText())
 print(chatBox and ("Talk here, or in chat: \"" .. cfg.name .. ", ...\"") or "Talk to me here.")
 print("/reset forgets the chat, /quit stops.")
-parallel.waitForAny(terminalLoop, chatLoop)
+parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop)
