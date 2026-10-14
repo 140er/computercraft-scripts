@@ -14,6 +14,8 @@
 --   get <item> [n]   bring items to the output chest, e.g. "get iron ingot 32"
 --   find <item>      how many there are       list   everything in storage
 --   pause / resume / quit (turtle only)
+--   home             (turtle only) after it got lost: put it on its start spot facing the
+--                    input chest first
 --
 -- Give it chests or barrels (storage) and furnaces / blast furnaces by putting them in the
 -- input chest. Fuel for the turtle and the furnaces: coal, charcoal, coal blocks.
@@ -2184,7 +2186,8 @@ local function pullInput()
   return n
 end
 
-local function refuelSelf()
+-- Fuel in its own slots (also what you put straight into the turtle): no moving needed
+local function refuelCarried()
   if fuelLeft() >= cfg.minFuel then return end
   for _, c in ipairs(carried(function(n) return FUEL_VALUE[n] ~= nil end)) do
     turtle.select(c.slot)
@@ -2193,6 +2196,11 @@ local function refuelSelf()
     end
   end
   turtle.select(1)
+end
+
+local function refuelSelf()
+  if fuelLeft() >= cfg.minFuel then return end
+  refuelCarried()
   if fuelLeft() < cfg.minFuel then
     for _, f in ipairs(cfg.fuels) do
       if fuelLeft() < cfg.minFuel and totals()[f] then
@@ -3298,6 +3306,13 @@ local function round()
     log(msg)
     busyFind = false
   end
+  -- Low on fuel: refuel first, before anything that moves (fuel put in the turtle or
+  -- in the input chest gets it going again)
+  refuelCarried()
+  if fuelLeft() < cfg.minFuel then
+    pullInput()
+    refuelSelf()
+  end
   fixAccess()
   equipTable()
   serveRequests()
@@ -3325,8 +3340,22 @@ local function worker()
   end
   if map.layout ~= 2 then log("Old room plan: pick up what it built and run 'roomsorter scan force' for the tidy layout", true) end
   setState("Checking position")
-  local ok, err = pcall(verifyPose)
-  if not ok then setState("LOST") log(tostring(err), true) return end
+  -- Lost: keep the program running and show why, try again every 10 s or right after
+  -- 'home' (typed once it's back on its start spot facing the input chest)
+  while true do
+    refuelCarried()
+    local ok, err = pcall(verifyPose)
+    if ok then break end
+    setState("LOST")
+    status.note = "Put me on my start spot facing the input chest and type: home"
+    log(tostring(err), true)
+    local timer = os.startTimer(10)
+    while true do
+      local ev, a = os.pullEvent()
+      if ev == "room_home" or (ev == "timer" and a == timer) then break end
+    end
+  end
+  status.note = nil
   local emptied = false
   while true do
     if paused and not emptied then
@@ -3390,6 +3419,12 @@ local function prompt()
       native.clear()
       native.setCursorPos(1, 1)
       if cmd == "pause" then paused = true print("Paused (after the current job).")
+      elseif cmd == "home" then
+        -- it's back on its start spot facing the input chest
+        pos.x, pos.y, pos.z, pos.h, pos.pend = 0, 0, 0, 0, nil
+        savePos()
+        os.queueEvent("room_home")
+        print("Position reset to the start spot.")
       elseif cmd == "resume" then paused = false print("Running.") os.queueEvent("room_request")
       else
         local n = tonumber(words[#words])
