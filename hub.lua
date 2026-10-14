@@ -827,10 +827,123 @@ local function click(screenName, x, y)
   end
 end
 
+-- Developer commands from the pocket panel's console (panel.lua): info, log, ls, cat,
+-- get (copy a file to the pocket), reboot. Read-only apart from reboot: it never runs
+-- code or writes files sent over the air. If this computer has a file "dev.key", a
+-- command only works when it carries the same key (set it on the pocket: key <secret>).
+local function devCommand(m, logFile, program, reply)
+  local r = { type = "dev_reply", rid = m.rid, ok = true }
+  local function out(s) r.out = tostring(s) end
+  local key
+  if fs.exists("dev.key") then
+    local h = fs.open("dev.key", "r")
+    key = (h.readAll() or ""):gsub("%s+$", "")
+    h.close()
+  end
+  local op, path = m.op, tostring(m.path or "")
+  if key and key ~= "" and m.key ~= key then r.ok = false out("Wrong or missing dev key")
+  elseif op == "info" then
+    local fuel = turtle and turtle.getFuelLevel() or nil
+    local free = 0
+    if turtle then for s = 1, 16 do if turtle.getItemCount(s) == 0 then free = free + 1 end end end
+    out((os.getComputerLabel() or "?") .. " #" .. os.getComputerID() .. " running " .. program
+      .. (fuel and (" | fuel " .. tostring(fuel) .. " | " .. free .. " free slots") or "")
+      .. " | up " .. math.floor(os.clock() / 60) .. " min | disk free " .. math.floor(fs.getFreeSpace("/") / 1024) .. " KB")
+  elseif op == "log" then
+    if not logFile or not fs.exists(logFile) then out("No log file")
+    else
+      local h = fs.open(logFile, "r")
+      local lines = {}
+      for l in (h.readAll() .. "\n"):gmatch("([^\n]*)\n") do if l ~= "" then lines[#lines + 1] = l end end
+      h.close()
+      local n = math.max(1, tonumber(m.n) or 10)
+      out(table.concat(lines, "\n", math.max(1, #lines - n + 1)))
+      if #lines == 0 then out("Log is empty") end
+    end
+  elseif op == "ls" then
+    if path == "" then path = "/" end
+    if not fs.isDir(path) then r.ok = false out("No such folder: " .. path)
+    else
+      local l = {}
+      for _, f in ipairs(fs.list(path)) do
+        local p = fs.combine(path, f)
+        l[#l + 1] = fs.isDir(p) and (f .. "/") or (f .. " " .. fs.getSize(p))
+      end
+      out(#l > 0 and table.concat(l, "\n") or "(empty)")
+    end
+  elseif op == "cat" or op == "get" then
+    if not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
+    else
+      local h = fs.open(path, "r")
+      r.data = h.readAll()
+      h.close()
+      out(op == "cat" and r.data or (path .. ": " .. #r.data .. " bytes"))
+      if op == "cat" then r.data = nil end
+    end
+  elseif op == "reboot" then
+    out("Rebooting...")
+    reply(r)
+    sleep(0.5)
+    os.reboot()
+    return
+  else r.ok = false out("Unknown dev command: " .. tostring(op)) end
+  reply(r)
+end
+
+-- Pocket control panel (panel.lua): it asks for the dashboard and taps the same buttons.
+-- m.turtle = give the order to that turtle only (like tapping it in the list first).
+local function panelRequest(id, m)
+  local prev, note = selected, nil
+  selected = m.turtle and turtles[m.turtle] and m.turtle or nil
+  if m.cmd == "target" and ORES[m.ore or ""] then setTarget(m.ore)
+  elseif m.cmd == "stop" then stopAll()
+  elseif m.cmd == "recall" then recallNow()
+  elseif m.cmd == "resume" then resumeAll()
+  elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "custom" then
+    local kind, data = resolveItem(tostring(m.text or ""))
+    if kind == "ore" then setTarget(data)
+    elseif kind then
+      local y = math.floor(math.max(-59, math.min(55, tonumber(m.y) or data.y)))
+      local label = prettyItem(kind == "rock" and data.item or data.match)
+      hub.custom = { label = label, y = y, keep = data.keep, match = data.match }
+      ORES.custom = customEntry(hub.custom)
+      setTarget("custom")
+    else note = data or "Unknown item" end
+  end
+  selected = prev
+  if m.cmd then flash(note or ("Pocket: " .. m.cmd)) pcall(redraw) end
+  local ores = {}
+  local order = { table.unpack(ORDER) }
+  if ORES.custom then order[#order + 1] = "custom" end
+  for _, k in ipairs(order) do
+    local o = ORES[k]
+    ores[#ores + 1] = { key = k, label = o.label, short = o.short or o.label, y = o.y, color = o.color }
+  end
+  local list = {}
+  for _, tid in ipairs(ids()) do
+    local r, own = turtles[tid], hub.overrides[tid]
+    local p = r.p
+    list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
+      free = p.free, y = p.y, ore = (own == false) and "stop" or oreFor(tid), branch = p.branch,
+      age = os.clock() - r.seen, err = p.lastError }
+  end
+  local haul = {}
+  for name, n in pairs(hub.session and hub.session.haul or {}) do
+    if not isCommon(name) then haul[#haul + 1] = { name = name, n = n } end
+  end
+  table.sort(haul, function(a, b) return a.n > b.n end)
+  send(id, { type = "panel_state", rid = m.rid, target = hub.target, recallAll = hub.recallAll,
+    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only,
+    ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
+end
+
 local function netLoop()
   while true do
     local id, msg = rednet.receive(PROTOCOL)
-    handle(id, msg)
+    if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg)
+    elseif type(msg) == "table" and msg.type == "dev" then devCommand(msg, nil, "hub", function(r) send(id, r) end)
+    else handle(id, msg) end
   end
 end
 
