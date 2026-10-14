@@ -807,6 +807,71 @@ local function chatLoop()
   end
 end
 
+-- Developer commands from the pocket panel's console (panel.lua): info, log, ls, cat,
+-- get (copy a file to the pocket), reboot. Read-only apart from reboot: it never runs
+-- code or writes files sent over the air. If this computer has a file "dev.key", a
+-- command only works when it carries the same key (set it on the pocket: key <secret>).
+local function devCommand(m, logFile, program, reply)
+  local r = { type = "dev_reply", rid = m.rid, ok = true }
+  local function out(s) r.out = tostring(s) end
+  local key
+  if fs.exists("dev.key") then
+    local h = fs.open("dev.key", "r")
+    key = (h.readAll() or ""):gsub("%s+$", "")
+    h.close()
+  end
+  local op, path = m.op, tostring(m.path or "")
+  if key and key ~= "" and m.key ~= key then r.ok = false out("Wrong or missing dev key")
+  elseif op == "info" then
+    local fuel = turtle and turtle.getFuelLevel() or nil
+    local free = 0
+    if turtle then for s = 1, 16 do if turtle.getItemCount(s) == 0 then free = free + 1 end end end
+    out((os.getComputerLabel() or "?") .. " #" .. os.getComputerID() .. " running " .. program
+      .. (fuel and (" | fuel " .. tostring(fuel) .. " | " .. free .. " free slots") or "")
+      .. " | up " .. math.floor(os.clock() / 60) .. " min | disk free " .. math.floor(fs.getFreeSpace("/") / 1024) .. " KB")
+  elseif op == "log" then
+    if not logFile or not fs.exists(logFile) then out("No log file")
+    else
+      local h = fs.open(logFile, "r")
+      local lines = {}
+      for l in (h.readAll() .. "\n"):gmatch("([^\n]*)\n") do if l ~= "" then lines[#lines + 1] = l end end
+      h.close()
+      local n = math.max(1, tonumber(m.n) or 10)
+      out(table.concat(lines, "\n", math.max(1, #lines - n + 1)))
+      if #lines == 0 then out("Log is empty") end
+    end
+  elseif op == "ls" then
+    if path == "" then path = "/" end
+    if not fs.isDir(path) then r.ok = false out("No such folder: " .. path)
+    else
+      local l = {}
+      for _, f in ipairs(fs.list(path)) do
+        local p = fs.combine(path, f)
+        l[#l + 1] = fs.isDir(p) and (f .. "/") or (f .. " " .. fs.getSize(p))
+      end
+      out(#l > 0 and table.concat(l, "\n") or "(empty)")
+    end
+  elseif op == "cat" or op == "get" then
+    local name = fs.getName(path)
+    if name == "api.key" or name == "dev.key" then r.ok = false out("Secret file, not sent")
+    elseif not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
+    else
+      local h = fs.open(path, "r")
+      r.data = h.readAll()
+      h.close()
+      out(op == "cat" and r.data or (path .. ": " .. #r.data .. " bytes"))
+      if op == "cat" then r.data = nil end
+    end
+  elseif op == "reboot" then
+    out("Rebooting...")
+    reply(r)
+    sleep(0.5)
+    os.reboot()
+    return
+  else r.ok = false out("Unknown dev command: " .. tostring(op)) end
+  reply(r)
+end
+
 -- Pocket control panel (panel.lua): chat, status and quick trips over a wireless or
 -- ender modem. Without a modem these just wait forever.
 local netJobs = {}
@@ -817,7 +882,9 @@ local function radioLoop()
   rednet.host("buddy", cfg.name)
   while true do
     local id, m = rednet.receive("buddy")
-    if type(m) == "table" then
+    if type(m) == "table" and m.type == "dev" then
+      devCommand(m, nil, "buddy", function(r) rednet.send(id, r, "buddy") end)
+    elseif type(m) == "table" then
       local job = (m.cmd == "chat" and type(m.text) == "string" and m.text:find("%S"))
         or m.cmd == "home" or m.cmd == "update" or (m.cmd == "goto" and memory.places[m.place or ""])
       if job then
