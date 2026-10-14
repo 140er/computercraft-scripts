@@ -547,3 +547,9 @@ Tabs along the top (tap them, or keys 1-5, Q quits):
 The dev commands only read things (and reboot); they never run code or write files sent over the air. On a server with other players, lock them: `key <secret>` on the pocket and the same secret in a file `dev.key` on each bot.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+
+---
+
+## License
+
+GPL-3.0, see [LICENSE](LICENSE). You may use, change and share these scripts; copies you share, changed or not, must stay under the GPL too.

@@ -11,6 +11,7 @@
 --   Store  the storage room turtle: search, tap an item to order it, pause, resync
 --   Wood   the lumber turtle: status, fuel and lava, pause / come home
 --   Buddy  chat with Buddy, send it home or to a place it remembers
+-- Update all (Home tab, tap twice): every bot fetches its latest version from GitHub.
 -- Q quits.
 --
 -- What it talks to (each needs its own wireless or ender modem):
@@ -81,6 +82,32 @@ local function ask(key)
   if key == "hub" then send("hub", { type = "panel" })
   elseif key == "store" then send("store", { cmd = "stock" })
   else send(key, { cmd = "status" }) end
+end
+
+-- Update all: every bot in range fetches its latest version from GitHub at a safe moment
+-- (the hub also hands the new miner.lua to its turtles), then this pocket updates itself.
+-- From the button it asks for a second tap first.
+local updateTapped = -1e9
+local function updateAll(sure)
+  if not sure and os.clock() - updateTapped > 5 then
+    updateTapped = os.clock()
+    toast("Tap Update all again to update every bot and this panel from GitHub.", 5)
+    return
+  end
+  rednet.broadcast({ type = "panel", cmd = "update" }, "minearmy")
+  for _, p in ipairs({ "roomsorter", "lumber", "buddy" }) do rednet.broadcast({ cmd = "update" }, p) end
+  sleep(1)
+  term.setBackgroundColor(colors.black)
+  term.setTextColor(colors.white)
+  term.clear()
+  term.setCursorPos(1, 1)
+  print("Update sent to every bot.")
+  print("Updating this panel...")
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update") -- reboots when there's a new version
+  toast("Update sent. This panel was already up to date.", 5)
 end
 
 ---------------------------------------------------------------------------
@@ -242,7 +269,7 @@ end
 
 local function drawHome()
   text(2, 2, "Base control", colors.white)
-  right(2, textutils.formatTime(os.time(), true) .. " ", colors.lightGray)
+  button(W - 11, 2, 12, "Update all", colors.white, colors.blue, function() updateAll() end)
   local cards = {
     { key = "hub", title = "MINE ARMY", lines = function()
       local h = data.hub
@@ -720,6 +747,7 @@ local HELP = {
   " buddy home | status",
   " buddy goto <place>",
   "TOOLS:",
+  " update all",
   " bots  scan  clear",
   " listen [protocol|off]",
   " send <id> <proto> <msg>",
@@ -848,6 +876,9 @@ local function run(line)
   local c, op = lower(words[1]), lower(words[2])
   if c == "help" or c == "?" then for _, l in ipairs(HELP) do say(l, colors.lightGray) end
   elseif c == "clear" or c == "cls" then con.lines, con.scroll = {}, 0
+  elseif c == "update" then
+    if op ~= "all" then say("update all  (every bot and this panel)", colors.orange) return end
+    updateAll(true)
   elseif c == "bots" or c == "list" then botList()
   elseif c == "scan" then
     for _, d in pairs(DEV) do d.id, d.seen = nil, -1e9 end
@@ -963,7 +994,7 @@ local function complete()
   local cands = {}
   local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
   if pos == 1 then
-    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "miners", "hub", "store", "wood", "buddy" })
+    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "update", "miners", "hub", "store", "wood", "buddy" })
     for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
   elseif pos == 2 then
     local bot = findBot(words[1])

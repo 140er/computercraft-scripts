@@ -900,6 +900,18 @@ local function panelRequest(id, m)
   elseif m.cmd == "recall" then recallNow()
   elseif m.cmd == "resume" then resumeAll()
   elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "update" then
+    -- panel's Update all: fetch hub.lua and miner.lua; after the reboot the new miner.lua
+    -- is released to the turtles (see the end of this file)
+    flash("Pocket: updating from GitHub...")
+    pcall(redraw)
+    local h = fs.open("hub.release", "w") h.close()
+    if not fs.exists("update.lua") then
+      shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+    end
+    shell.run("update") -- reboots when anything changed
+    fs.delete("hub.release")
+    note = "Already up to date"
   elseif m.cmd == "custom" then
     local kind, data = resolveItem(tostring(m.text or ""))
     if kind == "ore" then setTarget(data)
