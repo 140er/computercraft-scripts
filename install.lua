@@ -6,6 +6,7 @@
 --   roomsorter  Storage Room turtle (no modems needed)
 --   sorter      Sorter & Smelter on a wired network
 --   lumber      tree farm turtle
+--   lava        lava fuel runner: fills buckets and keeps the bots' chests stocked
 --   buddy       companion turtle you can chat with
 --   panel       pocket computer control panel
 --   smartmine   old standalone tunnel miner
@@ -18,6 +19,7 @@ local NEXT = {
   roomsorter = "roomsorter scan (facing the input chest), roomsorter install, then roomsorter",
   sorter = "sorter setup, sorter install, then sorter",
   lumber = "lumber setup [radius]",
+  lava = "lava setup <x> <y> <z> <facing> (or lava setup with GPS), lava add <name> <x> <y> <z>, then lava",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
   panel = "panel install, then panel",
   smartmine = "smartmine <length> [tunnels] [gap] [blocks]",
