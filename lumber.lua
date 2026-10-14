@@ -16,8 +16,10 @@
 --  * Searching: it walks over the ground in a square spiral around the chest, lines
 --    3 blocks apart, and looks left and right for tree trunks. It climbs over hills,
 --    steps down into dips and floats over water. Where it can't walk, it flies.
---  * Felling: it cuts the whole trunk (plus the leaves next to it, which gives
---    saplings) and plants a sapling of the same kind on the spot.
+--  * Felling: it cuts the whole trunk and, while it is short of saplings, the whole
+--    crown of leaves (that's where saplings come from). Then it plants a sapling of
+--    the same kind on the spot.
+--  * Spare saplings are planted in a grid near the chest; those become spots too.
 --  * Farming: every tree it planted is a "spot". Spots are visited again once a
 --    sapling has had time to grow (bone meal in the turtle helps). It flies to them
 --    over the trees and comes down through the leaves.
@@ -30,16 +32,20 @@ local CFG_FILE, STATE_FILE, LOG_FILE = "lumber.cfg", "lumber.state", "lumber.log
 
 local RADIUS = 48          -- default search radius (setup can change it)
 local SPACING = 3          -- search lines this far apart (it looks 1 block to each side)
-local MAX_SPOTS = 48       -- stop searching once it farms this many trees
+local MAX_SPOTS = 64       -- trees it farms at most (found ones + ones it planted itself)
+local NURSERY_RADIUS = 15  -- spare saplings are planted in a grid 3 apart within this distance of the chest
+local SAPLING_RESERVE = 6  -- saplings kept for replanting before it plants spare ones
 local REGROW_MIN = 20      -- minutes before a planted sapling is checked again (it takes ~16 on average)
 local EXPLORE_CELLS = 50   -- search cells per trip (one cell = SPACING blocks of walking)
 local HOP = 3              -- fly this many blocks above the highest point of a flight
 local WAIT = 120           -- seconds to wait at home when there is nothing to do
 local MAX_HEIGHT = 40      -- never climb higher than this inside one tree
-local TREE_FUEL = 30       -- fuel kept aside for felling one tree (up and down)
+local TREE_FUEL = 40       -- fuel kept aside for felling one tree (up and down, around the crown)
+local LEAF_RINGS = true    -- cut the whole crown for saplings (about 20 fuel per tree)...
+local SAPLING_WANT = 24    -- ...but only while it has fewer saplings than this
 local KEEP_SAPLINGS = 64   -- saplings of each kind it keeps; the rest goes in the chest
 local BONEMEAL_TRIES = 3   -- bone meal per sapling per visit (if it has any)
-local FUEL_MARGIN = 60
+local FUEL_MARGIN = 30
 local RETRY = 20
 
 -- Directions relative to the home spot:
@@ -126,7 +132,7 @@ if args[1] == "home" or args[1] == "reset" then
     s0.pending, s0.tree, s0.top = nil, nil, nil
     print("Position reset to the home spot (chest behind the turtle).")
   else
-    s0.spots, s0.cursor = {}, nil
+    s0.spots, s0.cursor, s0.bad = {}, nil, nil
     print("Forgot all trees. It searches the area again.")
   end
   saveTable(STATE_FILE, s0)
@@ -274,6 +280,15 @@ local function countLogs()
   return n
 end
 
+local function saplingCount()
+  local n = 0
+  for s = 1, 16 do
+    local d = turtle.getItemDetail(s)
+    if d and isPlantable(d) then n = n + d.count end
+  end
+  return n
+end
+
 local function haveSapling() return findSlot(isPlantable) ~= nil end
 
 ---------------------------------------------------------------------------
@@ -311,6 +326,13 @@ end
 -- Fuel to get home from here (up over the trees, across, down)
 local function homeCost()
   return math.abs(pos.f) + math.abs(pos.s) + math.abs(pos.y) + 2 * HOP + 20
+end
+
+local TARGET_FUEL = 2 * R + 2 * HOP + 200 -- topped up to this at home
+
+-- Fuel to spare for extras (leaf crowns, planting spares) instead of just felling?
+local function fuelToSpare()
+  return fuel() >= homeCost() + TARGET_FUEL / 2
 end
 
 -- Enough fuel to do 'extra' more and still get home? Burns wood if needed.
@@ -434,12 +456,49 @@ end
 ---------------------------------------------------------------------------
 -- Trees
 ---------------------------------------------------------------------------
+local function cutLeaves(d)
+  local info = inspect(d)
+  if isLeaves(info) then
+    dig(d, info)
+    return true
+  end
+  return false
+end
+
+-- Leaves on the 4 sides; returns how many it cut
 local function clearLeaves()
-  local start = st.h
+  local start, n = st.h, 0
   for i = 0, 3 do
-    local d = (start + i) % 4
-    local info = inspect(d)
-    if isLeaves(info) then dig(d, info) end
+    if cutLeaves((start + i) % 4) then n = n + 1 end
+  end
+  return n
+end
+
+-- Fly once around the trunk at this height (the 8 blocks around it), cutting all
+-- leaves there and the leaves just outside, above and below them. That's most of
+-- a crown, and every leaf block cut can drop a sapling.
+local RING = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } }
+local function unitDir(df, ds)
+  if df > 0 then return 0 elseif df < 0 then return 2 elseif ds > 0 then return 1 else return 3 end
+end
+local function leafRing()
+  local cf, cs = pos.f, pos.s
+  local path = {}
+  for _, r in ipairs(RING) do
+    local d = unitDir(cf + r[1] - pos.f, cs + r[2] - pos.s)
+    if not step(d) then break end
+    path[#path + 1] = d
+    if r[1] ~= 0 then cutLeaves(r[1] > 0 and 0 or 2) end
+    if r[2] ~= 0 then cutLeaves(r[2] > 0 and 1 or 3) end
+    cutLeaves(UP)
+    cutLeaves(DOWN)
+  end
+  -- back to the trunk: the short way after a full round, else the way it came
+  if #path == #RING and step(1) and step(2) then return end
+  while pos.f ~= cf or pos.s ~= cs do
+    local d = table.remove(path)
+    if not d then break end
+    if not step(OPP[d]) then error("Can't get back to the trunk at " .. at(), 0) end
   end
 end
 
@@ -496,6 +555,15 @@ local function fellColumn(logName)
   save()
   setStatus("Felling a tree at " .. at())
   local start = pos.y
+  local lastRing = -math.huge
+  -- Leaves next to the trunk here? Then go around it, every other level.
+  local function harvest()
+    if clearLeaves() > 0 and LEAF_RINGS and math.abs(pos.y - lastRing) >= 2
+      and saplingCount() < SAPLING_WANT and fuelToSpare() then
+      lastRing = pos.y
+      leafRing()
+    end
+  end
   while pos.y < start + MAX_HEIGHT do
     local info = inspect(UP)
     if not isLog(info) and not (info == nil and pos.y < (st.top or -math.huge)) then break end
@@ -503,7 +571,13 @@ local function fellColumn(logName)
     st.top = math.max(st.top or pos.y + 1, pos.y + 1)
     save()
     if not step(UP, true) then break end
+    harvest()
+  end
+  -- The top of the crown, right above the trunk
+  if LEAF_RINGS and saplingCount() < SAPLING_WANT and fuelToSpare() and isLeaves(inspect(UP)) and step(UP) then
     clearLeaves()
+    cutLeaves(UP)
+    step(DOWN)
   end
   st.top = nil
   save()
@@ -514,7 +588,7 @@ local function fellColumn(logName)
       st.tree.log = st.tree.log or info.name
       dig(DOWN, info)
       if not step(DOWN) then break end
-      clearLeaves()
+      harvest()
     elseif info == nil and pos.y > start then
       if not step(DOWN) then break end
     else
@@ -719,6 +793,56 @@ local function explore(budget)
 end
 
 ---------------------------------------------------------------------------
+-- Planting spare saplings
+---------------------------------------------------------------------------
+-- A grid 3 blocks apart around the chest (not right next to it), nearest first
+local NURSERY = {}
+for f = -NURSERY_RADIUS, NURSERY_RADIUS do
+  for s = -NURSERY_RADIUS, NURSERY_RADIUS do
+    if f % 3 == 0 and s % 3 == 0 and math.max(math.abs(f), math.abs(s)) >= 3 then
+      NURSERY[#NURSERY + 1] = { f, s }
+    end
+  end
+end
+table.sort(NURSERY, function(a, b) return math.abs(a[1]) + math.abs(a[2]) < math.abs(b[1]) + math.abs(b[2]) end)
+
+local function nearSpot(f, s)
+  for _, spot in pairs(st.spots) do
+    if math.abs(spot.f - f) <= 1 and math.abs(spot.s - s) <= 1 then return true end
+  end
+  return false
+end
+
+-- Plant the saplings it has to spare on free grid places. Each one becomes a spot.
+-- Places where nothing can grow (stone, sand, water, a build) are remembered as bad.
+local function plantSpares()
+  st.bad = st.bad or {}
+  local planted = 0
+  for _, c in ipairs(NURSERY) do
+    if countSpots() >= MAX_SPOTS or saplingCount() <= SAPLING_RESERVE or not fuelToSpare() then break end
+    local k = c[1] .. "," .. c[2]
+    if not st.spots[k] and not st.bad[k] and not nearSpot(c[1], c[2]) then
+      local dist = math.abs(c[1] - pos.f) + math.abs(c[2] - pos.s) + 2 * HOP
+      if not fuelFor(dist + TREE_FUEL) then break end
+      setStatus("Planting a sapling at " .. k)
+      flyTo(c[1], c[2], flightAlt())
+      land() -- a tree standing there gets felled and replanted
+      if not st.spots[k] then
+        local y = pos.y
+        if canPlantOn(inspect(DOWN)) and step(UP) and plantBelow() then
+          remember(c[1], c[2], y)
+          planted = planted + 1
+        else
+          st.bad[k] = true
+          save()
+        end
+      end
+    end
+  end
+  return planted
+end
+
+---------------------------------------------------------------------------
 -- A trip: planted spots first, then search
 ---------------------------------------------------------------------------
 -- Returns trees felled and why it stopped: "full", "fuel", "searched" or nil (nothing left)
@@ -731,6 +855,7 @@ local function trip()
     if not fuelFor(dist + 2 * HOP + TREE_FUEL) then return felled, "fuel" end
     if visit(spot) then felled = felled + 1 end
   end
+  if saplingCount() > SAPLING_RESERVE and countSpots() < MAX_SPOTS and fuelToSpare() then plantSpares() end
   if st.cursor <= #CELLS and countSpots() < MAX_SPOTS and freeSlots() >= 4 then
     -- only worth the flight if there is fuel left for a good part of the search
     local from = CELLS[st.cursor - 1]
@@ -745,8 +870,6 @@ end
 ---------------------------------------------------------------------------
 -- Home: chest, fuel, saplings
 ---------------------------------------------------------------------------
-local TARGET_FUEL = 2 * R + 2 * HOP + 200
-
 -- Face the chest; turns around to find it if the saved heading is off
 local function findChest()
   face(2)
@@ -843,11 +966,10 @@ end
 -- After a reboot or an error: finish the tree it was in, then go home
 local function recover()
   local t = st.tree
-  if t and math.abs(t.f - pos.f) + math.abs(t.s - pos.s) == 1 then
-    -- stopped right next to the tree it had started on: step in
-    for d = 0, 3 do
-      if pos.f + DF[d] == t.f and pos.s + DS[d] == t.s then step(d, true) break end
-    end
+  if t and math.abs(t.f - pos.f) <= 1 and math.abs(t.s - pos.s) <= 1 then
+    -- stopped right next to the tree it was cutting (or going around its crown): step in
+    if pos.f ~= t.f then step(pos.f < t.f and 0 or 2, pos.s == t.s) end
+    if pos.f == t.f and pos.s ~= t.s then step(pos.s < t.s and 1 or 3, true) end
   end
   if t and t.f == pos.f and t.s == pos.s then
     fellColumn()
