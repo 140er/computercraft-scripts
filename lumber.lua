@@ -1,14 +1,17 @@
 -- lumber.lua - tree farming turtle (CC: Tweaked)
 --
 -- Put a felling turtle (a turtle with an axe) somewhere in the open with a chest
--- directly BEHIND it. It searches the area around that spot for trees by itself,
--- fells them, replants a sapling in the same place and keeps coming back to every
--- tree it planted. Logs go in the chest; it refuels itself from the wood.
+-- directly BEHIND it and a fuel chest with lava buckets UNDER it. It searches the
+-- area around that spot for trees by itself, fells them, replants a sapling in the
+-- same place and keeps coming back to every tree it planted. Logs go in the chest
+-- behind it. It never burns its own wood: fuel is lava buckets (or coal) from the
+-- chest under it; the empty buckets go in the chest behind it.
 --
 -- One-time setup:
 --   lumber setup [radius]   radius = how far from the chest it may go (default 48)
 -- Then:
---   lumber          run (started automatically on boot after setup)
+--   lumber          run (started automatically on boot after setup). The screen shows
+--                   what it does; keys: P pause / go on, H come home now, Q quit.
 --   lumber home     after putting it back on its home spot by hand: reset position
 --   lumber reset    forget the trees it knows and search the whole area again
 --
@@ -46,6 +49,9 @@ local SAPLING_WANT = 24    -- ...but only while it has fewer saplings than this
 local KEEP_SAPLINGS = 64   -- saplings of each kind it keeps; the rest goes in the chest
 local BONEMEAL_TRIES = 3   -- bone meal per sapling per visit (if it has any)
 local FUEL_MARGIN = 30
+local REFUEL_BELOW = 4000  -- at home, top up from the fuel chest when below this...
+local REFUEL_TO = 5000     -- ...to about this (a lava bucket is 1000)
+local MIN_FUEL = 300       -- below this it waits at home for fuel
 local RETRY = 20
 
 -- Directions relative to the home spot:
@@ -167,11 +173,12 @@ if st.pending then
   save()
 end
 
-local status = ""
+-- What the screen shows (drawn by the UI further down)
+local ui = { status = "Starting", homeNow = false, lastError = nil, draw = function() end }
 local function setStatus(s)
-  if s == status then return end
-  status = s
-  print(os.date("%H:%M") .. " " .. s)
+  if s == ui.status then return end
+  ui.status = s
+  ui.draw()
 end
 
 local function at() return pos.f .. "," .. pos.s .. "," .. pos.y end
@@ -186,6 +193,7 @@ local function logError(msg)
       for line in h.readAll():gmatch("[^\n]+") do lines[#lines + 1] = line end
       h.close()
     end
+    ui.lastError = os.date("%H:%M") .. " " .. msg
     lines[#lines + 1] = os.date("%Y-%m-%d %H:%M") .. " " .. at() .. " " .. msg
     while #lines > 40 do table.remove(lines, 1) end
     local h = fs.open(LOG_FILE, "w")
@@ -300,24 +308,27 @@ local function fuel()
   return f
 end
 
--- Burn fuel from the inventory up to 'target': coal, sticks etc. first, logs last.
--- Saplings are never burned.
+-- Fuel it may burn: lava buckets and coal. Never wood, logs or saplings.
+local FUEL_VALUE = {
+  ["minecraft:lava_bucket"] = 1000, ["minecraft:coal"] = 80, ["minecraft:charcoal"] = 80,
+  ["minecraft:coal_block"] = 800,
+}
+local function isFuelItem(d) return FUEL_VALUE[d.name] ~= nil end
+
+-- Burn fuel items from the inventory up to 'target', without wasting any over the limit
 local function burn(target)
   if fuel() >= target then return true end
   local limit = turtle.getFuelLimit()
-  if target > limit then target = limit end
-  for pass = 1, 2 do
-    for s = 1, 16 do
-      local d = turtle.getItemDetail(s)
-      if d and not isSaplingItem(d) and (pass == 2) == isLogItem(d) then
-        turtle.select(s)
-        while fuel() < target and turtle.getItemCount(s) > 0 do
-          if not turtle.refuel(1) then break end
-          if pass == 2 then st.logs = st.logs + 1 end
-        end
+  for s = 1, 16 do
+    local d = turtle.getItemDetail(s)
+    if d and isFuelItem(d) then
+      turtle.select(s)
+      while fuel() < target and turtle.getItemCount(s) > 0
+        and fuel() + FUEL_VALUE[d.name] <= limit do
+        if not turtle.refuel(1) then break end
       end
-      if fuel() >= target then turtle.select(1) return true end
     end
+    if fuel() >= target then break end
   end
   turtle.select(1)
   return fuel() >= target
@@ -328,14 +339,12 @@ local function homeCost()
   return math.abs(pos.f) + math.abs(pos.s) + math.abs(pos.y) + 2 * HOP + 20
 end
 
-local TARGET_FUEL = 2 * R + 2 * HOP + 200 -- topped up to this at home
-
 -- Fuel to spare for extras (leaf crowns, planting spares) instead of just felling?
 local function fuelToSpare()
-  return fuel() >= homeCost() + TARGET_FUEL / 2
+  return fuel() >= homeCost() + 500
 end
 
--- Enough fuel to do 'extra' more and still get home? Burns wood if needed.
+-- Enough fuel to do 'extra' more and still get home? Burns carried fuel if needed.
 local function fuelFor(extra)
   local need = homeCost() + extra + FUEL_MARGIN
   return fuel() >= need or burn(need)
@@ -401,7 +410,7 @@ local function step(d, cutLogs)
     elseif c ~= "air" and c ~= "water" then
       return false
     end
-    if fuel() == 0 and not burn(homeCost()) then error("Out of fuel", 0) end
+    if fuel() == 0 and not burn(1) then error("Out of fuel", 0) end
     if rawMove(d) then return true end
     -- A mob or player in the way: wait first, hit it only if it doesn't go away
     if attempt > 5 and inspect(d) == nil then
@@ -765,7 +774,7 @@ local function explore(budget)
   if pos.f ~= from[1] or pos.s ~= from[2] then flyTo(from[1], from[2], flightAlt()) end
   land()
   for _ = 1, budget do
-    if st.cursor > #CELLS or countSpots() >= MAX_SPOTS then break end
+    if st.cursor > #CELLS or countSpots() >= MAX_SPOTS or st.paused or ui.homeNow then break end
     if freeSlots() < 4 or not fuelFor(TREE_FUEL + 2 * SPACING) then break end
     local cell = CELLS[st.cursor]
     while pos.f ~= cell[1] or pos.s ~= cell[2] do
@@ -819,7 +828,8 @@ local function plantSpares()
   st.bad = st.bad or {}
   local planted = 0
   for _, c in ipairs(NURSERY) do
-    if countSpots() >= MAX_SPOTS or saplingCount() <= SAPLING_RESERVE or not fuelToSpare() then break end
+    if countSpots() >= MAX_SPOTS or saplingCount() <= SAPLING_RESERVE or not fuelToSpare()
+      or st.paused or ui.homeNow then break end
     local k = c[1] .. "," .. c[2]
     if not st.spots[k] and not st.bad[k] and not nearSpot(c[1], c[2]) then
       local dist = math.abs(c[1] - pos.f) + math.abs(c[2] - pos.s) + 2 * HOP
@@ -850,12 +860,14 @@ local function trip()
   local felled = 0
   local list = dueSpots()
   while #list > 0 do
+    if st.paused or ui.homeNow then return felled, "stop" end
     if freeSlots() < 4 then return felled, "full" end
     local spot, dist = nearest(list)
     if not fuelFor(dist + 2 * HOP + TREE_FUEL) then return felled, "fuel" end
     if visit(spot) then felled = felled + 1 end
   end
   if saplingCount() > SAPLING_RESERVE and countSpots() < MAX_SPOTS and fuelToSpare() then plantSpares() end
+  if st.paused or ui.homeNow then return felled, "stop" end
   if st.cursor <= #CELLS and countSpots() < MAX_SPOTS and freeSlots() >= 4 then
     -- only worth the flight if there is fuel left for a good part of the search
     local from = CELLS[st.cursor - 1]
@@ -885,25 +897,60 @@ local function findChest()
   return false
 end
 
--- Low on fuel or out of saplings: take stacks out of the chest one by one, burn
--- what burns. Everything else goes back with the next deposit.
+local function emptySlot()
+  for e = 1, 16 do if turtle.getItemCount(e) == 0 then return e end end
+  return nil
+end
+
+-- Lava buckets in the fuel chest under the turtle (nil: no chest it can look into)
+local lavaLeft = nil
+local function countLava()
+  local ok, n = pcall(function()
+    local c = peripheral.wrap("bottom")
+    if not c or not c.list then return nil end
+    local k = 0
+    for _, it in pairs(c.list()) do
+      if FUEL_VALUE[it.name] then k = k + (it.name == "minecraft:lava_bucket" and it.count or 0) end
+    end
+    return k
+  end)
+  lavaLeft = ok and n or nil
+end
+
+-- At home: top up from the fuel chest under the turtle, one item at a time.
+-- Empty buckets and anything else that is not fuel go in the chest behind it
+-- with the next deposit.
+local function refuelHome()
+  burn(REFUEL_TO)
+  if fuel() >= REFUEL_BELOW then return end
+  local ok, info = turtle.inspectDown()
+  if not (ok and isChest(info)) then return end
+  for _ = 1, 32 do
+    if fuel() + 1000 > REFUEL_TO and fuel() >= REFUEL_BELOW then break end
+    local s = emptySlot()
+    if not s then break end
+    turtle.select(s)
+    if not turtle.suckDown(1) then break end
+    local d = turtle.getItemDetail(s)
+    if d and isFuelItem(d) and fuel() + FUEL_VALUE[d.name] <= turtle.getFuelLimit() then
+      turtle.refuel(1)
+    end
+  end
+  turtle.select(1)
+end
+
+-- Out of saplings: take stacks out of the chest one by one until it has some.
+-- Everything else goes back with the next deposit.
 local function restock()
   local tries = 0
-  while (fuel() < TARGET_FUEL or not haveSapling()) and tries < 27 do
+  while not haveSapling() and tries < 27 do
     tries = tries + 1
-    local s
-    for e = 1, 16 do if turtle.getItemCount(e) == 0 then s = e break end end
+    local s = emptySlot()
     if not s then break end
     local before = countLogs()
     turtle.select(s)
     if not turtle.suck() then break end
-    local d = turtle.getItemDetail(s)
-    if d and not isSaplingItem(d) then
-      while fuel() < TARGET_FUEL and turtle.getItemCount(s) > 0 do
-        if not turtle.refuel(1) then break end
-      end
-    end
-    -- logs from the chest were counted when they went in; what's left goes back with the deposit
+    -- logs from the chest were counted when they went in; they go back with the deposit
     st.logs = st.logs - (countLogs() - before)
   end
   turtle.select(1)
@@ -942,15 +989,8 @@ local function service()
     setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: lumber home")
     sleep(30)
   end
-  -- Sticks are burned, they're not worth a chest slot
-  local function stick(d) return d.name == "minecraft:stick" end
-  local sticks = findSlot(stick)
-  while sticks and fuel() ~= math.huge and fuel() < turtle.getFuelLimit() - 5 do
-    turtle.select(sticks)
-    if not turtle.refuel() then break end
-    sticks = findSlot(stick)
-  end
-  burn(TARGET_FUEL)
+  refuelHome()
+  countLava()
   restock()
   face(2)
   while not deposit() do
@@ -978,8 +1018,160 @@ local function recover()
   goHome()
 end
 
-local function main()
-  print("Lumberjack: searching up to " .. R .. " blocks around the chest")
+---------------------------------------------------------------------------
+-- Screen
+---------------------------------------------------------------------------
+local W, H = term.getSize()
+local COLOR = term.isColour and term.isColour()
+local function col(c, plain) if COLOR then return c end return plain or colors.white end
+
+local function fmt(n)
+  if n == math.huge then return "unlimited" end
+  if n >= 10000 then return string.format("%.1fk", n / 1000) end
+  return tostring(math.floor(n))
+end
+
+local function row(y, text, fg, bg)
+  term.setCursorPos(1, y)
+  term.setBackgroundColor(bg or colors.black)
+  term.setTextColor(fg or colors.white)
+  term.clearLine()
+  term.write(text:sub(1, W))
+end
+
+-- Label left, value right after it, in two columns
+local function pair(y, l1, v1, l2, v2)
+  term.setCursorPos(2, y)
+  term.setBackgroundColor(colors.black)
+  term.setTextColor(col(colors.lightGray))
+  term.write(l1)
+  term.setTextColor(colors.white)
+  term.write(v1)
+  if l2 then
+    local x = math.floor(W / 2) + 2
+    term.setCursorPos(x, y)
+    term.setTextColor(col(colors.lightGray))
+    term.write(l2)
+    term.setTextColor(colors.white)
+    term.write(v2)
+  end
+end
+
+local function state()
+  local home = pos.f == 0 and pos.s == 0 and pos.y == 0
+  if st.paused then return home and "PAUSED" or "PAUSING", col(colors.yellow) end
+  if ui.homeNow and not home then return "COMING HOME", col(colors.orange) end
+  return "RUNNING", col(colors.lime)
+end
+
+local function drawScreen()
+  local name, stateColor = state()
+  -- title bar
+  row(1, " LUMBERJACK", colors.white, col(colors.green, colors.gray))
+  term.setCursorPos(W - #name, 1)
+  term.setTextColor(stateColor)
+  term.write(name)
+  row(2, "")
+  -- status, over two lines if needed
+  local text, w = ui.status, W - 2
+  local cut = #text
+  if #text > w then
+    cut = w
+    for i = w, math.floor(w / 2), -1 do
+      if text:sub(i, i) == " " then cut = i break end
+    end
+  end
+  row(3, " " .. text:sub(1, cut), col(colors.yellow))
+  row(4, " " .. (text:sub(cut + 1):gsub("^ ", "")), col(colors.yellow))
+  -- fuel bar
+  local f = fuel()
+  row(5, "")
+  term.setCursorPos(2, 5)
+  term.setTextColor(col(colors.lightGray))
+  term.write("Fuel ")
+  local barW = W - 15
+  local frac = f == math.huge and 1 or math.min(1, f / REFUEL_TO)
+  local fill = math.floor(barW * frac + 0.5)
+  local barColor = (f < MIN_FUEL * 2) and col(colors.red) or (f < REFUEL_BELOW / 2) and col(colors.orange) or col(colors.lime)
+  term.setBackgroundColor(barColor)
+  term.write(string.rep(" ", fill))
+  term.setBackgroundColor(col(colors.gray, colors.gray))
+  term.write(string.rep(" ", barW - fill))
+  term.setBackgroundColor(colors.black)
+  term.setTextColor(colors.white)
+  term.write(" " .. fmt(f))
+  -- lava
+  row(6, "")
+  if lavaLeft == nil then
+    pair(6, "Lava ", "put buckets in a chest under me")
+  elseif lavaLeft == 0 then
+    term.setCursorPos(2, 6)
+    term.setTextColor(col(colors.red))
+    term.write("Lava none left in the chest under me!")
+  else
+    pair(6, "Lava ", lavaLeft .. " bucket" .. (lavaLeft == 1 and "" or "s") .. " in the chest")
+  end
+  row(7, "")
+  -- numbers
+  local spots = 0
+  for _ in pairs(st.spots) do spots = spots + 1 end
+  local searched = math.min(100, math.floor((st.cursor - 1) * 100 / #CELLS))
+  row(8, "") pair(8, "Felled  ", tostring(st.felled), "Logs     ", fmt(st.logs))
+  row(9, "") pair(9, "Farm    ", spots .. "/" .. MAX_SPOTS, "Saplings ", tostring(saplingCount()))
+  row(10, "") pair(10, "Search  ", searched >= 100 and "done" or (searched .. "%"), "Area     ", R .. " blocks")
+  -- last problem
+  if ui.lastError then
+    row(11, " ! " .. ui.lastError, col(colors.red))
+  else
+    row(11, "")
+  end
+  for y = 12, H - 1 do row(y, "") end
+  -- keys
+  local keys = st.paused and " [P] go on  [Q] quit" or " [P] pause  [H] come home  [Q] quit"
+  if ui.quitAsk then keys = " Press Q again to quit, any key: no" end
+  row(H, keys, colors.white, col(colors.gray, colors.gray))
+  term.setBackgroundColor(colors.black)
+end
+
+local function screen()
+  ui.draw = function() pcall(drawScreen) end
+  ui.draw()
+  local timer = os.startTimer(1)
+  while true do
+    local ev, a = os.pullEvent()
+    if ev == "timer" and a == timer then
+      ui.draw()
+      timer = os.startTimer(1)
+    elseif ev == "key" then
+      if ui.quitAsk then
+        ui.quitAsk = false
+        if a == keys.q then
+          term.setBackgroundColor(colors.black)
+          term.clear()
+          term.setCursorPos(1, 1)
+          print("Lumberjack stopped. Type lumber to start it again.")
+          return
+        end
+      elseif a == keys.p then
+        st.paused = not st.paused
+        save()
+      elseif a == keys.h then
+        ui.homeNow = true
+      elseif a == keys.q then
+        ui.quitAsk = true
+      end
+      ui.draw()
+    elseif ev == "term_resize" then
+      W, H = term.getSize()
+      ui.draw()
+    end
+  end
+end
+
+---------------------------------------------------------------------------
+-- Main loop
+---------------------------------------------------------------------------
+local function worker()
   while true do
     local ok, err = pcall(recover)
     if ok then break end
@@ -988,11 +1180,27 @@ local function main()
     setStatus("STUCK: " .. tostring(err))
     sleep(30)
   end
+  local rest = nil -- why it came home: wait at home after unloading
   while true do
     service()
-    local minFuel = 2 * HOP + TREE_FUEL + 4 * SPACING + FUEL_MARGIN + 20
-    if fuel() < minFuel then
-      setStatus("Not enough fuel (" .. fuel() .. "/" .. minFuel .. "): put logs or coal in the chest")
+    ui.homeNow = false
+    if rest == "fuel" and not st.paused then
+      setStatus("Low on fuel: waiting for lava buckets")
+      sleep(WAIT)
+    elseif rest == "done" then
+      setStatus("Waiting for the trees to grow")
+      -- wake up straight away for a key press (pause / come home)
+      for _ = 1, WAIT do
+        if st.paused or ui.homeNow then break end
+        sleep(1)
+      end
+    end
+    rest = nil
+    if st.paused then
+      setStatus("Paused at home. Press P to go on")
+      while st.paused do sleep(1) end
+    elseif fuel() < MIN_FUEL then
+      setStatus("Out of fuel: put lava buckets in the chest under me")
       sleep(30)
     else
       local ok, n, why = pcall(trip)
@@ -1010,16 +1218,14 @@ local function main()
         sleep(30)
         ok2, err2 = pcall(recover)
       end
-      if why == "fuel" then
-        setStatus("Low on fuel (" .. turtle.getFuelLevel() .. "): waiting. Logs or coal in the chest help")
-        sleep(WAIT)
-      elseif not why then
-        setStatus("Waiting. Felled " .. st.felled .. " trees, " .. st.logs .. " logs, "
-          .. countSpots() .. " trees planted, fuel " .. turtle.getFuelLevel())
-        sleep(WAIT)
-      end
+      if why == "fuel" then rest = "fuel" elseif not why then rest = "done" end
     end
   end
+end
+
+local function main()
+  term.clear()
+  parallel.waitForAny(worker, screen)
 end
 
 turtle.select(1)

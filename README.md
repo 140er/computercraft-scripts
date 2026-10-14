@@ -195,25 +195,41 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 
 A felling turtle (turtle + axe, no modem needed) that finds trees around its home by itself, fells them, replants them and keeps farming them.
 
-1. Put the turtle somewhere in the open with a chest directly **behind** it. Keep the space above the turtle open: it flies out and back through there.
+1. Put the turtle somewhere in the open with a chest directly **behind** it (logs go in there) and a chest directly **under** it with **lava buckets** (its fuel). Keep the space above the turtle open: it flies out and back through there.
 2. Drag `lumber.lua` onto the turtle (or `install lumber`).
 3. `lumber setup [radius]`: how far from the chest it may go (default 48 blocks, so it stays in the chunks around you).
-4. Give it some fuel to start (a few coal or logs in the chest) and, if you have them, saplings in the turtle or the chest.
+4. A few saplings in the turtle or the chest help it get going (optional).
 5. `lumber` (starts by itself on boot after setup).
+
+```
+ LUMBERJACK                    RUNNING
+ Felling a tree at 12,-3,4
+ Fuel ██████████████████░░░░░   4180
+ Lava 12 buckets in the chest
+ Felled  68         Logs     309
+ Farm    64/64      Saplings 29
+ Search  11%        Area     48 blocks
+ ! 14:02 Gave up on the tree spot at 4,-14
+ [P] pause  [H] come home  [Q] quit
+```
+- **P**: pause. Out on a trip it finishes the tree it is on, flies home, unloads and waits. P again: carry on.
+- **H**: come home now (unload, refuel), then carry on.
+- **Q**: quit (press Q twice). `lumber` starts it again; it remembers everything.
+- The fuel bar turns orange below 2000 and red when it's nearly out. The red `!` line is the last problem it ran into (all of them are in `lumber.log`).
 
 **What it does:**
 - **Search:** it walks over the ground in a square spiral around the chest, in lines 3 blocks apart, and looks left and right for tree trunks. It climbs over hills, steps down into dips and floats over water. Where it can't walk, it flies. Each trip searches a part of the spiral and remembers where it stopped.
 - **Fell:** the whole trunk. While it has fewer than 24 saplings it also flies once around the trunk every other level and cuts the whole crown of leaves: that gives a few saplings per tree. Then it plants a sapling of the same kind on the spot.
 - **Plant spares:** saplings it doesn't need for replanting (it keeps 6) are planted in a grid, 3 blocks apart, within 15 blocks of the chest, nearest first. Each one is remembered like any other tree, so the farm grows close to home where it is cheap to visit. Grid places where nothing can grow (stone, sand, water, a build) are remembered and skipped.
 - **Farm:** every sapling it planted is remembered. About 20 minutes later it flies back over the trees, comes down through the leaves and fells it if it has grown (or uses bone meal on it if it has some, and looks again later).
-- **Home:** it puts the logs, apples and extra saplings in the chest, burns the sticks and keeps enough wood as fuel for the next trip. Out of saplings, it takes them from the chest.
+- **Home:** it puts the logs, sticks, apples, extra saplings and empty buckets in the chest behind it. Below 4000 fuel it takes lava buckets from the chest under it until it has about 5000 (one bucket = 1000). Out of saplings, it takes them from the chest behind it.
 - Once the whole area is searched or it farms 64 trees, it only farms.
 
 **Good to know:**
 - 1x1 trees: oak, birch, spruce, jungle, acacia, cherry. Dark oak is left standing. Of a 2x2 giant spruce/jungle it only cuts one column.
 - It never digs ground or stone, only logs, leaves and small plants (grass, flowers, vines). It can't tell a log house from a tree, so keep wooden builds out of its radius.
 - Saplings: cutting the crown gives a few saplings per tree, more than it needs. The rest go in the chest (it keeps up to 64 of each kind).
-- Fuel: about 75 per tree (5 logs); walking, climbing and flying cost 1 per block, going around a crown about 20. It pays for itself in a forest. Start it with some fuel (a stack of coal is plenty). In open plains with few trees it can use up its wood; then it waits at home with "Not enough fuel" until you put logs or coal in the chest.
+- Fuel: it **never burns its own wood**. Only lava buckets (or coal, charcoal, coal blocks) from the chest under it. Walking, climbing and flying cost 1 per block, going around a crown about 20; a busy hour in a forest uses about 3 to 4 lava buckets. Empty buckets come back in the chest behind it, so you can refill them. With no fuel left it waits at home ("Out of fuel") until you add some.
 - Reboots / chunk unloads: position and heading are saved on every move and turn. After a restart it finishes the tree it was cutting and flies home. Errors are kept in `lumber.log`.
 - `lumber home`: you put it back on its spot by hand. `lumber reset`: forget all trees and search the area again.
 - Settings at the top of `lumber.lua`: `RADIUS`, `MAX_SPOTS`, `NURSERY_RADIUS`, `SAPLING_RESERVE`, `SAPLING_WANT`, `LEAF_RINGS`, `REGROW_MIN`, `EXPLORE_CELLS`, `HOP`, `WAIT`, `KEEP_SAPLINGS`, `BONEMEAL_TRIES`.
