@@ -544,7 +544,9 @@ Tabs along the top (tap them, or keys 1-5, Q quits):
   - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 
-The dev commands only read things (and reboot); they never run code or write files sent over the air. On a server with other players, lock them: `key <secret>` on the pocket and the same secret in a file `dev.key` on each bot.
+With a password you can also change things on a bot: `put <file> [as]` sends a file from the pocket, `update <file> [as]` sends it and reboots the bot, `rm <file>` deletes one, and `lua <code>` runs Lua on the bot (e.g. `Miner1 lua turtle.getFuelLevel()`). `miners update miner.lua` updates the whole fleet.
+To turn this on, put a password in a file `dev.key` on each bot and type `key <password>` on the pocket. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password, so other players with a modem can't use them.
+Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 

@@ -710,7 +710,8 @@ consoleSay = function(s)
   return true
 end
 
-local DEV_OPS = { info = true, log = true, ls = true, cat = true, get = true, reboot = true }
+local DEV_OPS = { info = true, log = true, ls = true, cat = true, get = true, reboot = true, put = true, rm = true,
+  lua = true, update = true }
 local ALIASES = { hub = "hub", mine = "hub", mining = "hub", fleet = "hub", store = "store", storage = "store",
   sorter = "store", wood = "wood", lumber = "wood", lumberjack = "wood", buddy = "buddy" }
 local STORE_CMDS = { "status", "list", "find", "get", "order", "craft", "recipes", "build", "blocked", "unblock",
@@ -725,7 +726,13 @@ local HELP = {
   " <bot> cat <file>",
   " <bot> get <file> [save as]",
   " <bot> reboot",
-  " miners info|log|reboot",
+  "NEED A PASSWORD (key):",
+  " <bot> put <file> [as]",
+  " <bot> update <file> [as]",
+  "  (put + reboot)",
+  " <bot> rm <file>",
+  " <bot> lua <code>",
+  " miners <any of these>",
   "MINING (via the hub):",
   " hub <ore> | stop | recall",
   " hub resume | status",
@@ -751,7 +758,7 @@ local HELP = {
   " bots  scan  clear",
   " listen [protocol|off]",
   " send <id> <proto> <msg>",
-  " key <secret> | key off",
+  " key <password> | key off",
   "Tab completes, Up/Down =",
   "history, scroll = older.",
 }
@@ -802,9 +809,24 @@ local function devOp(bot, op, words)
   end
   local msg = { type = "dev", op = op, key = con.key, path = words[3], n = tonumber(words[3]) }
   local extra = nil
-  if op == "cat" or op == "get" then
+  if op == "cat" or op == "get" or op == "rm" or op == "put" or op == "update" then
     if not words[3] then say(op .. " needs a file name", colors.orange) return end
     if op == "get" then extra = { save = words[4] or fs.getName(words[3]) } end
+  end
+  if op == "put" or op == "update" then -- send a file from this pocket computer
+    if not fs.exists(words[3]) or fs.isDir(words[3]) then say("No file " .. words[3] .. " on this pocket", colors.red) return end
+    local h = fs.open(words[3], "r")
+    msg.data = h.readAll()
+    h.close()
+    msg.op, msg.path = "put", words[4] or fs.getName(words[3])
+    if op == "update" then extra = { thenReboot = bot } end
+  elseif op == "lua" then
+    msg.code = table.concat(words, " ", 3)
+    if msg.code == "" then say("lua <code>, e.g. lua turtle.getFuelLevel()", colors.orange) return end
+  end
+  if (msg.op == "put" or op == "rm" or op == "lua") and not con.key then
+    say("Set the password first: key <password> (same as dev.key on the bot)", colors.orange)
+    return
   end
   sendTo(bot, msg, extra)
 end
@@ -889,7 +911,7 @@ local function run(line)
     else
       con.key = words[2]
       local h = fs.open("panel.key", "w") h.write(con.key) h.close()
-      say("Dev key saved. Put the same key in a file dev.key on each bot to lock its dev commands.")
+      say("Password saved. Put the same password in a file dev.key on each bot: that locks it and allows put, update, rm and lua.")
     end
   elseif c == "listen" then
     con.listen = (op == "" and "all") or (op ~= "off" and words[2]) or nil
@@ -904,7 +926,7 @@ local function run(line)
     rednet.send(id, msg, words[3])
     say("Sent to #" .. id .. " on " .. words[3], colors.lightGray)
   elseif c == "miners" or c == "all" then
-    if not DEV_OPS[op] then say("miners info | log | reboot", colors.orange) return end
+    if not DEV_OPS[op] then say("miners info | log | reboot | put | update | lua", colors.orange) return end
     if #miners() == 0 then say("No miners known (the hub tells me about them).", colors.orange) end
     for _, t in ipairs(miners()) do devOp({ id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) }, op, words) end
   else
@@ -955,6 +977,7 @@ local function consoleReply(id, m, proto)
   local tag = "[" .. p.name .. "] "
   if m.type == "dev_reply" then
     say(tag .. tostring(m.out), m.ok and colors.lime or colors.red)
+    if p.thenReboot and m.ok then devOp(p.thenReboot, "reboot", {}) end
     if p.save and type(m.data) == "string" then
       local h = fs.open(p.save, "w") h.write(m.data) h.close()
       say("Saved as " .. p.save .. " on this pocket computer.", colors.lightGray)
@@ -1000,15 +1023,17 @@ local function complete()
     local bot = findBot(words[1])
     if bot and bot.key == "store" then add(STORE_CMDS)
     elseif bot then
-      add({ "info", "log", "ls", "cat", "get", "reboot" })
+      add({ "info", "log", "ls", "cat", "get", "reboot", "put", "update", "rm", "lua" })
       if bot.miner or bot.key == "hub" then
         add({ "stop", "recall", "status" })
         for _, o in ipairs(data.hub and data.hub.ores or {}) do cands[#cands + 1] = o.key end
         if bot.key == "hub" then add({ "resume", "time", "item" }) end
       elseif bot.key == "wood" then add({ "pause", "resume", "home", "status" })
       elseif bot.key == "buddy" then add({ "home", "goto", "say", "status" }) end
-    elseif lower(words[1]) == "miners" then add({ "info", "log", "reboot" })
+    elseif lower(words[1]) == "miners" then add({ "info", "log", "reboot", "put", "update", "lua" })
     elseif lower(words[1]) == "listen" then add({ "off", "minearmy", "roomsorter", "lumber", "buddy" }) end
+  elseif pos == 3 and (lower(words[2]) == "put" or lower(words[2]) == "update") then
+    for _, f in ipairs(fs.list("")) do if not fs.isDir(f) then cands[#cands + 1] = f end end
   elseif pos == 3 and lower(words[2]) == "goto" then
     add(data.buddy and data.buddy.places or {})
   end
