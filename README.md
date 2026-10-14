@@ -6,6 +6,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 - **Sorter & Smelter** (`sorter.lua`): a turtle (or computer) on a wired network of chests and furnaces. It empties the miners' chests, smelts the raw ores in all your furnaces and blast furnaces, keeps them fuelled and sorts everything into storage. See [Sorter & Smelter](#sorter--smelter).
 - **Storage Room** (`roomsorter.lua`): no modems or cables. A turtle in a closed room maps the room, builds its own chests and furnaces, sorts and smelts what you put in the input chest, remembers where everything is and brings you items in the output chest. See [Storage Room](#storage-room).
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
+- **Buddy** (`buddy.lua`): a companion turtle you can chat with, powered by your own model server (or xAI's Grok). It does small jobs around your base. See [Buddy](#buddy-companion-turtle) at the bottom.
 
 ---
 
@@ -408,3 +409,48 @@ Moved the pickup chest a bit (up to 3 blocks down, 2 up, 2 sideways, also down i
 ## Good to know
 - Turtles only work in loaded chunks. When a chunk unloads the turtle pauses; when it loads again it restarts, goes home and carries on.
 - `smartmine.lua` is the older standalone miner: `smartmine <length> [tunnels] [gap] [block1,block2,...]`.
+
+---
+
+## Buddy (companion turtle)
+
+A turtle you talk to. A language model reads what you say and decides what to do with the turtle's tools: move, turn, look around, pick up or drop items, place or break a block, refuel, craft (crafty turtle), and walk back home. It is a companion, not a worker: it turns down big jobs like mining and leaves those to the Mine Army.
+
+**The brain** is any OpenAI-style chat API with tool calling: your own server (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok. The requests come from the Minecraft server, so the model server must be reachable from there (Tailscale is fine).
+
+1. Copy `buddy.lua` onto the turtle (drag it onto the screen, or `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/buddy.lua buddy.lua`).
+2. Point it at your model server(s): `buddy server http://spark1:8000 http://spark2:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
+   - Grok instead: `buddy server grok`, then `buddy key <xAI key>` (from [console.x.ai](https://console.x.ai), paid per use).
+   - Server needs a key? `buddy key <key>` saves it in `api.key` on the turtle. It never goes into this repo.
+3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.
+4. `buddy` and type away: "look around", "go 5 forward and drop the cobble in the chest", "what have you got on you?", "come home".
+
+**Places and memory:** walk it to a spot and say "remember this as the sorter drop chest" (stand it so the chest is in front of, above or below it). From then on "go to the sorter drop" works, and so does "move everything from the miner chest to the sorter drop": it walks back and forth until the chest is empty. It walks between places along routes it has driven before, so it never needs to dig. Tell it facts too ("remember that the miner chests are north of home"). Places and notes live in `buddy.memory` and survive restarts. `set_home` and `buddy setup` forget the places, because they are stored as routes from home.
+
+**Your own server, two things to check:**
+- **Answers are streamed**, so a slow model doesn't hit ComputerCraft's 60 second limit as long as it keeps producing text. Thinking is switched off by default (`buddy think on` to allow it).
+- **Tool calling must be on.** vLLM: start it with `--enable-auto-tool-choice --tool-call-parser <parser for your model>` (the GLM parser for GLM). If Buddy only talks and never moves, this is why.
+- **ComputerCraft blocks private and local addresses** by default. If Buddy says "Domain not permitted", allow your servers in `config/computercraft-server.toml` (world `serverconfig` folder on some setups) by adding this **above** the existing `$private` deny rule, then restart the server. `100.64.0.0/10` covers all Tailscale addresses.
+  ```toml
+  [[http.rules]]
+      host = "100.64.0.0/10"
+      action = "allow"
+  ```
+
+**Talking in game chat:** equip a **Chat Box** from Advanced Peripherals on the turtle and start your message with its name: `buddy, put a torch above you`. It answers in chat.
+
+| Command | |
+|---|---|
+| `buddy server <url> [url2 ...]` | use your own model server(s); `buddy server grok` for xAI |
+| `buddy model <id>` | pick the model (`auto` = the first one the server offers) |
+| `buddy models` | list the models the server offers |
+| `buddy think on\|off` | own server: let a reasoning model (GLM, Qwen, ...) think before it answers. Off by default: much faster |
+| `buddy key <key>` | save an API key on the turtle |
+| `buddy name <name>` | rename it (also its chat name) |
+| `buddy home` | after putting it back on its home spot by hand: reset its position |
+| `/reset`, `/quit` | while chatting: forget the conversation / stop |
+
+**Safety:**
+- It counts its own steps from home and never goes more than 32 blocks from home on any axis (`range` in `buddy.cfg`). `go_home` walks back the way it came.
+- It never digs to get somewhere and only breaks or places blocks when you ask. It refuses to break chests, barrels, computers, turtles, furnaces, hoppers, doors, beds and similar base blocks.
+- It can't see you, so "come here" makes it ask where you are compared to it.
