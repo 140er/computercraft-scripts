@@ -221,7 +221,8 @@ end
 
 -- ---------------------------------------------------------------- tools for the model
 
-local SIDE = { type = "string", enum = { "front", "up", "down" }, description = "front = the block in front of you" }
+-- a fresh table each time: CC's JSON refuses a table that appears twice
+local function SIDE() return { type = "string", enum = { "front", "up", "down" }, description = "front = the block in front of you" } end
 local SIDE_FN = {
   dig = { front = turtle.dig, up = turtle.digUp, down = turtle.digDown },
   place = { front = turtle.place, up = turtle.placeUp, down = turtle.placeDown },
@@ -269,7 +270,7 @@ tool("status", "Your fuel, where you are compared to home, and what you carry.",
 end)
 
 tool("dig", "Break one block next to you and pick it up. Only when the player asked for it.", {
-  side = SIDE,
+  side = SIDE(),
 }, { "side" }, function(a)
   local block = inspectName(a.side)
   if not block then return "there is nothing there" end
@@ -281,7 +282,7 @@ tool("dig", "Break one block next to you and pick it up. Only when the player as
 end)
 
 tool("place", "Place a block from your inventory next to you.", {
-  side = SIDE,
+  side = SIDE(),
   item = { type = "string", description = "part of the item name, e.g. torch or cobblestone. Leave out for the selected slot." },
 }, { "side" }, function(a)
   if a.item then
@@ -296,7 +297,7 @@ tool("place", "Place a block from your inventory next to you.", {
 end)
 
 tool("drop", "Drop items: into a chest/container on that side, or on the ground.", {
-  side = SIDE,
+  side = SIDE(),
   item = { type = "string", description = "part of the item name; leave out to drop everything" },
   count = { type = "integer", description = "how many; leave out for all of them" },
 }, { "side" }, function(a)
@@ -315,7 +316,7 @@ tool("drop", "Drop items: into a chest/container on that side, or on the ground.
 end)
 
 tool("pick_up", "Take items from a chest/container on that side, or pick up items lying there.", {
-  side = SIDE,
+  side = SIDE(),
   count = { type = "integer", description = "max items, leave out for a full stack" },
 }, { "side" }, function(a)
   local before = 0
