@@ -2772,6 +2772,39 @@ local function command(cmd, text, n)
     requests[#requests + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Getting " .. n .. " " .. pretty(name) .. "..." }
+  elseif cmd == "blocked" then
+    -- Blocked spots and the chests it can't reach because of them
+    local out = { "Spots: x right, y up, z rows from the drop-off wall" }
+    local any = false
+    for k, what in pairs(map.obstacles or {}) do
+      out[#out + 1] = " blocked " .. k .. ": " .. (what == "blocked" and "can't move there (nothing seen)" or tostring(what))
+      any = true
+    end
+    if not any then out[#out + 1] = " no blocked spots" end
+    for k, e in pairs(idx) do
+      if (e.kind == "store" or e.kind == "furnace") and not e.merged and not canReach(e) then
+        local names = {}
+        for _, it in pairs(e.items or {}) do names[pretty(it.name)] = (names[pretty(it.name)] or 0) + it.count end
+        local l = {}
+        for n, c in pairs(names) do l[#l + 1] = c .. " " .. n end
+        out[#out + 1] = " cut off " .. (e.kind == "furnace" and "furnace" or "chest") .. " " .. k .. ": "
+          .. (#l > 0 and table.concat(l, ", ") or "empty")
+      end
+    end
+    out[#out + 1] = "'unblock' forgets them all and tries again; 'unblock x,y,z' just one."
+    return out
+  elseif cmd == "unblock" then
+    local n = 0
+    for k in pairs(map.obstacles or {}) do
+      if not text or text == "" or text == "all" or text:gsub("%s", "") == k then
+        map.cells[k] = "a"
+        map.obstacles[k] = nil
+        n = n + 1
+      end
+    end
+    saveMap()
+    os.queueEvent("room_request")
+    return { "Forgot " .. n .. " blocked spot(s). If something is really there it notices again." }
   elseif cmd == "stock" then
     return { totals = totals(), state = status.state, crafty = crafty() } -- for the order screen
   elseif cmd == "recipes" then
@@ -2815,7 +2848,8 @@ local function command(cmd, text, n)
     local used, size = usedSlots()
     return { status.state, ("Storage %d/%d slots, %d furnaces"):format(used, size, #furnaces()) }
   end
-  return { "Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status" }
+  return { "Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status,",
+    "blocked, unblock [x,y,z]" }
 end
 
 ---------------------------------------------------------------------------
@@ -2863,8 +2897,7 @@ local function draw(t)
   if status.roomNote then line(status.roomNote, colors.orange) end
   local cut = unreachableCount()
   if cut > 0 then
-    local where = next(map.obstacles or {})
-    line(cut .. " chests cut off" .. (where and (" (blocked at " .. where .. ")") or ""), colors.orange)
+    line(cut .. " chests cut off: type 'blocked'", colors.orange)
   end
   if status.lastSmelt then line("Smelted " .. status.lastSmelt, colors.lightGray) end
   y = y + 1
