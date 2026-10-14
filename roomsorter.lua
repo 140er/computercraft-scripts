@@ -1584,6 +1584,8 @@ local function verifyPose()
       cands[#cands + 1] = step(here(), pos.pend.mv)
     end
   end
+  -- Also the start spot: it may have been carried back there by hand
+  if map.home and not listHas(cands, map.home) then cands[#cands + 1] = map.home end
   local function seen(ok, data) return ok and (data.name or "?") or "a" end
   local obs = {}
   for i = 0, 3 do
@@ -1611,6 +1613,7 @@ local function verifyPose()
   local pick
   for _, m in ipairs(matches) do if m.k == cands[1] and m.h == (pos.pend and pos.pend.turn or pos.h) then pick = m end end
   for _, m in ipairs(matches) do if not pick and m.k == cands[1] and m.h == pos.h then pick = m end end
+  for _, m in ipairs(matches) do if not pick and m.k == map.home and m.h == 0 then pick = m end end
   pick = pick or matches[1]
   if not pick then
     error("Lost: what's around me doesn't match the map. Put me back on my start spot facing the input chest and type: roomsorter home", 0)
@@ -2446,6 +2449,7 @@ end
 -- Requests
 ---------------------------------------------------------------------------
 local paused = false
+local homeTyped = false -- 'home' typed while lost: trust it, even if the start spot looks different
 local requests = {}
 local findRequest, busyFind = false, false
 local resyncRequest = false
@@ -3344,6 +3348,7 @@ local function worker()
   -- 'home' (typed once it's back on its start spot facing the input chest)
   while true do
     refuelCarried()
+    if homeTyped then homeTyped = false log("Back on the start spot") break end
     local ok, err = pcall(verifyPose)
     if ok then break end
     setState("LOST")
@@ -3423,6 +3428,7 @@ local function prompt()
         -- it's back on its start spot facing the input chest
         pos.x, pos.y, pos.z, pos.h, pos.pend = 0, 0, 0, 0, nil
         savePos()
+        homeTyped = true
         os.queueEvent("room_home")
         print("Position reset to the start spot.")
       elseif cmd == "resume" then paused = false print("Running.") os.queueEvent("room_request")
