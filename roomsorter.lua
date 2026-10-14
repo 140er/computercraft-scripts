@@ -24,8 +24,9 @@
 -- Order something that comes out of a furnace (glass, stone, ingots, charcoal, ...) and
 -- there's none: it smelts what it needs first (sand -> glass) and then delivers.
 
-local MAP_FILE, IDX_FILE, POS_FILE = "room.map", "room.idx", "room.pos"
-local CFG_FILE, STATS_FILE, LOG_FILE = "room.cfg", "room.stats", "room.log"
+-- (one table: the main chunk is close to Lua's limit of 200 locals)
+local FILES = { map = "room.map", idx = "room.idx", pos = "room.pos", cfg = "room.cfg", stats = "room.stats",
+  log = "room.log" }
 local PROTOCOL = "roomsorter"
 local VERSION = 15 -- the order screen warns when the turtle runs an older roomsorter.lua
 
@@ -932,7 +933,7 @@ if not turtle then print("Run this on a turtle (or 'roomsorter client' / 'roomso
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
-local cfg = loadTable(CFG_FILE) or {}
+local cfg = loadTable(FILES.cfg) or {}
 cfg.maxSize = cfg.maxSize or 48       -- the room may not reach further than this from the start
 cfg.maxHeight = cfg.maxHeight or 24
 cfg.maxCells = cfg.maxCells or 6000   -- max blocks of air in the room (16x16x4 = 1024)
@@ -946,9 +947,9 @@ cfg.noSmelt = cfg.noSmelt or {}
 if cfg.charcoal == nil then cfg.charcoal = true end -- logs -> charcoal (normal furnaces only)
 cfg.keepLogs = cfg.keepLogs or 32     -- logs of each kind that stay logs (for planks, chests)
 cfg.fuels = cfg.fuels or { "minecraft:charcoal", "minecraft:coal", "minecraft:coal_block", "minecraft:dried_kelp_block" }
-saveTable(CFG_FILE, cfg)
+saveTable(FILES.cfg, cfg)
 
-local stats = loadTable(STATS_FILE) or {}
+local stats = loadTable(FILES.stats) or {}
 stats.smelted = stats.smelted or {}
 stats.stored = stats.stored or 0
 stats.delivered = stats.delivered or 0
@@ -962,7 +963,7 @@ local function log(msg, isError)
   table.insert(logLines, 1, { textutils.formatTime(os.time(), true) .. " " .. msg, isError })
   while #logLines > 10 do table.remove(logLines) end
   if isError then
-    local h = fs.open(LOG_FILE, "a")
+    local h = fs.open(FILES.log, "a")
     if h then h.writeLine(os.date("%Y-%m-%d %H:%M ") .. msg) h.close() end
   end
   os.queueEvent("room_redraw")
@@ -1051,13 +1052,13 @@ local function dirBetween(a, b)
 end
 
 -- map.cells[k]: "a" = free air, otherwise the name of the block there
-local map = loadTable(MAP_FILE)
-local idx = loadTable(IDX_FILE) or {} -- [cell] = { kind=, acc=, dir=, size=, items= }
-local pos = loadTable(POS_FILE) or { x = 0, y = 0, z = 0, h = 0 }
+local map = loadTable(FILES.map)
+local idx = loadTable(FILES.idx) or {} -- [cell] = { kind=, acc=, dir=, size=, items= }
+local pos = loadTable(FILES.pos) or { x = 0, y = 0, z = 0, h = 0 }
 local mapVersion = 0
-local function saveMap() mapVersion = mapVersion + 1 saveTable(MAP_FILE, map) end
-local function saveIdx() saveTable(IDX_FILE, idx) end
-local function savePos() saveTable(POS_FILE, pos) end
+local function saveMap() mapVersion = mapVersion + 1 saveTable(FILES.map, map) end
+local function saveIdx() saveTable(FILES.idx, idx) end
+local function savePos() saveTable(FILES.pos, pos) end
 local function here() return key(pos.x, pos.y, pos.z) end
 local function free(k) return map.cells[k] == "a" end
 
@@ -2189,7 +2190,8 @@ local function pullInput()
   return n
 end
 
-local LAVA = "minecraft:lava_bucket"
+local refuelCarried, refuelSelf
+do
 local function fuelRoom()
   local lim = turtle.getFuelLimit and turtle.getFuelLimit() or 20000
   if lim == "unlimited" then return 0 end
@@ -2197,10 +2199,10 @@ local function fuelRoom()
 end
 
 -- Fuel in its own slots (also what you put straight into the turtle): no moving needed
-local function refuelCarried()
+function refuelCarried()
   -- Lava buckets are always burnt when they fit (1000 each), never stored; the empty
   -- buckets go to storage
-  for _, c in ipairs(carried(function(n) return n == LAVA end)) do
+  for _, c in ipairs(carried(function(n) return n == "minecraft:lava_bucket" end)) do
     if fuelRoom() >= 1000 then
       turtle.select(c.slot)
       turtle.refuel()
@@ -2217,12 +2219,12 @@ local function refuelCarried()
   turtle.select(1)
 end
 
-local function refuelSelf()
+function refuelSelf()
   refuelCarried()
   if fuelLeft() >= cfg.minFuel then return end
   -- Lava buckets in storage first (put there by older versions), then coal and the like
-  if (totals()[LAVA] or 0) > 0 and fuelRoom() >= 1000 and freeSlots() > 1 then
-    fetch(LAVA, math.min(totals()[LAVA], math.floor(fuelRoom() / 1000), freeSlots() - 1))
+  if (totals()["minecraft:lava_bucket"] or 0) > 0 and fuelRoom() >= 1000 and freeSlots() > 1 then
+    fetch("minecraft:lava_bucket", math.min(totals()["minecraft:lava_bucket"], math.floor(fuelRoom() / 1000), freeSlots() - 1))
     refuelCarried()
   end
   if fuelLeft() < cfg.minFuel then
@@ -2238,6 +2240,7 @@ local function refuelSelf()
     end
   end
   if fuelLeft() < 100 then log("Turtle low on fuel: put coal in the input chest", true) end
+end
 end
 
 ---------------------------------------------------------------------------
@@ -2383,7 +2386,7 @@ local function furnacePass()
   -- No fuel anywhere (coal, charcoal, ... or logs to start with): don't walk the furnaces
   -- for nothing; only go to pick up results or while one still has fuel in it
   local t = totals()
-  local fuel = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= LAVA or smeltKind(n) == "log" end)
+  local fuel = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" or smeltKind(n) == "log" end)
   for _, f in ipairs(cfg.fuels) do fuel = fuel + (t[f] or 0) end
   for name, c in pairs(t) do if smeltKind(name) == "log" then fuel = fuel + smeltable(name, c) end end
   if fuel == 0 then
@@ -2488,7 +2491,6 @@ end
 -- Requests
 ---------------------------------------------------------------------------
 local paused = false
-local homeTyped = false -- 'home' typed while lost: trust it, even if the start spot looks different
 local requests = {}
 local findRequest, busyFind = false, false
 local resyncRequest = false
@@ -2705,8 +2707,10 @@ end
 local M = "minecraft:"
 local function ring(x) return { [1] = x, [2] = x, [3] = x, [5] = x, [7] = x, [9] = x, [10] = x, [11] = x } end
 local function nine(x) return { [1] = x, [2] = x, [3] = x, [5] = x, [6] = x, [7] = x, [9] = x, [10] = x, [11] = x } end
+local BUILTIN
+do
 local S, I, D = M .. "stick", M .. "iron_ingot", M .. "diamond"
-local BUILTIN = {
+BUILTIN = {
   { out = M .. "stick", n = 4, grid = { [1] = "#planks", [5] = "#planks" } },
   { out = M .. "torch", n = 4, grid = { [1] = "#coal", [5] = S } },
   { out = M .. "crafting_table", n = 1, grid = { [1] = "#planks", [2] = "#planks", [5] = "#planks", [6] = "#planks" } },
@@ -2732,6 +2736,7 @@ for _, m in ipairs({ "iron", "diamond" }) do
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_axe", n = 1, grid = { [1] = x, [2] = x, [5] = x, [6] = S, [10] = S } }
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_shovel", n = 1, grid = { [2] = x, [6] = S, [10] = S } }
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_sword", n = 1, grid = { [2] = x, [6] = x, [10] = S } }
+end
 end
 -- Storage blocks (9 -> 1) and back (1 -> 9)
 for _, p in ipairs({ { "iron_block", "iron_ingot" }, { "gold_block", "gold_ingot" }, { "diamond_block", "diamond" },
@@ -3373,7 +3378,7 @@ local function round()
   storeAll()
   urgent()
   goHome()
-  saveTable(STATS_FILE, stats)
+  saveTable(FILES.stats, stats)
   os.queueEvent("room_stock")
 end
 
@@ -3388,7 +3393,7 @@ local function worker()
   -- 'home' (typed once it's back on its start spot facing the input chest)
   while true do
     refuelCarried()
-    if homeTyped then homeTyped = false log("Back on the start spot") break end
+    if status.homeTyped then status.homeTyped = false log("Back on the start spot") break end
     local ok, err = pcall(verifyPose)
     if ok then break end
     setState("LOST")
@@ -3468,7 +3473,7 @@ local function prompt()
         -- it's back on its start spot facing the input chest
         pos.x, pos.y, pos.z, pos.h, pos.pend = 0, 0, 0, 0, nil
         savePos()
-        homeTyped = true
+        status.homeTyped = true -- trusted even if the start spot looks different
         os.queueEvent("room_home")
         print("Position reset to the start spot.")
       elseif cmd == "resume" then paused = false print("Running.") os.queueEvent("room_request")
@@ -3525,5 +3530,5 @@ term.redirect(native)
 native.setBackgroundColor(colors.black)
 native.clear()
 native.setCursorPos(1, 1)
-saveTable(STATS_FILE, stats)
+saveTable(FILES.stats, stats)
 print("roomsorter stopped.")
