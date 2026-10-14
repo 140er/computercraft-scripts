@@ -2744,7 +2744,17 @@ for _, m in ipairs({ "iron", "diamond" }) do
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_axe", n = 1, grid = { [1] = x, [2] = x, [5] = x, [6] = S, [10] = S } }
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_shovel", n = 1, grid = { [2] = x, [6] = S, [10] = S } }
   BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_sword", n = 1, grid = { [2] = x, [6] = x, [10] = S } }
+  BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_hoe", n = 1, grid = { [1] = x, [2] = x, [6] = S, [10] = S } }
 end
+-- ComputerCraft parts, for the turtle factory (factory.lua)
+local CC, ST = "computercraft:", M .. "stone"
+BUILTIN[#BUILTIN + 1] = { out = CC .. "computer_normal", n = 1,
+  grid = { [1] = ST, [2] = ST, [3] = ST, [5] = ST, [6] = M .. "redstone", [7] = ST, [9] = ST, [10] = M .. "glass_pane", [11] = ST } }
+BUILTIN[#BUILTIN + 1] = { out = CC .. "turtle_normal", n = 1,
+  grid = { [1] = I, [2] = I, [3] = I, [5] = I, [6] = CC .. "computer_normal", [7] = I, [9] = I, [10] = M .. "chest", [11] = I } }
+local modem = ring(ST)
+modem[6] = M .. "ender_pearl"
+BUILTIN[#BUILTIN + 1] = { out = CC .. "wireless_modem_normal", n = 1, grid = modem }
 end
 -- Storage blocks (9 -> 1) and back (1 -> 9)
 for _, p in ipairs({ { "iron_block", "iron_ingot" }, { "gold_block", "gold_ingot" }, { "diamond_block", "diamond" },

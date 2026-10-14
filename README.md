@@ -1,6 +1,6 @@
 # computercraft-scripts
 
-Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a turtle you can chat with, and a pocket computer that controls them all.
+Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a crop farm, a lava fuel runner, a builder that also bores tunnels, a factory that builds more turtles, a turtle you can chat with, and a pocket computer with a map that controls them all.
 
 | Bot | File | Runs on | What it does |
 |---|---|---|---|
@@ -9,7 +9,12 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
-| [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
+| [Farmer](#farmer-farmerlua) | `farmer.lua` | farming turtle (hoe) | Flies over a field, harvests what's ripe (wheat, carrots, potatoes, beetroot, nether wart, melons, pumpkins, sugar cane, bamboo), replants and tills. |
+| [Fuel runner](#fuel-runner-fuellua) | `fuel.lua` | turtle | Fills buckets at a dripstone lava farm or a lava lake and keeps the other bots' fuel chests stocked with lava. |
+| [Builder](#builder-builderlua) | `builder.lua` | mining turtle | Clears and flattens land, lays floors, builds walls, and bores lit tunnels that bridge gaps and seal lava. |
+| [Turtle factory](#turtle-factory-factorylua) | `factory.lua` | crafty turtle | Crafts new turtles from parts the storage room makes, and sends each one off to its spot already set up as a miner, farmer, builder, ... |
+| [GPS hosts](#gps-and-the-map) | `gpshost.lua` | 4 computers | GPS for the map on the pocket panel and for setup without typing coordinates. |
+| [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, with a live **map** and an **Update all** button. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
 ---
@@ -21,7 +26,7 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `farmer`, `fuel`, `builder`, `factory`, `gpshost`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -409,7 +414,7 @@ Give the turtle a **crafting table**: put one in the drop-off chest and it equip
 - On the **order screen** craftable items simply show up in their category with a purple `+N`; ordering more than there is in storage crafts the rest.
 - Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
 - **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
-- **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
+- **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools (hoes too), storage blocks (9 ingots -> block) and back, nuggets -> ingots, and the ComputerCraft parts for the [turtle factory](#turtle-factory-factorylua): computers, turtles and wireless modems (an ender pearl each).
 - **Teach it anything else** (also modded recipes): on the turtle (or the request computer) type `pause`, wait until it says Paused (its inventory is empty then), put **one** set of the recipe in its 3x3 grid (the left 3 columns of the top 3 rows), type `learn`, then `resume`. Learned recipes are in `room.recipes`.
 - How it crafts: it empties itself, takes the ingredients straight into the grid slots, crafts as much as fits in its inventory at once and repeats.
 
@@ -528,15 +533,101 @@ A turtle you talk to. A language model reads what you say and decides what to do
 
 ---
 
+## Farmer (farmer.lua)
+A **farming turtle** (a turtle with a diamond hoe) that looks after a field of crops. It flies one block above the field and harvests what's ripe: wheat, carrots, potatoes, beetroot, nether wart, melons and pumpkins (it leaves the stems), sugar cane and bamboo (it leaves the bottom block). It plants the same crop again straight away, tills bare dirt in the field into farmland and plants it, and uses bone meal on young crops if you give it some. Crops from other mods that use the normal crop ages work too.
+
+**Setup.** Put the turtle on the corner of the field, **one block above the crops** (above the farmland + 1), facing along the field, with a chest next to it (behind, beside or under it, not on the field). Then:
+```
+farmer setup <x> <y> <z> <facing> <length> <width> [left]
+```
+`x y z facing` = where the turtle is (F3) and the way it faces; the field is `length` blocks forward (starting at the block in front of it) and `width` blocks to the right (or `left`), counting the column it stands in. With [GPS](#gps-and-the-map) `farmer setup <length> <width>` is enough. It starts on boot; `farmer` starts it by hand.
+
+- Water in the field is fine (it flies over it), so is a torch or a path: what can't grow is remembered and skipped.
+- Every 15 minutes it goes round. **Harvest now** on the panel sends it straight away.
+- The harvest and spare seeds go in its chest; it keeps up to a stack of every kind of seed. Put that chest next to the storage room's input chest (or empty it there) and the storage room makes bread, sugar, paper, etc. from it.
+- Fuel: lava buckets or coal in its chest. It never eats its crops.
+- Without a hoe (a pickaxe) it still harvests and replants, but never tills (it would dig the dirt away instead).
+
+## Fuel runner (fuel.lua)
+A turtle (no tool needed) that keeps everyone's fuel chests full of **lava buckets**, so you don't have to. It fills empty buckets at a **dripstone lava farm** (cauldrons under pointed dripstone that hangs from a block with lava on top) or a **lava lake**, brings full buckets to the chests you give it, and takes the empty buckets that the bots left there back. Spare lava goes in its own chest, the depot. It runs on that lava itself.
+
+**Setup.** Put it next to its depot chest with some empty buckets in it, then:
+```
+fuel setup <x> <y> <z> <facing>                     where the turtle is (with GPS: fuel setup)
+fuel cauldrons <x> <y> <z> <count> <line> <walkway> a straight line of lava cauldrons
+fuel lake <x> <y> <z> [radius]                      a lava lake: x y z = a lava block on its surface
+fuel add <name> <x> <y> <z> [keep]                  a chest to keep stocked (default 4 buckets)
+fuel list / fuel remove <name> / fuel clear
+fuel
+```
+- **Cauldrons:** `x y z` is the first cauldron, `count` how many in a straight line, `line` the way the line runs and `walkway` the side with a free row of air next to the cauldrons for the turtle, e.g. `fuel cauldrons 100 64 200 8 east south`. A cauldron under dripstone fills in a few minutes; it goes round every 10 minutes.
+- **Lake:** it flies over the lake one block above the lava and scoops up source blocks in a spiral, then goes deeper (turtles don't mind lava).
+- **Chests:** it drops the buckets in **from above**, so keep the block on top of each chest free. Good ones: the [lumber turtle's](#tree-farm-lumberlua) chest (it puts the empty buckets back in it, the runner takes those), each miner's fuel chest, the builder's and the farmer's chest, the factory's supply chest.
+- The panel's Bots tab has **Add chest**, **Add lake**, **Add cauldrons** and **List** buttons, so you can add a chest while standing next to it.
+
+## Builder (builder.lua)
+A **mining turtle** that does the boring building work. Give it jobs with world coordinates; it does them one after the other and comes home in between to unload, refuel and get blocks.
+
+```
+builder setup <x> <y> <z> <facing>          where the turtle is (with GPS: builder setup)
+builder tunnel <x> <y> <z> <dir> <length> [width] [height]
+builder flatten <x1> <z1> <x2> <z2> <y> [height]
+builder floor <x1> <z1> <x2> <z2> <y> [block]
+builder walls <x1> <z1> <x2> <z2> <y> <height> [block]
+builder clear <x1> <y1> <z1> <x2> <y2> <z2>
+builder list / builder cancel / builder clearall
+builder
+```
+- **Tunnel** (default 3 wide, 3 high): `x y z` is the floor-level middle of the tunnel's mouth (the block you would stand in; keep it open from above, the turtle flies in there), `dir` the way it goes. It fills gaps in the floor (so it bridges ravines and caves), seals lava, water and cave openings in the walls and ceiling with blocks, dries up lava and water inside the tunnel, and puts a torch on the floor every 8 blocks. A safe, lit highway to your mine or to a second base.
+- **Flatten**: everything above height `y` goes (16 blocks up, or `height`), holes at `y` get filled. Good for a building site.
+- **Floor** / **Walls**: lays blocks at height `y` / builds walls round the rectangle. Blocks that are already there stay.
+- **Clear**: digs out a whole box.
+- **Blocks**: cobblestone, cobbled deepslate, dirt, netherrack and the like, or the block a job names (`builder floor 0 0 9 9 63 stone_bricks`). What it digs up is used too; spare gravel and cobble get thrown away when it's full. Put blocks, torches and lava/coal in its chest; order them from the storage room.
+- It never digs chests, barrels, furnaces, computers and turtles, beds, doors or spawners: those spots get skipped (see `builder.log`).
+- Jobs can also be given from the panel's Bots tab (**Tunnel**, **Flatten**, **Floor**, **Walls**, **Clear box**). Paused or rebooted mid-job, it carries on where it was.
+
+## Turtle factory (factory.lua)
+A **crafty turtle** (crafting table) with a wireless or ender modem that turns parts into working turtles and sends them off. Order "a miner at 130 64 -350 facing south with role east": the factory crafts a plain turtle + diamond pickaxe + wireless modem into a mining turtle, puts it on its launch pad and switches it on. The new turtle boots from the factory's floppy disk, downloads `miner.lua` from GitHub, flies to its spot, runs `miner setup` there and starts working for the hub like the others.
+
+**Layout:** a disk drive with a floppy disk **on top of** the factory; the block in front of the factory and the one above that free (the launch pad), with open sky above the pad; the supply chest behind, beside or under the factory.
+```
+factory setup <x> <y> <z> <facing>          (with GPS: factory setup)
+factory build <kind> <x> <y> <z> <facing> [setup arguments]
+factory list / factory cancel / factory order on|off
+factory
+```
+- `kind`: `miner` (pickaxe), `builder` (pickaxe), `farmer` (hoe), `lumber` (axe), `fuel` (no tool) or `turtle` (just a turtle with a pickaxe that flies there). `x y z facing` is the new turtle's home spot: **build its chest there first**. The setup arguments are whatever comes after `x y z facing` in that bot's setup: `factory build miner 130 64 -350 south east` (role), `factory build farmer 90 64 10 north 9 9` (field), `factory build lumber 60 70 40 north 48` (lumber has no coordinates in its setup: just the radius).
+- **Parts** in the supply chest, per turtle: a plain turtle (`computercraft:turtle_normal`), the tool, a wireless modem, and lava or coal (it gives each new turtle about 2000 fuel). The [storage room](#storage-room) can craft all of them: turtles (7 iron + computer + chest), computers (stone, redstone, glass pane), wireless modems (stone + an ender pearl) and diamond tools. Put the factory against the storage room's **pickup chest** (that becomes its supply chest) and type `factory order on`: it orders whatever is missing by itself.
+- The new turtle flies straight there 6 blocks above the higher of the two spots and goes higher when something is in the way. If it gets stuck, it says where on its screen; pick it up and run the setup by hand.
+- A new miner works like the others; give it its own home spot at least 10 blocks from the other miners' shafts.
+
+## GPS and the map
+GPS lets a computer or turtle ask where it is. It needs **4 computers with wireless or ender modems**, high up and not all in one flat layer or line (e.g. three at the same height in an L, the fourth a few blocks above one of them). On each one:
+```
+install gpshost
+gpshost <x> <y> <z>        that computer's own coordinates
+```
+They start by themselves after that. With GPS:
+- the farmer, fuel runner, builder and factory can do `<bot> setup` without coordinates (they find their facing by stepping forward and back),
+- the pocket panel's **Map** tab shows where you are, plus the lumber turtle and Buddy. Miners (through the hub) and the newer bots are on the map even without GPS, because they keep track of their own coordinates.
+
+## Good to know about the newer bots
+The farmer, fuel runner, builder and factory share `botlib.lua` (`install` and `update` fetch it along). They all:
+- keep their position and heading in a `.state` file, so a reboot or chunk unload doesn't lose them; `<bot> home` resets the position after you carry one back to its home spot,
+- have the same screen: status, fuel bar and numbers, keys **P** pause / go on, **H** come home, **Q** quit,
+- burn only lava buckets, coal, charcoal, coal blocks and blaze rods, from their chest,
+- answer the pocket panel (Bots tab, Map, console, Update all) when they have a wireless or ender modem, and write problems to `<bot>.log`.
+
 ## Pocket panel
 `panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). `install panel` on it (see [Installing](#installing)), then `panel install` (opens on start-up) and `panel`.
 
-Tabs along the top (tap them, or keys 1-5, Q quits):
+Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
 - **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
-- **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
+- **Bots**: the lumber turtle, farmers, fuel runners, builders and the factory in one list. Tap one for its status, fuel and numbers, Pause / Go on, Come home, and its own buttons: *Harvest now*, *Add chest* / *Add lake*, *Tunnel* / *Flatten* / *Floor* / *Walls*, *Build turtle*. Buttons that need more ask for it on the bottom line (e.g. the tunnel's x y z, direction and length).
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **Map**: every bot seen from above, north up: `M` miners, `W` lumber, `B` Buddy, `F` farmer, `L` fuel runner, `U` builder, `T` factory, `@` you. `-`/`+` (or scroll) zoom, tap the map to move it there, tap a letter to see who it is and where, **Me** centres on you again. See [GPS and the map](#gps-and-the-map).
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
@@ -548,7 +639,7 @@ With a password you can also change things on a bot: `put <file> [as]` sends a f
 To turn this on, put a password in a file `dev.key` on each bot and type `key <password>` on the pocket. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password, so other players with a modem can't use them.
 Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
 
-Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions), and the bots that use `botlib.lua` (farmer, fuel, builder, factory) all answer on the protocol `bots`. In the console, call those by name or kind: `builder tunnel 100 64 200 east 50`, `fuel add lumber 60 70 41`, `factory build miner 130 64 -350 south east`, `farmer now`, `builder list`. A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 
 ---
 

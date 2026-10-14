@@ -4,19 +4,24 @@
 --   panel            start
 --   panel install    start automatically when the pocket computer turns on
 --
--- Tabs (tap them, or keys 1-5):
+-- Tabs (tap them, or keys 1-7):
 --   Home   everything at a glance; tap a card to open it
 --   Mine   the mining fleet through the hub: pick an ore, STOP / RECALL / RESUME,
 --          session time, tap a turtle to give orders to that turtle only
 --   Store  the storage room turtle: search, tap an item to order it, pause, resync
---   Wood   the lumber turtle: status, fuel and lava, pause / come home
+--   Bots   the lumber turtle, farmer, fuel runner, builder and turtle factory: status,
+--          pause / come home, and their own buttons (new job, add a chest, build a turtle)
 --   Buddy  chat with Buddy, send it home or to a place it remembers
+--   Map    where every bot is, seen from above (north up). Needs GPS hosts
+--          (gpshost.lua) for the pocket's own spot, the lumber turtle and Buddy.
+--          Tap the map to move it there, tap a letter to see who it is.
 -- Update all (Home tab, tap twice): every bot fetches its latest version from GitHub.
 -- Q quits.
 --
 -- What it talks to (each needs its own wireless or ender modem):
 --   hub.lua (protocol "minearmy"), roomsorter.lua ("roomsorter"),
---   lumber.lua ("lumber"), buddy.lua ("buddy")
+--   lumber.lua ("lumber"), buddy.lua ("buddy"), and farmer, fuel, builder and factory
+--   (all on "bots", see botlib.lua)
 
 local args = { ... }
 if args[1] == "install" then
@@ -46,7 +51,8 @@ local DEV = {
 local DEV_ORDER = { "hub", "store", "wood", "buddy" }
 for _, d in pairs(DEV) do d.seen = -1e9 d.asked = -1e9 end
 
-local data = { hub = nil, store = nil, storeInfo = nil, wood = nil, buddy = nil }
+local data = { hub = nil, store = nil, storeInfo = nil, wood = nil, buddy = nil, bots = {}, me = nil }
+-- data.bots[id] = the last bot_state from that turtle (botlib.lua), with .seen = os.clock()
 local chatLog = {} -- { who =, text = }
 local hubLeftAt = 0 -- os.clock() when the hub's session time came in
 
@@ -95,7 +101,7 @@ local function updateAll(sure)
     return
   end
   rednet.broadcast({ type = "panel", cmd = "update" }, "minearmy")
-  for _, p in ipairs({ "roomsorter", "lumber", "buddy" }) do rednet.broadcast({ cmd = "update" }, p) end
+  for _, p in ipairs({ "roomsorter", "lumber", "buddy", "bots" }) do rednet.broadcast({ cmd = "update" }, p) end
   sleep(1)
   term.setBackgroundColor(colors.black)
   term.setTextColor(colors.white)
@@ -215,15 +221,35 @@ end
 ---------------------------------------------------------------------------
 -- UI state
 ---------------------------------------------------------------------------
-local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "buddy", "Bud" },
-  { "console", ">_" } }
+local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "bots", "Bots" }, { "buddy", "Bud" },
+  { "map", "Map" }, { "console", ">_" } }
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple,
-  console = colors.gray }
-local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
+  console = colors.gray, bots = colors.green, map = colors.brown }
+local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0,
+  bot = nil, mapScale = 4, mapCenter = nil }
+
+-- The bots on protocol "bots" that answered lately, sorted by name
+local function liveBots()
+  local l = {}
+  for id, b in pairs(data.bots) do
+    if os.clock() - b.seen < 60 then l[#l + 1] = b b.id = id end
+  end
+  table.sort(l, function(a, b) return tostring(a.label or a.kind) < tostring(b.label or b.kind) end)
+  return l
+end
+
+local function askBots()
+  for id in pairs(data.bots) do rednet.send(id, { cmd = "status" }, "bots") end
+end
 
 local function setTab(t)
   ui.tab, ui.popup, ui.scroll = t, nil, 0
   if DEV[t] then ask(t) end
+  if t == "bots" then
+    ui.bot = nil
+    if DEV.wood.id then ask("wood") end
+    askBots()
+  end
 end
 
 -- Ask for text on the bottom lines (Enter = done, empty = cancel)
@@ -302,14 +328,18 @@ local function drawHome()
         { i.chests and (i.chests .. " chests, " .. (i.furnaces or 0) .. " furnaces") or "", colors.lightGray },
       }
     end },
-    { key = "wood", title = "LUMBERJACK", lines = function()
+    { key = "bots", title = "BOTS", lines = function()
+      local l = {}
       local w = data.wood
-      local lava = w.lava == nil and "no chest" or (w.lava .. " lava")
-      return {
-        { (w.state or "?") .. ": " .. tostring(w.status or ""), w.paused and colors.yellow or colors.lime },
-        { "Fuel " .. num(w.fuel) .. "  " .. lava, (w.lava == 0) and colors.red or colors.white },
-        { "Felled " .. num(w.felled) .. "  Logs " .. num(w.logs), colors.lightGray },
-      }
+      if online("wood") and w then
+        l[#l + 1] = { "Wood: " .. tostring(w.status or w.state or "?"), w.paused and colors.yellow or colors.lime }
+      end
+      for _, b in ipairs(liveBots()) do
+        if #l < 3 then
+          l[#l + 1] = { (b.label or b.kind) .. ": " .. tostring(b.status or b.state), b.paused and colors.yellow or colors.white }
+        end
+      end
+      return l
     end },
     { key = "buddy", title = "BUDDY", lines = function()
       local b = data.buddy
@@ -325,11 +355,12 @@ local function drawHome()
   for _, card in ipairs(cards) do
     local key = card.key
     local col = TAB_COLOR[key]
-    local ok = online(key) and data[key]
+    local ok
+    if key == "bots" then ok = online("wood") or #liveBots() > 0 else ok = online(key) and data[key] end
     text(1, y, (" "):rep(W), colors.black, col)
     text(2, y, card.title, colors.black, col)
     right(y, "\7 ", ok and colors.lime or colors.red, col)
-    local lines = ok and card.lines() or offlineLines(key)
+    local lines = ok and card.lines() or (key == "bots" and { { "No bots found yet", colors.lightGray } } or offlineLines(key))
     for i = 1, 3 do
       local l = lines[i] or { "" }
       fill(y + i, colors.black)
@@ -637,6 +668,228 @@ local function drawWood()
 end
 
 ---------------------------------------------------------------------------
+-- Bots: the lumber turtle and every bot on protocol "bots" (botlib.lua)
+---------------------------------------------------------------------------
+local KIND = { farmer = { "F", colors.lime }, fuel = { "L", colors.red }, builder = { "U", colors.brown },
+  factory = { "T", colors.cyan } }
+
+local function botCmd(b, msg)
+  msg.rid = math.random(1, 1073741824)
+  rednet.send(b.id, msg, "bots")
+  toast("Sent...", 2)
+end
+
+local function stateColor(b)
+  if b.paused then return colors.yellow end
+  if b.state == "COMING HOME" or b.state == "PAUSING" then return colors.orange end
+  if b.err and tostring(b.status):find("STUCK") then return colors.red end
+  return colors.lime
+end
+
+local function drawBotList()
+  local rows = {}
+  if DEV.wood.id then
+    local w = data.wood or {}
+    rows[#rows + 1] = { label = w.label or "Lumberjack", state = online("wood") and (w.state or "?") or "silent",
+      status = online("wood") and tostring(w.status or "") or "No answer lately", col = colors.green,
+      sc = online("wood") and stateColor(w) or colors.red, open = "wood" }
+  end
+  for _, b in ipairs(liveBots()) do
+    local k = KIND[b.kind] or { "?", colors.white }
+    local silent = os.clock() - b.seen > 20
+    rows[#rows + 1] = { label = b.label or b.title or b.kind, state = silent and "silent" or b.state, status = tostring(b.status or ""),
+      col = k[2], sc = silent and colors.red or stateColor(b), open = b.id }
+  end
+  if #rows == 0 then
+    text(2, 3, "No bots found yet.", colors.lightGray)
+    local l = wrap("Farmer, fuel runner, builder and factory turtles show up here once they run with a wireless or ender modem. So does the lumber turtle.", W - 2)
+    for i, x in ipairs(l) do text(2, 4 + i, x, colors.lightGray) end
+    return
+  end
+  local per = 3
+  local fit = math.floor((H - 3) / per)
+  ui.scroll = math.max(0, math.min(ui.scroll, #rows - fit))
+  local y = 2
+  for i = ui.scroll + 1, math.min(#rows, ui.scroll + fit) do
+    local r = rows[i]
+    fill(y, r.col)
+    text(2, y, r.label:sub(1, W - 12), colors.black, r.col)
+    right(y, tostring(r.state):sub(1, 11) .. " ", r.sc, r.col)
+    text(2, y + 1, r.status:sub(1, W - 2), colors.white)
+    local open = r.open
+    buttons[#buttons + 1] = { x1 = 1, y1 = y, x2 = W, y2 = y + 1, action = function()
+      ui.bot, ui.botNote = open, nil
+      if open == "wood" then ask("wood") else rednet.send(open, { cmd = "status" }, "bots") end
+    end }
+    y = y + per
+  end
+  if #rows > fit then right(H - 1, (ui.scroll + 1) .. "-" .. math.min(#rows, ui.scroll + fit) .. " of " .. #rows .. " (scroll) ", colors.lightGray) end
+end
+
+local function drawBotDetail(b)
+  local k = KIND[b.kind] or { "?", colors.white }
+  local sc = stateColor(b)
+  fill(2, k[2])
+  text(2, 2, tostring(b.label or b.title):sub(1, W - 12), colors.black, k[2])
+  right(2, tostring(b.state or "?"):sub(1, 11) .. " ", sc, k[2])
+  local sl = wrap(b.status or "", W - 2)
+  for i = 1, 2 do text(2, 2 + i, sl[i] or "", colors.yellow) end
+  text(2, 5, "Fuel", colors.lightGray)
+  local frac = (b.fuel == math.huge) and 1 or ((b.fuel or 0) / (b.fuelMax or 5000))
+  bar(7, 5, W - 13, frac, (b.fuel or 0) < 300 and colors.red or colors.lime)
+  right(5, num(b.fuel) .. " ", colors.white)
+  if b.x then text(2, 6, "At " .. b.x .. " " .. b.y .. " " .. b.z, colors.lightGray) end
+  -- action buttons from the bottom up: Back, Pause + Home, then the bot's own (two a row)
+  local acts = b.actions or {}
+  local actRows = math.ceil(#acts / 2)
+  local yb = H - 1 - 1 - actRows
+  local yl = 7
+  if ui.botNote then
+    local nl = wrap(ui.botNote, W - 2)
+    for i = 1, math.min(#nl, yb - yl) do text(2, yl + i - 1, nl[i], colors.white) end
+    buttons[#buttons + 1] = { x1 = 1, y1 = yl, x2 = W, y2 = yb - 1, action = function() ui.botNote = nil end }
+  else
+    for _, l in ipairs(b.lines or {}) do
+      if yl >= yb - (b.err and 1 or 0) then break end
+      text(2, yl, tostring(l[1]), colors.lightGray)
+      text(13, yl, tostring(l[2]):sub(1, W - 13), colors.white)
+      yl = yl + 1
+    end
+    if b.err then text(2, yb - 1, ("! " .. b.err):sub(1, W - 1), colors.red) end
+  end
+  local y = yb
+  for i = 1, #acts, 2 do
+    local list = {}
+    for j = i, math.min(i + 1, #acts) do
+      local a = acts[j]
+      list[#list + 1] = { a.label, colors.white, colors.blue, function()
+        local arg = a.arg
+        if a.ask then
+          local typed = prompt(a.ask)
+          if not typed then return end
+          arg = (a.prefix and (a.prefix .. " ") or "") .. typed
+        end
+        botCmd(b, { cmd = a.cmd, arg = arg })
+      end }
+    end
+    buttonRow(y, list)
+    y = y + 1
+  end
+  buttonRow(H - 2, {
+    { b.paused and "Go on" or "Pause", colors.black, b.paused and colors.lime or colors.yellow, function()
+      botCmd(b, { cmd = b.paused and "resume" or "pause" })
+    end },
+    { "Come home", colors.white, colors.orange, function() botCmd(b, { cmd = "home" }) end },
+  })
+  button(1, H - 1, W, "< All bots", colors.white, colors.gray, function() ui.bot, ui.botNote = nil, nil end)
+end
+
+local function drawBots()
+  if ui.bot == "wood" then
+    drawWood()
+    button(1, H - 1, W, "< All bots", colors.white, colors.gray, function() ui.bot = nil end)
+  elseif ui.bot and data.bots[ui.bot] then
+    drawBotDetail(data.bots[ui.bot])
+  else
+    ui.bot = nil
+    drawBotList()
+  end
+end
+
+---------------------------------------------------------------------------
+-- Map: every bot seen from above, north up
+---------------------------------------------------------------------------
+local SCALES = { 1, 2, 4, 8, 16, 32, 64 }
+local mapCells = {} -- "col,row" -> marker, for taps
+
+local function markers()
+  local l = {}
+  local function add(x, z, ch, col, label, y)
+    if type(x) == "number" and type(z) == "number" then l[#l + 1] = { x = x, z = z, y = y, ch = ch, col = col, label = label } end
+  end
+  for _, t in ipairs(data.hub and data.hub.turtles or {}) do add(t.x, t.z, "M", colors.orange, t.label or ("#" .. t.id), t.y) end
+  if data.wood and online("wood") then add(data.wood.gx, data.wood.gz, "W", colors.green, data.wood.label or "Lumberjack", data.wood.gy) end
+  if data.buddy and online("buddy") then add(data.buddy.gx, data.buddy.gz, "B", colors.purple, data.buddy.name or "Buddy", data.buddy.gy) end
+  for _, b in ipairs(liveBots()) do
+    local k = KIND[b.kind] or { "?", colors.white }
+    add(b.x, b.z, k[1], k[2], b.label or b.kind, b.y)
+  end
+  if data.me then add(data.me.x, data.me.z, "@", colors.white, "You (this pocket)", data.me.y) end
+  return l
+end
+
+local function drawMap()
+  local ms = markers()
+  local center = ui.mapCenter or data.me or ms[1]
+  local scale = SCALES[ui.mapScale] or 8
+  local top, bottom = 3, H - 2
+  local cx, cy = math.ceil(W / 2), math.floor((top + bottom) / 2)
+  local zs = scale * 1.5 -- a character is about 1.5 times as tall as it is wide
+  text(1, 2, (" "):rep(W), nil, colors.gray)
+  if center then
+    text(1, 2, (" %d,%d 1:%d"):format(math.floor(center.x), math.floor(center.z), scale), colors.white, colors.gray)
+  end
+  button(W - 9, 2, 3, "-", colors.white, colors.blue, function() ui.mapScale = math.min(#SCALES, ui.mapScale + 1) end)
+  button(W - 6, 2, 3, "+", colors.white, colors.blue, function() ui.mapScale = math.max(1, ui.mapScale - 1) end)
+  button(W - 3, 2, 4, "Me", colors.white, colors.blue, function() ui.mapCenter = nil end)
+  mapCells = {}
+  if not center then
+    local l = wrap("Nothing to show yet. The map needs positions: the hub's miners and the new bots send theirs. For this pocket, the lumber turtle and Buddy, set up GPS hosts (gpshost.lua).", W - 2)
+    for i, x in ipairs(l) do text(2, top + i, x, colors.lightGray) end
+    return
+  end
+  -- chunk lines every 16 blocks as dots, when zoomed in enough
+  for row = top, bottom do
+    for col = 1, W do
+      local x = center.x + (col - cx) * scale
+      local z = center.z + (row - cy) * zs
+      if scale <= 4 and math.floor(x) % 16 < scale and math.floor(z) % 16 < zs then text(col, row, ".", colors.gray) end
+    end
+  end
+  text(W, top, "N", colors.lightGray)
+  local off = 0
+  for _, m in ipairs(ms) do
+    local col = cx + math.floor((m.x - center.x) / scale + 0.5)
+    local row = cy + math.floor((m.z - center.z) / zs + 0.5)
+    if col >= 1 and col <= W and row >= top and row <= bottom then
+      local key = col .. "," .. row
+      local prev = mapCells[key]
+      mapCells[key] = prev and { label = prev.label .. ", " .. m.label, x = m.x, y = m.y, z = m.z } or m
+      text(col, row, m.ch, m.col)
+    else
+      off = off + 1
+    end
+  end
+  -- legend
+  fill(H - 1, colors.black)
+  local x = 1
+  for _, e in ipairs({ { "@", "you", colors.white }, { "M", "", colors.orange }, { "W", "", colors.green },
+    { "B", "", colors.purple }, { "F", "", colors.lime }, { "L", "", colors.red }, { "U", "", colors.brown },
+    { "T", "", colors.cyan } }) do
+    text(x, H - 1, e[1], e[3])
+    x = x + 1 + (#e[2] > 0 and (#e[2] + 1) or 1)
+    if #e[2] > 0 then text(x - #e[2] - 1, H - 1, e[2], colors.lightGray) end
+  end
+  if off > 0 then right(H - 1, off .. " off map", colors.lightGray) end
+  buttons[#buttons + 1] = { x1 = 1, y1 = top, x2 = W, y2 = bottom, action = function() end, map = true }
+end
+
+-- A tap on the map: who is there, or move the map there
+local function mapTap(col, row)
+  local m = mapCells[col .. "," .. row]
+  if m then
+    toast(m.label .. " at " .. math.floor(m.x) .. " " .. tostring(m.y and math.floor(m.y) or "?") .. " " .. math.floor(m.z), 6)
+    return
+  end
+  local ms = markers()
+  local center = ui.mapCenter or data.me or ms[1]
+  if not center then return end
+  local scale = SCALES[ui.mapScale] or 8
+  local cx, cy = math.ceil(W / 2), math.floor((3 + H - 2) / 2)
+  ui.mapCenter = { x = center.x + (col - cx) * scale, z = center.z + (row - cy) * scale * 1.5 }
+end
+
+---------------------------------------------------------------------------
 -- Buddy
 ---------------------------------------------------------------------------
 local function addChat(who, text)
@@ -749,6 +1002,17 @@ local HELP = {
   "LUMBER:",
   " wood status|pause|resume",
   " wood home",
+  "FARMER, FUEL, BUILDER,",
+  "FACTORY (by name or kind):",
+  " <bot> status|pause|resume",
+  " <bot> home | now",
+  " builder tunnel <x y z dir len>",
+  " builder flatten|floor|walls",
+  " builder list | cancel",
+  " fuel add <name> <x y z>",
+  " fuel lake|cauldrons|list",
+  " factory build <kind x y z f>",
+  " factory list | order on",
   "BUDDY:",
   " buddy <say anything>",
   " buddy home | status",
@@ -781,6 +1045,11 @@ local function findBot(word)
   for _, t in ipairs(miners()) do -- the start of a name is enough when only one fits
     if not id and short(t.label):sub(1, #short(w)) == short(w) and #w >= 2 then
       return { miner = t, id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) }
+    end
+  end
+  for bid, b in pairs(data.bots) do -- farmer, fuel, builder, factory: by name, kind or #id
+    if (id and bid == id) or short(b.label) == short(w) or lower(b.kind) == w then
+      return { newbot = b, id = bid, proto = "bots", name = b.label or b.kind }
     end
   end
   if id then
@@ -888,6 +1157,10 @@ local function botList()
     say(string.format("miner  #%-4d %s %s", t.id, (t.label or "?"):sub(1, 10), num(t.fuel)),
       (t.age or 0) > 15 and colors.orange or colors.lime)
   end
+  for _, b in ipairs(liveBots()) do
+    say(string.format("%-6s #%-4d %s", tostring(b.kind):sub(1, 6), b.id, tostring(b.label or ""):sub(1, 12)),
+      os.clock() - b.seen > 20 and colors.orange or colors.lime)
+  end
 end
 
 local function run(line)
@@ -947,6 +1220,23 @@ local function run(line)
       if op == "pause" or op == "resume" or op == "home" then sendTo(bot, { cmd = op }, { wood = true })
       elseif op == "" or op == "status" then sendTo(bot, { cmd = "status" }, { wood = true })
       else say("wood pause | resume | home | status", colors.orange) end
+    elseif bot.newbot then
+      local rest = table.concat(words, " ", 2)
+      local msg = { cmd = (op == "" and "status") or op }
+      if not ({ status = true, pause = true, resume = true, home = true, now = true })[msg.cmd] then
+        -- the bot's own buttons: "builder tunnel ...", "fuel add ...", "factory build ...", "builder list"
+        msg = nil
+        for _, a in ipairs(bot.newbot.actions or {}) do
+          if not msg and (a.prefix == op or a.arg == op) then msg = { cmd = a.cmd, arg = rest } end
+        end
+        if not msg then
+          for _, a in ipairs(bot.newbot.actions or {}) do
+            if not msg and (a.cmd == "config" or a.cmd == "cmd" or a.cmd == "job") then msg = { cmd = a.cmd, arg = rest } end
+          end
+        end
+        if not msg then say("Unknown command for " .. bot.name, colors.orange) return end
+      end
+      sendTo(bot, msg, { newbot = true })
     elseif bot.key == "buddy" then
       if op == "home" then sendTo(bot, { cmd = "home" })
       elseif op == "goto" then sendTo(bot, { cmd = "goto", place = table.concat(words, " ", 3) })
@@ -989,6 +1279,14 @@ local function consoleReply(id, m, proto)
     return true
   elseif p.hub and m.type == "panel_state" then
     say(tag .. (m.note or ("OK. " .. hubJob(m))), m.note and colors.orange or colors.lime)
+    m.note = nil -- already shown
+  elseif p.newbot and m.type == "bot_state" then
+    say(tag .. tostring(m.note or (tostring(m.state) .. ": " .. tostring(m.status))), colors.lime)
+    if not m.note then
+      local l = {}
+      for _, x in ipairs(m.lines or {}) do l[#l + 1] = tostring(x[1]) .. " " .. tostring(x[2]) end
+      say(table.concat(l, ", "), colors.lightGray)
+    end
     m.note = nil -- already shown
   elseif p.wood and m.type == "lumber_state" then
     say(tag .. tostring(m.state) .. ": " .. tostring(m.status), colors.lime)
@@ -1133,7 +1431,8 @@ local function draw()
   if ui.tab == "home" then drawHome()
   elseif ui.tab == "hub" then drawMine()
   elseif ui.tab == "store" then drawStore()
-  elseif ui.tab == "wood" then drawWood()
+  elseif ui.tab == "bots" then drawBots()
+  elseif ui.tab == "map" then drawMap()
   elseif ui.tab == "buddy" then drawBuddy()
   elseif ui.tab == "console" then drawConsole() return end
   if ui.popup and ui.popup.kind == "order" then
@@ -1197,6 +1496,13 @@ local function receiveLoop()
       elseif proto == "buddy" and m.type == "buddy_state" then
         DEV.buddy.id, DEV.buddy.seen = id, os.clock()
         data.buddy = m
+      elseif proto == "bots" and m.type == "bot_state" then
+        m.seen = os.clock()
+        data.bots[id] = m
+        if m.note then
+          if ui.tab == "bots" and ui.bot == id and tostring(m.note):find("\n") then ui.botNote = m.note
+          else toast(m.note, 6) end
+        end
       elseif proto == "buddy" and m.type == "buddy_answer" then
         DEV.buddy.seen = os.clock()
         addChat(data.buddy and data.buddy.name or "Buddy", tostring(m.text))
@@ -1221,6 +1527,12 @@ local function findLoop()
         end
       end
     end
+    for _, id in ipairs({ rednet.lookup("bots") }) do
+      if not data.bots[id] then
+        data.bots[id] = { seen = os.clock(), kind = "?", label = "#" .. id, state = "?", status = "Asking..." }
+        rednet.send(id, { cmd = "status" }, "bots")
+      end
+    end
     redrawSoon()
     sleep(online("hub") and online("store") and online("wood") and online("buddy") and 30 or 8)
   end
@@ -1234,8 +1546,14 @@ local function pollLoop()
     if ev == "timer" and a == timer then
       for _, key in ipairs(DEV_ORDER) do
         local d = DEV[key]
-        local every = (ui.tab == key or ui.tab == "home") and d.poll or 10
+        local open = ui.tab == key or ui.tab == "home" or (key == "wood" and ui.tab == "bots")
+        local every = open and d.poll or 10
         if d.id and os.clock() - d.asked >= every then ask(key) end
+      end
+      local every = (ui.tab == "bots" or ui.tab == "home" or ui.tab == "map") and 3 or 15
+      if os.clock() - (ui.botsAsked or -1e9) >= every then
+        ui.botsAsked = os.clock()
+        askBots()
       end
       timer = os.startTimer(0.5)
     elseif ev == "panel_ask" and DEV[a] then
@@ -1259,7 +1577,7 @@ local function uiLoop()
       for k = #buttons, 1, -1 do
         local bt = buttons[k]
         if b >= bt.x1 and b <= bt.x2 and cc >= bt.y1 and cc <= bt.y2 then
-          bt.action()
+          if bt.map then mapTap(b, cc) else bt.action() end
           break
         end
       end
@@ -1271,7 +1589,9 @@ local function uiLoop()
     elseif ev == "mouse_scroll" then
       if ui.tab == "console" then con.scroll = con.scroll - a * 3
       elseif ui.tab == "store" then ui.scroll = ui.scroll + a * 3
-      elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a end
+      elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a
+      elseif ui.tab == "bots" then ui.scroll = ui.scroll + a
+      elseif ui.tab == "map" then ui.mapScale = math.max(1, math.min(#SCALES, ui.mapScale + a)) end
       draw()
     elseif ev == "char" then
       local n = tonumber(a)
@@ -1284,7 +1604,17 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop)
+-- Where this pocket is (for the map), when there are GPS hosts
+local function gpsLoop()
+  while not gps do sleep(3600) end
+  while true do
+    local x, y, z = gps.locate(1)
+    if x then data.me = { x = x, y = y, z = z } end
+    sleep(ui.tab == "map" and 3 or 30)
+  end
+end
+
+parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, gpsLoop)
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()

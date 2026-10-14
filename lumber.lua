@@ -1396,8 +1396,16 @@ local function radio()
   if not modem then while true do os.pullEvent("lumber_never") end end
   rednet.open(peripheral.getName(modem))
   rednet.host("lumber", os.getComputerLabel() or ("lumber" .. os.getComputerID()))
+  local gpsAt, gpsPos = -1e9, nil
   while true do
     local id, m = rednet.receive("lumber")
+    -- where it is in the world, for the pocket panel's map (only with GPS hosts; looked up
+    -- at most every 20 seconds, it takes up to half a second)
+    if type(m) == "table" and m.type ~= "dev" and os.clock() - gpsAt > 20 then
+      gpsAt = os.clock()
+      local gx, gy, gz = gps.locate(0.5)
+      gpsPos = gx and { math.floor(gx + 0.5), math.floor(gy + 0.5), math.floor(gz + 0.5) } or nil
+    end
     if type(m) == "table" and m.type == "dev" then
       devCommand(m, LOG_FILE, "lumber", function(r) rednet.send(id, r, "lumber") end)
     elseif type(m) == "table" then
@@ -1413,7 +1421,8 @@ local function radio()
         status = ui.status, fuel = fuel(), fuelMax = REFUEL_TO, lava = lavaLeft, felled = st.felled,
         logs = st.logs, spots = spots, maxSpots = MAX_SPOTS, saplings = saplingCount(),
         searched = math.min(100, math.floor((st.cursor - 1) * 100 / #CELLS)), radius = R,
-        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y } }, "lumber")
+        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y },
+        gx = gpsPos and gpsPos[1], gy = gpsPos and gpsPos[2], gz = gpsPos and gpsPos[3] }, "lumber")
     end
   end
 end

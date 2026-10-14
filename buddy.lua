@@ -914,8 +914,16 @@ local function radioLoop()
   if not modem then while true do os.pullEvent("buddy_never") end end
   rednet.open(peripheral.getName(modem))
   rednet.host("buddy", cfg.name)
+  local gpsAt, gpsPos = -1e9, nil
   while true do
     local id, m = rednet.receive("buddy")
+    -- where it is in the world, for the pocket panel's map (only with GPS hosts; looked up
+    -- at most every 20 seconds, it takes up to half a second)
+    if type(m) == "table" and m.type ~= "dev" and os.clock() - gpsAt > 20 then
+      gpsAt = os.clock()
+      local gx, gy, gz = gps.locate(0.5)
+      gpsPos = gx and { math.floor(gx + 0.5), math.floor(gy + 0.5), math.floor(gz + 0.5) } or nil
+    end
     if type(m) == "table" and m.type == "dev" then
       devCommand(m, nil, "buddy", function(r) rednet.send(id, r, "buddy") end)
     elseif type(m) == "table" then
@@ -931,7 +939,8 @@ local function radioLoop()
       local p = pos()
       rednet.send(id, { type = "buddy_state", rid = m.rid, name = cfg.name, model = cfg.model,
         fuel = turtle.getFuelLevel(), busy = busy or #netJobs > 0, places = places,
-        pos = { x = p.x, y = p.y, z = p.z } }, "buddy")
+        pos = { x = p.x, y = p.y, z = p.z },
+        gx = gpsPos and gpsPos[1], gy = gpsPos and gpsPos[2], gz = gpsPos and gpsPos[3] }, "buddy")
     end
   end
 end
