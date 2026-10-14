@@ -171,6 +171,7 @@ if args[1] == "client" then
       Other = { ".0000.", "0....0", "...00.", "..0...", "......", "..0..." },
       ["All items"] = { "111111", "1cccc1", "111111", "1c88c1", "1cccc1", "111111" },
       Craft = { "cccccc", "c1c1c1", "cccccc", "c1c1c1", "cccccc", "8....8" },
+      Frequent = { "..44..", "444444", ".4444.", ".4..4.", "4....4", "......" },
     }
     local HEXC = {}
     for i = 0, 15 do HEXC[2 ^ i] = ("0123456789abcdef"):sub(i + 1, i + 1) end
@@ -307,6 +308,28 @@ if args[1] == "client" then
       message = type(r) == "table" and r or { "No answer (out of range?)" }
     end
 
+    -- Tiles: icon, name and a second line; 3 columns on a computer, 2 on a pocket computer
+    local function drawTiles(tiles)
+      local cols = W >= 45 and 3 or 2
+      local bw = math.floor((W - (cols + 1)) / cols)
+      local rows = math.ceil(#tiles / cols)
+      local gap = (rows * 3 - 1 <= H - 4) and 1 or 0
+      for k, e in ipairs(tiles) do
+        local x = 2 + ((k - 1) % cols) * (bw + 1)
+        local y = 3 + math.floor((k - 1) / cols) * (2 + gap)
+        local tbg = e.bg or colors.gray
+        text(x, y, (" "):rep(bw), colors.white, tbg)
+        text(x, y + 1, (" "):rep(bw), colors.white, tbg)
+        icon(x + 1, y, ICONS[e.icon] or ICONS.Other, tbg)
+        local nameColor = e.color or colors.white
+        if nameColor == tbg or nameColor == colors.gray then nameColor = colors.white end
+        if nameColor == colors.brown then nameColor = colors.orange end
+        text(x + 5, y, e.name:sub(1, bw - 5), e.empty and colors.lightGray or nameColor, tbg)
+        text(x + 5, y + 1, e.sub:sub(1, bw - 5), e.empty and colors.lightGray or colors.white, tbg)
+        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + bw - 1, y2 = y + 1, action = e.action }
+      end
+    end
+
     local function drawHome()
       clear()
       local total = 0
@@ -317,32 +340,17 @@ if args[1] == "client" then
       for i, c in ipairs(CATS) do list[#list + 1] = { i = i, c = c, n = #itemsIn(i) } end
       list[#list + 1] = { i = "all", c = { name = "All items", color = colors.white }, n = total }
       list[#list + 1] = { i = "craft", c = { name = "Craft", color = colors.purple }, n = -1 }
-      -- Tiles: icon, name, how many kinds
-      local cols = W >= 45 and 3 or 2
-      local bw = math.floor((W - (cols + 1)) / cols)
-      local rows = math.ceil(#list / cols)
-      local avail = H - 4
-      local gap = (rows * 3 - 1 <= avail) and 1 or 0
-      for k, e in ipairs(list) do
-        local col = (k - 1) % cols
-        local row = math.floor((k - 1) / cols)
-        local x = 2 + col * (bw + 1)
-        local y = 3 + row * (2 + gap)
+      local tiles = {}
+      for _, e in ipairs(list) do
         local isCraft = e.i == "craft"
-        local empty = (not isCraft and e.n == 0) or (isCraft and not canCraft)
-        local tbg = isCraft and (canCraft and colors.purple or colors.gray) or colors.gray
-        text(x, y, (" "):rep(bw), colors.white, tbg)
-        text(x, y + 1, (" "):rep(bw), colors.white, tbg)
-        icon(x + 1, y, ICONS[e.c.name] or ICONS.Other, tbg)
-        local name = (isCraft and "CRAFT" or (TILE[e.c.name] or e.c.name)):sub(1, bw - 5)
-        local sub = isCraft and (canCraft and "make items" or "no table") or (e.n .. (e.n == 1 and " kind" or " kinds"))
-        local nameColor = isCraft and colors.white or e.c.color
-        if nameColor == tbg or nameColor == colors.gray then nameColor = colors.white end
-        if nameColor == colors.brown then nameColor = colors.orange end
-        text(x + 5, y, name, empty and colors.lightGray or nameColor, tbg)
-        text(x + 5, y + 1, sub:sub(1, bw - 5), empty and colors.lightGray or colors.white, tbg)
-        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + bw - 1, y2 = y + 1, action = isCraft and "craft" or { "cat", e.i } }
+        tiles[#tiles + 1] = {
+          icon = e.c.name, name = isCraft and "CRAFT" or (TILE[e.c.name] or e.c.name),
+          sub = isCraft and (canCraft and "make items" or "no table") or (e.n .. (e.n == 1 and " kind" or " kinds")),
+          color = isCraft and colors.white or e.c.color, bg = isCraft and canCraft and colors.purple or nil,
+          empty = (not isCraft and e.n == 0) or (isCraft and not canCraft),
+          action = isCraft and "craft" or { "cat", e.i } }
       end
+      drawTiles(tiles)
       button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
       button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
       button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
@@ -407,6 +415,21 @@ if args[1] == "client" then
       button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
     end
 
+    -- Which recipes belong in a craft tile: "frequent", "all" or a category number
+    local function recipesIn(which)
+      local l = {}
+      for _, r in ipairs(recipes) do
+        if which == "all" or (which == "frequent" and (r.crafted or 0) > 0) or catOf(r.name) == which then l[#l + 1] = r end
+      end
+      if which == "frequent" then
+        table.sort(l, function(a, b) return a.crafted > b.crafted end)
+      else
+        table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
+      end
+      return l
+    end
+
+    local craftCat = "all"
     local function drawCraft()
       clear()
       titleBar("Craft", "back")
@@ -416,22 +439,54 @@ if args[1] == "client" then
         text(2, 5, "it equips it by itself.", colors.lightGray)
         return
       end
+      local tiles = {}
+      local function count(which)
+        local n, can = 0, 0
+        for _, r in ipairs(recipesIn(which)) do n = n + 1 if r.can > 0 then can = can + 1 end end
+        return n, can
+      end
+      local fn = count("frequent")
+      tiles[1] = { icon = "Frequent", name = "Frequent", color = colors.yellow, empty = fn == 0,
+        sub = fn > 0 and (fn .. " crafted") or "nothing yet", action = { "craftcat", "frequent" } }
+      for i, c in ipairs(CATS) do
+        local n, can = count(i)
+        if n > 0 then
+          tiles[#tiles + 1] = { icon = c.name, name = TILE[c.name] or c.name, color = c.color, empty = can == 0,
+            sub = can .. "/" .. n .. " ready", action = { "craftcat", i } }
+        end
+      end
+      local n, can = count("all")
+      tiles[#tiles + 1] = { icon = "Craft", name = "All", color = colors.white, bg = colors.purple,
+        sub = can .. "/" .. n .. " ready", action = { "craftcat", "all" } }
+      drawTiles(tiles)
+      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "typecraft")
+    end
+
+    local function drawCraftList()
+      clear()
+      local title = craftCat == "all" and "Craft: all" or craftCat == "frequent" and "Craft: frequent"
+        or ("Craft: " .. (TILE[CATS[craftCat].name] or CATS[craftCat].name))
+      titleBar(title, "back")
+      local list = recipesIn(craftCat)
       local cols = W >= 46 and 2 or 1
       local cw = math.floor((W - 1 - (cols - 1)) / cols)
       local rows = H - 4
       local per = rows * cols
-      local pages = math.max(1, math.ceil(#recipes / per))
+      local pages = math.max(1, math.ceil(#list / per))
       if page > pages then page = pages end
+      if #list == 0 then text(2, 3, "Nothing here yet.", colors.lightGray) end
       for i = 1, per do
-        local it = recipes[(page - 1) * per + i]
+        local it = list[(page - 1) * per + i]
         if not it then break end
         local col = math.floor((i - 1) / rows)
         local x = 2 + col * (cw + 1)
         local y = 3 + (i - 1) % rows
         local right = it.can > 0 and ("can " .. num(it.can)) or "need more"
+        if craftCat == "frequent" then right = num(it.crafted) .. "x" end
         local name = pretty(it.name):sub(1, cw - #right - 4)
         local bg = (i % 2 == 0) and colors.gray or colors.black
-        text(x, y, " ", colors.white, it.can > 0 and colors.purple or colors.gray)
+        local ci = catOf(it.name)
+        text(x, y, " ", colors.white, it.can > 0 and (CATS[ci] and CATS[ci].color or colors.purple) or colors.gray)
         text(x + 1, y, " " .. name .. (" "):rep(cw - #name - #right - 3), colors.white, bg)
         text(x + cw - #right - 1, y, right .. " ", it.can > 0 and colors.lime or colors.lightGray, bg)
         buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "recipe", it } }
@@ -485,16 +540,17 @@ if args[1] == "client" then
       elseif screen == "cat" then drawCat()
       elseif screen == "amount" then drawAmount()
       elseif screen == "craft" then drawCraft()
+      elseif screen == "craftlist" then drawCraftList()
       elseif screen == "craftamount" then drawCraftAmount() end
       local a = waitClick()
       if a == "tick" then
         -- refresh the status (and counts) every few seconds
-        if screen == "craft" then refreshRecipes() else refresh() end
+        if screen == "craft" or screen == "craftlist" then refreshRecipes() else refresh() end
       elseif message then
         if a == "ok" or a == "back" then
           message = nil
           refresh()
-          if screen == "craft" then refreshRecipes() end
+          if screen == "craft" or screen == "craftlist" then refreshRecipes() end
         end
       elseif a == "quit" then
         term.setBackgroundColor(colors.black) term.clear() term.setCursorPos(1, 1)
@@ -503,14 +559,16 @@ if args[1] == "client" then
       elseif a == "type" then typeIt()
       elseif a == "back" then
         if screen == "amount" then screen = "cat"
-        elseif screen == "craftamount" then screen = "craft"
+        elseif screen == "craftamount" then screen = "craftlist"
+        elseif screen == "craftlist" then screen = "craft"
         elseif screen == "cat" or screen == "craft" then screen = "home" end
+      elseif type(a) == "table" and a[1] == "craftcat" then screen, craftCat, page = "craftlist", a[2], 1
       elseif a == "craft" then screen, page = "craft", 1 refreshRecipes()
       elseif type(a) == "table" and a[1] == "recipe" then screen, item = "craftamount", a[2]
       elseif type(a) == "table" and a[1] == "craftn" then
         local r = ask({ cmd = "craft", text = item.name, n = a[2] })
         message = type(r) == "table" and r or { "No answer (out of range?)" }
-        screen = "craft"
+        screen = "craftlist"
       elseif a == "craftcustom" then
         text(2, H - 1, "How many? ", colors.yellow)
         term.setTextColor(colors.white)
@@ -518,7 +576,7 @@ if args[1] == "client" then
         if n and n > 0 then
           local r = ask({ cmd = "craft", text = item.name, n = math.floor(n) })
           message = type(r) == "table" and r or { "No answer (out of range?)" }
-          screen = "craft"
+          screen = "craftlist"
         end
       elseif a == "typecraft" then
         clear()
@@ -2620,6 +2678,8 @@ local function serveCrafts()
       local inStore = totals()[c.name] or 0
       local made = craftItem(c.name, c.n, 0)
       if made > 0 then
+        stats.crafted = stats.crafted or {}
+        stats.crafted[c.name] = (stats.crafted[c.name] or 0) + 1 -- how often, not how many
         log("Crafted " .. made .. " " .. pretty(c.name))
         deliver({ name = c.name, n = math.min(c.n, inStore + made) })
       end
@@ -2635,7 +2695,9 @@ local function craftList()
   for _, r in ipairs(allRecipes(stock)) do
     local can, missing = canMake(r, stock)
     local e = by[r.out]
-    if not e or can > e.can then by[r.out] = { name = r.out, per = r.n, can = can, missing = missing } end
+    if not e or can > e.can then
+      by[r.out] = { name = r.out, per = r.n, can = can, missing = missing, crafted = (stats.crafted or {})[r.out] or 0 }
+    end
   end
   local l = {}
   for _, e in pairs(by) do l[#l + 1] = e end

@@ -342,7 +342,7 @@ Iron ingot                                       668    ▲+480  +255.3%       n
 
 ### Crafting
 Give the turtle a **crafting table**: put one in the drop-off chest and it equips it on its free side (next to the wireless modem). Then it can craft:
-- **Craft tab** on the order screen: every recipe it knows, with how many it can make from what's in storage. Pick one, pick an amount (or Max / Other amount / "Not listed? Type it"). The result goes to the pickup chest.
+- **Craft tab** on the order screen: tiles like the home screen. **Frequent** first (what you craft most often, most ordered on top), then a tile per category (Ingots, Wood, Tools, Food, ...) with how many of its recipes it can make right now, and **All**. Pick a recipe, pick an amount (or Max / Other amount / "Not listed? Type it"). The result goes to the pickup chest.
 - Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
 - **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
 - **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
