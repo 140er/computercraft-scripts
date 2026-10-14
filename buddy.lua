@@ -811,7 +811,33 @@ end
 -- get (copy a file to the pocket), reboot, and put / rm / lua (write or delete a file,
 -- run Lua). If this computer has a file "dev.key", every command needs that same
 -- password (on the pocket: key <password>). put, rm and lua only work once dev.key exists.
-local function devCommand(m, logFile, program, reply)
+-- drive: move / turn / dig / place / look, answered with the position and the blocks
+-- around it, for the pocket's map. hooks (optional) let the program keep its own idea of
+-- where it is: pose() -> x, y, z, forward x, forward z (map: +x right, +z down),
+-- turn(right), move("forward"|"back"|"up"|"down") -> ok, why; busy() -> reason or nil.
+local devDrive = { x = 0, y = 0, z = 0, h = 0 } -- position used when there are no hooks
+local function devDriveHooks()
+  local HX, HZ = { [0] = 0, 1, 0, -1 }, { [0] = -1, 0, 1, 0 }
+  local p = devDrive
+  return {
+    pose = function() return p.x, p.y, p.z, HX[p.h], HZ[p.h] end,
+    turn = function(right)
+      if right then turtle.turnRight() else turtle.turnLeft() end
+      p.h = (p.h + (right and 1 or 3)) % 4
+    end,
+    move = function(dir)
+      local ok, why = ({ forward = turtle.forward, back = turtle.back, up = turtle.up, down = turtle.down })[dir]()
+      if ok then
+        local s = dir == "back" and -1 or 1
+        if dir == "up" then p.y = p.y + 1 elseif dir == "down" then p.y = p.y - 1
+        else p.x, p.z = p.x + s * HX[p.h], p.z + s * HZ[p.h] end
+      end
+      return ok, why
+    end,
+  }
+end
+
+local function devCommand(m, logFile, program, reply, hooks)
   local r = { type = "dev_reply", rid = m.rid, ok = true }
   local function out(s) r.out = tostring(s) end
   local key
@@ -864,7 +890,7 @@ local function devCommand(m, logFile, program, reply)
     end
   elseif (op == "put" or op == "rm" or op == "lua") and not (key and key ~= "") then
     r.ok = false
-    out("Locked: put a password in a file dev.key on this computer to allow " .. op)
+    out("Locked: pair it first (stand next to it with the pocket, type pair) to allow " .. op)
   elseif op == "put" then
     if path == "" or type(m.data) ~= "string" then r.ok = false out("put needs a file name and its contents")
     else
@@ -896,6 +922,39 @@ local function devCommand(m, logFile, program, reply)
       end
       out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
     end
+  elseif op == "drive" then
+    local hk = hooks or devDriveHooks()
+    local why = not turtle and "This is not a turtle" or (hk.busy and hk.busy())
+    local act = tostring(m.act or "scan")
+    local seen = {}
+    local function look(dx, dy, dz, fn)
+      local x, y, z = hk.pose()
+      local ok, info = fn()
+      seen[#seen + 1] = { x = x + dx, y = y + dy, z = z + dz, name = ok and info.name or "air" }
+    end
+    local function lookFront() local _, _, _, fx, fz = hk.pose() look(fx, 0, fz, turtle.inspect) end
+    if why then r.ok = false out(why)
+    else
+      local ok, err = true, nil
+      if act == "left" or act == "right" then hk.turn(act == "right")
+      elseif act == "forward" or act == "back" or act == "up" or act == "down" then
+        if turtle.getFuelLevel() == 0 then ok, err = false, "Out of fuel" else ok, err = hk.move(act) end
+      elseif act == "dig" then ok, err = turtle.dig()
+      elseif act == "digUp" then ok, err = turtle.digUp()
+      elseif act == "digDown" then ok, err = turtle.digDown()
+      elseif act == "place" then ok, err = turtle.place()
+      elseif act == "placeUp" then ok, err = turtle.placeUp()
+      elseif act == "placeDown" then ok, err = turtle.placeDown()
+      elseif act == "look" then for _ = 1, 4 do lookFront() hk.turn(true) end
+      elseif act ~= "scan" then ok, err = false, "Unknown move: " .. act end
+      lookFront()
+      look(0, 1, 0, turtle.inspectUp)
+      look(0, -1, 0, turtle.inspectDown)
+      local x, y, z, fx, fz = hk.pose()
+      r.drive = { x = x, y = y, z = z, fx = fx, fz = fz, seen = seen, fuel = turtle.getFuelLevel(), home = hk.home }
+      r.ok = ok and true or false
+      out(ok and (act == "scan" and "Ready" or "OK") or (act .. ": " .. tostring(err or "can't")))
+    end
   elseif op == "reboot" then
     out("Rebooting...")
     reply(r)
@@ -906,6 +965,33 @@ local function devCommand(m, logFile, program, reply)
   reply(r)
 end
 
+-- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
+-- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
+-- (so only someone standing next to it can pair) and it has no dev.key yet.
+local DEV_PAIR_CHANNEL = 16523
+local function devPairLoop()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("dev_never") end end
+  modem.open(DEV_PAIR_CHANNEL)
+  while true do
+    local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
+    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+      local res
+      if fs.exists("dev.key") then res = "Already paired"
+      elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"
+      elseif type(msg.newKey) ~= "string" or #msg.newKey < 8 then res = "Bad password"
+      else
+        local h = fs.open("dev.key", "w")
+        h.write(msg.newKey)
+        h.close()
+        res = "Paired"
+      end
+      modem.transmit(replyCh, DEV_PAIR_CHANNEL, { type = "dev_pair_reply", id = os.getComputerID(),
+        label = os.getComputerLabel(), text = res })
+    end
+  end
+end
+
 -- Pocket control panel (panel.lua): chat, status and quick trips over a wireless or
 -- ender modem. Without a modem these just wait forever.
 local netJobs = {}
@@ -914,10 +1000,19 @@ local function radioLoop()
   if not modem then while true do os.pullEvent("buddy_never") end end
   rednet.open(peripheral.getName(modem))
   rednet.host("buddy", cfg.name)
+  -- Driving from the pocket, through its own steps (so go_home still works afterwards).
+  -- Map: +x = right of home, up = the way it faced at home.
+  local hooks = {
+    home = { 0, 0 },
+    pose = function() local p = pos() return p.x, p.y, -p.z, DX[state.facing], -DZ[state.facing] end,
+    turn = turn,
+    move = step,
+    busy = function() if busy then return "Busy with a job, try again in a moment" end end,
+  }
   while true do
     local id, m = rednet.receive("buddy")
     if type(m) == "table" and m.type == "dev" then
-      devCommand(m, nil, "buddy", function(r) rednet.send(id, r, "buddy") end)
+      devCommand(m, nil, "buddy", function(r) rednet.send(id, r, "buddy") end, hooks)
     elseif type(m) == "table" then
       local job = (m.cmd == "chat" and type(m.text) == "string" and m.text:find("%S"))
         or m.cmd == "home" or m.cmd == "update" or (m.cmd == "goto" and memory.places[m.place or ""])
@@ -975,4 +1070,4 @@ term.setCursorPos(1, 1)
 print(cfg.name .. " (model: " .. cfg.model .. ") - fuel " .. fuelText())
 print(chatBox and ("Talk here, or in chat: \"" .. cfg.name .. ", ...\"") or "Talk to me here.")
 print("/reset forgets the chat, /quit stops.")
-parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop)
+parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop, devPairLoop)
