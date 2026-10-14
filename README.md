@@ -302,6 +302,12 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 | `build` | shows how many chests/furnaces are built and how much room is left, and builds any that aren't yet (it normally does that by itself) |
 | `pause` / `resume` / `quit` | on the turtle only |
 
+**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows buttons instead of a prompt:
+- the home screen has a button per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food & farm, Mob drops, Tools & gear, Other, All items) with how many kinds are in it,
+- a category shows its items with how many there are; click one and pick an amount (1, 4, 8, 16, 32, 64, All, or "Other amount..." to type a number),
+- "Type it myself" / "Not listed? Type it" lets you type the item and amount like `iron ingot 32`,
+- Backspace = back. `roomsorter client text` gives the old typing prompt.
+
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
 
 **No wireless modem for the request computer?** Connect it to the board computer with a cable: a wired modem on each of the two computers, networking cable between them, right-click both modems so they turn red. The board computer (which has a wireless modem) then passes your requests on to the turtle and the answers back; it does that by itself when it sees the wired modem (its own screen says "Passing requests from the cable on to the turtle"). Run `roomsorter client` on the request computer as usual; it says "Connected through the board computer".

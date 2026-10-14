@@ -96,6 +96,270 @@ if args[1] == "client" then
     proto = PROTOCOL .. "_relay"
     print("Connected through the board computer (#" .. id .. ").")
   end
+  -- Advanced computer: buttons (click with the mouse). "roomsorter client text" = typing only.
+  if term.isColor() and args[2] ~= "text" then
+    local function ask(msg)
+      rednet.send(id, msg, proto)
+      local from, reply
+      repeat from, reply = rednet.receive(proto, 8) until not from or from == id
+      return from and reply or nil
+    end
+    local function num(n)
+      local s = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+      return s
+    end
+    local function has(n, words)
+      for _, w in ipairs(words) do if n:find(w, 1, true) then return true end end
+      return false
+    end
+    -- Categories: the first one that fits an item wins
+    local CATS = {
+      { name = "Fuel", color = colors.gray, test = function(n)
+        return n == "coal" or n == "charcoal" or n == "coal_block" or n == "lava_bucket" or n == "blaze_rod" or n == "dried_kelp_block" end },
+      { name = "Ores", color = colors.orange, test = function(n)
+        return n:find("_ore$") or n:find("^raw_") or n == "ancient_debris" end },
+      { name = "Ingots", color = colors.yellow, test = function(n)
+        return n:find("_ingot$") or n:find("_nugget$") or n == "netherite_scrap"
+          or n:find("^iron_block") or n:find("^gold_block") or n:find("^copper_block") or n:find("^netherite_block") end },
+      { name = "Gems", color = colors.lightBlue, test = function(n)
+        return has(n, { "diamond", "emerald", "lapis", "redstone", "quartz", "amethyst", "_gem", "_dust", "_shard", "_crystal" }) end },
+      { name = "Wood", color = colors.brown, test = function(n)
+        return has(n, { "_log", "_planks", "_wood", "stick", "sapling", "leaves", "_stem", "bamboo", "hyphae" }) end },
+      { name = "Blocks", color = colors.lightGray, test = function(n)
+        return has(n, { "stone", "cobble", "deepslate", "granite", "diorite", "andesite", "tuff", "calcite", "dirt", "gravel",
+          "sand", "clay", "glass", "brick", "terracotta", "concrete", "netherrack", "basalt", "obsidian", "prismarine",
+          "mud", "moss", "snow", "ice", "wool", "_slab", "_stairs", "_wall" }) end },
+      { name = "Food & farm", color = colors.lime, test = function(n)
+        return has(n, { "wheat", "seeds", "carrot", "potato", "beetroot", "bread", "apple", "beef", "porkchop", "chicken",
+          "mutton", "rabbit", "cod", "salmon", "melon", "pumpkin", "sugar", "egg", "milk", "cookie", "cake", "berries",
+          "kelp", "cocoa", "honey", "mushroom", "stew", "pie", "steak" }) end },
+      { name = "Mob drops", color = colors.red, test = function(n)
+        return has(n, { "bone", "string", "gunpowder", "rotten_flesh", "spider_eye", "ender_pearl", "slime", "leather",
+          "feather", "ghast_tear", "phantom", "ink_sac", "blaze_powder", "magma_cream", "shulker", "scute", "nautilus" }) end },
+      { name = "Tools & gear", color = colors.cyan, test = function(n)
+        return has(n, { "pickaxe", "sword", "_axe", "shovel", "_hoe", "helmet", "chestplate", "leggings", "boots", "bow",
+          "arrow", "shield", "shears", "fishing_rod", "flint_and_steel", "trident", "bucket", "compass", "clock" }) end },
+      { name = "Other", color = colors.white, test = function() return true end },
+    }
+    local function catOf(name)
+      local n = name:match(":(.+)$") or name
+      for i, c in ipairs(CATS) do if c.test(n) then return i end end
+    end
+
+    local stock, stockOk = {}, false
+    local function refresh()
+      local r = ask({ cmd = "stock" })
+      if type(r) == "table" and type(r.totals) == "table" then stock, stockOk = r.totals, true
+      else stockOk = false end
+    end
+    local function itemsIn(ci) -- ci = nil: everything
+      local l = {}
+      for name, n in pairs(stock) do
+        if not ci or catOf(name) == ci then l[#l + 1] = { name = name, n = n } end
+      end
+      table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
+      return l
+    end
+
+    local W, H = term.getSize()
+    local buttons = {}
+    local function clear()
+      term.setBackgroundColor(colors.black)
+      term.clear()
+      buttons = {}
+    end
+    local function text(x, y, s, fg, bg)
+      term.setCursorPos(x, y)
+      term.setTextColor(fg or colors.white)
+      term.setBackgroundColor(bg or colors.black)
+      term.write(s)
+    end
+    local function button(x, y, w, h, label, bg, fg, action, sub)
+      for yy = y, y + h - 1 do text(x, yy, (" "):rep(w), fg, bg) end
+      local l = label:sub(1, w - 2)
+      local ly = y + math.floor((h - 1) / 2)
+      if sub and h >= 3 then ly = y + 1 end
+      text(x + math.floor((w - #l) / 2), ly, l, fg or colors.black, bg)
+      if sub and h >= 3 then
+        local sl = sub:sub(1, w - 2)
+        text(x + math.floor((w - #sl) / 2), ly + 1, sl, fg or colors.black, bg)
+      end
+      buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + w - 1, y2 = y + h - 1, action = action }
+    end
+    local function titleBar(title, back)
+      text(1, 1, (" "):rep(W), colors.white, colors.blue)
+      local x = 2
+      if back then
+        button(1, 1, 8, 1, "< Back", colors.lightBlue, colors.black, back)
+        x = 10
+      end
+      text(x, 1, title:sub(1, W - x - 1), colors.white, colors.blue)
+    end
+    local function waitClick()
+      while true do
+        local ev, a, b, c = os.pullEvent()
+        if ev == "mouse_click" or ev == "monitor_touch" then
+          for _, bt in ipairs(buttons) do
+            if b >= bt.x1 and b <= bt.x2 and c >= bt.y1 and c <= bt.y2 then return bt.action end
+          end
+        elseif ev == "key" and (a == keys.backspace) then
+          return "back"
+        end
+      end
+    end
+
+    local screen, cat, page, item = "home", nil, 1, nil
+    local message = nil
+
+    local function typeIt()
+      clear()
+      titleBar("Type it yourself")
+      text(2, 3, "Type the item and how many, e.g.", colors.lightGray)
+      text(2, 4, "  iron ingot 32", colors.white)
+      text(2, 5, "Enter on an empty line = back.", colors.lightGray)
+      term.setCursorPos(2, 7)
+      term.setTextColor(colors.yellow)
+      term.setBackgroundColor(colors.black)
+      write("> ")
+      term.setTextColor(colors.white)
+      local line = read()
+      if not line or not line:find("%S") then return end
+      local words = {}
+      for wd in line:gmatch("%S+") do words[#words + 1] = wd end
+      local n = tonumber(words[#words])
+      if n and #words > 1 then table.remove(words) else n = nil end
+      local r = ask({ cmd = "get", text = table.concat(words, " "), n = n })
+      message = type(r) == "table" and r or { "No answer (out of range?)" }
+    end
+
+    local function drawHome()
+      clear()
+      local total = 0
+      for _ in pairs(stock) do total = total + 1 end
+      titleBar("ORDER FROM STORAGE")
+      text(W - #(total .. " kinds") , 1, total .. " kinds", colors.white, colors.blue)
+      if not stockOk then text(2, 2, "Couldn't get the stock list (turtle busy? old version?)", colors.red) end
+      local list = {}
+      for i, c in ipairs(CATS) do list[#list + 1] = { i = i, c = c, n = #itemsIn(i) } end
+      list[#list + 1] = { i = "all", c = { name = "All items", color = colors.white }, n = total }
+      local cols = W >= 45 and 3 or 2
+      local bw = math.floor((W - (cols + 1)) / cols)
+      local rows = math.ceil(#list / cols)
+      local avail = H - 4
+      local bh = (rows * 4 - 1 <= avail) and 3 or 1
+      local gap = (rows * (bh + 1) - 1 <= avail) and 1 or 0
+      for k, e in ipairs(list) do
+        local col = (k - 1) % cols
+        local row = math.floor((k - 1) / cols)
+        local x = 2 + col * (bw + 1)
+        local y = 3 + row * (bh + gap)
+        local bg = e.n > 0 and e.c.color or colors.gray
+        if bh >= 3 then
+          button(x, y, bw, bh, e.c.name, bg, colors.black, { "cat", e.i }, e.n .. (e.n == 1 and " kind" or " kinds"))
+        else
+          button(x, y, bw, bh, e.c.name .. " " .. e.n, bg, colors.black, { "cat", e.i })
+        end
+      end
+      button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
+      button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
+      button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
+    end
+
+    local function drawCat()
+      clear()
+      local title = cat == "all" and "All items" or CATS[cat].name
+      titleBar(title, "back")
+      local list = itemsIn(cat ~= "all" and cat or nil)
+      local cols = W >= 46 and 2 or 1
+      local cw = math.floor((W - 1 - (cols - 1)) / cols)
+      local rows = H - 4
+      local per = rows * cols
+      local pages = math.max(1, math.ceil(#list / per))
+      if page > pages then page = pages end
+      if #list == 0 then text(2, 3, "Nothing here yet.", colors.lightGray) end
+      for i = 1, per do
+        local it = list[(page - 1) * per + i]
+        if not it then break end
+        local col = math.floor((i - 1) / rows)
+        local x = 2 + col * (cw + 1)
+        local y = 3 + (i - 1) % rows
+        local cnt = num(it.n)
+        local name = pretty(it.name):sub(1, cw - #cnt - 3)
+        local bg = (i % 2 == 0) and colors.gray or colors.black
+        text(x, y, " " .. name .. (" "):rep(cw - #name - #cnt - 2) .. cnt .. " ", colors.white, bg)
+        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "item", it } }
+      end
+      if pages > 1 then
+        button(2, H, 5, 1, "<", colors.lightGray, colors.black, "prev")
+        text(8, H, page .. "/" .. pages, colors.white)
+        button(14, H, 5, 1, ">", colors.lightGray, colors.black, "next")
+      end
+      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "type")
+    end
+
+    local function drawAmount()
+      clear()
+      titleBar(pretty(item.name), "back")
+      local have = stock[item.name] or item.n
+      text(2, 3, "In storage: " .. num(have), colors.white)
+      text(2, 4, "How many to the pickup chest?", colors.lightGray)
+      local amounts = { 1, 4, 8, 16, 32, 64 }
+      local x, y = 2, 6
+      for _, a in ipairs(amounts) do
+        if a <= have then
+          if x + 6 > W then x, y = 2, y + 2 end
+          button(x, y, 6, 1, tostring(a), colors.lime, colors.black, { "get", a })
+          x = x + 7
+        end
+      end
+      if x + 12 > W then x, y = 2, y + 2 end
+      button(x, y, 12, 1, "All (" .. num(have) .. ")", colors.orange, colors.black, { "get", have })
+      button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
+    end
+
+    local function drawMessage()
+      clear()
+      titleBar("Storage turtle")
+      for i, l in ipairs(message) do text(2, 2 + i, tostring(l):sub(1, W - 2), colors.white) end
+      button(2, H - 1, 8, 1, "OK", colors.lime, colors.black, "ok")
+    end
+
+    refresh()
+    while true do
+      if message then drawMessage()
+      elseif screen == "home" then drawHome()
+      elseif screen == "cat" then drawCat()
+      elseif screen == "amount" then drawAmount() end
+      local a = waitClick()
+      if message then
+        if a == "ok" or a == "back" then message = nil refresh() end
+      elseif a == "quit" then
+        term.setBackgroundColor(colors.black) term.clear() term.setCursorPos(1, 1)
+        return
+      elseif a == "refresh" then refresh()
+      elseif a == "type" then typeIt()
+      elseif a == "back" then
+        if screen == "amount" then screen = "cat" elseif screen == "cat" then screen = "home" end
+      elseif a == "prev" then page = math.max(1, page - 1)
+      elseif a == "next" then page = page + 1
+      elseif type(a) == "table" and a[1] == "cat" then screen, cat, page = "cat", a[2], 1
+      elseif type(a) == "table" and a[1] == "item" then screen, item = "amount", a[2]
+      elseif type(a) == "table" and a[1] == "get" then
+        local r = ask({ cmd = "get", text = item.name, n = a[2] })
+        message = type(r) == "table" and r or { "No answer (out of range?)" }
+        screen = "cat"
+      elseif a == "custom" then
+        text(2, H - 1, "How many? ", colors.yellow)
+        term.setTextColor(colors.white)
+        local n = tonumber(read())
+        if n and n > 0 then
+          local r = ask({ cmd = "get", text = item.name, n = math.floor(n) })
+          message = type(r) == "table" and r or { "No answer (out of range?)" }
+          screen = "cat"
+        end
+      end
+    end
+  end
   print("Commands: list [text], find <item>, get <item> [n], build, status, quit")
   local history = {}
   while true do
@@ -1840,6 +2104,8 @@ local function command(cmd, text, n)
     requests[#requests + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Getting " .. n .. " " .. pretty(name) .. "..." }
+  elseif cmd == "stock" then
+    return { totals = totals() } -- raw list for the order screen
   elseif cmd == "build" then
     -- Build right away with the chests/barrels/furnaces it has (normally automatic)
     local t = totals()
