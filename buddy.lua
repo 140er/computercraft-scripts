@@ -26,7 +26,6 @@
 local CFG_FILE, STATE_FILE, KEY_FILE = "buddy.cfg", "buddy.state", "api.key"
 local GROK = "https://api.x.ai/v1/"
 
-local MAX_ROUNDS = 10    -- tool-call rounds per message before it has to answer
 local MAX_STEPS = 16     -- blocks per move command
 local MAX_HISTORY = 30   -- messages kept in the conversation
 local TIMEOUT = 60       -- seconds to wait for an answer (CC allows at most 60)
@@ -486,7 +485,7 @@ local function chat(text, who, onAction)
   local useModel, err = resolveModel()
   if not useModel then return nil, err end
   history[#history + 1] = { role = "user", content = ascii(text) }
-  for _ = 1, MAX_ROUNDS do
+  while true do -- keeps going until the model answers without asking for tools
     local messages = { { role = "system", content = systemPrompt(who) } }
     for _, m in ipairs(history) do messages[#messages + 1] = m end
     local data
@@ -514,9 +513,6 @@ local function chat(text, who, onAction)
       history[#history + 1] = { role = "tool", tool_call_id = call.id, content = ascii(runTool(fn.name, fn.arguments)) }
     end
   end
-  history[#history + 1] = { role = "assistant", content = "(I did a lot of things in a row, so I stopped to check in.)" }
-  trimHistory()
-  return "I did a lot of things in a row, so I stopped. Want me to keep going?"
 end
 
 -- ---------------------------------------------------------------- commands

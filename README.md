@@ -232,5 +232,4 @@ A turtle you talk to. A language model reads what you say and decides what to do
 **Safety:**
 - It counts its own steps from home and never goes more than 32 blocks from home on any axis (`range` in `buddy.cfg`). `go_home` walks back the way it came.
 - It never digs to get somewhere and only breaks or places blocks when you ask. It refuses to break chests, barrels, computers, turtles, furnaces, hoppers, doors, beds and similar base blocks.
-- At most 10 actions per message, then it checks back with you.
 - It can't see you, so "come here" makes it ask where you are compared to it.
