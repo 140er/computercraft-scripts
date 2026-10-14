@@ -4,6 +4,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
+- **Buddy** (`buddy.lua`): a companion turtle you can chat with, powered by xAI's Grok. It does small jobs around your base. See [Buddy](#buddy-companion-turtle) at the bottom.
 
 ---
 
@@ -191,3 +192,32 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 ## Good to know
 - Turtles only work in loaded chunks. When a chunk unloads the turtle pauses; when it loads again it restarts, goes home and carries on.
 - `smartmine.lua` is the older standalone miner: `smartmine <length> [tunnels] [gap] [block1,block2,...]`.
+
+---
+
+## Buddy (companion turtle)
+
+A turtle you talk to. Grok (xAI) reads what you say and decides what to do with the turtle's tools: move, turn, look around, pick up or drop items, place or break a block, refuel, craft (crafty turtle), and walk back home. It is a companion, not a worker: it turns down big jobs like mining and leaves those to the Mine Army.
+
+**You need:** an xAI API key from [console.x.ai](https://console.x.ai) (paid per use, a chat costs a fraction of a cent), `http` enabled in the CC config, and any turtle. A pickaxe only if you want it to break blocks.
+
+1. Copy `buddy.lua` onto the turtle (drag it onto the screen, or `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/buddy.lua buddy.lua`).
+2. `buddy key <your key>`: saves the key in `grok.key` on the turtle. It never goes into this repo.
+3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.
+4. `buddy` and type away: "look around", "go 5 forward and drop the cobble in the chest", "what have you got on you?", "come home".
+
+**Talking in game chat:** equip a **Chat Box** from Advanced Peripherals on the turtle and start your message with its name: `buddy, put a torch above you`. It answers in chat.
+
+| Command | |
+|---|---|
+| `buddy model <id>` | pick the Grok model (default `grok-4`) |
+| `buddy models` | list the models your key can use |
+| `buddy name <name>` | rename it (also its chat name) |
+| `buddy home` | after putting it back on its home spot by hand: reset its position |
+| `/reset`, `/quit` | while chatting: forget the conversation / stop |
+
+**Safety:**
+- It counts its own steps from home and never goes more than 32 blocks from home on any axis (`range` in `buddy.cfg`). `go_home` walks back the way it came.
+- It never digs to get somewhere and only breaks or places blocks when you ask. It refuses to break chests, barrels, computers, turtles, furnaces, hoppers, doors, beds and similar base blocks.
+- At most 10 actions per message, then it checks back with you.
+- It can't see you, so "come here" makes it ask where you are compared to it.
