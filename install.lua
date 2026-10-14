@@ -7,6 +7,7 @@
 --   sorter      Sorter & Smelter on a wired network
 --   lumber      tree farm turtle
 --   farmer      crop farm turtle
+--   lava        lava fuel runner: fills buckets and keeps the bots' chests stocked
 --   buddy       companion turtle you can chat with
 --   panel       pocket computer control panel
 --   factory     turtle factory: builds new mining turtles (crafty turtle)
@@ -22,6 +23,7 @@ local NEXT = {
   sorter = "sorter setup, sorter install, then sorter",
   lumber = "lumber setup [radius]",
   farmer = "farmer setup <length> <width> [left]",
+  lava = "lava setup <x> <y> <z> <facing> (or lava setup with GPS), lava add <name> <x> <y> <z>, then lava",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
   panel = "panel install, then panel",
   factory = "factory setup, factory slot ..., factory disk, then factory",

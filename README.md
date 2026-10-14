@@ -1,6 +1,6 @@
 # computercraft-scripts
 
-Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a crop farm, a turtle you can chat with, and a pocket computer that controls them all.
+Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a crop farm, a lava fuel runner, a turtle factory, a turtle you can chat with, and a pocket computer that controls them all.
 
 | Bot | File | Runs on | What it does |
 |---|---|---|---|
@@ -9,6 +9,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
 | [Farmer](#crop-farm-farmerlua) | `farmer.lua` | turtle (a hoe is best) | Harvests and replants a field of wheat, carrots, potatoes, beetroot, melons, pumpkins, sugar cane and more, and brings the harvest to the storage room. |
+| [Lava runner](#lava-runner-lavalua) | `lava.lua` | turtle | Fills buckets at a dripstone cauldron farm or a lava pool and keeps the lumberjack's and miners' chests stocked with lava. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
 | [Turtle factory](#turtle-factory) | `factory.lua` | crafty turtle | Orders the parts from the Storage Room, crafts a new wireless mining turtle, gives it coal and `miner.lua`, and sends it to a free home spot, where it joins the hub's fleet. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
@@ -24,14 +25,14 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `factory`, `gpshost`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `lava`, `buddy`, `panel`, `factory`, `gpshost`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ## Updating
 
 - **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
-- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack and the farmer when they're home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
+- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack, the farmer and the lava runner when they're home, the factory between builds, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
 - `sorter`, `relay`, `gpshost` and `smartmine` don't listen to the panel, so they only update with their own `update` command.
 - A bot that can't reach GitHub keeps running its current version.
 
@@ -535,6 +536,43 @@ A turtle that looks after a field: it flies one block above the crops, harvests 
 - `farmer home`: you put it back on its spot by hand. `farmer reset`: forget what grows where.
 - Settings at the top of `farmer.lua`: `WAIT`, `WAIT_IDLE`, `KEEP_SEEDS`, `HOP` (how high it flies over things on the way to the drop chest), `REFUEL_BELOW`, `REFUEL_TO`.
 
+## Lava runner (lava.lua)
+
+A turtle that brings the fuel around. It fills empty buckets with lava and keeps the chests of the other bots stocked: the lumberjack's chest (it only burns lava), each miner's chest, or any chest you name. The empty buckets it finds there go home with it to be filled again.
+
+**Where the lava comes from** (one or both):
+- **A dripstone cauldron farm at its home** (the easy way: it never leaves the base). Build a straight corridor in front of the turtle with cauldrons on its left and right, and optionally one at the far end. Cauldrons right next to the home spot count too. Above each cauldron: a pointed dripstone hanging from a block with a lava source on top. It walks the corridor every few minutes and fills buckets at the cauldrons that are full.
+- **A lava pool or lake.** Give it the position of a lava block on the surface. It flies there, scoops the lava column by column from that spot outwards (up to 12 blocks away and 6 deep), and remembers where it got to for the next trip. It only goes when its stock is low.
+
+**What you need:** a turtle with a wireless or ender modem (for the pocket panel and GPS; a tool is optional, it only uses it to cut grass and leaves in its way), a chest **behind** it with some empty buckets in it, and one lava bucket of fuel to start. Keep the block above each drop-off chest free: it hovers there and drops the lava in from above.
+
+**Setup:**
+1. `install lava` on the turtle (see [Installing](#installing)).
+2. `lava setup <x> <y> <z> <facing>`: the turtle's own position (F3) and the way it faces, with its chest behind it. With a [GPS](https://tweaked.cc/guide/gps_setup.html) in range, plain `lava setup` works it out by itself. Setup also looks for the cauldrons.
+3. `lava add <name> <x> <y> <z> [buckets]` for each chest to keep stocked, e.g. `lava add lumber 120 64 -340 4`. The default is 6 lava buckets. With GPS you can also put the turtle on top of the chest and type `lava add <name> here [buckets]`; it flies home by itself when it starts.
+4. Optional: `lava pool <x> <y> <z>` for a lava pool, and `lava exit <x> <y> <z>` for a free spot outside your base if its home is indoors (it flies there first whenever it leaves).
+5. `lava` (starts by itself on boot after setup).
+
+**What it does, in a loop:**
+- At home it puts full buckets and anything else in its chest, keeps one stack of empty buckets, and below 1000 fuel burns some of its own lava (up to about 2000).
+- Every 5 minutes: a walk along the cauldrons. When the chest has fewer than 8 lava buckets (and at most every 10 minutes): a trip to the pool.
+- Every 15 minutes: a delivery round. It takes the lava out of its chest, visits the drop-offs nearest first, tops each one up to its number of buckets, takes the empty buckets there (leaving one, a miner likes a spare) and flies home.
+- It flies over things and around them but never digs, and it goes home the way it came. Position and heading are saved on every move, so after a reboot or chunk unload it flies home and carries on.
+
+**Screen:** status, fuel, lava in stock, cauldrons, the pool, and each drop-off's last count (e.g. `lumber 4/4`). Keys: **P** pause / go on, **R** run now (cauldrons, pool and a delivery round right away), **H** come home, **Q** quit. Problems go in `lava.log`.
+
+| Command | What it does |
+|---|---|
+| `lava setup <x> <y> <z> <facing>` / `lava setup` | one-time setup (GPS for the second) |
+| `lava add <name> <x> <y> <z> [buckets]` / `lava add <name> here [buckets]` | a chest to keep stocked |
+| `lava remove <name>`, `lava list` | forget a drop-off / show everything it knows |
+| `lava pool <x> <y> <z>` / `lava pool off` | a lava pool to scoop from |
+| `lava exit <x> <y> <z>` / `lava exit off` | a spot outside the base it leaves through |
+| `lava scan` | look for cauldrons again after building more |
+| `lava home` | after putting it back on its home spot by hand |
+
+Settings at the top of `lava.lua`: `WANT`, `KEEP_EMPTY`, `ROUND_EVERY`, `FARM_EVERY`, `POOL_BELOW`, `POOL_EVERY`, `POOL_RADIUS`, `POOL_DEPTH`, `HOP`, `REFUEL_BELOW`, `REFUEL_TO`.
+
 ## Good to know
 - Turtles only work in loaded chunks. When a chunk unloads the turtle pauses; when it loads again it restarts, goes home and carries on.
 - `smartmine.lua` is the older standalone miner: `smartmine <length> [tunnels] [gap] [block1,block2,...]`.
@@ -639,12 +677,13 @@ Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
 - **Farm**: the crop farmer's status, fuel, what it harvested and when the next round starts. Pause / Go on, Harvest (a round now), Home.
+- **Lava**: the lava runner's status, fuel, lava in stock, and each drop-off chest's last count. Pause / Go on, Run now, Home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
 - **Map**: where every bot is, seen from above with north up: miners as numbers `1`-`9`, the lumberjack `L`, Buddy `B` and you `@`. Tap one for its coordinates and how far away it is (Go keeps it centred), drag to move, `-`/`+` or the scroll wheel to zoom, **Fit** shows everyone. A bot that hasn't reported for 30 s turns grey. Needs [GPS hosts](#gps-and-the-map).
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
-  - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `farm now`, `buddy go fetch the logs`
+  - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `farm now`, `lava run`, `buddy go fetch the logs`
   - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 
@@ -655,7 +694,7 @@ Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle t
 **Driving a turtle:** `drive <bot>` in the console, the DRIVE button on the Mine tab (tap a turtle first), or Drive on the Wood and Buddy tabs. A top-down map shows every block the turtle has seen around it at its height (dots = open ground, `*` = ore, `o` = log, `C` = chest, `H` = home). Buttons, or keys: W/S forward/back, A/D turn, R/F up/down, X dig, L look around (spins once to see all four sides), Backspace closes.
 Driving goes through the bot's own moves, so it keeps knowing where it is. A miner only drives while it's home (RECALL and STOP first), the lumber turtle only while it is PAUSED at home, Buddy whenever it isn't busy. Drive it back home before you let it carry on.
 
-Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua`, `farmer.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua`, `farmer.lua`, `lava.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 
 ---
 
