@@ -9,6 +9,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
+| [Builder](#builder-builderlua) | `builder.lua` | turtle with a pickaxe | Lays floors and sky platforms, builds walls, flattens land, digs out areas and puts torches everywhere so nothing spawns. Orders the blocks it needs from the Storage Room. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
@@ -21,14 +22,14 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `builder`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ## Updating
 
 - **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
-- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack when it's home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
+- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack and the builder when they're home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
 - Bots without a modem (`sorter`, `relay`, `smartmine`) only update with their own `update` command.
 - A bot that can't reach GitHub keeps running its current version.
 
@@ -528,19 +529,58 @@ A turtle you talk to. A language model reads what you say and decides what to do
 
 ---
 
+## Builder (builder.lua)
+
+A turtle with a pickaxe that does the boring part of building: floors, platforms, walls, flat land, digging out a room, and torches so mobs stop spawning around your base. You give it two corners; it fetches the blocks, does the job, comes back for more when it runs out and carries on.
+
+**Setup**
+1. `install builder` on a turtle with a pickaxe (and a wireless or ender modem for ordering and the panel).
+2. Put it on its home spot with a **supply chest** next to it. Best spot: just outside the Storage Room, against the outside of its **pickup chest**, so whatever it orders lands right there.
+3. Optional **dump chest** to its left, right or under it: everything it digs out goes there. A chest that feeds the Storage Room's input (directly or with hoppers) puts the miners' cobble and the dirt it digs to use. Without one it goes in the supply chest.
+4. Coal, charcoal or lava buckets in the supply chest for fuel.
+5. `builder setup`. It turns its back to the chest. With [GPS](https://tweaked.cc/guide/gps_setup.html) it learns its real position by itself; without GPS give it: `builder setup <x> <y> <z> <facing>` (F3, facing = north/east/south/west). With neither, coordinates count from its home: home is `0 0 0`, x to its right, z negative in front of it.
+
+**Jobs.** Corners are where you **stand** (your feet, as F3 shows them) at two opposite corners:
+
+| Job | | |
+|---|---|---|
+| `floor x1 y1 z1 x2 y2 z2 [block]` | a floor right under your feet, default cobblestone | works in mid-air too: sky platforms |
+| `walls x1 y1 z1 x2 y2 z2 [height] [block]` | walls around the rectangle from your feet up, default 3 high | |
+| `flatten x1 y1 z1 x2 y2 z2 [filler]` | flat land: everything from your feet up goes (hills, trees), dips get filled | fills with what it dug (dirt on top, stone under), or the block you name |
+| `clear x1 y1 z1 x2 y2 z2` | digs out the whole box, both corners included | rooms, basements |
+| `light x1 y1 z1 x2 y2 z2 [spacing]` | a torch on the ground every 10 blocks (or your spacing) | on open ground that keeps mobs from spawning |
+
+Type a job after `builder` (`builder floor 100 64 -20 115 64 -5 stone_bricks`), press **J** on its screen, or use the **Build** tab on the [pocket panel](#pocket-panel), which can fill in a corner from where you stand when your pocket computer has GPS. New jobs wait in a queue.
+
+**Blocks:** it takes only what the job needs from the supply chest and leaves the rest. When it's short it asks the Storage Room (`order`, so missing torches get crafted), waits for them in the supply chest and starts with what it got. No Storage Room: put the blocks in the chest yourself.
+
+**Safety:** it never digs or builds in its home spot or where its chests are (a wall around the base gets a doorway there). It travels over things without digging and only digs inside the job area. Jobs reach 128 blocks from home and up to 16384 blocks. After a reboot or chunk unload it goes home and carries on where it was. If it got lost, put it back on its home spot and type `builder home`.
+
+| Command | |
+|---|---|
+| `builder` | run (starts by itself after setup). Keys: J new job, P pause / go on, H come home, S stop the job, Q quit |
+| `builder <job ...>` | queue a job and start |
+| `builder stop` | forget the current job and the queue |
+| `builder home` | after putting it back on its home spot by hand: reset its position |
+| `builder update` | fetch the latest version |
+
+---
+
 ## Pocket panel
 `panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). `install panel` on it (see [Installing](#installing)), then `panel install` (opens on start-up) and `panel`.
 
-Tabs along the top (tap them, or keys 1-5, Q quits):
+Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
 - **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **Bld**: the builder: its job and progress, fuel, blocks on board and the queue. Tap Floor, Walls, Flat, Clear or Torches for a new job: stand on each corner and press Enter (needs GPS), or type `x y z`. Pause / Go on, Home, Stop.
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
   - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `buddy go fetch the logs`
+  - `build floor 10 64 -5 20 64 5 oak_planks`, `build status`, `build stop`
   - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 
@@ -548,7 +588,7 @@ With a password you can also change things on a bot: `put <file> [as]` sends a f
 To turn this on, put a password in a file `dev.key` on each bot and type `key <password>` on the pocket. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password, so other players with a modem can't use them.
 Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
 
-Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua`, `buddy.lua` and `builder.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 
 ---
 

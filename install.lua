@@ -7,6 +7,7 @@
 --   sorter      Sorter & Smelter on a wired network
 --   lumber      tree farm turtle
 --   buddy       companion turtle you can chat with
+--   builder     building turtle: floors, walls, flat land, torches
 --   panel       pocket computer control panel
 --   smartmine   old standalone tunnel miner
 -- Every install also gets update.lua, so "update" (or "<bot> update") fetches new versions later.
@@ -19,6 +20,7 @@ local NEXT = {
   sorter = "sorter setup, sorter install, then sorter",
   lumber = "lumber setup [radius]",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
+  builder = "builder setup (supply chest next to it), then builder",
   panel = "panel install, then panel",
   smartmine = "smartmine <length> [tunnels] [gap] [blocks]",
 }
