@@ -416,9 +416,17 @@ local function drawMine()
 
   -- Turtles: two lines each, tap one to give it its own orders
   if selT then
-    text(1, 10, (" Orders: " .. (selT.label or ("#" .. selT.id))):sub(1, W - 12), colors.yellow)
+    text(1, 10, (" For " .. (selT.label or ("#" .. selT.id))):sub(1, W - 18), colors.yellow)
+    button(W - 17, 10, 6, "TUNNEL", colors.white, colors.brown, function()
+      local to = prompt("Tunnel to x z? (F3, ahead of it)")
+      if not to then return end
+      local x, z = to:match("^(%-?%d+)[%s,]+(%-?%d+)$")
+      if not x then toast("Type two numbers: x z", 3) return end
+      local every = prompt("Torch every how many blocks? (empty = 8)")
+      hubCmd({ cmd = "bore", x = tonumber(x), z = tonumber(z), every = tonumber(every or "") or 8 })
+    end)
     button(W - 4, 10, 5, "ALL", colors.black, colors.white, function() ui.selected = nil end)
-    button(W - 11, 10, 7, "DRIVE", colors.white, colors.blue, function()
+    button(W - 10, 10, 5, "DRIVE", colors.white, colors.blue, function()
       openDrive({ id = selT.id, proto = "minearmy", name = selT.label or ("#" .. selT.id) })
     end)
   else
@@ -436,6 +444,7 @@ local function drawMine()
     local bg = isSel and colors.gray or colors.black
     local job = t.ore == "stop" and "stop" or "-"
     for _, o in ipairs(h.ores or {}) do if o.key == t.ore then job = o.short end end
+    if t.ore == "tunnel" then job = "tunnel" end
     if t.branch and t.phase == "mining" then job = job .. " b" .. t.branch end
     local stat = t.status or "?"
     local sc = colors.lightGray
@@ -747,6 +756,8 @@ local HELP = {
   " hub item <rock/ore> [y]",
   " <miner> <ore>|stop|recall",
   " <miner> status",
+  " <miner> tunnel <x> <z> [n]",
+  "  (lit 3x3 tunnel, torch every n)",
   "STORAGE:",
   " store find <item>",
   " store get <item> [n]",
@@ -985,9 +996,13 @@ local function hubOrder(words, from, turtle)
     local last = (y and #words > from + 1) and #words - 1 or #words
     msg.cmd, msg.text, msg.y = "custom", table.concat(words, " ", from + 1, last), y
     if msg.text == "" then say("hub item <rock or ore> [y]", colors.orange) return end
+  elseif op == "tunnel" then
+    local x, z = tonumber(words[from + 1]), tonumber(words[from + 2])
+    if not (turtle and x and z) then say("<miner> tunnel <x> <z> [torch every]", colors.orange) return end
+    msg.cmd, msg.x, msg.z, msg.every = "bore", x, z, tonumber(words[from + 3]) or 8
   elseif findOre(op) then msg.cmd, msg.ore = "target", findOre(op)
   else -- never guess: a typo must not send the fleet off mining something odd
-    say("Unknown order '" .. tostring(words[from]) .. "'. Use an ore, stop, recall, resume, time or item <name>.", colors.orange)
+    say("Unknown order '" .. tostring(words[from]) .. "'. Use an ore, stop, recall, resume, time, item <name> or tunnel <x> <z>.", colors.orange)
   end
   if not msg.cmd then return end
   sendTo({ key = "hub", name = turtle and ("hub > #" .. turtle) or "hub" }, msg, { hub = true })

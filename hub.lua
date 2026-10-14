@@ -141,6 +141,7 @@ end
 hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
+hub.bores = hub.bores or {} -- [turtle id] = tunnel job { x=, z=, every=, n= } (runs until done or STOP)
 
 local function save()
   local h = fs.open(STATE_FILE, "w")
@@ -243,10 +244,18 @@ local function releasedVersion()
   return nil
 end
 
+local notice, noticeUntil = nil, 0
+local function flash(text)
+  notice, noticeUntil = text, os.clock() + 8
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
+  elseif m.type == "job?" and hub.bores[id] then
+    send(id, { type = "job", paused = hub.recallAll, bore = hub.bores[id], mineMinutes = hub.mineMinutes,
+      progress = hub.progress[m.role], update = releasedVersion() })
   elseif m.type == "job?" then
     local ore = oreFor(id)
     local left = sessionLeft()
@@ -264,6 +273,13 @@ local function handle(id, m)
     if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(m.role, m.progress)
+    -- A tunnel job ended (done, or something stopped it): the turtle stays home
+    local b = hub.bores[id]
+    if b and type(m.bore) == "table" and m.bore.n == b.n then
+      hub.bores[id] = nil
+      hub.overrides[id] = false
+      flash("#" .. id .. ": " .. tostring(m.bore.why))
+    end
     for name, n in pairs(m.haul or {}) do
       if type(n) == "number" then
         hub.totals[name] = (hub.totals[name] or 0) + n
@@ -306,6 +322,7 @@ local function setTarget(ore)
   if not anyMining() or not hub.sessionEnd then startSession() end
   if selected then
     hub.overrides[selected] = ore
+    hub.bores[selected] = nil
   else
     hub.target = ore
     hub.overrides = {}
@@ -325,9 +342,11 @@ end
 local function stopAll()
   if selected then
     hub.overrides[selected] = false
+    hub.bores[selected] = nil
   else
     hub.target = nil
     hub.overrides = {}
+    hub.bores = {}
     hub.sessionEnd = nil
   end
   save()
@@ -336,6 +355,7 @@ end
 local function recallNow()
   if selected then
     hub.overrides[selected] = false -- stays home until you pick an ore
+    hub.bores[selected] = nil
     send(selected, { type = "recall", target = selected })
   else
     hub.recallAll = true
@@ -348,11 +368,6 @@ local function resumeAll()
   hub.recallAll = false
   send(nil, { type = "go" })
   save()
-end
-
-local notice, noticeUntil = nil, 0
-local function flash(text)
-  notice, noticeUntil = text, os.clock() + 8
 end
 
 -- UPDATE button: release the miner.lua on this computer and call the turtles
@@ -543,7 +558,7 @@ local function draw(s)
     local p = r.p
     local age = os.clock() - r.seen
     local isSel = (selected == id)
-    local ore = p.ore and ORES[p.ore] and ORES[p.ore].label or "-"
+    local ore = p.ore and ORES[p.ore] and ORES[p.ore].label or (p.ore == "tunnel" and "Tunnel") or "-"
     local own = hub.overrides[id]
     if own == false then ore = "stop" end
     local stat = p.status or "?"
@@ -1022,6 +1037,18 @@ local function panelRequest(id, m)
   elseif m.cmd == "recall" then recallNow()
   elseif m.cmd == "resume" then resumeAll()
   elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "bore" then
+    -- Tunnel job for one turtle: a lit 3x3 tunnel from its shaft to x z (see miner.lua)
+    local x, z = tonumber(m.x), tonumber(m.z)
+    if not selected then note = "Pick one turtle for the tunnel first"
+    elseif not (x and z) then note = "Tunnel needs an end point: x z"
+    else
+      hub.boreN = (hub.boreN or 0) + 1
+      hub.bores[selected] = { x = math.floor(x), z = math.floor(z), every = math.floor(tonumber(m.every) or 8), n = hub.boreN }
+      save()
+      send(selected, { type = "go", target = selected })
+      note = "Tunnel to " .. math.floor(x) .. "," .. math.floor(z) .. " for #" .. selected
+    end
   elseif m.cmd == "update" then
     -- panel's Update all: fetch hub.lua and miner.lua; after the reboot the new miner.lua
     -- is released to the turtles (see the end of this file)
@@ -1059,7 +1086,7 @@ local function panelRequest(id, m)
     local r, own = turtles[tid], hub.overrides[tid]
     local p = r.p
     list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
-      free = p.free, y = p.y, ore = (own == false) and "stop" or oreFor(tid), branch = p.branch,
+      free = p.free, y = p.y, ore = (own == false) and "stop" or (hub.bores[tid] and "tunnel") or oreFor(tid), branch = p.branch,
       age = os.clock() - r.seen, err = p.lastError }
   end
   local haul = {}

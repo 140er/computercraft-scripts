@@ -188,6 +188,15 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 - A broken file is rejected. A turtle running a version older than hub updates needs one manual copy.
 - Anyone on the server with a computer and modem could pretend to be the hub; on a server with strangers that is a risk.
 
+### Tunnels (highway job)
+Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket panel's Mine tab tap the turtle, then **TUNNEL**, and type the end point `x z` (F3). In the panel console: `<miner> tunnel <x> <z> [torch every]`.
+- The tunnel starts at the turtle's shaft hole (1 block in front of it), at the height the turtle stands on. It goes straight ahead (the way the turtle faces), then turns once towards the end point. So the end point must be ahead of the turtle, and at least 2 blocks ahead if it is off to the side.
+- Every block of tunnel: 3 wide, 3 high. Holes in the floor are filled, so it bridges gaps. Lava, water and cave openings in the walls and roof are sealed, so a bridge over a ravine becomes a closed tube. A torch goes on the wall every 8 blocks (or what you typed).
+- **Near both ends** (the first and last 12 blocks) it only digs natural ground and leaves open air alone. A built block there (planks, glass, a chest...) stops the job and shows the reason, so it never tears up your base. Open your base wall yourself where the tunnel should leave.
+- Put **torches** in the turtle's chest; it takes a stack before each trip. For long bridges also put **cobblestone** in the chest: it keeps 6 stacks of dug stone for patching, and stops with "out of blocks" when it runs out.
+- It works in trips like mining (back home to unload and refuel) and carries on where it stopped, also after a reboot. Fuel: about 10 per block of tunnel plus the walk out and back. Ores in the way are mined; ores in the walls are left.
+- The job runs until the tunnel is done, it gets stuck, or you STOP or RECALL that turtle. The hub's session timer doesn't end it; RECALL for all pauses it and RESUME carries on. Typing the same end point again continues an unfinished tunnel.
+
 ### Safety and recovery
 
 - **Reboots / chunk unloads:** position, heading and progress are saved on every move and turn. After a restart away from home the turtle goes home along its own tunnels first, then carries on.
@@ -207,6 +216,7 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 | turtle | `miner` | run with the hub (started automatically on boot) |
 | turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
+| pocket console | `<miner> tunnel <x> <z> [n]` | dig a lit 3x3 highway to x z, torch every n blocks (see [Tunnels](#tunnels-highway-job)) |
 | hub | `hub install`, `hub` | autostart, run |
 | relay | `relay install`, `relay` | autostart, run |
 | tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
