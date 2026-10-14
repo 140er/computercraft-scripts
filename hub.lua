@@ -872,7 +872,9 @@ local function devCommand(m, logFile, program, reply)
       out(#l > 0 and table.concat(l, "\n") or "(empty)")
     end
   elseif op == "cat" or op == "get" then
-    if not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
+    local name = fs.getName(path)
+    if name == "api.key" or name == "dev.key" then r.ok = false out("Secret file, not sent")
+    elseif not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
     else
       local h = fs.open(path, "r")
       r.data = h.readAll()

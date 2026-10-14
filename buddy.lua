@@ -808,9 +808,9 @@ local function chatLoop()
 end
 
 -- Developer commands from the pocket panel's console (panel.lua): info, log, ls, cat,
--- get (copy a file to the pocket), reboot. Read-only apart from reboot: it never runs
--- code or writes files sent over the air. If this computer has a file "dev.key", a
--- command only works when it carries the same key (set it on the pocket: key <secret>).
+-- get (copy a file to the pocket), reboot, and put / rm / lua (write or delete a file,
+-- run Lua). If this computer has a file "dev.key", every command needs that same
+-- password (on the pocket: key <password>). put, rm and lua only work once dev.key exists.
 local function devCommand(m, logFile, program, reply)
   local r = { type = "dev_reply", rid = m.rid, ok = true }
   local function out(s) r.out = tostring(s) end
@@ -861,6 +861,40 @@ local function devCommand(m, logFile, program, reply)
       h.close()
       out(op == "cat" and r.data or (path .. ": " .. #r.data .. " bytes"))
       if op == "cat" then r.data = nil end
+    end
+  elseif (op == "put" or op == "rm" or op == "lua") and not (key and key ~= "") then
+    r.ok = false
+    out("Locked: put a password in a file dev.key on this computer to allow " .. op)
+  elseif op == "put" then
+    if path == "" or type(m.data) ~= "string" then r.ok = false out("put needs a file name and its contents")
+    else
+      if fs.exists(path) then
+        if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
+        fs.copy(path, path .. ".bak")
+      end
+      local h = fs.open(path, "w")
+      h.write(m.data)
+      h.close()
+      out("Wrote " .. path .. " (" .. #m.data .. " bytes, the old one is " .. path .. ".bak)")
+    end
+  elseif op == "rm" then
+    if path == "" or not fs.exists(path) then r.ok = false out("No such file: " .. path)
+    else fs.delete(path) out("Deleted " .. path) end
+  elseif op == "lua" then
+    local env = setmetatable({}, { __index = _ENV or _G })
+    local code = tostring(m.code or "")
+    local fn, err = load("return " .. code, "=dev", "t", env)
+    if not fn then fn, err = load(code, "=dev", "t", env) end
+    if not fn then r.ok = false out(err)
+    else
+      local res = table.pack(pcall(fn))
+      r.ok = res[1]
+      local l = {}
+      for i = 2, res.n do
+        local ok, s = pcall(textutils.serialize, res[i])
+        l[#l + 1] = ok and s or tostring(res[i])
+      end
+      out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
     end
   elseif op == "reboot" then
     out("Rebooting...")
