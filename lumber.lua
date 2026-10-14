@@ -1,11 +1,11 @@
 -- lumber.lua - tree farming turtle (CC: Tweaked)
 --
 -- Put a felling turtle (a turtle with an axe) somewhere in the open with a chest
--- directly BEHIND it and a fuel chest with lava buckets UNDER it. It searches the
+-- next to it (it turns to find it and calls that side "behind"). It searches the
 -- area around that spot for trees by itself, fells them, replants a sapling in the
--- same place and keeps coming back to every tree it planted. Logs go in the chest
--- behind it. It never burns its own wood: fuel is lava buckets (or coal) from the
--- chest under it; the empty buckets go in the chest behind it.
+-- same place and keeps coming back to every tree it planted. Logs go in that chest.
+-- It never burns its own wood: fuel is lava buckets (or coal) you put in that same
+-- chest (or in an optional chest under it); the empty buckets go back in the chest.
 --
 -- One-time setup:
 --   lumber setup [radius]   radius = how far from the chest it may go (default 48)
@@ -106,10 +106,16 @@ if args[1] == "setup" then
     return
   end
   if turtle then
-    turtle.turnLeft() turtle.turnLeft()
-    local ok, info = turtle.inspect()
-    turtle.turnLeft() turtle.turnLeft()
-    if not (ok and isChest(info)) then print("WARNING: no chest found behind the turtle!") end
+    -- turn until the chest is behind it (the chest may be on any side)
+    local found = false
+    for _ = 1, 4 do
+      turtle.turnLeft() turtle.turnLeft()
+      local ok, info = turtle.inspect()
+      turtle.turnLeft() turtle.turnLeft()
+      if ok and isChest(info) then found = true break end
+      turtle.turnRight()
+    end
+    if not found then print("WARNING: no chest found next to the turtle!") end
   end
   saveTable(CFG_FILE, { radius = math.floor(radius) })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
@@ -902,39 +908,86 @@ local function emptySlot()
   return nil
 end
 
--- Lava buckets in the fuel chest under the turtle (nil: no chest it can look into)
+-- Lava buckets in the chests at home (nil: no chest it can look into)
 local lavaLeft = nil
 local function countLava()
-  local ok, n = pcall(function()
-    local c = peripheral.wrap("bottom")
-    if not c or not c.list then return nil end
-    local k = 0
-    for _, it in pairs(c.list()) do
-      if FUEL_VALUE[it.name] then k = k + (it.name == "minecraft:lava_bucket" and it.count or 0) end
-    end
-    return k
-  end)
-  lavaLeft = ok and n or nil
+  local total, seen = 0, false
+  for _, side in ipairs({ "bottom", "front" }) do
+    pcall(function()
+      local c = peripheral.wrap(side)
+      if not c or not c.list then return end
+      seen = true
+      for _, it in pairs(c.list()) do
+        if it.name == "minecraft:lava_bucket" then total = total + it.count end
+      end
+    end)
+  end
+  lavaLeft = seen and total or nil
 end
 
--- At home: top up from the fuel chest under the turtle, one item at a time.
--- Empty buckets and anything else that is not fuel go in the chest behind it
--- with the next deposit.
+local function wantFuel()
+  return fuel() < REFUEL_BELOW or fuel() + 1000 <= REFUEL_TO
+end
+
+-- Chest in front (the home chest): move a fuel item into its first slot, so the
+-- next suck takes exactly that. False if there is none (or no peripheral access).
+local function fuelToFirstSlot()
+  local ok, res = pcall(function()
+    local c = peripheral.wrap("front")
+    if not c or not c.list then return false end
+    local list = c.list()
+    if list[1] and FUEL_VALUE[list[1].name] then return true end
+    local from
+    for slot, it in pairs(list) do
+      if FUEL_VALUE[it.name] and (not from or slot < from) then from = slot end
+    end
+    if not from then return false end
+    if list[1] then
+      local free
+      for e = c.size(), 2, -1 do if not list[e] then free = e break end end
+      if not free then return false end
+      c.pushItems(peripheral.getName(c), 1, 64, free)
+    end
+    return c.pushItems(peripheral.getName(c), from, 1, 1) > 0
+  end)
+  return ok and res
+end
+
+-- At home: top up with lava buckets (or coal). First from a chest under the turtle,
+-- then from the home chest behind it. Empty buckets and anything else it takes out
+-- go back in the home chest with the deposit that follows.
 local function refuelHome()
   burn(REFUEL_TO)
   if fuel() >= REFUEL_BELOW then return end
+  -- 1. a fuel chest under it: take one item at a time
   local ok, info = turtle.inspectDown()
-  if not (ok and isChest(info)) then return end
+  if ok and isChest(info) then
+    for _ = 1, 32 do
+      if not wantFuel() then break end
+      local s = emptySlot()
+      if not s then break end
+      turtle.select(s)
+      if not turtle.suckDown(1) then break end
+      burn(REFUEL_TO)
+    end
+  end
+  -- 2. the home chest behind it
+  face(2)
   for _ = 1, 32 do
-    if fuel() + 1000 > REFUEL_TO and fuel() >= REFUEL_BELOW then break end
+    if not wantFuel() then break end
     local s = emptySlot()
     if not s then break end
     turtle.select(s)
-    if not turtle.suckDown(1) then break end
-    local d = turtle.getItemDetail(s)
-    if d and isFuelItem(d) and fuel() + FUEL_VALUE[d.name] <= turtle.getFuelLimit() then
-      turtle.refuel(1)
+    if fuelToFirstSlot() then
+      if not turtle.suck(1) then break end
+    else
+      -- no peripheral access: go through the stacks one by one. Logs in the chest
+      -- were counted when they went in; they go back with the deposit.
+      local before = countLogs()
+      if not turtle.suck() then break end
+      st.logs = st.logs - (countLogs() - before)
     end
+    burn(REFUEL_TO)
   end
   turtle.select(1)
 end
@@ -1103,13 +1156,13 @@ local function drawScreen()
   -- lava
   row(6, "")
   if lavaLeft == nil then
-    pair(6, "Lava ", "put buckets in a chest under me")
+    pair(6, "Lava ", "put lava buckets in my chest")
   elseif lavaLeft == 0 then
     term.setCursorPos(2, 6)
     term.setTextColor(col(colors.red))
-    term.write("Lava none left in the chest under me!")
+    term.write("Lava none left: put buckets in my chest!")
   else
-    pair(6, "Lava ", lavaLeft .. " bucket" .. (lavaLeft == 1 and "" or "s") .. " in the chest")
+    pair(6, "Lava ", lavaLeft .. " bucket" .. (lavaLeft == 1 and "" or "s") .. " in my chest")
   end
   row(7, "")
   -- numbers
@@ -1200,7 +1253,7 @@ local function worker()
       setStatus("Paused at home. Press P to go on")
       while st.paused do sleep(1) end
     elseif fuel() < MIN_FUEL then
-      setStatus("Out of fuel: put lava buckets in the chest under me")
+      setStatus("Out of fuel: put lava buckets in my chest")
       sleep(30)
     else
       local ok, n, why = pcall(trip)
