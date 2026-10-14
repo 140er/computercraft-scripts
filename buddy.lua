@@ -906,6 +906,16 @@ local function devCommand(m, logFile, program, reply)
   reply(r)
 end
 
+-- Real world position for the panel's map, when GPS hosts are up (gpshost.lua)
+local gpsPos
+local function gpsLoop()
+  while true do
+    local x, y, z = gps.locate(2)
+    gpsPos = x and { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) } or nil
+    sleep(x and 3 or 30)
+  end
+end
+
 -- Pocket control panel (panel.lua): chat, status and quick trips over a wireless or
 -- ender modem. Without a modem these just wait forever.
 local netJobs = {}
@@ -931,7 +941,7 @@ local function radioLoop()
       local p = pos()
       rednet.send(id, { type = "buddy_state", rid = m.rid, name = cfg.name, model = cfg.model,
         fuel = turtle.getFuelLevel(), busy = busy or #netJobs > 0, places = places,
-        pos = { x = p.x, y = p.y, z = p.z } }, "buddy")
+        pos = { x = p.x, y = p.y, z = p.z }, gps = gpsPos }, "buddy")
     end
   end
 end
@@ -975,4 +985,4 @@ term.setCursorPos(1, 1)
 print(cfg.name .. " (model: " .. cfg.model .. ") - fuel " .. fuelText())
 print(chatBox and ("Talk here, or in chat: \"" .. cfg.name .. ", ...\"") or "Talk to me here.")
 print("/reset forgets the chat, /quit stops.")
-parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop)
+parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop, gpsLoop)

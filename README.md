@@ -10,6 +10,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
+| [GPS](#gps-and-the-map) | `gpshost.lua` | 4 computers | A GPS tower: every turtle and pocket computer knows its real position, and the panel shows a live map of all bots. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
 ---
@@ -21,7 +22,7 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `gpshost`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -531,12 +532,13 @@ A turtle you talk to. A language model reads what you say and decides what to do
 ## Pocket panel
 `panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). `install panel` on it (see [Installing](#installing)), then `panel install` (opens on start-up) and `panel`.
 
-Tabs along the top (tap them, or keys 1-5, Q quits):
+Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
 - **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **Map**: where every bot is, seen from above with north up: miners as numbers `1`-`9`, the lumberjack `L`, Buddy `B` and you `@`. Tap one for its coordinates and how far away it is (Go keeps it centred), drag to move, `-`/`+` or the scroll wheel to zoom, **Fit** shows everyone. A bot that hasn't reported for 30 s turns grey. Needs [GPS hosts](#gps-and-the-map).
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
@@ -549,6 +551,21 @@ To turn this on, put a password in a file `dev.key` on each bot and type `key <p
 Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+
+---
+
+## GPS and the map
+Four computers running `gpshost.lua` form a GPS tower. Then every turtle and pocket computer can find its real position, and the panel's **Map** tab shows where all bots are.
+
+1. Place 4 computers, each with a modem. **Ender modems** are easiest: they reach every bot at any distance. Normal wireless modems reach further the higher they are, so then build the tower high up.
+2. Put them a few blocks apart, **not all at the same height and not all in one line**: e.g. three in an L shape at one height and the fourth 3 blocks higher. Otherwise GPS can't work out the height.
+3. On each one: `install gpshost`, then `gpshost <x> <y> <z>` with the coordinates of **that computer block** (press F3 and look at it, "Targeted Block"). It saves them and starts hosting again by itself after a reboot.
+4. Check: `gps locate` on the pocket computer should print your position. `gpshost check` on a host asks the other three where it is, which catches a typo in the coordinates.
+
+Keep the tower's chunk loaded (build it at your base). What the map uses:
+- **Miners** already know their real position (from `miner setup`, which asks GPS when it can), and the hub passes it on.
+- **Lumberjack** and **Buddy** ask GPS every few seconds while running (new versions of `lumber.lua` and `buddy.lua`). Without GPS hosts they just don't show up on the map.
+- The **pocket computer** asks GPS while the Map tab is open, for the `@` and the distances.
 
 ---
 

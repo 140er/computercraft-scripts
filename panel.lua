@@ -4,13 +4,14 @@
 --   panel            start
 --   panel install    start automatically when the pocket computer turns on
 --
--- Tabs (tap them, or keys 1-5):
+-- Tabs (tap them, or keys 1-7):
 --   Home   everything at a glance; tap a card to open it
 --   Mine   the mining fleet through the hub: pick an ore, STOP / RECALL / RESUME,
 --          session time, tap a turtle to give orders to that turtle only
 --   Store  the storage room turtle: search, tap an item to order it, pause, resync
 --   Wood   the lumber turtle: status, fuel and lava, pause / come home
 --   Buddy  chat with Buddy, send it home or to a place it remembers
+--   Map    where every bot is, from above (needs GPS hosts: gpshost.lua)
 -- Update all (Home tab, tap twice): every bot fetches its latest version from GitHub.
 -- Q quits.
 --
@@ -216,9 +217,9 @@ end
 -- UI state
 ---------------------------------------------------------------------------
 local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "buddy", "Bud" },
-  { "console", ">_" } }
+  { "map", "Map" }, { "console", ">_" } }
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple,
-  console = colors.gray }
+  map = colors.brown, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 
 local function setTab(t)
@@ -689,6 +690,182 @@ local function drawBuddy()
 end
 
 ---------------------------------------------------------------------------
+-- Map: where every bot is, seen from above (north is up). Needs GPS hosts
+-- (gpshost.lua). Miners report their real position already; the lumber
+-- turtle and Buddy ask GPS. Drag to move, - / + to zoom, Fit shows everyone.
+---------------------------------------------------------------------------
+local ZOOMS = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 } -- blocks per character
+local wmap = { zoom = 4, cx = 0, cz = 0, mode = "fit", sel = nil, me = nil, meAt = -1e9, tapX = 0, tapY = 0 }
+
+-- Everything with a position: { key, label, ch, col, x, y, z, old }
+local function mapMarks()
+  local list = {}
+  local function add(key, label, ch, col, p, quiet)
+    if type(p) ~= "table" or type(p.x) ~= "number" or type(p.z) ~= "number" then return false end
+    list[#list + 1] = { key = key, label = label, ch = ch, col = col, x = p.x, y = p.y, z = p.z, old = quiet > 30 }
+    return true
+  end
+  local h = online("hub") and data.hub
+  for i, t in ipairs(h and h.turtles or {}) do
+    add("m" .. tostring(t.id), t.label or ("Miner #" .. tostring(t.id)), tostring(i % 10), colors.orange, t, t.age or 0)
+  end
+  if data.wood then add("wood", data.wood.label or "Lumberjack", "L", colors.lime, data.wood.gps, os.clock() - DEV.wood.seen) end
+  if data.buddy then add("buddy", data.buddy.name or "Buddy", "B", colors.magenta, data.buddy.gps, os.clock() - DEV.buddy.seen) end
+  if wmap.me then add("me", "You", "@", colors.white, wmap.me, os.clock() - wmap.meAt) end
+  return list
+end
+
+local function mapZoom(step)
+  local i = 1
+  for k, z in ipairs(ZOOMS) do if z == wmap.zoom then i = k end end
+  wmap.zoom = ZOOMS[math.max(1, math.min(#ZOOMS, i + step))]
+  if wmap.mode == "fit" then wmap.mode = nil end
+end
+
+local function drawMap()
+  local top, bottom = 3, H - 4 -- map rows
+  local mw, mh = W, bottom - top + 1
+  local marks = mapMarks()
+  -- Where to look
+  if wmap.mode == "fit" and #marks > 0 then
+    local x1, x2, z1, z2 = math.huge, -math.huge, math.huge, -math.huge
+    for _, m in ipairs(marks) do
+      x1, x2, z1, z2 = math.min(x1, m.x), math.max(x2, m.x), math.min(z1, m.z), math.max(z2, m.z)
+    end
+    wmap.cx, wmap.cz = (x1 + x2) / 2, (z1 + z2) / 2
+    wmap.zoom = ZOOMS[#ZOOMS]
+    for _, z in ipairs(ZOOMS) do
+      if z >= 2 and (x2 - x1) / z <= mw - 3 and (z2 - z1) / (z * 1.5) <= mh - 2 then wmap.zoom = z break end
+    end
+  elseif wmap.mode == "me" and wmap.me then
+    wmap.cx, wmap.cz = wmap.me.x, wmap.me.z
+  elseif wmap.mode == "sel" then
+    for _, m in ipairs(marks) do if m.key == wmap.sel then wmap.cx, wmap.cz = m.x, m.z end end
+  end
+  local zx, zz = wmap.zoom, wmap.zoom * 1.5 -- blocks per column / row (characters are taller than wide)
+  local function cell(x, z)
+    return math.floor((x - wmap.cx) / zx + mw / 2) + 1, math.floor((z - wmap.cz) / zz + mh / 2) + top
+  end
+
+  -- Header: scale and centre
+  text(1, 2, (" 1 char = " .. wmap.zoom .. " blocks"), colors.lightGray)
+  right(2, "N\24 ", colors.white)
+
+  -- Ground: a dot every 16 blocks (chunk lines) when zoomed in, else every 8 characters
+  local step = wmap.zoom <= 2 and 16 or wmap.zoom * 8
+  for y = top, bottom do
+    fill(y, colors.black)
+    local wz = wmap.cz + (y - top - mh / 2) * zz
+    local zLine = math.floor(wz / step) ~= math.floor((wz + zz) / step)
+    if zLine then
+      local row = {}
+      for x = 1, mw do
+        local wx = wmap.cx + (x - 1 - mw / 2) * zx
+        row[x] = math.floor(wx / step) ~= math.floor((wx + zx) / step) and "+" or " "
+      end
+      text(1, y, table.concat(row), colors.gray)
+    end
+  end
+
+  -- The bots; several in one spot show as *
+  local taken = {}
+  local selMark
+  for _, m in ipairs(marks) do
+    local x, y = cell(m.x, m.z)
+    m.cx, m.cy = x, y
+    if m.key == wmap.sel then selMark = m end
+    if x >= 1 and x <= mw and y >= top and y <= bottom then
+      local k = x .. "," .. y
+      local ch, col = m.ch, m.old and colors.gray or m.col
+      if taken[k] then ch, col = "*", colors.yellow end
+      taken[k] = true
+      text(x, y, ch, m.key == wmap.sel and colors.black or col, m.key == wmap.sel and colors.yellow or colors.black)
+    end
+  end
+
+  -- Tap the map: pick the nearest bot (within 2 characters)
+  buttons[#buttons + 1] = { x1 = 1, y1 = top, x2 = mw, y2 = bottom, action = function()
+    local best, bd = nil, 2.5
+    for _, m in ipairs(marks) do
+      local d = math.abs(m.cx - wmap.tapX) + math.abs(m.cy - wmap.tapY)
+      if d < bd then best, bd = m, d end
+    end
+    wmap.sel = best and best.key
+    if not best and wmap.mode == "sel" then wmap.mode = nil end
+  end }
+
+  -- Nothing to show: say why
+  if #marks == 0 or (#marks == 1 and marks[1].key == "me") then
+    local l = { "No bot positions yet." }
+    if not wmap.me then l[#l + 1] = "No GPS fix here either." end
+    l[#l + 1] = "Set up 4 GPS hosts:"
+    l[#l + 1] = "install gpshost"
+    for i, s in ipairs(l) do fill(top + 1 + i, colors.black) text(2, top + 1 + i, s, i == #l and colors.yellow or colors.lightGray) end
+  end
+
+  -- Info about the selected bot (or a legend)
+  fill(H - 3, colors.black, H - 2)
+  if selMark then
+    local m = selMark
+    text(1, H - 3, " " .. m.label, m.col)
+    if m.old then right(H - 3, "old ", colors.gray) end
+    local where = "x" .. math.floor(m.x) .. " y" .. (m.y and math.floor(m.y) or "?") .. " z" .. math.floor(m.z)
+    if wmap.me and m.key ~= "me" then
+      local dx, dz = m.x - wmap.me.x, m.z - wmap.me.z
+      local dist = math.floor(math.sqrt(dx * dx + dz * dz) + 0.5)
+      local dir = ""
+      if math.abs(dz) * 2 > math.abs(dx) then dir = dz < 0 and "N" or "S" end
+      if math.abs(dx) * 2 > math.abs(dz) then dir = dir .. (dx < 0 and "W" or "E") end
+      where = where .. "  " .. dist .. "m " .. dir
+    end
+    text(2, H - 2, where, colors.white)
+  else
+    text(1, H - 3, " 1-9", colors.orange) text(6, H - 3, "miners", colors.lightGray)
+    text(13, H - 3, "L", colors.lime) text(15, H - 3, "wood", colors.lightGray)
+    text(1, H - 2, " B", colors.magenta) text(4, H - 2, "Buddy", colors.lightGray)
+    text(10, H - 2, "@", colors.white) text(12, H - 2, "you", colors.lightGray)
+    text(16, H - 2, "tap = info", colors.gray)
+  end
+
+  buttonRow(H - 1, {
+    { "-", colors.white, colors.gray, function() mapZoom(1) end },
+    { "+", colors.white, colors.gray, function() mapZoom(-1) end },
+    { "Fit", wmap.mode == "fit" and colors.black or colors.white, wmap.mode == "fit" and colors.lime or colors.gray,
+      function() wmap.mode = "fit" end },
+    { selMark and "Go" or "Me", (wmap.mode == "me" or wmap.mode == "sel") and colors.black or colors.white,
+      (wmap.mode == "me" or wmap.mode == "sel") and colors.lime or colors.gray, function()
+        if selMark then wmap.mode = "sel" else wmap.mode = "me" end
+      end },
+  }, 1, W, 1)
+end
+
+-- Drag the map with a finger / the mouse
+local function mapDrag(x, y)
+  local dx, dy = x - wmap.tapX, y - wmap.tapY
+  if dx == 0 and dy == 0 then return end
+  wmap.mode = nil
+  wmap.cx = wmap.cx - dx * wmap.zoom
+  wmap.cz = wmap.cz - dy * wmap.zoom * 1.5
+  wmap.tapX, wmap.tapY = x, y
+end
+
+-- Where this pocket computer is (only while the map is open)
+local function mapLoop()
+  while true do
+    if ui.tab == "map" and gps then
+      local x, y, z = gps.locate(1)
+      if x then
+        wmap.me, wmap.meAt = { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) }, os.clock()
+        redrawSoon()
+      end
+      sleep(x and 2 or 10)
+    else
+      sleep(1)
+    end
+  end
+end
+
+---------------------------------------------------------------------------
 -- Console (the >_ tab): type commands to manage the bots. "help" lists them.
 ---------------------------------------------------------------------------
 local con = { lines = {}, input = "", cursor = 0, history = {}, hpos = nil, scroll = 0, pending = {}, listen = nil }
@@ -1135,6 +1312,7 @@ local function draw()
   elseif ui.tab == "store" then drawStore()
   elseif ui.tab == "wood" then drawWood()
   elseif ui.tab == "buddy" then drawBuddy()
+  elseif ui.tab == "map" then drawMap()
   elseif ui.tab == "console" then drawConsole() return end
   if ui.popup and ui.popup.kind == "order" then
     buttons = {}
@@ -1234,7 +1412,7 @@ local function pollLoop()
     if ev == "timer" and a == timer then
       for _, key in ipairs(DEV_ORDER) do
         local d = DEV[key]
-        local every = (ui.tab == key or ui.tab == "home") and d.poll or 10
+        local every = (ui.tab == key or ui.tab == "home" or ui.tab == "map") and d.poll or 10
         if d.id and os.clock() - d.asked >= every then ask(key) end
       end
       timer = os.startTimer(0.5)
@@ -1256,6 +1434,7 @@ local function uiLoop()
     elseif ev == "panel_redraw" or ev == "term_resize" then
       draw()
     elseif ev == "mouse_click" or ev == "monitor_touch" then
+      wmap.tapX, wmap.tapY = b, cc
       for k = #buttons, 1, -1 do
         local bt = buttons[k]
         if b >= bt.x1 and b <= bt.x2 and cc >= bt.y1 and cc <= bt.y2 then
@@ -1265,13 +1444,17 @@ local function uiLoop()
       end
       draw()
       tick = os.startTimer(1) -- typing in a prompt swallows the old timer
+    elseif ev == "mouse_drag" and ui.tab == "map" then
+      mapDrag(b, cc)
+      draw()
     elseif ui.tab == "console" and (ev == "char" or ev == "paste" or ev == "key") then
       consoleKey(ev, a)
       draw()
     elseif ev == "mouse_scroll" then
       if ui.tab == "console" then con.scroll = con.scroll - a * 3
       elseif ui.tab == "store" then ui.scroll = ui.scroll + a * 3
-      elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a end
+      elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a
+      elseif ui.tab == "map" then mapZoom(a) end
       draw()
     elseif ev == "char" then
       local n = tonumber(a)
@@ -1284,7 +1467,7 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop)
+parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, mapLoop)
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()

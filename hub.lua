@@ -973,7 +973,7 @@ local function panelRequest(id, m)
     local r, own = turtles[tid], hub.overrides[tid]
     local p = r.p
     list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
-      free = p.free, y = p.y, ore = (own == false) and "stop" or oreFor(tid), branch = p.branch,
+      free = p.free, x = p.x, y = p.y, z = p.z, ore = (own == false) and "stop" or oreFor(tid), branch = p.branch,
       age = os.clock() - r.seen, err = p.lastError }
   end
   local haul = {}

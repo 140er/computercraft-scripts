@@ -8,6 +8,7 @@
 --   lumber      tree farm turtle
 --   buddy       companion turtle you can chat with
 --   panel       pocket computer control panel
+--   gpshost     GPS host computer (build 4 of them for real positions and the panel map)
 --   smartmine   old standalone tunnel miner
 -- Every install also gets update.lua, so "update" (or "<bot> update") fetches new versions later.
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
@@ -20,6 +21,7 @@ local NEXT = {
   lumber = "lumber setup [radius]",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
   panel = "panel install, then panel",
+  gpshost = "gpshost <x> <y> <z> (this computer's own position, from F3)",
   smartmine = "smartmine <length> [tunnels] [gap] [blocks]",
 }
 local what = ({ ... })[1]

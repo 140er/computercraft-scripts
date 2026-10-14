@@ -1389,6 +1389,16 @@ local function devCommand(m, logFile, program, reply)
   reply(r)
 end
 
+-- Real world position for the panel's map, when GPS hosts are up (gpshost.lua)
+local gpsPos
+local function gpsLoop()
+  while true do
+    local x, y, z = gps.locate(2)
+    gpsPos = x and { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) } or nil
+    sleep(x and 3 or 30)
+  end
+end
+
 -- Pocket control panel (panel.lua): status, P/H keys and Update all over a wireless or ender modem.
 -- Without a modem this just waits forever.
 local function radio()
@@ -1413,14 +1423,14 @@ local function radio()
         status = ui.status, fuel = fuel(), fuelMax = REFUEL_TO, lava = lavaLeft, felled = st.felled,
         logs = st.logs, spots = spots, maxSpots = MAX_SPOTS, saplings = saplingCount(),
         searched = math.min(100, math.floor((st.cursor - 1) * 100 / #CELLS)), radius = R,
-        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y } }, "lumber")
+        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y }, gps = gpsPos }, "lumber")
     end
   end
 end
 
 local function main()
   term.clear()
-  parallel.waitForAny(worker, screen, radio)
+  parallel.waitForAny(worker, screen, radio, gpsLoop)
 end
 
 turtle.select(1)
