@@ -10,6 +10,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
 | [Farmer](#crop-farm-farmerlua) | `farmer.lua` | turtle (a hoe is best) | Harvests and replants a field of wheat, carrots, potatoes, beetroot, melons, pumpkins, sugar cane and more, and brings the harvest to the storage room. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
+| [Turtle factory](#turtle-factory) | `factory.lua` | crafty turtle | Orders the parts from the Storage Room, crafts a new wireless mining turtle, gives it coal and `miner.lua`, and sends it to a free home spot, where it joins the hub's fleet. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
@@ -22,7 +23,7 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `factory`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -581,6 +582,50 @@ A turtle you talk to. A language model reads what you say and decides what to do
 - It counts its own steps from home and never goes more than 32 blocks from home on any axis (`range` in `buddy.cfg`). `go_home` walks back the way it came.
 - It never digs to get somewhere and only breaks or places blocks when you ask. It refuses to break chests, barrels, computers, turtles, furnaces, hoppers, doors, beds and similar base blocks.
 - It can't see you, so "come here" makes it ask where you are compared to it.
+
+---
+
+## Turtle factory
+`factory.lua`: the fleet grows itself. The [Storage Room](#storage-room) crafts the parts, the factory turtle puts a wireless mining turtle together, places it, gives it coal and its program, and the new turtle flies to a free home spot and starts as a miner. The hub sees it as soon as it reports in.
+
+### What you need
+- A **crafty turtle** (crafting table) with a **wireless modem**, outside the Storage Room, **facing the room's pickup chest**. The room's turtle needs a wireless modem and a crafting table too.
+- A **chest under the factory** for parts and coal (its own, nothing else in it; never put turtles in it).
+- The **build spot**: the block **above** the factory, open to the sky up to the cruise height.
+- A **disk drive with a floppy** right next to the build spot (beside it, not under it). The floppy holds a small installer.
+- The new turtles' **home spots**, built the same way as for [Mine Army](#setup-the-turtles): a chest behind the spot (put lava buckets or coal in it) and the hole in front. The column above each home spot must be open too, because the turtle comes down from above.
+- **Recipes in the Storage Room:** chests, diamond pickaxes and glass panes are built in. Teach it a **computer** (7 stone, redstone in the middle, a glass pane at the bottom) and a **wireless modem** (8 stone around an ender pearl) with `learn` (see [Crafting](#crafting)). It then crafts them from storage when the factory orders them. Or just keep a few in storage.
+
+Per turtle it orders 7 iron ingots, a computer, a chest, a diamond pickaxe, a wireless modem and enough coal (or charcoal) for the flight. Parts it already has in its chest are used first.
+
+### Setup
+1. `install factory` on the crafty turtle (it also fetches `miner.lua`).
+2. `factory setup` (with GPS) or `factory setup <x> <y> <z>` with the turtle's own coordinates. It checks the two chests and the build spot.
+3. A home spot for each new miner, with the same arguments as `miner setup`:
+   ```
+   factory slot 112 64 -350 south south b
+   ```
+   `<x> <y> <z> <facing> <role> [site]`. The hub keeps the tunnel progress **per role**, so:
+   - **Replacing a lost turtle** at its old spot: leave the site out, and the new one carries on with the old one's tunnels.
+   - **A new place** (a second group of four): give a site name (e.g. `b`), so its tunnels are counted separately. Keep sites more than 2 × reach (192 blocks) apart and in loaded chunks.
+4. `factory cruise <y>`: the height the new turtles fly at (default: 10 above the factory). Above trees and buildings between the factory and the home spots.
+5. Put the floppy in a disk drive **next to the factory** and type `factory disk`. Then move the floppy to the drive next to the build spot.
+6. `factory`. It starts by itself after a reboot.
+
+### Building
+- Type `build` (or `build 3`) on the factory, or `factory build 2` before starting it. One turtle per free home spot.
+- The screen shows what it is doing (waiting for parts, crafting, starting the turtle), every home spot (free, flying, mining, stuck) and the last messages.
+- What it does: orders what's missing, moves it from the pickup chest into its own chest, crafts the turtle (iron around a computer, chest at the bottom), puts the pickaxe and then the modem on, places it on the build spot, drops the coal into it and switches it on. The new turtle boots from the floppy, gets `miner.lua` (the version the hub hands out, so the whole fleet runs the same one), `update.lua` and its home spot, and flies there: straight up to the cruise height, across, and down onto the spot.
+- On the way it digs only leaves, grass and snow. Anything else it goes over, or it waits and tells the factory where it is stuck (it tries again every 30 seconds).
+- It labels itself (`Miner-south-b`) and from then on it's a normal miner: `startup.lua` starts `miner`.
+- Parts taken from the pickup chest are only the ones it still needs. If parts don't come within 5 minutes it orders them again (extras stay in its chest for the next turtle). After 30 minutes it gives up and says why.
+- `cancel` stops after the current step, `slots` lists the home spots, `free <n>` marks one free again (its turtle was lost), `unslot <n>` removes one, `status`, `update`.
+- **From the radio:** any computer can send `{ cmd = "build", n = 2 }` (or `status`, `cancel`, `slots`) on protocol `turtlefactory`. **Update all** on the pocket panel updates the factory too.
+
+### Good to know
+- A crafted pickaxe is new; an old, damaged pickaxe from storage can't be put on a turtle.
+- The new turtle knows where it is from the factory's coordinates (and GPS when there is one), and saves its position after every move. If its chunk unloads mid-flight it carries on when it's loaded again; without GPS it can be one block off after such a restart, so pick it up and use `miner setup` if it lands next to its spot.
+- Other computers next to the disk drive just start as usual: the installer only acts on a brand new turtle.
 
 ---
 

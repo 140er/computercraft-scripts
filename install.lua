@@ -9,6 +9,7 @@
 --   farmer      crop farm turtle
 --   buddy       companion turtle you can chat with
 --   panel       pocket computer control panel
+--   factory     turtle factory: builds new mining turtles (crafty turtle)
 --   smartmine   old standalone tunnel miner
 -- Every install also gets update.lua, so "update" (or "<bot> update") fetches new versions later.
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
@@ -22,6 +23,7 @@ local NEXT = {
   farmer = "farmer setup <length> <width> [left]",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
   panel = "panel install, then panel",
+  factory = "factory setup, factory slot ..., factory disk, then factory",
   smartmine = "smartmine <length> [tunnels] [gap] [blocks]",
 }
 local what = ({ ... })[1]
@@ -34,7 +36,7 @@ if not what or not NEXT[what] then
   return
 end
 local files = { what .. ".lua", "update.lua" }
-if what == "hub" then files[#files + 1] = "miner.lua" end -- the hub hands it to the turtles
+if what == "hub" or what == "factory" then files[#files + 1] = "miner.lua" end -- they hand it to the turtles
 for _, f in ipairs(files) do
   if fs.exists(f) then fs.delete(f) end
   shell.run("wget", BASE .. f, f)
