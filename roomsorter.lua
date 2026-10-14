@@ -2189,8 +2189,24 @@ local function pullInput()
   return n
 end
 
+local LAVA = "minecraft:lava_bucket"
+local function fuelRoom()
+  local lim = turtle.getFuelLimit and turtle.getFuelLimit() or 20000
+  if lim == "unlimited" then return 0 end
+  return lim - fuelLeft()
+end
+
 -- Fuel in its own slots (also what you put straight into the turtle): no moving needed
 local function refuelCarried()
+  -- Lava buckets are always burnt when they fit (1000 each), never stored; the empty
+  -- buckets go to storage
+  for _, c in ipairs(carried(function(n) return n == LAVA end)) do
+    if fuelRoom() >= 1000 then
+      turtle.select(c.slot)
+      turtle.refuel()
+    end
+  end
+  turtle.select(1)
   if fuelLeft() >= cfg.minFuel then return end
   for _, c in ipairs(carried(function(n) return FUEL_VALUE[n] ~= nil end)) do
     turtle.select(c.slot)
@@ -2202,8 +2218,13 @@ local function refuelCarried()
 end
 
 local function refuelSelf()
-  if fuelLeft() >= cfg.minFuel then return end
   refuelCarried()
+  if fuelLeft() >= cfg.minFuel then return end
+  -- Lava buckets in storage first (put there by older versions), then coal and the like
+  if (totals()[LAVA] or 0) > 0 and fuelRoom() >= 1000 and freeSlots() > 1 then
+    fetch(LAVA, math.min(totals()[LAVA], math.floor(fuelRoom() / 1000), freeSlots() - 1))
+    refuelCarried()
+  end
   if fuelLeft() < cfg.minFuel then
     for _, f in ipairs(cfg.fuels) do
       if fuelLeft() < cfg.minFuel and totals()[f] then
@@ -2359,6 +2380,24 @@ local function furnacePass()
   end
   local carriedSmelt = carriedCount(function(n) return smeltKind(n) ~= nil end)
   local stored = smeltablesInStorage()
+  -- No fuel anywhere (coal, charcoal, ... or logs to start with): don't walk the furnaces
+  -- for nothing; only go to pick up results or while one still has fuel in it
+  local t = totals()
+  local fuel = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= LAVA or smeltKind(n) == "log" end)
+  for _, f in ipairs(cfg.fuels) do fuel = fuel + (t[f] or 0) end
+  for name, c in pairs(t) do if smeltKind(name) == "log" then fuel = fuel + smeltable(name, c) end end
+  if fuel == 0 then
+    local worth = false
+    for _, k in ipairs(fl) do
+      local st = idx[k].state or {}
+      if st[2] or st[3] then worth = true end
+    end
+    status.noFuel = carriedSmelt + stored > 0
+    if not worth then return end
+    -- carry nothing new along: just collect
+    if os.clock() - lastPass < 30 then return end
+    carriedSmelt, stored = 0, 0
+  end
   if carriedSmelt == 0 and (stored == 0 or room < 8) and not (busy and os.clock() - lastPass > 30) then return end
   lastPass = os.clock()
   setState("Smelting")
@@ -2388,7 +2427,7 @@ local function furnacePass()
   end
   local fuelCarried = takeFuel(carriedSmelt, #fl)
   local logs = carriedCount(function(n) return smeltKind(n) == "log" end)
-  status.noFuel = fuelCarried == 0 and logs == 0 and carriedSmelt > 0
+  if fuel > 0 then status.noFuel = fuelCarried == 0 and logs == 0 and carriedSmelt > 0 end
   local share = math.max(8, math.ceil(carriedSmelt / #fl))
   -- Blast furnaces and smokers first (twice as fast for ores / food), then furnaces
   local function rank(e) return (e.blast or e.smoker) and 0 or 1 end
@@ -3322,6 +3361,7 @@ local function round()
   serveRequests()
   serveCrafts()
   pullInput()
+  refuelCarried() -- lava buckets from the input chest straight into the tank
   urgent()
   refuelSelf()
   urgent()
