@@ -896,7 +896,7 @@ local function devCommand(m, logFile, program, reply, hooks)
     end
   elseif (op == "put" or op == "rm" or op == "lua") and not (key and key ~= "") then
     r.ok = false
-    out("Locked: put a password in a file dev.key on this computer to allow " .. op)
+    out("Locked: pair it first (stand next to it with the pocket, type pair) to allow " .. op)
   elseif op == "put" then
     if path == "" or type(m.data) ~= "string" then r.ok = false out("put needs a file name and its contents")
     else
@@ -969,6 +969,33 @@ local function devCommand(m, logFile, program, reply, hooks)
     return
   else r.ok = false out("Unknown dev command: " .. tostring(op)) end
   reply(r)
+end
+
+-- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
+-- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
+-- (so only someone standing next to it can pair) and it has no dev.key yet.
+local DEV_PAIR_CHANNEL = 16523
+local function devPairLoop()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("dev_never") end end
+  modem.open(DEV_PAIR_CHANNEL)
+  while true do
+    local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
+    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+      local res
+      if fs.exists("dev.key") then res = "Already paired"
+      elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"
+      elseif type(msg.newKey) ~= "string" or #msg.newKey < 8 then res = "Bad password"
+      else
+        local h = fs.open("dev.key", "w")
+        h.write(msg.newKey)
+        h.close()
+        res = "Paired"
+      end
+      modem.transmit(replyCh, DEV_PAIR_CHANNEL, { type = "dev_pair_reply", id = os.getComputerID(),
+        label = os.getComputerLabel(), text = res })
+    end
+  end
 end
 
 -- Pocket control panel (panel.lua): it asks for the dashboard and taps the same buttons.
@@ -1078,7 +1105,7 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(netLoop, uiLoop)
+parallel.waitForAny(netLoop, uiLoop, devPairLoop)
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)

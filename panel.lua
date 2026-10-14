@@ -706,7 +706,7 @@ local HELP = {
   " <bot> cat <file>",
   " <bot> get <file> [save as]",
   " <bot> reboot",
-  "NEED A PASSWORD (key):",
+  "NEED A PASSWORD (pair):",
   " <bot> put <file> [as]",
   " <bot> update <file> [as]",
   "  (put + reboot)",
@@ -737,6 +737,8 @@ local HELP = {
   " bots  scan  clear",
   " listen [protocol|off]",
   " send <id> <proto> <msg>",
+  " pair  (stand right next to",
+  "  a bot: it gets the password)",
   " key <password> | key off",
   "DRIVE A TURTLE:",
   " drive <bot>  (map + keys",
@@ -928,7 +930,7 @@ local function devOp(bot, op, words)
     if msg.code == "" then say("lua <code>, e.g. lua turtle.getFuelLevel()", colors.orange) return end
   end
   if (msg.op == "put" or op == "rm" or op == "lua") and not con.key then
-    say("Set the password first: key <password> (same as dev.key on the bot)", colors.orange)
+    say("Pair first: stand next to the bot and type pair", colors.orange)
     return
   end
   sendTo(bot, msg, extra)
@@ -1011,7 +1013,7 @@ local function run(line)
     else
       con.key = words[2]
       local h = fs.open("panel.key", "w") h.write(con.key) h.close()
-      say("Password saved. Put the same password in a file dev.key on each bot: that locks it and allows put, update, rm and lua.")
+      say("Password saved. Stand next to each bot and type pair, or put the same password in a file dev.key on it.")
     end
   elseif c == "listen" then
     con.listen = (op == "" and "all") or (op ~= "off" and words[2]) or nil
@@ -1025,6 +1027,18 @@ local function run(line)
     if msg == nil then say("That table doesn't read right.", colors.red) return end
     rednet.send(id, msg, words[3])
     say("Sent to #" .. id .. " on " .. words[3], colors.lightGray)
+  elseif c == "pair" then
+    if not con.key then -- make up a password once and keep it on the pocket
+      local cs = "abcdefghijkmnpqrstuvwxyz23456789"
+      local k = ""
+      for _ = 1, 16 do local i = math.random(1, #cs) k = k .. cs:sub(i, i) end
+      con.key = k
+      local h = fs.open("panel.key", "w") h.write(k) h.close()
+    end
+    modem.open(16523)
+    modem.transmit(16523, 16523, { type = "dev_pair", newKey = con.key })
+    con.pairFar = 0
+    say("Pairing every bot within 3 blocks of you...", colors.lightGray)
   elseif c == "drive" then
     local bot = words[2] and findBot(words[2])
     if not bot then say("drive <bot>, e.g. drive Miner1, drive wood, drive buddy", colors.orange) return end
@@ -1124,7 +1138,7 @@ local function complete()
   local cands = {}
   local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
   if pos == 1 then
-    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "miners", "drive", "hub", "store", "wood", "buddy" })
+    add({ "help", "bots", "scan", "listen", "send", "key", "pair", "clear", "miners", "drive", "hub", "store", "wood", "buddy" })
     for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
   elseif pos == 2 then
     local bot = findBot(words[1])
@@ -1404,7 +1418,23 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop)
+-- Answers to "pair" (plain modem messages, not rednet)
+local function pairLoop()
+  while true do
+    local _, _, ch, _, m = os.pullEvent("modem_message")
+    if ch == 16523 and type(m) == "table" and m.type == "dev_pair_reply" then
+      local who = (m.label or "?") .. " #" .. tostring(m.id)
+      if m.text == "Too far away" then
+        con.pairFar = (con.pairFar or 0) + 1
+        if con.pairFar <= 3 then say(who .. ": too far, stand next to it", colors.lightGray) end
+      else
+        say(who .. ": " .. tostring(m.text), m.text == "Paired" and colors.lime or colors.orange)
+      end
+    end
+  end
+end
+
+parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, pairLoop)
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()
