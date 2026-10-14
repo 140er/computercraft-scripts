@@ -306,6 +306,8 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 - the home screen has a button per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food & farm, Mob drops, Tools & gear, Other, All items) with how many kinds are in it,
 - a category shows its items with how many there are; click one and pick an amount (1, 4, 8, 16, 32, 64, All, or "Other amount..." to type a number),
 - "Type it myself" / "Not listed? Type it" lets you type the item and amount like `iron ingot 32`,
+- **CRAFT** button: see Crafting below.
+- The blue bar shows **Status:** what the turtle is busy with (storing, smelting, crafting, getting your items, ...), updated every 5 seconds.
 - Backspace = back. `roomsorter client text` gives the old typing prompt.
 
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
@@ -332,6 +334,15 @@ Coal                           7    ▼-12   -63.2% █▇▆▅▄▃▂▁▁�
 - More items than fit: it flips pages every 10 seconds (`1/3` top right).
 - Any size of monitor works; wide monitors get two columns. A **normal (grey) monitor** shows it in greyscale with ▲/▼; an **advanced (gold) monitor** shows rises in green and drops in red.
 - The turtle sends its stock every 10 seconds and right after something changes. `LIVE` turns into a blinking `NO SIGNAL` after a minute without news. History is kept in `board.hist`, so a reboot keeps the trends.
+
+### Crafting
+Give the turtle a **crafting table**: put one in the drop-off chest and it equips it on its free side (next to the wireless modem). Then it can craft:
+- **Craft tab** on the order screen: every recipe it knows, with how many it can make from what's in storage. Pick one, pick an amount (or Max / Other amount / "Not listed? Type it"). The result goes to the pickup chest.
+- Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
+- **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
+- **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
+- **Teach it anything else** (also modded recipes): on the turtle type `pause`, wait until it says Paused (its inventory is empty then), put **one** set of the recipe in its 3x3 grid (the left 3 columns of the top 3 rows), type `learn`, then `resume`. Learned recipes are in `room.recipes`.
+- How it crafts: it empties itself, takes the ingredients straight into the grid slots, crafts as much as fits in its inventory at once and repeats.
 
 ### Things in the way (cables, ...)
 - Something in the turtle's way (a cable through the room, a block, or it simply can't move there 5 times in a row) is saved in its map **for good**, and it goes around it.

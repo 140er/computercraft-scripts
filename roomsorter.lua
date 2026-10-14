@@ -98,11 +98,21 @@ if args[1] == "client" then
   end
   -- Advanced computer: buttons (click with the mouse). "roomsorter client text" = typing only.
   if term.isColor() and args[2] ~= "text" then
+    -- Ask the turtle; clicks that come in while waiting are kept for afterwards
     local function ask(msg)
       rednet.send(id, msg, proto)
-      local from, reply
-      repeat from, reply = rednet.receive(proto, 8) until not from or from == id
-      return from and reply or nil
+      local timer = os.startTimer(8)
+      local kept, reply = {}, nil
+      while true do
+        local e = table.pack(os.pullEvent())
+        if e[1] == "rednet_message" and e[2] == id and e[4] == proto then reply = e[3] break
+        elseif e[1] == "timer" and e[2] == timer then break
+        elseif e[1] == "mouse_click" or e[1] == "monitor_touch" or e[1] == "key" or e[1] == "char" then
+          kept[#kept + 1] = e
+        end
+      end
+      for _, e in ipairs(kept) do os.queueEvent(table.unpack(e, 1, e.n)) end
+      return reply
     end
     local function num(n)
       local s = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
@@ -146,11 +156,20 @@ if args[1] == "client" then
       for i, c in ipairs(CATS) do if c.test(n) then return i end end
     end
 
-    local stock, stockOk = {}, false
+    local stock, stockOk, turtleState, canCraft = {}, false, "?", false
+    local recipes = {}
     local function refresh()
       local r = ask({ cmd = "stock" })
-      if type(r) == "table" and type(r.totals) == "table" then stock, stockOk = r.totals, true
-      else stockOk = false end
+      if type(r) == "table" and type(r.totals) == "table" then
+        stock, stockOk, turtleState, canCraft = r.totals, true, r.state or "?", r.crafty
+      else
+        stockOk, turtleState = false, "no answer"
+      end
+    end
+    local function refreshRecipes()
+      local r = ask({ cmd = "recipes", text = "raw" })
+      recipes = type(r) == "table" and type(r.recipes) == "table" and r.recipes or {}
+      if type(r) == "table" and r.state then turtleState, canCraft = r.state, r.crafty end
     end
     local function itemsIn(ci) -- ci = nil: everything
       local l = {}
@@ -193,11 +212,20 @@ if args[1] == "client" then
         button(1, 1, 8, 1, "< Back", colors.lightBlue, colors.black, back)
         x = 10
       end
+      -- what the turtle is busy with, on the right
+      local st = "Status: " .. tostring(turtleState)
+      local room = W - x - #title - 3
+      if room >= 12 then
+        st = st:sub(1, room)
+        text(W - #st, 1, st, colors.yellow, colors.blue)
+      end
       text(x, 1, title:sub(1, W - x - 1), colors.white, colors.blue)
     end
     local function waitClick()
+      local tick = os.startTimer(5)
       while true do
         local ev, a, b, c = os.pullEvent()
+        if ev == "timer" and a == tick then return "tick" end
         if ev == "mouse_click" or ev == "monitor_touch" then
           for _, bt in ipairs(buttons) do
             if b >= bt.x1 and b <= bt.x2 and c >= bt.y1 and c <= bt.y2 then return bt.action end
@@ -236,12 +264,12 @@ if args[1] == "client" then
       clear()
       local total = 0
       for _ in pairs(stock) do total = total + 1 end
-      titleBar("ORDER FROM STORAGE")
-      text(W - #(total .. " kinds") , 1, total .. " kinds", colors.white, colors.blue)
+      titleBar("ORDER")
       if not stockOk then text(2, 2, "Couldn't get the stock list (turtle busy? old version?)", colors.red) end
       local list = {}
       for i, c in ipairs(CATS) do list[#list + 1] = { i = i, c = c, n = #itemsIn(i) } end
       list[#list + 1] = { i = "all", c = { name = "All items", color = colors.white }, n = total }
+      list[#list + 1] = { i = "craft", c = { name = "Craft", color = colors.purple }, n = -1 }
       local cols = W >= 45 and 3 or 2
       local bw = math.floor((W - (cols + 1)) / cols)
       local rows = math.ceil(#list / cols)
@@ -253,8 +281,11 @@ if args[1] == "client" then
         local row = math.floor((k - 1) / cols)
         local x = 2 + col * (bw + 1)
         local y = 3 + row * (bh + gap)
-        local bg = e.n > 0 and e.c.color or colors.gray
-        if bh >= 3 then
+        local bg = e.n ~= 0 and e.c.color or colors.gray
+        if e.i == "craft" then
+          button(x, y, bw, bh, "CRAFT", canCraft and colors.purple or colors.gray, colors.white, "craft",
+            canCraft and "make items" or "no crafting table")
+        elseif bh >= 3 then
           button(x, y, bw, bh, e.c.name, bg, colors.black, { "cat", e.i }, e.n .. (e.n == 1 and " kind" or " kinds"))
         else
           button(x, y, bw, bh, e.c.name .. " " .. e.n, bg, colors.black, { "cat", e.i })
@@ -317,6 +348,64 @@ if args[1] == "client" then
       button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
     end
 
+    local function drawCraft()
+      clear()
+      titleBar("Craft", "back")
+      if not canCraft then
+        text(2, 3, "The turtle has no crafting table yet.", colors.red)
+        text(2, 4, "Put a crafting table in the drop-off chest:", colors.lightGray)
+        text(2, 5, "it equips it by itself.", colors.lightGray)
+        return
+      end
+      local cols = W >= 46 and 2 or 1
+      local cw = math.floor((W - 1 - (cols - 1)) / cols)
+      local rows = H - 4
+      local per = rows * cols
+      local pages = math.max(1, math.ceil(#recipes / per))
+      if page > pages then page = pages end
+      for i = 1, per do
+        local it = recipes[(page - 1) * per + i]
+        if not it then break end
+        local col = math.floor((i - 1) / rows)
+        local x = 2 + col * (cw + 1)
+        local y = 3 + (i - 1) % rows
+        local right = it.can > 0 and ("can " .. num(it.can)) or "need more"
+        local name = pretty(it.name):sub(1, cw - #right - 3)
+        local bg = (i % 2 == 0) and colors.gray or colors.black
+        text(x, y, " " .. name .. (" "):rep(cw - #name - #right - 2), colors.white, bg)
+        text(x + cw - #right - 1, y, right .. " ", it.can > 0 and colors.lime or colors.lightGray, bg)
+        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "recipe", it } }
+      end
+      if pages > 1 then
+        button(2, H, 5, 1, "<", colors.lightGray, colors.black, "prev")
+        text(8, H, page .. "/" .. pages, colors.white)
+        button(14, H, 5, 1, ">", colors.lightGray, colors.black, "next")
+      end
+      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "typecraft")
+    end
+
+    local function drawCraftAmount()
+      clear()
+      titleBar("Craft " .. pretty(item.name), "back")
+      text(2, 3, "Can make now: " .. num(item.can) .. "  (" .. item.per .. " per craft)", colors.white)
+      if item.can == 0 then
+        text(2, 4, "Short of " .. tostring(item.missing or "ingredients") .. " (it makes parts it can)", colors.lightGray)
+      else
+        text(2, 4, "How many? They go to the pickup chest.", colors.lightGray)
+      end
+      local x, y = 2, 6
+      for _, a in ipairs({ 1, 4, 8, 16, 32, 64 }) do
+        if x + 6 > W then x, y = 2, y + 2 end
+        button(x, y, 6, 1, tostring(a), a <= item.can and colors.lime or colors.lightGray, colors.black, { "craftn", a })
+        x = x + 7
+      end
+      if item.can > 0 then
+        if x + 12 > W then x, y = 2, y + 2 end
+        button(x, y, 12, 1, "Max (" .. num(item.can) .. ")", colors.orange, colors.black, { "craftn", item.can })
+      end
+      button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "craftcustom")
+    end
+
     local function drawMessage()
       clear()
       titleBar("Storage turtle")
@@ -329,17 +418,63 @@ if args[1] == "client" then
       if message then drawMessage()
       elseif screen == "home" then drawHome()
       elseif screen == "cat" then drawCat()
-      elseif screen == "amount" then drawAmount() end
+      elseif screen == "amount" then drawAmount()
+      elseif screen == "craft" then drawCraft()
+      elseif screen == "craftamount" then drawCraftAmount() end
       local a = waitClick()
-      if message then
-        if a == "ok" or a == "back" then message = nil refresh() end
+      if a == "tick" then
+        -- refresh the status (and counts) every few seconds
+        if screen == "craft" then refreshRecipes() else refresh() end
+      elseif message then
+        if a == "ok" or a == "back" then
+          message = nil
+          refresh()
+          if screen == "craft" then refreshRecipes() end
+        end
       elseif a == "quit" then
         term.setBackgroundColor(colors.black) term.clear() term.setCursorPos(1, 1)
         return
       elseif a == "refresh" then refresh()
       elseif a == "type" then typeIt()
       elseif a == "back" then
-        if screen == "amount" then screen = "cat" elseif screen == "cat" then screen = "home" end
+        if screen == "amount" then screen = "cat"
+        elseif screen == "craftamount" then screen = "craft"
+        elseif screen == "cat" or screen == "craft" then screen = "home" end
+      elseif a == "craft" then screen, page = "craft", 1 refreshRecipes()
+      elseif type(a) == "table" and a[1] == "recipe" then screen, item = "craftamount", a[2]
+      elseif type(a) == "table" and a[1] == "craftn" then
+        local r = ask({ cmd = "craft", text = item.name, n = a[2] })
+        message = type(r) == "table" and r or { "No answer (out of range?)" }
+        screen = "craft"
+      elseif a == "craftcustom" then
+        text(2, H - 1, "How many? ", colors.yellow)
+        term.setTextColor(colors.white)
+        local n = tonumber(read())
+        if n and n > 0 then
+          local r = ask({ cmd = "craft", text = item.name, n = math.floor(n) })
+          message = type(r) == "table" and r or { "No answer (out of range?)" }
+          screen = "craft"
+        end
+      elseif a == "typecraft" then
+        clear()
+        titleBar("Craft: type it")
+        text(2, 3, "Type the item and how many, e.g.", colors.lightGray)
+        text(2, 4, "  torch 32", colors.white)
+        text(2, 5, "Enter on an empty line = back.", colors.lightGray)
+        term.setCursorPos(2, 7)
+        term.setTextColor(colors.yellow)
+        term.setBackgroundColor(colors.black)
+        write("> ")
+        term.setTextColor(colors.white)
+        local line = read()
+        if line and line:find("%S") then
+          local words = {}
+          for wd in line:gmatch("%S+") do words[#words + 1] = wd end
+          local n = tonumber(words[#words])
+          if n and #words > 1 then table.remove(words) else n = nil end
+          local r = ask({ cmd = "craft", text = table.concat(words, " "), n = n })
+          message = type(r) == "table" and r or { "No answer (out of range?)" }
+        end
       elseif a == "prev" then page = math.max(1, page - 1)
       elseif a == "next" then page = page + 1
       elseif type(a) == "table" and a[1] == "cat" then screen, cat, page = "cat", a[2], 1
@@ -360,7 +495,7 @@ if args[1] == "client" then
       end
     end
   end
-  print("Commands: list [text], find <item>, get <item> [n], build, status, quit")
+  print("Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status, quit")
   local history = {}
   while true do
     write("> ")
@@ -1687,12 +1822,15 @@ end
 ---------------------------------------------------------------------------
 -- turtle.suck() always takes the first stack in a chest, so the wanted stack is moved
 -- to slot 1 first.
-local function takeFrom(k, side, slot, n)
+local function takeFrom(k, side, slot, n, into)
   local e = idx[k]
   local l = peripheral.call(side, "list")
   if not l[slot] then return 0 end
-  local t = emptySlot()
+  local t = into or emptySlot()
   if not t then return 0 end
+  local function spareSlot() -- an empty slot that isn't 'into'
+    for s = 16, 1, -1 do if s ~= into and turtle.getItemCount(s) == 0 then return s end end
+  end
   local parked
   if slot ~= 1 then
     if l[1] then
@@ -1702,10 +1840,11 @@ local function takeFrom(k, side, slot, n)
       if spare then
         peripheral.call(side, "pushItems", side, 1, 64, spare)
       else -- chest full: hold slot 1 in the turtle for a moment
-        parked = t
+        parked = spareSlot()
+        if not parked then return 0 end
         turtle.select(parked)
         SUCK[side]()
-        t = emptySlot()
+        if not into then t = emptySlot() end
         if not t then DROP[side]() turtle.select(1) return 0 end
       end
     end
@@ -1722,7 +1861,7 @@ local function takeFrom(k, side, slot, n)
 end
 
 -- Take up to n of an item from storage. Returns how many it got.
-function fetch(name, n, maxSlotsUsed)
+function fetch(name, n, maxSlotsUsed, into) -- into: put it in this turtle slot
   local got = 0
   local dist = bfs(here())
   local list = {}
@@ -1734,8 +1873,8 @@ function fetch(name, n, maxSlotsUsed)
     local side = goToInv(idx[k])
     for slot, it in pairs(refresh(k, side)) do
       if got < n and it.name == name then
-        if freeSlots() == 0 or (maxSlotsUsed and startFree - freeSlots() >= maxSlotsUsed) then return got end
-        got = got + takeFrom(k, side, slot, math.min(n - got, it.count))
+        if not into and (freeSlots() == 0 or (maxSlotsUsed and startFree - freeSlots() >= maxSlotsUsed)) then return got end
+        got = got + takeFrom(k, side, slot, math.min(n - got, it.count), into)
       end
     end
   end
@@ -1757,12 +1896,12 @@ local function keepOnBoard(c, kept)
   return false
 end
 
-local function storeAll()
+local function storeAll(force, onlySlot) -- force: also what it normally keeps on board; onlySlot(s): just those slots
   for _ = 1, 10 do
     local kept = {}
     local todo = {}
     for _, c in ipairs(carried()) do
-      if not keepOnBoard(c, kept) then todo[#todo + 1] = c end
+      if (not onlySlot or onlySlot(c.slot)) and (force or not keepOnBoard(c, kept)) then todo[#todo + 1] = c end
     end
     if #todo == 0 then status.full = false return true end
     setState("Storing")
@@ -2031,6 +2170,7 @@ end
 ---------------------------------------------------------------------------
 -- Requests
 ---------------------------------------------------------------------------
+local paused = false
 local requests = {}
 
 local function matchItem(text)
@@ -2077,6 +2217,345 @@ local function serveRequests()
   end
 end
 
+---------------------------------------------------------------------------
+-- Crafting (the turtle needs a crafting table: put one in the drop-off chest and it
+-- equips it by itself)
+---------------------------------------------------------------------------
+local RECIPES_FILE = "room.recipes"
+local learned = loadTable(RECIPES_FILE) or {}
+local crafts = {} -- queue of { name =, n = }
+local lastMissing
+
+local function crafty() return peripheral.find("workbench") ~= nil end
+
+-- Ingredient groups: "#planks" = any planks, ...
+local GROUPS = {
+  ["#planks"] = function(n) return n:find("_planks$") ~= nil end,
+  ["#log"] = function(n) return (n:find("_log$") or n:find("_stem$")) ~= nil end,
+  ["#coal"] = { "minecraft:coal", "minecraft:charcoal" },
+  ["#stone"] = { "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:blackstone" },
+}
+local function fitsSpec(spec, name)
+  if spec:sub(1, 1) ~= "#" then return spec == name end
+  local g = GROUPS[spec]
+  if type(g) == "function" then return g(name) end
+  return listHas(g, name)
+end
+local function specLabel(spec)
+  if spec:sub(1, 1) == "#" then return spec:sub(2) end
+  return pretty(spec)
+end
+
+-- Turtle slots of the 3x3 grid:  1 2 3 / 5 6 7 / 9 10 11
+local M = "minecraft:"
+local function ring(x) return { [1] = x, [2] = x, [3] = x, [5] = x, [7] = x, [9] = x, [10] = x, [11] = x } end
+local function nine(x) return { [1] = x, [2] = x, [3] = x, [5] = x, [6] = x, [7] = x, [9] = x, [10] = x, [11] = x } end
+local S, I, D = M .. "stick", M .. "iron_ingot", M .. "diamond"
+local BUILTIN = {
+  { out = M .. "stick", n = 4, grid = { [1] = "#planks", [5] = "#planks" } },
+  { out = M .. "torch", n = 4, grid = { [1] = "#coal", [5] = S } },
+  { out = M .. "crafting_table", n = 1, grid = { [1] = "#planks", [2] = "#planks", [5] = "#planks", [6] = "#planks" } },
+  { out = M .. "chest", n = 1, grid = ring("#planks") },
+  { out = M .. "furnace", n = 1, grid = ring("#stone") },
+  { out = M .. "ladder", n = 3, grid = { [1] = S, [3] = S, [5] = S, [6] = S, [7] = S, [9] = S, [11] = S } },
+  { out = M .. "bucket", n = 1, grid = { [1] = I, [3] = I, [6] = I } },
+  { out = M .. "shears", n = 1, grid = { [2] = I, [5] = I } },
+  { out = M .. "hopper", n = 1, grid = { [1] = I, [3] = I, [5] = I, [6] = M .. "chest", [7] = I, [10] = I } },
+  { out = M .. "rail", n = 16, grid = { [1] = I, [3] = I, [5] = I, [6] = S, [7] = I, [9] = I, [11] = I } },
+  { out = M .. "compass", n = 1, grid = { [2] = I, [5] = I, [6] = M .. "redstone", [7] = I, [10] = I } },
+  { out = M .. "flint_and_steel", n = 1, grid = { [1] = I, [6] = M .. "flint" } },
+  { out = M .. "arrow", n = 4, grid = { [2] = M .. "flint", [6] = S, [10] = M .. "feather" } },
+  { out = M .. "bread", n = 1, grid = { [1] = M .. "wheat", [2] = M .. "wheat", [3] = M .. "wheat" } },
+  { out = M .. "paper", n = 3, grid = { [1] = M .. "sugar_cane", [2] = M .. "sugar_cane", [3] = M .. "sugar_cane" } },
+  { out = M .. "book", n = 1, grid = { [1] = M .. "paper", [2] = M .. "paper", [3] = M .. "paper", [5] = M .. "leather" } },
+  { out = M .. "stone_bricks", n = 4, grid = { [1] = M .. "stone", [2] = M .. "stone", [5] = M .. "stone", [6] = M .. "stone" } },
+  { out = M .. "glass_pane", n = 16, grid = { [1] = M .. "glass", [2] = M .. "glass", [3] = M .. "glass", [5] = M .. "glass", [6] = M .. "glass", [7] = M .. "glass" } },
+}
+for _, m in ipairs({ "iron", "diamond" }) do
+  local x = m == "iron" and I or D
+  BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_pickaxe", n = 1, grid = { [1] = x, [2] = x, [3] = x, [6] = S, [10] = S } }
+  BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_axe", n = 1, grid = { [1] = x, [2] = x, [5] = x, [6] = S, [10] = S } }
+  BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_shovel", n = 1, grid = { [2] = x, [6] = S, [10] = S } }
+  BUILTIN[#BUILTIN + 1] = { out = M .. m .. "_sword", n = 1, grid = { [2] = x, [6] = x, [10] = S } }
+end
+-- Storage blocks (9 -> 1) and back (1 -> 9)
+for _, p in ipairs({ { "iron_block", "iron_ingot" }, { "gold_block", "gold_ingot" }, { "diamond_block", "diamond" },
+  { "emerald_block", "emerald" }, { "lapis_block", "lapis_lazuli" }, { "redstone_block", "redstone" },
+  { "coal_block", "coal" }, { "copper_block", "copper_ingot" }, { "raw_iron_block", "raw_iron" },
+  { "raw_gold_block", "raw_gold" }, { "raw_copper_block", "raw_copper" } }) do
+  BUILTIN[#BUILTIN + 1] = { out = M .. p[1], n = 1, grid = nine(M .. p[2]) }
+  BUILTIN[#BUILTIN + 1] = { out = M .. p[2], n = 9, grid = { [1] = M .. p[1] } }
+end
+BUILTIN[#BUILTIN + 1] = { out = M .. "iron_ingot", n = 1, grid = nine(M .. "iron_nugget") }
+BUILTIN[#BUILTIN + 1] = { out = M .. "gold_ingot", n = 1, grid = nine(M .. "gold_nugget") }
+
+-- All recipes: learned ones first, then built in, then planks for every log in storage
+local function allRecipes(stock)
+  local l = {}
+  for _, r in ipairs(learned) do l[#l + 1] = r end
+  for _, r in ipairs(BUILTIN) do l[#l + 1] = r end
+  for name in pairs(stock or totals()) do
+    local base = name:match("^(.+)_log$") or name:match("^(.+)_stem$")
+    if base and not base:find("stripped_") then
+      l[#l + 1] = { out = base .. "_planks", n = 4, grid = { [1] = name } }
+    end
+  end
+  return l
+end
+local function recipesFor(out, stock)
+  local l = {}
+  for _, r in ipairs(allRecipes(stock)) do if r.out == out then l[#l + 1] = r end end
+  -- planks of a kind with no log in storage yet
+  if #l == 0 and out:find("_planks$") then
+    local base = out:match("^(.+)_planks$")
+    l[1] = { out = out, n = 4, grid = { [1] = base .. (base:find("crimson") or base:find("warped") and "_stem" or "_log") } }
+  end
+  return l
+end
+
+-- Best item for an ingredient: the fitting one there's most of
+local function pick(spec, stock)
+  local best, bestN = nil, 0
+  for name, n in pairs(stock) do
+    if fitsSpec(spec, name) and n > bestN then best, bestN = name, n end
+  end
+  if not best and spec:sub(1, 1) ~= "#" then best = spec end
+  return best, bestN
+end
+
+local function perSpec(r)
+  local per = {}
+  for _, spec in pairs(r.grid) do per[spec] = (per[spec] or 0) + 1 end
+  return per
+end
+
+-- How many it can make right now from what's in storage (no crafting of parts)
+local function canMake(r, stock)
+  local steps = math.huge
+  local missing
+  for spec, c in pairs(perSpec(r)) do
+    local _, have = pick(spec, stock)
+    local s = math.floor(have / c)
+    if s < steps then steps = s end
+    if s == 0 then missing = missing or specLabel(spec) end
+  end
+  if steps == math.huge then steps = 0 end
+  return steps * r.n, missing
+end
+
+local function outStack(name)
+  if maxStack[name] then return maxStack[name] end
+  local n = short(name)
+  for _, w in ipairs({ "pickaxe", "_axe", "shovel", "sword", "_hoe", "helmet", "chestplate", "leggings", "boots",
+    "shears", "flint_and_steel", "compass", "bow", "fishing_rod" }) do
+    if n:find(w, 1, true) then return 1 end
+  end
+  if n == "bucket" or n:find("ender_pearl") or n:find("egg") or n:find("snowball") or n:find("_sign") then return 16 end
+  return 64
+end
+
+-- Put a crafting table on the free side (from the turtle's own slots or from storage)
+local function equipTable()
+  if crafty() then return end
+  local CT = M .. "crafting_table"
+  local slot
+  for _, c in ipairs(carried(function(n) return n == CT end)) do slot = c.slot end
+  if not slot and (totals()[CT] or 0) > 0 and freeSlots() > 0 then
+    fetch(CT, 1, 1)
+    for _, c in ipairs(carried(function(n) return n == CT end)) do slot = c.slot end
+    goHome()
+  end
+  if not slot then return end
+  local side = (not peripheral.getType("left") and "left") or (not peripheral.getType("right") and "right")
+  if not side then return end
+  turtle.select(slot)
+  local ok = side == "left" and turtle.equipLeft() or turtle.equipRight()
+  turtle.select(1)
+  if ok and crafty() then log("Crafting table equipped: crafting works now") end
+end
+
+local function countCarried(name)
+  return carriedCount(function(n) return n == name end)
+end
+
+-- Craft 'want' of 'out' into storage, making missing parts first. Returns how many it made.
+local function craftItem(out, want, depth, visiting)
+  visiting = visiting or {}
+  if visiting[out] or depth > 4 then return 0 end
+  visiting[out] = true
+  local made = 0
+  for _ = 1, 20 do
+    if made >= want then break end
+    local stock = totals()
+    local rs = recipesFor(out, stock)
+    if #rs == 0 then lastMissing = "a recipe for " .. pretty(out) break end
+    table.sort(rs, function(a, b) return canMake(a, stock) > canMake(b, stock) end)
+    local r = rs[1]
+    local stepsWanted = math.ceil((want - made) / r.n)
+    local per = perSpec(r)
+    -- Make missing parts first (sticks, planks, ...)
+    for spec, c in pairs(per) do
+      local name, have = pick(spec, stock)
+      local need = c * stepsWanted
+      if have < need then
+        local target = name
+        if spec:sub(1, 1) == "#" and (not name or have == 0) then
+          -- a group: find something in it that can be crafted
+          for _, rr in ipairs(allRecipes(stock)) do
+            if fitsSpec(spec, rr.out) and not visiting[rr.out] then target = rr.out break end
+          end
+        end
+        if target then craftItem(target, need - have, depth + 1, visiting) end
+      end
+    end
+    stock = totals()
+    local steps = math.min(stepsWanted, 64)
+    local choice = {}
+    for spec, c in pairs(per) do
+      local name, have = pick(spec, stock)
+      if not name or have < c then steps = 0 lastMissing = specLabel(spec) break end
+      choice[spec] = name
+      steps = math.min(steps, math.floor(have / c), outStack(name))
+    end
+    local gridSlots = 0
+    for _ in pairs(r.grid) do gridSlots = gridSlots + 1 end
+    steps = math.min(steps, math.floor((16 - gridSlots) * outStack(out) / r.n))
+    if steps <= 0 then break end
+    -- Empty the turtle, then fill the grid slot by slot
+    setState("Crafting " .. pretty(out))
+    storeAll(true)
+    for slot, spec in pairs(r.grid) do fetch(choice[spec], steps, nil, slot) end
+    -- Make sure every grid slot has exactly 'steps' of the right item
+    local function cnt(sl) return turtle.getItemCount(sl) end
+    local function nameAt(sl) local d = turtle.getItemDetail(sl) return d and d.name end
+    for g, spec in pairs(r.grid) do
+      local want = choice[spec]
+      if nameAt(g) and nameAt(g) ~= want then -- something else in it: move it out of the grid
+        for sp = 16, 1, -1 do
+          if not r.grid[sp] and cnt(sp) == 0 then turtle.select(g) turtle.transferTo(sp) break end
+        end
+      end
+      for src = 1, 16 do
+        if cnt(g) >= steps then break end
+        local extra = cnt(src) - (r.grid[src] and choice[r.grid[src]] == want and steps or 0)
+        if src ~= g and nameAt(src) == want and extra > 0 then
+          turtle.select(src)
+          turtle.transferTo(g, math.min(extra, steps - cnt(g)))
+        end
+      end
+      if cnt(g) > steps then -- too many: the rest out of the grid
+        for sp = 16, 1, -1 do
+          if not r.grid[sp] and (cnt(sp) == 0 or nameAt(sp) == want) then
+            turtle.select(g) turtle.transferTo(sp, cnt(g) - steps)
+            if cnt(g) <= steps then break end
+          end
+        end
+      end
+    end
+    turtle.select(1)
+    -- leftovers outside the grid back to storage
+    local outside = false
+    for sl = 1, 16 do if not r.grid[sl] and cnt(sl) > 0 then outside = true end end
+    if outside then storeAll(true, function(sl) return not r.grid[sl] end) end
+    local ready = true
+    for sl = 1, 16 do
+      local d = turtle.getItemDetail(sl)
+      local sp = r.grid[sl]
+      if sp then
+        if not d or d.name ~= choice[sp] or d.count ~= steps then ready = false end
+      elseif d then ready = false end
+    end
+    if not ready then
+      lastMissing = "ingredients (couldn't take them all out)"
+      storeAll(true)
+      break
+    end
+    local before = countCarried(out)
+    turtle.select(4)
+    local ok, err = turtle.craft(steps)
+    turtle.select(1)
+    local got = countCarried(out) - before
+    made = made + got
+    storeAll(true)
+    if not ok or got == 0 then lastMissing = tostring(err or "the recipe didn't work") break end
+  end
+  visiting[out] = nil
+  return made
+end
+
+local function serveCrafts()
+  while #crafts > 0 do
+    local c = table.remove(crafts, 1)
+    if not crafty() then
+      log("Can't craft: no crafting table on the turtle (put one in the drop-off chest)", true)
+    else
+      lastMissing = nil
+      local inStore = totals()[c.name] or 0
+      local made = craftItem(c.name, c.n, 0)
+      if made > 0 then
+        log("Crafted " .. made .. " " .. pretty(c.name))
+        deliver({ name = c.name, n = math.min(c.n, inStore + made) })
+      end
+      if made < c.n then log("Crafted only " .. made .. " " .. pretty(c.name) .. ": not enough " .. (lastMissing or "ingredients"), true) end
+    end
+  end
+end
+
+-- What the order screen shows on the Craft tab
+local function craftList()
+  local stock = totals()
+  local by = {}
+  for _, r in ipairs(allRecipes(stock)) do
+    local can, missing = canMake(r, stock)
+    local e = by[r.out]
+    if not e or can > e.can then by[r.out] = { name = r.out, per = r.n, can = can, missing = missing } end
+  end
+  local l = {}
+  for _, e in pairs(by) do l[#l + 1] = e end
+  table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
+  return l
+end
+
+local function matchRecipe(text)
+  local q = text:lower():gsub("%s+", "_")
+  local found, exact = {}, nil
+  for _, e in ipairs(craftList()) do
+    if short(e.name) == q or e.name == q then exact = e.name end
+    if e.name:find(q, 1, true) then found[#found + 1] = e.name end
+  end
+  return exact or (#found == 1 and found[1]) or nil, found
+end
+
+-- Teach a recipe: items in the 3x3 grid of the turtle (slots 1-3, 5-7, 9-11)
+local function learn()
+  if not crafty() then return { "No crafting table on the turtle yet." } end
+  local grid = {}
+  for s = 1, 16 do
+    local d = turtle.getItemDetail(s)
+    local inGrid = (s % 4 ~= 0) and s <= 11
+    if d and not inGrid then return { "Only the 3x3 grid (slots 1-3, 5-7, 9-11) may hold items." } end
+    if d then grid[s] = d.name end
+  end
+  if not next(grid) then return { "Put one set of the recipe in the turtle's 3x3 grid first." } end
+  if not turtle.craft(0) then return { "That's not a recipe (check the layout)." } end
+  local before = {}
+  for s = 1, 16 do local d = turtle.getItemDetail(s) if d then before[d.name] = (before[d.name] or 0) + d.count end end
+  turtle.select(4)
+  turtle.craft(1)
+  turtle.select(1)
+  local after = {}
+  for s = 1, 16 do local d = turtle.getItemDetail(s) if d then after[d.name] = (after[d.name] or 0) + d.count end end
+  local out, n
+  for name, c in pairs(after) do
+    if c > (before[name] or 0) and (not n or c - (before[name] or 0) > n) then out, n = name, c - (before[name] or 0) end
+  end
+  if not out then return { "Crafting didn't give anything." } end
+  for i = #learned, 1, -1 do if learned[i].out == out then table.remove(learned, i) end end
+  table.insert(learned, 1, { out = out, n = n, grid = grid })
+  saveTable(RECIPES_FILE, learned)
+  return { "Learned: " .. n .. " " .. pretty(out) .. ". It's on the Craft tab now.", "Type resume to carry on." }
+end
+
 -- Shared by the turtle prompt and the client. Returns lines of text.
 local function command(cmd, text, n)
   cmd = (cmd or ""):lower()
@@ -2105,7 +2584,32 @@ local function command(cmd, text, n)
     os.queueEvent("room_request")
     return { "Getting " .. n .. " " .. pretty(name) .. "..." }
   elseif cmd == "stock" then
-    return { totals = totals() } -- raw list for the order screen
+    return { totals = totals(), state = status.state, crafty = crafty() } -- for the order screen
+  elseif cmd == "recipes" then
+    if text == "raw" then return { recipes = craftList(), crafty = crafty(), state = status.state } end
+    local out = {}
+    for _, e in ipairs(craftList()) do out[#out + 1] = (" %s: can make %d"):format(pretty(e.name), e.can) end
+    if not crafty() then table.insert(out, 1, "No crafting table on the turtle yet (put one in the drop-off chest).") end
+    return out
+  elseif cmd == "craft" then
+    if not text or text == "" then return { "craft <item> [n]" } end
+    if not crafty() then return { "No crafting table on the turtle yet: put one in the drop-off chest." } end
+    local name, found = matchRecipe(text)
+    if not name then
+      if #found == 0 then return { "No recipe for that. Teach it with 'learn' on the turtle." } end
+      local out = { "Which one?" }
+      for _, f in ipairs(found) do out[#out + 1] = " " .. short(f) end
+      return out
+    end
+    n = math.max(1, math.floor(n or 1))
+    crafts[#crafts + 1] = { name = name, n = n }
+    os.queueEvent("room_request")
+    return { "Crafting " .. n .. " " .. pretty(name) .. "...", "It goes to the pickup chest when done." }
+  elseif cmd == "learn" then
+    if not paused or status.state ~= "Paused" then
+      return { "To teach a recipe: type pause, wait until it says Paused,", "put one set in its 3x3 grid, then type learn." }
+    end
+    return learn()
   elseif cmd == "build" then
     -- Build right away with the chests/barrels/furnaces it has (normally automatic)
     local t = totals()
@@ -2122,13 +2626,12 @@ local function command(cmd, text, n)
     local used, size = usedSlots()
     return { status.state, ("Storage %d/%d slots, %d furnaces"):format(used, size, #furnaces()) }
   end
-  return { "Commands: list [text], find <item>, get <item> [n], build, status" }
+  return { "Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status" }
 end
 
 ---------------------------------------------------------------------------
 -- Screen
 ---------------------------------------------------------------------------
-local paused = false
 local W, H = term.getSize()
 local native = term.current()
 local statusWin = window.create(native, 1, 1, W, H - 1)
@@ -2202,7 +2705,9 @@ end
 ---------------------------------------------------------------------------
 local function round()
   fixAccess()
+  equipTable()
   serveRequests()
+  serveCrafts()
   pullInput()
   refuelSelf()
   buildFurnaces()
@@ -2224,8 +2729,17 @@ local function worker()
   setState("Checking position")
   local ok, err = pcall(verifyPose)
   if not ok then setState("LOST") log(tostring(err), true) return end
+  local emptied = false
   while true do
+    if paused and not emptied then
+      -- Paused: put everything away first, so the inventory is free (e.g. for 'learn')
+      setState("Emptying before pause")
+      pcall(storeAll, true)
+      pcall(goHome)
+      emptied = true
+    end
     if not paused then
+      emptied = false
       local ok2, err2 = pcall(round)
       if not ok2 then
         if tostring(err2):find("^No way to") then
