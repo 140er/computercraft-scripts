@@ -143,7 +143,7 @@ st.h = st.h or 0
 st.spots = st.spots or {}  -- ["f,s"] = { f=, s=, y= (ground level), t= (planted / last checked) }
 st.cursor = st.cursor or 2 -- next cell of the search spiral (cell 1 is home)
 st.felled = st.felled or 0 -- trees felled, all time
-st.logs = st.logs or 0     -- logs cut, all time
+st.logs = st.logs or 0     -- logs harvested, all time: counted as items (into the chest or burned)
 local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
@@ -192,7 +192,7 @@ end
 -- Blocks and items
 ---------------------------------------------------------------------------
 local function isLog(info)
-  if not info then return false end
+  if not info or info.name:find("leaves") then return false end
   return hasTag(info, "minecraft:logs") or info.name:find("_log$") ~= nil
 end
 -- A log it may cut: not dark oak (always 2x2)
@@ -242,7 +242,7 @@ end
 local function isSaplingItem(d) return d.name:find("sapling") ~= nil or d.name:find("propagule") ~= nil end
 -- Saplings it plants: not dark oak (one alone never grows)
 local function isPlantable(d) return isSaplingItem(d) and not d.name:find("dark_oak") end
-local function isLogItem(d) return d.name:find("_log$") ~= nil end
+local function isLogItem(d) return d.name:find("_log$") ~= nil and not d.name:find("leaves") end
 local function isBoneMeal(d) return d.name == "minecraft:bone_meal" end
 
 local function saplingFor(logName)
@@ -263,6 +263,15 @@ local function findSlot(test)
     if d and test(d) then return s end
   end
   return nil
+end
+
+local function countLogs()
+  local n = 0
+  for s = 1, 16 do
+    local d = turtle.getItemDetail(s)
+    if d and isLogItem(d) then n = n + d.count end
+  end
+  return n
 end
 
 local function haveSapling() return findSlot(isPlantable) ~= nil end
@@ -289,6 +298,7 @@ local function burn(target)
         turtle.select(s)
         while fuel() < target and turtle.getItemCount(s) > 0 do
           if not turtle.refuel(1) then break end
+          if pass == 2 then st.logs = st.logs + 1 end
         end
       end
       if fuel() >= target then turtle.select(1) return true end
@@ -337,13 +347,11 @@ local function inspect(d)
   return nil
 end
 
--- info = what inspect() saw there, to count the logs cut
 local function dig(d, info)
   local ok, why
   if d == UP then ok, why = turtle.digUp()
   elseif d == DOWN then ok, why = turtle.digDown()
   else face(d) ok, why = turtle.dig() end
-  if ok and isLog(info) then st.logs = st.logs + 1 end
   if not ok and type(why) == "string" and why:lower():find("tool") then error("No axe: " .. why, 0) end
   return ok, why
 end
@@ -763,6 +771,7 @@ local function restock()
     local s
     for e = 1, 16 do if turtle.getItemCount(e) == 0 then s = e break end end
     if not s then break end
+    local before = countLogs()
     turtle.select(s)
     if not turtle.suck() then break end
     local d = turtle.getItemDetail(s)
@@ -771,6 +780,8 @@ local function restock()
         if not turtle.refuel(1) then break end
       end
     end
+    -- logs from the chest were counted when they went in; what's left goes back with the deposit
+    st.logs = st.logs - (countLogs() - before)
   end
   turtle.select(1)
 end
@@ -790,7 +801,11 @@ local function deposit()
       end
       if d.count > keep then
         turtle.select(s)
-        if not turtle.drop(d.count - keep) then ok = false end
+        if turtle.drop(d.count - keep) then
+          if isLogItem(d) then st.logs = st.logs + d.count - turtle.getItemCount(s) - keep end
+        else
+          ok = false
+        end
       end
     end
   end
