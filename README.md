@@ -288,7 +288,8 @@ Seen from above (input chest `I` at the top, turtle `T` on its start spot):
 
 ### Sorting and smelting
 - Each kind of item gets its own chest: first a chest that already has it, then an empty chest, then a new chest it places, and only when all of that is full, any free slot.
-- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first), the valuable ones first: ancient debris, gold, iron, other (modded) ores, copper last. Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
+- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first), the valuable ones first: ancient debris, gold, iron, other (modded) ores, copper last.
+- **Food is cooked** too: raw beef, porkchop, chicken, mutton, rabbit, cod, salmon, potatoes and kelp. Give it **smokers** (like furnaces) and food goes there first (twice as fast); normal furnaces cook it too, blast furnaces never get food and smokers never get ore. `cook = false` in `room.cfg` turns it off. Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
 - Out of room and out of chests: the screen shows **FULL**, and new items stay in the input chest.
 
 ### Getting items out
@@ -302,7 +303,7 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 | `build` | shows how many chests/furnaces are built and how much room is left, and builds any that aren't yet (it normally does that by itself) |
 | `pause` / `resume` / `quit` | on the turtle only |
 
-**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows buttons instead of a prompt:
+**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows tiles with little icons instead of a prompt:
 - the home screen has a button per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food & farm, Mob drops, Tools & gear, Other, All items) with how many kinds are in it,
 - a category shows its items with how many there are; click one and pick an amount (1, 4, 8, 16, 32, 64, All, or "Other amount..." to type a number),
 - "Type it myself" / "Not listed? Type it" lets you type the item and amount like `iron ingot 32`,
@@ -322,16 +323,20 @@ A stock-exchange style screen of what's in storage, on a computer with a **wirel
 
 ```
  ROOM EXCHANGE                                                     LIVE  14:32
- 3,790 items  51 kinds  7 chests 19% full  3 furnaces  Waiting for items
-ITEM                         QTY   CHG 1H       % TREND                    1/3
-Iron ingot                   668  ▲+480  +255.3% ▁▂▂▃▃▄▅▅▆▇▇█
-Redstone                     340        =    0.0% ▁▁▁▁▁▁▁▁▁▁▁▁
-Coal                           7    ▼-12   -63.2% █▇▆▅▄▃▂▁▁▁▁▁
- IRON INGOT 668 ▲+480  • REDSTONE 340 =  • COBBLESTONE 128 =  • ...
+ 3,790 items  51 kinds  7 chests 19% full  3 furnaces  Smelting
+ITEM                                             QTY   CHG 1H       %   LAST IN
+ ♦ TOP: valuable & most ordered
+Netherite scrap                                    2      ▲+2      new    1m ago
+Cobblestone                                      128        =     0.0%        -
+Diamond                                           33     ▲+20  +153.8%    1m ago
+ RECENTLY ADDED
+Iron ingot                                       668    ▲+480  +255.3%       now
+ IRON INGOT 668 ▲+480  • DIAMOND 33 ▲+20  • COBBLESTONE 128 =  • ...
 ```
-- **QTY** how many are in storage, **CHG 1H** and **%** how much that changed in the last hour, **TREND** a small chart of about the last hour (wider monitor = longer chart).
+- **TOP** (always on top): the valuable items (netherite, diamonds, emeralds, gold, iron, ...) and the items you order most, taking turns.
+- Below that, every 10 seconds it switches between **RECENTLY ADDED** (what came in last) and **MOST IN STOCK**.
+- **QTY** how many are in storage, **CHG 1H** and **%** how much that changed in the last hour, **LAST IN** when that item last came in ("now", "5m ago").
 - A number that just changed lights up for a few seconds. The bottom line is a scrolling ticker tape of everything.
-- More items than fit: it flips pages every 10 seconds (`1/3` top right).
 - Any size of monitor works; wide monitors get two columns. A **normal (grey) monitor** shows it in greyscale with ▲/▼; an **advanced (gold) monitor** shows rises in green and drops in red.
 - The turtle sends its stock every 10 seconds and right after something changes. `LIVE` turns into a blinking `NO SIGNAL` after a minute without news. History is kept in `board.hist`, so a reboot keeps the trends.
 

@@ -155,6 +155,53 @@ if args[1] == "client" then
       local n = name:match(":(.+)$") or name
       for i, c in ipairs(CATS) do if c.test(n) then return i end end
     end
+    -- Short names for the tiles
+    local TILE = { ["Food & farm"] = "Food", ["Tools & gear"] = "Tools" }
+    -- 6x6 pixel icons (blit colours, "." = see-through), drawn as 3x2 characters
+    local ICONS = {
+      Fuel = { "..1...", ".141..", ".1441.", "144441", "14ee41", ".1111." },
+      Ores = { "777777", "717787", "777177", "787717", "177777", "777717" },
+      Ingots = { "......", "..444.", ".44444", "444441", "11111.", "......" },
+      Gems = { "......", ".3333.", "330033", ".3333.", "..33..", "......" },
+      Wood = { ".cccc.", "c1111c", "c1cc1c", "c1111c", ".cccc.", "......" },
+      Blocks = { "ee8eee", "888888", "eeee8e", "888888", "ee8eee", "888888" },
+      ["Food & farm"] = { "...d..", "..c...", ".eeee.", "eeeeee", "eeeeee", ".eeee." },
+      ["Mob drops"] = { "00....", "000...", "..00..", "...000", "....00", "......" },
+      ["Tools & gear"] = { "88888.", "...c8.", "..c..8", ".c....", "c.....", "......" },
+      Other = { ".0000.", "0....0", "...00.", "..0...", "......", "..0..." },
+      ["All items"] = { "111111", "1cccc1", "111111", "1c88c1", "1cccc1", "111111" },
+      Craft = { "cccccc", "c1c1c1", "cccccc", "c1c1c1", "cccccc", "8....8" },
+    }
+    local HEXC = {}
+    for i = 0, 15 do HEXC[2 ^ i] = ("0123456789abcdef"):sub(i + 1, i + 1) end
+    local function icon(x, y, art, bg)
+      local b = HEXC[bg] or "f"
+      for row = 0, 1 do
+        local txt, fg, bgs = "", "", ""
+        for col = 0, 2 do
+          local px = {}
+          for py = 0, 2 do
+            for pxx = 0, 1 do
+              local ch = art[row * 3 + py + 1]:sub(col * 2 + pxx + 1, col * 2 + pxx + 1)
+              px[#px + 1] = (ch == "." or ch == "") and b or ch
+            end
+          end
+          -- 2 colours per character: the bottom-right pixel's colour is the background
+          local back = px[6]
+          local fore = back
+          local n = {}
+          for i = 1, 5 do if px[i] ~= back then n[px[i]] = (n[px[i]] or 0) + 1 end end
+          local best = 0
+          for c, k in pairs(n) do if k > best then fore, best = c, k end end
+          local bits = 0
+          for i = 1, 5 do if px[i] ~= back then bits = bits + 2 ^ (i - 1) end end
+          txt = txt .. string.char(128 + bits)
+          fg, bgs = fg .. fore, bgs .. back
+        end
+        term.setCursorPos(x, y + row)
+        term.blit(txt, fg, bgs)
+      end
+    end
 
     local stock, stockOk, turtleState, canCraft = {}, false, "?", false
     local recipes = {}
@@ -270,26 +317,31 @@ if args[1] == "client" then
       for i, c in ipairs(CATS) do list[#list + 1] = { i = i, c = c, n = #itemsIn(i) } end
       list[#list + 1] = { i = "all", c = { name = "All items", color = colors.white }, n = total }
       list[#list + 1] = { i = "craft", c = { name = "Craft", color = colors.purple }, n = -1 }
+      -- Tiles: icon, name, how many kinds
       local cols = W >= 45 and 3 or 2
       local bw = math.floor((W - (cols + 1)) / cols)
       local rows = math.ceil(#list / cols)
       local avail = H - 4
-      local bh = (rows * 4 - 1 <= avail) and 3 or 1
-      local gap = (rows * (bh + 1) - 1 <= avail) and 1 or 0
+      local gap = (rows * 3 - 1 <= avail) and 1 or 0
       for k, e in ipairs(list) do
         local col = (k - 1) % cols
         local row = math.floor((k - 1) / cols)
         local x = 2 + col * (bw + 1)
-        local y = 3 + row * (bh + gap)
-        local bg = e.n ~= 0 and e.c.color or colors.gray
-        if e.i == "craft" then
-          button(x, y, bw, bh, "CRAFT", canCraft and colors.purple or colors.gray, colors.white, "craft",
-            canCraft and "make items" or "no crafting table")
-        elseif bh >= 3 then
-          button(x, y, bw, bh, e.c.name, bg, colors.black, { "cat", e.i }, e.n .. (e.n == 1 and " kind" or " kinds"))
-        else
-          button(x, y, bw, bh, e.c.name .. " " .. e.n, bg, colors.black, { "cat", e.i })
-        end
+        local y = 3 + row * (2 + gap)
+        local isCraft = e.i == "craft"
+        local empty = (not isCraft and e.n == 0) or (isCraft and not canCraft)
+        local tbg = isCraft and (canCraft and colors.purple or colors.gray) or colors.gray
+        text(x, y, (" "):rep(bw), colors.white, tbg)
+        text(x, y + 1, (" "):rep(bw), colors.white, tbg)
+        icon(x + 1, y, ICONS[e.c.name] or ICONS.Other, tbg)
+        local name = (isCraft and "CRAFT" or (TILE[e.c.name] or e.c.name)):sub(1, bw - 5)
+        local sub = isCraft and (canCraft and "make items" or "no table") or (e.n .. (e.n == 1 and " kind" or " kinds"))
+        local nameColor = isCraft and colors.white or e.c.color
+        if nameColor == tbg or nameColor == colors.gray then nameColor = colors.white end
+        if nameColor == colors.brown then nameColor = colors.orange end
+        text(x + 5, y, name, empty and colors.lightGray or nameColor, tbg)
+        text(x + 5, y + 1, sub:sub(1, bw - 5), empty and colors.lightGray or colors.white, tbg)
+        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + bw - 1, y2 = y + 1, action = isCraft and "craft" or { "cat", e.i } }
       end
       button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
       button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
@@ -315,9 +367,13 @@ if args[1] == "client" then
         local x = 2 + col * (cw + 1)
         local y = 3 + (i - 1) % rows
         local cnt = num(it.n)
-        local name = pretty(it.name):sub(1, cw - #cnt - 3)
+        local name = pretty(it.name):sub(1, cw - #cnt - 5)
         local bg = (i % 2 == 0) and colors.gray or colors.black
-        text(x, y, " " .. name .. (" "):rep(cw - #name - #cnt - 2) .. cnt .. " ", colors.white, bg)
+        local ci = catOf(it.name)
+        text(x, y, " ", colors.white, CATS[ci] and CATS[ci].color or colors.white) -- category colour
+        local left = " " .. name
+        text(x + 1, y, left .. (" "):rep(cw - 1 - #left - #cnt - 1), colors.white, bg)
+        text(x + cw - #cnt - 1, y, cnt .. " ", colors.yellow, bg)
         buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "item", it } }
       end
       if pages > 1 then
@@ -332,10 +388,13 @@ if args[1] == "client" then
       clear()
       titleBar(pretty(item.name), "back")
       local have = stock[item.name] or item.n
-      text(2, 3, "In storage: " .. num(have), colors.white)
-      text(2, 4, "How many to the pickup chest?", colors.lightGray)
+      local ci = catOf(item.name)
+      icon(2, 3, ICONS[CATS[ci] and CATS[ci].name or "Other"] or ICONS.Other, colors.black)
+      text(6, 3, pretty(item.name), colors.white)
+      text(6, 4, "In storage: " .. num(have), colors.yellow)
+      text(2, 5, "How many to the pickup chest?", colors.lightGray)
       local amounts = { 1, 4, 8, 16, 32, 64 }
-      local x, y = 2, 6
+      local x, y = 2, 7
       for _, a in ipairs(amounts) do
         if a <= have then
           if x + 6 > W then x, y = 2, y + 2 end
@@ -370,9 +429,10 @@ if args[1] == "client" then
         local x = 2 + col * (cw + 1)
         local y = 3 + (i - 1) % rows
         local right = it.can > 0 and ("can " .. num(it.can)) or "need more"
-        local name = pretty(it.name):sub(1, cw - #right - 3)
+        local name = pretty(it.name):sub(1, cw - #right - 4)
         local bg = (i % 2 == 0) and colors.gray or colors.black
-        text(x, y, " " .. name .. (" "):rep(cw - #name - #right - 2), colors.white, bg)
+        text(x, y, " ", colors.white, it.can > 0 and colors.purple or colors.gray)
+        text(x + 1, y, " " .. name .. (" "):rep(cw - #name - #right - 3), colors.white, bg)
         text(x + cw - #right - 1, y, right .. " ", it.can > 0 and colors.lime or colors.lightGray, bg)
         buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "recipe", it } }
       end
@@ -387,13 +447,15 @@ if args[1] == "client" then
     local function drawCraftAmount()
       clear()
       titleBar("Craft " .. pretty(item.name), "back")
-      text(2, 3, "Can make now: " .. num(item.can) .. "  (" .. item.per .. " per craft)", colors.white)
+      icon(2, 3, ICONS.Craft, colors.black)
+      text(6, 3, pretty(item.name) .. "  (" .. item.per .. " per craft)", colors.white)
+      text(6, 4, "Can make now: " .. num(item.can), item.can > 0 and colors.lime or colors.lightGray)
       if item.can == 0 then
-        text(2, 4, "Short of " .. tostring(item.missing or "ingredients") .. " (it makes parts it can)", colors.lightGray)
+        text(2, 5, "Short of " .. tostring(item.missing or "ingredients") .. " (it makes parts it can)", colors.lightGray)
       else
-        text(2, 4, "How many? They go to the pickup chest.", colors.lightGray)
+        text(2, 5, "How many? They go to the pickup chest.", colors.lightGray)
       end
-      local x, y = 2, 6
+      local x, y = 2, 7
       for _, a in ipairs({ 1, 4, 8, 16, 32, 64 }) do
         if x + 6 > W then x, y = 2, y + 2 end
         button(x, y, 6, 1, tostring(a), a <= item.can and colors.lime or colors.lightGray, colors.black, { "craftn", a })
@@ -409,8 +471,11 @@ if args[1] == "client" then
     local function drawMessage()
       clear()
       titleBar("Storage turtle")
-      for i, l in ipairs(message) do text(2, 2 + i, tostring(l):sub(1, W - 2), colors.white) end
-      button(2, H - 1, 8, 1, "OK", colors.lime, colors.black, "ok")
+      local bw2 = W - 4
+      local bh2 = #message + 4
+      for yy = 3, 3 + bh2 - 1 do text(3, yy, (" "):rep(bw2), colors.white, colors.gray) end
+      for i, l in ipairs(message) do text(5, 4 + i, tostring(l):sub(1, bw2 - 4), colors.white, colors.gray) end
+      button(math.floor(W / 2) - 4, 3 + bh2 + 1, 10, 1, "OK", colors.lime, colors.black, "ok")
     end
 
     refresh()
@@ -561,6 +626,14 @@ local function board()
   local hist = loadTable(HIST_FILE) or {} -- { { t = ms, v = { [item] = count } } }, 1 per minute
   local data, lastMsg = nil, nil
   local flash = {} -- [item] = { untilMs, dir }
+  local LAST_FILE = "board.last"
+  local lastIn = loadTable(LAST_FILE) or {} -- [item] = { t = ms, d = how many came in }
+  -- Valuable items: always near the top
+  local VALUE = { netherite_ingot = 100, netherite_block = 100, netherite_scrap = 90, ancient_debris = 85,
+    diamond = 80, diamond_block = 82, emerald = 70, emerald_block = 72, gold_ingot = 50, gold_block = 52,
+    raw_gold = 45, iron_ingot = 40, iron_block = 42, raw_iron = 35, lapis_lazuli = 25, redstone = 25, quartz = 22,
+    amethyst_shard = 20, copper_ingot = 15, ender_pearl = 30, blaze_rod = 30, golden_apple = 60,
+    enchanted_golden_apple = 100, totem_of_undying = 100, nether_star = 100, elytra = 100 }
   local page, pages, nextPage, tick = 1, 1, 0, 0
   local function now() return os.epoch("utc") end
 
@@ -654,67 +727,104 @@ local function board()
       put(2, y, s:sub(1, W - 2), data.full and C.down or C.label)
       y = y + 1
     end
-    -- Columns of entries
-    -- Name up to 24 wide, whatever is left over becomes the trend chart
-    local ncols = math.max(1, math.floor((W + 2) / 43))
+    -- Rows: TOP (valuable + most ordered) stays on top; below it "recently added" and
+    -- "most in stock" take turns every 10 seconds
+    local ordered = data.ordered or {}
+    -- Most valuable and most ordered take turns, so both always get a place on top
+    local byValue, byOrders = {}, {}
+    for _, it in ipairs(items) do
+      local v = VALUE[it.name:match(":(.+)$") or it.name] or 0
+      local u = ordered[it.name] or 0
+      if v > 0 then byValue[#byValue + 1] = { it = it, k = v } end
+      if u > 0 then byOrders[#byOrders + 1] = { it = it, k = u } end
+    end
+    local function desc(a, b) if a.k ~= b.k then return a.k > b.k end return a.it.name < b.it.name end
+    table.sort(byValue, desc)
+    table.sort(byOrders, desc)
+    local cands, seen = {}, {}
+    for i = 1, math.max(#byValue, #byOrders) do
+      for _, l in ipairs({ byValue, byOrders }) do
+        local e = l[i]
+        if e and not seen[e.it.name] then seen[e.it.name] = true cands[#cands + 1] = e end
+      end
+    end
+
+    local ncols = math.max(1, math.floor((W + 2) / 44))
     local ew = math.floor((W - (ncols - 1) * 2) / ncols)
     local showChg = ew >= 24
-    local showPct = ew >= 40
-    local rest = ew - 8 - (showChg and 9 or 0) - (showPct and 8 or 0)
-    local nw, tw = rest, 0
-    if rest >= 22 then
-      nw = math.min(24, rest - 7)
-      tw = rest - nw - 1
-    end
-    local function header(x)
-      local s = ljust("ITEM", nw) .. rjust("QTY", 8) .. (showChg and rjust("CHG 1H", 9) or "") .. (showPct and rjust("%", 8) or "")
-      if tw > 0 then s = s .. " " .. ljust("TREND", tw) end
-      put(x, y, s, C.dim)
-    end
+    local showLast = ew >= 36
+    local showPct = ew >= 46
+    local nw = ew - 8 - (showChg and 9 or 0) - (showPct and 8 or 0) - (showLast and 10 or 0)
     if H >= 5 then
-      for c = 1, ncols do header(1 + (c - 1) * (ew + 2)) end
+      for c = 1, ncols do
+        local hs = ljust("ITEM", nw) .. rjust("QTY", 8) .. (showChg and rjust("CHG 1H", 9) or "")
+          .. (showPct and rjust("%", 8) or "") .. (showLast and rjust("LAST IN", 10) or "")
+        put(1 + (c - 1) * (ew + 2), y, hs, C.dim)
+      end
       y = y + 1
     end
     local top = y
-    local rows = H - top -- last line = ticker
-    local perPage = math.max(1, rows * ncols)
-    pages = math.max(1, math.ceil(#items / perPage))
-    if page > pages then page = 1 end
-    for i = 1, perPage do
-      local it = items[(page - 1) * perPage + i]
-      if not it then break end
-      local col = math.floor((i - 1) / rows)
-      local x = 1 + col * (ew + 2)
-      local ry = top + (i - 1) % rows
-      local chg, pct = change(it.name, it.n)
-      local dc = chg > 0 and C.up or chg < 0 and C.down or C.flat
-      put(x, ry, ljust(pretty(it.name), nw - 1), C.text)
-      local f = flash[it.name]
-      if f and now() < f[1] then
-        put(x + nw, ry, rjust(fmtNum(it.n), 7) .. " ", C.bg, f[2] > 0 and C.upBg or C.downBg)
-      else
-        put(x + nw, ry, rjust(fmtNum(it.n), 7), C.text)
-      end
-      local cx = x + nw + 8
-      if showChg then
-        local arrow = chg > 0 and UP or chg < 0 and DOWN or "="
-        put(cx, ry, rjust(arrow .. (chg > 0 and "+" or "") .. (chg ~= 0 and fmtNum(chg) or ""), 9), dc)
-        cx = cx + 9
-      end
-      if showPct then
-        local ps = pct and (chg == 0 and "0.0%" or string.format("%+.1f%%", pct)) or (chg > 0 and "new" or "")
-        put(cx, ry, rjust(ps, 8), dc)
-        cx = cx + 8
-      end
-      if tw > 0 then
-        local s, fg, bg = spark(it.name, it.n, tw)
-        t.setCursorPos(cx + 1, ry)
-        t.blit(s, fg, bg)
-      end
+    local rowsPer = H - top -- last line = ticker
+    local slots = rowsPer * ncols
+    local nTop = math.min(#cands, math.max(3, math.floor(slots / 3)))
+    local rowsList, onTop = {}, {}
+    if nTop > 0 then
+      rowsList[#rowsList + 1] = { head = "\4 TOP: valuable & most ordered" }
+      for i = 1, nTop do rowsList[#rowsList + 1] = { it = cands[i].it } onTop[cands[i].it.name] = true end
     end
-    if pages > 1 then
-      local p = (" %d/%d "):format(page, pages)
-      put(W - #p + 1, top - (H >= 5 and 1 or 0), p, C.dim)
+    local recent = math.floor(now() / 10000) % 2 == 0
+    local rest = {}
+    for _, it in ipairs(items) do if not onTop[it.name] then rest[#rest + 1] = it end end
+    if recent then
+      table.sort(rest, function(a, b)
+        local ta, tb = lastIn[a.name] and lastIn[a.name].t or 0, lastIn[b.name] and lastIn[b.name].t or 0
+        if ta ~= tb then return ta > tb end
+        return a.n > b.n
+      end)
+    end
+    rowsList[#rowsList + 1] = { head = recent and "RECENTLY ADDED" or "MOST IN STOCK" }
+    for _, it in ipairs(rest) do rowsList[#rowsList + 1] = { it = it } end
+
+    local function ago(name)
+      local l = lastIn[name]
+      if not l then return "-" end
+      local sec = (now() - l.t) / 1000
+      if sec < 60 then return "now" end
+      if sec < 3600 then return math.floor(sec / 60) .. "m ago" end
+      if sec < 86400 then return math.floor(sec / 3600) .. "h ago" end
+      return math.floor(sec / 86400) .. "d ago"
+    end
+    for i = 1, math.min(#rowsList, slots) do
+      local r = rowsList[i]
+      local col = math.floor((i - 1) / rowsPer)
+      local x = 1 + col * (ew + 2)
+      local ry = top + (i - 1) % rowsPer
+      if r.head then
+        put(x, ry, ljust(" " .. r.head, ew), C.titleText, C.title)
+      else
+        local it = r.it
+        local chg, pct = change(it.name, it.n)
+        local dc = chg > 0 and C.up or chg < 0 and C.down or C.flat
+        put(x, ry, ljust(pretty(it.name), nw - 1), onTop[it.name] and C.ticker or C.text)
+        local f = flash[it.name]
+        if f and now() < f[1] then
+          put(x + nw, ry, rjust(fmtNum(it.n), 7) .. " ", C.bg, f[2] > 0 and C.upBg or C.downBg)
+        else
+          put(x + nw, ry, rjust(fmtNum(it.n), 7), C.text)
+        end
+        local cx = x + nw + 8
+        if showChg then
+          local arrow = chg > 0 and UP or chg < 0 and DOWN or "="
+          put(cx, ry, rjust(arrow .. (chg > 0 and "+" or "") .. (chg ~= 0 and fmtNum(chg) or ""), 9), dc)
+          cx = cx + 9
+        end
+        if showPct then
+          local ps = pct and (chg == 0 and "0.0%" or string.format("%+.1f%%", pct)) or (chg > 0 and "new" or "")
+          put(cx, ry, rjust(ps, 8), dc)
+          cx = cx + 8
+        end
+        if showLast then put(cx, ry, rjust(ago(it.name), 10), C.label) end
+      end
     end
     -- Ticker tape on the last line
     local text, fg = "", ""
@@ -739,17 +849,19 @@ local function board()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "rednet_message" and c == PROTOCOL .. "_stock" and type(b) == "table" and type(b.totals) == "table" then
+      local changedIn = false
       if data then
         for name, n in pairs(b.totals) do
           local old = data.totals[name] or 0
           if n ~= old then flash[name] = { now() + 4000, n > old and 1 or -1 } end
+          if n > old then lastIn[name] = { t = now(), d = n - old } changedIn = true end
         end
+        if changedIn then saveTable(LAST_FILE, lastIn) end
       end
       data, lastMsg, boardTurtle = b, now(), a
       sample()
     elseif ev == "timer" and a == frame then
       tick = tick + 1
-      if now() >= nextPage then page = page % pages + 1 nextPage = now() + 10000 end
       sample()
       draw()
       frame = os.startTimer(0.3)
@@ -841,7 +953,13 @@ local FUEL_VALUE = { -- items smelted per fuel item in a normal furnace (blast f
   ["minecraft:dried_kelp_block"] = 20, ["minecraft:lava_bucket"] = 100, ["minecraft:blaze_rod"] = 12,
 }
 local CHEST_ITEMS = { ["minecraft:chest"] = true, ["minecraft:barrel"] = true }
-local FURNACE_ITEMS = { ["minecraft:furnace"] = "furnace", ["minecraft:blast_furnace"] = "blast" }
+local FURNACE_ITEMS = { ["minecraft:furnace"] = "furnace", ["minecraft:blast_furnace"] = "blast",
+  ["minecraft:smoker"] = "smoker" }
+-- Raw food that gets cooked (furnaces and smokers)
+local RAW_FOOD = {}
+for _, n in ipairs({ "beef", "porkchop", "chicken", "mutton", "rabbit", "cod", "salmon", "potato", "kelp" }) do
+  RAW_FOOD["minecraft:" .. n] = true
+end
 
 local function short(name) return name:match(":(.+)$") or name end
 local function listHas(l, x) for _, v in ipairs(l) do if v == x then return true end end return false end
@@ -850,6 +968,7 @@ local function smeltKind(name)
   if listHas(cfg.noSmelt, name) then return nil end
   local n = short(name)
   if not n:find("_block$") and (n:find("^raw_") or n:find("_ore$") or n == "ancient_debris") then return "ore" end
+  if RAW_FOOD[name] and cfg.cook ~= false then return "food" end
   if listHas(cfg.extraSmelt, name) then return "extra" end
   return nil
 end
@@ -861,6 +980,7 @@ local function smeltPriority(name)
   if n:find("gold") then return 50 end
   if n:find("iron") then return 40 end
   if n:find("copper") then return 10 end
+  if smeltKind(name) == "food" then return 12 end
   if smeltKind(name) == "extra" then return 5 end
   return 20 -- other (modded) ores: tin, silver, zinc, ...
 end
@@ -1790,10 +1910,11 @@ local function buildFurnaces()
     local f = placeAt(st.floor, fslot, "furnace")
     if not f then return end
     f.blast = FURNACE_ITEMS[fname] == "blast"
+    f.smoker = FURNACE_ITEMS[fname] == "smoker"
     f.buffer = st.top.cell
     status.note = nil
     saveIdx()
-    log("Built a " .. (f.blast and "blast furnace" or "furnace"))
+    log("Built a " .. (f.blast and "blast furnace" or f.smoker and "smoker" or "furnace"))
   end
 end
 
@@ -2031,9 +2152,12 @@ local function furnaceRoom(e, name)
   return math.max(0, cfg.queue - (inp and inp.count or 0))
 end
 
+-- Blast furnace: ores only. Smoker: food only. Furnace: everything.
 local function smeltableHere(e, name)
   local k = smeltKind(name)
-  return k == "ore" or (k == "extra" and not e.blast)
+  if k == "ore" then return not e.smoker end
+  if k == "food" then return not e.blast end
+  return k == "extra" and not e.blast and not e.smoker
 end
 
 -- Suck everything out of a furnace's helper chest into the turtle
@@ -2083,7 +2207,7 @@ local function serviceFurnace(k, share)
   turtle.select(1)
   -- 3. Fuel for what's waiting, through the helper chest into the fuel slot
   local need = st[1] and st[1].count or 0
-  local div = e.blast and 2 or 1
+  local div = (e.blast or e.smoker) and 2 or 1 -- these burn fuel twice as fast
   local have = 0
   if st[2] then have = FUEL_VALUE[st[2].name] and FUEL_VALUE[st[2].name] / div * st[2].count or math.huge end
   if need > have then
@@ -2159,9 +2283,10 @@ local function furnacePass()
   end
   if fuelCarried == 0 and carriedSmelt > 0 then status.noFuel = true else status.noFuel = false end
   local share = math.max(8, math.ceil(carriedSmelt / #fl))
-  -- Blast furnaces first (twice as fast), then nearest
+  -- Blast furnaces and smokers first (twice as fast for ores / food), then furnaces
+  local function rank(e) return (e.blast or e.smoker) and 0 or 1 end
   table.sort(fl, function(a, b)
-    if idx[a].blast ~= idx[b].blast then return idx[a].blast == true end
+    if rank(idx[a]) ~= rank(idx[b]) then return rank(idx[a]) < rank(idx[b]) end
     return a < b
   end)
   for _, k in ipairs(fl) do serviceFurnace(k, share) end
@@ -2200,6 +2325,8 @@ local function deliver(req)
       local m = before - turtle.getItemCount(c.slot)
       left = left - m
       stats.delivered = stats.delivered + m
+      stats.requested = stats.requested or {}
+      stats.requested[req.name] = (stats.requested[req.name] or 0) + m
     end
     turtle.select(1)
     if carriedCount(function(n) return n == req.name end) > 0 then
@@ -2819,7 +2946,7 @@ local function remote()
   local function sendStock(onlyIfChanged)
     local used, size = usedSlots()
     local msg = { totals = totals(), used = used, size = size, chests = chestCount(),
-      furnaces = #furnaces(), state = status.state, full = status.full }
+      furnaces = #furnaces(), state = status.state, full = status.full, ordered = stats.requested }
     local sig = textutils.serialize(msg.totals) .. used .. tostring(status.full)
     if onlyIfChanged and sig == lastSig then return end
     rednet.broadcast(msg, PROTOCOL .. "_stock")
