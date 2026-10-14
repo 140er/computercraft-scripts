@@ -361,7 +361,7 @@ Give the turtle a **crafting table**: put one in the drop-off chest and it equip
 - Best: run cables outside the room or under the floor. A cable through the road layer can cut off part of the room once the rows next to it are full.
 
 ### Moving the pickup chest
-Moved the pickup chest a bit (up to 2 blocks up/down, 1 sideways)? Just order something: when the chest isn't where it was, the turtle looks around the old spot, finds it and uses the new spot from then on. Or type `pickup` (turtle or request computer) to make it look right away. You may leave the old spot open (e.g. chest moved 1 down, turtle reaches it from the old spot); just make sure the room stays closed to the outside.
+Moved the pickup chest a bit (up to 3 blocks down, 2 up, 2 sideways, also down into a hole)? Just order something: when the chest isn't where it was, the turtle feels around the old spot (open spots like a hole or the old chest spot become part of its map, so it can go in there), finds the chest and uses the new spot from then on. Or type `pickup` (turtle or request computer) to make it look right away. You may leave the old spot open (e.g. chest moved 1 down, turtle reaches it from the old spot); just make sure the room stays closed to the outside.
 
 ### Restarts
 - Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.

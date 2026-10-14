@@ -2331,63 +2331,65 @@ local function matchItem(text)
   return exact or (#found == 1 and found[1]) or nil, found
 end
 
--- The pickup chest was moved (e.g. 1 block down)? Look around where it was for a chest
--- that isn't one of ours and use that from now on.
+-- The pickup chest was moved (e.g. down into a hole)? Feel around where it was: look at
+-- the blocks near the old spot (nearest and lowest first), take open spots into the map
+-- so it can go into a hole, and use the first chest that isn't one of its own.
 local function findOutput()
   local oldK
   for k, e in pairs(idx) do if e.kind == "output" then oldK = k end end
   if not oldK then return false, "No pickup chest known yet." end
   setState("Looking for the pickup chest")
   local ox, oy, oz = unkey(oldK)
-  local cands = {}
-  for dy = -2, 2 do
-    for dx = -1, 1 do
-      for dz = -1, 1 do
-        local c = key(ox + dx, oy + dy, oz + dz)
-        local e = idx[c]
-        if not e or e.kind == "output" then
-          cands[#cands + 1] = { k = c, d = math.abs(dy) * 10 + math.abs(dx) + math.abs(dz) - (dy < 0 and 1 or 0) }
-        end
-      end
-    end
+  local function near(k)
+    local x, y, z = unkey(k)
+    return math.abs(x - ox) <= 2 and math.abs(z - oz) <= 2 and y >= oy - 3 and y <= oy + 2
   end
-  table.sort(cands, function(a, b) return a.d < b.d end) -- nearest first, down before up
-  -- Two passes: a spot that turns out to be open now (the old chest spot) becomes part of
-  -- the room, so the turtle can step in there and reach a chest below or beside it
-  for _ = 1, 3 do
-    local opened = false
+  local function score(k) -- closest to the spot just below the old one first
+    local x, y, z = unkey(k)
+    return math.abs(x - ox) + math.abs(z - oz) + math.abs(y - (oy - 1))
+  end
+  local checked, seen = {}, {}
+  for _ = 1, 60 do
     local r = reachable()
-    for _, c in ipairs(cands) do
-      if not free(c.k) then
+    local best
+    for n in pairs(r) do
+      if near(n) then
         for _, d in ipairs(ALL_DIRS) do
-          local n = step(c.k, d)
-          if free(n) and r[n] then
-            goTo(n)
-            local dir = dirBetween(n, c.k)
-            local side = face(dir)
-            local isBlock, data = inspectDir(dir)
-            if isBlock and isInv(side) and not tostring(data.name):find("furnace") and not tostring(data.name):find("smoker") then
-              idx[oldK] = nil
-              idx[c.k] = { kind = "output", acc = n, dir = dir }
-              map.cells[c.k] = data.name
-              if map.found then map.found[c.k] = data.name end
-              saveMap()
-              saveIdx()
-              log("Pickup chest found at " .. c.k)
-              return true, "Pickup chest found at " .. c.k .. " (it was at " .. oldK .. ")."
-            elseif not isBlock then
-              map.cells[c.k] = "a" -- open now: the turtle may go in there
-              saveMap()
-              opened = true
-            end
-            break
+          local c = step(n, d)
+          local e = idx[c]
+          if not checked[c] and not free(c) and near(c) and (not e or e.kind == "output") then
+            local sc = score(c)
+            if not best or sc < best.sc then best = { n = n, c = c, sc = sc } end
           end
         end
       end
     end
-    if not opened then break end
+    if not best then break end
+    checked[best.c] = true
+    goTo(best.n)
+    local dir = dirBetween(best.n, best.c)
+    local side = face(dir)
+    local isBlock, data = inspectDir(dir)
+    if isBlock then
+      seen[#seen + 1] = best.c .. "=" .. short(tostring(data.name))
+      if isInv(side) and not tostring(data.name):find("furnace") and not tostring(data.name):find("smoker") then
+        idx[oldK] = nil
+        idx[best.c] = { kind = "output", acc = best.n, dir = dir }
+        map.cells[best.c] = data.name
+        if map.found then map.found[best.c] = data.name end
+        saveMap()
+        saveIdx()
+        log("Pickup chest found at " .. best.c)
+        return true, "Pickup chest found at " .. best.c .. " (it was at " .. oldK .. ")."
+      end
+      map.cells[best.c] = data.name
+    else
+      map.cells[best.c] = "a" -- open: the turtle may go in there and look further
+      saveMap()
+    end
   end
-  return false, "No chest found near " .. oldK .. ". Put it back within 2 blocks of where it was."
+  saveMap()
+  return false, "No chest found near " .. oldK .. " (checked " .. #seen .. " blocks). Put it within 2 blocks of where it was."
 end
 
 local function deliver(req)
