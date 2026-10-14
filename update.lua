@@ -13,9 +13,9 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 
 -- Everything in the repo that runs on a computer or turtle
 local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
-  "lumber.lua", "buddy.lua", "panel.lua", "install.lua", "update.lua" }
+  "lumber.lua", "buddy.lua", "panel.lua", "factory.lua", "install.lua", "update.lua" }
 -- The hub hands miner.lua out to the mining turtles, so it keeps a copy too
-local ALSO = { ["hub.lua"] = { "miner.lua" } }
+local ALSO = { ["hub.lua"] = { "miner.lua" }, ["factory.lua"] = { "miner.lua" } }
 
 if not http then
   print("http is disabled in the ComputerCraft config, can't update.")

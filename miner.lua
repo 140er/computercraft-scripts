@@ -150,7 +150,8 @@ local function inReach(x, z)
 end
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
-local ROLE = DIRNAME[SPINE]
+-- the hub keeps tunnel progress per role; a second site (e.g. from the turtle factory) has its own
+local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
 
 if args[1] == "home" then
   -- Manual recovery: the turtle is (back) on its home spot, chest behind it.

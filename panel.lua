@@ -95,7 +95,7 @@ local function updateAll(sure)
     return
   end
   rednet.broadcast({ type = "panel", cmd = "update" }, "minearmy")
-  for _, p in ipairs({ "roomsorter", "lumber", "buddy" }) do rednet.broadcast({ cmd = "update" }, p) end
+  for _, p in ipairs({ "roomsorter", "lumber", "buddy", "turtlefactory" }) do rednet.broadcast({ cmd = "update" }, p) end
   sleep(1)
   term.setBackgroundColor(colors.black)
   term.setTextColor(colors.white)
