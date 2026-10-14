@@ -2352,28 +2352,40 @@ local function findOutput()
     end
   end
   table.sort(cands, function(a, b) return a.d < b.d end) -- nearest first, down before up
-  local r = reachable()
-  for _, c in ipairs(cands) do
-    for _, d in ipairs(ALL_DIRS) do
-      local n = step(c.k, d)
-      if free(n) and r[n] and n ~= c.k then
-        goTo(n)
-        local dir = dirBetween(n, c.k)
-        local side = face(dir)
-        local isBlock, data = inspectDir(dir)
-        if isBlock and isInv(side) and not tostring(data.name):find("furnace") and not tostring(data.name):find("smoker") then
-          idx[oldK] = nil
-          idx[c.k] = { kind = "output", acc = n, dir = dir }
-          map.cells[c.k] = data.name
-          if map.found then map.found[c.k] = data.name end
-          saveMap()
-          saveIdx()
-          log("Pickup chest found at " .. c.k)
-          return true, "Pickup chest found at " .. c.k .. " (it was at " .. oldK .. ")."
+  -- Two passes: a spot that turns out to be open now (the old chest spot) becomes part of
+  -- the room, so the turtle can step in there and reach a chest below or beside it
+  for _ = 1, 3 do
+    local opened = false
+    local r = reachable()
+    for _, c in ipairs(cands) do
+      if not free(c.k) then
+        for _, d in ipairs(ALL_DIRS) do
+          local n = step(c.k, d)
+          if free(n) and r[n] then
+            goTo(n)
+            local dir = dirBetween(n, c.k)
+            local side = face(dir)
+            local isBlock, data = inspectDir(dir)
+            if isBlock and isInv(side) and not tostring(data.name):find("furnace") and not tostring(data.name):find("smoker") then
+              idx[oldK] = nil
+              idx[c.k] = { kind = "output", acc = n, dir = dir }
+              map.cells[c.k] = data.name
+              if map.found then map.found[c.k] = data.name end
+              saveMap()
+              saveIdx()
+              log("Pickup chest found at " .. c.k)
+              return true, "Pickup chest found at " .. c.k .. " (it was at " .. oldK .. ")."
+            elseif not isBlock then
+              map.cells[c.k] = "a" -- open now: the turtle may go in there
+              saveMap()
+              opened = true
+            end
+            break
+          end
         end
-        break
       end
     end
+    if not opened then break end
   end
   return false, "No chest found near " .. oldK .. ". Put it back within 2 blocks of where it was."
 end
