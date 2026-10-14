@@ -1,7 +1,8 @@
 -- roomsorter.lua - Storage room turtle (CC: Tweaked), no modems or cables needed
 -- The turtle lives in a closed room with an INPUT chest and an OUTPUT chest in the walls.
 -- It maps the room itself, builds chests and furnaces from the ones you give it, sorts
--- everything you put in the input chest, smelts raw ores and remembers where it all is.
+-- everything you put in the input chest, smelts raw ores, burns logs into charcoal and
+-- remembers where it all is.
 -- Ask for items and it brings them to the output chest.
 --
 --   roomsorter scan [h]  first time: map the room (turtle on the floor facing the input
@@ -16,11 +17,13 @@
 --
 -- Give it chests or barrels (storage) and furnaces / blast furnaces by putting them in the
 -- input chest. Fuel for the turtle and the furnaces: coal, charcoal, coal blocks.
+-- Logs (e.g. from the lumber turtle) become charcoal in the normal furnaces; it keeps
+-- cfg.keepLogs of each kind as logs (default 32) and burns its own charcoal first.
 
 local MAP_FILE, IDX_FILE, POS_FILE = "room.map", "room.idx", "room.pos"
 local CFG_FILE, STATS_FILE, LOG_FILE = "room.cfg", "room.stats", "room.log"
 local PROTOCOL = "roomsorter"
-local VERSION = 13 -- the order screen warns when the turtle runs an older roomsorter.lua
+local VERSION = 14 -- the order screen warns when the turtle runs an older roomsorter.lua
 
 local args = { ... }
 if args[1] == "install" then
@@ -936,6 +939,8 @@ cfg.interval = cfg.interval or 5      -- seconds between looks in the input ches
 cfg.minFuel = cfg.minFuel or 1000     -- turtle refuels below this
 cfg.extraSmelt = cfg.extraSmelt or {} -- e.g. { "minecraft:oak_log", "minecraft:sand" } (normal furnaces only)
 cfg.noSmelt = cfg.noSmelt or {}
+if cfg.charcoal == nil then cfg.charcoal = true end -- logs -> charcoal (normal furnaces only)
+cfg.keepLogs = cfg.keepLogs or 32     -- logs of each kind that stay logs (for planks, chests)
 cfg.fuels = cfg.fuels or { "minecraft:charcoal", "minecraft:coal", "minecraft:coal_block", "minecraft:dried_kelp_block" }
 saveTable(CFG_FILE, cfg)
 
@@ -984,6 +989,8 @@ local function smeltKind(name)
   local n = short(name)
   if not n:find("_block$") and (n:find("^raw_") or n:find("_ore$") or n == "ancient_debris") then return "ore" end
   if RAW_FOOD[name] and cfg.cook ~= false then return "food" end
+  -- Overworld logs and wood, stripped too (nether stems don't make charcoal)
+  if cfg.charcoal and (n:find("_log$") or n:find("_wood$")) then return "log" end
   if listHas(cfg.extraSmelt, name) then return "extra" end
   return nil
 end
@@ -997,12 +1004,20 @@ local function smeltPriority(name)
   if n:find("copper") then return 10 end
   if smeltKind(name) == "food" then return 12 end
   if smeltKind(name) == "extra" then return 5 end
+  if smeltKind(name) == "log" then return 3 end -- after everything else, unless out of fuel
   return 20 -- other (modded) ores: tin, silver, zinc, ...
 end
 local function byPriority(a, b)
   local pa, pb = smeltPriority(a.name), smeltPriority(b.name)
   if pa ~= pb then return pa > pb end
   return a.name < b.name
+end
+
+-- How many of a stored item may go to the furnaces (logs: all but the ones it keeps)
+local function smeltable(name, count)
+  if not smeltKind(name) then return 0 end
+  if smeltKind(name) == "log" then return math.max(0, count - cfg.keepLogs) end
+  return count
 end
 
 local maxStack = {} -- [item] = stack size, learned from the turtle's own slots
@@ -2208,7 +2223,7 @@ local function smeltableHere(e, name)
   local k = smeltKind(name)
   if k == "ore" then return not e.smoker end
   if k == "food" then return not e.blast end
-  return k == "extra" and not e.blast and not e.smoker
+  return (k == "extra" or k == "log") and not e.blast and not e.smoker
 end
 
 -- Suck everything out of a furnace's helper chest into the turtle
@@ -2259,14 +2274,24 @@ local function serviceFurnace(k, share)
   -- 3. Fuel for what's waiting, through the helper chest into the fuel slot
   local need = st[1] and st[1].count or 0
   local div = (e.blast or e.smoker) and 2 or 1 -- these burn fuel twice as fast
+  local function value(n) return FUEL_VALUE[n] or (smeltKind(n) == "log" and 1.5) end
   local have = 0
-  if st[2] then have = FUEL_VALUE[st[2].name] and FUEL_VALUE[st[2].name] / div * st[2].count or math.huge end
+  if st[2] then have = value(st[2].name) and value(st[2].name) / div * st[2].count or math.huge end
   if need > have then
-    for _, f in ipairs(st[2] and { st[2].name } or cfg.fuels) do
+    local fuels = st[2] and { st[2].name } or { table.unpack(cfg.fuels) }
+    if not st[2] then
+      -- No coal or charcoal on board: a few logs as fuel get the charcoal going
+      for _, c in ipairs(carried(function(n) return smeltKind(n) == "log" end)) do
+        if not listHas(fuels, c.name) then fuels[#fuels + 1] = c.name end
+      end
+    end
+    local logsBurnt = 0
+    for _, f in ipairs(fuels) do
       if need > have then
-        local per = (FUEL_VALUE[f] or 8) / div
+        local per = (value(f) or 8) / div
         for _, c in ipairs(carried(function(n) return n == f end)) do
           local want = math.min(c.count, math.ceil((need - have) / per))
+          if FUEL_VALUE[f] == nil then want = math.min(want, 4 - logsBurnt) logsBurnt = logsBurnt + want end
           if want > 0 then
             turtle.select(c.slot)
             turtle.dropUp(want)
@@ -2290,7 +2315,7 @@ end
 
 local function smeltablesInStorage()
   local n = 0
-  for name, c in pairs(totals()) do if smeltKind(name) then n = n + c end end
+  for name, c in pairs(totals()) do n = n + smeltable(name, c) end
   return n
 end
 
@@ -2312,8 +2337,20 @@ local function furnacePass()
   -- Take ores from storage for the room there is (keeps 4 slots free for results)
   if carriedSmelt < room and stored > 0 then
     local wanted = {}
-    for name, c in pairs(totals()) do if smeltKind(name) then wanted[#wanted + 1] = { name = name, count = c } end end
-    table.sort(wanted, byPriority) -- gold and iron before copper
+    local t = totals()
+    local noFuel = true
+    for _, f in ipairs(cfg.fuels) do if t[f] then noFuel = false end end
+    for name, c in pairs(t) do
+      local n = smeltable(name, c)
+      if n > 0 then wanted[#wanted + 1] = { name = name, count = n } end
+    end
+    table.sort(wanted, function(a, b)
+      -- No coal or charcoal left: logs first, their charcoal fuels the rest
+      if noFuel and (smeltKind(a.name) == "log") ~= (smeltKind(b.name) == "log") then
+        return smeltKind(a.name) == "log"
+      end
+      return byPriority(a, b) -- gold and iron before copper
+    end)
     for _, w in ipairs(wanted) do
       if carriedSmelt < room and freeSlots() > 4 then
         local got = fetch(w.name, math.min(w.count, room - carriedSmelt), freeSlots() - 4)
@@ -2332,7 +2369,8 @@ local function furnacePass()
       end
     end
   end
-  if fuelCarried == 0 and carriedSmelt > 0 then status.noFuel = true else status.noFuel = false end
+  local logs = carriedCount(function(n) return smeltKind(n) == "log" end)
+  status.noFuel = fuelCarried == 0 and logs == 0 and carriedSmelt > 0
   local share = math.max(8, math.ceil(carriedSmelt / #fl))
   -- Blast furnaces and smokers first (twice as fast for ores / food), then furnaces
   local function rank(e) return (e.blast or e.smoker) and 0 or 1 end
