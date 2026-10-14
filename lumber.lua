@@ -1276,9 +1276,35 @@ local function worker()
   end
 end
 
+-- Pocket control panel (panel.lua): status and P/H keys over a wireless or ender modem.
+-- Without a modem this just waits forever.
+local function radio()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("lumber_never") end end
+  rednet.open(peripheral.getName(modem))
+  rednet.host("lumber", os.getComputerLabel() or ("lumber" .. os.getComputerID()))
+  while true do
+    local id, m = rednet.receive("lumber")
+    if type(m) == "table" then
+      if m.cmd == "pause" then st.paused = true save()
+      elseif m.cmd == "resume" then st.paused = false save()
+      elseif m.cmd == "home" then ui.homeNow = true end
+      if m.cmd then ui.draw() end
+      local spots = 0
+      for _ in pairs(st.spots) do spots = spots + 1 end
+      local name = state()
+      rednet.send(id, { type = "lumber_state", rid = m.rid, label = os.getComputerLabel(), state = name,
+        status = ui.status, fuel = fuel(), fuelMax = REFUEL_TO, lava = lavaLeft, felled = st.felled,
+        logs = st.logs, spots = spots, maxSpots = MAX_SPOTS, saplings = saplingCount(),
+        searched = math.min(100, math.floor((st.cursor - 1) * 100 / #CELLS)), radius = R,
+        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y } }, "lumber")
+    end
+  end
+end
+
 local function main()
   term.clear()
-  parallel.waitForAny(worker, screen)
+  parallel.waitForAny(worker, screen, radio)
 end
 
 turtle.select(1)
