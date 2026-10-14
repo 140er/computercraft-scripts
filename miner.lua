@@ -435,9 +435,13 @@ end
 ---------------------------------------------------------------------------
 -- Turning. The new heading is saved BEFORE each turn: a turn happens immediately
 -- and the 8-tick animation after it is the biggest risk window for a reboot.
+-- A reboot in the tick between the save and the turn itself still leaves the
+-- heading a quarter turn off, so the old heading is kept in st.turnFrom until the
+-- next move: after a reboot recover() checks which of the two is right.
 local function face(d)
   if d >= 4 then return end
   while st.h ~= d do
+    st.turnFrom = st.h
     if (d - st.h) % 4 == 3 then
       st.h = (st.h + 3) % 4
       save()
@@ -645,6 +649,7 @@ local function rawMove(d, inVein)
   -- inVein: true = step into a vein (push), "pop" = step back out (pop). Saved together
   -- with the move, so a reboot right after the move can't leave the vein list wrong.
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
+  st.turnFrom = nil -- a move only starts after the last turn is done
   save()
   local ok, why = mv()
   if ok then
@@ -720,13 +725,20 @@ local function move(d, inVein)
 end
 
 local LOST = "LOST"
+local reorient -- heading check against the tunnel around the turtle (further down)
 
 -- Move along a route the turtle dug itself (shaft, main tunnel, branches, way home)
 local function moveOrFail(d, what, inVein)
   local info = inspect(d)
-  local hatch = d == DOWN and pos.x == SHAFT.x and pos.z == SHAFT.z and pos.y - 1 == HOME.y - 1
-  if info and not hatch and (NATURAL[info.name] or isOre(info)) then
-    error(LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be", 0)
+  -- The hatch (Y home-1 in the shaft) is closed with a seal block, which can be
+  -- andesite, tuff, deepslate etc.: from above on the way down, from below on the way up
+  local hatch = pos.x == SHAFT.x and pos.z == SHAFT.z and
+    (d == DOWN and pos.y == HOME.y or d == UP and pos.y == HOME.y - 2)
+  local function rock(i) return i and not hatch and (NATURAL[i.name] or isOre(i)) end
+  if rock(info) and d < 4 and reorient({ 1, 3 }) then info = inspect(d) end
+  if rock(info) then
+    error(LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be ("
+      .. info.name:gsub("^minecraft:", "") .. " to the " .. DIRNAME[d] .. ")", 0)
   end
   local ok, why = move(d, inVein)
   if not ok then error((what or "Stuck") .. ": " .. tostring(why), 0) end
@@ -737,6 +749,69 @@ end
 ---------------------------------------------------------------------------
 local function along(d) -- distance from the shaft along direction d
   return (pos.x - SHAFT.x) * DX[d] + (pos.z - SHAFT.z) * DZ[d]
+end
+
+-- Which sides should be open (true) or rock (false) here, from what the turtle dug.
+-- nil when it can't tell (shaft, other heights, vein going up/down).
+local function expectedSides()
+  local want = {}
+  if #st.vein > 0 then
+    local back = OPP[st.vein[#st.vein]] -- the way it came into this vein block
+    if back >= 4 then return nil end
+    want[back] = true
+    return want
+  end
+  local j = st.job
+  if not (j and j.y and pos.y == j.y and st.levels[j.y]) then return nil end
+  local aS, aB = along(SPINE), along(BRANCH)
+  if aS < 1 or aB < 0 then return nil end
+  if aB == 0 then -- main tunnel: open back to the shaft, branches only go one way
+    want[OPP[SPINE]] = true
+    if aS < (st.levels[j.y].spine or 0) then want[SPINE] = true end
+    want[OPP[BRANCH]] = false
+  else -- branch: open back to the main tunnel, rock on both walls
+    want[OPP[BRANCH]] = true
+    want[SPINE] = false
+    want[OPP[SPINE]] = false
+  end
+  return want
+end
+
+-- Look around (4 turns) and see if the tunnel fits better with the heading a
+-- quarter turn off. tries = quarter turns to consider (1 = right, 3 = left).
+-- Only corrects on clear evidence: at least 2 sides fit better than now.
+reorient = function(tries)
+  local want = expectedSides()
+  if not want then return false end
+  local open = {}
+  for _ = 1, 4 do
+    local ok, info = turtle.inspect()
+    open[st.h] = not ok or isLiquid(info)
+    face((st.h + 1) % 4)
+  end
+  local function score(k) -- k = how far the real heading is from what I think
+    local s = 0
+    for b = 0, 3 do
+      local w = want[(b + k) % 4]
+      if w ~= nil then s = s + ((open[b] == w) and 1 or -1) end
+    end
+    return s
+  end
+  local now = score(0)
+  local best, bestScore = 0, now
+  for _, k in ipairs(tries) do
+    local s = score(k)
+    if s > bestScore then best, bestScore = k, s end
+  end
+  st.turnFrom = nil
+  if best ~= 0 and bestScore - now >= 2 then
+    st.h = (st.h + best) % 4
+    save()
+    logError("Heading was off by a quarter turn " .. (best == 1 and "right" or "left") .. ", corrected")
+    return true
+  end
+  save()
+  return false
 end
 
 local function distHome()
@@ -1463,6 +1538,7 @@ end
 
 local function lostBeacon(why)
   print(tostring(why))
+  logError(why) -- the reason, in miner.log and on the hub (this never returns)
   st.phase = "lost"
   st.vein = {}
   save()
@@ -1514,6 +1590,7 @@ local function calibrateAtHome()
       st.phase = "home"
       st.vein = {}
       st.pending = nil
+      st.turnFrom = nil
       save()
       if i > 0 then print("Chest found: I am on my home spot") end
       return true
@@ -1526,6 +1603,7 @@ local function calibrateAtHome()
 end
 
 local function recover()
+  local turnFrom = st.turnFrom -- before calibrateAtHome turns around
   if calibrateAtHome() then
     if st.job then setTargets(st.job.targets, st.job) end
     return
@@ -1539,6 +1617,11 @@ local function recover()
     end
     st.pending = nil
     save()
+  end
+  -- Rebooted right around a turn: the heading is either the saved one or the one before
+  if turnFrom and st.phase ~= "lost" then
+    print("Rebooted during a turn, checking my heading")
+    reorient({ (turnFrom - st.h) % 4 })
   end
   if st.job then setTargets(st.job.targets, st.job) end
   if st.phase == "lost" then
