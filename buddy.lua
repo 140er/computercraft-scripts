@@ -17,6 +17,7 @@
 --   buddy                 start chatting (type at the turtle, or in game chat with a chat box)
 --   buddy model <id>      pick the model (auto = the first one the server offers)
 --   buddy models          list the models the server offers
+--   buddy think on|off    let a reasoning model think before answering (default off = fast)
 --   buddy home            after putting it back on its home spot by hand: reset position
 --
 -- While chatting: /reset forgets the conversation, /quit stops.
@@ -56,6 +57,7 @@ local cfg = {
   model = "grok-4",     -- "auto" = the first model the server offers
   range = 32,          -- never further than this many blocks from home (any axis)
   personality = "Cheerful, a little cheeky, loves helping out.",
+  think = false,        -- own server: let reasoning models (GLM, Qwen, ...) think first. Slower.
 }
 do
   local saved = textutils.unserialize(readFile(CFG_FILE) or "")
@@ -415,8 +417,45 @@ local function requestOne(server, method, path, body)
   local text = res.readAll()
   res.close()
   local data = textutils.unserializeJSON(text)
+  if not data then data = textutils.unserializeJSON(text:match("^%s*(.-)%s*$")) end
+  if not data and text:find("^%s*data:") then data = { streamed = text } end
   if not data then return nil, "could not read the server's answer" end
   return data
+end
+
+-- A streamed answer ("data: {...}" lines) glued back together into one message.
+-- Streaming keeps the connection busy while the model thinks, so CC's
+-- 60 second limit (time without any data) is only hit when the server stalls.
+local function joinStream(text)
+  local msg, calls = { content = "" }, {}
+  for line in text:gmatch("[^\n]+") do
+    local json = line:match("^data:%s*(.+)")
+    local chunk = json and json ~= "[DONE]" and textutils.unserializeJSON(json)
+    local delta = chunk and chunk.choices and chunk.choices[1] and chunk.choices[1].delta
+    if delta then
+      if type(delta.content) == "string" then msg.content = msg.content .. delta.content end
+      for _, tc in ipairs(delta.tool_calls or {}) do
+        local i = (tonumber(tc.index) or #calls) + 1
+        local call = calls[i]
+        if not call then
+          call = { id = tc.id, type = "function", ["function"] = { name = "", arguments = "" } }
+          calls[i] = call
+        end
+        if tc.id then call.id = tc.id end
+        local fn = tc["function"] or {}
+        if fn.name then call["function"].name = call["function"].name .. fn.name end
+        if fn.arguments then call["function"].arguments = call["function"].arguments .. fn.arguments end
+      end
+    end
+  end
+  local list = {}
+  for i = 1, #calls + 8 do if calls[i] then list[#list + 1] = calls[i] end end
+  for i, call in ipairs(list) do
+    call.id = call.id or ("call" .. i)
+    if call["function"].arguments == "" then call["function"].arguments = "{}" end
+  end
+  if #list > 0 then msg.tool_calls = list end
+  return msg
 end
 
 -- Tries the servers in order; one that answers moves to the front for next time
@@ -484,20 +523,23 @@ end
 local function chat(text, who, onAction)
   local useModel, err = resolveModel()
   if not useModel then return nil, err end
+  local start = #history
   history[#history + 1] = { role = "user", content = ascii(text) }
   while true do -- keeps going until the model answers without asking for tools
     local messages = { { role = "system", content = systemPrompt(who) } }
     for _, m in ipairs(history) do messages[#messages + 1] = m end
     local data
-    data, err = request("POST", "chat/completions", textutils.serializeJSON({
-      model = useModel, messages = messages, tools = tools,
-    }))
+    local body = { model = useModel, messages = messages, tools = tools, stream = true }
+    if not usesGrok() and not cfg.think then body.chat_template_kwargs = { enable_thinking = false } end
+    data, err = request("POST", "chat/completions", textutils.serializeJSON(body))
     if not data then
-      table.remove(history) -- forget the message so a retry starts clean
+      -- forget this message and what came of it, so a retry starts clean
+      for i = #history, start + 1, -1 do history[i] = nil end
       if err:lower():find("model") then err = err .. " (try: buddy models)" end
       return nil, err
     end
-    local msg = data.choices and data.choices[1] and data.choices[1].message
+    local msg = data.streamed and joinStream(data.streamed)
+      or (data.choices and data.choices[1] and data.choices[1].message)
     if not msg then return nil, "empty answer from the model" end
     local calls = msg.tool_calls
     if not calls or #calls == 0 then
@@ -555,6 +597,10 @@ elseif cmd == "home" then
 elseif cmd == "model" then
   if args[2] then cfg.model = args[2]; saveCfg() end
   print("Model: " .. cfg.model)
+  return
+elseif cmd == "think" then
+  if args[2] then cfg.think = args[2] == "on"; saveCfg() end
+  print("Thinking: " .. (cfg.think and "on (smarter, slower)" or "off (fast)"))
   return
 elseif cmd == "name" and args[2] then
   cfg.name = args[2]

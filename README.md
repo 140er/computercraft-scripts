@@ -209,6 +209,7 @@ A turtle you talk to. A language model reads what you say and decides what to do
 4. `buddy` and type away: "look around", "go 5 forward and drop the cobble in the chest", "what have you got on you?", "come home".
 
 **Your own server, two things to check:**
+- **Answers are streamed**, so a slow model doesn't hit ComputerCraft's 60 second limit as long as it keeps producing text. Thinking is switched off by default (`buddy think on` to allow it).
 - **Tool calling must be on.** vLLM: start it with `--enable-auto-tool-choice --tool-call-parser <parser for your model>` (the GLM parser for GLM). If Buddy only talks and never moves, this is why.
 - **ComputerCraft blocks private and local addresses** by default. If Buddy says "Domain not permitted", allow your servers in `config/computercraft-server.toml` (world `serverconfig` folder on some setups) by adding this **above** the existing `$private` deny rule, then restart the server. `100.64.0.0/10` covers all Tailscale addresses.
   ```toml
@@ -224,6 +225,7 @@ A turtle you talk to. A language model reads what you say and decides what to do
 | `buddy server <url> [url2 ...]` | use your own model server(s); `buddy server grok` for xAI |
 | `buddy model <id>` | pick the model (`auto` = the first one the server offers) |
 | `buddy models` | list the models the server offers |
+| `buddy think on\|off` | own server: let a reasoning model (GLM, Qwen, ...) think before it answers. Off by default: much faster |
 | `buddy key <key>` | save an API key on the turtle |
 | `buddy name <name>` | rename it (also its chat name) |
 | `buddy home` | after putting it back on its home spot by hand: reset its position |
