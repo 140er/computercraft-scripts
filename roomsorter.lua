@@ -205,26 +205,40 @@ if args[1] == "client" then
     end
 
     local stock, stockOk, turtleState, canCraft = {}, false, "?", false
-    local recipes = {}
+    local recipes, orders = {}, {}
     local function refresh()
       local r = ask({ cmd = "stock" })
       if type(r) == "table" and type(r.totals) == "table" then
         stock, stockOk, turtleState, canCraft = r.totals, true, r.state or "?", r.crafty
+        recipes = type(r.recipes) == "table" and r.recipes or {}
+        orders = type(r.orders) == "table" and r.orders or {}
       else
         stockOk, turtleState = false, "no answer"
       end
     end
-    local function refreshRecipes()
-      local r = ask({ cmd = "recipes", text = "raw" })
-      recipes = type(r) == "table" and type(r.recipes) == "table" and r.recipes or {}
-      if type(r) == "table" and r.state then turtleState, canCraft = r.state, r.crafty end
-    end
-    local function itemsIn(ci) -- ci = nil: everything
-      local l = {}
-      for name, n in pairs(stock) do
-        if not ci or catOf(name) == ci then l[#l + 1] = { name = name, n = n } end
+    -- Everything you can order: what's in storage, plus what it can craft
+    local function entries()
+      local by = {}
+      for name, n in pairs(stock) do by[name] = { name = name, n = n, can = 0 } end
+      for _, r in ipairs(recipes) do
+        local e = by[r.name]
+        if e then e.can, e.per, e.missing = r.can, r.per, r.missing
+        elseif r.can > 0 then by[r.name] = { name = r.name, n = 0, can = r.can, per = r.per } end
       end
-      table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
+      local l = {}
+      for _, e in pairs(by) do e.orders = orders[e.name] or 0 l[#l + 1] = e end
+      return l
+    end
+    local function itemsIn(which) -- a category number, "all" or "frequent"
+      local l = {}
+      for _, e in ipairs(entries()) do
+        if which == "all" or (which == "frequent" and e.orders > 0) or catOf(e.name) == which then l[#l + 1] = e end
+      end
+      if which == "frequent" then
+        table.sort(l, function(a, b) if a.orders ~= b.orders then return a.orders > b.orders end return a.name < b.name end)
+      else
+        table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
+      end
       return l
     end
 
@@ -241,16 +255,10 @@ if args[1] == "client" then
       term.setBackgroundColor(bg or colors.black)
       term.write(s)
     end
-    local function button(x, y, w, h, label, bg, fg, action, sub)
+    local function button(x, y, w, h, label, bg, fg, action)
       for yy = y, y + h - 1 do text(x, yy, (" "):rep(w), fg, bg) end
       local l = label:sub(1, w - 2)
-      local ly = y + math.floor((h - 1) / 2)
-      if sub and h >= 3 then ly = y + 1 end
-      text(x + math.floor((w - #l) / 2), ly, l, fg or colors.black, bg)
-      if sub and h >= 3 then
-        local sl = sub:sub(1, w - 2)
-        text(x + math.floor((w - #sl) / 2), ly + 1, sl, fg or colors.black, bg)
-      end
+      text(x + math.floor((w - #l) / 2), y + math.floor((h - 1) / 2), l, fg or colors.black, bg)
       buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + w - 1, y2 = y + h - 1, action = action }
     end
     local function titleBar(title, back)
@@ -283,31 +291,6 @@ if args[1] == "client" then
         end
       end
     end
-
-    local screen, cat, page, item = "home", nil, 1, nil
-    local message = nil
-
-    local function typeIt()
-      clear()
-      titleBar("Type it yourself")
-      text(2, 3, "Type the item and how many, e.g.", colors.lightGray)
-      text(2, 4, "  iron ingot 32", colors.white)
-      text(2, 5, "Enter on an empty line = back.", colors.lightGray)
-      term.setCursorPos(2, 7)
-      term.setTextColor(colors.yellow)
-      term.setBackgroundColor(colors.black)
-      write("> ")
-      term.setTextColor(colors.white)
-      local line = read()
-      if not line or not line:find("%S") then return end
-      local words = {}
-      for wd in line:gmatch("%S+") do words[#words + 1] = wd end
-      local n = tonumber(words[#words])
-      if n and #words > 1 then table.remove(words) else n = nil end
-      local r = ask({ cmd = "get", text = table.concat(words, " "), n = n })
-      message = type(r) == "table" and r or { "No answer (out of range?)" }
-    end
-
     -- Tiles: icon, name and a second line; 3 columns on a computer, 2 on a pocket computer
     local function drawTiles(tiles)
       local cols = W >= 45 and 3 or 2
@@ -330,27 +313,52 @@ if args[1] == "client" then
       end
     end
 
+    local screen, cat, page, item = "home", nil, 1, nil
+    local message = nil
+    local function order(name, n)
+      local r = ask({ cmd = "order", text = name, n = n })
+      message = type(r) == "table" and r or { "No answer (out of range?)" }
+    end
+
+    local function typeIt()
+      clear()
+      titleBar("Type it yourself")
+      text(2, 3, "Type the item and how many, e.g.", colors.lightGray)
+      text(2, 4, "  iron ingot 32", colors.white)
+      text(2, 5, "If there isn't enough it crafts the rest.", colors.lightGray)
+      text(2, 6, "Enter on an empty line = back.", colors.lightGray)
+      term.setCursorPos(2, 8)
+      term.setTextColor(colors.yellow)
+      term.setBackgroundColor(colors.black)
+      write("> ")
+      term.setTextColor(colors.white)
+      local line = read()
+      if not line or not line:find("%S") then return end
+      local words = {}
+      for wd in line:gmatch("%S+") do words[#words + 1] = wd end
+      local n = tonumber(words[#words])
+      if n and #words > 1 then table.remove(words) else n = nil end
+      order(table.concat(words, " "), n)
+    end
+
     local function drawHome()
       clear()
-      local total = 0
-      for _ in pairs(stock) do total = total + 1 end
       titleBar("ORDER")
       if not stockOk then text(2, 2, "Couldn't get the stock list (turtle busy? old version?)", colors.red) end
-      local list = {}
-      for i, c in ipairs(CATS) do list[#list + 1] = { i = i, c = c, n = #itemsIn(i) } end
-      list[#list + 1] = { i = "all", c = { name = "All items", color = colors.white }, n = total }
-      list[#list + 1] = { i = "craft", c = { name = "Craft", color = colors.purple }, n = -1 }
       local tiles = {}
-      for _, e in ipairs(list) do
-        local isCraft = e.i == "craft"
-        tiles[#tiles + 1] = {
-          icon = e.c.name, name = isCraft and "CRAFT" or (TILE[e.c.name] or e.c.name),
-          sub = isCraft and (canCraft and "make items" or "no table") or (e.n .. (e.n == 1 and " kind" or " kinds")),
-          color = isCraft and colors.white or e.c.color, bg = isCraft and canCraft and colors.purple or nil,
-          empty = (not isCraft and e.n == 0) or (isCraft and not canCraft),
-          action = isCraft and "craft" or { "cat", e.i } }
+      local nf = #itemsIn("frequent")
+      tiles[1] = { icon = "Frequent", name = "Frequent", color = colors.yellow, empty = nf == 0,
+        sub = nf > 0 and (nf .. " items") or "nothing yet", action = { "cat", "frequent" } }
+      for i, c in ipairs(CATS) do
+        local n = #itemsIn(i)
+        tiles[#tiles + 1] = { icon = c.name, name = TILE[c.name] or c.name, color = c.color, empty = n == 0,
+          sub = n .. (n == 1 and " item" or " items"), action = { "cat", i } }
       end
+      local all = #itemsIn("all")
+      tiles[#tiles + 1] = { icon = "All items", name = "All items", color = colors.white, empty = all == 0,
+        sub = all .. " items", action = { "cat", "all" } }
       drawTiles(tiles)
+      if not canCraft then text(2, H - 1, "No crafting table on the turtle: only what's in storage.", colors.gray) end
       button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
       button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
       button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
@@ -358,9 +366,9 @@ if args[1] == "client" then
 
     local function drawCat()
       clear()
-      local title = cat == "all" and "All items" or CATS[cat].name
+      local title = cat == "all" and "All items" or cat == "frequent" and "Frequent" or CATS[cat].name
       titleBar(title, "back")
-      local list = itemsIn(cat ~= "all" and cat or nil)
+      local list = itemsIn(cat)
       local cols = W >= 46 and 2 or 1
       local cw = math.floor((W - 1 - (cols - 1)) / cols)
       local rows = H - 4
@@ -374,14 +382,19 @@ if args[1] == "client" then
         local col = math.floor((i - 1) / rows)
         local x = 2 + col * (cw + 1)
         local y = 3 + (i - 1) % rows
-        local cnt = num(it.n)
-        local name = pretty(it.name):sub(1, cw - #cnt - 5)
+        -- right side: how many in storage (yellow) and how many more it can craft (purple)
+        local have = it.n > 0 and num(it.n) or ""
+        local craft = it.can > 0 and ("+" .. num(it.can)) or ""
+        local rw = #have + (#craft > 0 and #craft + 1 or 0)
+        local name = pretty(it.name):sub(1, cw - rw - 4)
         local bg = (i % 2 == 0) and colors.gray or colors.black
         local ci = catOf(it.name)
-        text(x, y, " ", colors.white, CATS[ci] and CATS[ci].color or colors.white) -- category colour
+        text(x, y, " ", colors.white, CATS[ci] and CATS[ci].color or colors.white)
         local left = " " .. name
-        text(x + 1, y, left .. (" "):rep(cw - 1 - #left - #cnt - 1), colors.white, bg)
-        text(x + cw - #cnt - 1, y, cnt .. " ", colors.yellow, bg)
+        text(x + 1, y, left .. (" "):rep(cw - 1 - #left), it.n > 0 and colors.white or colors.lightGray, bg)
+        local rx = x + cw - rw - 1
+        if #have > 0 then text(rx, y, have, colors.yellow, bg) rx = rx + #have + 1 end
+        if #craft > 0 then text(rx, y, craft, colors.magenta, bg) end
         buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "item", it } }
       end
       if pages > 1 then
@@ -389,138 +402,40 @@ if args[1] == "client" then
         text(8, H, page .. "/" .. pages, colors.white)
         button(14, H, 5, 1, ">", colors.lightGray, colors.black, "next")
       end
+      if canCraft then text(2, H - 1, "yellow = in storage, purple +N = can craft", colors.gray) end
       button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "type")
     end
 
     local function drawAmount()
       clear()
       titleBar(pretty(item.name), "back")
-      local have = stock[item.name] or item.n
+      local have, can = item.n, item.can
       local ci = catOf(item.name)
       icon(2, 3, ICONS[CATS[ci] and CATS[ci].name or "Other"] or ICONS.Other, colors.black)
       text(6, 3, pretty(item.name), colors.white)
       text(6, 4, "In storage: " .. num(have), colors.yellow)
-      text(2, 5, "How many to the pickup chest?", colors.lightGray)
-      local amounts = { 1, 4, 8, 16, 32, 64 }
-      local x, y = 2, 7
-      for _, a in ipairs(amounts) do
-        if a <= have then
-          if x + 6 > W then x, y = 2, y + 2 end
-          button(x, y, 6, 1, tostring(a), colors.lime, colors.black, { "get", a })
-          x = x + 7
-        end
-      end
-      if x + 12 > W then x, y = 2, y + 2 end
-      button(x, y, 12, 1, "All (" .. num(have) .. ")", colors.orange, colors.black, { "get", have })
-      button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
-    end
-
-    -- Which recipes belong in a craft tile: "frequent", "all" or a category number
-    local function recipesIn(which)
-      local l = {}
-      for _, r in ipairs(recipes) do
-        if which == "all" or (which == "frequent" and (r.crafted or 0) > 0) or catOf(r.name) == which then l[#l + 1] = r end
-      end
-      if which == "frequent" then
-        table.sort(l, function(a, b) return a.crafted > b.crafted end)
-      else
-        table.sort(l, function(a, b) return pretty(a.name) < pretty(b.name) end)
-      end
-      return l
-    end
-
-    local craftCat = "all"
-    local function drawCraft()
-      clear()
-      titleBar("Craft", "back")
-      if not canCraft then
-        text(2, 3, "The turtle has no crafting table yet.", colors.red)
-        text(2, 4, "Put a crafting table in the drop-off chest:", colors.lightGray)
-        text(2, 5, "it equips it by itself.", colors.lightGray)
-        return
-      end
-      local tiles = {}
-      local function count(which)
-        local n, can = 0, 0
-        for _, r in ipairs(recipesIn(which)) do n = n + 1 if r.can > 0 then can = can + 1 end end
-        return n, can
-      end
-      local fn = count("frequent")
-      tiles[1] = { icon = "Frequent", name = "Frequent", color = colors.yellow, empty = fn == 0,
-        sub = fn > 0 and (fn .. " crafted") or "nothing yet", action = { "craftcat", "frequent" } }
-      for i, c in ipairs(CATS) do
-        local n, can = count(i)
-        if n > 0 then
-          tiles[#tiles + 1] = { icon = c.name, name = TILE[c.name] or c.name, color = c.color, empty = can == 0,
-            sub = can .. "/" .. n .. " ready", action = { "craftcat", i } }
-        end
-      end
-      local n, can = count("all")
-      tiles[#tiles + 1] = { icon = "Craft", name = "All", color = colors.white, bg = colors.purple,
-        sub = can .. "/" .. n .. " ready", action = { "craftcat", "all" } }
-      drawTiles(tiles)
-      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "typecraft")
-    end
-
-    local function drawCraftList()
-      clear()
-      local title = craftCat == "all" and "Craft: all" or craftCat == "frequent" and "Craft: frequent"
-        or ("Craft: " .. (TILE[CATS[craftCat].name] or CATS[craftCat].name))
-      titleBar(title, "back")
-      local list = recipesIn(craftCat)
-      local cols = W >= 46 and 2 or 1
-      local cw = math.floor((W - 1 - (cols - 1)) / cols)
-      local rows = H - 4
-      local per = rows * cols
-      local pages = math.max(1, math.ceil(#list / per))
-      if page > pages then page = pages end
-      if #list == 0 then text(2, 3, "Nothing here yet.", colors.lightGray) end
-      for i = 1, per do
-        local it = list[(page - 1) * per + i]
-        if not it then break end
-        local col = math.floor((i - 1) / rows)
-        local x = 2 + col * (cw + 1)
-        local y = 3 + (i - 1) % rows
-        local right = it.can > 0 and ("can " .. num(it.can)) or "need more"
-        if craftCat == "frequent" then right = num(it.crafted) .. "x" end
-        local name = pretty(it.name):sub(1, cw - #right - 4)
-        local bg = (i % 2 == 0) and colors.gray or colors.black
-        local ci = catOf(it.name)
-        text(x, y, " ", colors.white, it.can > 0 and (CATS[ci] and CATS[ci].color or colors.purple) or colors.gray)
-        text(x + 1, y, " " .. name .. (" "):rep(cw - #name - #right - 3), colors.white, bg)
-        text(x + cw - #right - 1, y, right .. " ", it.can > 0 and colors.lime or colors.lightGray, bg)
-        buttons[#buttons + 1] = { x1 = x, y1 = y, x2 = x + cw - 1, y2 = y, action = { "recipe", it } }
-      end
-      if pages > 1 then
-        button(2, H, 5, 1, "<", colors.lightGray, colors.black, "prev")
-        text(8, H, page .. "/" .. pages, colors.white)
-        button(14, H, 5, 1, ">", colors.lightGray, colors.black, "next")
-      end
-      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "typecraft")
-    end
-
-    local function drawCraftAmount()
-      clear()
-      titleBar("Craft " .. pretty(item.name), "back")
-      icon(2, 3, ICONS.Craft, colors.black)
-      text(6, 3, pretty(item.name) .. "  (" .. item.per .. " per craft)", colors.white)
-      text(6, 4, "Can make now: " .. num(item.can), item.can > 0 and colors.lime or colors.lightGray)
-      if item.can == 0 then
-        text(2, 5, "Short of " .. tostring(item.missing or "ingredients") .. " (it makes parts it can)", colors.lightGray)
-      else
-        text(2, 5, "How many? They go to the pickup chest.", colors.lightGray)
-      end
-      local x, y = 2, 7
+      if can > 0 then text(6 + #("In storage: " .. num(have)) + 3, 4, "can craft +" .. num(can), colors.magenta) end
+      text(2, 6, (can > 0 and "How many? Not enough stored: it crafts the rest." or "How many to the pickup chest?"):sub(1, W - 2),
+        colors.lightGray)
+      local total = have + can
+      local x, y = 2, 8
       for _, a in ipairs({ 1, 4, 8, 16, 32, 64 }) do
         if x + 6 > W then x, y = 2, y + 2 end
-        button(x, y, 6, 1, tostring(a), a <= item.can and colors.lime or colors.lightGray, colors.black, { "craftn", a })
+        local bg = a <= have and colors.lime or a <= total and colors.magenta or colors.lightGray
+        button(x, y, 6, 1, tostring(a), bg, colors.black, { "order", a })
         x = x + 7
       end
-      if item.can > 0 then
-        if x + 12 > W then x, y = 2, y + 2 end
-        button(x, y, 12, 1, "Max (" .. num(item.can) .. ")", colors.orange, colors.black, { "craftn", item.can })
+      y = y + 2
+      x = 2
+      if have > 0 then
+        button(x, y, 16, 1, "All stored (" .. num(have) .. ")", colors.orange, colors.black, { "order", have })
+        x = x + 17
       end
-      button(2, y + 3, 18, 1, "Other amount...", colors.yellow, colors.black, "craftcustom")
+      if can > 0 then
+        button(x, y, 16, 1, "Max (" .. num(total) .. ")", colors.magenta, colors.black, { "order", total })
+      end
+      button(2, y + 2, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
+      text(2, H, "green = from storage, purple = crafts some", colors.gray)
     end
 
     local function drawMessage()
@@ -538,81 +453,35 @@ if args[1] == "client" then
       if message then drawMessage()
       elseif screen == "home" then drawHome()
       elseif screen == "cat" then drawCat()
-      elseif screen == "amount" then drawAmount()
-      elseif screen == "craft" then drawCraft()
-      elseif screen == "craftlist" then drawCraftList()
-      elseif screen == "craftamount" then drawCraftAmount() end
+      elseif screen == "amount" then drawAmount() end
       local a = waitClick()
       if a == "tick" then
-        -- refresh the status (and counts) every few seconds
-        if screen == "craft" or screen == "craftlist" then refreshRecipes() else refresh() end
-      elseif message then
-        if a == "ok" or a == "back" then
-          message = nil
-          refresh()
-          if screen == "craft" or screen == "craftlist" then refreshRecipes() end
+        refresh() -- status and counts every few seconds
+        if screen == "amount" then -- keep the numbers of the open item up to date
+          for _, e in ipairs(entries()) do if e.name == item.name then item = e end end
         end
+      elseif message then
+        if a == "ok" or a == "back" then message = nil refresh() end
       elseif a == "quit" then
         term.setBackgroundColor(colors.black) term.clear() term.setCursorPos(1, 1)
         return
       elseif a == "refresh" then refresh()
       elseif a == "type" then typeIt()
       elseif a == "back" then
-        if screen == "amount" then screen = "cat"
-        elseif screen == "craftamount" then screen = "craftlist"
-        elseif screen == "craftlist" then screen = "craft"
-        elseif screen == "cat" or screen == "craft" then screen = "home" end
-      elseif type(a) == "table" and a[1] == "craftcat" then screen, craftCat, page = "craftlist", a[2], 1
-      elseif a == "craft" then screen, page = "craft", 1 refreshRecipes()
-      elseif type(a) == "table" and a[1] == "recipe" then screen, item = "craftamount", a[2]
-      elseif type(a) == "table" and a[1] == "craftn" then
-        local r = ask({ cmd = "craft", text = item.name, n = a[2] })
-        message = type(r) == "table" and r or { "No answer (out of range?)" }
-        screen = "craftlist"
-      elseif a == "craftcustom" then
-        text(2, H - 1, "How many? ", colors.yellow)
-        term.setTextColor(colors.white)
-        local n = tonumber(read())
-        if n and n > 0 then
-          local r = ask({ cmd = "craft", text = item.name, n = math.floor(n) })
-          message = type(r) == "table" and r or { "No answer (out of range?)" }
-          screen = "craftlist"
-        end
-      elseif a == "typecraft" then
-        clear()
-        titleBar("Craft: type it")
-        text(2, 3, "Type the item and how many, e.g.", colors.lightGray)
-        text(2, 4, "  torch 32", colors.white)
-        text(2, 5, "Enter on an empty line = back.", colors.lightGray)
-        term.setCursorPos(2, 7)
-        term.setTextColor(colors.yellow)
-        term.setBackgroundColor(colors.black)
-        write("> ")
-        term.setTextColor(colors.white)
-        local line = read()
-        if line and line:find("%S") then
-          local words = {}
-          for wd in line:gmatch("%S+") do words[#words + 1] = wd end
-          local n = tonumber(words[#words])
-          if n and #words > 1 then table.remove(words) else n = nil end
-          local r = ask({ cmd = "craft", text = table.concat(words, " "), n = n })
-          message = type(r) == "table" and r or { "No answer (out of range?)" }
-        end
+        if screen == "amount" then screen = "cat" elseif screen == "cat" then screen = "home" end
       elseif a == "prev" then page = math.max(1, page - 1)
       elseif a == "next" then page = page + 1
       elseif type(a) == "table" and a[1] == "cat" then screen, cat, page = "cat", a[2], 1
       elseif type(a) == "table" and a[1] == "item" then screen, item = "amount", a[2]
-      elseif type(a) == "table" and a[1] == "get" then
-        local r = ask({ cmd = "get", text = item.name, n = a[2] })
-        message = type(r) == "table" and r or { "No answer (out of range?)" }
+      elseif type(a) == "table" and a[1] == "order" then
+        order(item.name, a[2])
         screen = "cat"
       elseif a == "custom" then
         text(2, H - 1, "How many? ", colors.yellow)
         term.setTextColor(colors.white)
         local n = tonumber(read())
         if n and n > 0 then
-          local r = ask({ cmd = "get", text = item.name, n = math.floor(n) })
-          message = type(r) == "table" and r or { "No answer (out of range?)" }
+          order(item.name, math.floor(n))
           screen = "cat"
         end
       end
@@ -2508,6 +2377,14 @@ local function pick(spec, stock)
   return best, bestN
 end
 
+-- Does recipe r use something we're already busy making? (coal -> coal block -> coal)
+local function loops(r, visiting)
+  for _, spec in pairs(r.grid) do
+    for v in pairs(visiting) do if fitsSpec(spec, v) then return true end end
+  end
+  return false
+end
+
 local function perSpec(r)
   local per = {}
   for _, spec in pairs(r.grid) do per[spec] = (per[spec] or 0) + 1 end
@@ -2572,7 +2449,8 @@ local function craftItem(out, want, depth, visiting)
   for _ = 1, 20 do
     if made >= want then break end
     local stock = totals()
-    local rs = recipesFor(out, stock)
+    local rs = {}
+    for _, r in ipairs(recipesFor(out, stock)) do if not loops(r, visiting) then rs[#rs + 1] = r end end
     if #rs == 0 then lastMissing = "a recipe for " .. pretty(out) break end
     table.sort(rs, function(a, b) return canMake(a, stock) > canMake(b, stock) end)
     local r = rs[1]
@@ -2677,23 +2555,64 @@ local function serveCrafts()
       lastMissing = nil
       local inStore = totals()[c.name] or 0
       local made = craftItem(c.name, c.n, 0)
+      local total = math.min(c.deliver or c.n, inStore + made)
       if made > 0 then
         stats.crafted = stats.crafted or {}
         stats.crafted[c.name] = (stats.crafted[c.name] or 0) + 1 -- how often, not how many
         log("Crafted " .. made .. " " .. pretty(c.name))
-        deliver({ name = c.name, n = math.min(c.n, inStore + made) })
       end
+      if total > 0 then deliver({ name = c.name, n = total }) end
       if made < c.n then log("Crafted only " .. made .. " " .. pretty(c.name) .. ": not enough " .. (lastMissing or "ingredients"), true) end
     end
   end
 end
 
--- What the order screen shows on the Craft tab
+-- How many it can make, also by crafting parts first (planks -> sticks -> torches),
+-- up to 3 steps deep. A guess: parts shared by two ingredients are counted twice.
+local function deepCounter(stock)
+  local byOut, all = {}, allRecipes(stock)
+  for _, r in ipairs(all) do byOut[r.out] = byOut[r.out] or {} table.insert(byOut[r.out], r) end
+  local memo = {}
+  local function maxCraft(out, depth, visiting)
+    if depth > 3 or visiting[out] then return 0 end
+    local key = out .. "@" .. depth
+    if memo[key] then return memo[key] end
+    visiting[out] = true
+    local best = 0
+    for _, r in ipairs(byOut[out] or {}) do
+      if not loops(r, visiting) then
+        local steps = math.huge
+        for spec, c in pairs(perSpec(r)) do
+          local name, have = pick(spec, stock)
+          local extra = 0
+          if spec:sub(1, 1) == "#" then
+            for o in pairs(byOut) do
+              if fitsSpec(spec, o) then extra = math.max(extra, maxCraft(o, depth + 1, visiting)) end
+            end
+          elseif name then
+            extra = maxCraft(name, depth + 1, visiting)
+          end
+          steps = math.min(steps, math.floor((have + extra) / c))
+        end
+        if steps == math.huge then steps = 0 end
+        best = math.max(best, steps * r.n)
+      end
+    end
+    visiting[out] = nil
+    memo[key] = best
+    return best
+  end
+  return function(out) return maxCraft(out, 0, {}) end, all
+end
+
+-- What the order screen shows: everything it has a recipe for and how many it can make
 local function craftList()
   local stock = totals()
   local by = {}
-  for _, r in ipairs(allRecipes(stock)) do
-    local can, missing = canMake(r, stock)
+  local deep, all = deepCounter(stock)
+  for _, r in ipairs(all) do
+    local _, missing = canMake(r, stock)
+    local can = deep(r.out)
     local e = by[r.out]
     if not e or can > e.can then
       by[r.out] = { name = r.out, per = r.n, can = can, missing = missing, crafted = (stats.crafted or {})[r.out] or 0 }
@@ -2806,7 +2725,51 @@ local function command(cmd, text, n)
     os.queueEvent("room_request")
     return { "Forgot " .. n .. " blocked spot(s). If something is really there it notices again." }
   elseif cmd == "stock" then
-    return { totals = totals(), state = status.state, crafty = crafty() } -- for the order screen
+    -- everything the order screen needs in one answer
+    return { totals = totals(), state = status.state, crafty = crafty(), recipes = crafty() and craftList() or {},
+      orders = stats.orders or {} }
+  elseif cmd == "order" then
+    -- From storage, and whatever is missing gets crafted
+    if not text or text == "" then return { "order <item> [n]" } end
+    local name, found = matchItem(text)
+    if not name and crafty() then name, found = matchRecipe(text) end
+    if not name then
+      if #found == 0 then return { "Not in storage" .. (crafty() and " and no recipe for it." or ".") } end
+      local out = { "Which one?" }
+      for _, f in ipairs(found) do out[#out + 1] = " " .. short(f) end
+      return out
+    end
+    n = math.max(1, math.floor(n or stackOf(name)))
+    local have = totals()[name] or 0
+    stats.orders = stats.orders or {}
+    stats.orders[name] = (stats.orders[name] or 0) + 1
+    if have >= n then
+      requests[#requests + 1] = { name = name, n = n }
+      os.queueEvent("room_request")
+      return { "Getting " .. n .. " " .. pretty(name) .. "..." }
+    end
+    local possible = 0
+    if crafty() and #recipesFor(name) > 0 then possible = (deepCounter(totals()))(name) end
+    if possible > 0 then
+      local make = math.min(n - have, possible)
+      crafts[#crafts + 1] = { name = name, n = make, deliver = have + make }
+      os.queueEvent("room_request")
+      local out = { (have > 0 and ("Getting " .. have .. " " .. pretty(name) .. " and crafting " .. make .. " more...")
+        or ("Crafting " .. make .. " " .. pretty(name) .. "...")), "It all goes to the pickup chest." }
+      if have + make < n then out[#out + 1] = "(It can only make " .. make .. " right now.)" end
+      return out
+    end
+    if have > 0 then
+      requests[#requests + 1] = { name = name, n = have }
+      os.queueEvent("room_request")
+      return { "Only " .. have .. " in storage (no recipe): getting those." }
+    end
+    if crafty() and #recipesFor(name) > 0 then
+      local r = recipesFor(name)[1]
+      local _, missing = canMake(r, totals())
+      return { "None in storage, and it can't craft it: short of " .. (missing or "ingredients") .. "." }
+    end
+    return { "None in storage" .. (crafty() and " and no recipe for it." or ".") }
   elseif cmd == "recipes" then
     if text == "raw" then return { recipes = craftList(), crafty = crafty(), state = status.state } end
     local out = {}

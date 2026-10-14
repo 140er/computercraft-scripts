@@ -303,13 +303,13 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 | `build` | shows how many chests/furnaces are built and how much room is left, and builds any that aren't yet (it normally does that by itself) |
 | `pause` / `resume` / `quit` | on the turtle only |
 
-**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows tiles with little icons instead of a prompt:
-- the home screen has a button per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food & farm, Mob drops, Tools & gear, Other, All items) with how many kinds are in it,
-- a category shows its items with how many there are; click one and pick an amount (1, 4, 8, 16, 32, 64, All, or "Other amount..." to type a number),
-- "Type it myself" / "Not listed? Type it" lets you type the item and amount like `iron ingot 32`,
-- **CRAFT** button: see Crafting below.
-- The blue bar shows **Status:** what the turtle is busy with (storing, smelting, crafting, getting your items, ...), updated every 5 seconds.
-- Backspace = back. `roomsorter client text` gives the old typing prompt.
+**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows tiles with little icons instead of a prompt. Ordering and crafting are one screen:
+- the home screen has **Frequent** (what you order most), a tile per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food, Mob drops, Tools, Other) and **All items**,
+- a category shows what's in storage (yellow count) **and what the turtle can craft** (purple `+N`, even when there's none in storage). The craftable count includes parts it can make first (logs -> planks -> sticks -> torches),
+- click an item and pick an amount: green buttons come from storage, purple ones need crafting. **Not enough in storage? It takes what's there and crafts the rest**, all to the pickup chest. "All stored", "Max" and "Other amount..." too,
+- "Type it myself" / "Not listed? Type it" works the same way (`iron ingot 32`),
+- the blue bar shows **Status:** what the turtle is busy with, updated every 5 seconds,
+- Backspace = back. `roomsorter client text` gives the old typing prompt (`order torch 32` there does the same).
 
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
 
@@ -342,7 +342,7 @@ Iron ingot                                       668    ▲+480  +255.3%       n
 
 ### Crafting
 Give the turtle a **crafting table**: put one in the drop-off chest and it equips it on its free side (next to the wireless modem). Then it can craft:
-- **Craft tab** on the order screen: tiles like the home screen. **Frequent** first (what you craft most often, most ordered on top), then a tile per category (Ingots, Wood, Tools, Food, ...) with how many of its recipes it can make right now, and **All**. Pick a recipe, pick an amount (or Max / Other amount / "Not listed? Type it"). The result goes to the pickup chest.
+- On the **order screen** craftable items simply show up in their category with a purple `+N`; ordering more than there is in storage crafts the rest.
 - Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
 - **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
 - **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
