@@ -172,6 +172,13 @@ Tabs along the top (tap them, or keys 1-5, Q quits):
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
+  - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
+  - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `buddy go fetch the logs`
+  - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
+  - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
+
+The dev commands only read things (and reboot); they never run code or write files sent over the air. On a server with other players, lock them: `key <secret>` on the pocket and the same secret in a file `dev.key` on each bot.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 

@@ -58,7 +58,9 @@ end
 local function redrawSoon() os.queueEvent("panel_redraw") end
 
 local toastText, toastUntil = nil, 0
+local consoleSay -- set by the console further down: messages go there on its tab
 local function toast(text, secs)
+  if consoleSay and consoleSay(text) then return end
   toastText, toastUntil = tostring(text), os.clock() + (secs or 6)
   redrawSoon()
 end
@@ -72,7 +74,7 @@ local function send(key, msg)
   msg.rid = math.random(1, 1073741824)
   rednet.send(d.id, msg, d.proto)
   d.asked = os.clock()
-  return true
+  return msg.rid
 end
 
 local function ask(key)
@@ -186,8 +188,10 @@ end
 ---------------------------------------------------------------------------
 -- UI state
 ---------------------------------------------------------------------------
-local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Store" }, { "wood", "Wood" }, { "buddy", "Buddy" } }
-local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple }
+local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "buddy", "Bud" },
+  { "console", ">_" } }
+local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple,
+  console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 
 local function setTab(t)
@@ -658,12 +662,403 @@ local function drawBuddy()
 end
 
 ---------------------------------------------------------------------------
+-- Console (the >_ tab): type commands to manage the bots. "help" lists them.
+---------------------------------------------------------------------------
+local con = { lines = {}, input = "", cursor = 0, history = {}, hpos = nil, scroll = 0, pending = {}, listen = nil }
+if fs.exists("panel.key") then -- the dev key (see "key"), kept on the pocket
+  local h = fs.open("panel.key", "r")
+  con.key = (h.readAll() or ""):gsub("%s+$", "")
+  h.close()
+end
+
+local function say(s, col)
+  s = tostring(s)
+  for _, l in ipairs(#s <= W and not s:find("\n") and { s } or wrap(s, W)) do con.lines[#con.lines + 1] = { l, col or colors.white } end
+  while #con.lines > 300 do table.remove(con.lines, 1) end
+  redrawSoon()
+end
+consoleSay = function(s)
+  if ui.tab ~= "console" then return false end
+  say(s, colors.orange)
+  return true
+end
+
+local DEV_OPS = { info = true, log = true, ls = true, cat = true, get = true, reboot = true }
+local ALIASES = { hub = "hub", mine = "hub", mining = "hub", fleet = "hub", store = "store", storage = "store",
+  sorter = "store", wood = "wood", lumber = "wood", lumberjack = "wood", buddy = "buddy" }
+local STORE_CMDS = { "status", "list", "find", "get", "order", "craft", "recipes", "build", "blocked", "unblock",
+  "resync", "pickup", "pause", "resume", "learn" }
+local HELP = {
+  "BOTS: hub, store, wood,",
+  "buddy, a miner's name, #id",
+  "ANY BOT (not store):",
+  " <bot> info",
+  " <bot> log [lines]",
+  " <bot> ls [folder]",
+  " <bot> cat <file>",
+  " <bot> get <file> [save as]",
+  " <bot> reboot",
+  " miners info|log|reboot",
+  "MINING (via the hub):",
+  " hub <ore> | stop | recall",
+  " hub resume | status",
+  " hub time <minutes>",
+  " hub item <rock/ore> [y]",
+  " <miner> <ore>|stop|recall",
+  " <miner> status",
+  "STORAGE:",
+  " store find <item>",
+  " store get <item> [n]",
+  " store order <item> [n]",
+  " store status | list |",
+  " blocked | resync | pause",
+  "LUMBER:",
+  " wood status|pause|resume",
+  " wood home",
+  "BUDDY:",
+  " buddy <say anything>",
+  " buddy home | status",
+  " buddy goto <place>",
+  "TOOLS:",
+  " bots  scan  clear",
+  " listen [protocol|off]",
+  " send <id> <proto> <msg>",
+  " key <secret> | key off",
+  "Tab completes, Up/Down =",
+  "history, scroll = older.",
+}
+
+local function lower(s) return tostring(s or ""):lower() end
+local function miners() return data.hub and data.hub.turtles or {} end
+local function short(s) return (lower(s):gsub("[%s_%-]", "")) end
+
+-- A word -> the bot it names: { key = DEV key, or miner = turtle row; id, proto, name }
+local function findBot(word)
+  local w = lower(word)
+  local key = ALIASES[w]
+  if key then return { key = key, id = DEV[key].id, proto = DEV[key].proto, name = DEV[key].name } end
+  local id = tonumber((w:gsub("^#", "")))
+  for _, t in ipairs(miners()) do
+    if (id and t.id == id) or short(t.label) == short(w) then
+      return { miner = t, id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) }
+    end
+  end
+  for _, t in ipairs(miners()) do -- the start of a name is enough when only one fits
+    if not id and short(t.label):sub(1, #short(w)) == short(w) and #w >= 2 then
+      return { miner = t, id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) }
+    end
+  end
+  if id then
+    for k, d in pairs(DEV) do if d.id == id then return { key = k, id = id, proto = d.proto, name = d.name } end end
+  end
+end
+
+local function track(rid, bot, extra)
+  if not rid then return end
+  local p = extra or {}
+  p.name, p.t = bot.name, os.clock()
+  con.pending[rid] = p
+end
+
+local function sendTo(bot, msg, extra)
+  if bot.key then return track(send(bot.key, msg), bot, extra) end
+  msg.rid = math.random(1, 1073741824)
+  rednet.send(bot.id, msg, bot.proto)
+  track(msg.rid, bot, extra)
+end
+
+local function devOp(bot, op, words)
+  if bot.key == "store" then
+    say("The storage turtle only takes its own commands: store help", colors.orange)
+    return
+  end
+  local msg = { type = "dev", op = op, key = con.key, path = words[3], n = tonumber(words[3]) }
+  local extra = nil
+  if op == "cat" or op == "get" then
+    if not words[3] then say(op .. " needs a file name", colors.orange) return end
+    if op == "get" then extra = { save = words[4] or fs.getName(words[3]) } end
+  end
+  sendTo(bot, msg, extra)
+end
+
+local function findOre(word)
+  local w = short(word)
+  for _, o in ipairs(data.hub and data.hub.ores or {}) do
+    if short(o.key) == w or short(o.label) == w or short(o.short) == w then return o.key end
+  end
+end
+
+-- Mining through the hub; turtle = only that turtle
+local function hubOrder(words, from, turtle)
+  local op = lower(words[from])
+  local msg = { type = "panel", turtle = turtle }
+  if op == "stop" or op == "recall" or op == "resume" then msg.cmd = op
+  elseif op == "time" then
+    local m = tonumber(words[from + 1])
+    if not m then say("hub time <minutes>: 10, 20, 30, 45 or 60", colors.orange) return end
+    msg.cmd, msg.sec = "limit", math.floor(m * 60)
+  elseif op == "item" or op == "custom" then
+    local y = tonumber(words[#words])
+    local last = (y and #words > from + 1) and #words - 1 or #words
+    msg.cmd, msg.text, msg.y = "custom", table.concat(words, " ", from + 1, last), y
+    if msg.text == "" then say("hub item <rock or ore> [y]", colors.orange) return end
+  elseif findOre(op) then msg.cmd, msg.ore = "target", findOre(op)
+  else -- never guess: a typo must not send the fleet off mining something odd
+    say("Unknown order '" .. tostring(words[from]) .. "'. Use an ore, stop, recall, resume, time or item <name>.", colors.orange)
+  end
+  if not msg.cmd then return end
+  sendTo({ key = "hub", name = turtle and ("hub > #" .. turtle) or "hub" }, msg, { hub = true })
+end
+
+local function hubStatus()
+  local h = data.hub
+  if not h then say("No word from the hub yet.", colors.orange) return end
+  local job = hubJob(h)
+  local left = hubLeft(h)
+  say(job .. (left and (", " .. clock(left) .. " left") or "") .. ", mode " .. tostring(h.mode), colors.lime)
+  for _, t in ipairs(miners()) do
+    say(string.format("#%d %s: %s, fuel %s", t.id, t.label or "?", tostring(t.status), num(t.fuel)), colors.lightGray)
+  end
+end
+
+local function minerStatus(t)
+  say(string.format("#%d %s, job %s, %s", t.id, t.label or "?", tostring(t.ore or "-"), tostring(t.status)), colors.lime)
+  say(string.format("phase %s, Y %s, fuel %s, %s free slots, heard %s ago", tostring(t.phase), tostring(t.y),
+    num(t.fuel), tostring(t.free), age(t.age or 0)), colors.lightGray)
+  if t.err then say("last error: " .. t.err, colors.red) end
+end
+
+local function botList()
+  for _, k in ipairs(DEV_ORDER) do
+    local d = DEV[k]
+    local st = online(k) and "online" or (d.id and ("silent " .. age(os.clock() - d.seen)) or "not found")
+    say(string.format("%-6s %-5s %s", k, d.id and ("#" .. d.id) or "", st), online(k) and colors.lime or colors.red)
+  end
+  for _, t in ipairs(miners()) do
+    say(string.format("miner  #%-4d %s %s", t.id, (t.label or "?"):sub(1, 10), num(t.fuel)),
+      (t.age or 0) > 15 and colors.orange or colors.lime)
+  end
+end
+
+local function run(line)
+  say("> " .. line, colors.yellow)
+  local words = {}
+  for w in line:gmatch("%S+") do words[#words + 1] = w end
+  if #words == 0 then return end
+  local c, op = lower(words[1]), lower(words[2])
+  if c == "help" or c == "?" then for _, l in ipairs(HELP) do say(l, colors.lightGray) end
+  elseif c == "clear" or c == "cls" then con.lines, con.scroll = {}, 0
+  elseif c == "bots" or c == "list" then botList()
+  elseif c == "scan" then
+    for _, d in pairs(DEV) do d.id, d.seen = nil, -1e9 end
+    say("Looking for the bots again...", colors.lightGray)
+  elseif c == "key" then
+    if not words[2] then say(con.key and "A dev key is set." or "No dev key set.", colors.lightGray)
+    elseif op == "off" then con.key = nil fs.delete("panel.key") say("Dev key removed.")
+    else
+      con.key = words[2]
+      local h = fs.open("panel.key", "w") h.write(con.key) h.close()
+      say("Dev key saved. Put the same key in a file dev.key on each bot to lock its dev commands.")
+    end
+  elseif c == "listen" then
+    con.listen = (op == "" and "all") or (op ~= "off" and words[2]) or nil
+    say(con.listen and ("Showing every message" .. (con.listen ~= "all" and (" on " .. con.listen) or "")) or "Stopped listening.")
+  elseif c == "send" then
+    local id = tonumber(words[2])
+    if not id or not words[3] then say("send <id> <protocol> <text or {table}>", colors.orange) return end
+    local rest = table.concat(words, " ", 4)
+    local msg = rest
+    if rest:sub(1, 1) == "{" then msg = textutils.unserialize(rest) end
+    if msg == nil then say("That table doesn't read right.", colors.red) return end
+    rednet.send(id, msg, words[3])
+    say("Sent to #" .. id .. " on " .. words[3], colors.lightGray)
+  elseif c == "miners" or c == "all" then
+    if not DEV_OPS[op] then say("miners info | log | reboot", colors.orange) return end
+    if #miners() == 0 then say("No miners known (the hub tells me about them).", colors.orange) end
+    for _, t in ipairs(miners()) do devOp({ id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) }, op, words) end
+  else
+    local bot = findBot(c)
+    if not bot then say("Don't know '" .. words[1] .. "'. Try: help, bots", colors.red) return end
+    if not bot.id then say(bot.name .. " not found yet. Is it running with a modem?", colors.red) return end
+    if DEV_OPS[op] and (bot.key ~= "store" or op ~= "get") then devOp(bot, op, words) return end
+    if bot.miner then
+      if op == "" or op == "status" then minerStatus(bot.miner) else hubOrder(words, 2, bot.id) end
+    elseif bot.key == "hub" then
+      if op == "" or op == "status" then hubStatus() else hubOrder(words, 2, nil) end
+    elseif bot.key == "store" then
+      local n = tonumber(words[#words])
+      if n and #words <= 3 then n = nil end
+      local text = table.concat(words, " ", 3, n and #words - 1 or #words)
+      sendTo(bot, { cmd = op ~= "" and op or "status", text = text, n = n }, { store = true })
+    elseif bot.key == "wood" then
+      if op == "pause" or op == "resume" or op == "home" then sendTo(bot, { cmd = op }, { wood = true })
+      elseif op == "" or op == "status" then sendTo(bot, { cmd = "status" }, { wood = true })
+      else say("wood pause | resume | home | status", colors.orange) end
+    elseif bot.key == "buddy" then
+      if op == "home" then sendTo(bot, { cmd = "home" })
+      elseif op == "goto" then sendTo(bot, { cmd = "goto", place = table.concat(words, " ", 3) })
+      elseif op == "" or op == "status" then
+        local b = data.buddy
+        if b then say((b.busy and "Busy" or "Idle") .. ", fuel " .. num(b.fuel) .. ", places: "
+          .. (#(b.places or {}) > 0 and table.concat(b.places, ", ") or "none"), colors.lime) end
+      else
+        local text = table.concat(words, " ", (op == "say") and 3 or 2)
+        sendTo(bot, { cmd = "chat", text = text })
+        addChat("You", text)
+      end
+    end
+  end
+end
+
+-- An answer to something typed in the console (true = handled, don't use it elsewhere)
+local function consoleReply(id, m, proto)
+  if con.listen and (con.listen == "all" or con.listen == proto) then
+    local ok, s = pcall(textutils.serialize, m)
+    s = ok and s:gsub("%s+", " ") or tostring(m)
+    say("[" .. tostring(proto) .. " #" .. id .. "] " .. s:sub(1, 200), colors.gray)
+  end
+  if type(m) == "table" and m.type == "buddy_answer" then say("[buddy] " .. tostring(m.text), colors.lime) end
+  local p = type(m) == "table" and m.rid and con.pending[m.rid]
+  if not p then return false end
+  con.pending[m.rid] = nil
+  local tag = "[" .. p.name .. "] "
+  if m.type == "dev_reply" then
+    say(tag .. tostring(m.out), m.ok and colors.lime or colors.red)
+    if p.save and type(m.data) == "string" then
+      local h = fs.open(p.save, "w") h.write(m.data) h.close()
+      say("Saved as " .. p.save .. " on this pocket computer.", colors.lightGray)
+    end
+    return true
+  elseif p.store and m[1] then
+    for _, l in ipairs(m) do say(tag .. tostring(l), colors.lime) end
+    os.queueEvent("panel_ask", "store")
+    return true
+  elseif p.hub and m.type == "panel_state" then
+    say(tag .. (m.note or ("OK. " .. hubJob(m))), m.note and colors.orange or colors.lime)
+    m.note = nil -- already shown
+  elseif p.wood and m.type == "lumber_state" then
+    say(tag .. tostring(m.state) .. ": " .. tostring(m.status), colors.lime)
+    say("fuel " .. num(m.fuel) .. ", lava " .. tostring(m.lava or "?") .. ", felled " .. num(m.felled)
+      .. ", farm " .. tostring(m.spots) .. "/" .. tostring(m.maxSpots), colors.lightGray)
+  end
+  return false
+end
+
+local function consoleTick()
+  for rid, p in pairs(con.pending) do
+    if os.clock() - p.t > 8 then
+      con.pending[rid] = nil
+      say("[" .. p.name .. "] no answer", colors.red)
+    end
+  end
+end
+
+-- Tab: finish the word being typed
+local function complete()
+  local before = con.input:sub(1, con.cursor)
+  local words = {}
+  for w in before:gmatch("%S+") do words[#words + 1] = w end
+  local partial = before:match("%S+$") or ""
+  local pos = #words + (partial == "" and 1 or 0)
+  local cands = {}
+  local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
+  if pos == 1 then
+    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "miners", "hub", "store", "wood", "buddy" })
+    for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
+  elseif pos == 2 then
+    local bot = findBot(words[1])
+    if bot and bot.key == "store" then add(STORE_CMDS)
+    elseif bot then
+      add({ "info", "log", "ls", "cat", "get", "reboot" })
+      if bot.miner or bot.key == "hub" then
+        add({ "stop", "recall", "status" })
+        for _, o in ipairs(data.hub and data.hub.ores or {}) do cands[#cands + 1] = o.key end
+        if bot.key == "hub" then add({ "resume", "time", "item" }) end
+      elseif bot.key == "wood" then add({ "pause", "resume", "home", "status" })
+      elseif bot.key == "buddy" then add({ "home", "goto", "say", "status" }) end
+    elseif lower(words[1]) == "miners" then add({ "info", "log", "reboot" })
+    elseif lower(words[1]) == "listen" then add({ "off", "minearmy", "roomsorter", "lumber", "buddy" }) end
+  elseif pos == 3 and lower(words[2]) == "goto" then
+    add(data.buddy and data.buddy.places or {})
+  end
+  local match = {}
+  for _, x in ipairs(cands) do if lower(x):sub(1, #partial) == lower(partial) then match[#match + 1] = x end end
+  if #match == 0 then return end
+  local common = match[1]
+  for _, x in ipairs(match) do
+    while lower(x):sub(1, #common) ~= lower(common) do common = common:sub(1, -2) end
+  end
+  if #match == 1 then common = common .. " " end
+  if #common >= #partial then
+    con.input = before:sub(1, #before - #partial) .. common .. con.input:sub(con.cursor + 1)
+    con.cursor = #before - #partial + #common
+  end
+  if #match > 1 then say(table.concat(match, "  "), colors.lightGray) end
+end
+
+local function consoleKey(ev, a)
+  if ev == "char" or ev == "paste" then
+    con.input = con.input:sub(1, con.cursor) .. a .. con.input:sub(con.cursor + 1)
+    con.cursor = con.cursor + #a
+  elseif a == keys.enter then
+    local line = con.input
+    con.input, con.cursor, con.hpos, con.scroll = "", 0, nil, 0
+    if line:find("%S") then
+      if con.history[#con.history] ~= line then con.history[#con.history + 1] = line end
+      run(line)
+    end
+  elseif a == keys.backspace and con.cursor > 0 then
+    con.input = con.input:sub(1, con.cursor - 1) .. con.input:sub(con.cursor + 1)
+    con.cursor = con.cursor - 1
+  elseif a == keys.delete then con.input = con.input:sub(1, con.cursor) .. con.input:sub(con.cursor + 2)
+  elseif a == keys.left then con.cursor = math.max(0, con.cursor - 1)
+  elseif a == keys.right then con.cursor = math.min(#con.input, con.cursor + 1)
+  elseif a == keys.home then con.cursor = 0
+  elseif a == keys["end"] then con.cursor = #con.input
+  elseif a == keys.tab then complete()
+  elseif a == keys.up or a == keys.down then
+    local n = #con.history
+    if n == 0 then return end
+    if a == keys.up then con.hpos = math.max(1, (con.hpos or n + 1) - 1)
+    else con.hpos = con.hpos and con.hpos + 1 or nil end
+    if con.hpos and con.hpos > n then con.hpos = nil end
+    con.input = con.hpos and con.history[con.hpos] or ""
+    con.cursor = #con.input
+  end
+end
+
+local function drawConsole()
+  local top, bottom = 2, H - 1
+  local rows = bottom - top + 1
+  con.scroll = math.max(0, math.min(con.scroll, #con.lines - rows))
+  local first = #con.lines - rows + 1 - con.scroll
+  if #con.lines == 0 then
+    text(1, top, "Type help for the commands.", colors.lightGray)
+    text(1, top + 1, "Tab completes, Up = last one.", colors.lightGray)
+  end
+  for k = 1, rows do
+    local l = con.lines[first + k - 1]
+    if l then text(1, top + k - 1, l[1], l[2]) end
+  end
+  if con.scroll > 0 then right(top, " \30 " .. con.scroll .. " more ", colors.black, colors.lightGray) end
+  fill(H, colors.gray)
+  local avail = W - 2
+  local start = math.max(1, con.cursor - avail + 2)
+  text(1, H, ">", colors.yellow, colors.gray)
+  text(3, H, con.input:sub(start, start + avail - 1), colors.white, colors.gray)
+  term.setCursorPos(3 + con.cursor - start + 1, H)
+  term.setTextColor(colors.white)
+  term.setCursorBlink(true)
+end
+
+---------------------------------------------------------------------------
 -- Frame
 ---------------------------------------------------------------------------
 local function draw()
   if ui.typing then return end
   W, H = term.getSize()
   buttons = {}
+  term.setCursorBlink(false)
   term.setBackgroundColor(colors.black)
   term.clear()
   -- Tabs
@@ -683,7 +1078,8 @@ local function draw()
   elseif ui.tab == "hub" then drawMine()
   elseif ui.tab == "store" then drawStore()
   elseif ui.tab == "wood" then drawWood()
-  elseif ui.tab == "buddy" then drawBuddy() end
+  elseif ui.tab == "buddy" then drawBuddy()
+  elseif ui.tab == "console" then drawConsole() return end
   if ui.popup and ui.popup.kind == "order" then
     buttons = {}
     drawOrderPopup(ui.popup.e)
@@ -717,7 +1113,7 @@ end
 local function receiveLoop()
   while true do
     local id, m, proto = rednet.receive()
-    if type(m) == "table" then
+    if not consoleReply(id, m, proto) and type(m) == "table" then
       local changed = true
       if proto == "minearmy" and m.type == "panel_state" then
         DEV.hub.id, DEV.hub.seen = id, os.clock()
@@ -798,6 +1194,7 @@ local function uiLoop()
   while true do
     local ev, a, b, cc = os.pullEvent()
     if ev == "timer" and a == tick then
+      consoleTick()
       draw()
       tick = os.startTimer(1)
     elseif ev == "panel_redraw" or ev == "term_resize" then
@@ -812,8 +1209,12 @@ local function uiLoop()
       end
       draw()
       tick = os.startTimer(1) -- typing in a prompt swallows the old timer
+    elseif ui.tab == "console" and (ev == "char" or ev == "paste" or ev == "key") then
+      consoleKey(ev, a)
+      draw()
     elseif ev == "mouse_scroll" then
-      if ui.tab == "store" then ui.scroll = ui.scroll + a * 3
+      if ui.tab == "console" then con.scroll = con.scroll - a * 3
+      elseif ui.tab == "store" then ui.scroll = ui.scroll + a * 3
       elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a end
       draw()
     elseif ev == "char" then
