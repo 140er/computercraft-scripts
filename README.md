@@ -4,6 +4,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
+- **Control panel** (`panel.lua`): one app on an advanced pocket computer for the mining fleet, the storage room, the lumber turtle and Buddy.
 
 ---
 
@@ -159,6 +160,20 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 - A broken file is rejected. A turtle running a version older than hub updates needs one manual copy.
 - To update the hub itself: drag `hub.lua` onto it and reboot it.
 - Anyone on the server with a computer and modem could pretend to be the hub; on a server with strangers that is a risk.
+
+---
+
+## Pocket control panel
+`panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). Drag it onto the pocket computer, then `panel install` (opens on start-up) and `panel`.
+
+Tabs along the top (tap them, or keys 1-5, Q quits):
+- **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
+- **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
+- **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
+- **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
+- **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+
+Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 
 ---
 

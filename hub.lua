@@ -815,10 +815,58 @@ local function click(screenName, x, y)
   end
 end
 
+-- Pocket control panel (panel.lua): it asks for the dashboard and taps the same buttons.
+-- m.turtle = give the order to that turtle only (like tapping it in the list first).
+local function panelRequest(id, m)
+  local prev, note = selected, nil
+  selected = m.turtle and turtles[m.turtle] and m.turtle or nil
+  if m.cmd == "target" and ORES[m.ore or ""] then setTarget(m.ore)
+  elseif m.cmd == "stop" then stopAll()
+  elseif m.cmd == "recall" then recallNow()
+  elseif m.cmd == "resume" then resumeAll()
+  elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "custom" then
+    local kind, data = resolveItem(tostring(m.text or ""))
+    if kind == "ore" then setTarget(data)
+    elseif kind then
+      local y = math.floor(math.max(-59, math.min(55, tonumber(m.y) or data.y)))
+      local label = prettyItem(kind == "rock" and data.item or data.match)
+      hub.custom = { label = label, y = y, keep = data.keep, match = data.match }
+      ORES.custom = customEntry(hub.custom)
+      setTarget("custom")
+    else note = data or "Unknown item" end
+  end
+  selected = prev
+  if m.cmd then flash(note or ("Pocket: " .. m.cmd)) pcall(redraw) end
+  local ores = {}
+  local order = { table.unpack(ORDER) }
+  if ORES.custom then order[#order + 1] = "custom" end
+  for _, k in ipairs(order) do
+    local o = ORES[k]
+    ores[#ores + 1] = { key = k, label = o.label, short = o.short or o.label, y = o.y, color = o.color }
+  end
+  local list = {}
+  for _, tid in ipairs(ids()) do
+    local r, own = turtles[tid], hub.overrides[tid]
+    local p = r.p
+    list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
+      free = p.free, y = p.y, ore = (own == false) and "stop" or oreFor(tid), branch = p.branch,
+      age = os.clock() - r.seen, err = p.lastError }
+  end
+  local haul = {}
+  for name, n in pairs(hub.session and hub.session.haul or {}) do
+    if not isCommon(name) then haul[#haul + 1] = { name = name, n = n } end
+  end
+  table.sort(haul, function(a, b) return a.n > b.n end)
+  send(id, { type = "panel_state", rid = m.rid, target = hub.target, recallAll = hub.recallAll,
+    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only,
+    ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
+end
+
 local function netLoop()
   while true do
     local id, msg = rednet.receive(PROTOCOL)
-    handle(id, msg)
+    if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg) else handle(id, msg) end
   end
 end
 
