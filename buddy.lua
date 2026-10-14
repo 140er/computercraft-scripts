@@ -918,7 +918,7 @@ local function radioJobLoop()
         -- panel's Update all: finish the current job first, then fetch the latest buddy.lua
         while busy do sleep(1) end
         answer("Updating from GitHub...")
-        shell.run("update") -- reboots when there's a new version
+        shell.run(shell.getRunningProgram(), "update") -- reboots when there's a new version
         answer("Already up to date.")
       elseif busy then
         answer("Hang on, I'm still busy with the last thing.")

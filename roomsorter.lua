@@ -3431,7 +3431,7 @@ local function worker()
     end
     if paused and emptied and status.update ~= nil then
       setState("Updating")
-      shell.run("update") -- reboots when there's a new version
+      shell.run(shell.getRunningProgram(), "update") -- reboots when there's a new version
       paused, status.update = status.update, nil
     end
     if not paused then

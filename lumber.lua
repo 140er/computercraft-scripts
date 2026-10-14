@@ -1248,7 +1248,7 @@ local function worker()
       -- panel's Update all: fetch the latest lumber.lua now that it's home (reboots if new)
       ui.updateNow = false
       setStatus("Updating from GitHub")
-      shell.run("update")
+      shell.run(shell.getRunningProgram(), "update") -- fetches update.lua too if it is missing
     end
     ui.homeNow = false
     if rest == "fuel" and not st.paused then
