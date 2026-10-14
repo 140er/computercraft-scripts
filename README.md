@@ -4,6 +4,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
+- **Lumberjack** (`lumber.lua`): a tree farm turtle. Walks a lane of trees, fells every grown tree, replants, refuels from the wood and puts the logs in a chest. See [Tree farm](#tree-farm-lumberlua) below.
 
 ---
 
@@ -183,10 +184,40 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
 | hub | `hub install`, `hub` | autostart, run |
 | relay | `relay install`, `relay` | autostart, run |
+| tree turtle | `lumber setup [trees] [spacing] [sides]`, `lumber` | one-time setup, run |
+| tree turtle | `lumber home` | reset position to the home spot after putting it back by hand |
 
 ## Settings
 - `hub.state` (on the hub): `reach` (96), `branchLen` (64), `mineMinutes` (15), `sessionLen`, `mode`.
 - Top of `miner.lua`: `BRANCH_LEN`, `BRANCH_GAP`, `FAST_GAP`, `REACH`, `LAYER_STEP`, `MAX_LAYERS`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
+
+## Tree farm (lumber.lua)
+
+A felling turtle (turtle + axe, no modem needed) with a chest **behind** it and a straight lane **in front** of it. The saplings go on one or both sides of the lane, at the same height as the turtle, on dirt or grass:
+```
+   S . S      S = sapling spot, . = lane (keep it free)
+     .
+     .
+   S . S      <- 2nd pair, 3 blocks further (spacing 3)
+     .
+     .
+   S . S      <- 1st pair: 1 block in front of the turtle, left and right
+     T        T = turtle, facing the lane
+     C        C = chest
+```
+1. Drag `lumber.lua` onto the turtle (or `install lumber`).
+2. `lumber setup [trees] [spacing] [sides]`: trees per side (default 4), blocks between tree spots along the lane (default 3), `left`, `right` or `both` (default both). E.g. `lumber setup 4 3 both` for the picture above.
+3. Put some logs or coal in the chest for the first fuel and a few saplings in the turtle. Planting the saplings yourself is optional: empty spots get planted on the first round.
+4. `lumber` (starts by itself on boot after setup).
+
+**A round:** it walks the lane, fells every grown tree (the whole trunk, plus logs and leaves right next to it, which gives saplings), replants the same kind of sapling, picks up saplings and sticks lying in the lane, comes home, puts everything in the chest and waits 2 minutes.
+- **Fuel:** sticks and wood. It burns sticks, then logs from its own load, then takes logs out of the chest, but only up to what a round needs (about 300 for the default farm). A grown tree gives about 5 logs = 75 fuel, an empty round costs about 20.
+- **Saplings:** it keeps up to 32 of each kind, the rest goes in the chest. Out of saplings, it takes them back from the chest.
+- **Bone meal** in the turtle is used on saplings (3 per sapling per round).
+- **Trees:** 1x1 trees only: oak, birch, spruce, jungle, acacia, cherry. Not dark oak, mangrove or the 2x2 giant spruce/jungle. Big oaks and acacias can leave a few branch logs behind.
+- **Safe in a base:** it only cuts logs, leaves and small plants (grass, flowers, vines). Anything else in the lane makes it wait, and the reason shows on its screen. Errors go to `lumber.log`.
+- **Reboots / chunk unloads:** position and heading are saved on every move and turn. After a restart it finishes the tree it was in and goes home. Put it back by hand? Place it on its spot facing the lane, then `lumber home`, `lumber`.
+- Settings at the top of `lumber.lua`: `WAIT`, `MAX_HEIGHT`, `KEEP_SAPLINGS`, `BONEMEAL_TRIES`, `DIG_LEAVES`.
 
 ## Good to know
 - Turtles only work in loaded chunks. When a chunk unloads the turtle pauses; when it loads again it restarts, goes home and carries on.
