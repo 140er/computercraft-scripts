@@ -545,8 +545,11 @@ Tabs along the top (tap them, or keys 1-5, Q quits):
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 
 With a password you can also change things on a bot: `put <file> [as]` sends a file from the pocket, `update <file> [as]` sends it and reboots the bot, `rm <file>` deletes one, and `lua <code>` runs Lua on the bot (e.g. `Miner1 lua turtle.getFuelLevel()`). `miners update miner.lua` updates the whole fleet.
-To turn this on, put a password in a file `dev.key` on each bot and type `key <password>` on the pocket. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password, so other players with a modem can't use them.
+To turn this on, stand next to a bot (within 3 blocks) with the pocket and type `pair` in the console. The pocket makes up a password once and the bot saves it as `dev.key`. Do that once per bot. Pairing only works up close and only on a bot that isn't paired yet, so nobody can claim your bots from far away. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password. (You can also set one yourself: `key <password>` on the pocket and the same text in `dev.key` on the bot.)
 Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
+
+**Driving a turtle:** `drive <bot>` in the console, the DRIVE button on the Mine tab (tap a turtle first), or Drive on the Wood and Buddy tabs. A top-down map shows every block the turtle has seen around it at its height (dots = open ground, `*` = ore, `o` = log, `C` = chest, `H` = home). Buttons, or keys: W/S forward/back, A/D turn, R/F up/down, X dig, L look around (spins once to see all four sides), Backspace closes.
+Driving goes through the bot's own moves, so it keeps knowing where it is. A miner only drives while it's home (RECALL and STOP first), the lumber turtle only while it is PAUSED at home, Buddy whenever it isn't busy. Drive it back home before you let it carry on.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 

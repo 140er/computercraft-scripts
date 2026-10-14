@@ -220,6 +220,7 @@ local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wo
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple,
   console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
+local openDrive -- the drive screen (further down); takes a bot: { key = DEV key } or { id =, proto =, name = }
 
 local function setTab(t)
   ui.tab, ui.popup, ui.scroll = t, nil, 0
@@ -415,8 +416,11 @@ local function drawMine()
 
   -- Turtles: two lines each, tap one to give it its own orders
   if selT then
-    text(1, 10, (" Orders for: " .. (selT.label or ("#" .. selT.id))):sub(1, W - 6), colors.yellow)
+    text(1, 10, (" Orders: " .. (selT.label or ("#" .. selT.id))):sub(1, W - 12), colors.yellow)
     button(W - 4, 10, 5, "ALL", colors.black, colors.white, function() ui.selected = nil end)
+    button(W - 11, 10, 7, "DRIVE", colors.white, colors.blue, function()
+      openDrive({ id = selT.id, proto = "minearmy", name = selT.label or ("#" .. selT.id) })
+    end)
   else
     ui.selected = nil
     text(1, 10, " Turtles (tap = orders)", colors.cyan)
@@ -630,9 +634,10 @@ local function drawWood()
     { w.paused and "Go on" or "Pause", colors.black, w.paused and colors.lime or colors.yellow, function()
       if send("wood", { cmd = w.paused and "resume" or "pause" }) then toast("Sent...", 2) end
     end },
-    { "Come home", colors.white, colors.orange, function()
+    { "Home", colors.white, colors.orange, function()
       if send("wood", { cmd = "home" }) then toast("Calling it home...", 3) end
     end },
+    { "Drive", colors.white, colors.blue, function() openDrive({ key = "wood", id = DEV.wood.id, proto = "lumber", name = "Lumberjack" }) end },
   })
 end
 
@@ -671,7 +676,9 @@ local function drawBuddy()
   for k = first, #lines do text(1, top + k - first, lines[k][1], lines[k][2]) end
 
   -- Quick trips: home and the places it remembers
-  local places = { { "Home", colors.white, colors.gray, function()
+  local places = { { "Drive", colors.white, colors.blue, function()
+    openDrive({ key = "buddy", id = DEV.buddy.id, proto = "buddy", name = b.name or "Buddy" })
+  end }, { "Home", colors.white, colors.gray, function()
     if send("buddy", { cmd = "home" }) then addChat("You", "(go home)") end
   end } }
   for _, p in ipairs(b.places or {}) do
@@ -726,7 +733,7 @@ local HELP = {
   " <bot> cat <file>",
   " <bot> get <file> [save as]",
   " <bot> reboot",
-  "NEED A PASSWORD (key):",
+  "NEED A PASSWORD (pair):",
   " <bot> put <file> [as]",
   " <bot> update <file> [as]",
   "  (put + reboot)",
@@ -758,7 +765,13 @@ local HELP = {
   " bots  scan  clear",
   " listen [protocol|off]",
   " send <id> <proto> <msg>",
+  " pair  (stand right next to",
+  "  a bot: it gets the password)",
   " key <password> | key off",
+  "DRIVE A TURTLE:",
+  " drive <bot>  (map + keys",
+  " WASD, R/F up/down, X dig,",
+  " L look around)",
   "Tab completes, Up/Down =",
   "history, scroll = older.",
 }
@@ -802,6 +815,126 @@ local function sendTo(bot, msg, extra)
   track(msg.rid, bot, extra)
 end
 
+---------------------------------------------------------------------------
+-- Drive: steer one bot by hand, with a top-down map of the blocks it has seen
+---------------------------------------------------------------------------
+local maps = {} -- [map key] = { blocks = { ["x,y,z"] = name }, pose =, fuel =, status =, home = }
+local function bkey(x, y, z) return x .. "," .. y .. "," .. z end
+
+-- How a block looks on the map: character, text colour, background
+local ORE_COLOR = { diamond = colors.lightBlue, emerald = colors.lime, gold = colors.yellow, iron = colors.pink,
+  redstone = colors.red, lapis = colors.blue, copper = colors.orange, coal = colors.black }
+local function blockStyle(name)
+  local n = (name:match(":(.+)$") or name)
+  if n == "air" or n == "cave_air" or n == "void_air" then return nil end
+  if n:find("water") then return " ", colors.white, colors.blue end
+  if n:find("lava") then return " ", colors.white, colors.orange end
+  if n:find("_ore$") or n == "ancient_debris" then
+    local c = colors.white
+    for k, col in pairs(ORE_COLOR) do if n:find(k, 1, true) then c = col end end
+    return "*", c, colors.gray
+  end
+  if n:find("chest") or n:find("barrel") or n:find("shulker") then return "C", colors.yellow, colors.brown end
+  if n:find("turtle") or n:find("computer") then return "T", colors.yellow, colors.gray end
+  if n:find("furnace") or n:find("smoker") then return "F", colors.orange, colors.gray end
+  if n:find("_log$") or n:find("_wood$") or n:find("_stem$") then return "o", colors.yellow, colors.brown end
+  if n:find("leaves") then return "%", colors.lime, colors.green end
+  if n:find("sapling") or n:find("flower") or n == "short_grass" or n == "tall_grass" or n == "fern" or n:find("bush") then
+    return "\"", colors.lime, colors.black end
+  if n:find("grass_block") or n:find("moss") then return " ", colors.white, colors.green end
+  if n:find("dirt") or n:find("mud") or n:find("podzol") then return " ", colors.white, colors.brown end
+  if n:find("sand") then return " ", colors.white, colors.yellow end
+  if n:find("glass") then return "#", colors.lightBlue, colors.black end
+  if n:find("torch") or n:find("lantern") then return "i", colors.yellow, colors.black end
+  if n == "bedrock" then return "#", colors.black, colors.gray end
+  if n:find("snow") or n:find("ice") then return " ", colors.white, colors.white end
+  if n:find("plank") or n:find("door") or n:find("fence") then return "=", colors.brown, colors.orange end
+  if n:find("stone") or n:find("deepslate") or n:find("cobble") or n:find("tuff") or n:find("andesite")
+    or n:find("diorite") or n:find("granite") or n:find("gravel") or n:find("calcite") or n:find("basalt") then
+    return " ", colors.white, colors.gray end
+  return n:sub(1, 1), colors.black, colors.lightGray
+end
+
+local DRIVE_KEYS = { w = "forward", s = "back", a = "left", d = "right", r = "up", f = "down", x = "dig", l = "look" }
+
+local function driveSend(act)
+  local dv = ui.drive
+  if not dv then return end
+  local mp = maps[dv.map]
+  mp.status, mp.statusColor = "...", colors.lightGray
+  sendTo(dv.bot, { type = "dev", op = "drive", act = act, key = con.key }, { drive = dv.map })
+end
+
+openDrive = function(bot)
+  if not bot or not bot.id then toast("That bot isn't online.") return end
+  local mk = (bot.key or "miner") .. ":" .. bot.id
+  maps[mk] = maps[mk] or { blocks = {} }
+  ui.drive = { bot = bot, map = mk, name = bot.name }
+  driveSend("scan")
+end
+
+-- A drive answer: remember what it saw
+local function driveReply(p, m)
+  local mp = maps[p.drive]
+  if not mp then return end
+  mp.status, mp.statusColor = tostring(m.out), m.ok and colors.lime or colors.red
+  local d = m.drive
+  if type(d) == "table" then
+    mp.pose, mp.fuel, mp.home = d, d.fuel, d.home
+    for _, b in ipairs(d.seen or {}) do mp.blocks[bkey(b.x, b.y, b.z)] = b.name end
+  end
+end
+
+local function drawDrive()
+  local dv = ui.drive
+  local mp = maps[dv.map]
+  local pz = mp.pose
+  fill(1, colors.blue)
+  text(2, 1, ("Drive " .. tostring(dv.name)):sub(1, W - 6), colors.white, colors.blue)
+  button(W - 4, 1, 5, "X", colors.white, colors.red, function() ui.drive = nil end)
+  local top, rows = 2, H - 7
+  local cx, cy = math.floor(W / 2) + 1, top + math.floor(rows / 2)
+  if not pz then
+    text(2, cy, "Waiting for " .. tostring(dv.name) .. "...", colors.lightGray)
+  else
+    for row = 0, rows - 1 do
+      for col = 1, W do
+        local x, z = pz.x + col - cx, pz.z + top + row - cy
+        local here = mp.blocks[bkey(x, pz.y, z)]
+        local ch, fg, bg = " ", colors.white, colors.black
+        if here then
+          local c, f, b = blockStyle(here)
+          if c then ch, fg, bg = c, f, b
+          else
+            local below = mp.blocks[bkey(x, pz.y - 1, z)]
+            local _, _, fb = below and blockStyle(below)
+            ch, fg = ".", fb or colors.gray
+            if fg == colors.black then fg = colors.gray end
+          end
+        end
+        if mp.home and mp.home[1] == x and mp.home[2] == z then ch, fg = "H", colors.red end
+        text(col, top + row, ch, fg, bg)
+      end
+    end
+    local arrow = (pz.fz or 0) < 0 and "^" or (pz.fx or 0) > 0 and ">" or (pz.fz or 0) > 0 and "v" or "<"
+    text(cx, cy, arrow, colors.black, colors.yellow)
+    local up = mp.blocks[bkey(pz.x, pz.y + 1, pz.z)]
+    local dn = mp.blocks[bkey(pz.x, pz.y - 1, pz.z)]
+    local function nm(n) return n and pretty(n):sub(1, 8) or "?" end
+    text(1, H - 5, ("Y" .. pz.y .. " fuel " .. num(mp.fuel) .. " up:" .. nm(up) .. " dn:" .. nm(dn)):sub(1, W), colors.lightGray)
+  end
+  text(1, H - 4, (mp.status or ""):sub(1, W), mp.statusColor or colors.lightGray)
+  local function b(label, act, bg) return { label, colors.white, bg, function() driveSend(act) end } end
+  buttonRow(H - 3, { b("TurnL", "left", colors.blue), b("Fwd", "forward", colors.blue), b("TurnR", "right", colors.blue),
+    b("Up", "up", colors.blue) })
+  buttonRow(H - 2, { b("Dig", "dig", colors.red), b("Back", "back", colors.blue), b("Look", "look", colors.cyan),
+    b("Down", "down", colors.blue) })
+  buttonRow(H - 1, { b("DigUp", "digUp", colors.red), b("DigDn", "digDown", colors.red), b("Place", "place", colors.green),
+    b("PlcDn", "placeDown", colors.green) })
+  fill(H, colors.gray)
+  text(1, H, " WASD R/F up/dn X dig L look", colors.lightGray, colors.gray)
+end
+
 local function devOp(bot, op, words)
   if bot.key == "store" then
     say("The storage turtle only takes its own commands: store help", colors.orange)
@@ -825,7 +958,7 @@ local function devOp(bot, op, words)
     if msg.code == "" then say("lua <code>, e.g. lua turtle.getFuelLevel()", colors.orange) return end
   end
   if (msg.op == "put" or op == "rm" or op == "lua") and not con.key then
-    say("Set the password first: key <password> (same as dev.key on the bot)", colors.orange)
+    say("Pair first: stand next to the bot and type pair", colors.orange)
     return
   end
   sendTo(bot, msg, extra)
@@ -911,7 +1044,7 @@ local function run(line)
     else
       con.key = words[2]
       local h = fs.open("panel.key", "w") h.write(con.key) h.close()
-      say("Password saved. Put the same password in a file dev.key on each bot: that locks it and allows put, update, rm and lua.")
+      say("Password saved. Stand next to each bot and type pair, or put the same password in a file dev.key on it.")
     end
   elseif c == "listen" then
     con.listen = (op == "" and "all") or (op ~= "off" and words[2]) or nil
@@ -925,6 +1058,23 @@ local function run(line)
     if msg == nil then say("That table doesn't read right.", colors.red) return end
     rednet.send(id, msg, words[3])
     say("Sent to #" .. id .. " on " .. words[3], colors.lightGray)
+  elseif c == "pair" then
+    if not con.key then -- make up a password once and keep it on the pocket
+      local cs = "abcdefghijkmnpqrstuvwxyz23456789"
+      local k = ""
+      for _ = 1, 16 do local i = math.random(1, #cs) k = k .. cs:sub(i, i) end
+      con.key = k
+      local h = fs.open("panel.key", "w") h.write(k) h.close()
+    end
+    modem.open(16523)
+    modem.transmit(16523, 16523, { type = "dev_pair", newKey = con.key })
+    con.pairFar = 0
+    say("Pairing every bot within 3 blocks of you...", colors.lightGray)
+  elseif c == "drive" then
+    local bot = words[2] and findBot(words[2])
+    if not bot then say("drive <bot>, e.g. drive Miner1, drive wood, drive buddy", colors.orange) return end
+    if bot.key == "store" or bot.key == "hub" then say("Only the turtles can be driven.", colors.orange) return end
+    openDrive(bot)
   elseif c == "miners" or c == "all" then
     if not DEV_OPS[op] then say("miners info | log | reboot | put | update | lua", colors.orange) return end
     if #miners() == 0 then say("No miners known (the hub tells me about them).", colors.orange) end
@@ -975,6 +1125,7 @@ local function consoleReply(id, m, proto)
   if not p then return false end
   con.pending[m.rid] = nil
   local tag = "[" .. p.name .. "] "
+  if p.drive then driveReply(p, m) return true end
   if m.type == "dev_reply" then
     say(tag .. tostring(m.out), m.ok and colors.lime or colors.red)
     if p.thenReboot and m.ok then devOp(p.thenReboot, "reboot", {}) end
@@ -1002,7 +1153,8 @@ local function consoleTick()
   for rid, p in pairs(con.pending) do
     if os.clock() - p.t > 8 then
       con.pending[rid] = nil
-      say("[" .. p.name .. "] no answer", colors.red)
+      if p.drive and maps[p.drive] then maps[p.drive].status, maps[p.drive].statusColor = "No answer", colors.red
+      else say("[" .. p.name .. "] no answer", colors.red) end
     end
   end
 end
@@ -1017,7 +1169,7 @@ local function complete()
   local cands = {}
   local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
   if pos == 1 then
-    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "update", "miners", "hub", "store", "wood", "buddy" })
+    add({ "help", "bots", "scan", "listen", "send", "key", "pair", "clear", "update", "miners", "drive", "hub", "store", "wood", "buddy" })
     for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
   elseif pos == 2 then
     local bot = findBot(words[1])
@@ -1030,6 +1182,9 @@ local function complete()
         if bot.key == "hub" then add({ "resume", "time", "item" }) end
       elseif bot.key == "wood" then add({ "pause", "resume", "home", "status" })
       elseif bot.key == "buddy" then add({ "home", "goto", "say", "status" }) end
+    elseif lower(words[1]) == "drive" then
+      add({ "wood", "buddy" })
+      for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
     elseif lower(words[1]) == "miners" then add({ "info", "log", "reboot", "put", "update", "lua" })
     elseif lower(words[1]) == "listen" then add({ "off", "minearmy", "roomsorter", "lumber", "buddy" }) end
   elseif pos == 3 and (lower(words[2]) == "put" or lower(words[2]) == "update") then
@@ -1115,6 +1270,12 @@ local function draw()
   W, H = term.getSize()
   buttons = {}
   term.setCursorBlink(false)
+  if ui.drive then
+    term.setBackgroundColor(colors.black)
+    term.clear()
+    drawDrive()
+    return
+  end
   term.setBackgroundColor(colors.black)
   term.clear()
   -- Tabs
@@ -1265,6 +1426,10 @@ local function uiLoop()
       end
       draw()
       tick = os.startTimer(1) -- typing in a prompt swallows the old timer
+    elseif ui.drive and (ev == "char" or ev == "key") then
+      if ev == "char" and DRIVE_KEYS[a] then driveSend(DRIVE_KEYS[a])
+      elseif ev == "key" and a == keys.backspace then ui.drive = nil end
+      draw()
     elseif ui.tab == "console" and (ev == "char" or ev == "paste" or ev == "key") then
       consoleKey(ev, a)
       draw()
@@ -1284,7 +1449,23 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop)
+-- Answers to "pair" (plain modem messages, not rednet)
+local function pairLoop()
+  while true do
+    local _, _, ch, _, m = os.pullEvent("modem_message")
+    if ch == 16523 and type(m) == "table" and m.type == "dev_pair_reply" then
+      local who = (m.label or "?") .. " #" .. tostring(m.id)
+      if m.text == "Too far away" then
+        con.pairFar = (con.pairFar or 0) + 1
+        if con.pairFar <= 3 then say(who .. ": too far, stand next to it", colors.lightGray) end
+      else
+        say(who .. ": " .. tostring(m.text), m.text == "Paired" and colors.lime or colors.orange)
+      end
+    end
+  end
+end
+
+parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, pairLoop)
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()
