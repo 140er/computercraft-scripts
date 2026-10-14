@@ -360,6 +360,9 @@ Give the turtle a **crafting table**: put one in the drop-off chest and it equip
 - `unblock` forgets all blocked spots (`unblock x,y,z` just one), e.g. when it marked a spot because you stood in its way. If something is really there, it notices again.
 - Best: run cables outside the room or under the floor. A cable through the road layer can cut off part of the room once the rows next to it are full.
 
+### Moving the pickup chest
+Moved the pickup chest a bit (up to 2 blocks up/down, 1 sideways)? Just order something: when the chest isn't where it was, the turtle looks around the old spot, finds it and uses the new spot from then on. Or type `pickup` (turtle or request computer) to make it look right away. Fill the old spot in the wall, the room must stay closed.
+
 ### Restarts
 - Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.
 - Picked it up? Put it back on its start spot facing the input chest and type `roomsorter home`, then `roomsorter`.

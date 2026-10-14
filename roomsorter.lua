@@ -2318,6 +2318,7 @@ end
 ---------------------------------------------------------------------------
 local paused = false
 local requests = {}
+local findRequest, busyFind = false, false
 
 local function matchItem(text)
   local q = text:lower():gsub("%s+", "_")
@@ -2330,9 +2331,66 @@ local function matchItem(text)
   return exact or (#found == 1 and found[1]) or nil, found
 end
 
+-- The pickup chest was moved (e.g. 1 block down)? Look around where it was for a chest
+-- that isn't one of ours and use that from now on.
+local function findOutput()
+  local oldK
+  for k, e in pairs(idx) do if e.kind == "output" then oldK = k end end
+  if not oldK then return false, "No pickup chest known yet." end
+  setState("Looking for the pickup chest")
+  local ox, oy, oz = unkey(oldK)
+  local cands = {}
+  for dy = -2, 2 do
+    for dx = -1, 1 do
+      for dz = -1, 1 do
+        local c = key(ox + dx, oy + dy, oz + dz)
+        local e = idx[c]
+        if not e or e.kind == "output" then
+          cands[#cands + 1] = { k = c, d = math.abs(dy) * 10 + math.abs(dx) + math.abs(dz) - (dy < 0 and 1 or 0) }
+        end
+      end
+    end
+  end
+  table.sort(cands, function(a, b) return a.d < b.d end) -- nearest first, down before up
+  local r = reachable()
+  for _, c in ipairs(cands) do
+    for _, d in ipairs(ALL_DIRS) do
+      local n = step(c.k, d)
+      if free(n) and r[n] and n ~= c.k then
+        goTo(n)
+        local dir = dirBetween(n, c.k)
+        local side = face(dir)
+        local isBlock, data = inspectDir(dir)
+        if isBlock and isInv(side) and not tostring(data.name):find("furnace") and not tostring(data.name):find("smoker") then
+          idx[oldK] = nil
+          idx[c.k] = { kind = "output", acc = n, dir = dir }
+          map.cells[c.k] = data.name
+          if map.found then map.found[c.k] = data.name end
+          saveMap()
+          saveIdx()
+          log("Pickup chest found at " .. c.k)
+          return true, "Pickup chest found at " .. c.k .. " (it was at " .. oldK .. ")."
+        end
+        break
+      end
+    end
+  end
+  return false, "No chest found near " .. oldK .. ". Put it back within 2 blocks of where it was."
+end
+
 local function deliver(req)
   local out = outputEntry()
   if not out then log("No output chest", true) return end
+  -- Still there? If not, look for it nearby first
+  local okSide = pcall(function()
+    local side = goToInv(out)
+    if not isInv(side) then error("gone") end
+  end)
+  if not okSide then
+    local found = findOutput()
+    if not found then log("Pickup chest is gone: put it back or type pickup", true) return end
+    out = outputEntry()
+  end
   local left = req.n
   setState("Getting " .. pretty(req.name))
   while left > 0 do
@@ -2890,6 +2948,12 @@ local function command(cmd, text, n)
     crafts[#crafts + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Crafting " .. n .. " " .. pretty(name) .. "...", "It goes to the pickup chest when done." }
+  elseif cmd == "pickup" then
+    -- find the pickup chest again after moving it
+    if busyFind then return { "Already looking." } end
+    findRequest = true
+    os.queueEvent("room_request")
+    return { "Looking for the pickup chest near where it was...", "Type status in a moment, or just order something." }
   elseif cmd == "pause" then
     paused = true
     os.queueEvent("room_request")
@@ -2997,6 +3061,12 @@ end
 -- Main
 ---------------------------------------------------------------------------
 local function round()
+  if findRequest then
+    findRequest, busyFind = false, true
+    local _, msg = findOutput()
+    log(msg)
+    busyFind = false
+  end
   fixAccess()
   equipTable()
   serveRequests()
