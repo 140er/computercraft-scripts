@@ -965,6 +965,16 @@ local function devCommand(m, logFile, program, reply, hooks)
   reply(r)
 end
 
+-- Real world position for the panel's map, when GPS hosts are up (gpshost.lua)
+local gpsPos
+local function gpsLoop()
+  while true do
+    local x, y, z = gps.locate(2)
+    gpsPos = x and { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) } or nil
+    sleep(x and 3 or 30)
+  end
+end
+
 -- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
 -- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
 -- (so only someone standing next to it can pair) and it has no dev.key yet.
@@ -1026,7 +1036,7 @@ local function radioLoop()
       local p = pos()
       rednet.send(id, { type = "buddy_state", rid = m.rid, name = cfg.name, model = cfg.model,
         fuel = turtle.getFuelLevel(), busy = busy or #netJobs > 0, places = places,
-        pos = { x = p.x, y = p.y, z = p.z } }, "buddy")
+        pos = { x = p.x, y = p.y, z = p.z }, gps = gpsPos }, "buddy")
     end
   end
 end
@@ -1070,4 +1080,4 @@ term.setCursorPos(1, 1)
 print(cfg.name .. " (model: " .. cfg.model .. ") - fuel " .. fuelText())
 print(chatBox and ("Talk here, or in chat: \"" .. cfg.name .. ", ...\"") or "Talk to me here.")
 print("/reset forgets the chat, /quit stops.")
-parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop, devPairLoop)
+parallel.waitForAny(terminalLoop, chatLoop, radioLoop, radioJobLoop, devPairLoop, gpsLoop)

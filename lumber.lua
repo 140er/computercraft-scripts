@@ -1448,6 +1448,16 @@ local function devCommand(m, logFile, program, reply, hooks)
   reply(r)
 end
 
+-- Real world position for the panel's map, when GPS hosts are up (gpshost.lua)
+local gpsPos
+local function gpsLoop()
+  while true do
+    local x, y, z = gps.locate(2)
+    gpsPos = x and { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) } or nil
+    sleep(x and 3 or 30)
+  end
+end
+
 -- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
 -- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
 -- (so only someone standing next to it can pair) and it has no dev.key yet.
@@ -1475,7 +1485,7 @@ local function devPairLoop()
   end
 end
 
--- Pocket control panel (panel.lua): status and P/H keys over a wireless or ender modem.
+-- Pocket control panel (panel.lua): status, P/H keys and Update all over a wireless or ender modem.
 -- Without a modem this just waits forever.
 local function radio()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
@@ -1522,14 +1532,14 @@ local function radio()
         status = ui.status, fuel = fuel(), fuelMax = REFUEL_TO, lava = lavaLeft, felled = st.felled,
         logs = st.logs, spots = spots, maxSpots = MAX_SPOTS, saplings = saplingCount(),
         searched = math.min(100, math.floor((st.cursor - 1) * 100 / #CELLS)), radius = R,
-        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y } }, "lumber")
+        paused = st.paused, err = ui.lastError, pos = { f = pos.f, s = pos.s, y = pos.y }, gps = gpsPos }, "lumber")
     end
   end
 end
 
 local function main()
   term.clear()
-  parallel.waitForAny(worker, screen, radio, devPairLoop)
+  parallel.waitForAny(worker, screen, radio, devPairLoop, gpsLoop)
 end
 
 turtle.select(1)

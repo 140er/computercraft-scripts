@@ -12,6 +12,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
 | [Turtle factory](#turtle-factory) | `factory.lua` | crafty turtle | Orders the parts from the Storage Room, crafts a new wireless mining turtle, gives it coal and `miner.lua`, and sends it to a free home spot, where it joins the hub's fleet. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
+| [GPS](#gps-and-the-map) | `gpshost.lua` | 4 computers | A GPS tower: every turtle and pocket computer knows its real position, and the panel shows a live map of all bots. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
 ---
@@ -23,7 +24,7 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `factory`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `factory`, `gpshost`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -31,7 +32,7 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 - **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
 - **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack and the farmer when they're home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
-- Bots without a modem (`sorter`, `relay`, `smartmine`) only update with their own `update` command.
+- `sorter`, `relay`, `gpshost` and `smartmine` don't listen to the panel, so they only update with their own `update` command.
 - A bot that can't reach GitHub keeps running its current version.
 
 ---
@@ -639,6 +640,7 @@ Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
 - **Farm**: the crop farmer's status, fuel, what it harvested and when the next round starts. Pause / Go on, Harvest (a round now), Home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **Map**: where every bot is, seen from above with north up: miners as numbers `1`-`9`, the lumberjack `L`, Buddy `B` and you `@`. Tap one for its coordinates and how far away it is (Go keeps it centred), drag to move, `-`/`+` or the scroll wheel to zoom, **Fit** shows everyone. A bot that hasn't reported for 30 s turns grey. Needs [GPS hosts](#gps-and-the-map).
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
@@ -654,6 +656,21 @@ Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle t
 Driving goes through the bot's own moves, so it keeps knowing where it is. A miner only drives while it's home (RECALL and STOP first), the lumber turtle only while it is PAUSED at home, Buddy whenever it isn't busy. Drive it back home before you let it carry on.
 
 Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua`, `farmer.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+
+---
+
+## GPS and the map
+Four computers running `gpshost.lua` form a GPS tower. Then every turtle and pocket computer can find its real position, and the panel's **Map** tab shows where all bots are.
+
+1. Place 4 computers, each with a modem. **Ender modems** are easiest: they reach every bot at any distance. Normal wireless modems reach further the higher they are, so then build the tower high up.
+2. Put them a few blocks apart, **not all at the same height and not all in one line**: e.g. three in an L shape at one height and the fourth 3 blocks higher. Otherwise GPS can't work out the height.
+3. On each one: `install gpshost`, then `gpshost <x> <y> <z>` with the coordinates of **that computer block** (press F3 and look at it, "Targeted Block"). It saves them and starts hosting again by itself after a reboot.
+4. Check: `gps locate` on the pocket computer should print your position. `gpshost check` on a host asks the other three where it is, which catches a typo in the coordinates.
+
+Keep the tower's chunk loaded (build it at your base). What the map uses:
+- **Miners** already know their real position (from `miner setup`, which asks GPS when it can), and the hub passes it on.
+- **Lumberjack** and **Buddy** ask GPS every few seconds while running (new versions of `lumber.lua` and `buddy.lua`). Without GPS hosts they just don't show up on the map.
+- The **pocket computer** asks GPS while the Map tab is open, for the `@` and the distances.
 
 ---
 
