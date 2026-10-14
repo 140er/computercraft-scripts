@@ -19,11 +19,13 @@
 -- input chest. Fuel for the turtle and the furnaces: coal, charcoal, coal blocks.
 -- Logs (e.g. from the lumber turtle) become charcoal in the normal furnaces; it keeps
 -- cfg.keepLogs of each kind as logs (default 32) and burns its own charcoal first.
+-- Order something that comes out of a furnace (glass, stone, ingots, charcoal, ...) and
+-- there's none: it smelts what it needs first (sand -> glass) and then delivers.
 
 local MAP_FILE, IDX_FILE, POS_FILE = "room.map", "room.idx", "room.pos"
 local CFG_FILE, STATS_FILE, LOG_FILE = "room.cfg", "room.stats", "room.log"
 local PROTOCOL = "roomsorter"
-local VERSION = 14 -- the order screen warns when the turtle runs an older roomsorter.lua
+local VERSION = 15 -- the order screen warns when the turtle runs an older roomsorter.lua
 
 local args = { ... }
 if args[1] == "install" then
@@ -2239,7 +2241,7 @@ local function emptyBuffer(e)
   return b
 end
 
-local function serviceFurnace(k, share)
+local function serviceFurnace(k, share, extra) -- extra: also put this item in (for an order)
   local e = idx[k]
   goTo(e.acc)
   local ok, st = pcall(peripheral.call, "bottom", "list")
@@ -2257,7 +2259,7 @@ local function serviceFurnace(k, share)
   st = peripheral.call("bottom", "list")
   e.state = st
   -- 2. Ores in from above
-  local list = carried(function(n) return smeltableHere(e, n) end)
+  local list = carried(function(n) return n == extra or smeltableHere(e, n) end)
   table.sort(list, byPriority)
   for _, c in ipairs(list) do
     local room = furnaceRoom(e, c.name)
@@ -2319,6 +2321,21 @@ local function smeltablesInStorage()
   return n
 end
 
+-- Take fuel along for 'items' to smelt in 'nf' furnaces. Returns how much it carries.
+local function takeFuel(items, nf)
+  local fuelCarried = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" end)
+  local fuelWanted = math.ceil(items / 8) + nf
+  if fuelCarried < fuelWanted then
+    local t = totals()
+    for _, f in ipairs(cfg.fuels) do
+      if fuelCarried < fuelWanted and t[f] and freeSlots() > 3 then
+        fuelCarried = fuelCarried + fetch(f, fuelWanted - fuelCarried, 1)
+      end
+    end
+  end
+  return fuelCarried
+end
+
 local function furnacePass()
   local fl = furnaces()
   if #fl == 0 then return end
@@ -2358,17 +2375,7 @@ local function furnacePass()
       end
     end
   end
-  -- Take fuel along
-  local fuelCarried = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" end)
-  local fuelWanted = math.ceil(carriedSmelt / 8) + #fl
-  if fuelCarried < fuelWanted then
-    local t = totals()
-    for _, f in ipairs(cfg.fuels) do
-      if fuelCarried < fuelWanted and t[f] and freeSlots() > 3 then
-        fuelCarried = fuelCarried + fetch(f, fuelWanted - fuelCarried, 1)
-      end
-    end
-  end
+  local fuelCarried = takeFuel(carriedSmelt, #fl)
   local logs = carriedCount(function(n) return smeltKind(n) == "log" end)
   status.noFuel = fuelCarried == 0 and logs == 0 and carriedSmelt > 0
   local share = math.max(8, math.ceil(carriedSmelt / #fl))
@@ -2382,6 +2389,49 @@ local function furnacePass()
     urgent()
     serviceFurnace(k, share)
   end
+end
+
+-- Smelt 'count' of 'input' right now (for an order, e.g. sand for glass): put it in the
+-- furnaces that take it and wait for the results. Returns how many 'out' it got.
+local function smeltNow(out, input, count)
+  local function have() return (totals()[out] or 0) + carriedCount(function(n) return n == out end) end
+  local function carriedIn() return carriedCount(function(n) return n == input end) end
+  local kind = smeltKind(input)
+  local fl = {}
+  for _, k in ipairs(furnaces()) do
+    local e = idx[k]
+    -- blast furnace: ores only, smoker: food only, furnace: everything
+    if (e.blast and kind == "ore") or (e.smoker and kind == "food") or not (e.blast or e.smoker) then fl[#fl + 1] = k end
+  end
+  if #fl == 0 then return 0, "a furnace" end
+  local start = have()
+  local lastGot, quiet, left = start, 0, count
+  setState("Smelting " .. pretty(out))
+  while have() < start + count and quiet < 24 do
+    if left > carriedIn() and freeSlots() > 4 then fetch(input, left - carriedIn(), freeSlots() - 4) end
+    if carriedIn() == 0 and (totals()[input] or 0) == 0 then left = 0 end -- none left to put in
+    if takeFuel(carriedIn(), #fl) == 0 then status.noFuel = true end
+    local share = math.max(8, math.ceil(left / #fl))
+    local busy = false
+    for _, k in ipairs(fl) do
+      local st = idx[k].state or {}
+      local mine = (st[1] and st[1].name == input) or (st[3] and st[3].name == out)
+      if mine or (left > 0 and carriedIn() > 0) then
+        local before = carriedIn()
+        serviceFurnace(k, share, input)
+        left = math.max(0, left - (before - carriedIn()))
+        st = idx[k].state or {}
+        if (st[1] and st[1].name == input) or (st[3] and st[3].name == out) then busy = true end
+      end
+    end
+    local got = have()
+    if got >= start + count or (left == 0 and not busy) then break end
+    if got > lastGot then lastGot, quiet = got, 0 else quiet = quiet + 1 end
+    sleep(5)
+  end
+  storeAll(true)
+  local got = have() - start
+  return got, got < count and (quiet >= 24 and "fuel (the furnaces stopped)" or pretty(input)) or nil
 end
 
 ---------------------------------------------------------------------------
@@ -2585,6 +2635,8 @@ local GROUPS = {
   ["#planks"] = function(n) return n:find("_planks$") ~= nil end,
   ["#log"] = function(n) return (n:find("_log$") or n:find("_stem$")) ~= nil end,
   ["#coal"] = { "minecraft:coal", "minecraft:charcoal" },
+  ["#sand"] = { "minecraft:sand", "minecraft:red_sand" },
+  ["#burnlog"] = function(n) return (n:find("_log$") or n:find("_wood$")) ~= nil end, -- no nether stems
   ["#stone"] = { "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:blackstone" },
 }
 local function fitsSpec(spec, name)
@@ -2640,6 +2692,18 @@ for _, p in ipairs({ { "iron_block", "iron_ingot" }, { "gold_block", "gold_ingot
 end
 BUILTIN[#BUILTIN + 1] = { out = M .. "iron_ingot", n = 1, grid = nine(M .. "iron_nugget") }
 BUILTIN[#BUILTIN + 1] = { out = M .. "gold_ingot", n = 1, grid = nine(M .. "gold_nugget") }
+-- Furnace recipes (1 in, 1 out): ordered and there's none, it smelts them first
+for _, p in ipairs({ { "glass", "#sand" }, { "stone", "cobblestone" }, { "smooth_stone", "stone" },
+  { "deepslate", "cobbled_deepslate" }, { "cracked_stone_bricks", "stone_bricks" }, { "smooth_sandstone", "sandstone" },
+  { "smooth_red_sandstone", "red_sandstone" }, { "smooth_quartz", "quartz_block" }, { "brick", "clay_ball" },
+  { "terracotta", "clay" }, { "nether_brick", "netherrack" }, { "charcoal", "#burnlog" }, { "iron_ingot", "raw_iron" },
+  { "gold_ingot", "raw_gold" }, { "copper_ingot", "raw_copper" }, { "netherite_scrap", "ancient_debris" },
+  { "dried_kelp", "kelp" }, { "green_dye", "cactus" }, { "sponge", "wet_sponge" }, { "baked_potato", "potato" },
+  { "cooked_beef", "beef" }, { "cooked_porkchop", "porkchop" }, { "cooked_chicken", "chicken" },
+  { "cooked_mutton", "mutton" }, { "cooked_rabbit", "rabbit" }, { "cooked_cod", "cod" }, { "cooked_salmon", "salmon" } }) do
+  local inp = p[2]:sub(1, 1) == "#" and p[2] or M .. p[2]
+  BUILTIN[#BUILTIN + 1] = { out = M .. p[1], n = 1, grid = { [1] = inp }, smelt = true }
+end
 
 -- All recipes: learned ones first, then built in, then planks for every log in storage
 local function allRecipes(stock)
@@ -2770,75 +2834,87 @@ local function craftItem(out, want, depth, visiting)
       end
     end
     stock = totals()
-    local steps = math.min(stepsWanted, 64)
-    local choice = {}
-    for spec, c in pairs(per) do
-      local name, have = pick(spec, stock)
-      if not name or have < c then steps = 0 lastMissing = specLabel(spec) break end
-      choice[spec] = name
-      steps = math.min(steps, math.floor(have / c), outStack(name))
-    end
-    local gridSlots = 0
-    for _ in pairs(r.grid) do gridSlots = gridSlots + 1 end
-    steps = math.min(steps, math.floor((16 - gridSlots) * outStack(out) / r.n))
-    if steps <= 0 then break end
-    -- Empty the turtle, then fill the grid slot by slot
-    setState("Crafting " .. pretty(out))
-    storeAll(true)
-    for slot, spec in pairs(r.grid) do fetch(choice[spec], steps, nil, slot) end
-    -- Make sure every grid slot has exactly 'steps' of the right item
-    local function cnt(sl) return turtle.getItemCount(sl) end
-    local function nameAt(sl) local d = turtle.getItemDetail(sl) return d and d.name end
-    for g, spec in pairs(r.grid) do
-      local want = choice[spec]
-      if nameAt(g) and nameAt(g) ~= want then -- something else in it: move it out of the grid
-        for sp = 16, 1, -1 do
-          if not r.grid[sp] and cnt(sp) == 0 then turtle.select(g) turtle.transferTo(sp) break end
-        end
+    if r.smelt then
+      -- A furnace recipe: smelt it now and wait for it
+      local name, have = pick(r.grid[1], stock)
+      local steps = math.min(stepsWanted, have)
+      if not name or steps <= 0 then lastMissing = specLabel(r.grid[1]) break end
+      storeAll(true)
+      local got, why = smeltNow(out, name, steps)
+      made = made + got
+      if got < steps then lastMissing = why break end
+    else
+      stock = totals()
+      local steps = math.min(stepsWanted, 64)
+      local choice = {}
+      for spec, c in pairs(per) do
+        local name, have = pick(spec, stock)
+        if not name or have < c then steps = 0 lastMissing = specLabel(spec) break end
+        choice[spec] = name
+        steps = math.min(steps, math.floor(have / c), outStack(name))
       end
-      for src = 1, 16 do
-        if cnt(g) >= steps then break end
-        local extra = cnt(src) - (r.grid[src] and choice[r.grid[src]] == want and steps or 0)
-        if src ~= g and nameAt(src) == want and extra > 0 then
-          turtle.select(src)
-          turtle.transferTo(g, math.min(extra, steps - cnt(g)))
+      local gridSlots = 0
+      for _ in pairs(r.grid) do gridSlots = gridSlots + 1 end
+      steps = math.min(steps, math.floor((16 - gridSlots) * outStack(out) / r.n))
+      if steps <= 0 then break end
+      -- Empty the turtle, then fill the grid slot by slot
+      setState("Crafting " .. pretty(out))
+      storeAll(true)
+      for slot, spec in pairs(r.grid) do fetch(choice[spec], steps, nil, slot) end
+      -- Make sure every grid slot has exactly 'steps' of the right item
+      local function cnt(sl) return turtle.getItemCount(sl) end
+      local function nameAt(sl) local d = turtle.getItemDetail(sl) return d and d.name end
+      for g, spec in pairs(r.grid) do
+        local want = choice[spec]
+        if nameAt(g) and nameAt(g) ~= want then -- something else in it: move it out of the grid
+          for sp = 16, 1, -1 do
+            if not r.grid[sp] and cnt(sp) == 0 then turtle.select(g) turtle.transferTo(sp) break end
+          end
         end
-      end
-      if cnt(g) > steps then -- too many: the rest out of the grid
-        for sp = 16, 1, -1 do
-          if not r.grid[sp] and (cnt(sp) == 0 or nameAt(sp) == want) then
-            turtle.select(g) turtle.transferTo(sp, cnt(g) - steps)
-            if cnt(g) <= steps then break end
+        for src = 1, 16 do
+          if cnt(g) >= steps then break end
+          local extra = cnt(src) - (r.grid[src] and choice[r.grid[src]] == want and steps or 0)
+          if src ~= g and nameAt(src) == want and extra > 0 then
+            turtle.select(src)
+            turtle.transferTo(g, math.min(extra, steps - cnt(g)))
+          end
+        end
+        if cnt(g) > steps then -- too many: the rest out of the grid
+          for sp = 16, 1, -1 do
+            if not r.grid[sp] and (cnt(sp) == 0 or nameAt(sp) == want) then
+              turtle.select(g) turtle.transferTo(sp, cnt(g) - steps)
+              if cnt(g) <= steps then break end
+            end
           end
         end
       end
-    end
-    turtle.select(1)
-    -- leftovers outside the grid back to storage
-    local outside = false
-    for sl = 1, 16 do if not r.grid[sl] and cnt(sl) > 0 then outside = true end end
-    if outside then storeAll(true, function(sl) return not r.grid[sl] end) end
-    local ready = true
-    for sl = 1, 16 do
-      local d = turtle.getItemDetail(sl)
-      local sp = r.grid[sl]
-      if sp then
-        if not d or d.name ~= choice[sp] or d.count ~= steps then ready = false end
-      elseif d then ready = false end
-    end
-    if not ready then
-      lastMissing = "ingredients (couldn't take them all out)"
+      turtle.select(1)
+      -- leftovers outside the grid back to storage
+      local outside = false
+      for sl = 1, 16 do if not r.grid[sl] and cnt(sl) > 0 then outside = true end end
+      if outside then storeAll(true, function(sl) return not r.grid[sl] end) end
+      local ready = true
+      for sl = 1, 16 do
+        local d = turtle.getItemDetail(sl)
+        local sp = r.grid[sl]
+        if sp then
+          if not d or d.name ~= choice[sp] or d.count ~= steps then ready = false end
+        elseif d then ready = false end
+      end
+      if not ready then
+        lastMissing = "ingredients (couldn't take them all out)"
+        storeAll(true)
+        break
+      end
+      local before = countCarried(out)
+      turtle.select(4)
+      local ok, err = turtle.craft(steps)
+      turtle.select(1)
+      local got = countCarried(out) - before
+      made = made + got
       storeAll(true)
-      break
+      if not ok or got == 0 then lastMissing = tostring(err or "the recipe didn't work") break end
     end
-    local before = countCarried(out)
-    turtle.select(4)
-    local ok, err = turtle.craft(steps)
-    turtle.select(1)
-    local got = countCarried(out) - before
-    made = made + got
-    storeAll(true)
-    if not ok or got == 0 then lastMissing = tostring(err or "the recipe didn't work") break end
   end
   visiting[out] = nil
   return made
