@@ -707,21 +707,22 @@ Type a job after `builder` (`builder floor 100 64 -20 115 64 -5 stone_bricks`), 
 ## Pocket panel
 `panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). `install panel` on it (see [Installing](#installing)), then `panel install` (opens on start-up) and `panel`.
 
-Tabs along the top (tap them, or keys 1-7, Q quits):
+Tabs along the top: **Home**, **Mine**, **Stor**, **Bots**, **Map** and **>_** (tap them, or keys 1-6, Q quits). 
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
 - **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
-- **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
-- **Farm**: the crop farmer's status, fuel, what it harvested and when the next round starts. Pause / Go on, Harvest (a round now), Home.
-- **Lava**: the lava runner's status, fuel, lava in stock, and each drop-off chest's last count. Pause / Go on, Run now, Home.
-- **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
-- **Map**: where every bot is, seen from above with north up: miners as numbers `1`-`9`, the lumberjack `L`, Buddy `B` and you `@`. Tap one for its coordinates and how far away it is (Go keeps it centred), drag to move, `-`/`+` or the scroll wheel to zoom, **Fit** shows everyone. A bot that hasn't reported for 30 s turns grey. Needs [GPS hosts](#gps-and-the-map).
-- **Bld**: the builder: its job and progress, fuel, blocks on board and the queue. Tap Floor, Walls, Flat, Clear or Torches for a new job: stand on each corner and press Enter (needs GPS), or type `x y z`. Pause / Go on, Home, Stop.
+- **Bots**: one row per bot with its status; tap one for its page:
+  - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
+  - **Farm**: the crop farmer's status, fuel, what it harvested and when the next round starts. Pause / Go on, Harvest (a round now), Home.
+  - **Lava**: the lava runner's status, fuel, lava in stock, and each drop-off chest's last count. Pause / Go on, Run now, Home.
+  - **Builder**: the builder: its job and progress, fuel, blocks on board and the queue. Tap Floor, Walls, Flat, Clear or Torches for a new job: stand on each corner and press Enter (needs GPS), or type `x y z`. Pause / Go on, Home, Stop.
+  - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
+- **Map**: where every bot is, seen from above with north up: miners as numbers `1`-`9`, the lumberjack `L`, the farmer `F`, the lava runner `V`, the builder `U`, Buddy `B` and you `@`. Tap one for its coordinates and how far away it is (Go keeps it centred), drag to move, `-`/`+` or the scroll wheel to zoom, **Fit** shows everyone. A bot that hasn't reported for 30 s turns grey. Needs [GPS hosts](#gps-and-the-map).
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
   - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `buddy go fetch the logs`
-  - `build floor 10 64 -5 20 64 5 oak_planks`, `build status`, `build stop`
+  - `build floor 10 64 -5 20 64 5 oak_planks`, `build status`, `build stop`, `factory build 2`, `factory status`
   - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 

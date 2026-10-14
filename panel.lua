@@ -4,11 +4,12 @@
 --   panel            start
 --   panel install    start automatically when the pocket computer turns on
 --
--- Tabs (tap them, or keys 1-7):
+-- Tabs (tap them, or keys 1-6): Home, Mine, Store, Bots, Map, >_ (console)
 --   Home   everything at a glance; tap a card to open it
 --   Mine   the mining fleet through the hub: pick an ore, STOP / RECALL / RESUME,
 --          session time, tap a turtle to give orders to that turtle only
 --   Store  the storage room turtle: search, tap an item to order it, pause, resync
+--   Bots   a list of the other bots; tap one for its page:
 --   Wood   the lumber turtle: status, fuel and lava, pause / come home
 --   Farm   the crop farmer: status, fuel, harvest, pause / harvest now / come home
 --   Lava   the lava runner: lava in stock, drop-off chests, run now / come home
@@ -225,10 +226,13 @@ end
 ---------------------------------------------------------------------------
 -- UI state
 ---------------------------------------------------------------------------
-local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "farm", "Farm" },
-  { "lava", "Lava" }, { "build", "Bld" }, { "buddy", "Bud" }, { "map", "Map" }, { "console", ">_" } }
-local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, farm = colors.lime,
-  lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, console = colors.gray }
+-- The smaller bots share one "Bots" tab (a list); tapping one opens its own page
+local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "bots", "Bots" }, { "map", "Map" },
+  { "console", ">_" } }
+local BOT_PAGES = { "wood", "farm", "lava", "build", "buddy" }
+local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = true }
+local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
+  farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 local openDrive -- the drive screen (further down); takes a bot: { key = DEV key } or { id =, proto =, name = }
 
@@ -261,6 +265,24 @@ local function offlineLines(key)
   local d = DEV[key]
   if not d.id then return { { "Searching...", colors.lightGray } } end
   return { { "No answer for " .. age(os.clock() - d.seen), colors.red }, { "Is it running?", colors.lightGray } }
+end
+
+-- Bots tab: one row per bot, tap to open its page
+local function drawBots()
+  text(2, 2, "Bots", colors.white)
+  local y = 3
+  for _, key in ipairs(BOT_PAGES) do
+    local d, m = DEV[key], data[key]
+    local ok = online(key) and m
+    text(1, y, (" "):rep(W), colors.black, TAB_COLOR[key])
+    text(2, y, d.name, colors.black, TAB_COLOR[key])
+    right(y, "\7 ", ok and colors.lime or colors.red, TAB_COLOR[key])
+    local line = ok and ((m.state and (tostring(m.state) .. ": ") or "") .. tostring(m.status or (m.busy and "Busy" or "Idle")))
+      or offlineLines(key)[1][1]
+    text(2, y + 1, line:sub(1, W - 2), ok and colors.white or colors.lightGray)
+    buttons[#buttons + 1] = { x1 = 1, y1 = y, x2 = W, y2 = y + 1, action = function() setTab(key) end }
+    y = y + 3
+  end
 end
 
 local function hubJob(h)
@@ -891,6 +913,9 @@ local function mapMarks()
   end
   if data.wood then add("wood", data.wood.label or "Lumberjack", "L", colors.lime, data.wood.gps, os.clock() - DEV.wood.seen) end
   if data.buddy then add("buddy", data.buddy.name or "Buddy", "B", colors.magenta, data.buddy.gps, os.clock() - DEV.buddy.seen) end
+  if data.farm then add("farm", data.farm.label or "Farmer", "F", colors.yellow, data.farm.gps, os.clock() - DEV.farm.seen) end
+  if data.lava then add("lava", data.lava.label or "Lava runner", "V", colors.red, data.lava.gps, os.clock() - DEV.lava.seen) end
+  if data.build then add("build", data.build.label or "Builder", "U", colors.pink, data.build.gps, os.clock() - DEV.build.seen) end
   if wmap.me then add("me", "You", "@", colors.white, wmap.me, os.clock() - wmap.meAt) end
   return list
 end
@@ -1211,6 +1236,10 @@ local HELP = {
   "FARM:",
   " farm status|pause|resume",
   " farm now | home",
+  "FACTORY:",
+  " factory build [n]",
+  " factory status | slots",
+  " factory cancel | free <n>",
   "LAVA:",
   " lava status|pause|resume",
   " lava run | deliver | home",
@@ -1501,6 +1530,12 @@ local function run(line)
   local c, op = lower(words[1]), lower(words[2])
   if c == "help" or c == "?" then for _, l in ipairs(HELP) do say(l, colors.lightGray) end
   elseif c == "clear" or c == "cls" then con.lines, con.scroll = {}, 0
+  elseif c == "factory" then
+    -- the turtle factory (factory.lua): build [n] | status | slots | cancel | free <n> | update
+    local id = rednet.lookup("turtlefactory")
+    if not id then say("No turtle factory found. Is factory running with a modem?", colors.red) return end
+    sendTo({ id = id, proto = "turtlefactory", name = "Factory" },
+      { cmd = op ~= "" and op or "status", args = { table.unpack(words, 3) } }, { factory = true })
   elseif c == "update" then
     if op ~= "all" then say("update all  (every bot and this panel)", colors.orange) return end
     updateAll(true)
@@ -1621,6 +1656,13 @@ local function consoleReply(id, m, proto)
     for _, l in ipairs(m) do say(tag .. tostring(l), colors.lime) end
     os.queueEvent("panel_ask", "store")
     return true
+  elseif p.factory and type(m) == "table" then
+    for _, l in ipairs(m) do say(tag .. tostring(l), colors.lime) end
+    if m.state then
+      say(tostring(m.state) .. ", " .. tostring(m.queue or 0) .. " queued, " .. tostring(m.free or "?")
+        .. " free spots, " .. tostring(m.built or 0) .. " built", colors.lightGray)
+    end
+    return true
   elseif p.hub and m.type == "panel_state" then
     say(tag .. (m.note or ("OK. " .. hubJob(m))), m.note and colors.orange or colors.lime)
     m.note = nil -- already shown
@@ -1672,7 +1714,7 @@ local function complete()
   local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
   if pos == 1 then
     add({ "help", "bots", "scan", "listen", "send", "key", "pair", "clear", "update", "miners", "drive", "hub", "store", "wood",
-      "farm", "lava", "build", "buddy" })
+      "farm", "lava", "build", "buddy", "factory" })
     for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
   elseif pos == 2 then
     local bot = findBot(words[1])
@@ -1791,7 +1833,7 @@ local function draw()
   local extra = W - tw * #TABS
   for k, t in ipairs(TABS) do
     local w = tw + (k <= extra and 1 or 0)
-    local active = ui.tab == t[1]
+    local active = ui.tab == t[1] or (t[1] == "bots" and IN_BOTS[ui.tab])
     local key = t[1]
     local fg = active and colors.black or colors.white
     local bg = active and colors.white or TAB_COLOR[key]
@@ -1805,6 +1847,7 @@ local function draw()
   elseif ui.tab == "farm" then drawFarm()
   elseif ui.tab == "lava" then drawLava()
   elseif ui.tab == "buddy" then drawBuddy()
+  elseif ui.tab == "bots" then drawBots()
   elseif ui.tab == "map" then drawMap()
   elseif ui.tab == "build" then drawBuild()
   elseif ui.tab == "console" then drawConsole() return end
@@ -1919,7 +1962,7 @@ local function pollLoop()
     if ev == "timer" and a == timer then
       for _, key in ipairs(DEV_ORDER) do
         local d = DEV[key]
-        local every = (ui.tab == key or ui.tab == "home" or ui.tab == "map") and d.poll or 10
+        local every = (ui.tab == key or ui.tab == "home" or ui.tab == "map" or (ui.tab == "bots" and IN_BOTS[key])) and d.poll or 10
         if d.id and os.clock() - d.asked >= every then ask(key) end
       end
       timer = os.startTimer(0.5)
