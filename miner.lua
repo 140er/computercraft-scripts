@@ -2,7 +2,7 @@
 --
 -- One-time setup (see README):
 --   miner setup <x> <y> <z> <facing> <role>
---     x y z   = world coordinates of the turtle (F3), e.g. -216 65 -743
+--     x y z   = world coordinates of the turtle (F3), e.g. 120 64 -350
 --     facing  = direction the turtle faces: north/east/south/west
 --     role    = direction of its main tunnel: east/south/west/north
 --               (easternmost turtle = east, westernmost = west,
@@ -68,6 +68,12 @@ local DZ = { [0] = -1, 0, 1, 0, 0, 0 }
 local OPP = { [0] = 2, 3, 0, 1, 5, 4 }
 
 local args = { ... }
+if args[1] == "update" then
+  -- turtles get new versions from the hub, so they all run the same one
+  print("Mining turtles update through the hub: type 'hub update' on the hub")
+  print("(or press Update all on the pocket panel). They update when they get home.")
+  return
+end
 
 ---------------------------------------------------------------------------
 -- Files
@@ -107,7 +113,7 @@ if args[1] == "setup" then
   if not (hx and hy and hz and facing and role) then
     print("Usage: miner setup <x> <y> <z> <facing> <role>")
     print("  facing/role: north, east, south or west")
-    print("  e.g. miner setup -216 65 -743 south east")
+    print("  e.g. miner setup 120 64 -350 south east")
     return
   end
   local found, info = false, nil

@@ -9,13 +9,25 @@
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
 -- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
--- Update: drag a new miner.lua onto this computer and press UPDATE (or u).
+-- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
+-- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  -- after the reboot the hub releases the new miner.lua to the turtles (see releaseUpdate)
+  local h = fs.open("hub.release", "w") h.close()
+  shell.run("update")
+  fs.delete("hub.release") -- only reached when nothing changed
+  return
+end
 if args[1] == "install" then
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("hub")\n')
@@ -870,6 +882,12 @@ local function uiLoop()
       timer = os.startTimer(1) -- the old timer fired while typing
     end
   end
+end
+
+-- Just updated itself from GitHub ('hub update' or the panel): hand the new miner.lua out
+if fs.exists("hub.release") then
+  fs.delete("hub.release")
+  releaseUpdate()
 end
 
 parallel.waitForAny(netLoop, uiLoop)

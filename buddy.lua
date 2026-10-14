@@ -8,7 +8,7 @@
 -- (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok.
 --
 -- One-time setup (see README):
---   buddy server <url> [url2 ...]  use your own model server(s), e.g. buddy server http://spark1:8000
+--   buddy server <url> [url2 ...]  use your own model server(s), e.g. buddy server http://my-gpu-box:8000
 --                                  more than one: the next is used when the first can't be reached
 --   buddy server grok              use xAI's Grok instead (needs: buddy key <your xAI API key>)
 --   buddy key <key>                saves an API key in api.key on this turtle (never in the repo)
@@ -19,6 +19,7 @@
 --   buddy models          list the models the server offers
 --   buddy think on|off    let a reasoning model think before answering (default off = fast)
 --   buddy home            after putting it back on its home spot by hand: reset position
+--   buddy update          fetch the latest buddy.lua from GitHub
 --
 -- While chatting: /reset forgets the conversation, /quit stops.
 -- Needs: http enabled in the CC config. Optional: a Chat Box (Advanced Peripherals)
@@ -484,7 +485,7 @@ local function usesGrok()
   return false
 end
 
--- "spark1:8000" -> "http://spark1:8000/v1/"
+-- "my-gpu-box:8000" -> "http://my-gpu-box:8000/v1/"
 local function baseUrl(url)
   if not url:find("^https?://") then url = "http://" .. url end
   url = url:gsub("/+$", "")
@@ -677,6 +678,15 @@ end
 local args = { ... }
 local cmd = args[1]
 
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update")
+  return
+end
+
 if cmd == "server" then
   if args[2] == "grok" then
     cfg.servers, cfg.model = { GROK }, "grok-4"
@@ -809,7 +819,7 @@ local function radioLoop()
     local id, m = rednet.receive("buddy")
     if type(m) == "table" then
       local job = (m.cmd == "chat" and type(m.text) == "string" and m.text:find("%S"))
-        or m.cmd == "home" or (m.cmd == "goto" and memory.places[m.place or ""])
+        or m.cmd == "home" or m.cmd == "update" or (m.cmd == "goto" and memory.places[m.place or ""])
       if job then
         netJobs[#netJobs + 1] = { id = id, m = m }
         os.queueEvent("buddy_net")
@@ -837,6 +847,12 @@ local function radioJobLoop()
       if job.m.cmd == "chat" then
         say("Pocket", job.m.text, colours.lightBlue)
         handle(job.m.text, nil, answer)
+      elseif job.m.cmd == "update" then
+        -- panel's Update all: finish the current job first, then fetch the latest buddy.lua
+        while busy do sleep(1) end
+        answer("Updating from GitHub...")
+        shell.run("update") -- reboots when there's a new version
+        answer("Already up to date.")
       elseif busy then
         answer("Hang on, I'm still busy with the last thing.")
       else

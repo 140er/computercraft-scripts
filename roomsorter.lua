@@ -31,6 +31,14 @@ local PROTOCOL = "roomsorter"
 local VERSION = 15 -- the order screen warns when the turtle runs an older roomsorter.lua
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update")
+  return
+end
 if args[1] == "install" then
   -- roomsorter install         (turtle)
   -- roomsorter install board   (computer with the stock board monitor)
@@ -3245,6 +3253,12 @@ local function command(cmd, text, n)
     paused = false
     os.queueEvent("room_request")
     return { "Running again." }
+  elseif cmd == "update" then
+    -- pauses (puts everything away), then the worker fetches the latest version
+    if status.update == nil then status.update = paused end
+    paused = true
+    os.queueEvent("room_request")
+    return { "Updating: it puts everything away, then fetches", "the latest version from GitHub and restarts." }
   elseif cmd == "learn" then
     if not paused or status.state ~= "Paused" then
       return { "To teach a recipe: type pause, wait until it says Paused,", "put one set in its 3x3 grid, then type learn." }
@@ -3414,6 +3428,11 @@ local function worker()
       pcall(storeAll, true)
       pcall(goHome)
       emptied = true
+    end
+    if paused and emptied and status.update ~= nil then
+      setState("Updating")
+      shell.run("update") -- reboots when there's a new version
+      paused, status.update = status.update, nil
     end
     if not paused then
       emptied = false

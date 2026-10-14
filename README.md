@@ -1,37 +1,62 @@
 # computercraft-scripts
 
-ComputerCraft (CC: Tweaked) turtle scripts.
+Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a turtle you can chat with, and a pocket computer that controls them all.
 
-- **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
-- **Sorter & Smelter** (`sorter.lua`): a turtle (or computer) on a wired network of chests and furnaces. It empties the miners' chests, smelts the raw ores in all your furnaces and blast furnaces, keeps them fuelled and sorts everything into storage. See [Sorter & Smelter](#sorter--smelter).
-- **Storage Room** (`roomsorter.lua`): no modems or cables. A turtle in a closed room maps the room, builds its own chests and furnaces, sorts and smelts what you put in the input chest, remembers where everything is and brings you items in the output chest. See [Storage Room](#storage-room).
-- `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
-- **Buddy** (`buddy.lua`): a companion turtle you can chat with, powered by your own model server (or xAI's Grok). It does small jobs around your base. See [Buddy](#buddy-companion-turtle) at the bottom.
-- **Lumberjack** (`lumber.lua`): a tree farm turtle. Finds trees around its chest by itself, fells and replants them, refuels from the wood and puts the logs in the chest. See [Tree farm](#tree-farm-lumberlua) below.
+| Bot | File | Runs on | What it does |
+|---|---|---|---|
+| [Mine Army](#mine-army) | `hub.lua`, `miner.lua`, optional `relay.lua` | computer + mining turtles | A hub with a dashboard in your base and a fleet of mining turtles. Each goes down its own shaft to the ore level you pick, mines branch tunnels and comes back to unload and refuel. |
+| [Storage Room](#storage-room) | `roomsorter.lua` | turtle | No modems or cables. A turtle in a closed room maps it, builds its own chests and furnaces, sorts and smelts what you put in, remembers where everything is and brings you items. |
+| [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
+| [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
+| [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
+| [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
+| | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
 
 ---
 
-## Quick start
+## Installing
+
+You need **http enabled** in the ComputerCraft config (it is by default). On the computer or turtle, run:
+```
+wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
+install <bot>
+```
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+
+No http? Drag the `.lua` file from this repo onto the computer's screen instead.
+
+## Updating
+
+- **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
+- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack when it's home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
+- Bots without a modem (`sorter`, `relay`, `smartmine`) only update with their own `update` command.
+- A bot that can't reach GitHub keeps running its current version.
+
+---
+
+## Mine Army
+
+### Quick start
 
 1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest directly **behind** it, and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
 2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons), and a second monitor becomes an info screen.
-3. **Copy the files:** drag `miner.lua` onto each turtle's screen and `hub.lua` onto the hub's screen. (Or, if the repo is public and `http` is enabled: `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install`, then `install`.)
+3. **Install:** `install miner` on each turtle and `install hub` on the hub (see [Installing](#installing)).
 4. **Set up each turtle once** (see below), then on the hub: `hub install`, `hub`.
 5. On the dashboard: pick a time, pick an ore. Done.
 
-### Setup: your 4 turtles
-They stand at y=65, z=-743, chest on the north side (z=-744), so they face **south**. `setup` warns you if it doesn't see a chest behind the turtle.
+### Setup: the turtles
+Example: 4 turtles in a row at y=64, z=-350, each with its chest on the north side, so they face **south**. Give each a different role (the direction of its main tunnel). `setup` warns you if it doesn't see a chest behind the turtle.
 ```
-miner setup -216 65 -743 south east    -- x=-216 (easternmost)
-miner setup -218 65 -743 south south   -- x=-218
-miner setup -220 65 -743 south north   -- x=-220
-miner setup -222 65 -743 south west    -- x=-222 (westernmost)
+miner setup 120 64 -350 south east    -- easternmost
+miner setup 118 64 -350 south south
+miner setup 116 64 -350 south north
+miner setup 114 64 -350 south west    -- westernmost
 ```
-General form: `miner setup <x> <y> <z> <facing> <role>`. Setup writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...), so it restarts by itself and keeps its files when you pick it up.
+General form: `miner setup <x> <y> <z> <facing> <role>`, with the turtle's own coordinates (F3). Setup writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...), so it restarts by itself and keeps its files when you pick it up.
 
 ---
 
-## How a trip works
+### How a trip works
 
 1. At home it unloads into the chest, cleans the chest, refuels and gets its job from the hub.
 2. It moves 1 block forward into its hole and goes down. The shaft is finished to the ore level **once** and reused every trip after (iron is above diamond, so one shaft serves every level). The hole is covered with a block at floor level while the turtle is down there, and again after it comes home.
@@ -94,7 +119,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 
 ---
 
-## Dashboard
+### Dashboard
 
 ```
  Mining Diamond (Y -58)         ALL ORES   THOROUGH
@@ -156,13 +181,42 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 - **Relay:** put a computer with a wireless modem high above your base (y 250+), copy `relay.lua` onto it, run `relay install`, then `relay`. It forwards all messages, so the hub sees the turtles everywhere.
 - Ender modems work everywhere without a relay.
 
-### Updating
-1. Drag the new `miner.lua` onto the **hub's** screen (nothing happens yet).
-2. Press **UPDATE**. Turtles at home update right away; turtles that can hear the hub go home first; the rest update when they get home.
+### Updating the fleet
+1. On the hub: `hub update` (or **Update all** on the pocket panel). It fetches the latest `hub.lua` and `miner.lua` from GitHub, reboots and releases the new `miner.lua`. Or, for a version of your own: drag `miner.lua` onto the **hub's** screen and press **UPDATE**.
+2. Turtles at home update right away; turtles that can hear the hub go home first; the rest update when they get home. (`miner update` on a turtle just points you to the hub, so all turtles run the same version.)
 - Updates only happen at home after unloading. Position, heading and progress are kept (`miner.state`, `miner.cfg`).
 - A broken file is rejected. A turtle running a version older than hub updates needs one manual copy.
-- To update the hub itself: drag `hub.lua` onto it and reboot it.
 - Anyone on the server with a computer and modem could pretend to be the hub; on a server with strangers that is a risk.
+
+### Safety and recovery
+
+- **Reboots / chunk unloads:** position, heading and progress are saved on every move and turn. After a restart away from home the turtle goes home along its own tunnels first, then carries on.
+- **Heading checks:** at boot it looks for its chest; at the bottom of its shaft it checks which side the main tunnel opening is on and corrects its heading if needed. After a reboot in the middle of a turn, and before it gives up as lost, it looks at the tunnel around it (open behind, rock on the walls) and fixes a heading that is a quarter turn off.
+- **Recall:** a recalled turtle drops whatever it is doing, also in the middle of an ore vein (it leaves the rest of the vein), and comes straight home.
+- **No blind digging:** on its own routes it never digs through natural rock. Rock where its tunnel should be means it is lost.
+- **Lost:** it goes straight up to the surface, digging only natural ground (stone, dirt, sand, gravel, ores, leaves; never cobble, planks, logs or other possible builds, it steps around those). In the open air it builds an 8-block pillar of its blocks and waits on top, also after reboots. The dashboard shows a red `LOST: <name> at x,y,z` (x/z can be a few blocks off if it had to step around something). Why it got lost is in `miner.log` on the turtle and on the hub.
+- **No chest at home:** it never unloads without a chest behind it. It first turns around looking for it; if it still can't find it, the dashboard shows "ERROR: no chest behind me".
+- **Putting a turtle back:** pick it up (it keeps its files), put it on its home spot next to its chest in any direction, and type `miner`. It finds its chest and resets its position and heading; progress is kept. If needed: Ctrl+T, `miner home`, `miner`.
+
+
+### Commands
+
+| Where | Command | What |
+|---|---|---|
+| turtle | `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
+| turtle | `miner` | run with the hub (started automatically on boot) |
+| turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
+| turtle | `miner home` | reset position to the home spot after putting it back by hand |
+| hub | `hub install`, `hub` | autostart, run |
+| relay | `relay install`, `relay` | autostart, run |
+| tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
+| tree turtle | `lumber home` / `lumber reset` | reset position after putting it back by hand / forget all trees |
+| hub | `hub update` | fetch the latest hub.lua and miner.lua and release it to the turtles |
+| anywhere | `update` or `<bot> update` | fetch the latest version of this computer's scripts, see [Updating](#updating) |
+
+### Settings
+- `hub.state` (on the hub): `reach` (96), `branchLen` (64), `mineMinutes` (15), `sessionLen`, `mode`.
+- Top of `miner.lua`: `BRANCH_LEN`, `BRANCH_GAP`, `FAST_GAP`, `REACH`, `LAYER_STEP`, `MAX_LAYERS`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
 
 ---
 
@@ -380,41 +434,12 @@ Moved the pickup chest a bit (up to 3 blocks down, 2 up, 2 sideways, also down i
 
 ---
 
-## Safety and recovery
-
-- **Reboots / chunk unloads:** position, heading and progress are saved on every move and turn. After a restart away from home the turtle goes home along its own tunnels first, then carries on.
-- **Heading checks:** at boot it looks for its chest; at the bottom of its shaft it checks which side the main tunnel opening is on and corrects its heading if needed. After a reboot in the middle of a turn, and before it gives up as lost, it looks at the tunnel around it (open behind, rock on the walls) and fixes a heading that is a quarter turn off.
-- **Recall:** a recalled turtle drops whatever it is doing, also in the middle of an ore vein (it leaves the rest of the vein), and comes straight home.
-- **No blind digging:** on its own routes it never digs through natural rock. Rock where its tunnel should be means it is lost.
-- **Lost:** it goes straight up to the surface, digging only natural ground (stone, dirt, sand, gravel, ores, leaves; never cobble, planks, logs or other possible builds, it steps around those). In the open air it builds an 8-block pillar of its blocks and waits on top, also after reboots. The dashboard shows a red `LOST: <name> at x,y,z` (x/z can be a few blocks off if it had to step around something). Why it got lost is in `miner.log` on the turtle and on the hub.
-- **No chest at home:** it never unloads without a chest behind it. It first turns around looking for it; if it still can't find it, the dashboard shows "ERROR: no chest behind me".
-- **Putting a turtle back:** pick it up (it keeps its files), put it on its home spot next to its chest in any direction, and type `miner`. It finds its chest and resets its position and heading; progress is kept. If needed: Ctrl+T, `miner home`, `miner`.
-
----
-
-## Commands
-
-| Where | Command | What |
-|---|---|---|
-| turtle | `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
-| turtle | `miner` | run with the hub (started automatically on boot) |
-| turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
-| turtle | `miner home` | reset position to the home spot after putting it back by hand |
-| hub | `hub install`, `hub` | autostart, run |
-| relay | `relay install`, `relay` | autostart, run |
-| tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
-| tree turtle | `lumber home` / `lumber reset` | reset position after putting it back by hand / forget all trees |
-
-## Settings
-- `hub.state` (on the hub): `reach` (96), `branchLen` (64), `mineMinutes` (15), `sessionLen`, `mode`.
-- Top of `miner.lua`: `BRANCH_LEN`, `BRANCH_GAP`, `FAST_GAP`, `REACH`, `LAYER_STEP`, `MAX_LAYERS`, `JUNK_EVERY`, `MAX_VEIN`, `FUEL_MARGIN`.
-
 ## Tree farm (lumber.lua)
 
 A felling turtle (turtle + axe, no modem needed) that finds trees around its home by itself, fells them, replants them and keeps farming them.
 
 1. Put the turtle somewhere in the open next to a chest (behind it is best; it turns to find the chest if it is on another side). Logs go in there, and you put its fuel, **lava buckets**, in the same chest. A second chest directly **under** the turtle also works for lava, but is optional. Keep the space above the turtle open: it flies out and back through there.
-2. Drag `lumber.lua` onto the turtle (or `install lumber`).
+2. `install lumber` on the turtle (see [Installing](#installing)), or drag `lumber.lua` onto its screen.
 3. `lumber setup [radius]`: how far from the chest it may go (default 48 blocks, so it stays in the chunks around you).
 4. A few saplings in the turtle or the chest help it get going (optional).
 5. `lumber` (starts by itself on boot after setup).
@@ -464,8 +489,8 @@ A turtle you talk to. A language model reads what you say and decides what to do
 
 **The brain** is any OpenAI-style chat API with tool calling: your own server (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok. The requests come from the Minecraft server, so the model server must be reachable from there (Tailscale is fine).
 
-1. Copy `buddy.lua` onto the turtle (drag it onto the screen, or `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/buddy.lua buddy.lua`).
-2. Point it at your model server(s): `buddy server http://spark1:8000 http://spark2:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
+1. `install buddy` on the turtle (see [Installing](#installing)), or drag `buddy.lua` onto its screen.
+2. Point it at your model server(s): `buddy server http://my-gpu-box:8000 http://192.168.1.20:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
    - Grok instead: `buddy server grok`, then `buddy key <xAI key>` (from [console.x.ai](https://console.x.ai), paid per use).
    - Server needs a key? `buddy key <key>` saves it in `api.key` on the turtle. It never goes into this repo.
 3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.

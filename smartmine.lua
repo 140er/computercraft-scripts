@@ -3,6 +3,14 @@
 -- Start: turtle faces into the tunnel, chest with coal directly BEHIND the turtle.
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update")
+  return
+end
 local function usage()
   print("Usage: smartmine <length> [tunnels] [gap] [block1,block2,...]")
   print("  length  = length of each tunnel")

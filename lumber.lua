@@ -63,6 +63,14 @@ local DY = { [0] = 0, 0, 0, 0, 1, -1 }
 local OPP = { [0] = 2, 3, 0, 1, 5, 4 }
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update")
+  return
+end
 
 ---------------------------------------------------------------------------
 -- Files
@@ -1236,6 +1244,12 @@ local function worker()
   local rest = nil -- why it came home: wait at home after unloading
   while true do
     service()
+    if ui.updateNow then
+      -- panel's Update all: fetch the latest lumber.lua now that it's home (reboots if new)
+      ui.updateNow = false
+      setStatus("Updating from GitHub")
+      shell.run("update")
+    end
     ui.homeNow = false
     if rest == "fuel" and not st.paused then
       setStatus("Low on fuel: waiting for lava buckets")
@@ -1276,7 +1290,7 @@ local function worker()
   end
 end
 
--- Pocket control panel (panel.lua): status and P/H keys over a wireless or ender modem.
+-- Pocket control panel (panel.lua): status, P/H keys and Update all over a wireless or ender modem.
 -- Without a modem this just waits forever.
 local function radio()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
@@ -1288,7 +1302,8 @@ local function radio()
     if type(m) == "table" then
       if m.cmd == "pause" then st.paused = true save()
       elseif m.cmd == "resume" then st.paused = false save()
-      elseif m.cmd == "home" then ui.homeNow = true end
+      elseif m.cmd == "home" then ui.homeNow = true
+      elseif m.cmd == "update" then ui.updateNow, ui.homeNow = true, true end
       if m.cmd then ui.draw() end
       local spots = 0
       for _ in pairs(st.spots) do spots = spots + 1 end
