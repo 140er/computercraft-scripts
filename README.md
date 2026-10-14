@@ -3,6 +3,8 @@
 ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
+- **Sorter & Smelter** (`sorter.lua`): a turtle (or computer) on a wired network of chests and furnaces. It empties the miners' chests, smelts the raw ores in all your furnaces and blast furnaces, keeps them fuelled and sorts everything into storage. See [Sorter & Smelter](#sorter--smelter).
+- **Storage Room** (`roomsorter.lua`): no modems or cables. A turtle in a closed room maps the room, builds its own chests and furnaces, sorts and smelts what you put in the input chest, remembers where everything is and brings you items in the output chest. See [Storage Room](#storage-room).
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
 
 ---
@@ -159,6 +161,220 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 - A broken file is rejected. A turtle running a version older than hub updates needs one manual copy.
 - To update the hub itself: drag `hub.lua` onto it and reboot it.
 - Anyone on the server with a computer and modem could pretend to be the hub; on a server with strangers that is a risk.
+
+---
+
+## Sorter & Smelter
+
+`sorter.lua` runs on a turtle or a computer. It doesn't move: everything goes through **wired modems**, so one sorter handles any number of chests and furnaces.
+
+```
+ [input chests] --> furnaces / blast furnaces --> [storage chests]
+        \________________ everything else ______________/
+             [fuel chest] --> furnaces        [pickup chest] <-- get
+```
+
+### Building it
+1. Place the turtle/computer and put a **wired modem** (the full block, or the small one on a block) against it.
+2. Put a wired modem on every chest and furnace you want to use and connect them all with **networking cable**.
+3. **Right-click every modem** so it turns red (connected). The chat says e.g. `Peripheral "minecraft:chest_3" connected`.
+4. Optional: a monitor on the network (or next to it) shows the status screen.
+
+Smokers are ignored. Furnaces and blast furnaces are found by themselves; only the chests need a role.
+
+### Chest roles (`sorter setup`)
+Setup walks past every chest on the network and shows what's in it (put a marker item in a chest to recognise it), then asks for its role:
+
+| Role | What it does |
+|---|---|
+| **input** | Emptied all the time. Put the miners' home chests here (wired modem on each) and the loot sorts itself. Anything you throw in gets sorted too. |
+| **fuel** | Fuel for the furnaces: coal, charcoal, coal blocks, dried kelp blocks, lava buckets. Coal from the inputs ends up here first. |
+| **storage** | Where everything goes. Give it a category to keep things apart: `any`, `ores`, `ingots`, `gems`, `fuel` or `misc`. |
+| **overflow** | Used when the storage chests are full. |
+| **pickup** | Where `get` puts the items you ask for. |
+| **ignore** | Not touched. |
+
+An item goes to: a chest of its category that already holds it → another chest of its category → an `any` chest that holds it → another `any` chest → overflow. If nothing has room, the screen shows **FULL** and the items stay in the input chests.
+
+### Smelting
+- **Smelted:** raw ores (`raw_iron`, `raw_gold`, `raw_copper`, modded `raw_*`), ore blocks (`*_ore`, from silk touch) and ancient debris. Raw ore *blocks* are stored as they are (they can't be smelted).
+- Ores go to the furnace with the shortest queue, 8 at a time, at most 32 waiting per furnace. Blast furnaces (twice as fast) are filled first.
+- If all furnaces are busy, the ores go to storage and are taken out again when a furnace has room. So raw ore never stays in storage.
+- **Fuel:** each furnace gets just enough for what is waiting in it (coal = 8 items, 4 in a blast furnace). It doesn't put a coal block in for 5 ores unless there is nothing else. Empty buckets from lava come back out and get stored. With `useStorageFuel` it also burns coal from storage when the fuel chest is empty.
+- XP: furnaces that are emptied by the sorter keep their XP. Break a furnace (or take out a result by hand) to get it.
+
+### Mine Army chests as input
+- The miners need their **buckets and lava buckets**, so those are always left in the input chests. Everything else is taken, also coal (the miners also refuel with lava they scoop up).
+- Want a stack of coal to stay for the miners? Add `["minecraft:coal"] = 64` to `leave` in `sorter.cfg`.
+
+### Status screen
+```
+SORTER & SMELTER                   12:00
+---------------------------------------
+Furnaces 3, busy 3           to smelt 30
+Fuel chest: 40 items
+Storage 7/54 slots                   12%
+Smelted 8 Iron ingot
+
+SMELTED                         77 in 3m
+ Iron ingot                           72
+ Gold ingot                            3
+
+FURNACES
+ blast_0 32 Raw copper        8 charcoal
+ furnace_0 32 Raw iron            2 coal
+```
+- Red **NO FUEL!**: a furnace has ores but no fuel and the fuel chest is empty.
+- Orange **new chest(s)**: a chest was added to the network: run `sorter setup` to give it a role (until then it's left alone).
+
+### Commands
+Type at the `>` line at the bottom of the turtle's screen:
+
+| Command | What |
+|---|---|
+| `get iron ingot 32` | put 32 iron ingots in the pickup chest (default 64) |
+| `find diamond` | how many are in storage |
+| `pause` / `resume` | stop / start moving items |
+| `quit` | stop the program |
+
+| Where | Command | What |
+|---|---|---|
+| sorter | `sorter setup` | give the chests a role (run again after adding chests) |
+| sorter | `sorter list` | show all chests and furnaces with their role |
+| sorter | `sorter install`, `sorter` | autostart, run |
+
+### Settings (`sorter.cfg`)
+- `interval` (3): seconds between rounds when there is nothing to do.
+- `queue` (32): max items waiting in one furnace.
+- `extraSmelt`: more things to smelt in normal furnaces, e.g. `{ "minecraft:oak_log", "minecraft:sand", "minecraft:cobblestone" }` for charcoal, glass and stone.
+- `noSmelt`: ores to store raw, e.g. `{ "minecraft:raw_copper" }`.
+- `leave`: what stays in the input chests and how many.
+- `fuels`: fuel order, most preferred first.
+- `useStorageFuel` (true): also burn coal from storage.
+- Smelted totals are in `sorter.stats`, errors in `sorter.log`.
+
+---
+
+## Storage Room
+
+`roomsorter.lua`: the no-cables version. One turtle in a closed room does it all: it maps the room, places the chests and furnaces you give it, sorts and smelts, and **remembers which chest holds what**. It also checks each chest's contents every time it visits it, so its memory stays right.
+
+### What you need
+- A **closed room** with a flat floor and ceiling (any size and floor shape) with an **input chest** and an **output chest** built into the walls, so you can reach them from outside. At least 3 blocks high if you want furnaces.
+- A plain turtle (no tool needed). A wireless modem on it is optional (for asking from outside, see below).
+- Some coal in the turtle for the first scan.
+
+### Setup
+1. Put the turtle **on the floor, facing the input chest**, with some coal in it.
+2. `roomsorter scan 4` (4 = how many blocks high the inside of the room is). The turtle drives over the floor once and looks at the walls; the walls are taken to go straight up to the ceiling (a 16x16 room takes ~5 minutes). If the room has a hole at floor height, it says so and comes back.
+   - Leave the number out (`roomsorter scan`) and it flies up once from its start spot to measure the height.
+   - Best: both chests at floor height. If the output chest is higher up the wall, it also checks the walls above the floor (takes a bit longer).
+   - More than one other chest in the walls? Put 1 item in the output chest (only there) and scan again.
+3. `roomsorter install`, then `roomsorter`.
+4. Put **chests or barrels**, **furnaces / blast furnaces** and **coal** in the input chest. The turtle builds with them.
+
+### How it builds
+Seen from above (input chest `I` at the top, turtle `T` on its start spot):
+```
+ ####I####       floor                upper layer (above the road)
+ #...T...#   <- row 0: stays free     #.......#
+ #.BFFFB.#   <- row 1: furnaces       #.CCCCC.#  <- their helper chests
+ #CCCCCCC#   <- row 2: storage        #CCCCCCC#
+ #CCCCCCC#   <- row 3                 #CCCCCCC#
+ #CCCC...#   <- fills left to right   #CCC....#
+```
+- The layer 1 block above the floor stays free as the turtle's road. Chests go on the floor and in the layer above the road (in tall rooms this repeats every 3 blocks up).
+- **Furnace row:** the row right in front of the start spot, centred on the turtle, a helper chest straight above each furnace. The turtle drops ores in from above and moves fuel and results through the helper chest. Up to 16 furnaces (`maxFurnaces`), or as many as fit in the row.
+- **Storage:** the rows behind it, one row at a time, left to right. Spots outside this pattern (the upper layer over the way in, the ends of the furnace row) are only used when the rest is full.
+- **Everything you give it is built right away:** every furnace (with a chest for its helper) and every chest or barrel. Spares are stored and built as soon as there is a spot.
+- Chests in one row all face the same way and the next row the other way, so they never join into double chests. Barrels work too.
+- It never blocks a spot it needs to get somewhere, and it keeps the blocks next to its start spot and the wall chests free.
+
+### Sorting and smelting
+- Each kind of item gets its own chest: first a chest that already has it, then an empty chest, then a new chest it places, and only when all of that is full, any free slot.
+- Raw ores, ore blocks and ancient debris are smelted (blast furnaces first), the valuable ones first: ancient debris, gold, iron, other (modded) ores, copper last.
+- **Food is cooked** too: raw beef, porkchop, chicken, mutton, rabbit, cod, salmon, potatoes and kelp. Give it **smokers** (like furnaces) and food goes there first (twice as fast); normal furnaces cook it too, blast furnaces never get food and smokers never get ore. `cook = false` in `room.cfg` turns it off. Fuel: charcoal, coal, coal blocks, dried kelp blocks, from storage. The turtle also refuels itself from them.
+- Out of room and out of chests: the screen shows **FULL**, and new items stay in the input chest.
+
+### Getting items out
+Type on the turtle (walk into the room and right-click it), or ask from outside with a computer (below):
+
+| Command | What |
+|---|---|
+| `get iron ingot 32` | brings 32 iron ingots to the output chest (default: 1 stack) |
+| `find diamond` | how many there are |
+| `list` | everything in storage |
+| `build` | shows how many chests/furnaces are built and how much room is left, and builds any that aren't yet (it normally does that by itself) |
+| `pause` / `resume` / `quit` | on the turtle only |
+
+**Order screen (buttons):** on an advanced (gold) computer `roomsorter client` shows tiles with little icons instead of a prompt. Ordering and crafting are one screen:
+- the home screen has **Frequent** (what you order most), a tile per category (Fuel, Ores, Ingots, Gems, Wood, Blocks, Food, Mob drops, Tools, Other) and **All items**,
+- a category shows what's in storage (yellow count) **and what the turtle can craft** (purple `+N`, even when there's none in storage). The craftable count includes parts it can make first (logs -> planks -> sticks -> torches),
+- click an item and pick an amount: green buttons come from storage, purple ones need crafting. **Not enough in storage? It takes what's there and crafts the rest**, all to the pickup chest. "All stored", "Max" and "Other amount..." too,
+- "Type it myself" / "Not listed? Type it" works the same way (`iron ingot 32`),
+- the blue bar shows **Status:** what the turtle is busy with, updated every 5 seconds,
+- Backspace = back. `roomsorter client text` gives the old typing prompt (`order torch 32` there does the same).
+
+**Order screen on a monitor:** put an **advanced monitor** (e.g. 2x2) next to the request computer. `roomsorter client` then shows the order screen on the monitor (tap it) and the computer's own screen becomes a command prompt (right-click the computer and type `get iron ingot 32`, `order torch 16`, `craft chest 2`, `find coal`, `list`, `recipes`, `status`, `build`, `pause`, `learn`, `resume`, `blocked`, `unblock`). On the monitor any amount is picked with -16 / -1 / +1 / +16 and Order.
+
+**Orders first:** an order is handled before anything else. The turtle checks for orders between every step of what it's doing (taking from the drop-off chest, building each chest, each furnace, storing), so it doesn't finish a long job first.
+
+**From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
+
+**No wireless modem for the request computer?** Connect it to the board computer with a cable: a wired modem on each of the two computers, networking cable between them, right-click both modems so they turn red. The board computer (which has a wireless modem) then passes your requests on to the turtle and the answers back; it does that by itself when it sees the wired modem (its own screen says "Passing requests from the cable on to the turtle"). Run `roomsorter client` on the request computer as usual; it says "Connected through the board computer".
+
+### Stock board (monitor outside the room)
+A stock-exchange style screen of what's in storage, on a computer with a **wireless modem** and a **monitor** next to it. The turtle needs a wireless modem too.
+
+1. Copy `roomsorter.lua` onto the computer.
+2. `roomsorter install board`, then reboot (or run `roomsorter board`).
+
+```
+ ROOM EXCHANGE                                                     LIVE  14:32
+ 3,790 items  51 kinds  7 chests 19% full  3 furnaces  Smelting
+ITEM                                             QTY   CHG 1H       %   LAST IN
+ ♦ TOP: valuable & most ordered
+Netherite scrap                                    2      ▲+2      new    1m ago
+Cobblestone                                      128        =     0.0%        -
+Diamond                                           33     ▲+20  +153.8%    1m ago
+ RECENTLY ADDED
+Iron ingot                                       668    ▲+480  +255.3%       now
+ IRON INGOT 668 ▲+480  • DIAMOND 33 ▲+20  • COBBLESTONE 128 =  • ...
+```
+- **TOP** (always on top): the valuable items (netherite, diamonds, emeralds, gold, iron, ...) and the items you order most, taking turns.
+- Below that, every 10 seconds it switches between **RECENTLY ADDED** (what came in last) and **MOST IN STOCK**.
+- **QTY** how many are in storage, **CHG 1H** and **%** how much that changed in the last hour, **LAST IN** when that item last came in ("now", "5m ago").
+- A number that just changed lights up for a few seconds. The bottom line is a scrolling ticker tape of everything.
+- Any size of monitor works; wide monitors get two columns. A **normal (grey) monitor** shows it in greyscale with ▲/▼; an **advanced (gold) monitor** shows rises in green and drops in red.
+- The turtle sends its stock every 10 seconds and right after something changes. `LIVE` turns into a blinking `NO SIGNAL` after a minute without news. History is kept in `board.hist`, so a reboot keeps the trends.
+
+### Crafting
+Give the turtle a **crafting table**: put one in the drop-off chest and it equips it on its free side (next to the wireless modem). Then it can craft:
+- On the **order screen** craftable items simply show up in their category with a purple `+N`; ordering more than there is in storage crafts the rest.
+- Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
+- **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
+- **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
+- **Teach it anything else** (also modded recipes): on the turtle (or the request computer) type `pause`, wait until it says Paused (its inventory is empty then), put **one** set of the recipe in its 3x3 grid (the left 3 columns of the top 3 rows), type `learn`, then `resume`. Learned recipes are in `room.recipes`.
+- How it crafts: it empties itself, takes the ingredients straight into the grid slots, crafts as much as fits in its inventory at once and repeats.
+
+### Things in the way (cables, ...)
+- Something in the turtle's way (a cable through the room, a block, or it simply can't move there 5 times in a row) is saved in its map **for good**, and it goes around it.
+- Chests it can't reach anymore are left out (their items don't show in `list` either); the screen says how many and where it's blocked. It never places a chest that would cut it off from a spot it can reach now.
+- `blocked` lists the blocked spots (and what is there) and the chests that are cut off with what's in them. Spots are counted from the turtle's start: x = blocks to the right, y = up (0 = floor), z = rows back from the drop-off wall.
+- `unblock` forgets all blocked spots (`unblock x,y,z` just one), e.g. when it marked a spot because you stood in its way. If something is really there, it notices again.
+- `resync` counts everything again: it looks at every blocked spot once more (free again? then it's cleared), opens cut-off chests from another side where it can, reads every chest it can reach and forgets chests that were broken by hand. Use it when the numbers look wrong. The order screen says when chests are cut off (their items are missing from the lists).
+- Best: run cables outside the room or under the floor. A cable through the road layer can cut off part of the room once the rows next to it are full.
+
+### Moving the pickup chest
+Moved the pickup chest a bit (up to 3 blocks down, 2 up, 2 sideways, also down into a hole)? Just order something: when the chest isn't where it was, the turtle feels around the old spot (open spots like a hole or the old chest spot become part of its map, so it can go in there), finds the chest and uses the new spot from then on. Or type `pickup` (turtle or request computer) to make it look right away. You may leave the old spot open (e.g. chest moved 1 down, turtle reaches it from the old spot); just make sure the room stays closed to the outside.
+
+### Restarts
+- Position and heading are saved before every move and turn. After a restart it looks around, compares that with its map and carries on.
+- Picked it up? Put it back on its start spot facing the input chest and type `roomsorter home`, then `roomsorter`.
+- Changed the room (moved a wall)? `roomsorter scan force` maps it again, but it forgets what is where, so empty the chests it built first.
+
+### Settings (`room.cfg`)
+`maxFurnaces` (16), `queue` (32 items per furnace), `interval` (5 s between looks in the input chest), `minFuel` (1000), `extraSmelt` (e.g. `{ "minecraft:oak_log" }` for charcoal), `noSmelt`, `fuels`, `maxSize` / `maxHeight` / `maxCells` (how big a room may be). The map is in `room.map`, what is where in `room.idx`, errors in `room.log`.
 
 ---
 
