@@ -208,6 +208,8 @@ A turtle you talk to. A language model reads what you say and decides what to do
 3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.
 4. `buddy` and type away: "look around", "go 5 forward and drop the cobble in the chest", "what have you got on you?", "come home".
 
+**Places and memory:** walk it to a spot and say "remember this as the sorter drop chest" (stand it so the chest is in front of, above or below it). From then on "go to the sorter drop" works, and so does "move everything from the miner chest to the sorter drop": it walks back and forth until the chest is empty. It walks between places along routes it has driven before, so it never needs to dig. Tell it facts too ("remember that the miner chests are north of home"). Places and notes live in `buddy.memory` and survive restarts. `set_home` and `buddy setup` forget the places, because they are stored as routes from home.
+
 **Your own server, two things to check:**
 - **Answers are streamed**, so a slow model doesn't hit ComputerCraft's 60 second limit as long as it keeps producing text. Thinking is switched off by default (`buddy think on` to allow it).
 - **Tool calling must be on.** vLLM: start it with `--enable-auto-tool-choice --tool-call-parser <parser for your model>` (the GLM parser for GLM). If Buddy only talks and never moves, this is why.

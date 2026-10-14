@@ -25,6 +25,7 @@
 -- equipped on the turtle, so you can talk to it in Minecraft chat ("buddy, come here").
 
 local CFG_FILE, STATE_FILE, KEY_FILE = "buddy.cfg", "buddy.state", "api.key"
+local MEMORY_FILE = "buddy.memory"  -- remembered places and notes
 local GROK = "https://api.x.ai/v1/"
 
 local MAX_STEPS = 16     -- blocks per move command
@@ -78,6 +79,17 @@ do
   if type(saved) == "table" and saved.path and #saved.path > 0 then state = saved end
 end
 local function saveState() writeFile(STATE_FILE, textutils.serialize(state)) end
+
+-- places[name] = { path = path from home, facing = ..., note = ... }; notes = things to remember
+local memory = { places = {}, notes = {} }
+do
+  local saved = textutils.unserialize(readFile(MEMORY_FILE) or "")
+  if type(saved) == "table" then
+    memory.places = saved.places or {}
+    memory.notes = saved.notes or {}
+  end
+end
+local function saveMemory() writeFile(MEMORY_FILE, textutils.serialize(memory)) end
 local function pos() return state.path[#state.path] end
 
 -- ---------------------------------------------------------------- text helpers
@@ -172,28 +184,42 @@ local function where()
   return at .. ", facing " .. FACING_NAME[state.facing]
 end
 
-local function goHome()
-  while #state.path > 1 do
-    local p, t = pos(), state.path[#state.path - 1]
-    local ok, why
-    if t.y > p.y then ok, why = step("up")
-    elseif t.y < p.y then ok, why = step("down")
-    else
-      local f
-      for i = 0, 3 do if DX[i] == t.x - p.x and DZ[i] == t.z - p.z then f = i end end
-      if not f then return false, "lost track of the way home, put me back by hand and run: buddy home" end
-      if f == (state.facing + 2) % 4 and turtle.back() then
-        arrive(t); ok = true
-      else
-        face(f)
-        ok, why = step("forward")
-      end
-    end
-    if not ok then return false, "stuck on the way home (" .. why .. "), " .. where() end
+local function samePos(a, b) return a.x == b.x and a.y == b.y and a.z == b.z end
+
+-- One step to the neighbouring block t
+local function stepTo(t)
+  local p = pos()
+  if t.y > p.y then return step("up") end
+  if t.y < p.y then return step("down") end
+  local f
+  for i = 0, 3 do if DX[i] == t.x - p.x and DZ[i] == t.z - p.z then f = i end end
+  if not f then return false, "lost track of the way, put me back home by hand and run: buddy home" end
+  if f == (state.facing + 2) % 4 and turtle.back() then
+    arrive({ x = t.x, y = t.y, z = t.z })
+    return true
   end
-  face(0)
-  return true, "home"
+  face(f)
+  return step("forward")
 end
+
+-- Walk to a spot given by its path from home: back along the current path to
+-- where the two paths split, then out along the target path. Only known-clear blocks.
+local function goTo(target, facing, label)
+  local k = 1
+  while k < #state.path and k < #target and samePos(state.path[k + 1], target[k + 1]) do k = k + 1 end
+  while #state.path > k do
+    local ok, why = stepTo(state.path[#state.path - 1])
+    if not ok then return false, "stuck on the way to " .. label .. " (" .. why .. "), " .. where() end
+  end
+  for i = k + 1, #target do
+    local ok, why = stepTo(target[i])
+    if not ok then return false, "stuck on the way to " .. label .. " (" .. why .. "), " .. where() end
+  end
+  face(facing or 0)
+  return true, "arrived at " .. label
+end
+
+local function goHome() return goTo({ { x = 0, y = 0, z = 0 } }, 0, "home") end
 
 -- ---------------------------------------------------------------- inventory
 
@@ -316,17 +342,28 @@ tool("drop", "Drop items: into a chest/container on that side, or on the ground.
   return "dropped " .. dropped .. " items"
 end)
 
+local function itemTotal()
+  local n = 0
+  for s = 1, 16 do n = n + turtle.getItemCount(s) end
+  return n
+end
+
 tool("pick_up", "Take items from a chest/container on that side, or pick up items lying there.", {
   side = SIDE(),
-  count = { type = "integer", description = "max items, leave out for a full stack" },
+  count = { type = "integer", description = "max items; leave out to take as much as you can carry" },
 }, { "side" }, function(a)
-  local before = 0
-  for s = 1, 16 do before = before + turtle.getItemCount(s) end
-  local n = tonumber(a.count)
-  local ok = SIDE_FN.suck[a.side](n and math.max(1, math.min(64, n)) or nil)
-  local after = 0
-  for s = 1, 16 do after = after + turtle.getItemCount(s) end
-  return ok and ("picked up " .. (after - before) .. " items") or "nothing to pick up there"
+  local want = tonumber(a.count)
+  local before = itemTotal()
+  turtle.select(1)
+  while true do
+    local got = itemTotal() - before
+    if want and got >= want then break end
+    if not SIDE_FN.suck[a.side](want and math.max(1, math.min(64, want - got)) or nil) then break end
+  end
+  local got = itemTotal() - before
+  if got == 0 then return "nothing to pick up there (or my inventory is full)" end
+  local full = #findSlots() == 16
+  return "picked up " .. got .. " items" .. (full and ", my inventory is full now" or "")
 end)
 
 tool("refuel", "Burn fuel items you carry (coal, charcoal, planks, lava bucket, ...).", {
@@ -350,10 +387,71 @@ tool("go_home", "Walk back home along the way you came.", nil, nil, function()
   return msg
 end)
 
-tool("set_home", "Make the spot where you are now (and your current facing) your new home.", nil, nil, function()
+tool("set_home", "Make the spot where you are now (and your current facing) your new home. "
+  .. "This forgets all remembered places, because they are stored as routes from home.", nil, nil, function()
   state = { facing = 0, path = { { x = 0, y = 0, z = 0 } } }
   saveState()
-  return "this is home now"
+  memory.places = {}
+  saveMemory()
+  return "this is home now (places forgotten)"
+end)
+
+tool("remember_place", "Remember the spot where you are now, and the way you face, under a name "
+  .. "(e.g. 'sorter drop chest'). Stand so the thing it is about is in front of, above or below you.", {
+  name = { type = "string" },
+  note = { type = "string", description = "optional, e.g. 'chest is below me'" },
+}, { "name" }, function(a)
+  local name = ascii(a.name):lower()
+  if name == "" then return "a place needs a name" end
+  local path = {}
+  for i, p in ipairs(state.path) do path[i] = { x = p.x, y = p.y, z = p.z } end
+  memory.places[name] = { path = path, facing = state.facing, note = a.note and ascii(a.note) or nil }
+  saveMemory()
+  return "remembered '" .. name .. "' (" .. where() .. ")"
+end)
+
+tool("go_to", "Walk to a remembered place (or 'home') along routes you have walked before, "
+  .. "and face the way you faced when you remembered it.", {
+  place = { type = "string" },
+}, { "place" }, function(a)
+  local name = ascii(a.place):lower()
+  if name == "home" then local _, msg = goHome() return msg end
+  local spot = memory.places[name]
+  if not spot then
+    for n, p in pairs(memory.places) do if n:find(name, 1, true) then name, spot = n, p break end end
+  end
+  if not spot then return "I don't know a place called '" .. a.place .. "'" end
+  local _, msg = goTo(spot.path, spot.facing, name)
+  return msg .. (spot.note and (". Note: " .. spot.note) or "")
+end)
+
+tool("forget_place", "Forget a remembered place.", { name = { type = "string" } }, { "name" }, function(a)
+  local name = ascii(a.name):lower()
+  if not memory.places[name] then return "no place called '" .. name .. "'" end
+  memory.places[name] = nil
+  saveMemory()
+  return "forgot '" .. name .. "'"
+end)
+
+tool("remember", "Write down something to remember for later (stays after a restart), "
+  .. "e.g. 'the miner chests are the 4 chests north of home'.", {
+  note = { type = "string" },
+}, { "note" }, function(a)
+  local note = ascii(a.note)
+  if note == "" then return "nothing to remember" end
+  table.insert(memory.notes, note)
+  while #memory.notes > 40 do table.remove(memory.notes, 1) end
+  saveMemory()
+  return "noted"
+end)
+
+tool("forget", "Forget notes that contain this text.", { text = { type = "string" } }, { "text" }, function(a)
+  local text, gone = ascii(a.text):lower(), 0
+  for i = #memory.notes, 1, -1 do
+    if memory.notes[i]:lower():find(text, 1, true) then table.remove(memory.notes, i); gone = gone + 1 end
+  end
+  saveMemory()
+  return "forgot " .. gone .. " note(s)"
 end)
 
 if turtle.craft then
@@ -492,6 +590,17 @@ local function stripThinking(s)
   return (s:gsub("^.*</think>", ""))
 end
 
+local function placeList()
+  local names = {}
+  for name, p in pairs(memory.places) do names[#names + 1] = name .. (p.note and (" (" .. p.note .. ")") or "") end
+  table.sort(names)
+  return #names == 0 and "none yet" or table.concat(names, "; ")
+end
+
+local function noteList()
+  return #memory.notes == 0 and "none" or ("\n- " .. table.concat(memory.notes, "\n- "))
+end
+
 local function systemPrompt(who)
   return ("You are %s, a small robot (a ComputerCraft turtle) who lives in %s's Minecraft base as a companion. "
     .. "You chat with them and do small jobs around the base with your tools. %s\n"
@@ -503,10 +612,16 @@ local function systemPrompt(who)
     .. "- Directions are your own: forward, back, left, right, up, down. You cannot see the player; "
     .. "if they say 'come here', ask where they are relative to you. Use look when unsure what is around you.\n"
     .. "- You stay within %d blocks of home. go_home walks back the way you came.\n"
+    .. "- When the player shows you a spot (a chest, a machine, a door), remember it with remember_place, "
+    .. "and later use go_to to get there. Use remember for other facts worth keeping.\n"
+    .. "- Moving items between chests: go_to the first, pick_up, go_to the second, drop. "
+    .. "Repeat until the first is empty if your inventory filled up.\n"
     .. "- After doing something, say briefly what you did or what went wrong.\n"
+    .. "Places you know: %s\n"
+    .. "Notes: %s\n"
     .. "Right now: Minecraft time %s on day %d, fuel %s, %s.")
     :format(cfg.name, who or "the player", cfg.personality, cfg.range,
-      textutils.formatTime(os.time(), true), os.day(), fuelText(), where())
+      placeList(), noteList(), textutils.formatTime(os.time(), true), os.day(), fuelText(), where())
 end
 
 local history = {}
@@ -585,6 +700,8 @@ elseif cmd == "setup" then
   saveCfg()
   state = { facing = 0, path = { { x = 0, y = 0, z = 0 } } }
   saveState()
+  memory.places = {} -- they were routes from the old home
+  saveMemory()
   writeFile("startup.lua", 'shell.run("buddy")\n')
   print(cfg.name .. " is set up and this spot is home. It starts by itself from now on.")
   if usesGrok() and not apiKey() then print("Still needed: buddy server <your model server>, or buddy key <xAI key> for Grok") end
