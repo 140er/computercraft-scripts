@@ -4,7 +4,7 @@ ComputerCraft (CC: Tweaked) turtle scripts.
 
 - **Mine Army** (`hub.lua`, `miner.lua`, optional `relay.lua`): a hub with a dashboard in your base and a fleet of mining turtles. Each turtle goes down its own shaft to the ore level you pick, mines branch tunnels there and comes back to unload and refuel.
 - `smartmine.lua`: the old standalone tunnel miner (no hub). Still works.
-- **Buddy** (`buddy.lua`): a companion turtle you can chat with, powered by xAI's Grok. It does small jobs around your base. See [Buddy](#buddy-companion-turtle) at the bottom.
+- **Buddy** (`buddy.lua`): a companion turtle you can chat with, powered by your own model server (or xAI's Grok). It does small jobs around your base. See [Buddy](#buddy-companion-turtle) at the bottom.
 
 ---
 
@@ -197,21 +197,34 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 
 ## Buddy (companion turtle)
 
-A turtle you talk to. Grok (xAI) reads what you say and decides what to do with the turtle's tools: move, turn, look around, pick up or drop items, place or break a block, refuel, craft (crafty turtle), and walk back home. It is a companion, not a worker: it turns down big jobs like mining and leaves those to the Mine Army.
+A turtle you talk to. A language model reads what you say and decides what to do with the turtle's tools: move, turn, look around, pick up or drop items, place or break a block, refuel, craft (crafty turtle), and walk back home. It is a companion, not a worker: it turns down big jobs like mining and leaves those to the Mine Army.
 
-**You need:** an xAI API key from [console.x.ai](https://console.x.ai) (paid per use, a chat costs a fraction of a cent), `http` enabled in the CC config, and any turtle. A pickaxe only if you want it to break blocks.
+**The brain** is any OpenAI-style chat API with tool calling: your own server (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok. The requests come from the Minecraft server, so the model server must be reachable from there (Tailscale is fine).
 
 1. Copy `buddy.lua` onto the turtle (drag it onto the screen, or `wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/buddy.lua buddy.lua`).
-2. `buddy key <your key>`: saves the key in `grok.key` on the turtle. It never goes into this repo.
+2. Point it at your model server(s): `buddy server http://spark1:8000 http://spark2:8000`. Give one or more; when the first can't be reached it uses the next. A bare `host:port` works too. It picks the first model the server offers (`buddy models` lists them, `buddy model <id>` picks one).
+   - Grok instead: `buddy server grok`, then `buddy key <xAI key>` (from [console.x.ai](https://console.x.ai), paid per use).
+   - Server needs a key? `buddy key <key>` saves it in `api.key` on the turtle. It never goes into this repo.
 3. Put the turtle on its home spot, facing the way you like, then `buddy setup [name]` (default name Buddy). It writes a `startup.lua`, so it starts by itself.
 4. `buddy` and type away: "look around", "go 5 forward and drop the cobble in the chest", "what have you got on you?", "come home".
+
+**Your own server, two things to check:**
+- **Tool calling must be on.** vLLM: start it with `--enable-auto-tool-choice --tool-call-parser <parser for your model>` (the GLM parser for GLM). If Buddy only talks and never moves, this is why.
+- **ComputerCraft blocks private and local addresses** by default. If Buddy says "Domain not permitted", allow your servers in `config/computercraft-server.toml` (world `serverconfig` folder on some setups) by adding this **above** the existing `$private` deny rule, then restart the server. `100.64.0.0/10` covers all Tailscale addresses.
+  ```toml
+  [[http.rules]]
+      host = "100.64.0.0/10"
+      action = "allow"
+  ```
 
 **Talking in game chat:** equip a **Chat Box** from Advanced Peripherals on the turtle and start your message with its name: `buddy, put a torch above you`. It answers in chat.
 
 | Command | |
 |---|---|
-| `buddy model <id>` | pick the Grok model (default `grok-4`) |
-| `buddy models` | list the models your key can use |
+| `buddy server <url> [url2 ...]` | use your own model server(s); `buddy server grok` for xAI |
+| `buddy model <id>` | pick the model (`auto` = the first one the server offers) |
+| `buddy models` | list the models the server offers |
+| `buddy key <key>` | save an API key on the turtle |
 | `buddy name <name>` | rename it (also its chat name) |
 | `buddy home` | after putting it back on its home spot by hand: reset its position |
 | `/reset`, `/quit` | while chatting: forget the conversation / stop |

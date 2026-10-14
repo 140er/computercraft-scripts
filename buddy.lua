@@ -1,29 +1,35 @@
--- buddy.lua - a Grok-powered companion turtle (CC: Tweaked)
+-- buddy.lua - an AI companion turtle (CC: Tweaked)
 --
 -- Chat with your turtle and let it do small jobs around your base: walk somewhere,
 -- look at blocks, pick up or drop items, place or break a block, come back home.
 -- It is not a miner: big jobs are left to the Mine Army.
 --
+-- The brain is any OpenAI-style chat API with tool calling: your own model server
+-- (vLLM, SGLang, Ollama, LM Studio, ...) or xAI's Grok.
+--
 -- One-time setup (see README):
---   buddy key <your xAI API key>   saves the key in grok.key on this turtle (never in the repo)
+--   buddy server <url> [url2 ...]  use your own model server(s), e.g. buddy server http://spark1:8000
+--                                  more than one: the next is used when the first can't be reached
+--   buddy server grok              use xAI's Grok instead (needs: buddy key <your xAI API key>)
+--   buddy key <key>                saves an API key in api.key on this turtle (never in the repo)
 --   buddy setup [name]             names the turtle, writes startup.lua, this spot = home
 -- Then:
 --   buddy                 start chatting (type at the turtle, or in game chat with a chat box)
---   buddy model <id>      pick the Grok model (default grok-4)
---   buddy models          list the models your key can use
+--   buddy model <id>      pick the model (auto = the first one the server offers)
+--   buddy models          list the models the server offers
 --   buddy home            after putting it back on its home spot by hand: reset position
 --
 -- While chatting: /reset forgets the conversation, /quit stops.
 -- Needs: http enabled in the CC config. Optional: a Chat Box (Advanced Peripherals)
 -- equipped on the turtle, so you can talk to it in Minecraft chat ("buddy, come here").
 
-local CFG_FILE, STATE_FILE, KEY_FILE = "buddy.cfg", "buddy.state", "grok.key"
-local API = "https://api.x.ai/v1/"
+local CFG_FILE, STATE_FILE, KEY_FILE = "buddy.cfg", "buddy.state", "api.key"
+local GROK = "https://api.x.ai/v1/"
 
 local MAX_ROUNDS = 10    -- tool-call rounds per message before it has to answer
 local MAX_STEPS = 16     -- blocks per move command
 local MAX_HISTORY = 30   -- messages kept in the conversation
-local TIMEOUT = 120      -- seconds to wait for Grok
+local TIMEOUT = 120      -- seconds to wait for an answer
 
 -- Blocks it refuses to break, whatever it is told
 local PROTECTED = { "chest", "barrel", "shulker", "computer", "turtle", "monitor", "modem",
@@ -47,7 +53,8 @@ end
 
 local cfg = {
   name = os.getComputerLabel() or "Buddy",
-  model = "grok-4",
+  servers = { GROK },   -- OpenAI-style API base URLs, tried in this order
+  model = "grok-4",     -- "auto" = the first model the server offers
   range = 32,          -- never further than this many blocks from home (any axis)
   personality = "Cheerful, a little cheeky, loves helping out.",
 }
@@ -212,7 +219,7 @@ local function fuelText()
   return f == "unlimited" and "unlimited" or tostring(f)
 end
 
--- ---------------------------------------------------------------- tools for Grok
+-- ---------------------------------------------------------------- tools for the model
 
 local SIDE = { type = "string", enum = { "front", "up", "down" }, description = "front = the block in front of you" }
 local SIDE_FN = {
@@ -365,26 +372,42 @@ local function runTool(name, argText)
   return tostring(result)
 end
 
--- ---------------------------------------------------------------- Grok API
+-- ---------------------------------------------------------------- model API
 
 local function apiKey()
   local key = readFile(KEY_FILE)
   return key and key:gsub("%s+", "") or nil
 end
 
-local function request(method, path, body)
-  local req = {
-    url = API .. path,
-    method = method,
-    body = body,
-    headers = { ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " .. apiKey() },
-    timeout = TIMEOUT,
-  }
+local function usesGrok()
+  for _, url in ipairs(cfg.servers) do if url == GROK then return true end end
+  return false
+end
+
+-- "spark1:8000" -> "http://spark1:8000/v1/"
+local function baseUrl(url)
+  if not url:find("^https?://") then url = "http://" .. url end
+  url = url:gsub("/+$", "")
+  if not url:find("/v1$") then url = url .. "/v1" end
+  return url .. "/"
+end
+
+local function requestOne(server, method, path, body)
+  local headers = { ["Content-Type"] = "application/json" }
+  local key = apiKey()
+  if key then headers["Authorization"] = "Bearer " .. key end
+  local req = { url = server .. path, method = method, body = body, headers = headers, timeout = TIMEOUT }
   local res, err, errRes
   if body then res, err, errRes = http.post(req) else res, err, errRes = http.get(req) end
   if not res then
-    local detail = errRes and errRes.readAll() or ""
-    if errRes then errRes.close() end
+    if not errRes then -- no answer at all: unreachable, blocked or timed out
+      if tostring(err):find("not permitted") then
+        err = err .. " (allow this address in the http rules of computercraft-server.toml, see README)"
+      end
+      return nil, ascii(err), true
+    end
+    local detail = errRes.readAll() or ""
+    errRes.close()
     local data = textutils.unserializeJSON(detail)
     if type(data) == "table" then detail = data.error and (data.error.message or data.error) or data.message or detail end
     return nil, ascii(tostring(err) .. " " .. tostring(detail)):sub(1, 300)
@@ -392,8 +415,42 @@ local function request(method, path, body)
   local text = res.readAll()
   res.close()
   local data = textutils.unserializeJSON(text)
-  if not data then return nil, "could not read Grok's answer" end
+  if not data then return nil, "could not read the server's answer" end
   return data
+end
+
+-- Tries the servers in order; one that answers moves to the front for next time
+local servers = {}
+for i, url in ipairs(cfg.servers) do servers[i] = url end
+
+local function request(method, path, body)
+  local errs = {}
+  for i, server in ipairs(servers) do
+    local data, err, unreachable = requestOne(server, method, path, body)
+    if data or not unreachable then
+      if data and i > 1 then table.insert(servers, 1, table.remove(servers, i)) end
+      return data, err
+    end
+    errs[#errs + 1] = server .. ": " .. err
+  end
+  return nil, table.concat(errs, "; ")
+end
+
+local model = cfg.model
+local function resolveModel()
+  if model ~= "auto" then return model end
+  local data, err = request("GET", "models")
+  if not data then return nil, err end
+  local first = data.data and data.data[1]
+  if not first then return nil, "the server offers no models" end
+  model = first.id
+  return model
+end
+
+-- Reasoning models may put their thinking in the answer
+local function stripThinking(s)
+  s = tostring(s or ""):gsub("<think>.-</think>", "")
+  return (s:gsub("^.*</think>", ""))
 end
 
 local function systemPrompt(who)
@@ -423,14 +480,17 @@ local function trimHistory()
   end
 end
 
--- Send one player message to Grok, run the tools it asks for, return its answer
+-- Send one player message to the model, run the tools it asks for, return its answer
 local function chat(text, who, onAction)
+  local useModel, err = resolveModel()
+  if not useModel then return nil, err end
   history[#history + 1] = { role = "user", content = ascii(text) }
   for _ = 1, MAX_ROUNDS do
     local messages = { { role = "system", content = systemPrompt(who) } }
     for _, m in ipairs(history) do messages[#messages + 1] = m end
-    local data, err = request("POST", "chat/completions", textutils.serializeJSON({
-      model = cfg.model, messages = messages, tools = tools,
+    local data
+    data, err = request("POST", "chat/completions", textutils.serializeJSON({
+      model = useModel, messages = messages, tools = tools,
     }))
     if not data then
       table.remove(history) -- forget the message so a retry starts clean
@@ -438,15 +498,15 @@ local function chat(text, who, onAction)
       return nil, err
     end
     local msg = data.choices and data.choices[1] and data.choices[1].message
-    if not msg then return nil, "empty answer from Grok" end
+    if not msg then return nil, "empty answer from the model" end
     local calls = msg.tool_calls
     if not calls or #calls == 0 then
-      local answer = ascii(msg.content)
+      local answer = ascii(stripThinking(msg.content))
       history[#history + 1] = { role = "assistant", content = answer }
       trimHistory()
       return answer
     end
-    history[#history + 1] = { role = "assistant", content = ascii(msg.content), tool_calls = calls }
+    history[#history + 1] = { role = "assistant", content = ascii(stripThinking(msg.content)), tool_calls = calls }
     for _, call in ipairs(calls) do
       local fn = call["function"] or {}
       if onAction then onAction(fn.name, fn.arguments) end
@@ -463,8 +523,20 @@ end
 local args = { ... }
 local cmd = args[1]
 
-if cmd == "key" then
-  if not args[2] then print("Usage: buddy key <your xAI API key>") return end
+if cmd == "server" then
+  if args[2] == "grok" then
+    cfg.servers, cfg.model = { GROK }, "grok-4"
+  elseif args[2] then
+    cfg.servers = {}
+    for i = 2, #args do cfg.servers[#cfg.servers + 1] = baseUrl(args[i]) end
+    cfg.model = "auto"
+  end
+  saveCfg()
+  for _, url in ipairs(cfg.servers) do print("Server: " .. url) end
+  print("Model: " .. cfg.model)
+  return
+elseif cmd == "key" then
+  if not args[2] then print("Usage: buddy key <API key>") return end
   writeFile(KEY_FILE, args[2])
   print("Key saved in " .. KEY_FILE .. ". Keep that file to yourself.")
   return
@@ -476,7 +548,7 @@ elseif cmd == "setup" then
   saveState()
   writeFile("startup.lua", 'shell.run("buddy")\n')
   print(cfg.name .. " is set up and this spot is home. It starts by itself from now on.")
-  if not apiKey() then print("Still needed: buddy key <your xAI API key>") end
+  if usesGrok() and not apiKey() then print("Still needed: buddy server <your model server>, or buddy key <xAI key> for Grok") end
   return
 elseif cmd == "home" then
   state = { facing = 0, path = { { x = 0, y = 0, z = 0 } } }
@@ -496,7 +568,11 @@ elseif cmd == "name" and args[2] then
 end
 
 if not http then print("http is disabled in the ComputerCraft config.") return end
-if not apiKey() then print("No API key yet. Get one at console.x.ai, then: buddy key <key>") return end
+if usesGrok() and not apiKey() then
+  print("No model server set. Your own: buddy server http://<host>:<port>")
+  print("Or Grok: get a key at console.x.ai, then buddy key <key>")
+  return
+end
 
 if cmd == "models" then
   local data, err = request("GET", "models")
@@ -521,7 +597,7 @@ local function handle(text, who, reply)
   end)
   busy = false
   if not ok then reply("Oops, something broke: " .. ascii(answer)) return end
-  if not answer then reply("I can't reach Grok right now: " .. err) return end
+  if not answer then reply("I can't think right now: " .. err) return end
   reply(answer)
 end
 
@@ -563,7 +639,7 @@ end
 
 term.clear()
 term.setCursorPos(1, 1)
-print(cfg.name .. " (Grok: " .. cfg.model .. ") - fuel " .. fuelText())
+print(cfg.name .. " (model: " .. cfg.model .. ") - fuel " .. fuelText())
 print(chatBox and ("Talk here, or in chat: \"" .. cfg.name .. ", ...\"") or "Talk to me here.")
 print("/reset forgets the chat, /quit stops.")
 parallel.waitForAny(terminalLoop, chatLoop)
