@@ -311,6 +311,10 @@ Type on the turtle (walk into the room and right-click it), or ask from outside 
 - the blue bar shows **Status:** what the turtle is busy with, updated every 5 seconds,
 - Backspace = back. `roomsorter client text` gives the old typing prompt (`order torch 32` there does the same).
 
+**Order screen on a monitor:** put an **advanced monitor** (e.g. 2x2) next to the request computer. `roomsorter client` then shows the order screen on the monitor (tap it) and the computer's own screen becomes a command prompt (right-click the computer and type `get iron ingot 32`, `order torch 16`, `craft chest 2`, `find coal`, `list`, `recipes`, `status`, `build`, `pause`, `learn`, `resume`, `blocked`, `unblock`). On the monitor any amount is picked with -16 / -1 / +1 / +16 and Order.
+
+**Orders first:** an order is handled before anything else. The turtle checks for orders between every step of what it's doing (taking from the drop-off chest, building each chest, each furnace, storing), so it doesn't finish a long job first.
+
 **From outside:** give the turtle a wireless modem (craft them together), and on any computer or pocket computer with a wireless modem run `roomsorter client`. Same commands. (`roomsorter install client` starts it on boot.)
 
 **No wireless modem for the request computer?** Connect it to the board computer with a cable: a wired modem on each of the two computers, networking cable between them, right-click both modems so they turn red. The board computer (which has a wireless modem) then passes your requests on to the turtle and the answers back; it does that by itself when it sees the wired modem (its own screen says "Passing requests from the cable on to the turtle"). Run `roomsorter client` on the request computer as usual; it says "Connected through the board computer".
@@ -346,7 +350,7 @@ Give the turtle a **crafting table**: put one in the drop-off chest and it equip
 - Or type `craft torch 32` (turtle prompt or `roomsorter client text`), `recipes` lists them.
 - **Parts first:** missing sticks, planks (from any log) etc. are crafted first, e.g. torches straight from logs + coal.
 - **Built in:** sticks, torches, planks, crafting tables, chests, furnaces, ladders, buckets, shears, hoppers, rails, compass, flint and steel, arrows, bread, paper, books, stone bricks, glass panes, iron/diamond tools, storage blocks (9 ingots -> block) and back, nuggets -> ingots.
-- **Teach it anything else** (also modded recipes): on the turtle type `pause`, wait until it says Paused (its inventory is empty then), put **one** set of the recipe in its 3x3 grid (the left 3 columns of the top 3 rows), type `learn`, then `resume`. Learned recipes are in `room.recipes`.
+- **Teach it anything else** (also modded recipes): on the turtle (or the request computer) type `pause`, wait until it says Paused (its inventory is empty then), put **one** set of the recipe in its 3x3 grid (the left 3 columns of the top 3 rows), type `learn`, then `resume`. Learned recipes are in `room.recipes`.
 - How it crafts: it empties itself, takes the ingredients straight into the grid slots, crafts as much as fits in its inventory at once and repeats.
 
 ### Things in the way (cables, ...)

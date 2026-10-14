@@ -96,24 +96,33 @@ if args[1] == "client" then
     proto = PROTOCOL .. "_relay"
     print("Connected through the board computer (#" .. id .. ").")
   end
-  -- Advanced computer: buttons (click with the mouse). "roomsorter client text" = typing only.
-  if term.isColor() and args[2] ~= "text" then
-    -- Ask the turtle; clicks that come in while waiting are kept for afterwards
-    local function ask(msg)
-      rednet.send(id, msg, proto)
-      local timer = os.startTimer(8)
-      local kept, reply = {}, nil
-      while true do
-        local e = table.pack(os.pullEvent())
-        if e[1] == "rednet_message" and e[2] == id and e[4] == proto then reply = e[3] break
-        elseif e[1] == "timer" and e[2] == timer then break
-        elseif e[1] == "mouse_click" or e[1] == "monitor_touch" or e[1] == "key" or e[1] == "char" then
-          kept[#kept + 1] = e
-        end
-      end
-      for _, e in ipairs(kept) do os.queueEvent(table.unpack(e, 1, e.n)) end
-      return reply
+  -- Ask the turtle. Each question gets a number, so two screens asking at once don't mix
+  -- up the answers. Events in 'keep' that come in meanwhile are handed back afterwards.
+  local function ask(msg, keep)
+    local rid = math.random(1, 1073741824)
+    msg.rid = rid
+    rednet.send(id, msg, proto)
+    local timer = os.startTimer(8)
+    local kept, reply = {}, nil
+    while true do
+      local e = table.pack(os.pullEvent())
+      if e[1] == "rednet_message" and e[2] == id and e[4] == proto
+        and (type(e[3]) ~= "table" or e[3].rid == nil or e[3].rid == rid) then
+        reply = e[3]
+        break
+      elseif e[1] == "timer" and e[2] == timer then break
+      elseif keep and keep[e[1]] then kept[#kept + 1] = e end
     end
+    for _, e in ipairs(kept) do os.queueEvent(table.unpack(e, 1, e.n)) end
+    return reply
+  end
+
+  -- The order screen with buttons, drawn on T: the computer's own screen, or an advanced
+  -- monitor (onMonitor: tapping only, the typing happens on the computer)
+  local function gui(T, onMonitor)
+    local monName = onMonitor and peripheral.getName(T)
+    local KEEP = onMonitor and { monitor_touch = true } or { mouse_click = true, key = true, char = true }
+    local function askG(msg) return ask(msg, KEEP) end
     local function num(n)
       local s = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
       return s
@@ -199,15 +208,15 @@ if args[1] == "client" then
           txt = txt .. string.char(128 + bits)
           fg, bgs = fg .. fore, bgs .. back
         end
-        term.setCursorPos(x, y + row)
-        term.blit(txt, fg, bgs)
+        T.setCursorPos(x, y + row)
+        T.blit(txt, fg, bgs)
       end
     end
 
     local stock, stockOk, turtleState, canCraft = {}, false, "?", false
     local recipes, orders = {}, {}
     local function refresh()
-      local r = ask({ cmd = "stock" })
+      local r = askG({ cmd = "stock" })
       if type(r) == "table" and type(r.totals) == "table" then
         stock, stockOk, turtleState, canCraft = r.totals, true, r.state or "?", r.crafty
         recipes = type(r.recipes) == "table" and r.recipes or {}
@@ -242,18 +251,18 @@ if args[1] == "client" then
       return l
     end
 
-    local W, H = term.getSize()
+    local W, H = T.getSize()
     local buttons = {}
     local function clear()
-      term.setBackgroundColor(colors.black)
-      term.clear()
+      T.setBackgroundColor(colors.black)
+      T.clear()
       buttons = {}
     end
     local function text(x, y, s, fg, bg)
-      term.setCursorPos(x, y)
-      term.setTextColor(fg or colors.white)
-      term.setBackgroundColor(bg or colors.black)
-      term.write(s)
+      T.setCursorPos(x, y)
+      T.setTextColor(fg or colors.white)
+      T.setBackgroundColor(bg or colors.black)
+      T.write(s)
     end
     local function button(x, y, w, h, label, bg, fg, action)
       for yy = y, y + h - 1 do text(x, yy, (" "):rep(w), fg, bg) end
@@ -282,11 +291,12 @@ if args[1] == "client" then
       while true do
         local ev, a, b, c = os.pullEvent()
         if ev == "timer" and a == tick then return "tick" end
-        if ev == "mouse_click" or ev == "monitor_touch" then
+        local clicked = (onMonitor and ev == "monitor_touch" and a == monName) or (not onMonitor and ev == "mouse_click")
+        if clicked then
           for _, bt in ipairs(buttons) do
             if b >= bt.x1 and b <= bt.x2 and c >= bt.y1 and c <= bt.y2 then return bt.action end
           end
-        elseif ev == "key" and (a == keys.backspace) then
+        elseif ev == "key" and a == keys.backspace and not onMonitor then
           return "back"
         end
       end
@@ -314,9 +324,10 @@ if args[1] == "client" then
     end
 
     local screen, cat, page, item = "home", nil, 1, nil
+    local custom = 1 -- the amount picked with the arrows on a monitor
     local message = nil
     local function order(name, n)
-      local r = ask({ cmd = "order", text = name, n = n })
+      local r = askG({ cmd = "order", text = name, n = n })
       message = type(r) == "table" and r or { "No answer (out of range?)" }
     end
 
@@ -327,11 +338,11 @@ if args[1] == "client" then
       text(2, 4, "  iron ingot 32", colors.white)
       text(2, 5, "If there isn't enough it crafts the rest.", colors.lightGray)
       text(2, 6, "Enter on an empty line = back.", colors.lightGray)
-      term.setCursorPos(2, 8)
-      term.setTextColor(colors.yellow)
-      term.setBackgroundColor(colors.black)
+      T.setCursorPos(2, 8)
+      T.setTextColor(colors.yellow)
+      T.setBackgroundColor(colors.black)
       write("> ")
-      term.setTextColor(colors.white)
+      T.setTextColor(colors.white)
       local line = read()
       if not line or not line:find("%S") then return end
       local words = {}
@@ -358,10 +369,15 @@ if args[1] == "client" then
       tiles[#tiles + 1] = { icon = "All items", name = "All items", color = colors.white, empty = all == 0,
         sub = all .. " items", action = { "cat", "all" } }
       drawTiles(tiles)
-      if not canCraft then text(2, H - 1, "No crafting table on the turtle: only what's in storage.", colors.gray) end
-      button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
-      button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
-      button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
+      if not canCraft then text(2, H - 1, ("No crafting table: only what's in storage."):sub(1, W - 2), colors.gray) end
+      if onMonitor then
+        button(2, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
+        text(12, H, (W >= 45 and "Type commands on the computer" or "type on the computer"):sub(1, W - 12), colors.gray)
+      else
+        button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
+        button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
+        button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
+      end
     end
 
     local function drawCat()
@@ -402,8 +418,14 @@ if args[1] == "client" then
         text(8, H, page .. "/" .. pages, colors.white)
         button(14, H, 5, 1, ">", colors.lightGray, colors.black, "next")
       end
-      if canCraft then text(2, H - 1, "yellow = in storage, purple +N = can craft", colors.gray) end
-      button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "type")
+      if canCraft then
+        text(2, H - 1, (W >= 45 and "yellow = in storage, purple +N = can craft" or "yellow=stored  purple +N=craftable"):sub(1, W - 2), colors.gray)
+      end
+      if onMonitor then
+        text(W - 20, H, "not listed? type it", colors.gray)
+      else
+        button(W - 22, H, 22, 1, "Not listed? Type it", colors.yellow, colors.black, "type")
+      end
     end
 
     local function drawAmount()
@@ -415,8 +437,9 @@ if args[1] == "client" then
       text(6, 3, pretty(item.name), colors.white)
       text(6, 4, "In storage: " .. num(have), colors.yellow)
       if can > 0 then text(6 + #("In storage: " .. num(have)) + 3, 4, "can craft +" .. num(can), colors.magenta) end
-      text(2, 6, (can > 0 and "How many? Not enough stored: it crafts the rest." or "How many to the pickup chest?"):sub(1, W - 2),
-        colors.lightGray)
+      local q = can > 0 and (W >= 45 and "How many? Not enough stored: it crafts the rest." or "How many? Short: it crafts the rest.")
+        or "How many to the pickup chest?"
+      text(2, 6, q:sub(1, W - 2), colors.lightGray)
       local total = have + can
       local x, y = 2, 8
       for _, a in ipairs({ 1, 4, 8, 16, 32, 64 }) do
@@ -434,8 +457,23 @@ if args[1] == "client" then
       if can > 0 then
         button(x, y, 16, 1, "Max (" .. num(total) .. ")", colors.magenta, colors.black, { "order", total })
       end
-      button(2, y + 2, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
-      text(2, H, "green = from storage, purple = crafts some", colors.gray)
+      if onMonitor then
+        -- no keyboard here: pick any amount with the arrows
+        y = y + 2
+        local ok = (custom >= 1)
+        button(2, y, 5, 1, "-16", colors.lightGray, colors.black, { "step", -16 })
+        button(8, y, 4, 1, "-1", colors.lightGray, colors.black, { "step", -1 })
+        local c = num(custom)
+        text(13, y, (" "):rep(6), colors.white)
+        text(13 + math.floor((6 - #c) / 2), y, c, colors.white)
+        button(20, y, 4, 1, "+1", colors.lightGray, colors.black, { "step", 1 })
+        button(25, y, 5, 1, "+16", colors.lightGray, colors.black, { "step", 16 })
+        button(2, y + 2, 16, 1, "Order " .. c, ok and (custom <= have and colors.lime or colors.magenta) or colors.gray,
+          colors.black, { "order", custom })
+      else
+        button(2, y + 2, 18, 1, "Other amount...", colors.yellow, colors.black, "custom")
+      end
+      text(2, H, (W >= 45 and "green = from storage, purple = crafts some" or "green=stored  purple=crafts some"):sub(1, W - 2), colors.gray)
     end
 
     local function drawMessage()
@@ -463,7 +501,7 @@ if args[1] == "client" then
       elseif message then
         if a == "ok" or a == "back" then message = nil refresh() end
       elseif a == "quit" then
-        term.setBackgroundColor(colors.black) term.clear() term.setCursorPos(1, 1)
+        T.setBackgroundColor(colors.black) T.clear() T.setCursorPos(1, 1)
         return
       elseif a == "refresh" then refresh()
       elseif a == "type" then typeIt()
@@ -472,13 +510,15 @@ if args[1] == "client" then
       elseif a == "prev" then page = math.max(1, page - 1)
       elseif a == "next" then page = page + 1
       elseif type(a) == "table" and a[1] == "cat" then screen, cat, page = "cat", a[2], 1
-      elseif type(a) == "table" and a[1] == "item" then screen, item = "amount", a[2]
+      elseif type(a) == "table" and a[1] == "item" then screen, item, custom = "amount", a[2], 1
+      elseif type(a) == "table" and a[1] == "step" then
+        custom = math.max(1, custom + a[2])
       elseif type(a) == "table" and a[1] == "order" then
         order(item.name, a[2])
         screen = "cat"
       elseif a == "custom" then
         text(2, H - 1, "How many? ", colors.yellow)
-        term.setTextColor(colors.white)
+        T.setTextColor(colors.white)
         local n = tonumber(read())
         if n and n > 0 then
           order(item.name, math.floor(n))
@@ -487,25 +527,45 @@ if args[1] == "client" then
       end
     end
   end
-  print("Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status, quit")
-  local history = {}
-  while true do
-    write("> ")
-    local line = read(nil, history)
-    if not line or line == "quit" or line == "q" or line == "exit" then return end
-    history[#history + 1] = line
-    local words = {}
-    for wd in line:gmatch("%S+") do words[#words + 1] = wd end
-    if #words > 0 then
-      local n = tonumber(words[#words])
-      local text = table.concat(words, " ", 2, n and #words - 1 or #words)
-      rednet.send(id, { cmd = words[1]:lower(), text = text, n = n }, proto)
-      local from, reply
-      repeat from, reply = rednet.receive(proto, 8) until not from or from == id
-      if not from then print("No answer (out of range?)")
-      elseif type(reply) == "table" then for _, l in ipairs(reply) do print(l) end
-      else print(tostring(reply)) end
+  -- Typing commands (on the computer while the monitor shows the order screen)
+  local function textPrompt()
+    print("Type commands, e.g.:")
+    print(" get iron ingot 32   order torch 16   craft chest 2")
+    print(" find coal   list   recipes   status   build")
+    print(" pause   learn   resume   blocked   unblock   help")
+    print("quit = stop")
+    local history = {}
+    while true do
+      write("> ")
+      local line = read(nil, history)
+      if not line or line == "quit" or line == "q" or line == "exit" then return end
+      history[#history + 1] = line
+      local words = {}
+      for wd in line:gmatch("%S+") do words[#words + 1] = wd end
+      if #words > 0 then
+        local n = tonumber(words[#words])
+        if n and #words == 1 then n = nil end
+        local text = table.concat(words, " ", 2, n and #words - 1 or #words)
+        local reply = ask({ cmd = words[1]:lower(), text = text, n = n })
+        if reply == nil then print("No answer (out of range?)")
+        elseif type(reply) == "table" then for _, l in ipairs(reply) do print(l) end
+        else print(tostring(reply)) end
+      end
     end
+  end
+
+  local mon = peripheral.find("monitor", function(_, m) return m.isColor() end)
+  if mon and args[2] ~= "text" then
+    -- Advanced monitor: order screen there (tap it), commands typed here
+    mon.setTextScale(0.5)
+    term.clear()
+    term.setCursorPos(1, 1)
+    print("Order screen is on the monitor (" .. peripheral.getName(mon) .. ").")
+    parallel.waitForAny(function() gui(mon, true) end, textPrompt)
+  elseif term.isColor() and args[2] ~= "text" then
+    gui(term.current(), false) -- advanced computer: buttons here (click with the mouse)
+  else
+    textPrompt()
   end
 end
 
@@ -1704,6 +1764,9 @@ local function slotAt(cell)
   for _, s in ipairs(map.slots) do if s.cell == cell then return s end end
 end
 
+-- Orders go first: called between steps of longer jobs (filled in further down)
+local urgent = function() end
+
 ---------------------------------------------------------------------------
 -- Building
 ---------------------------------------------------------------------------
@@ -1820,6 +1883,7 @@ end
 
 local function buildFurnaces()
   while #furnaces() < cfg.maxFurnaces do
+    urgent()
     local st = freeStation()
     if not st then return end
     local fslot, fname = supplySlot(FURNACE_ITEMS)
@@ -1848,6 +1912,7 @@ end
 -- Every chest/barrel it has (or has in storage) gets built right away
 local function buildChests()
   while freeSlot() do
+    urgent()
     -- Keep a chest back for every spot that waits for a retry, so no hole stays behind
     local waitingSpots, have = 0, carriedCount(function(n) return CHEST_ITEMS[n] ~= nil end)
     for _, sl in ipairs(map.slots) do
@@ -2216,7 +2281,10 @@ local function furnacePass()
     if rank(idx[a]) ~= rank(idx[b]) then return rank(idx[a]) < rank(idx[b]) end
     return a < b
   end)
-  for _, k in ipairs(fl) do serviceFurnace(k, share) end
+  for _, k in ipairs(fl) do
+    urgent()
+    serviceFurnace(k, share)
+  end
 end
 
 ---------------------------------------------------------------------------
@@ -2605,6 +2673,11 @@ local function deepCounter(stock)
   return function(out) return maxCraft(out, 0, {}) end, all
 end
 
+urgent = function()
+  if #requests > 0 then serveRequests() end
+  if #crafts > 0 then serveCrafts() end
+end
+
 -- What the order screen shows: everything it has a recipe for and how many it can make
 local function craftList()
   local stock = totals()
@@ -2790,6 +2863,14 @@ local function command(cmd, text, n)
     crafts[#crafts + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Crafting " .. n .. " " .. pretty(name) .. "...", "It goes to the pickup chest when done." }
+  elseif cmd == "pause" then
+    paused = true
+    os.queueEvent("room_request")
+    return { "Pausing: it finishes its job, puts everything away and then says Paused." }
+  elseif cmd == "resume" then
+    paused = false
+    os.queueEvent("room_request")
+    return { "Running again." }
   elseif cmd == "learn" then
     if not paused or status.state ~= "Paused" then
       return { "To teach a recipe: type pause, wait until it says Paused,", "put one set in its 3x3 grid, then type learn." }
@@ -2894,12 +2975,16 @@ local function round()
   serveRequests()
   serveCrafts()
   pullInput()
+  urgent()
   refuelSelf()
+  urgent()
   buildFurnaces()
   buildChests()
+  urgent()
   furnacePass()
+  urgent()
   storeAll()
-  serveRequests()
+  urgent()
   goHome()
   saveTable(STATS_FILE, stats)
   os.queueEvent("room_stock")
@@ -3014,7 +3099,9 @@ local function remote()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
-      rednet.send(a, command(b.cmd, b.text, b.n), PROTOCOL)
+      local reply = command(b.cmd, b.text, b.n)
+      if type(reply) == "table" then reply.rid = b.rid end -- so the asking screen knows it's its answer
+      rednet.send(a, reply, PROTOCOL)
     elseif ev == "timer" and a == tick then
       sendStock()
       tick = os.startTimer(10)
