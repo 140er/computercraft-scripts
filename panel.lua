@@ -4,19 +4,20 @@
 --   panel            start
 --   panel install    start automatically when the pocket computer turns on
 --
--- Tabs (tap them, or keys 1-5):
+-- Tabs (tap them, or keys 1-7):
 --   Home   everything at a glance; tap a card to open it
 --   Mine   the mining fleet through the hub: pick an ore, STOP / RECALL / RESUME,
 --          session time, tap a turtle to give orders to that turtle only
 --   Store  the storage room turtle: search, tap an item to order it, pause, resync
 --   Wood   the lumber turtle: status, fuel and lava, pause / come home
+--   Farm   the crop farmer: status, fuel, harvest, pause / harvest now / come home
 --   Buddy  chat with Buddy, send it home or to a place it remembers
 -- Update all (Home tab, tap twice): every bot fetches its latest version from GitHub.
 -- Q quits.
 --
 -- What it talks to (each needs its own wireless or ender modem):
 --   hub.lua (protocol "minearmy"), roomsorter.lua ("roomsorter"),
---   lumber.lua ("lumber"), buddy.lua ("buddy")
+--   lumber.lua ("lumber"), farmer.lua ("farmer"), buddy.lua ("buddy")
 
 local args = { ... }
 if args[1] == "install" then
@@ -41,12 +42,13 @@ local DEV = {
   hub   = { proto = "minearmy", host = "hub", name = "Mine Army", poll = 2 },
   store = { proto = "roomsorter", name = "Storage", poll = 4 },
   wood  = { proto = "lumber", name = "Lumberjack", poll = 2 },
+  farm  = { proto = "farmer", name = "Farmer", poll = 2 },
   buddy = { proto = "buddy", name = "Buddy", poll = 3 },
 }
-local DEV_ORDER = { "hub", "store", "wood", "buddy" }
+local DEV_ORDER = { "hub", "store", "wood", "farm", "buddy" }
 for _, d in pairs(DEV) do d.seen = -1e9 d.asked = -1e9 end
 
-local data = { hub = nil, store = nil, storeInfo = nil, wood = nil, buddy = nil }
+local data = { hub = nil, store = nil, storeInfo = nil, wood = nil, farm = nil, buddy = nil }
 local chatLog = {} -- { who =, text = }
 local hubLeftAt = 0 -- os.clock() when the hub's session time came in
 
@@ -95,7 +97,7 @@ local function updateAll(sure)
     return
   end
   rednet.broadcast({ type = "panel", cmd = "update" }, "minearmy")
-  for _, p in ipairs({ "roomsorter", "lumber", "buddy" }) do rednet.broadcast({ cmd = "update" }, p) end
+  for _, p in ipairs({ "roomsorter", "lumber", "farmer", "buddy" }) do rednet.broadcast({ cmd = "update" }, p) end
   sleep(1)
   term.setBackgroundColor(colors.black)
   term.setTextColor(colors.white)
@@ -215,9 +217,11 @@ end
 ---------------------------------------------------------------------------
 -- UI state
 ---------------------------------------------------------------------------
-local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "buddy", "Bud" },
+local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "wood", "Wood" }, { "farm", "Farm" },
+  { "buddy", "Bud" },
   { "console", ">_" } }
-local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, buddy = colors.purple,
+local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, wood = colors.green, farm = colors.lime,
+  buddy = colors.purple,
   console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 
@@ -311,6 +315,15 @@ local function drawHome()
         { "Felled " .. num(w.felled) .. "  Logs " .. num(w.logs), colors.lightGray },
       }
     end },
+    { key = "farm", title = "FARMER", lines = function()
+      local f = data.farm
+      return {
+        { (f.state or "?") .. ": " .. tostring(f.status or ""), f.paused and colors.yellow or colors.lime },
+        { "Fuel " .. num(f.fuel) .. "  Crops " .. num(f.harvested), (f.lava == 0) and colors.red or colors.white },
+        { f.next and ("Next round in " .. clock(f.next)) or ("Round " .. (f.progress or 0) .. "%, " .. num(f.rounds) .. " done"),
+          colors.lightGray },
+      }
+    end },
     { key = "buddy", title = "BUDDY", lines = function()
       local b = data.buddy
       local last = chatLog[#chatLog]
@@ -321,8 +334,14 @@ local function drawHome()
       }
     end },
   }
+  -- Cards get 3 lines each, or 2 when they don't all fit; scroll for the rest
+  local room = H - 3
+  local ch = (#cards * 4 <= room) and 4 or 3
+  local fit = math.floor(room / ch)
+  ui.scroll = math.max(0, math.min(ui.scroll, #cards - fit))
   local y = 3
-  for _, card in ipairs(cards) do
+  for n = ui.scroll + 1, math.min(#cards, ui.scroll + fit) do
+    local card = cards[n]
     local key = card.key
     local col = TAB_COLOR[key]
     local ok = online(key) and data[key]
@@ -330,14 +349,15 @@ local function drawHome()
     text(2, y, card.title, colors.black, col)
     right(y, "\7 ", ok and colors.lime or colors.red, col)
     local lines = ok and card.lines() or offlineLines(key)
-    for i = 1, 3 do
+    for i = 1, ch - 1 do
       local l = lines[i] or { "" }
       fill(y + i, colors.black)
       text(2, y + i, l[1], l[2])
     end
-    buttons[#buttons + 1] = { x1 = 1, y1 = y, x2 = W, y2 = y + 3, action = function() setTab(key) end }
-    y = y + 4
+    buttons[#buttons + 1] = { x1 = 1, y1 = y, x2 = W, y2 = y + ch - 1, action = function() setTab(key) end }
+    y = y + ch
   end
+  if fit < #cards then right(H - 1, (ui.scroll + fit < #cards) and "scroll for more " or "", colors.gray) end
 end
 
 ---------------------------------------------------------------------------
@@ -637,6 +657,61 @@ local function drawWood()
 end
 
 ---------------------------------------------------------------------------
+-- Farm
+---------------------------------------------------------------------------
+local function drawFarm()
+  local f = data.farm
+  if not online("farm") or not f then
+    local l = offlineLines("farm")
+    text(2, 3, "Crop farmer", colors.lime)
+    for i, x in ipairs(l) do text(2, 4 + i, x[1], x[2]) end
+    text(2, 8, "Give it a wireless modem", colors.lightGray)
+    text(2, 9, "and run farmer.lua", colors.lightGray)
+    return
+  end
+  local sc = f.paused and colors.yellow or (f.state == "COMING HOME" and colors.orange or colors.lime)
+  fill(2, sc)
+  text(2, 2, (f.label or "Farmer"), colors.black, sc)
+  right(2, (f.state or "?") .. " ", colors.black, sc)
+  local lines = wrap(f.status or "", W - 2)
+  for k = 1, 2 do text(2, 3 + k, lines[k] or "", colors.yellow) end
+
+  text(2, 7, "Fuel", colors.lightGray)
+  local fuelFrac = (f.fuel == math.huge) and 1 or ((f.fuel or 0) / (f.fuelMax or 3000))
+  local fc = (f.fuel or 0) < 400 and colors.red or ((f.fuel or 0) < 1000 and colors.orange or colors.lime)
+  bar(7, 7, W - 13, fuelFrac, fc)
+  right(7, num(f.fuel) .. " ", colors.white)
+  if f.lava == nil then text(2, 8, "Lava  ? (no chest seen)", colors.lightGray)
+  elseif f.lava == 0 then text(2, 8, "Lava  none left: add buckets!", colors.red)
+  else text(2, 8, "Lava  " .. f.lava .. " bucket" .. (f.lava == 1 and "" or "s") .. " left", colors.white) end
+
+  local function pair(y, l1, v1, l2, v2)
+    text(2, y, l1, colors.lightGray) text(9, y, v1, colors.white)
+    text(15, y, l2, colors.lightGray) text(22, y, v2, colors.white)
+  end
+  pair(10, "Crops", num(f.harvested), "Rounds", num(f.rounds))
+  pair(11, "Field", tostring(f.field or "?"), "Round", (f.progress or 0) .. "%")
+  if f.next then text(2, 12, "Next round in " .. clock(f.next), colors.white)
+  else text(2, 12, f.drop and "Harvest goes to storage" or "Harvest goes in its chest", colors.lightGray) end
+  local top = {}
+  for _, t in ipairs(f.top or {}) do top[#top + 1] = num(t.n) .. " " .. tostring(t.name):lower() end
+  local tl = wrap(#top > 0 and table.concat(top, ", ") or "Nothing harvested yet", W - 2)
+  for k = 1, 2 do text(2, 12 + k, tl[k] or "", colors.lightGray) end
+  if f.err then text(2, 15, ("! " .. f.err):sub(1, W - 2), colors.red) end
+  buttonRow(H - 2, {
+    { f.paused and "Go on" or "Pause", colors.black, f.paused and colors.lime or colors.yellow, function()
+      if send("farm", { cmd = f.paused and "resume" or "pause" }) then toast("Sent...", 2) end
+    end },
+    { "Harvest", colors.black, colors.lime, function()
+      if send("farm", { cmd = "now" }) then toast("Starting a round now...", 3) end
+    end },
+    { "Home", colors.white, colors.orange, function()
+      if send("farm", { cmd = "home" }) then toast("Calling it home...", 3) end
+    end },
+  })
+end
+
+---------------------------------------------------------------------------
 -- Buddy
 ---------------------------------------------------------------------------
 local function addChat(who, text)
@@ -713,11 +788,11 @@ end
 local DEV_OPS = { info = true, log = true, ls = true, cat = true, get = true, reboot = true, put = true, rm = true,
   lua = true, update = true }
 local ALIASES = { hub = "hub", mine = "hub", mining = "hub", fleet = "hub", store = "store", storage = "store",
-  sorter = "store", wood = "wood", lumber = "wood", lumberjack = "wood", buddy = "buddy" }
+  sorter = "store", wood = "wood", lumber = "wood", lumberjack = "wood", farm = "farm", farmer = "farm", buddy = "buddy" }
 local STORE_CMDS = { "status", "list", "find", "get", "order", "craft", "recipes", "build", "blocked", "unblock",
   "resync", "pickup", "pause", "resume", "learn" }
 local HELP = {
-  "BOTS: hub, store, wood,",
+  "BOTS: hub, store, wood, farm,",
   "buddy, a miner's name, #id",
   "ANY BOT (not store):",
   " <bot> info",
@@ -749,6 +824,9 @@ local HELP = {
   "LUMBER:",
   " wood status|pause|resume",
   " wood home",
+  "FARM:",
+  " farm status|pause|resume",
+  " farm now | home",
   "BUDDY:",
   " buddy <say anything>",
   " buddy home | status",
@@ -947,6 +1025,10 @@ local function run(line)
       if op == "pause" or op == "resume" or op == "home" then sendTo(bot, { cmd = op }, { wood = true })
       elseif op == "" or op == "status" then sendTo(bot, { cmd = "status" }, { wood = true })
       else say("wood pause | resume | home | status", colors.orange) end
+    elseif bot.key == "farm" then
+      if op == "pause" or op == "resume" or op == "home" or op == "now" then sendTo(bot, { cmd = op }, { farm = true })
+      elseif op == "" or op == "status" then sendTo(bot, { cmd = "status" }, { farm = true })
+      else say("farm pause | resume | now | home | status", colors.orange) end
     elseif bot.key == "buddy" then
       if op == "home" then sendTo(bot, { cmd = "home" })
       elseif op == "goto" then sendTo(bot, { cmd = "goto", place = table.concat(words, " ", 3) })
@@ -994,6 +1076,10 @@ local function consoleReply(id, m, proto)
     say(tag .. tostring(m.state) .. ": " .. tostring(m.status), colors.lime)
     say("fuel " .. num(m.fuel) .. ", lava " .. tostring(m.lava or "?") .. ", felled " .. num(m.felled)
       .. ", farm " .. tostring(m.spots) .. "/" .. tostring(m.maxSpots), colors.lightGray)
+  elseif p.farm and m.type == "farmer_state" then
+    say(tag .. tostring(m.state) .. ": " .. tostring(m.status), colors.lime)
+    say("fuel " .. num(m.fuel) .. ", lava " .. tostring(m.lava or "?") .. ", crops " .. num(m.harvested)
+      .. ", rounds " .. num(m.rounds) .. ", field " .. tostring(m.field), colors.lightGray)
   end
   return false
 end
@@ -1017,7 +1103,8 @@ local function complete()
   local cands = {}
   local function add(l) for _, x in ipairs(l) do cands[#cands + 1] = x end end
   if pos == 1 then
-    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "update", "miners", "hub", "store", "wood", "buddy" })
+    add({ "help", "bots", "scan", "listen", "send", "key", "clear", "update", "miners", "hub", "store", "wood", "farm",
+      "buddy" })
     for _, t in ipairs(miners()) do if t.label then cands[#cands + 1] = (t.label:gsub("%s", "")) end end
   elseif pos == 2 then
     local bot = findBot(words[1])
@@ -1029,9 +1116,10 @@ local function complete()
         for _, o in ipairs(data.hub and data.hub.ores or {}) do cands[#cands + 1] = o.key end
         if bot.key == "hub" then add({ "resume", "time", "item" }) end
       elseif bot.key == "wood" then add({ "pause", "resume", "home", "status" })
+      elseif bot.key == "farm" then add({ "pause", "resume", "now", "home", "status" })
       elseif bot.key == "buddy" then add({ "home", "goto", "say", "status" }) end
     elseif lower(words[1]) == "miners" then add({ "info", "log", "reboot", "put", "update", "lua" })
-    elseif lower(words[1]) == "listen" then add({ "off", "minearmy", "roomsorter", "lumber", "buddy" }) end
+    elseif lower(words[1]) == "listen" then add({ "off", "minearmy", "roomsorter", "lumber", "farmer", "buddy" }) end
   elseif pos == 3 and (lower(words[2]) == "put" or lower(words[2]) == "update") then
     for _, f in ipairs(fs.list("")) do if not fs.isDir(f) then cands[#cands + 1] = f end end
   elseif pos == 3 and lower(words[2]) == "goto" then
@@ -1134,6 +1222,7 @@ local function draw()
   elseif ui.tab == "hub" then drawMine()
   elseif ui.tab == "store" then drawStore()
   elseif ui.tab == "wood" then drawWood()
+  elseif ui.tab == "farm" then drawFarm()
   elseif ui.tab == "buddy" then drawBuddy()
   elseif ui.tab == "console" then drawConsole() return end
   if ui.popup and ui.popup.kind == "order" then
@@ -1154,7 +1243,7 @@ local function draw()
     fill(H, colors.gray)
     local xx = 2
     for _, key in ipairs(DEV_ORDER) do
-      local label = DEV[key].name:sub(1, 4)
+      local label = DEV[key].name:sub(1, #DEV_ORDER > 4 and 3 or 4)
       text(xx, H, "\7", online(key) and colors.lime or (DEV[key].id and colors.red or colors.lightGray), colors.gray)
       text(xx + 1, H, label, colors.white, colors.gray)
       xx = xx + #label + 2
@@ -1194,6 +1283,9 @@ local function receiveLoop()
       elseif proto == "lumber" and m.type == "lumber_state" then
         DEV.wood.id, DEV.wood.seen = id, os.clock()
         data.wood = m
+      elseif proto == "farmer" and m.type == "farmer_state" then
+        DEV.farm.id, DEV.farm.seen = id, os.clock()
+        data.farm = m
       elseif proto == "buddy" and m.type == "buddy_state" then
         DEV.buddy.id, DEV.buddy.seen = id, os.clock()
         data.buddy = m
@@ -1222,7 +1314,9 @@ local function findLoop()
       end
     end
     redrawSoon()
-    sleep(online("hub") and online("store") and online("wood") and online("buddy") and 30 or 8)
+    local all = true
+    for _, key in ipairs(DEV_ORDER) do all = all and online(key) end
+    sleep(all and 30 or 8)
   end
 end
 
@@ -1271,6 +1365,7 @@ local function uiLoop()
     elseif ev == "mouse_scroll" then
       if ui.tab == "console" then con.scroll = con.scroll - a * 3
       elseif ui.tab == "store" then ui.scroll = ui.scroll + a * 3
+      elseif ui.tab == "home" then ui.scroll = ui.scroll + a
       elseif ui.tab == "hub" then ui.turtleScroll = ui.turtleScroll + a end
       draw()
     elseif ev == "char" then

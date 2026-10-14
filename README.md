@@ -1,6 +1,6 @@
 # computercraft-scripts
 
-Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a turtle you can chat with, and a pocket computer that controls them all.
+Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraft) in Minecraft: a mining fleet, two storage systems, a tree farm, a crop farm, a turtle you can chat with, and a pocket computer that controls them all.
 
 | Bot | File | Runs on | What it does |
 |---|---|---|---|
@@ -8,6 +8,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 | [Storage Room](#storage-room) | `roomsorter.lua` | turtle | No modems or cables. A turtle in a closed room maps it, builds its own chests and furnaces, sorts and smelts what you put in, remembers where everything is and brings you items. |
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
 | [Lumberjack](#tree-farm-lumberlua) | `lumber.lua` | felling turtle | Finds trees around its chest by itself, fells and replants them, and puts the logs in the chest. |
+| [Farmer](#crop-farm-farmerlua) | `farmer.lua` | turtle (a hoe is best) | Harvests and replants a field of wheat, carrots, potatoes, beetroot, melons, pumpkins, sugar cane and more, and brings the harvest to the storage room. |
 | [Buddy](#buddy-companion-turtle) | `buddy.lua` | turtle | A companion you chat with, powered by your own model server (or xAI's Grok). Does small jobs around your base. |
 | [Pocket panel](#pocket-panel) | `panel.lua` | advanced pocket computer | One app to control everything above from anywhere, including an **Update all** button. |
 | | `smartmine.lua` | mining turtle | The old standalone tunnel miner (no hub). Still works. |
@@ -21,14 +22,14 @@ You need **http enabled** in the ComputerCraft config (it is by default). On the
 wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
 install <bot>
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `buddy`, `panel`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ## Updating
 
 - **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
-- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack when it's home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
+- **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack and the farmer when they're home, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
 - Bots without a modem (`sorter`, `relay`, `smartmine`) only update with their own `update` command.
 - A bot that can't reach GitHub keeps running its current version.
 
@@ -211,6 +212,9 @@ A normal wireless modem reaches about 64 blocks, more the higher it is (up to ~3
 | relay | `relay install`, `relay` | autostart, run |
 | tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
 | tree turtle | `lumber home` / `lumber reset` | reset position after putting it back by hand / forget all trees |
+| farm turtle | `farmer setup <length> <width> [left]`, `farmer` | one-time setup, run |
+| farm turtle | `farmer drop <forward> <right> <up>` / `farmer drop off` | bring the harvest to another chest / back to its own chest |
+| farm turtle | `farmer seed <crop>`, `farmer home` / `farmer reset` | what to plant on a new field; reset position / forget what grows where |
 | hub | `hub update` | fetch the latest hub.lua and miner.lua and release it to the turtles |
 | anywhere | `update` or `<bot> update` | fetch the latest version of this computer's scripts, see [Updating](#updating) |
 
@@ -477,6 +481,48 @@ A felling turtle (turtle + axe, no modem needed) that finds trees around its hom
 - `lumber home`: you put it back on its spot by hand. `lumber reset`: forget all trees and search the area again.
 - Settings at the top of `lumber.lua`: `RADIUS`, `MAX_SPOTS`, `NURSERY_RADIUS`, `SAPLING_RESERVE`, `SAPLING_WANT`, `LEAF_RINGS`, `REGROW_MIN`, `EXPLORE_CELLS`, `HOP`, `WAIT`, `KEEP_SAPLINGS`, `BONEMEAL_TRIES`.
 
+## Crop farm (farmer.lua)
+
+A turtle that looks after a field: it flies one block above the crops, harvests what is ripe, plants the same crop again and brings the harvest to a chest. Any turtle tool can harvest; a **hoe** (farming turtle) can also till dirt that dried out.
+
+1. Put the turtle on the ground at one corner of the field, at the height of the crops (the block it stands on is level with the farmland), with a chest **behind** it. The field lies in front of it: the first row is right in front, the rows go away from the chest, and they run to the right of the turtle (or to the left). Keep the block above the turtle free: it goes up and out through there.
+2. Fuel: **lava buckets** (or coal) in a chest **under** the turtle. The chest behind it works too, but not when that chest is the storage room's input (the storage turtle would take the lava).
+3. `install farmer` on the turtle (see [Installing](#installing)), or drag `farmer.lua` onto its screen.
+4. `farmer setup <length> <width> [left]`: the field size, e.g. `farmer setup 9 9`. Rows in front of it, blocks per row starting from its own column.
+5. Where the harvest goes:
+   - the chest behind it (default). Put that chest in the storage room's input, or run a hopper from it there.
+   - or `farmer drop <forward> <right> <up>`: the storage room's input chest somewhere else, counted from the turtle's home spot looking at the field (left, back and down are negative). It flies over to it, comes down on top of it and drops the harvest in, so that chest needs a free shaft or open sky above it. `farmer drop off` goes back to the chest behind it.
+6. Brand-new field with nothing planted yet? `farmer seed wheat` (or `carrot`, `potato`, `beetroot`, `netherwart`) and give it some. On a field that is already growing it learns what grows where by itself.
+7. `farmer` (starts by itself on boot after setup).
+
+```
+ FARMER                        RUNNING
+ Looking after the field (35/81)
+ Fuel ██████████████████░░░░░   2610
+ Lava 4 buckets in my chests
+ Harvest 412        Rounds   9
+ Field   9x9        Round    43%
+ 230 wheat, 96 carrots, 41 sugar cane
+ [P] pause [H] home [N] now [Q] quit
+```
+- **P**: pause (it finishes the block it is on and comes home). **H**: come home now. **N**: start a round now instead of waiting. **Q**: quit (twice).
+
+**What it does:**
+- A **round**: row by row over the whole field, back and forth. Ripe wheat, carrots, potatoes, beetroot and nether wart get harvested and replanted with the same crop. It never touches a crop that is still growing.
+- **Melons and pumpkins:** it picks the fruit and leaves the stems. Make the dirt where the fruit grows part of the field.
+- **Sugar cane and bamboo:** it cuts everything above the bottom block and picks up what falls.
+- **Empty farmland** gets the crop it remembers there, or the crop next to it, or the `farmer seed` crop. Paths and water it can't plant on are remembered and skipped. With a hoe it tills dirt that dried out; without one it leaves it.
+- **Modded crops** that show an age work too: it plants back what they dropped (preferably something called seeds). They need to be ripe at age 7.
+- Then it comes home, drops the harvest off, tops up its fuel and waits 10 minutes for the next round (25 when the last round found nothing ripe).
+- It keeps up to 64 of each seed (and potatoes, carrots) for replanting; the rest goes with the harvest. Empty buckets go in the chest behind it.
+
+**Good to know:**
+- Something tall on the field (a lamp post, a scarecrow) is fine: it flies over it. It only ever digs crops, never ground or blocks.
+- Fuel: about one per block, so a 9x9 field costs around 100 per round. With no fuel it waits at home.
+- Reboots / chunk unloads: position and heading are saved on every move and turn. After a restart it flies home and carries on with the row where it stopped; the wait between rounds is kept too. Errors are kept in `farmer.log`.
+- `farmer home`: you put it back on its spot by hand. `farmer reset`: forget what grows where.
+- Settings at the top of `farmer.lua`: `WAIT`, `WAIT_IDLE`, `KEEP_SEEDS`, `HOP` (how high it flies over things on the way to the drop chest), `REFUEL_BELOW`, `REFUEL_TO`.
+
 ## Good to know
 - Turtles only work in loaded chunks. When a chunk unloads the turtle pauses; when it loads again it restarts, goes home and carries on.
 - `smartmine.lua` is the older standalone miner: `smartmine <length> [tunnels] [gap] [block1,block2,...]`.
@@ -531,16 +577,17 @@ A turtle you talk to. A language model reads what you say and decides what to do
 ## Pocket panel
 `panel.lua` runs on an **advanced pocket computer with an ender modem** (a normal wireless modem works too, within range). `install panel` on it (see [Installing](#installing)), then `panel install` (opens on start-up) and `panel`.
 
-Tabs along the top (tap them, or keys 1-5, Q quits):
+Tabs along the top (tap them, or keys 1-7, Q quits):
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
 - **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
+- **Farm**: the crop farmer's status, fuel, what it harvested and when the next round starts. Pause / Go on, Harvest (a round now), Home.
 - **Buddy**: chat with Buddy, or send it home or to a place it remembers with one tap.
 - **Update all** (on the Home tab, or `update all` in the console): every bot it can reach fetches its latest version from GitHub at a safe moment, then the panel updates itself. See [Updating](#updating).
 - **>_ (console)**: type commands, with Tab completion and Up/Down history. `help` lists them all. Examples:
   - `bots` (who's online), `hub diamond`, `hub recall`, `Miner1 stop`, `hub item zinc 20`
-  - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `buddy go fetch the logs`
+  - `store find coal`, `store get iron ingot 32`, `store blocked`, `wood pause`, `farm now`, `buddy go fetch the logs`
   - on any bot except the storage turtle: `info`, `log`, `ls`, `cat <file>`, `get <file>` (copies it to the pocket), `reboot`; `miners reboot` does every miner
   - `listen minearmy` shows every message on that protocol, `send <id> <protocol> <msg>` sends one by hand
 
@@ -548,7 +595,7 @@ With a password you can also change things on a bot: `put <file> [as]` sends a f
 To turn this on, put a password in a file `dev.key` on each bot and type `key <password>` on the pocket. Without `dev.key`, a bot refuses put, rm and lua. With it, every dev command needs the password, so other players with a modem can't use them.
 Careful: Lua run with `lua` runs next to the bot's program, so moving a turtle that way makes it lose track of where it is.
 
-Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
+Every machine needs its own wireless or ender modem and the version of its script that answers the panel: `hub.lua` (this repo), `roomsorter.lua` (already does), `lumber.lua`, `farmer.lua` and `buddy.lua` (new versions). A turtle has two upgrade slots, so the modem takes the one its tool doesn't use. An ender modem on the pocket computer reaches normal wireless modems anywhere in the same dimension, as long as their chunks are loaded.
 
 ---
 
