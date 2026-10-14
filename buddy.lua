@@ -29,7 +29,7 @@ local GROK = "https://api.x.ai/v1/"
 local MAX_ROUNDS = 10    -- tool-call rounds per message before it has to answer
 local MAX_STEPS = 16     -- blocks per move command
 local MAX_HISTORY = 30   -- messages kept in the conversation
-local TIMEOUT = 120      -- seconds to wait for an answer
+local TIMEOUT = 60       -- seconds to wait for an answer (CC allows at most 60)
 
 -- Blocks it refuses to break, whatever it is told
 local PROTECTED = { "chest", "barrel", "shulker", "computer", "turtle", "monitor", "modem",
