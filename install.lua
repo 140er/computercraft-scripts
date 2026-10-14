@@ -9,6 +9,7 @@
 --   farmer      crop farm turtle
 --   lava        lava fuel runner: fills buckets and keeps the bots' chests stocked
 --   buddy       companion turtle you can chat with
+--   builder     building turtle: floors, walls, flat land, torches
 --   panel       pocket computer control panel
 --   factory     turtle factory: builds new mining turtles (crafty turtle)
 --   gpshost     GPS host computer (build 4 of them for real positions and the panel map)
@@ -25,6 +26,7 @@ local NEXT = {
   farmer = "farmer setup <length> <width> [left]",
   lava = "lava setup <x> <y> <z> <facing> (or lava setup with GPS), lava add <name> <x> <y> <z>, then lava",
   buddy = "buddy server <url> (or buddy key <xAI key>), buddy setup, then buddy",
+  builder = "builder setup (supply chest next to it), then builder",
   panel = "panel install, then panel",
   factory = "factory setup, factory slot ..., factory disk, then factory",
   gpshost = "gpshost <x> <y> <z> (this computer's own position, from F3)",
