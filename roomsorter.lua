@@ -20,6 +20,7 @@
 local MAP_FILE, IDX_FILE, POS_FILE = "room.map", "room.idx", "room.pos"
 local CFG_FILE, STATS_FILE, LOG_FILE = "room.cfg", "room.stats", "room.log"
 local PROTOCOL = "roomsorter"
+local VERSION = 12 -- the order screen warns when the turtle runs an older roomsorter.lua
 
 local args = { ... }
 if args[1] == "install" then
@@ -214,11 +215,13 @@ if args[1] == "client" then
     end
 
     local stock, stockOk, turtleState, canCraft = {}, false, "?", false
+    local turtleOld = false
     local recipes, orders = {}, {}
     local function refresh()
       local r = askG({ cmd = "stock" })
       if type(r) == "table" and type(r.totals) == "table" then
         stock, stockOk, turtleState, canCraft = r.totals, true, r.state or "?", r.crafty
+        turtleOld = (r.version or 0) < VERSION
         recipes = type(r.recipes) == "table" and r.recipes or {}
         orders = type(r.orders) == "table" and r.orders or {}
       else
@@ -326,8 +329,14 @@ if args[1] == "client" then
     local screen, cat, page, item = "home", nil, 1, nil
     local custom = 1 -- the amount picked with the arrows on a monitor
     local message = nil
+    local OLD = "The turtle runs an older roomsorter.lua: copy the new one onto it and reboot it."
     local function order(name, n)
       local r = askG({ cmd = "order", text = name, n = n })
+      if type(r) == "table" and type(r[1]) == "string" and r[1]:find("^Commands:") then
+        -- an older turtle doesn't know 'order': just get it from storage
+        r = askG({ cmd = "get", text = name, n = n })
+        if type(r) == "table" then r[#r + 1] = "" r[#r + 1] = OLD end
+      end
       message = type(r) == "table" and r or { "No answer (out of range?)" }
     end
 
@@ -355,7 +364,8 @@ if args[1] == "client" then
     local function drawHome()
       clear()
       titleBar("ORDER")
-      if not stockOk then text(2, 2, "Couldn't get the stock list (turtle busy? old version?)", colors.red) end
+      if not stockOk then text(2, 2, ("Couldn't get the stock list (turtle busy? old version?)"):sub(1, W - 2), colors.red)
+      elseif turtleOld then text(2, 2, ("Old turtle version: copy the new file onto it, reboot it"):sub(1, W - 2), colors.red) end
       local tiles = {}
       local nf = #itemsIn("frequent")
       tiles[1] = { icon = "Frequent", name = "Frequent", color = colors.yellow, empty = nf == 0,
@@ -480,9 +490,25 @@ if args[1] == "client" then
       clear()
       titleBar("Storage turtle")
       local bw2 = W - 4
-      local bh2 = #message + 4
+      -- wrap long lines to the box
+      local lines = {}
+      for _, l in ipairs(message) do
+        local rest = tostring(l)
+        if rest == "" then lines[#lines + 1] = "" end
+        while #rest > 0 do
+          local cut = bw2 - 4
+          if #rest > cut then
+            local sp = rest:sub(1, cut):match(".*() ")
+            if sp and sp > cut / 2 then cut = sp end
+          end
+          lines[#lines + 1] = rest:sub(1, cut):gsub("%s+$", "")
+          rest = rest:sub(cut + 1):gsub("^%s+", "")
+        end
+      end
+      while #lines > H - 8 do table.remove(lines) end
+      local bh2 = #lines + 4
       for yy = 3, 3 + bh2 - 1 do text(3, yy, (" "):rep(bw2), colors.white, colors.gray) end
-      for i, l in ipairs(message) do text(5, 4 + i, tostring(l):sub(1, bw2 - 4), colors.white, colors.gray) end
+      for i, l in ipairs(lines) do text(5, 4 + i, l, colors.white, colors.gray) end
       button(math.floor(W / 2) - 4, 3 + bh2 + 1, 10, 1, "OK", colors.lime, colors.black, "ok")
     end
 
@@ -2799,7 +2825,8 @@ local function command(cmd, text, n)
     return { "Forgot " .. n .. " blocked spot(s). If something is really there it notices again." }
   elseif cmd == "stock" then
     -- everything the order screen needs in one answer
-    return { totals = totals(), state = status.state, crafty = crafty(), recipes = crafty() and craftList() or {},
+    return { version = VERSION, totals = totals(), state = status.state, crafty = crafty(),
+      recipes = crafty() and craftList() or {},
       orders = stats.orders or {} }
   elseif cmd == "order" then
     -- From storage, and whatever is missing gets crafted
