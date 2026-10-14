@@ -358,6 +358,7 @@ Give the turtle a **crafting table**: put one in the drop-off chest and it equip
 - Chests it can't reach anymore are left out (their items don't show in `list` either); the screen says how many and where it's blocked. It never places a chest that would cut it off from a spot it can reach now.
 - `blocked` lists the blocked spots (and what is there) and the chests that are cut off with what's in them. Spots are counted from the turtle's start: x = blocks to the right, y = up (0 = floor), z = rows back from the drop-off wall.
 - `unblock` forgets all blocked spots (`unblock x,y,z` just one), e.g. when it marked a spot because you stood in its way. If something is really there, it notices again.
+- `resync` counts everything again: it looks at every blocked spot once more (free again? then it's cleared), opens cut-off chests from another side where it can, reads every chest it can reach and forgets chests that were broken by hand. Use it when the numbers look wrong. The order screen says when chests are cut off (their items are missing from the lists).
 - Best: run cables outside the room or under the floor. A cable through the road layer can cut off part of the room once the rows next to it are full.
 
 ### Moving the pickup chest

@@ -20,7 +20,7 @@
 local MAP_FILE, IDX_FILE, POS_FILE = "room.map", "room.idx", "room.pos"
 local CFG_FILE, STATS_FILE, LOG_FILE = "room.cfg", "room.stats", "room.log"
 local PROTOCOL = "roomsorter"
-local VERSION = 12 -- the order screen warns when the turtle runs an older roomsorter.lua
+local VERSION = 13 -- the order screen warns when the turtle runs an older roomsorter.lua
 
 local args = { ... }
 if args[1] == "install" then
@@ -215,13 +215,14 @@ if args[1] == "client" then
     end
 
     local stock, stockOk, turtleState, canCraft = {}, false, "?", false
-    local turtleOld = false
+    local turtleOld, cutoff = false, 0
     local recipes, orders = {}, {}
     local function refresh()
       local r = askG({ cmd = "stock" })
       if type(r) == "table" and type(r.totals) == "table" then
         stock, stockOk, turtleState, canCraft = r.totals, true, r.state or "?", r.crafty
         turtleOld = (r.version or 0) < VERSION
+        cutoff = r.cutoff or 0
         recipes = type(r.recipes) == "table" and r.recipes or {}
         orders = type(r.orders) == "table" and r.orders or {}
       else
@@ -365,7 +366,8 @@ if args[1] == "client" then
       clear()
       titleBar("ORDER")
       if not stockOk then text(2, 2, ("Couldn't get the stock list (turtle busy? old version?)"):sub(1, W - 2), colors.red)
-      elseif turtleOld then text(2, 2, ("Old turtle version: copy the new file onto it, reboot it"):sub(1, W - 2), colors.red) end
+      elseif turtleOld then text(2, 2, ("Old turtle version: copy the new file onto it, reboot it"):sub(1, W - 2), colors.red)
+      elseif cutoff > 0 then text(2, 2, (cutoff .. " chests can't be reached: their items are missing. Type resync"):sub(1, W - 2), colors.orange) end
       local tiles = {}
       local nf = #itemsIn("frequent")
       tiles[1] = { icon = "Frequent", name = "Frequent", color = colors.yellow, empty = nf == 0,
@@ -558,7 +560,7 @@ if args[1] == "client" then
     print("Type commands, e.g.:")
     print(" get iron ingot 32   order torch 16   craft chest 2")
     print(" find coal   list   recipes   status   build")
-    print(" pause   learn   resume   blocked   unblock   help")
+    print(" pause   learn   resume   blocked   resync   help")
     print("quit = stop")
     local history = {}
     while true do
@@ -2319,6 +2321,67 @@ end
 local paused = false
 local requests = {}
 local findRequest, busyFind = false, false
+local resyncRequest = false
+
+-- Count everything again: look at blocked spots once more, open cut-off chests from
+-- another side if possible, and read every chest it can reach. Chests that are gone
+-- (broken by hand) are forgotten, so the spot can be built on again.
+local function resync()
+  setState("Resync: blocked spots")
+  for k in pairs(map.obstacles or {}) do
+    local r = reachable()
+    for _, d in ipairs(ALL_DIRS) do
+      local n = step(k, d)
+      if free(n) and r[n] then
+        goTo(n)
+        if not inspectDir(dirBetween(n, k)) then
+          map.cells[k] = "a"
+          map.obstacles[k] = nil
+          saveMap()
+          log("Spot " .. k .. " is free again")
+        end
+        break
+      end
+    end
+  end
+  fixAccess()
+  setState("Resync: counting")
+  local counted, gone, cut = 0, 0, 0
+  local keys = {}
+  for k, e in pairs(idx) do if e.kind == "store" or e.kind == "buffer" then keys[#keys + 1] = k end end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    urgent()
+    local e = idx[k]
+    if e and canReach(e) then
+      -- something new in the way (a cable)? skip this chest, carry on with the rest
+      local ok, res = pcall(function()
+        local side = goToInv(e)
+        if isInv(side) then refresh(k, side) return "counted" end
+        return "gone"
+      end)
+      if not ok then
+        cut = cut + 1
+      elseif res == "counted" then
+        counted = counted + 1
+      else
+        idx[k] = nil -- the chest isn't there anymore
+        map.cells[k] = "a"
+        saveMap()
+        saveIdx()
+        gone = gone + 1
+      end
+    elseif e then
+      cut = cut + 1
+    end
+  end
+  goHome()
+  local msg = ("Resync done: %d chests counted"):format(counted)
+  if gone > 0 then msg = msg .. (", %d gone"):format(gone) end
+  if cut > 0 then msg = msg .. (", %d cut off (type blocked)"):format(cut) end
+  log(msg)
+  os.queueEvent("room_stock")
+end
 
 local function matchItem(text)
   local q = text:lower():gsub("%s+", "_")
@@ -2897,7 +2960,7 @@ local function command(cmd, text, n)
     return { "Forgot " .. n .. " blocked spot(s). If something is really there it notices again." }
   elseif cmd == "stock" then
     -- everything the order screen needs in one answer
-    return { version = VERSION, totals = totals(), state = status.state, crafty = crafty(),
+    return { version = VERSION, totals = totals(), state = status.state, crafty = crafty(), cutoff = unreachableCount(),
       recipes = crafty() and craftList() or {},
       orders = stats.orders or {} }
   elseif cmd == "order" then
@@ -2962,6 +3025,11 @@ local function command(cmd, text, n)
     crafts[#crafts + 1] = { name = name, n = n }
     os.queueEvent("room_request")
     return { "Crafting " .. n .. " " .. pretty(name) .. "...", "It goes to the pickup chest when done." }
+  elseif cmd == "resync" then
+    resyncRequest = true
+    os.queueEvent("room_request")
+    return { "Counting everything again: it checks blocked spots and opens every chest.",
+      "Takes a few minutes; orders still go first. Status shows when it's done." }
   elseif cmd == "pickup" then
     -- find the pickup chest again after moving it
     if busyFind then return { "Already looking." } end
@@ -2997,8 +3065,8 @@ local function command(cmd, text, n)
     local used, size = usedSlots()
     return { status.state, ("Storage %d/%d slots, %d furnaces"):format(used, size, #furnaces()) }
   end
-  return { "Commands: list [text], find <item>, get <item> [n], craft <item> [n], recipes, build, status,",
-    "blocked, unblock [x,y,z]" }
+  return { "Commands: list [text], find <item>, get <item> [n], order <item> [n], craft <item> [n], recipes,",
+    "build, status, blocked, unblock [x,y,z], resync, pickup, pause, resume, learn" }
 end
 
 ---------------------------------------------------------------------------
@@ -3075,6 +3143,10 @@ end
 -- Main
 ---------------------------------------------------------------------------
 local function round()
+  if resyncRequest then
+    resyncRequest = false
+    resync()
+  end
   if findRequest then
     findRequest, busyFind = false, true
     local _, msg = findOutput()
