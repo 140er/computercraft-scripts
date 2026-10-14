@@ -21,12 +21,19 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 
 ## Installing
 
-You need **http enabled** in the ComputerCraft config (it is by default). On the computer or turtle, run:
+You need **http enabled** in the ComputerCraft config (it is by default). On a fresh computer, turtle or pocket computer, run this one command:
 ```
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua install
-install <bot>
+wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua
 ```
-where `<bot>` is one of `miner`, `hub`, `relay`, `roomsorter`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `panel`, `factory`, `gpshost`, `smartmine`. It downloads that script plus `update.lua` and tells you the next step. Each bot's section below has its setup.
+A guided installer opens. Pick what this machine should become (it only lists the bots that fit a turtle, computer or pocket computer) and follow the screens with the arrow keys and Enter, or by tapping the buttons:
+
+- it downloads the script, plus `update.lua` and itself,
+- it shows what to build around the bot by hand, and checks what it can (modem, the chest behind a turtle, fuel),
+- it asks the few numbers it needs and fills in the coordinates from GPS when there is a GPS tower,
+- it runs the setup commands for you and shows their output, with **Back**, **Repeat** and **Next**,
+- at the end, **Start now** starts the bot. It starts by itself after every reboot from then on.
+
+Later, `install` opens it again, `install <bot>` goes straight to one bot's setup, and `install <bot> quick` only downloads the files. The bots: `miner`, `hub`, `relay`, `roomsorter`, `roomclient`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `factory`, `gpshost`, `panel`, `smartmine`. Each bot's section below explains the same setup by hand.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -45,7 +52,7 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest directly **behind** it, and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
 2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons), and a second monitor becomes an info screen.
-3. **Install:** `install miner` on each turtle and `install hub` on the hub (see [Installing](#installing)).
+3. **Install:** run the [installer](#installing) on each turtle (pick "Mining turtle") and on the hub (pick "Mine Army hub"). It does step 4 and the setup below for you.
 4. **Set up each turtle once** (see below), then on the hub: `hub install`, `hub`.
 5. On the dashboard: pick a time, pick an ore. Done.
 
