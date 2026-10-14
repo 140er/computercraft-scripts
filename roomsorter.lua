@@ -1963,6 +1963,35 @@ end
 ---------------------------------------------------------------------------
 -- turtle.suck() always takes the first stack in a chest, so the wanted stack is moved
 -- to slot 1 first.
+-- Top up partial stacks inside one chest: a dropped stack lands in the first empty
+-- slot and taking shuffles slot 1 around, both of which leave the same item split
+-- over several part stacks. Moves later part stacks into earlier ones.
+local function mergeStacks(side)
+  local ok, l = pcall(peripheral.call, side, "list")
+  if not ok or not l then return end
+  local slots = {}
+  for s in pairs(l) do slots[#slots + 1] = s end
+  table.sort(slots)
+  local open = {} -- [name|nbt] = slots with room, lowest first
+  for _, s in ipairs(slots) do
+    local it = l[s]
+    local id = it.name .. "|" .. (it.nbt or "")
+    local max = stackOf(it.name)
+    local targets = open[id] or {}
+    open[id] = targets
+    while it.count > 0 and #targets > 0 do
+      local to = targets[1]
+      local ok2, m = pcall(peripheral.call, side, "pushItems", side, s, it.count, to)
+      m = ok2 and m or 0
+      it.count = it.count - m
+      l[to].count = l[to].count + m
+      if m == 0 or l[to].count >= max then table.remove(targets, 1) end
+      if not ok2 then return end
+    end
+    if it.count > 0 and it.count < max then targets[#targets + 1] = s end
+  end
+end
+
 local function takeFrom(k, side, slot, n, into)
   local e = idx[k]
   local l = peripheral.call(side, "list")
@@ -1997,6 +2026,7 @@ local function takeFrom(k, side, slot, n, into)
   local got = turtle.getItemCount(t) - before
   if parked then turtle.select(parked) DROP[side]() end
   turtle.select(1)
+  mergeStacks(side)
   refresh(k, side)
   return got
 end
@@ -2098,6 +2128,7 @@ local function storeAll(force, onlySlot) -- force: also what it normally keeps o
         end
       end
       turtle.select(1)
+      mergeStacks(side)
       refresh(k, side)
     end
     if noRoom and moved == 0 then
