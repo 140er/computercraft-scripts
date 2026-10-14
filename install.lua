@@ -11,6 +11,6 @@ for _, f in ipairs(files) do
 end
 local NEXT = {
   miner = "Next: miner setup <x> <y> <z> <facing> <role>",
-  lumber = "Next: lumber setup [trees] [spacing] [sides]",
+  lumber = "Next: lumber setup [radius]",
 }
 print("Done. " .. (NEXT[what] or "Next: hub install, then hub"))
