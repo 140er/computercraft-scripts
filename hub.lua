@@ -481,7 +481,7 @@ local function draw(s)
   local lost = {}
   for id, r in pairs(turtles) do
     if r.p.phase == "lost" then
-      lost[#lost + 1] = (r.p.label or ("#" .. id)) .. " at " .. tostring(r.p.x) .. "," .. tostring(r.p.y) .. "," .. tostring(r.p.z)
+      lost[#lost + 1] = (r.p.label or ("#" .. id)) .. " at " .. (r.p.x and (r.p.x .. "," .. tostring(r.p.y) .. "," .. r.p.z) or ("Y " .. tostring(r.p.y)))
     end
   end
   local modeLabel = (hub.mode == "fast") and " FAST " or " THOROUGH "
