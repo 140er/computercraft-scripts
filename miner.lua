@@ -2130,7 +2130,9 @@ local function trip(j0)
   reach = j0.reach or C.REACH
   mode = (j0.mode == "fast") and "fast" or "thorough"
   st.sessionEnd = j0.stopIn and (nowMs() + j0.stopIn * 1000) or nil
-  local base = j0.baseY or j0.y
+  -- An ore level close to (or above) the home spot, e.g. coal at Y 48 with home at Y 52:
+  -- mine at the highest level the shaft allows instead of giving up
+  local base = math.min(j0.baseY or j0.y, HOME.y - 8)
   local Y = pickLevel(base)
   if not Y then return C.AREA_FULL end
   local j = {}
@@ -2205,7 +2207,8 @@ local function worker()
         setStatus("Heading out: " .. (j.bore and ("tunnel to " .. j.bore.x .. "," .. j.bore.z) or (j.ore .. " at Y " .. j.y)))
         local ok, err = pcall(trip, j)
         if ok and err == C.AREA_FULL then
-          setStatus("Area full for " .. j.ore .. ": pick another ore or raise the reach")
+          setStatus("Area full for " .. j.ore .. ": all " .. C.MAX_LAYERS .. " layers dug within reach "
+            .. (j.reach or C.REACH) .. ". Pick another ore or raise the reach")
           sleep(60)
         elseif ok and err == C.UNLOADED or not ok and tostring(err):find(C.UNLOADED, 1, true) then
           -- Next tunnel block is in a chunk that is not loaded: wait instead of retrying right away
