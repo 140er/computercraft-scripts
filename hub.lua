@@ -339,6 +339,18 @@ local function setLimit(sec)
   save()
 end
 
+-- How far from its shaft a turtle may mine (blocks). Further = more ore per layer,
+-- but the chunks out there must stay loaded (a player nearby or a chunk loader).
+local function setReach(n)
+  if not n then
+    n = 64
+    for _, r in ipairs({ 64, 96, 128, 160, 192 }) do if r > hub.reach then n = r break end end
+  end
+  hub.reach = math.floor(math.max(16, math.min(256, n)))
+  save()
+  flash("Reach: " .. hub.reach .. " blocks from the shaft (next trip). Keep those chunks loaded.")
+end
+
 local function stopAll()
   if selected then
     hub.overrides[selected] = false
@@ -539,6 +551,10 @@ local function draw(s)
     local t = math.floor(left)
     at(x, y, string.format("%d:%02d:%02d", math.floor(t / 3600), math.floor(t / 60) % 60, t % 60),
       left < 300 and colors.orange or colors.white)
+  end
+  local reachLabel = " REACH " .. hub.reach .. " "
+  if W - #reachLabel + 1 > x + 8 then
+    button(W - #reachLabel + 1, y, reachLabel, colors.white, colors.blue, function() setReach() end)
   end
 
   -- Turtle table
@@ -1037,6 +1053,7 @@ local function panelRequest(id, m)
   elseif m.cmd == "recall" then recallNow()
   elseif m.cmd == "resume" then resumeAll()
   elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "reach" then setReach(tonumber(m.n))
   elseif m.cmd == "bore" then
     -- Tunnel job for one turtle: a lit 3x3 tunnel from its shaft to x z (see miner.lua)
     local x, z = tonumber(m.x), tonumber(m.z)
@@ -1095,7 +1112,7 @@ local function panelRequest(id, m)
   end
   table.sort(haul, function(a, b) return a.n > b.n end)
   send(id, { type = "panel_state", rid = m.rid, target = hub.target, recallAll = hub.recallAll,
-    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only,
+    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only, reach = hub.reach,
     ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
 end
 

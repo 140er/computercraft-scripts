@@ -473,7 +473,9 @@ local function drawMine()
     { "STOP", colors.white, colors.red, function() hubCmd({ cmd = "stop" }) end },
     { "RECALL", colors.white, colors.purple, function() hubCmd({ cmd = "recall" }) end },
     { "RESUME", colors.black, h.recallAll and colors.lime or colors.lightGray, function() hubCmd({ cmd = "resume" }) end },
-  })
+    -- reach: how far from the shaft they mine; each tap goes one step further (64 after 192)
+    { "R" .. tostring(h.reach or "?"), colors.white, colors.blue, function() hubCmd({ cmd = "reach" }) end },
+  }, 1, W, 0)
 
   -- Session length
   local row = {}

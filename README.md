@@ -157,6 +157,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **ALL ORES / ONLY DIA:** with ALL ORES the turtles keep every ore they find. Switch it to ONLY and they mine just the chosen ore: other ores are not followed, and any they dig through are dropped underground like stone (coal is burned as fuel instead). Applies from the next trip; what's already in the chests stays.
 - **Time:** session length, 10 minutes up to 1 hour (default 30 minutes). Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
+- **REACH** (right of the session time): how far from its shaft a turtle may mine, in blocks (default 96). Each tap goes one step further (64, 96, 128, 160, 192, then back to 64). When a turtle says "area full", every layer within the reach is dug: raise it, and keep those chunks loaded.
 - **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name.
 - **IN TURTLES NOW:** the loot currently in all turtles together (last reported for turtles out of range).
 - Keyboard: `1`-`7` ore, `c` custom item, `s` stop, `r` recall, `h` resume, `u` update, `a` all, `q` quit.
@@ -716,7 +717,7 @@ Type a job after `builder` (`builder floor 100 64 -20 115 64 -5 stone_bricks`), 
 
 Tabs along the top: **Home**, **Mine**, **Stor**, **Bots**, **Map** and **>_** (tap them, or keys 1-6, Q quits). 
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
-- **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. Tap a turtle to give orders to that turtle only, ALL to go back.
+- **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. The blue **R96** button is the reach: how far from its shaft a turtle mines. Each tap goes one step further (64, 96, 128, 160, 192, then back to 64). Raise it when a turtle says "area full", and keep those chunks loaded. Tap a turtle to give orders to that turtle only, ALL to go back.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Bots**: one row per bot with its status; tap one for its page:
   - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.
