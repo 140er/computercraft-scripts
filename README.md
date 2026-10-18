@@ -57,14 +57,39 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 5. On the dashboard: pick a time, pick an ore. Done.
 
 ### Setup: the turtles
-Example: 4 turtles in a row at y=64, z=-350, each with its chest on the north side, so they face **south**. Give each a different role (the direction of its main tunnel). `setup` warns you if it doesn't see a chest behind the turtle.
+The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Give every turtle a different role (the direction of its main tunnel), so they each mine their own quarter. `setup` warns you if it doesn't see a chest behind the turtle.
+
+**Without GPS: from the hub (shows on the map).** Tell the hub once where it stands (F3, look at the hub computer), and start it:
+```
+hub pos 100 70 -340
+hub
+```
+Then on each turtle: the way it faces, its role, and whether the hub is to its right or left (stand behind it looking the same way):
+```
+miner setup hub south east right
+```
+It steps into its hole and back, measures the radio distance to the hub at each spot and works out its own position from the hub's. The hub needs a wireless or ender modem and has to be running. With GPS the hub fills in `hub pos` by itself.
+
+**Without GPS: only the height.** Each turtle uses its own spot as home (x 0, z 0) and calls the way it faces "north", so the role can also be `forward`, `right`, `back` or `left`:
+```
+miner setup 64 right
+miner setup 64 left
+```
+Such a turtle doesn't show on the pocket's map, and a tunnel job's end point is counted from its own spot (x to its right, z backward).
+
+**With [GPS](#gps-and-the-map): nothing but the role.** It finds its position, and its facing by stepping into its hole and back:
+```
+miner setup east
+```
+
+**Or everything by hand**, with the turtle's own coordinates (F3). Example: 4 turtles in a row at y=64, z=-350, each with its chest on the north side, so they face **south**:
 ```
 miner setup 120 64 -350 south east    -- easternmost
 miner setup 118 64 -350 south south
 miner setup 116 64 -350 south north
 miner setup 114 64 -350 south west    -- westernmost
 ```
-General form: `miner setup <x> <y> <z> <facing> <role>`, with the turtle's own coordinates (F3). Setup writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...), so it restarts by itself and keeps its files when you pick it up.
+Setup writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...), so it restarts by itself and keeps its files when you pick it up.
 
 ---
 
@@ -226,12 +251,13 @@ Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket pan
 
 | Where | Command | What |
 |---|---|---|
-| turtle | `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
+| turtle | `miner setup hub <facing> <role> <left\|right>`, `miner setup <y> [role]`, `miner setup [role]` (GPS) or `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
 | turtle | `miner` | run with the hub (started automatically on boot) |
 | turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
 | pocket console | `<miner> tunnel <x> <z> [n]` | dig a lit 3x3 highway to x z, torch every n blocks (see [Tunnels](#tunnels-highway-job)) |
 | hub | `hub install`, `hub` | autostart, run |
+| hub | `hub pos <x> <y> <z>` | where the hub stands, for miners without GPS |
 | relay | `relay install`, `relay` | autostart, run |
 | tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
 | tree turtle | `lumber home` / `lumber reset` | reset position after putting it back by hand / forget all trees |

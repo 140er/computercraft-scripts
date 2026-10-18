@@ -332,21 +332,43 @@ local BOTS = {
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest directly BEHIND it.\n* A 1x1 hole IN FRONT of it going down.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
       { say = "Checking for the chest behind the turtle.", check = chestCheck },
-    }, coords("the turtle"), {
-      facing(),
-      { ask = "role", choices = ROLES,
+    }, {
+      -- With GPS it finds its own position and facing. Without GPS it can work out its
+      -- position from the hub's (shows on the map), or use its own spot as home (height only).
+      { ask = "how", when = function(c) return not c.gps end,
+        choices = { { "hub", "From the hub (on the map)" }, { "here", "Height only (no map)" } },
+        q = "No GPS here. The turtle can find its position from the hub (the hub must be set up and running first, it then shows on the pocket map), or use its own spot as home and only ask its height." },
+      facing(function(c) return c.how == "hub" end),
+      { ask = "side", when = function(c) return c.how == "hub" end,
+        choices = { { "right", "To its right" }, { "left", "To its left" } },
+        q = "Stand behind the turtle, looking the way it faces. Is the hub computer more to its right or to its left?" },
+      { say = "It now steps into its hole and back to measure the distance to the hub.", check = fuelCheck(4),
+        when = function(c) return c.how == "hub" end },
+      { ask = "y", kind = "number", q = "Its own spot is home (x 0 z 0). Only its height: press F3, look at the turtle. Y:",
+        when = function(c) return c.how == "here" end },
+      { ask = "role", choices = ROLES, when = function(c) return c.how ~= "here" end,
         q = "Its role = the direction of its main tunnel. Give every turtle a different one, so they each mine their own quarter." },
-      { run = function(c) return { "miner", "setup", c.x, c.y, c.z, c.facing, c.role } end },
+      { ask = "role", when = function(c) return c.how == "here" end,
+        choices = { { "right", "To its right" }, { "left", "To its left" }, { "forward", "Straight ahead" }, { "back", "Backward (under the chest)" } },
+        q = "Which way should its main tunnel go? Turtles standing next to each other: give each a different one." },
+      { run = function(c)
+          if c.gps then return { "miner", "setup", c.role } end
+          if c.how == "hub" then return { "miner", "setup", "hub", c.facing, c.role, c.side } end
+          return { "miner", "setup", c.y, c.role }
+        end },
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
     files = { "hub.lua", "miner.lua" }, start = { "hub" },
-    steps = {
+    steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
       { run = function() return { "hub", "install" } end },
+    }, coords("this computer"), {
+      -- miners without GPS ask the hub where it is and work out their own spot from that
+      { run = function(c) return { "hub", "pos", c.x, c.y, c.z } end },
       { say = "Set up each mining turtle with this installer too (pick 'Mining turtle'). On the dashboard you pick a time and an ore." },
-    } },
+    }) },
   { id = "relay", name = "Radio relay", hint = "range booster for normal wireless modems", on = "computer",
     files = { "relay.lua" }, start = { "relay" },
     steps = {

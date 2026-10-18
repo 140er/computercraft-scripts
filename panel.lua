@@ -1429,7 +1429,13 @@ local function driveReply(p, m)
   local d = m.drive
   if type(d) == "table" then
     mp.pose, mp.fuel, mp.home = d, d.fuel, d.home
-    for _, b in ipairs(d.seen or {}) do mp.blocks[bkey(b.x, b.y, b.z)] = b.name wmap.learn(b) end
+    -- the world map only takes blocks from miners it can place (world coordinates)
+    local id, world = tonumber(tostring(p.drive):match("^miner:(%d+)$")), false
+    for _, t in ipairs(id and data.hub and data.hub.turtles or {}) do if t.id == id and t.x then world = true end end
+    for _, b in ipairs(d.seen or {}) do
+      mp.blocks[bkey(b.x, b.y, b.z)] = b.name
+      if world then wmap.learn(b) end
+    end
   end
 end
 

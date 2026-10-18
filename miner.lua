@@ -1,6 +1,10 @@
 -- miner.lua - Mine Army turtle (CC: Tweaked)
 --
 -- One-time setup (see README):
+--   miner setup <y> [role]    without GPS: only its height (F3); home is its own x 0 z 0
+--   miner setup [role]        with GPS: it finds its position and facing by itself
+--   miner setup hub <facing> <role> [left|right]   no GPS: measures where the hub is
+--                             (needs 'hub pos <x> <y> <z>' once on the hub)
 --   miner setup <x> <y> <z> <facing> <role>
 --     x y z   = world coordinates of the turtle (F3), e.g. 120 64 -350
 --     facing  = direction the turtle faces: north/east/south/west
@@ -295,17 +299,95 @@ end
 -- Setup
 ---------------------------------------------------------------------------
 if args[1] == "setup" then
-  local hx, hy, hz = tonumber(args[2]), tonumber(args[3]), tonumber(args[4])
-  local facing = DIRS[(args[5] or ""):lower()]
-  local role = DIRS[(args[6] or ""):lower()]
-  if not hx and gps then
-    local gx, gy, gz = gps.locate(2)
-    if gx then hx, hy, hz = math.floor(gx + 0.5), math.floor(gy + 0.5), math.floor(gz + 0.5) end
+  -- Three ways (the chest is always directly behind it, the hole in front):
+  --   miner setup <x> <y> <z> <facing> <role>   world coordinates (F3), as before
+  --   miner setup [role]                        with GPS: position and facing found by itself
+  --   miner setup <y> [role]                    no GPS: only its height; its own home is
+  --                                             x 0 z 0, facing "north" = the way it faces
+  -- role = direction of its main tunnel; without GPS also forward/right/back/left.
+  local n = {}
+  for i = 2, #args do if tonumber(args[i]) then n[#n + 1] = tonumber(args[i]) end end
+  local words = {}
+  for i = 2, #args do if not tonumber(args[i]) then words[#words + 1] = args[i]:lower() end end
+  local REL = { forward = 0, right = 1, back = 2, left = 3 }
+  local hx, hy, hz, facing, role, loc
+  if words[1] == "hub" then
+    -- No GPS, but the hub knows where it is: measure the radio distance to the hub
+    -- from 3 spots (here, one step into the hole, one down the hole) to find where
+    -- the hub is from here; with the facing that gives the world position.
+    facing = DIRS[words[2] or ""]
+    role = DIRS[words[3] or ""]
+    local side = (words[4] == "left") and -1 or 1
+    local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+    local function hubDist()
+      modem.transmit(16524, 16524, { type = "where_hub" })
+      local t = os.startTimer(3)
+      while true do
+        local ev, a, ch, _, msg, dist = os.pullEvent()
+        if ev == "timer" and a == t then return nil end
+        if ev == "modem_message" and ch == 16524 and type(msg) == "table" and msg.type == "hub_here"
+          and type(dist) == "number" then return dist, msg end
+      end
+    end
+    if not (facing and role) then
+      print("Usage: miner setup hub <facing> <role> [left|right]")
+      print("  facing: the way it faces (F3), role: its main tunnel")
+      print("  left/right: which side of the turtle the hub is on")
+      return
+    elseif not modem then print("Needs a wireless or ender modem.") return
+    elseif turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < 4 then
+      print("Put a little fuel in it first (refuel), it moves 2 blocks and back.") return
+    end
+    modem.open(16524)
+    local d0, at = hubDist()
+    if not d0 then print("No answer from the hub. Is it running (new version), and did you give it its position? (hub pos <x> <y> <z>)") return end
+    if not turtle.forward() then print("Couldn't step forward into its hole.") return end
+    local d1 = hubDist()
+    local down = turtle.down()
+    local d2 = down and hubDist()
+    if down then turtle.up() end
+    turtle.back()
+    if not (d1 and d2) then print("Couldn't measure from inside the hole (is it 2 deep?).") return end
+    -- the hub as seen from here: x = right, y = up, z = backward (turtle faces -z)
+    local lz = math.floor((d1 * d1 - d0 * d0 - 1) / 2 + 0.5)
+    local ly = math.floor((d2 * d2 - d1 * d1 - 1) / 2 + 0.5)
+    local lx = side * math.floor(math.sqrt(math.max(0, d0 * d0 - ly * ly - lz * lz)) + 0.5)
+    local R, F = (facing + 1) % 4, facing
+    hx = at.x - (lx * DX[R] - lz * DX[F])
+    hy = at.y - ly
+    hz = at.z - (lx * DZ[R] - lz * DZ[F])
+    print("The hub is " .. math.abs(lx) .. (lx < 0 and " left, " or " right, ") .. math.abs(lz) .. (lz > 0 and " behind, " or " ahead, ")
+      .. math.abs(ly) .. (ly < 0 and " down." or " up."))
+  elseif #n >= 3 then
+    hx, hy, hz = n[1], n[2], n[3]
+    facing, role = DIRS[words[1] or ""], DIRS[words[2] or ""]
+  elseif #n == 1 then
+    hx, hy, hz, facing, loc = 0, n[1], 0, 0, true
+    role = DIRS[words[1] or "east"] or REL[words[1] or ""]
+  elseif gps then
+    -- GPS: where it is, and which way it faces (one step into its hole and back)
+    local function fix()
+      local x, y, z = gps.locate(2)
+      if x then return math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5) end
+    end
+    hx, hy, hz = fix()
+    if hx and turtle.forward() then
+      local x, _, z = fix()
+      turtle.back()
+      for d = 0, 3 do if x and DX[d] == x - hx and DZ[d] == z - hz then facing = d end end
+    end
+    role = DIRS[words[1] or "east"] or (facing and REL[words[1]] and (facing + REL[words[1]]) % 4)
+    if hx and not facing then print("GPS works, but it couldn't step into its hole to see which way it faces.") end
   end
   if not (hx and hy and hz and facing and role) then
-    print("Usage: miner setup <x> <y> <z> <facing> <role>")
-    print("  facing/role: north, east, south or west")
-    print("  e.g. miner setup 120 64 -350 south east")
+    print("Usage:")
+    print("  miner setup <y> [role]     no GPS: just its height (F3)")
+    print("  miner setup [role]         with GPS")
+    print("  miner setup hub <facing> <role> [left|right]")
+    print("  miner setup <x> <y> <z> <facing> <role>")
+    print("role: the direction of its main tunnel. Give every")
+    print("turtle a different one: north/east/south/west")
+    print("(no GPS: also forward/right/back/left)")
     return
   end
   local found, info = false, nil
@@ -315,14 +397,21 @@ if args[1] == "setup" then
   if not (found and info.name:find("chest") or found and info.name:find("barrel")) then
     print("WARNING: no chest found behind the turtle!")
   end
-  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role })
+  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("miner")\n')
   h.close()
   os.setComputerLabel("Miner-" .. DIRNAME[role])
-  print("Saved. Home " .. hx .. "," .. hy .. "," .. hz .. " facing " .. DIRNAME[facing])
-  print("Main tunnel " .. DIRNAME[role] .. ", branches " .. DIRNAME[(role + 1) % 4])
+  if loc then
+    print("Saved. Height " .. hy .. ", its own home is x 0 z 0, facing 'north'.")
+    print("Main tunnel " .. ({ [0] = "forward", "to its right", "backward", "to its left" })[role]
+      .. " (" .. DIRNAME[role] .. ")")
+    print("No GPS: it won't show on the pocket's map.")
+  else
+    print("Saved. Home " .. hx .. "," .. hy .. "," .. hz .. " facing " .. DIRNAME[facing])
+    print("Main tunnel " .. DIRNAME[role] .. ", branches " .. DIRNAME[(role + 1) % 4])
+  end
   print("Start with: miner   (or reboot the turtle)")
   return
 end
@@ -415,7 +504,7 @@ local function packet()
     type = "status", v = VERSION, hash = MY_HASH, id = os.getComputerID(),
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
-    x = pos.x, y = pos.y, z = pos.z,
+    x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
@@ -2283,7 +2372,7 @@ local function listener()
   -- finds its chest, and the worker restarts it as a normal miner.
   local lastFix
   local function lostFix(dir)
-    if st.phase ~= "lost" or not gps then return end
+    if st.phase ~= "lost" or not gps or cfg.loc then return end -- no GPS setup: own coordinates
     local x, y, z = gps.locate(1)
     if not x then return end
     x, y, z = math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5)
@@ -2329,7 +2418,10 @@ local function listener()
       end
       if st.phase ~= "home" then return "Out on a trip: RECALL it (and STOP) first" end
     end,
-    known = function(r) return known.near(r or 12) end,
+    known = function(r)
+      if r and cfg.loc then return {} end -- for the world map, but set up without GPS
+      return known.near(r or 12)
+    end,
   }
   while true do
     local ev, a, b, c = os.pullEvent()
