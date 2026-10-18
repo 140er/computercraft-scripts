@@ -490,14 +490,29 @@ local function drawMine()
   -- Turtles: two lines each, tap one to give it its own orders
   if selT then
     text(1, 10, (" For " .. (selT.label or ("#" .. selT.id))):sub(1, W - 18), colors.yellow)
-    button(W - 17, 10, 6, "TUNNEL", colors.white, colors.brown, function()
-      local to = prompt("Tunnel to x z? (F3, ahead of it)")
-      if not to then return end
-      local x, z = to:match("^(%-?%d+)[%s,]+(%-?%d+)$")
-      if not x then toast("Type two numbers: x z", 3) return end
-      local every = prompt("Torch every how many blocks? (empty = 8)")
-      hubCmd({ cmd = "bore", x = tonumber(x), z = tonumber(z), every = tonumber(every or "") or 8 })
-    end)
+    if selT.phase == "lost" or (selT.age or 0) > 60 then
+      -- gone for a while: FORGET takes it off the hub's list (tap twice)
+      local sure = ui.forget == selT.id and os.clock() < (ui.forgetUntil or 0)
+      button(W - 17, 10, 6, sure and "SURE?" or "FORGET", colors.white, colors.red, function()
+        if ui.forget == selT.id and os.clock() < (ui.forgetUntil or 0) then
+          ui.forget = nil
+          hubCmd({ cmd = "forget" })
+          ui.selected = nil
+        else
+          ui.forget, ui.forgetUntil = selT.id, os.clock() + 5
+          toast("Tap again to forget " .. (selT.label or ("#" .. selT.id)), 3)
+        end
+      end)
+    else
+      button(W - 17, 10, 6, "TUNNEL", colors.white, colors.brown, function()
+        local to = prompt("Tunnel to x z? (F3, ahead of it)")
+        if not to then return end
+        local x, z = to:match("^(%-?%d+)[%s,]+(%-?%d+)$")
+        if not x then toast("Type two numbers: x z", 3) return end
+        local every = prompt("Torch every how many blocks? (empty = 8)")
+        hubCmd({ cmd = "bore", x = tonumber(x), z = tonumber(z), every = tonumber(every or "") or 8 })
+      end)
+    end
     button(W - 4, 10, 5, "ALL", colors.black, colors.white, function() ui.selected = nil end)
     button(W - 10, 10, 5, "DRIVE", colors.white, colors.blue, function()
       openDrive({ id = selT.id, proto = "minearmy", name = selT.label or ("#" .. selT.id) })
@@ -893,13 +908,67 @@ local function drawBuddy()
   end)
 end
 
+-- How a block looks on the map: character, text colour, background
+local ORE_COLOR = { diamond = colors.lightBlue, emerald = colors.lime, gold = colors.yellow, iron = colors.pink,
+  redstone = colors.red, lapis = colors.blue, copper = colors.orange, coal = colors.black }
+local function blockStyle(name)
+  local n = (name:match(":(.+)$") or name)
+  if n == "air" or n == "cave_air" or n == "void_air" then return nil end
+  if n:find("water") then return " ", colors.white, colors.blue end
+  if n:find("lava") then return " ", colors.white, colors.orange end
+  if n:find("_ore$") or n == "ancient_debris" then
+    local c = colors.white
+    for k, col in pairs(ORE_COLOR) do if n:find(k, 1, true) then c = col end end
+    return "*", c, colors.gray
+  end
+  if n:find("chest") or n:find("barrel") or n:find("shulker") then return "C", colors.yellow, colors.brown end
+  if n:find("turtle") or n:find("computer") then return "T", colors.yellow, colors.gray end
+  if n:find("furnace") or n:find("smoker") then return "F", colors.orange, colors.gray end
+  if n:find("_log$") or n:find("_wood$") or n:find("_stem$") then return "o", colors.yellow, colors.brown end
+  if n:find("leaves") then return "%", colors.lime, colors.green end
+  if n:find("sapling") or n:find("flower") or n == "short_grass" or n == "tall_grass" or n == "fern" or n:find("bush") then
+    return "\"", colors.lime, colors.black end
+  if n:find("grass_block") or n:find("moss") then return " ", colors.white, colors.green end
+  if n:find("dirt") or n:find("mud") or n:find("podzol") then return " ", colors.white, colors.brown end
+  if n:find("sand") then return " ", colors.white, colors.yellow end
+  if n:find("glass") then return "#", colors.lightBlue, colors.black end
+  if n:find("torch") or n:find("lantern") then return "i", colors.yellow, colors.black end
+  if n == "bedrock" then return "#", colors.black, colors.gray end
+  if n:find("snow") or n:find("ice") then return " ", colors.white, colors.white end
+  if n:find("plank") or n:find("door") or n:find("fence") then return "=", colors.brown, colors.orange end
+  if n:find("stone") or n:find("deepslate") or n:find("cobble") or n:find("tuff") or n:find("andesite")
+    or n:find("diorite") or n:find("granite") or n:find("gravel") or n:find("calcite") or n:find("basalt") then
+    return " ", colors.white, colors.gray end
+  return n:sub(1, 1), colors.black, colors.lightGray
+end
+
 ---------------------------------------------------------------------------
 -- Map: where every bot is, seen from above (north is up). Needs GPS hosts
 -- (gpshost.lua). Miners report their real position already; the lumber
 -- turtle and Buddy ask GPS. Drag to move, - / + to zoom, Fit shows everyone.
 ---------------------------------------------------------------------------
 local ZOOMS = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 } -- blocks per character
-local wmap = { zoom = 4, cx = 0, cz = 0, mode = "fit", sel = nil, me = nil, meAt = -1e9, tapX = 0, tapY = 0 }
+local wmap = { zoom = 4, cx = 0, cz = 0, mode = "fit", sel = nil, me = nil, meAt = -1e9, tapX = 0, tapY = 0,
+  blocks = {}, nBlocks = 0, knownAt = -1e9 }
+-- Blocks the miners remember (and what driving showed), seen from above: per x,z the most
+-- interesting one of any height: ore, then open space (tunnels, caves), then rock.
+function wmap.learn(b)
+  if type(b) ~= "table" or type(b.x) ~= "number" or type(b.z) ~= "number" or type(b.name) ~= "string" then return end
+  local function rank(name)
+    local n = name:match(":(.+)$") or name
+    if n:find("_ore$") or n == "ancient_debris" then return 3 end
+    if n:find("air$") or n:find("water") or n:find("lava") then return 2 end
+    return 1
+  end
+  local k = b.x .. "," .. b.z
+  local old = wmap.blocks[k]
+  if old and rank(old) > rank(b.name) then return end
+  if not old then
+    wmap.nBlocks = wmap.nBlocks + 1
+    if wmap.nBlocks > 30000 then wmap.blocks, wmap.nBlocks = {}, 1 end
+  end
+  wmap.blocks[k] = b.name
+end
 
 -- Everything with a position: { key, label, ch, col, x, y, z, old }
 local function mapMarks()
@@ -971,6 +1040,22 @@ local function drawMap()
         row[x] = math.floor(wx / step) ~= math.floor((wx + zx) / step) and "+" or " "
       end
       text(1, y, table.concat(row), colors.gray)
+    end
+  end
+
+  -- Remembered blocks, when zoomed in far enough to see single blocks
+  if wmap.zoom <= 2 then
+    for y = top, bottom do
+      local wz = math.floor(wmap.cz + (y - top - mh / 2) * zz)
+      for x = 1, mw do
+        local wx = math.floor(wmap.cx + (x - 1 - mw / 2) * zx)
+        local name = wmap.blocks[wx .. "," .. wz] or wmap.blocks[wx .. "," .. (wz + 1)]
+        if name then
+          local ch, fg, bg = blockStyle(name)
+          if not ch then ch, fg, bg = ".", colors.lightGray, colors.black end
+          text(x, y, ch, fg, bg)
+        end
+      end
     end
   end
 
@@ -1318,40 +1403,6 @@ end
 local maps = {} -- [map key] = { blocks = { ["x,y,z"] = name }, pose =, fuel =, status =, home = }
 local function bkey(x, y, z) return x .. "," .. y .. "," .. z end
 
--- How a block looks on the map: character, text colour, background
-local ORE_COLOR = { diamond = colors.lightBlue, emerald = colors.lime, gold = colors.yellow, iron = colors.pink,
-  redstone = colors.red, lapis = colors.blue, copper = colors.orange, coal = colors.black }
-local function blockStyle(name)
-  local n = (name:match(":(.+)$") or name)
-  if n == "air" or n == "cave_air" or n == "void_air" then return nil end
-  if n:find("water") then return " ", colors.white, colors.blue end
-  if n:find("lava") then return " ", colors.white, colors.orange end
-  if n:find("_ore$") or n == "ancient_debris" then
-    local c = colors.white
-    for k, col in pairs(ORE_COLOR) do if n:find(k, 1, true) then c = col end end
-    return "*", c, colors.gray
-  end
-  if n:find("chest") or n:find("barrel") or n:find("shulker") then return "C", colors.yellow, colors.brown end
-  if n:find("turtle") or n:find("computer") then return "T", colors.yellow, colors.gray end
-  if n:find("furnace") or n:find("smoker") then return "F", colors.orange, colors.gray end
-  if n:find("_log$") or n:find("_wood$") or n:find("_stem$") then return "o", colors.yellow, colors.brown end
-  if n:find("leaves") then return "%", colors.lime, colors.green end
-  if n:find("sapling") or n:find("flower") or n == "short_grass" or n == "tall_grass" or n == "fern" or n:find("bush") then
-    return "\"", colors.lime, colors.black end
-  if n:find("grass_block") or n:find("moss") then return " ", colors.white, colors.green end
-  if n:find("dirt") or n:find("mud") or n:find("podzol") then return " ", colors.white, colors.brown end
-  if n:find("sand") then return " ", colors.white, colors.yellow end
-  if n:find("glass") then return "#", colors.lightBlue, colors.black end
-  if n:find("torch") or n:find("lantern") then return "i", colors.yellow, colors.black end
-  if n == "bedrock" then return "#", colors.black, colors.gray end
-  if n:find("snow") or n:find("ice") then return " ", colors.white, colors.white end
-  if n:find("plank") or n:find("door") or n:find("fence") then return "=", colors.brown, colors.orange end
-  if n:find("stone") or n:find("deepslate") or n:find("cobble") or n:find("tuff") or n:find("andesite")
-    or n:find("diorite") or n:find("granite") or n:find("gravel") or n:find("calcite") or n:find("basalt") then
-    return " ", colors.white, colors.gray end
-  return n:sub(1, 1), colors.black, colors.lightGray
-end
-
 local DRIVE_KEYS = { w = "forward", s = "back", a = "left", d = "right", r = "up", f = "down", x = "dig", l = "look" }
 
 local function driveSend(act)
@@ -1378,7 +1429,7 @@ local function driveReply(p, m)
   local d = m.drive
   if type(d) == "table" then
     mp.pose, mp.fuel, mp.home = d, d.fuel, d.home
-    for _, b in ipairs(d.seen or {}) do mp.blocks[bkey(b.x, b.y, b.z)] = b.name end
+    for _, b in ipairs(d.seen or {}) do mp.blocks[bkey(b.x, b.y, b.z)] = b.name wmap.learn(b) end
   end
 end
 
@@ -1472,7 +1523,7 @@ end
 local function hubOrder(words, from, turtle)
   local op = lower(words[from])
   local msg = { type = "panel", turtle = turtle }
-  if op == "stop" or op == "recall" or op == "resume" then msg.cmd = op
+  if op == "stop" or op == "recall" or op == "resume" or op == "forget" then msg.cmd = op
   elseif op == "time" then
     local m = tonumber(words[from + 1])
     if not m then say("hub time <minutes>: 10, 20, 30, 45 or 60", colors.orange) return end
@@ -1645,6 +1696,11 @@ local function consoleReply(id, m, proto)
   if not p then return false end
   con.pending[m.rid] = nil
   local tag = "[" .. p.name .. "] "
+  if p.known then
+    for _, b in ipairs(type(m.known) == "table" and m.known or {}) do wmap.learn(b) end
+    redrawSoon()
+    return true
+  end
   if p.drive then driveReply(p, m) return true end
   if m.type == "dev_reply" then
     say(tag .. tostring(m.out), m.ok and colors.lime or colors.red)
@@ -1700,7 +1756,7 @@ local function consoleTick()
     if os.clock() - p.t > 8 then
       con.pending[rid] = nil
       if p.drive and maps[p.drive] then maps[p.drive].status, maps[p.drive].statusColor = "No answer", colors.red
-      else say("[" .. p.name .. "] no answer", colors.red) end
+      elseif not p.known then say("[" .. p.name .. "] no answer", colors.red) end -- the map asks quietly
     end
   end
 end
@@ -1966,6 +2022,17 @@ local function pollLoop()
         local d = DEV[key]
         local every = (ui.tab == key or ui.tab == "home" or ui.tab == "map" or (ui.tab == "bots" and IN_BOTS[key])) and d.poll or 10
         if d.id and os.clock() - d.asked >= every then ask(key) end
+      end
+      -- the map, zoomed in: ask the miners for the blocks they remember
+      if ui.tab == "map" and wmap.zoom <= 2 and os.clock() - wmap.knownAt > 20 then
+        wmap.knownAt = os.clock()
+        local h = online("hub") and data.hub
+        for _, t in ipairs(h and h.turtles or {}) do
+          if (t.age or 0) < 60 then
+            sendTo({ id = t.id, proto = "minearmy", name = t.label or ("#" .. t.id) },
+              { type = "dev", op = "known", key = con.key }, { known = true })
+          end
+        end
       end
       timer = os.startTimer(0.5)
     elseif ev == "panel_ask" and DEV[a] then

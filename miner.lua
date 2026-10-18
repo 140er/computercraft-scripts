@@ -193,6 +193,10 @@ local function devCommand(m, logFile, program, reply, hooks)
       end
       out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
     end
+  elseif op == "known" then
+    -- the blocks it remembers around it, for the pocket's map (no moving, any time)
+    r.known = hooks and hooks.known and hooks.known(32) or {}
+    out(#r.known .. " blocks")
   elseif op == "drive" then
     local hk = hooks or devDriveHooks()
     local why = not turtle and "This is not a turtle" or (hk.busy and hk.busy())
@@ -2325,7 +2329,7 @@ local function listener()
       end
       if st.phase ~= "home" then return "Out on a trip: RECALL it (and STOP) first" end
     end,
-    known = function() return known.near(12) end,
+    known = function(r) return known.near(r or 12) end,
   }
   while true do
     local ev, a, b, c = os.pullEvent()
