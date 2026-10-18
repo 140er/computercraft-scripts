@@ -2,7 +2,7 @@
 --
 -- One-time setup (see README):
 --   miner setup <x> <y> <z> <facing> <role>
---     x y z   = world coordinates of the turtle (F3), e.g. -216 65 -743
+--     x y z   = world coordinates of the turtle (F3), e.g. 120 64 -350
 --     facing  = direction the turtle faces: north/east/south/west
 --     role    = direction of its main tunnel: east/south/west/north
 --               (easternmost turtle = east, westernmost = west,
@@ -68,6 +68,12 @@ local DZ = { [0] = -1, 0, 1, 0, 0, 0 }
 local OPP = { [0] = 2, 3, 0, 1, 5, 4 }
 
 local args = { ... }
+if args[1] == "update" then
+  -- turtles get new versions from the hub, so they all run the same one
+  print("Mining turtles update through the hub: type 'hub update' on the hub")
+  print("(or press Update all on the pocket panel). They update when they get home.")
+  return
+end
 
 ---------------------------------------------------------------------------
 -- Files
@@ -107,7 +113,7 @@ if args[1] == "setup" then
   if not (hx and hy and hz and facing and role) then
     print("Usage: miner setup <x> <y> <z> <facing> <role>")
     print("  facing/role: north, east, south or west")
-    print("  e.g. miner setup -216 65 -743 south east")
+    print("  e.g. miner setup 120 64 -350 south east")
     return
   end
   local found, info = false, nil
@@ -144,7 +150,8 @@ local function inReach(x, z)
 end
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
-local ROLE = DIRNAME[SPINE]
+-- the hub keeps tunnel progress per role; a second site (e.g. from the turtle factory) has its own
+local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
 
 if args[1] == "home" then
   -- Manual recovery: the turtle is (back) on its home spot, chest behind it.
@@ -355,7 +362,8 @@ end
 -- (raw ores, gems, dusts, also modded), fuel and buckets. Everything else is junk.
 local KEEP_NAMES = {}
 for _, n in ipairs({ "diamond", "emerald", "lapis_lazuli", "redstone", "coal", "charcoal", "coal_block",
-  "quartz", "ancient_debris", "netherite_scrap", "gold_nugget", "bucket", "lava_bucket", "water_bucket" }) do
+  "quartz", "ancient_debris", "netherite_scrap", "gold_nugget", "bucket", "lava_bucket", "water_bucket",
+  "torch" }) do -- torches: for tunnel jobs
   KEEP_NAMES["minecraft:" .. n] = true
 end
 local KEEP_TAGS = { "c:ores", "forge:ores", "c:raw_materials", "forge:raw_materials", "c:gems",
@@ -435,9 +443,13 @@ end
 ---------------------------------------------------------------------------
 -- Turning. The new heading is saved BEFORE each turn: a turn happens immediately
 -- and the 8-tick animation after it is the biggest risk window for a reboot.
+-- A reboot in the tick between the save and the turn itself still leaves the
+-- heading a quarter turn off, so the old heading is kept in st.turnFrom until the
+-- next move: after a reboot recover() checks which of the two is right.
 local function face(d)
   if d >= 4 then return end
   while st.h ~= d do
+    st.turnFrom = st.h
     if (d - st.h) % 4 == 3 then
       st.h = (st.h + 3) % 4
       save()
@@ -571,9 +583,19 @@ local function sealStackSlot()
 end
 
 local function keepOneSealStack(dropFn)
-  local keep = sealStackSlot()
+  local keep = {}
+  local best = sealStackSlot()
+  if best then keep[best] = true end
+  -- Tunnel jobs bridge gaps and patch walls: keep 5 more stacks of blocks for that
+  local extra = (st.job and st.job.bore) and 5 or 0
   for s = 1, 16 do
-    if s ~= keep and turtle.getItemCount(s) > 0 and isJunk(s) then
+    if extra > 0 and not keep[s] and turtle.getItemCount(s) > 0 and isJunk(s) and sealable(s) then
+      keep[s] = true
+      extra = extra - 1
+    end
+  end
+  for s = 1, 16 do
+    if not keep[s] and turtle.getItemCount(s) > 0 and isJunk(s) then
       turtle.select(s)
       dropFn()
     end
@@ -582,7 +604,8 @@ local function keepOneSealStack(dropFn)
 end
 
 isLoot = function(slot, d)
-  if d.name == "minecraft:bucket" or d.name == "minecraft:lava_bucket" or d.name == "minecraft:water_bucket" then
+  if d.name == "minecraft:bucket" or d.name == "minecraft:lava_bucket" or d.name == "minecraft:water_bucket"
+    or d.name == "minecraft:torch" then
     return false
   end
   return not isJunk(slot)
@@ -645,6 +668,7 @@ local function rawMove(d, inVein)
   -- inVein: true = step into a vein (push), "pop" = step back out (pop). Saved together
   -- with the move, so a reboot right after the move can't leave the vein list wrong.
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
+  st.turnFrom = nil -- a move only starts after the last turn is done
   save()
   local ok, why = mv()
   if ok then
@@ -720,13 +744,20 @@ local function move(d, inVein)
 end
 
 local LOST = "LOST"
+local reorient -- heading check against the tunnel around the turtle (further down)
 
 -- Move along a route the turtle dug itself (shaft, main tunnel, branches, way home)
 local function moveOrFail(d, what, inVein)
   local info = inspect(d)
-  local hatch = d == DOWN and pos.x == SHAFT.x and pos.z == SHAFT.z and pos.y - 1 == HOME.y - 1
-  if info and not hatch and (NATURAL[info.name] or isOre(info)) then
-    error(LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be", 0)
+  -- The hatch (Y home-1 in the shaft) is closed with a seal block, which can be
+  -- andesite, tuff, deepslate etc.: from above on the way down, from below on the way up
+  local hatch = pos.x == SHAFT.x and pos.z == SHAFT.z and
+    (d == DOWN and pos.y == HOME.y or d == UP and pos.y == HOME.y - 2)
+  local function rock(i) return i and not hatch and (NATURAL[i.name] or isOre(i)) end
+  if rock(info) and d < 4 and reorient({ 1, 3 }) then info = inspect(d) end
+  if rock(info) then
+    error(LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be ("
+      .. info.name:gsub("^minecraft:", "") .. " to the " .. DIRNAME[d] .. ")", 0)
   end
   local ok, why = move(d, inVein)
   if not ok then error((what or "Stuck") .. ": " .. tostring(why), 0) end
@@ -737,6 +768,69 @@ end
 ---------------------------------------------------------------------------
 local function along(d) -- distance from the shaft along direction d
   return (pos.x - SHAFT.x) * DX[d] + (pos.z - SHAFT.z) * DZ[d]
+end
+
+-- Which sides should be open (true) or rock (false) here, from what the turtle dug.
+-- nil when it can't tell (shaft, other heights, vein going up/down).
+local function expectedSides()
+  local want = {}
+  if #st.vein > 0 then
+    local back = OPP[st.vein[#st.vein]] -- the way it came into this vein block
+    if back >= 4 then return nil end
+    want[back] = true
+    return want
+  end
+  local j = st.job
+  if not (j and j.y and pos.y == j.y and st.levels[j.y]) then return nil end
+  local aS, aB = along(SPINE), along(BRANCH)
+  if aS < 1 or aB < 0 then return nil end
+  if aB == 0 then -- main tunnel: open back to the shaft, branches only go one way
+    want[OPP[SPINE]] = true
+    if aS < (st.levels[j.y].spine or 0) then want[SPINE] = true end
+    want[OPP[BRANCH]] = false
+  else -- branch: open back to the main tunnel, rock on both walls
+    want[OPP[BRANCH]] = true
+    want[SPINE] = false
+    want[OPP[SPINE]] = false
+  end
+  return want
+end
+
+-- Look around (4 turns) and see if the tunnel fits better with the heading a
+-- quarter turn off. tries = quarter turns to consider (1 = right, 3 = left).
+-- Only corrects on clear evidence: at least 2 sides fit better than now.
+reorient = function(tries)
+  local want = expectedSides()
+  if not want then return false end
+  local open = {}
+  for _ = 1, 4 do
+    local ok, info = turtle.inspect()
+    open[st.h] = not ok or isLiquid(info)
+    face((st.h + 1) % 4)
+  end
+  local function score(k) -- k = how far the real heading is from what I think
+    local s = 0
+    for b = 0, 3 do
+      local w = want[(b + k) % 4]
+      if w ~= nil then s = s + ((open[b] == w) and 1 or -1) end
+    end
+    return s
+  end
+  local now = score(0)
+  local best, bestScore = 0, now
+  for _, k in ipairs(tries) do
+    local s = score(k)
+    if s > bestScore then best, bestScore = k, s end
+  end
+  st.turnFrom = nil
+  if best ~= 0 and bestScore - now >= 2 then
+    st.h = (st.h + best) % 4
+    save()
+    logError("Heading was off by a quarter turn " .. (best == 1 and "right" or "left") .. ", corrected")
+    return true
+  end
+  save()
+  return false
 end
 
 local function distHome()
@@ -783,12 +877,15 @@ end
 
 local function axisOf(d) return (d == 1 or d == 3) and "x" or "z" end
 
+local B = {} -- tunnel bore (filled in further down)
+
 -- Back home via the known route: vein -> branch -> main tunnel -> shaft
 local function goHome(reason)
   st.phase = "returning"
   save()
   setStatus("Going home: " .. (reason or ""))
   unwindVein()
+  if st.job and st.job.bore then B.back() end -- tunnel: back to the shaft along the tunnel
   if pos.y < HOME.y - 2 then dropJunk() end
   -- Compare the height too. The "north" turtle's main tunnel runs right under
   -- the home spot; checking only x/z gave a false "home" there.
@@ -822,8 +919,12 @@ end
 
 local mineVein
 
+-- Called home (recall or update): stop following veins, head back right away
+local function calledHome() return recall or updateWanted end
+
 local function scanFor(dirs)
   for _, d in ipairs(dirs) do
+    if calledHome() then return end
     local k = nkey(d)
     if not veinSeen[k] then
       veinSeen[k] = true
@@ -853,6 +954,7 @@ local function scanEdges()
   }
   for _, sd in ipairs(side) do
     local d, dirs = sd[1], sd[2]
+    if calledHome() then return end
     if not allSeen(d, dirs) and fuelOk(4) and roomLeft() and inReach(pos.x + DX[d], pos.z + DZ[d]) then
       local info = inspect(d)
       if not isLava(info) and not isUnbreakable(info) then
@@ -871,6 +973,7 @@ local function scanEdges()
 end
 
 mineVein = function(d, target)
+  if calledHome() then return end
   if not inReach(pos.x + DX[d], pos.z + DZ[d]) then
     if roomLeft() then dig(d) end -- mine the ore block, but don't step outside the reach
     return
@@ -1144,8 +1247,8 @@ local function unload()
   local haul = {}
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
-    if d and (d.name == BUCKET or d.name == LAVA_BUCKET or d.name == WATER_BUCKET) then
-      -- keep buckets: empty ones to scoop lava, full ones to burn
+    if d and (d.name == BUCKET or d.name == LAVA_BUCKET or d.name == WATER_BUCKET or d.name == "minecraft:torch") then
+      -- keep buckets (empty ones to scoop lava, full ones to burn) and torches
     elseif d then
       if isJunk(s) then
         -- junk never goes into the chest: the seal stack stays, the rest is dropped underground
@@ -1327,6 +1430,10 @@ local function cleanChest()
 end
 
 local function tripFuel(j)
+  if j.bore then -- walk out through the finished tunnel and back, plus ~9 moves per new block
+    local front = st.bores and st.bores[j.bore.x .. "," .. j.bore.z] or 0
+    return math.max(MIN_TRIP_FUEL, 2 * front + 1000)
+  end
   local L = st.levels[j.y] or { branch = 1 }
   local down = HOME.y - j.y
   local far = math.min(reach, (L.junction or L.branch * BRANCH_GAP) + 8) + (j.branchLen or BRANCH_LEN)
@@ -1408,7 +1515,7 @@ local function report(haul)
   if not (radio and hubId) then return end
   pcall(rednet.send, hubId, {
     type = "report", id = os.getComputerID(), role = ROLE, haul = haul,
-    progress = { levels = st.levels, shaft = st.shaft },
+    progress = { levels = st.levels, shaft = st.shaft }, bore = st.boreEnd,
   }, PROTOCOL)
 end
 
@@ -1424,7 +1531,14 @@ local function getJob()
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     updateWanted = false
     mergeProgress(reply.progress)
-    if reply.paused or not reply.ore then return nil, "waiting for orders" end
+    if type(reply.bore) == "table" and not reply.paused then
+      -- Tunnel job. One that already ended (done, or stopped by something) is not retried
+      if st.boreEnd and st.boreEnd.n == reply.bore.n then return nil, st.boreEnd.why end
+      recall = false
+      return { ore = "tunnel", y = HOME.y, bore = reply.bore, mineMinutes = reply.mineMinutes, label = "Tunnel" }
+    end
+    if reply.paused or not reply.ore then return nil, (st.boreEnd and st.boreEnd.why) or "waiting for orders" end
+    st.boreEnd = nil
     recall = false
     return { ore = reply.ore, y = reply.y, targets = reply.targets, branchLen = reply.branchLen or BRANCH_LEN,
       mineMinutes = reply.mineMinutes, reach = reply.reach, stopIn = reply.stopIn, mode = reply.mode,
@@ -1463,6 +1577,7 @@ end
 
 local function lostBeacon(why)
   print(tostring(why))
+  logError(why) -- the reason, in miner.log and on the hub (this never returns)
   st.phase = "lost"
   st.vein = {}
   save()
@@ -1514,6 +1629,7 @@ local function calibrateAtHome()
       st.phase = "home"
       st.vein = {}
       st.pending = nil
+      st.turnFrom = nil
       save()
       if i > 0 then print("Chest found: I am on my home spot") end
       return true
@@ -1526,6 +1642,7 @@ local function calibrateAtHome()
 end
 
 local function recover()
+  local turnFrom = st.turnFrom -- before calibrateAtHome turns around
   if calibrateAtHome() then
     if st.job then setTargets(st.job.targets, st.job) end
     return
@@ -1539,6 +1656,11 @@ local function recover()
     end
     st.pending = nil
     save()
+  end
+  -- Rebooted right around a turn: the heading is either the saved one or the one before
+  if turnFrom and st.phase ~= "lost" then
+    print("Rebooted during a turn, checking my heading")
+    reorient({ (turnFrom - st.h) % 4 })
   end
   if st.job then setTargets(st.job.targets, st.job) end
   if st.phase == "lost" then
@@ -1571,7 +1693,252 @@ local function shaftCompass(L)
   end
 end
 
+---------------------------------------------------------------------------
+-- Tunnel bore: a lit 3x3 highway from the shaft to an end point (hub job)
+---------------------------------------------------------------------------
+-- The tunnel starts at the shaft hole (1 block in front of home) at home height, runs
+-- straight ahead (the way the turtle faces) and turns once to reach the end point.
+-- 3 wide, 3 high, floor at home height. For every block of tunnel: holes in the floor
+-- are filled (bridges over gaps), lava, water and cave openings in the walls and roof
+-- are sealed, and every few blocks a torch goes on the wall.
+-- Near both ends (the base, and wherever it ends) it only digs natural ground and leaves
+-- open air alone, so it never tears into a building: a built block there ends the job.
+B.TORCH = "minecraft:torch"
+B.PROTECT = 12 -- blocks at each end where it only digs natural ground
+B.NOBLOCKS = "out of blocks to bridge/patch with (put cobblestone in my chest)"
+B.TAGS = { "minecraft:base_stone_nether", "minecraft:logs", "minecraft:leaves", "minecraft:replaceable",
+  "minecraft:flowers", "minecraft:ice", "minecraft:terracotta", "minecraft:replaceable_by_trees",
+  "minecraft:snow", "minecraft:nylium", "minecraft:wart_blocks", "minecraft:soul_fire_base_blocks",
+  "minecraft:dripstone_replaceable_blocks", "minecraft:sculk_replaceable", "minecraft:moss_replaceable" }
+B.NAMES = {}
+for _, n in ipairs({ "clay", "dripstone_block", "pointed_dripstone", "moss_block", "moss_carpet", "mud",
+  "magma_block", "amethyst_block", "budding_amethyst", "amethyst_cluster", "cobweb", "glow_lichen", "vine",
+  "sculk", "sculk_vein", "obsidian", "sandstone", "red_sandstone", "mycelium", "podzol", "snow_block" }) do
+  B.NAMES["minecraft:" .. n] = true
+end
+-- Visiting order of the 9 cells of one tunnel block {side, height}: side +1 = right of
+-- the direction of travel. Odd blocks go through it backwards, so each one starts
+-- where the one before ended.
+B.SNAKE = { { 1, 2 }, { 1, 1 }, { 1, 0 }, { 0, 0 }, { 0, 1 }, { 0, 2 }, { -1, 2 }, { -1, 1 }, { -1, 0 } }
+
+function B.natural(info)
+  if groundBlock(info) or B.NAMES[info.name] then return true end
+  for _, t in ipairs(B.TAGS) do if hasTag(info, t) then return true end end
+  return false
+end
+
+-- The route: leg 1 straight ahead from the shaft, then leg 2 sideways to the end point
+function B.route(b)
+  if type(b) ~= "table" or type(b.x) ~= "number" or type(b.z) ~= "number" then return nil, "no end point" end
+  local f = cfg.facing
+  local a1 = axisOf(f)
+  local a2 = (a1 == "x") and "z" or "x"
+  local len1 = (b[a1] - SHAFT[a1]) * (DX[f] + DZ[f])
+  local off = b[a2] - SHAFT[a2]
+  local d2
+  if a2 == "x" then d2 = (off >= 0) and 1 or 3 else d2 = (off >= 0) and 2 or 0 end
+  if len1 < 0 then return nil, "the end point is behind me (tunnels start straight ahead)" end
+  if off ~= 0 and len1 < 2 then return nil, "the end point is too far to the side right here (go 2+ blocks ahead first)" end
+  return { f = f, len1 = len1, d2 = d2, len2 = math.abs(off), total = len1 + 1 + math.abs(off) }
+end
+
+-- Centre (x, z) of tunnel block i (0 = the shaft hole) and the direction there
+function B.at(R, i)
+  if i <= R.len1 then return SHAFT.x + DX[R.f] * i, SHAFT.z + DZ[R.f] * i, R.f end
+  local k = i - R.len1
+  return SHAFT.x + DX[R.f] * R.len1 + DX[R.d2] * k, SHAFT.z + DZ[R.f] * R.len1 + DZ[R.d2] * k, R.d2
+end
+
+-- Is block column (x, z) part of the tunnel? (so a wall patch never lands inside it)
+function B.inside(R, x, z)
+  local f, R1 = R.f, (R.f + 1) % 4
+  local a = (x - SHAFT.x) * DX[f] + (z - SHAFT.z) * DZ[f]    -- along leg 1
+  local s = (x - SHAFT.x) * DX[R1] + (z - SHAFT.z) * DZ[R1]  -- sideways from leg 1
+  if a >= 0 and a <= R.len1 and math.abs(s) <= 1 then return true end
+  local k = s * (DX[R1] * DX[R.d2] + DZ[R1] * DZ[R.d2])        -- along leg 2
+  return R.len2 > 0 and k >= 1 and k <= R.len2 and math.abs(a - R.len1) <= 1
+end
+
+-- One step that digs. protect: only natural ground (third result true = give up the job)
+function B.step(d, protect)
+  local info = inspect(d)
+  if protect and info and not isLiquid(info) and not info.name:find("turtle") and not B.natural(info) then
+    return false, "built block in the way (" .. info.name:gsub("^minecraft:", "") .. ")", true
+  end
+  if info and isLiquid(info) and not isLava(info) then seal(d) end -- water: plug it, then dig through
+  local ok, why = move(d)
+  if not ok and type(why) == "string" and why:find("unbreakable") then return false, why, true end
+  return ok, why
+end
+
+function B.go(x, y, z, protect)
+  while pos.x ~= x or pos.y ~= y or pos.z ~= z do
+    local d
+    if pos.x ~= x then d = (x > pos.x) and 1 or 3
+    elseif pos.z ~= z then d = (z > pos.z) and 2 or 0
+    else d = (y > pos.y) and UP or DOWN end
+    local ok, why, fatal = B.step(d, protect)
+    if not ok then return false, why, fatal end
+  end
+  return true
+end
+
+-- Close an opening next to the tunnel. full = also open air (otherwise only liquids and,
+-- below, holes in the floor). false = it needed a block and had none.
+function B.patch(d, full)
+  local info = inspect(d)
+  if info and not isLiquid(info) then return true end
+  if not info and not full and d ~= DOWN then return true end
+  if sealCount() == 0 and not isLava(info) then return false end
+  seal(d)
+  return true
+end
+
+-- Same for a wall: skipped where the tunnel itself continues (the corner)
+function B.wall(R, d, full)
+  if B.inside(R, pos.x + DX[d], pos.z + DZ[d]) then return true end
+  return B.patch(d, full)
+end
+
+function B.torch(d)
+  local s = findItem(B.TORCH)
+  if not s then st.noTorch = true return end
+  turtle.select(s)
+  face(d)
+  turtle.place()
+  turtle.select(1)
+end
+
+-- Dig tunnel block i: all 9 cells, patching the outside as it goes
+function B.slice(R, i, every)
+  local cx, cz, d = B.at(R, i)
+  local X = (d + 1) % 4
+  local protect = i < B.PROTECT or i >= R.total - B.PROTECT
+  local odd = (i % 2 == 1)
+  for n = 1, 9 do
+    local cell = B.SNAKE[odd and (10 - n) or n]
+    local c, h = cell[1], cell[2]
+    local ok, why, fatal = B.go(cx + c * DX[X], HOME.y + h, cz + c * DZ[X], protect)
+    if not ok then return false, why, fatal end
+    local sealed = (c == 0 or B.wall(R, c == 1 and X or OPP[X], not protect))
+      and (h ~= 0 or B.patch(DOWN, true))
+      and (h ~= 2 or B.patch(UP, not protect))
+      and (i < R.total - 1 or B.wall(R, d, not protect)) -- the far end: seal liquids there too
+    if not sealed then return false, B.NOBLOCKS, true end
+    -- Torch on the side that is already dug out (it never gets walked through again)
+    if c == 0 and h == 1 and (every or 0) > 0 and i > 0 and i % every == 0 then
+      B.torch(odd and OPP[X] or X)
+    end
+  end
+  return true
+end
+
+-- The job is over (done or stopped by something): tell the hub, don't retry it
+function B.finish(j, why)
+  st.boreEnd = { n = j.bore.n, why = why }
+  st.boreAt = nil
+  save()
+  return why
+end
+
+function B.trip(j0)
+  local j = {}
+  for k, v in pairs(j0) do j[k] = v end
+  st.job = j
+  st.found = 0
+  st.noTorch = nil
+  st.boreAt = nil
+  setTargets({}, j)
+  save()
+  local R, bad = B.route(j.bore)
+  if not R then return B.finish(j, "Tunnel refused: " .. bad) end
+  local key = j.bore.x .. "," .. j.bore.z
+  st.bores = st.bores or {} -- [end point] = tunnel blocks finished
+  local done = st.bores[key] or 0
+  if done >= R.total then return B.finish(j, "Tunnel done (" .. R.total .. " blocks)") end
+  mineUntil = j.mineMinutes and (os.clock() + j.mineMinutes * 60) or nil
+  st.phase = "mining"
+  save()
+  if pos.x == HOME.x and pos.y == HOME.y and pos.z == HOME.z then
+    moveOrFail(cfg.facing, "Hole in front of the turtle blocked")
+  end
+  if done > 0 then -- walk through the finished part, along the middle of the floor
+    setStatus("Tunnel: walking to block " .. done)
+    local a1, a2 = axisOf(R.f), axisOf(R.d2)
+    local x, z = B.at(R, math.min(done - 1, R.len1))
+    goAxis(a1, (a1 == "x") and x or z)
+    if done - 1 > R.len1 then
+      x, z = B.at(R, done - 1)
+      goAxis(a2, (a2 == "x") and x or z)
+    end
+  end
+  for i = done, R.total - 1 do
+    local r = stopReason()
+    if r then return r end
+    st.boreAt = i
+    save()
+    setStatus("Tunnel " .. i .. "/" .. R.total .. (st.noTorch and " (no torches)" or ""))
+    local ok, why, fatal = B.slice(R, i, j.bore.every)
+    if not ok then
+      if why == UNLOADED then return UNLOADED end
+      -- Stuck on the same block two trips in a row: give up instead of trying forever
+      local bl = st.boreBlock
+      if bl and bl.key == key and bl.i == i and bl.n == j.bore.n then fatal = true end
+      st.boreBlock = { key = key, i = i, n = j.bore.n }
+      local msg = "Tunnel stopped at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": " .. tostring(why)
+      logError(msg)
+      if fatal then return B.finish(j, msg) end
+      save()
+      return msg
+    end
+    st.bores[key] = i + 1
+    save()
+  end
+  return B.finish(j, "Tunnel done (" .. R.total .. " blocks)")
+end
+
+-- Way home: to the middle of the floor of the block it was on, then along the tunnel
+function B.back()
+  local R = B.route(st.job.bore)
+  if not R then return end
+  if st.boreAt then
+    local cx, cz = B.at(R, st.boreAt)
+    local ok, why = B.go(cx, pos.y, cz, false)
+    if ok then ok, why = B.go(cx, HOME.y, cz, false) end
+    if not ok then error("Way home blocked: " .. tostring(why), 0) end
+    st.boreAt = nil
+    save()
+  end
+  goAxis(axisOf(R.d2), SHAFT[axisOf(R.d2)])
+  goAxis(axisOf(R.f), SHAFT[axisOf(R.f)])
+end
+
+-- At home: take a stack of torches from the chest (put them in the miner's chest)
+function B.takeTorches()
+  local have = findItem(B.TORCH)
+  if have and turtle.getItemCount(have) >= 32 then return end
+  local chest = peripheral.wrap("front")
+  if not (chest and chest.list and chest.pushItems) then return end
+  local ok, list = pcall(chest.list)
+  if not ok or type(list) ~= "table" then return end
+  local pick
+  for slot, it in pairs(list) do if it.name == B.TORCH then pick = slot break end end
+  if not pick or not chestToFront(chest, list, pick) then return end
+  local s = have or emptySlot()
+  if not s then return end
+  turtle.select(s)
+  turtle.suck(64 - turtle.getItemCount(s))
+  local d = turtle.getItemDetail(s)
+  if d and d.name ~= B.TORCH then turtle.drop() end
+  turtle.select(1)
+end
+
 local function trip(j0)
+  if j0.bore then
+    local reason = B.trip(j0)
+    goHome(reason)
+    return reason
+  end
   reach = j0.reach or REACH
   mode = (j0.mode == "fast") and "fast" or "thorough"
   st.sessionEnd = j0.stopIn and (nowMs() + j0.stopIn * 1000) or nil
@@ -1640,13 +2007,14 @@ local function worker()
       setStatus("Refueling")
       local need = tripFuel(j)
       refuelFromChest(need)
+      if j.bore then B.takeTorches() end
       local f = turtle.getFuelLevel()
       local minimum = 2 * (HOME.y - j.y) + 200
       if f ~= "unlimited" and f < minimum then
         setStatus("Not enough fuel in the chest (" .. f .. "/" .. minimum .. ")")
         sleep(30)
       else
-        setStatus("Heading out: " .. j.ore .. " at Y " .. j.y)
+        setStatus("Heading out: " .. (j.bore and ("tunnel to " .. j.bore.x .. "," .. j.bore.z) or (j.ore .. " at Y " .. j.y)))
         local ok, err = pcall(trip, j)
         if ok and err == AREA_FULL then
           setStatus("Area full for " .. j.ore .. ": pick another ore or raise the reach")
@@ -1677,7 +2045,214 @@ local function worker()
   end
 end
 
+-- Developer commands from the pocket panel's console (panel.lua): info, log, ls, cat,
+-- get (copy a file to the pocket), reboot, and put / rm / lua (write or delete a file,
+-- run Lua). If this computer has a file "dev.key", every command needs that same
+-- password (on the pocket: key <password>). put, rm and lua only work once dev.key exists.
+-- drive: move / turn / dig / place / look, answered with the position and the blocks
+-- around it, for the pocket's map. hooks (optional) let the program keep its own idea of
+-- where it is: pose() -> x, y, z, forward x, forward z (map: +x right, +z down),
+-- turn(right), move("forward"|"back"|"up"|"down") -> ok, why; busy() -> reason or nil.
+local devDrive = { x = 0, y = 0, z = 0, h = 0 } -- position used when there are no hooks
+local function devDriveHooks()
+  local HX, HZ = { [0] = 0, 1, 0, -1 }, { [0] = -1, 0, 1, 0 }
+  local p = devDrive
+  return {
+    pose = function() return p.x, p.y, p.z, HX[p.h], HZ[p.h] end,
+    turn = function(right)
+      if right then turtle.turnRight() else turtle.turnLeft() end
+      p.h = (p.h + (right and 1 or 3)) % 4
+    end,
+    move = function(dir)
+      local ok, why = ({ forward = turtle.forward, back = turtle.back, up = turtle.up, down = turtle.down })[dir]()
+      if ok then
+        local s = dir == "back" and -1 or 1
+        if dir == "up" then p.y = p.y + 1 elseif dir == "down" then p.y = p.y - 1
+        else p.x, p.z = p.x + s * HX[p.h], p.z + s * HZ[p.h] end
+      end
+      return ok, why
+    end,
+  }
+end
+
+local function devCommand(m, logFile, program, reply, hooks)
+  local r = { type = "dev_reply", rid = m.rid, ok = true }
+  local function out(s) r.out = tostring(s) end
+  local key
+  if fs.exists("dev.key") then
+    local h = fs.open("dev.key", "r")
+    key = (h.readAll() or ""):gsub("%s+$", "")
+    h.close()
+  end
+  local op, path = m.op, tostring(m.path or "")
+  if key and key ~= "" and m.key ~= key then r.ok = false out("Wrong or missing dev key")
+  elseif op == "info" then
+    local fuel = turtle and turtle.getFuelLevel() or nil
+    local free = 0
+    if turtle then for s = 1, 16 do if turtle.getItemCount(s) == 0 then free = free + 1 end end end
+    out((os.getComputerLabel() or "?") .. " #" .. os.getComputerID() .. " running " .. program
+      .. (fuel and (" | fuel " .. tostring(fuel) .. " | " .. free .. " free slots") or "")
+      .. " | up " .. math.floor(os.clock() / 60) .. " min | disk free " .. math.floor(fs.getFreeSpace("/") / 1024) .. " KB")
+  elseif op == "log" then
+    if not logFile or not fs.exists(logFile) then out("No log file")
+    else
+      local h = fs.open(logFile, "r")
+      local lines = {}
+      for l in (h.readAll() .. "\n"):gmatch("([^\n]*)\n") do if l ~= "" then lines[#lines + 1] = l end end
+      h.close()
+      local n = math.max(1, tonumber(m.n) or 10)
+      out(table.concat(lines, "\n", math.max(1, #lines - n + 1)))
+      if #lines == 0 then out("Log is empty") end
+    end
+  elseif op == "ls" then
+    if path == "" then path = "/" end
+    if not fs.isDir(path) then r.ok = false out("No such folder: " .. path)
+    else
+      local l = {}
+      for _, f in ipairs(fs.list(path)) do
+        local p = fs.combine(path, f)
+        l[#l + 1] = fs.isDir(p) and (f .. "/") or (f .. " " .. fs.getSize(p))
+      end
+      out(#l > 0 and table.concat(l, "\n") or "(empty)")
+    end
+  elseif op == "cat" or op == "get" then
+    local name = fs.getName(path)
+    if name == "api.key" or name == "dev.key" then r.ok = false out("Secret file, not sent")
+    elseif not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
+    else
+      local h = fs.open(path, "r")
+      r.data = h.readAll()
+      h.close()
+      out(op == "cat" and r.data or (path .. ": " .. #r.data .. " bytes"))
+      if op == "cat" then r.data = nil end
+    end
+  elseif (op == "put" or op == "rm" or op == "lua") and not (key and key ~= "") then
+    r.ok = false
+    out("Locked: pair it first (stand next to it with the pocket, type pair) to allow " .. op)
+  elseif op == "put" then
+    if path == "" or type(m.data) ~= "string" then r.ok = false out("put needs a file name and its contents")
+    else
+      if fs.exists(path) then
+        if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
+        fs.copy(path, path .. ".bak")
+      end
+      local h = fs.open(path, "w")
+      h.write(m.data)
+      h.close()
+      out("Wrote " .. path .. " (" .. #m.data .. " bytes, the old one is " .. path .. ".bak)")
+    end
+  elseif op == "rm" then
+    if path == "" or not fs.exists(path) then r.ok = false out("No such file: " .. path)
+    else fs.delete(path) out("Deleted " .. path) end
+  elseif op == "lua" then
+    local env = setmetatable({}, { __index = _ENV or _G })
+    local code = tostring(m.code or "")
+    local fn, err = load("return " .. code, "=dev", "t", env)
+    if not fn then fn, err = load(code, "=dev", "t", env) end
+    if not fn then r.ok = false out(err)
+    else
+      local res = table.pack(pcall(fn))
+      r.ok = res[1]
+      local l = {}
+      for i = 2, res.n do
+        local ok, s = pcall(textutils.serialize, res[i])
+        l[#l + 1] = ok and s or tostring(res[i])
+      end
+      out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
+    end
+  elseif op == "drive" then
+    local hk = hooks or devDriveHooks()
+    local why = not turtle and "This is not a turtle" or (hk.busy and hk.busy())
+    local act = tostring(m.act or "scan")
+    local seen = {}
+    local function look(dx, dy, dz, fn)
+      local x, y, z = hk.pose()
+      local ok, info = fn()
+      seen[#seen + 1] = { x = x + dx, y = y + dy, z = z + dz, name = ok and info.name or "air" }
+    end
+    local function lookFront() local _, _, _, fx, fz = hk.pose() look(fx, 0, fz, turtle.inspect) end
+    if why then r.ok = false out(why)
+    else
+      local ok, err = true, nil
+      if act == "left" or act == "right" then hk.turn(act == "right")
+      elseif act == "forward" or act == "back" or act == "up" or act == "down" then
+        if turtle.getFuelLevel() == 0 then ok, err = false, "Out of fuel" else ok, err = hk.move(act) end
+      elseif act == "dig" then ok, err = turtle.dig()
+      elseif act == "digUp" then ok, err = turtle.digUp()
+      elseif act == "digDown" then ok, err = turtle.digDown()
+      elseif act == "place" then ok, err = turtle.place()
+      elseif act == "placeUp" then ok, err = turtle.placeUp()
+      elseif act == "placeDown" then ok, err = turtle.placeDown()
+      elseif act == "look" then for _ = 1, 4 do lookFront() hk.turn(true) end
+      elseif act ~= "scan" then ok, err = false, "Unknown move: " .. act end
+      lookFront()
+      look(0, 1, 0, turtle.inspectUp)
+      look(0, -1, 0, turtle.inspectDown)
+      local x, y, z, fx, fz = hk.pose()
+      r.drive = { x = x, y = y, z = z, fx = fx, fz = fz, seen = seen, fuel = turtle.getFuelLevel(), home = hk.home }
+      r.ok = ok and true or false
+      out(ok and (act == "scan" and "Ready" or "OK") or (act .. ": " .. tostring(err or "can't")))
+    end
+  elseif op == "reboot" then
+    out("Rebooting...")
+    reply(r)
+    sleep(0.5)
+    os.reboot()
+    return
+  else r.ok = false out("Unknown dev command: " .. tostring(op)) end
+  reply(r)
+end
+
+-- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
+-- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
+-- (so only someone standing next to it can pair) and it has no dev.key yet.
+local DEV_PAIR_CHANNEL = 16523
+local function devPairLoop()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("dev_never") end end
+  modem.open(DEV_PAIR_CHANNEL)
+  while true do
+    local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
+    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+      local res
+      if fs.exists("dev.key") then res = "Already paired"
+      elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"
+      elseif type(msg.newKey) ~= "string" or #msg.newKey < 8 then res = "Bad password"
+      else
+        local h = fs.open("dev.key", "w")
+        h.write(msg.newKey)
+        h.close()
+        res = "Paired"
+      end
+      modem.transmit(replyCh, DEV_PAIR_CHANNEL, { type = "dev_pair_reply", id = os.getComputerID(),
+        label = os.getComputerLabel(), text = res })
+    end
+  end
+end
+
 local function listener()
+  -- Driving from the pocket: only at home (not on a trip), through its own moves so the
+  -- position stays right. Map = world x/z, north up.
+  local hooks = {
+    home = { HOME.x, HOME.z },
+    pose = function() return pos.x, pos.y, pos.z, DX[st.h], DZ[st.h] end,
+    turn = function(right) face((st.h + (right and 1 or 3)) % 4) end,
+    move = function(dir)
+      if dir == "up" then return rawMove(UP) elseif dir == "down" then return rawMove(DOWN)
+      elseif dir == "forward" then return rawMove(st.h) end
+      local d = OPP[st.h] -- back: without turning around
+      st.pending = { d = d, fuel = turtle.getFuelLevel() }
+      save()
+      local ok, why = turtle.back()
+      if ok then applyMove(d) end
+      st.pending = nil
+      save()
+      return ok, why
+    end,
+    busy = function()
+      if st.phase ~= "home" then return "Out on a trip: RECALL it (and STOP) first" end
+    end,
+  }
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
@@ -1688,6 +2263,8 @@ local function listener()
       elseif b.type == "update" and type(b.hash) == "string" and b.hash ~= MY_HASH then
         if b.from then hubId = b.from end
         updateWanted = true
+      elseif b.type == "dev" then -- the pocket panel's console
+        devCommand(b, "miner.log", "miner", function(r) rednet.send(a, r, PROTOCOL) end, hooks)
       end
     end
   end
@@ -1703,4 +2280,4 @@ end
 openModem()
 if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
-parallel.waitForAny(worker, listener, heartbeat)
+parallel.waitForAny(worker, listener, heartbeat, devPairLoop)

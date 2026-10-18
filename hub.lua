@@ -9,13 +9,25 @@
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
 -- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
--- Update: drag a new miner.lua onto this computer and press UPDATE (or u).
+-- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
+-- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  -- after the reboot the hub releases the new miner.lua to the turtles (see releaseUpdate)
+  local h = fs.open("hub.release", "w") h.close()
+  shell.run("update")
+  fs.delete("hub.release") -- only reached when nothing changed
+  return
+end
 if args[1] == "install" then
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("hub")\n')
@@ -129,6 +141,7 @@ end
 hub.sessionEnd = hub.sessionEnd -- os.epoch("utc") in ms, nil = no session running
 hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
+hub.bores = hub.bores or {} -- [turtle id] = tunnel job { x=, z=, every=, n= } (runs until done or STOP)
 
 local function save()
   local h = fs.open(STATE_FILE, "w")
@@ -231,10 +244,18 @@ local function releasedVersion()
   return nil
 end
 
+local notice, noticeUntil = nil, 0
+local function flash(text)
+  notice, noticeUntil = text, os.clock() + 8
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
+  elseif m.type == "job?" and hub.bores[id] then
+    send(id, { type = "job", paused = hub.recallAll, bore = hub.bores[id], mineMinutes = hub.mineMinutes,
+      progress = hub.progress[m.role], update = releasedVersion() })
   elseif m.type == "job?" then
     local ore = oreFor(id)
     local left = sessionLeft()
@@ -252,6 +273,13 @@ local function handle(id, m)
     if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(m.role, m.progress)
+    -- A tunnel job ended (done, or something stopped it): the turtle stays home
+    local b = hub.bores[id]
+    if b and type(m.bore) == "table" and m.bore.n == b.n then
+      hub.bores[id] = nil
+      hub.overrides[id] = false
+      flash("#" .. id .. ": " .. tostring(m.bore.why))
+    end
     for name, n in pairs(m.haul or {}) do
       if type(n) == "number" then
         hub.totals[name] = (hub.totals[name] or 0) + n
@@ -294,6 +322,7 @@ local function setTarget(ore)
   if not anyMining() or not hub.sessionEnd then startSession() end
   if selected then
     hub.overrides[selected] = ore
+    hub.bores[selected] = nil
   else
     hub.target = ore
     hub.overrides = {}
@@ -313,9 +342,11 @@ end
 local function stopAll()
   if selected then
     hub.overrides[selected] = false
+    hub.bores[selected] = nil
   else
     hub.target = nil
     hub.overrides = {}
+    hub.bores = {}
     hub.sessionEnd = nil
   end
   save()
@@ -324,6 +355,7 @@ end
 local function recallNow()
   if selected then
     hub.overrides[selected] = false -- stays home until you pick an ore
+    hub.bores[selected] = nil
     send(selected, { type = "recall", target = selected })
   else
     hub.recallAll = true
@@ -336,11 +368,6 @@ local function resumeAll()
   hub.recallAll = false
   send(nil, { type = "go" })
   save()
-end
-
-local notice, noticeUntil = nil, 0
-local function flash(text)
-  notice, noticeUntil = text, os.clock() + 8
 end
 
 -- UPDATE button: release the miner.lua on this computer and call the turtles
@@ -531,7 +558,7 @@ local function draw(s)
     local p = r.p
     local age = os.clock() - r.seen
     local isSel = (selected == id)
-    local ore = p.ore and ORES[p.ore] and ORES[p.ore].label or "-"
+    local ore = p.ore and ORES[p.ore] and ORES[p.ore].label or (p.ore == "tunnel" and "Tunnel") or "-"
     local own = hub.overrides[id]
     if own == false then ore = "stop" end
     local stat = p.status or "?"
@@ -815,10 +842,269 @@ local function click(screenName, x, y)
   end
 end
 
+-- Developer commands from the pocket panel's console (panel.lua): info, log, ls, cat,
+-- get (copy a file to the pocket), reboot, and put / rm / lua (write or delete a file,
+-- run Lua). If this computer has a file "dev.key", every command needs that same
+-- password (on the pocket: key <password>). put, rm and lua only work once dev.key exists.
+-- drive: move / turn / dig / place / look, answered with the position and the blocks
+-- around it, for the pocket's map. hooks (optional) let the program keep its own idea of
+-- where it is: pose() -> x, y, z, forward x, forward z (map: +x right, +z down),
+-- turn(right), move("forward"|"back"|"up"|"down") -> ok, why; busy() -> reason or nil.
+local devDrive = { x = 0, y = 0, z = 0, h = 0 } -- position used when there are no hooks
+local function devDriveHooks()
+  local HX, HZ = { [0] = 0, 1, 0, -1 }, { [0] = -1, 0, 1, 0 }
+  local p = devDrive
+  return {
+    pose = function() return p.x, p.y, p.z, HX[p.h], HZ[p.h] end,
+    turn = function(right)
+      if right then turtle.turnRight() else turtle.turnLeft() end
+      p.h = (p.h + (right and 1 or 3)) % 4
+    end,
+    move = function(dir)
+      local ok, why = ({ forward = turtle.forward, back = turtle.back, up = turtle.up, down = turtle.down })[dir]()
+      if ok then
+        local s = dir == "back" and -1 or 1
+        if dir == "up" then p.y = p.y + 1 elseif dir == "down" then p.y = p.y - 1
+        else p.x, p.z = p.x + s * HX[p.h], p.z + s * HZ[p.h] end
+      end
+      return ok, why
+    end,
+  }
+end
+
+local function devCommand(m, logFile, program, reply, hooks)
+  local r = { type = "dev_reply", rid = m.rid, ok = true }
+  local function out(s) r.out = tostring(s) end
+  local key
+  if fs.exists("dev.key") then
+    local h = fs.open("dev.key", "r")
+    key = (h.readAll() or ""):gsub("%s+$", "")
+    h.close()
+  end
+  local op, path = m.op, tostring(m.path or "")
+  if key and key ~= "" and m.key ~= key then r.ok = false out("Wrong or missing dev key")
+  elseif op == "info" then
+    local fuel = turtle and turtle.getFuelLevel() or nil
+    local free = 0
+    if turtle then for s = 1, 16 do if turtle.getItemCount(s) == 0 then free = free + 1 end end end
+    out((os.getComputerLabel() or "?") .. " #" .. os.getComputerID() .. " running " .. program
+      .. (fuel and (" | fuel " .. tostring(fuel) .. " | " .. free .. " free slots") or "")
+      .. " | up " .. math.floor(os.clock() / 60) .. " min | disk free " .. math.floor(fs.getFreeSpace("/") / 1024) .. " KB")
+  elseif op == "log" then
+    if not logFile or not fs.exists(logFile) then out("No log file")
+    else
+      local h = fs.open(logFile, "r")
+      local lines = {}
+      for l in (h.readAll() .. "\n"):gmatch("([^\n]*)\n") do if l ~= "" then lines[#lines + 1] = l end end
+      h.close()
+      local n = math.max(1, tonumber(m.n) or 10)
+      out(table.concat(lines, "\n", math.max(1, #lines - n + 1)))
+      if #lines == 0 then out("Log is empty") end
+    end
+  elseif op == "ls" then
+    if path == "" then path = "/" end
+    if not fs.isDir(path) then r.ok = false out("No such folder: " .. path)
+    else
+      local l = {}
+      for _, f in ipairs(fs.list(path)) do
+        local p = fs.combine(path, f)
+        l[#l + 1] = fs.isDir(p) and (f .. "/") or (f .. " " .. fs.getSize(p))
+      end
+      out(#l > 0 and table.concat(l, "\n") or "(empty)")
+    end
+  elseif op == "cat" or op == "get" then
+    local name = fs.getName(path)
+    if name == "api.key" or name == "dev.key" then r.ok = false out("Secret file, not sent")
+    elseif not fs.exists(path) or fs.isDir(path) then r.ok = false out("No such file: " .. path)
+    else
+      local h = fs.open(path, "r")
+      r.data = h.readAll()
+      h.close()
+      out(op == "cat" and r.data or (path .. ": " .. #r.data .. " bytes"))
+      if op == "cat" then r.data = nil end
+    end
+  elseif (op == "put" or op == "rm" or op == "lua") and not (key and key ~= "") then
+    r.ok = false
+    out("Locked: pair it first (stand next to it with the pocket, type pair) to allow " .. op)
+  elseif op == "put" then
+    if path == "" or type(m.data) ~= "string" then r.ok = false out("put needs a file name and its contents")
+    else
+      if fs.exists(path) then
+        if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
+        fs.copy(path, path .. ".bak")
+      end
+      local h = fs.open(path, "w")
+      h.write(m.data)
+      h.close()
+      out("Wrote " .. path .. " (" .. #m.data .. " bytes, the old one is " .. path .. ".bak)")
+    end
+  elseif op == "rm" then
+    if path == "" or not fs.exists(path) then r.ok = false out("No such file: " .. path)
+    else fs.delete(path) out("Deleted " .. path) end
+  elseif op == "lua" then
+    local env = setmetatable({}, { __index = _ENV or _G })
+    local code = tostring(m.code or "")
+    local fn, err = load("return " .. code, "=dev", "t", env)
+    if not fn then fn, err = load(code, "=dev", "t", env) end
+    if not fn then r.ok = false out(err)
+    else
+      local res = table.pack(pcall(fn))
+      r.ok = res[1]
+      local l = {}
+      for i = 2, res.n do
+        local ok, s = pcall(textutils.serialize, res[i])
+        l[#l + 1] = ok and s or tostring(res[i])
+      end
+      out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
+    end
+  elseif op == "drive" then
+    local hk = hooks or devDriveHooks()
+    local why = not turtle and "This is not a turtle" or (hk.busy and hk.busy())
+    local act = tostring(m.act or "scan")
+    local seen = {}
+    local function look(dx, dy, dz, fn)
+      local x, y, z = hk.pose()
+      local ok, info = fn()
+      seen[#seen + 1] = { x = x + dx, y = y + dy, z = z + dz, name = ok and info.name or "air" }
+    end
+    local function lookFront() local _, _, _, fx, fz = hk.pose() look(fx, 0, fz, turtle.inspect) end
+    if why then r.ok = false out(why)
+    else
+      local ok, err = true, nil
+      if act == "left" or act == "right" then hk.turn(act == "right")
+      elseif act == "forward" or act == "back" or act == "up" or act == "down" then
+        if turtle.getFuelLevel() == 0 then ok, err = false, "Out of fuel" else ok, err = hk.move(act) end
+      elseif act == "dig" then ok, err = turtle.dig()
+      elseif act == "digUp" then ok, err = turtle.digUp()
+      elseif act == "digDown" then ok, err = turtle.digDown()
+      elseif act == "place" then ok, err = turtle.place()
+      elseif act == "placeUp" then ok, err = turtle.placeUp()
+      elseif act == "placeDown" then ok, err = turtle.placeDown()
+      elseif act == "look" then for _ = 1, 4 do lookFront() hk.turn(true) end
+      elseif act ~= "scan" then ok, err = false, "Unknown move: " .. act end
+      lookFront()
+      look(0, 1, 0, turtle.inspectUp)
+      look(0, -1, 0, turtle.inspectDown)
+      local x, y, z, fx, fz = hk.pose()
+      r.drive = { x = x, y = y, z = z, fx = fx, fz = fz, seen = seen, fuel = turtle.getFuelLevel(), home = hk.home }
+      r.ok = ok and true or false
+      out(ok and (act == "scan" and "Ready" or "OK") or (act .. ": " .. tostring(err or "can't")))
+    end
+  elseif op == "reboot" then
+    out("Rebooting...")
+    reply(r)
+    sleep(0.5)
+    os.reboot()
+    return
+  else r.ok = false out("Unknown dev command: " .. tostring(op)) end
+  reply(r)
+end
+
+-- Pairing with the pocket's "pair" command: the pocket sends its password on a modem
+-- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
+-- (so only someone standing next to it can pair) and it has no dev.key yet.
+local DEV_PAIR_CHANNEL = 16523
+local function devPairLoop()
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then while true do os.pullEvent("dev_never") end end
+  modem.open(DEV_PAIR_CHANNEL)
+  while true do
+    local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
+    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+      local res
+      if fs.exists("dev.key") then res = "Already paired"
+      elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"
+      elseif type(msg.newKey) ~= "string" or #msg.newKey < 8 then res = "Bad password"
+      else
+        local h = fs.open("dev.key", "w")
+        h.write(msg.newKey)
+        h.close()
+        res = "Paired"
+      end
+      modem.transmit(replyCh, DEV_PAIR_CHANNEL, { type = "dev_pair_reply", id = os.getComputerID(),
+        label = os.getComputerLabel(), text = res })
+    end
+  end
+end
+
+-- Pocket control panel (panel.lua): it asks for the dashboard and taps the same buttons.
+-- m.turtle = give the order to that turtle only (like tapping it in the list first).
+local function panelRequest(id, m)
+  local prev, note = selected, nil
+  selected = m.turtle and turtles[m.turtle] and m.turtle or nil
+  if m.cmd == "target" and ORES[m.ore or ""] then setTarget(m.ore)
+  elseif m.cmd == "stop" then stopAll()
+  elseif m.cmd == "recall" then recallNow()
+  elseif m.cmd == "resume" then resumeAll()
+  elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "bore" then
+    -- Tunnel job for one turtle: a lit 3x3 tunnel from its shaft to x z (see miner.lua)
+    local x, z = tonumber(m.x), tonumber(m.z)
+    if not selected then note = "Pick one turtle for the tunnel first"
+    elseif not (x and z) then note = "Tunnel needs an end point: x z"
+    else
+      hub.boreN = (hub.boreN or 0) + 1
+      hub.bores[selected] = { x = math.floor(x), z = math.floor(z), every = math.floor(tonumber(m.every) or 8), n = hub.boreN }
+      save()
+      send(selected, { type = "go", target = selected })
+      note = "Tunnel to " .. math.floor(x) .. "," .. math.floor(z) .. " for #" .. selected
+    end
+  elseif m.cmd == "update" then
+    -- panel's Update all: fetch hub.lua and miner.lua; after the reboot the new miner.lua
+    -- is released to the turtles (see the end of this file)
+    flash("Pocket: updating from GitHub...")
+    pcall(redraw)
+    local h = fs.open("hub.release", "w") h.close()
+    if not fs.exists("update.lua") then
+      shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+    end
+    shell.run("update") -- reboots when anything changed
+    fs.delete("hub.release")
+    note = "Already up to date"
+  elseif m.cmd == "custom" then
+    local kind, data = resolveItem(tostring(m.text or ""))
+    if kind == "ore" then setTarget(data)
+    elseif kind then
+      local y = math.floor(math.max(-59, math.min(55, tonumber(m.y) or data.y)))
+      local label = prettyItem(kind == "rock" and data.item or data.match)
+      hub.custom = { label = label, y = y, keep = data.keep, match = data.match }
+      ORES.custom = customEntry(hub.custom)
+      setTarget("custom")
+    else note = data or "Unknown item" end
+  end
+  selected = prev
+  if m.cmd then flash(note or ("Pocket: " .. m.cmd)) pcall(redraw) end
+  local ores = {}
+  local order = { table.unpack(ORDER) }
+  if ORES.custom then order[#order + 1] = "custom" end
+  for _, k in ipairs(order) do
+    local o = ORES[k]
+    ores[#ores + 1] = { key = k, label = o.label, short = o.short or o.label, y = o.y, color = o.color }
+  end
+  local list = {}
+  for _, tid in ipairs(ids()) do
+    local r, own = turtles[tid], hub.overrides[tid]
+    local p = r.p
+    list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
+      free = p.free, x = p.x, y = p.y, z = p.z, ore = (own == false) and "stop" or (hub.bores[tid] and "tunnel") or oreFor(tid), branch = p.branch,
+      age = os.clock() - r.seen, err = p.lastError }
+  end
+  local haul = {}
+  for name, n in pairs(hub.session and hub.session.haul or {}) do
+    if not isCommon(name) then haul[#haul + 1] = { name = name, n = n } end
+  end
+  table.sort(haul, function(a, b) return a.n > b.n end)
+  send(id, { type = "panel_state", rid = m.rid, target = hub.target, recallAll = hub.recallAll,
+    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only,
+    ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
+end
+
 local function netLoop()
   while true do
     local id, msg = rednet.receive(PROTOCOL)
-    handle(id, msg)
+    if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg)
+    elseif type(msg) == "table" and msg.type == "dev" then devCommand(msg, nil, "hub", function(r) send(id, r) end)
+    else handle(id, msg) end
   end
 end
 
@@ -872,7 +1158,13 @@ local function uiLoop()
   end
 end
 
-parallel.waitForAny(netLoop, uiLoop)
+-- Just updated itself from GitHub ('hub update' or the panel): hand the new miner.lua out
+if fs.exists("hub.release") then
+  fs.delete("hub.release")
+  releaseUpdate()
+end
+
+parallel.waitForAny(netLoop, uiLoop, devPairLoop)
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)

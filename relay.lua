@@ -13,6 +13,14 @@
 -- Keep its chunk loaded (near your base is fine).
 
 local args = { ... }
+if args[1] == "update" then
+  -- latest version from GitHub (update.lua does the work, fetched here if missing)
+  if not fs.exists("update.lua") then
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+  end
+  shell.run("update")
+  return
+end
 if args[1] == "install" then
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("relay")\n')
