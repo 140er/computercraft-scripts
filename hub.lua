@@ -149,6 +149,25 @@ local function save()
   h.close()
 end
 
+-- Where this hub computer is (world x y z). Miners without GPS ask for it at setup
+-- ("miner setup hub ...") so they can work out their own position from it.
+-- Set it with "hub pos <x> <y> <z>" (F3), or it comes from GPS when there is GPS.
+if args[1] == "pos" then
+  local x, y, z = tonumber(args[2]), tonumber(args[3]), tonumber(args[4])
+  if not (x and y and z) then print("Usage: hub pos <x> <y> <z>  (this computer's spot, F3)") return end
+  hub.pos = { x = math.floor(x), y = math.floor(y), z = math.floor(z) }
+  save()
+  print("Hub position saved: " .. hub.pos.x .. " " .. hub.pos.y .. " " .. hub.pos.z)
+  return
+end
+if not hub.pos and gps then
+  local x, y, z = gps.locate(2)
+  if x then
+    hub.pos = { x = math.floor(x + 0.5), y = math.floor(y + 0.5), z = math.floor(z + 0.5) }
+    save()
+  end
+end
+
 local turtles = {} -- [id] = { p = status packet, seen = os.clock() }
 local selected = nil -- nil = all turtles
 local wantAsk = false -- CUSTOM tapped: ask for the item on the hub computer
@@ -1053,13 +1072,18 @@ end
 -- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
 -- (so only someone standing next to it can pair) and it has no dev.key yet.
 local DEV_PAIR_CHANNEL = 16523
+local HUB_POS_CHANNEL = 16524 -- "where is the hub" for miner setup
 local function devPairLoop()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then while true do os.pullEvent("dev_never") end end
   modem.open(DEV_PAIR_CHANNEL)
+  modem.open(HUB_POS_CHANNEL)
   while true do
     local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
-    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+    if ch == HUB_POS_CHANNEL and type(msg) == "table" and msg.type == "where_hub" and hub.pos then
+      -- a miner doing "miner setup hub": it measures how far away we are
+      modem.transmit(replyCh, HUB_POS_CHANNEL, { type = "hub_here", x = hub.pos.x, y = hub.pos.y, z = hub.pos.z })
+    elseif ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
       local res
       if fs.exists("dev.key") then res = "Already paired"
       elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"

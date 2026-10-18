@@ -59,6 +59,17 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 ### Setup: the turtles
 The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Give every turtle a different role (the direction of its main tunnel), so they each mine their own quarter. `setup` warns you if it doesn't see a chest behind the turtle.
 
+**Without GPS: from the hub (shows on the map).** Tell the hub once where it stands (F3, look at the hub computer), and start it:
+```
+hub pos 100 70 -340
+hub
+```
+Then on each turtle: the way it faces, its role, and whether the hub is to its right or left (stand behind it looking the same way):
+```
+miner setup hub south east right
+```
+It steps into its hole and back, measures the radio distance to the hub at each spot and works out its own position from the hub's. The hub needs a wireless or ender modem and has to be running. With GPS the hub fills in `hub pos` by itself.
+
 **Without GPS: only the height.** Each turtle uses its own spot as home (x 0, z 0) and calls the way it faces "north", so the role can also be `forward`, `right`, `back` or `left`:
 ```
 miner setup 64 right
@@ -240,12 +251,13 @@ Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket pan
 
 | Where | Command | What |
 |---|---|---|
-| turtle | `miner setup <y> [role]`, `miner setup [role]` (GPS) or `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
+| turtle | `miner setup hub <facing> <role> <left\|right>`, `miner setup <y> [role]`, `miner setup [role]` (GPS) or `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
 | turtle | `miner` | run with the hub (started automatically on boot) |
 | turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
 | pocket console | `<miner> tunnel <x> <z> [n]` | dig a lit 3x3 highway to x z, torch every n blocks (see [Tunnels](#tunnels-highway-job)) |
 | hub | `hub install`, `hub` | autostart, run |
+| hub | `hub pos <x> <y> <z>` | where the hub stands, for miners without GPS |
 | relay | `relay install`, `relay` | autostart, run |
 | tree turtle | `lumber setup [radius]`, `lumber` | one-time setup, run |
 | tree turtle | `lumber home` / `lumber reset` | reset position after putting it back by hand / forget all trees |

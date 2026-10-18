@@ -3,6 +3,8 @@
 -- One-time setup (see README):
 --   miner setup <y> [role]    without GPS: only its height (F3); home is its own x 0 z 0
 --   miner setup [role]        with GPS: it finds its position and facing by itself
+--   miner setup hub <facing> <role> [left|right]   no GPS: measures where the hub is
+--                             (needs 'hub pos <x> <y> <z>' once on the hub)
 --   miner setup <x> <y> <z> <facing> <role>
 --     x y z   = world coordinates of the turtle (F3), e.g. 120 64 -350
 --     facing  = direction the turtle faces: north/east/south/west
@@ -309,7 +311,54 @@ if args[1] == "setup" then
   for i = 2, #args do if not tonumber(args[i]) then words[#words + 1] = args[i]:lower() end end
   local REL = { forward = 0, right = 1, back = 2, left = 3 }
   local hx, hy, hz, facing, role, loc
-  if #n >= 3 then
+  if words[1] == "hub" then
+    -- No GPS, but the hub knows where it is: measure the radio distance to the hub
+    -- from 3 spots (here, one step into the hole, one down the hole) to find where
+    -- the hub is from here; with the facing that gives the world position.
+    facing = DIRS[words[2] or ""]
+    role = DIRS[words[3] or ""]
+    local side = (words[4] == "left") and -1 or 1
+    local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+    local function hubDist()
+      modem.transmit(16524, 16524, { type = "where_hub" })
+      local t = os.startTimer(3)
+      while true do
+        local ev, a, ch, _, msg, dist = os.pullEvent()
+        if ev == "timer" and a == t then return nil end
+        if ev == "modem_message" and ch == 16524 and type(msg) == "table" and msg.type == "hub_here"
+          and type(dist) == "number" then return dist, msg end
+      end
+    end
+    if not (facing and role) then
+      print("Usage: miner setup hub <facing> <role> [left|right]")
+      print("  facing: the way it faces (F3), role: its main tunnel")
+      print("  left/right: which side of the turtle the hub is on")
+      return
+    elseif not modem then print("Needs a wireless or ender modem.") return
+    elseif turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < 4 then
+      print("Put a little fuel in it first (refuel), it moves 2 blocks and back.") return
+    end
+    modem.open(16524)
+    local d0, at = hubDist()
+    if not d0 then print("No answer from the hub. Is it running (new version), and did you give it its position? (hub pos <x> <y> <z>)") return end
+    if not turtle.forward() then print("Couldn't step forward into its hole.") return end
+    local d1 = hubDist()
+    local down = turtle.down()
+    local d2 = down and hubDist()
+    if down then turtle.up() end
+    turtle.back()
+    if not (d1 and d2) then print("Couldn't measure from inside the hole (is it 2 deep?).") return end
+    -- the hub as seen from here: x = right, y = up, z = backward (turtle faces -z)
+    local lz = math.floor((d1 * d1 - d0 * d0 - 1) / 2 + 0.5)
+    local ly = math.floor((d2 * d2 - d1 * d1 - 1) / 2 + 0.5)
+    local lx = side * math.floor(math.sqrt(math.max(0, d0 * d0 - ly * ly - lz * lz)) + 0.5)
+    local R, F = (facing + 1) % 4, facing
+    hx = at.x - (lx * DX[R] - lz * DX[F])
+    hy = at.y - ly
+    hz = at.z - (lx * DZ[R] - lz * DZ[F])
+    print("The hub is " .. math.abs(lx) .. (lx < 0 and " left, " or " right, ") .. math.abs(lz) .. (lz > 0 and " behind, " or " ahead, ")
+      .. math.abs(ly) .. (ly < 0 and " down." or " up."))
+  elseif #n >= 3 then
     hx, hy, hz = n[1], n[2], n[3]
     facing, role = DIRS[words[1] or ""], DIRS[words[2] or ""]
   elseif #n == 1 then
@@ -334,6 +383,7 @@ if args[1] == "setup" then
     print("Usage:")
     print("  miner setup <y> [role]     no GPS: just its height (F3)")
     print("  miner setup [role]         with GPS")
+    print("  miner setup hub <facing> <role> [left|right]")
     print("  miner setup <x> <y> <z> <facing> <role>")
     print("role: the direction of its main tunnel. Give every")
     print("turtle a different one: north/east/south/west")
