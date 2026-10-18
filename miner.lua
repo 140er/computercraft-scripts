@@ -299,7 +299,7 @@ end
 -- Setup
 ---------------------------------------------------------------------------
 if args[1] == "setup" then
-  -- Three ways (the chest is always directly behind it, the hole in front):
+  -- Three ways (the hole in front, its chest behind it or to its left or right):
   --   miner setup <x> <y> <z> <facing> <role>   world coordinates (F3), as before
   --   miner setup [role]                        with GPS: position and facing found by itself
   --   miner setup <y> [role]                    no GPS: only its height; its own home is
@@ -390,14 +390,19 @@ if args[1] == "setup" then
     print("(no GPS: also forward/right/back/left)")
     return
   end
-  local found, info = false, nil
-  turtle.turnLeft() turtle.turnLeft()
-  found, info = turtle.inspect()
-  turtle.turnLeft() turtle.turnLeft()
-  if not (found and info.name:find("chest") or found and info.name:find("barrel")) then
-    print("WARNING: no chest found behind the turtle!")
+  -- Its chest: behind it, or else to its right or left (the hole is in front)
+  local chest, chests = nil, 0
+  for _, turn in ipairs({ 2, 1, 3 }) do
+    for _ = 1, turn do turtle.turnRight() end
+    local found, info = turtle.inspect()
+    for _ = turn, 3 do turtle.turnRight() end
+    if found and (info.name:find("chest") or info.name:find("barrel") or info.name:find("shulker")) then
+      chest, chests = chest or (facing + turn) % 4, chests + 1
+    end
   end
-  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc })
+  if not chest then print("WARNING: no chest next to the turtle (behind, left or right)!")
+  elseif chests > 1 then print("WARNING: more than one chest next to it. Keep one, or it can get confused about its direction.") end
+  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc, chest = chest })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("miner")\n')
@@ -419,10 +424,12 @@ end
 if not turtle then error("miner.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
 if not cfg then
-  print("Not set up yet. First: miner setup <x> <y> <z> <facing> <role>")
+  print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
 local HOME = cfg.home
+-- The way its chest is (behind, left or right of the home spot; older setups: behind)
+cfg.chest = cfg.chest or OPP[cfg.facing]
 -- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
 local reach = C.REACH -- set per trip from the hub's job
@@ -435,7 +442,7 @@ local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
 
 if args[1] == "home" then
-  -- Manual recovery: the turtle is (back) on its home spot, chest behind it.
+  -- Manual recovery: the turtle is (back) on its home spot, facing its hole.
   -- Progress (tunnels, shaft) is kept.
   local s0 = loadTable(STATE_FILE) or {}
   s0.pos = { x = HOME.x, y = HOME.y, z = HOME.z }
@@ -445,7 +452,7 @@ if args[1] == "home" then
   s0.pending = nil
   saveTable(STATE_FILE, s0)
   print("Position reset to home " .. HOME.x .. "," .. HOME.y .. "," .. HOME.z .. " (facing " .. DIRNAME[cfg.facing] .. ").")
-  print("Make sure it really stands there, chest behind it. Start with: miner")
+  print("Make sure it really stands there, facing its hole. Start with: miner")
   return
 end
 
@@ -1206,7 +1213,7 @@ local function goHome(reason)
     goAxis("y", HOME.y)
     -- Close the hole again at floor level, so nobody falls in while the turtle is home
     if pos.x == SHAFT.x and pos.z == SHAFT.z and not turtle.detectDown() then seal(DOWN) end
-    moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 block back, chest behind it again
+    moveOrFail(OPP[cfg.facing], "Home spot blocked") -- 1 block back onto the home spot
   end
   st.phase = "home"
   save()
@@ -1550,7 +1557,7 @@ local function chestInFront()
 end
 
 local function unload()
-  face(OPP[cfg.facing])
+  face(cfg.chest)
   local haul = {}
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
@@ -1938,8 +1945,8 @@ end
 local function calibrateAtHome()
   for i = 0, 3 do
     if chestInFront() then
-      -- The chest is behind the home spot, so I now face opposite to my facing
-      st.h = OPP[cfg.facing]
+      -- I face the chest, so I know my heading
+      st.h = cfg.chest
       pos.x, pos.y, pos.z = HOME.x, HOME.y, HOME.z
       st.phase = "home"
       st.vein = {}
@@ -2297,13 +2304,13 @@ local function worker()
   end
   while true do
     st.phase = "home"
-    face(OPP[cfg.facing])
+    face(cfg.chest)
     if not chestInFront() then calibrateAtHome() end
     while not chestInFront() do
       -- No chest = it is not where it thinks. Drop nothing, mine nothing.
-      setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: miner home")
+      setStatus("ERROR: no chest next to me. Put me on my home spot, Ctrl+T, type: miner home")
       sleep(30)
-      face(OPP[cfg.facing])
+      face(cfg.chest)
     end
     setStatus("Unloading")
     local haul = unload()

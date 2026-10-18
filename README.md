@@ -28,7 +28,7 @@ wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/head
 A guided installer opens. Pick what this machine should become (it only lists the bots that fit a turtle, computer or pocket computer) and follow the screens with the arrow keys and Enter, or by tapping the buttons:
 
 - it downloads the script, plus `update.lua` and itself,
-- it shows what to build around the bot by hand, and checks what it can (modem, the chest behind a turtle, fuel),
+- it shows what to build around the bot by hand, and checks what it can (modem, the chest next to a turtle, fuel),
 - it asks the few numbers it needs and fills in the coordinates from GPS when there is a GPS tower,
 - it runs the setup commands for you and shows their output, with **Back**, **Repeat** and **Next**,
 - at the end, **Start now** starts the bot. It starts by itself after every reboot from then on.
@@ -50,14 +50,14 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ### Quick start
 
-1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest directly **behind** it, and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
+1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest next to it (**behind** it, or to its left or right; only one), and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
 2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons), and a second monitor becomes an info screen.
 3. **Install:** run the [installer](#installing) on each turtle (pick "Mining turtle") and on the hub (pick "Mine Army hub"). It does step 4 and the setup below for you.
 4. **Set up each turtle once** (see below), then on the hub: `hub install`, `hub`.
 5. On the dashboard: pick a time, pick an ore. Done.
 
 ### Setup: the turtles
-The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Give every turtle a different role (the direction of its main tunnel), so they each mine their own quarter. `setup` warns you if it doesn't see a chest behind the turtle.
+The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Give every turtle a different role (the direction of its main tunnel), so they each mine their own quarter. `setup` looks for its chest behind it, then to its right and left, and warns you if it finds none (or more than one).
 
 **Without GPS: from the hub (shows on the map).** Tell the hub once where it stands (F3, look at the hub computer), and start it:
 ```
@@ -243,7 +243,7 @@ Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket pan
 - **Recall:** a recalled turtle drops whatever it is doing, also in the middle of an ore vein (it leaves the rest of the vein), and comes straight home.
 - **No blind digging:** on its own routes it never digs through natural rock. Rock where its tunnel should be means it is lost.
 - **Lost:** it goes straight up to the surface, digging only natural ground (stone, dirt, sand, gravel, ores, leaves; never cobble, planks, logs or other possible builds, it steps around those). In the open air it builds an 8-block pillar of its blocks and waits on top, also after reboots. The dashboard shows a red `LOST: <name> at x,y,z` (x/z can be a few blocks off if it had to step around something). Why it got lost is in `miner.log` on the turtle and on the hub.
-- **No chest at home:** it never unloads without a chest behind it. It first turns around looking for it; if it still can't find it, the dashboard shows "ERROR: no chest behind me".
+- **No chest at home:** it never unloads without its chest. It first turns around looking for it; if it still can't find it, the dashboard shows "ERROR: no chest next to me".
 - **Putting a turtle back:** pick it up (it keeps its files), put it on its home spot next to its chest in any direction, and type `miner`. It finds its chest and resets its position and heading; progress is kept. If needed: Ctrl+T, `miner home`, `miner`.
 
 

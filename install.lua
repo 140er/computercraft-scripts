@@ -38,13 +38,16 @@ local function isChest(name)
   return name and (name:find("chest") or name:find("barrel") or name:find("shulker")) and true or false
 end
 
--- Is there a chest behind the turtle? (it turns around to look, and back)
-local function chestBehind()
+-- A chest behind, to the right or to the left of the turtle? (it turns to look, and back)
+local function chestNear()
   if not turtle then return false end
-  turtle.turnLeft() turtle.turnLeft()
-  local ok, info = turtle.inspect()
-  turtle.turnLeft() turtle.turnLeft()
-  return ok and isChest(info.name)
+  local n = 0
+  for _ = 1, 4 do
+    turtle.turnRight()
+    local ok, info = turtle.inspect()
+    if ok and isChest(info.name) then n = n + 1 end
+  end
+  return n > 0, n
 end
 
 local function fuel()
@@ -314,10 +317,6 @@ local function modemCheck()
   if wireless() then return true, "Wireless modem found." end
   return false, "No wireless or ender modem on it yet."
 end
-local function chestCheck()
-  if chestBehind() then return true, "Chest found behind it." end
-  return false, "No chest directly behind it."
-end
 local function fuelCheck(n)
   return function()
     if fuel() >= n then return true, "Fuel: " .. fuel() .. "." end
@@ -329,9 +328,14 @@ local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
     files = { "miner.lua" }, start = { "miner" },
     steps = join({
-      { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest directly BEHIND it.\n* A 1x1 hole IN FRONT of it going down.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
+      { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* A 1x1 hole IN FRONT of it going down.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
-      { say = "Checking for the chest behind the turtle.", check = chestCheck },
+      { say = "Checking for the chest next to the turtle.", check = function()
+          local ok, n = chestNear()
+          if not ok then return false, "No chest behind it, or to its left or right." end
+          if n > 1 then return false, "More than one chest next to it. Keep one, or it can get confused about its direction." end
+          return true, "Chest found."
+        end },
     }, {
       -- With GPS it finds its own position and facing. Without GPS it can work out its
       -- position from the hub's (shows on the map), or use its own spot as home (height only).
