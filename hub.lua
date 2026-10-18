@@ -152,6 +152,7 @@ end
 local turtles = {} -- [id] = { p = status packet, seen = os.clock() }
 local selected = nil -- nil = all turtles
 local wantAsk = false -- CUSTOM tapped: ask for the item on the hub computer
+local forgetAsk = nil -- FORGET tapped once: { id, until }; a second tap removes that turtle
 
 ---------------------------------------------------------------------------
 -- Network
@@ -249,8 +250,25 @@ local function flash(text)
   notice, noticeUntil = text, os.clock() + 8
 end
 
+-- Forget a turtle that is gone (destroyed, lost for good): off the list, its own orders
+-- and tunnel job dropped. If it ever reports from its home spot again, it is back.
+local function forget(id)
+  turtles[id] = nil
+  hub.overrides[id], hub.bores[id] = nil, nil
+  hub.forgotten = hub.forgotten or {}
+  hub.forgotten[id] = true
+  if selected == id then selected = nil end
+  save()
+  flash("Forgot #" .. id .. ". It comes back on the list if it ever gets home again.")
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
+  if hub.forgotten and hub.forgotten[id] then
+    if m.type ~= "status" or m.phase ~= "home" then return end
+    hub.forgotten[id] = nil
+    save()
+  end
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
   elseif m.type == "job?" and hub.bores[id] then
@@ -337,6 +355,18 @@ local function setLimit(sec)
   hub.sessionLen = sec
   if anyMining() then startSession() end
   save()
+end
+
+-- How far from its shaft a turtle may mine (blocks). Further = more ore per layer,
+-- but the chunks out there must stay loaded (a player nearby or a chunk loader).
+local function setReach(n)
+  if not n then
+    n = 64
+    for _, r in ipairs({ 64, 96, 128, 160, 192 }) do if r > hub.reach then n = r break end end
+  end
+  hub.reach = math.floor(math.max(16, math.min(256, n)))
+  save()
+  flash("Reach: " .. hub.reach .. " blocks from the shaft (next trip). Keep those chunks loaded.")
 end
 
 local function stopAll()
@@ -513,6 +543,21 @@ local function draw(s)
   x = button(x, y, outdated > 0 and (" UPDATE (" .. outdated .. ") ") or " UPDATE ", colors.white,
     outdated > 0 and colors.green or colors.gray, releaseUpdate)
   if selected then x = button(x, y, " ALL ", colors.black, colors.white, function() selected = nil end) end
+  -- FORGET: only for a turtle that is lost or hasn't answered for a while; tap twice
+  local sel = selected and turtles[selected]
+  if sel and (sel.p.phase == "lost" or os.clock() - sel.seen > STALE) then
+    local id = selected
+    local sure = forgetAsk and forgetAsk.id == id and os.clock() < forgetAsk.untilT
+    x = button(x, y, sure and " SURE? " or " FORGET ", colors.white, colors.red, function()
+      if forgetAsk and forgetAsk.id == id and os.clock() < forgetAsk.untilT then
+        forgetAsk = nil
+        forget(id)
+      else
+        forgetAsk = { id = id, untilT = os.clock() + 5 }
+        flash("Tap again to forget " .. (turtles[id].p.label or ("#" .. id)))
+      end
+    end)
+  end
   -- Custom item: shows what it is when active; tapping it asks on the hub computer
   do
     local cur = selected and oreFor(selected) or (not selected and hub.target)
@@ -539,6 +584,10 @@ local function draw(s)
     local t = math.floor(left)
     at(x, y, string.format("%d:%02d:%02d", math.floor(t / 3600), math.floor(t / 60) % 60, t % 60),
       left < 300 and colors.orange or colors.white)
+  end
+  local reachLabel = " REACH " .. hub.reach .. " "
+  if W - #reachLabel + 1 > x + 8 then
+    button(W - #reachLabel + 1, y, reachLabel, colors.white, colors.blue, function() setReach() end)
   end
 
   -- Turtle table
@@ -1037,6 +1086,9 @@ local function panelRequest(id, m)
   elseif m.cmd == "recall" then recallNow()
   elseif m.cmd == "resume" then resumeAll()
   elseif m.cmd == "limit" and tonumber(m.sec) then setLimit(tonumber(m.sec))
+  elseif m.cmd == "reach" then setReach(tonumber(m.n))
+  elseif m.cmd == "forget" then
+    if selected then forget(selected) else note = "Pick the turtle to forget first" end
   elseif m.cmd == "bore" then
     -- Tunnel job for one turtle: a lit 3x3 tunnel from its shaft to x z (see miner.lua)
     local x, z = tonumber(m.x), tonumber(m.z)
@@ -1073,6 +1125,7 @@ local function panelRequest(id, m)
     else note = data or "Unknown item" end
   end
   selected = prev
+  if selected and not turtles[selected] then selected = nil end -- it was just forgotten
   if m.cmd then flash(note or ("Pocket: " .. m.cmd)) pcall(redraw) end
   local ores = {}
   local order = { table.unpack(ORDER) }
@@ -1095,7 +1148,7 @@ local function panelRequest(id, m)
   end
   table.sort(haul, function(a, b) return a.n > b.n end)
   send(id, { type = "panel_state", rid = m.rid, target = hub.target, recallAll = hub.recallAll,
-    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only,
+    left = sessionLeft(), sessionLen = hub.sessionLen, mode = hub.mode, only = hub.only, reach = hub.reach,
     ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
 end
 

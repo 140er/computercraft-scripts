@@ -193,11 +193,15 @@ local function devCommand(m, logFile, program, reply, hooks)
       end
       out(#l > 0 and table.concat(l, ", ") or "(done, nothing returned)")
     end
+  elseif op == "known" then
+    -- the blocks it remembers around it, for the pocket's map (no moving, any time)
+    r.known = hooks and hooks.known and hooks.known(32) or {}
+    out(#r.known .. " blocks")
   elseif op == "drive" then
     local hk = hooks or devDriveHooks()
     local why = not turtle and "This is not a turtle" or (hk.busy and hk.busy())
     local act = tostring(m.act or "scan")
-    local seen = {}
+    local seen = hk.known and hk.known() or {} -- blocks it remembers, then what it sees now
     local function look(dx, dy, dz, fn)
       local x, y, z = hk.pose()
       local ok, info = fn()
@@ -650,11 +654,36 @@ local function face(d)
   end
 end
 
+-- Blocks it has seen lately, for the pocket panel's drive map. Two halves of up to
+-- 3000 each, so the oldest ones drop out and it never grows too big.
+local known = { cur = {}, old = {}, n = 0 }
+function known.put(d, name) -- d = direction from the turtle, nil = where it stands
+  local x, y, z = pos.x + (d and DX[d] or 0), pos.y + (d and DY[d] or 0), pos.z + (d and DZ[d] or 0)
+  local k = x .. "," .. y .. "," .. z
+  if not known.cur[k] then
+    known.n = known.n + 1
+    if known.n > 3000 then known.old, known.cur, known.n = known.cur, {}, 1 end
+  end
+  known.cur[k] = { x = x, y = y, z = z, name = name }
+end
+-- The ones within r blocks of it (sideways), one layer above and below included
+function known.near(r)
+  local all, out = {}, {}
+  for _, half in ipairs({ known.old, known.cur }) do
+    for k, b in pairs(half) do
+      if math.abs(b.x - pos.x) <= r and math.abs(b.z - pos.z) <= r and math.abs(b.y - pos.y) <= 1 then all[k] = b end
+    end
+  end
+  for _, b in pairs(all) do out[#out + 1] = b end
+  return out
+end
+
 local function inspect(d)
   local ok, info
   if d == UP then ok, info = turtle.inspectUp()
   elseif d == DOWN then ok, info = turtle.inspectDown()
   else face(d) ok, info = turtle.inspect() end
+  known.put(d, ok and info.name or "minecraft:air")
   if ok then return info end
   return nil
 end
@@ -847,6 +876,7 @@ end
 
 local function applyMove(d)
   pos.x, pos.y, pos.z = pos.x + DX[d], pos.y + DY[d], pos.z + DZ[d]
+  known.put(nil, "minecraft:air") -- where it stands now is open
 end
 
 -- One step, with the fuel trick so a reboot mid-move does not lose the position.
@@ -1757,10 +1787,18 @@ C.SKY_AIR = 6     -- this many air blocks in a row above Y = home means open air
 local approxPos = false
 
 local function lostWait()
-  while true do
-    setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. (approxPos and " (approx)" or ""))
-    sleep(30)
+  -- the pocket panel can drive it home (see listener); then it starts over as a miner
+  local n = 0
+  while st.phase == "lost" do
+    if n % 30 == 0 then
+      setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. (approxPos and " (approx)" or ""))
+    end
+    n = n + 1
+    sleep(1)
   end
+  setStatus("Driven home: restarting")
+  sleep(1)
+  os.reboot()
 end
 
 local function lostBeacon(why)
@@ -2130,7 +2168,9 @@ local function trip(j0)
   reach = j0.reach or C.REACH
   mode = (j0.mode == "fast") and "fast" or "thorough"
   st.sessionEnd = j0.stopIn and (nowMs() + j0.stopIn * 1000) or nil
-  local base = j0.baseY or j0.y
+  -- An ore level close to (or above) the home spot, e.g. coal at Y 48 with home at Y 52:
+  -- mine at the highest level the shaft allows instead of giving up
+  local base = math.min(j0.baseY or j0.y, HOME.y - 8)
   local Y = pickLevel(base)
   if not Y then return C.AREA_FULL end
   local j = {}
@@ -2205,7 +2245,8 @@ local function worker()
         setStatus("Heading out: " .. (j.bore and ("tunnel to " .. j.bore.x .. "," .. j.bore.z) or (j.ore .. " at Y " .. j.y)))
         local ok, err = pcall(trip, j)
         if ok and err == C.AREA_FULL then
-          setStatus("Area full for " .. j.ore .. ": pick another ore or raise the reach")
+          setStatus("Area full for " .. j.ore .. ": all " .. C.MAX_LAYERS .. " layers dug within reach "
+            .. (j.reach or C.REACH) .. ". Pick another ore or raise the reach")
           sleep(60)
         elseif ok and err == C.UNLOADED or not ok and tostring(err):find(C.UNLOADED, 1, true) then
           -- Next tunnel block is in a chunk that is not loaded: wait instead of retrying right away
@@ -2237,25 +2278,58 @@ end
 local function listener()
   -- Driving from the pocket: only at home (not on a trip), through its own moves so the
   -- position stays right. Map = world x/z, north up.
+  -- A LOST turtle can be driven too. With GPS its position is set right after every
+  -- move (and its heading after a step forward or back); driven onto its home spot it
+  -- finds its chest, and the worker restarts it as a normal miner.
+  local lastFix
+  local function lostFix(dir)
+    if st.phase ~= "lost" or not gps then return end
+    local x, y, z = gps.locate(1)
+    if not x then return end
+    x, y, z = math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5)
+    if lastFix and (dir == "forward" or dir == "back") and y == lastFix.y then
+      local s = dir == "back" and -1 or 1
+      for d = 0, 3 do
+        if DX[d] * s == x - lastFix.x and DZ[d] * s == z - lastFix.z then st.h = d approxPos = false end
+      end
+    end
+    pos.x, pos.y, pos.z = x, y, z
+    lastFix = { x = x, y = y, z = z }
+    save()
+    if x == HOME.x and y == HOME.y and z == HOME.z and calibrateAtHome() then
+      st.lostAt = nil
+      save()
+    end
+  end
   local hooks = {
     home = { HOME.x, HOME.z },
     pose = function() return pos.x, pos.y, pos.z, DX[st.h], DZ[st.h] end,
     turn = function(right) face((st.h + (right and 1 or 3)) % 4) end,
     move = function(dir)
-      if dir == "up" then return rawMove(UP) elseif dir == "down" then return rawMove(DOWN)
-      elseif dir == "forward" then return rawMove(st.h) end
-      local d = OPP[st.h] -- back: without turning around
-      st.pending = { d = d, fuel = turtle.getFuelLevel() }
-      save()
-      local ok, why = turtle.back()
-      if ok then applyMove(d) end
-      st.pending = nil
-      save()
+      local ok, why
+      if dir == "up" then ok, why = rawMove(UP) elseif dir == "down" then ok, why = rawMove(DOWN)
+      elseif dir == "forward" then ok, why = rawMove(st.h)
+      else
+        local d = OPP[st.h] -- back: without turning around
+        st.pending = { d = d, fuel = turtle.getFuelLevel() }
+        save()
+        ok, why = turtle.back()
+        if ok then applyMove(d) end
+        st.pending = nil
+        save()
+      end
+      if ok then lostFix(dir) end
       return ok, why
     end,
     busy = function()
+      if st.phase == "lost" then
+        if not st.lostAt then return "Still climbing to the surface, try again in a moment" end
+        lostFix()
+        return nil
+      end
       if st.phase ~= "home" then return "Out on a trip: RECALL it (and STOP) first" end
     end,
+    known = function(r) return known.near(r or 12) end,
   }
   while true do
     local ev, a, b, c = os.pullEvent()
