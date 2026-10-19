@@ -1,4 +1,4 @@
--- update.lua - fetches the latest version of this computer's scripts from GitHub
+-- update.lua - fetches this computer's scripts from the fleet server or GitHub
 --
 --   update                 update every script from this repo that is on this computer,
 --                          then reboot if anything changed
@@ -7,21 +7,16 @@
 --
 -- Every script also has its own "update" command (e.g. "lumber update"), and the
 -- pocket panel's Update all button tells every bot it can reach to run this.
--- Needs http enabled in the ComputerCraft config (it is by default).
+-- Needs a fleet server in modem range, or http enabled in the ComputerCraft config.
 
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
 
 -- Everything in the repo that runs on a computer or turtle
 local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "install.lua", "update.lua" }
+  "server.lua", "install.lua", "update.lua" }
 -- The hub hands miner.lua out to the mining turtles, so it keeps a copy too
 local ALSO = { ["hub.lua"] = { "miner.lua" }, ["factory.lua"] = { "miner.lua" } }
-
-if not http then
-  print("http is disabled in the ComputerCraft config, can't update.")
-  return false
-end
 
 local args = { ... }
 local reboot = true
@@ -52,15 +47,64 @@ local function read(path)
   return s
 end
 
+local function hashOf(text)
+  local h = 5381
+  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  return string.format("%08x", h)
+end
+
+local PROTOCOL = "fleetserver"
+local server
+for _, name in ipairs(peripheral.getNames()) do
+  if peripheral.getType(name) == "modem" and peripheral.call(name, "isWireless") then
+    rednet.open(name)
+    server = rednet.lookup(PROTOCOL, "server")
+    break
+  end
+end
+
+local function fromServer(f)
+  if not server then return nil end
+  local old = read(f)
+  local hash = old and hashOf(old)
+  local parts, offset, version, size = {}, 0
+  while true do
+    local rid = math.random(1, 1073741824)
+    rednet.send(server, { type = "get", file = f, hash = hash, offset = offset, rid = rid }, PROTOCOL)
+    local deadline = os.clock() + 8
+    local reply
+    repeat
+      local id, m = rednet.receive(PROTOCOL, math.max(0, deadline - os.clock()))
+      if id == server and type(m) == "table" and m.type == "file" and m.file == f and m.rid == rid then reply = m end
+    until reply or os.clock() >= deadline
+    if not reply or reply.error then return nil end
+    if reply.current then return reply.hash == hash and old or nil end
+    if type(reply.hash) ~= "string" or type(reply.size) ~= "number" or reply.size <= 0
+      or reply.size > 2000000 or reply.offset ~= offset or type(reply.code) ~= "string" or #reply.code == 0 then return nil end
+    version, size = version or reply.hash, size or reply.size
+    if reply.hash ~= version or reply.size ~= size then return nil end
+    parts[#parts + 1] = reply.code
+    offset = offset + #reply.code
+    if offset >= size then
+      local code = table.concat(parts)
+      return offset == size and hashOf(code) == version and code or nil
+    end
+  end
+end
+
 local changed, failed = 0, 0
 for _, f in ipairs(files) do
   write(f .. " ... ")
-  -- the query string gets past GitHub's cache of the raw file
-  local res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
-  local code = res and res.readAll()
-  if res then res.close() end
+  local code, err = fromServer(f)
+  if (not code or not load(code, "=" .. f)) and http then
+    -- The query string gets past GitHub's cache of the raw file.
+    local res
+    res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
+    code = res and res.readAll()
+    if res then res.close() end
+  end
   if not code or code == "" then
-    print("failed: " .. tostring(err or "empty file"))
+    print("failed: " .. tostring(err or "no server copy or http download"))
     failed = failed + 1
   elseif not load(code, "=" .. f) then
     -- never replace a working script with one that doesn't even compile

@@ -325,6 +325,13 @@ local function fuelCheck(n)
 end
 
 local BOTS = {
+  { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
+    files = { "server.lua" }, start = { "server" },
+    steps = {
+      { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
+        check = modemCheck },
+      { run = function() return { "server", "install" } end },
+    } },
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
     files = { "miner.lua" }, start = { "miner" },
     steps = join({
