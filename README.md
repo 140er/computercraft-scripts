@@ -79,7 +79,7 @@ Rednet uses the same trusted local network as the existing bots. There is no aut
 5. On the dashboard: pick a time, pick an ore. Done.
 
 ### Setup: the turtles
-The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Give every turtle a different role (the direction of its main tunnel), so they each mine their own quarter. `setup` looks for its chest behind it, then to its right and left, and warns you if it finds none (or more than one).
+The [installer](#installing) does this for you. By hand, the shortest way depends on GPS. Every turtle needs a different role (the direction of its main tunnel), so they each mine their own quarter. **Leave the role out and the hub picks one** on the turtle's first start (the direction the fewest other miners have); change it later with **DIR** on the hub or the pocket. Add `name=<name>` (quotes around it if it has spaces) to give the turtle a name, e.g. `miner setup "name=Digger Bob"`; rename it later with **NAME** on the hub or the pocket. `setup` looks for its chest behind it, then to its right and left, and warns you if it finds none (or more than one).
 
 **Without GPS: from the hub (shows on the map).** Tell the hub once where it stands (F3, look at the hub computer), and start it:
 ```
@@ -111,7 +111,7 @@ miner setup 118 64 -350 south south
 miner setup 116 64 -350 south north
 miner setup 114 64 -350 south west    -- westernmost
 ```
-Setup writes a `startup.lua` and gives the turtle a label (`Miner-east`, ...), so it restarts by itself and keeps its files when you pick it up.
+Setup writes a `startup.lua` and gives the turtle a label (its name, or `Miner-east`, `Miner-<id>`, ...), so it restarts by itself and keeps its files when you pick it up.
 
 ---
 
@@ -205,6 +205,7 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - **Time:** session length, 10 minutes up to 1 hour (default 30 minutes). Picking an ore starts the countdown; pressing a time while mining restarts it. When it runs out the hub stops everything, like STOP. Each turtle gets the remaining time when it leaves home and keeps its own clock (saved as real time, survives reboots), so it comes home on time even when it can't hear the hub. It sets off early enough to be home when the clock runs out. While a session runs there is no per-trip time limit, so the turtles only come home early when they're full or need fuel. With less than 3 minutes left no new trip starts.
 - **STOP:** stay home after the current trip. **RECALL:** come home now (if in range); **RESUME** lets them go again.
 - **REACH** (right of the session time): how far from its shaft a turtle may mine, in blocks (default 96). Each tap goes one step further (64, 96, 128, 160, 192, then back to 64). When a turtle says "area full", every layer within the reach is dug: raise it, and keep those chunks loaded.
+- **NAME** and **DIR** (for a tapped turtle): NAME asks for a new name on the hub computer. DIR cycles its direction (east, south, west, north); the turtle switches the next time it's home and starts that quarter with fresh tunnels (the shaft stays).
 - **FORGET** (only for a tapped turtle that is LOST or has no signal): tap twice to take it off the list, for a turtle that's destroyed or lost for good. It comes back if it ever reports from its home spot again.
 - **UPDATE:** see "Updating" below. The number is how many turtles run a different version than the `miner.lua` on the hub; those have a `*` after their name.
 - **IN TURTLES NOW:** the loot currently in all turtles together (last reported for turtles out of range).
@@ -303,7 +304,7 @@ Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket pan
 
 | Where | Command | What |
 |---|---|---|
-| turtle | `miner setup hub <facing> <role> <left\|right>`, `miner setup <y> [role]`, `miner setup [role]` (GPS) or `miner setup <x> <y> <z> <facing> <role>` | one-time setup |
+| turtle | `miner setup hub <facing> [role] <left\|right>`, `miner setup <y> [role]`, `miner setup [role]` (GPS) or `miner setup <x> <y> <z> <facing> [role]`, each with optional `name=<name>`; no role = the hub picks | one-time setup |
 | turtle | `miner` | run with the hub (started automatically on boot) |
 | turtle | `miner diamond` / `miner diamond fast` / `miner diamond only` | run without a hub |
 | turtle | `miner home` | reset position to the home spot after putting it back by hand |
@@ -796,7 +797,7 @@ Type a job after `builder` (`builder floor 100 64 -20 115 64 -5 stone_bricks`), 
 
 Tabs along the top: **Home**, **Mine**, **Stor**, **Bots**, **Map** and **>_** (tap them, or keys 1-6, Q quits). 
 - **Home**: every machine at a glance. Green dot = it answers. Tap a card to open it.
-- **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. The blue **R96** button is the reach: how far from its shaft a turtle mines. Each tap goes one step further (64, 96, 128, 160, 192, then back to 64). Raise it when a turtle says "area full", and keep those chunks loaded. Tap a turtle to give orders to that turtle only, ALL to go back. A turtle that is LOST or hasn't answered for a minute gets a red **FORGET** button instead of TUNNEL: tap it twice to take it off the hub's list (it comes back by itself if it ever reports from its home spot). In the console: `Miner1 forget`.
+- **Mine**: same as the hub dashboard: tap an ore (Other = type any rock or ore), STOP, RECALL, RESUME, session time. The blue **R96** button is the reach: how far from its shaft a turtle mines. Each tap goes one step further (64, 96, 128, 160, 192, then back to 64). Raise it when a turtle says "area full", and keep those chunks loaded. Tap a turtle to give orders to that turtle only, ALL to go back. A turtle that is LOST or hasn't answered for a minute gets a red **FORGET** button instead of TUNNEL: tap it twice to take it off the hub's list (it comes back by itself if it ever reports from its home spot). Tap the turtle's name (top left) to rename it and then set its direction (Enter keeps either). In the console: `Miner1 forget`, `Miner1 name Digger Bob`, `Miner1 dir north`.
 - **Store**: what's in the storage room. Search, tap an item and pick an amount to have it brought to the pickup chest (missing items get crafted). Pause/Resume, Resync.
 - **Bots**: one row per bot with its status; tap one for its page:
   - **Wood**: the lumber turtle's status, fuel, lava buckets left and stats. Pause / Go on, Come home.

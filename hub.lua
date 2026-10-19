@@ -174,6 +174,7 @@ end
 local turtles = {} -- [id] = { p = status packet, seen = os.clock() }
 local selected = nil -- nil = all turtles
 local wantAsk = false -- CUSTOM tapped: ask for the item on the hub computer
+local wantName = nil -- NAME tapped: ask for that turtle's new name on the hub computer
 local forgetAsk = nil -- FORGET tapped once: { id, until }; a second tap removes that turtle
 
 ---------------------------------------------------------------------------
@@ -323,11 +324,45 @@ end
 local function forget(id)
   turtles[id] = nil
   hub.overrides[id], hub.bores[id] = nil, nil
+  if hub.dirs then hub.dirs[id] = nil end -- frees its direction for the next new miner
   hub.forgotten = hub.forgotten or {}
   hub.forgotten[id] = true
   if selected == id then selected = nil end
   save()
   flash("Forgot #" .. id .. ". It comes back on the list if it ever gets home again.")
+end
+
+-- Directions (main tunnel) the hub hands out, so nothing needs setting up on a miner
+local DIRS4 = { "east", "south", "west", "north" }
+local function dirOf(id) -- what the hub gave it, else the role it reports
+  local d = hub.dirs and hub.dirs[id]
+  local r = turtles[id] and turtles[id].p.role
+  return d or (type(r) == "string" and r:match("^[^@]+")) or nil
+end
+local function pickDir(id) -- the direction the fewest other miners have
+  local used = {}
+  for tid in pairs(turtles) do
+    local d = tid ~= id and dirOf(tid)
+    if d then used[d] = (used[d] or 0) + 1 end
+  end
+  for tid, d in pairs(hub.dirs or {}) do
+    if tid ~= id and not turtles[tid] then used[d] = (used[d] or 0) + 1 end
+  end
+  local best = DIRS4[1]
+  for _, d in ipairs(DIRS4) do if (used[d] or 0) < (used[best] or 0) then best = d end end
+  return best
+end
+-- New direction for a miner: it switches the next time it is home and asks for a job
+local function setDir(id, d)
+  hub.dirs = hub.dirs or {}
+  hub.dirs[id] = d
+  save()
+end
+local function rename(id, name)
+  name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", ""):sub(1, 32)
+  if name == "" then return end
+  send(id, { type = "rename", target = id, name = name })
+  if turtles[id] then turtles[id].p.label = name end
 end
 
 local function sharedShaft(id)
@@ -350,9 +385,15 @@ local function handle(id, m)
   local key = progressKey(id, m)
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
+  elseif m.type == "dir?" then
+    -- A miner set up without a direction asks for one on its first start
+    local d = (hub.dirs and hub.dirs[id]) or pickDir(id)
+    setDir(id, d)
+    send(id, { type = "dir", dir = d })
+    flash((m.label or ("#" .. id)) .. " mines " .. d)
   elseif m.type == "job?" and hub.bores[id] then
     send(id, { type = "job", paused = hub.recallAll, bore = hub.bores[id], mineMinutes = hub.mineMinutes,
-      progress = hub.progress[key], progressKey = key, update = releasedVersion() })
+      progress = hub.progress[key], progressKey = key, dir = hub.dirs and hub.dirs[id], update = releasedVersion() })
   elseif m.type == "job?" then
     local ore = oreFor(id)
     local left = sessionLeft()
@@ -362,7 +403,7 @@ local function handle(id, m)
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
       y = o and o.y, targets = o and o.targets, keep = o and o.keep, match = o and o.match, label = o and o.label, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
-      progress = hub.progress[key], progressKey = key,
+      progress = hub.progress[key], progressKey = key, dir = hub.dirs and hub.dirs[id],
       update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
@@ -665,6 +706,20 @@ local function draw(s)
     local cx = math.max(x, W - #label + 1)
     button(cx, y, label:sub(1, W - cx + 1), active and colors.black or colors.white, active and colors.lime or colors.gray,
       function() wantAsk = true end)
+  end
+
+  -- One turtle picked: its name and direction (main tunnel), set from here
+  if selected and turtles[selected] then
+    y = y + 2
+    local id, d = selected, dirOf(selected) or "?"
+    x = button(1, y, " NAME ", colors.white, colors.blue, function() wantName = id end)
+    button(x + 1, y, " DIR: " .. d:upper() .. " ", colors.white, colors.cyan, function()
+      local i = 0
+      for k, v in ipairs(DIRS4) do if v == d then i = k end end
+      local nd = DIRS4[i % 4 + 1]
+      setDir(id, nd)
+      flash((turtles[id].p.label or ("#" .. id)) .. " mines " .. nd .. " from its next trip (new quarter, fresh tunnels)")
+    end)
   end
 
   if ar or serverOwnsAR() then
@@ -1018,6 +1073,26 @@ local function redraw()
   draw3D()
 end
 
+-- Ask for a turtle's new name on the hub computer (monitors have no keyboard)
+local function askName(id)
+  flash("Type the name on the hub PC")
+  redraw()
+  local t = term.native()
+  local prev = term.redirect(t)
+  t.setBackgroundColor(colors.black)
+  t.setTextColor(colors.white)
+  t.clear()
+  t.setCursorPos(1, 1)
+  print("New name for " .. ((turtles[id] and turtles[id].p.label) or ("#" .. id)) .. "? (Enter = cancel)")
+  write("> ")
+  local name = read()
+  term.redirect(prev)
+  if name and name:find("%S") then
+    rename(id, name)
+    flash("Renamed #" .. id .. " to " .. name:sub(1, 32))
+  end
+end
+
 -- Ask for a custom item on the hub computer (monitors have no keyboard)
 local function askCustom()
   flash("Type the item on the hub PC")
@@ -1285,6 +1360,15 @@ local function panelRequest(id, m)
   elseif m.cmd == "reach" then setReach(tonumber(m.n))
   elseif m.cmd == "forget" then
     if selected then forget(selected) else note = "Pick the turtle to forget first" end
+  elseif m.cmd == "name" then
+    if not selected then note = "Pick the turtle to rename first"
+    elseif not tostring(m.text or ""):find("%S") then note = "Type a name"
+    else rename(selected, m.text) note = "Renamed #" .. selected end
+  elseif m.cmd == "dir" then
+    local d = tostring(m.dir or ""):lower()
+    if not selected then note = "Pick the turtle first"
+    elseif not ({ east = 1, south = 1, west = 1, north = 1 })[d] then note = "Direction: east, south, west or north"
+    elseif d ~= dirOf(selected) then setDir(selected, d) note = "#" .. selected .. " mines " .. d .. " from its next trip" end
   elseif m.cmd == "bore" then
     -- Tunnel job for one turtle: a lit 3x3 tunnel from its shaft to x z (see miner.lua)
     local x, z = tonumber(m.x), tonumber(m.z)
@@ -1336,7 +1420,7 @@ local function panelRequest(id, m)
     local p = r.p
     list[#list + 1] = { id = tid, label = p.label, status = p.status, phase = p.phase, fuel = p.fuel,
       free = p.free, x = p.x, y = p.y, z = p.z, ore = (own == false) and "stop" or (hub.bores[tid] and "tunnel") or oreFor(tid), branch = p.branch,
-      age = os.clock() - r.seen, err = p.lastError }
+      age = os.clock() - r.seen, err = p.lastError, dir = dirOf(tid) }
   end
   local haul = {}
   for name, n in pairs(hub.session and hub.session.haul or {}) do
@@ -1442,6 +1526,13 @@ local function uiLoop()
       askCustom()
       redraw()
       timer = os.startTimer(1) -- the old timer fired while typing
+    end
+    if wantName then
+      local id = wantName
+      wantName = nil
+      askName(id)
+      redraw()
+      timer = os.startTimer(1)
     end
   end
 end

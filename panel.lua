@@ -489,7 +489,13 @@ local function drawMine()
 
   -- Turtles: two lines each, tap one to give it its own orders
   if selT then
-    text(1, 10, (" For " .. (selT.label or ("#" .. selT.id))):sub(1, W - 18), colors.yellow)
+    -- Tap its name: rename it, then pick its direction (main tunnel); Enter keeps either
+    button(1, 10, W - 18, (" " .. (selT.label or ("#" .. selT.id))), colors.yellow, colors.black, function()
+      local name = prompt("Name for #" .. selT.id .. "?", selT.label)
+      if name and name ~= selT.label then hubCmd({ cmd = "name", text = name }) end
+      local d = prompt("Direction? east south west north", selT.dir)
+      if d and d:lower() ~= selT.dir then hubCmd({ cmd = "dir", dir = d:lower() }) end
+    end)
     if selT.phase == "lost" or (selT.age or 0) > 60 then
       -- gone for a while: FORGET takes it off the hub's list (tap twice)
       local sure = ui.forget == selT.id and os.clock() < (ui.forgetUntil or 0)
@@ -1530,6 +1536,12 @@ local function hubOrder(words, from, turtle)
   local op = lower(words[from])
   local msg = { type = "panel", turtle = turtle }
   if op == "stop" or op == "recall" or op == "resume" or op == "forget" then msg.cmd = op
+  elseif op == "name" or op == "rename" then
+    msg.cmd, msg.text = "name", table.concat(words, " ", from + 1)
+    if not turtle or msg.text == "" then say("<miner> name <new name>", colors.orange) return end
+  elseif op == "dir" then
+    msg.cmd, msg.dir = "dir", lower(words[from + 1])
+    if not turtle or msg.dir == "" then say("<miner> dir <east|south|west|north>", colors.orange) return end
   elseif op == "time" then
     local m = tonumber(words[from + 1])
     if not m then say("hub time <minutes>: 10, 20, 30, 45 or 60", colors.orange) return end
