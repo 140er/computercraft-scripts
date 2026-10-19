@@ -8,12 +8,13 @@
 -- Controls: tap an ore -> the whole fleet goes mining for it.
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
--- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
+-- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v 3D, q quit.
 -- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
 -- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
+local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
@@ -473,6 +474,16 @@ local function ids()
   return l
 end
 
+local ar = peripheral.find("ar_controller")
+local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
+
+local function toggle3D()
+  view3D = not view3D
+  local h = fs.open(VIEW_FILE, "w")
+  h.write(textutils.serialize({ enabled = view3D }))
+  h.close()
+end
+
 local function draw(s)
   local t = s.t
   local W, H = t.getSize()
@@ -585,6 +596,11 @@ local function draw(s)
     local cx = math.max(x, W - #label + 1)
     button(cx, y, label:sub(1, W - cx + 1), active and colors.black or colors.white, active and colors.lime or colors.gray,
       function() wantAsk = true end)
+  end
+
+  if ar then
+    y = y + 2
+    button(1, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
   end
 
   -- Session timer
@@ -840,8 +856,6 @@ local function drawInfo(s)
   end
 end
 
-local ar = peripheral.find("ar_controller")
-
 local function coordinate(n)
   return type(n) == "number" and n == n and math.abs(n) < math.huge
 end
@@ -851,30 +865,55 @@ local function draw3D()
   -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
   local ok = pcall(function()
     ar.clear()
+    ar.drawText2D("view", (view3D and 0x55FF55 or 0x999999) - 0x1000000, 4, 4,
+      view3D and "3D: AAN" or "3D: UIT", false)
     local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
-    for id, r in pairs(turtles) do
+    for id, r in pairs(view3D and turtles or {}) do
       local p = r.p
       if coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
         local key = "turtle:" .. id
-        local color = os.clock() - r.seen > STALE and 0x999999 or 0x55FFFF
+        local trouble = p.phase == "lost" or tostring(p.status):find("^LOST")
+          or tostring(p.status):find("^STUCK") or tostring(p.status):find("^ERROR")
+        local color = os.clock() - r.seen > STALE and 0x999999 or (trouble and 0xFF5555 or 0x55FFFF)
         color = color - 0x1000000 -- Opaque ARGB as a signed Java int.
-        ar.drawText3D(key, color, p.x, p.y, p.z, 0, 0, 1, "#" .. id, true)
+        local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
         local s = p.shaft
-        if type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z) and coordinate(s.bottom) then
-          ar.drawLine3D(key .. ":shaft", -1, s.x, s.y, s.z, s.x, s.bottom, s.z)
+        local top = type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z)
+        local sx, sy, sz = top and s.x + 0.5 or x, top and s.y or p.y, top and s.z + 0.5 or z
+        ar.drawText3D(key, color, sx, sy + 3, sz, 0, 0, 6, "#" .. id, true)
+        if trouble then
+          local err = tostring(p.lastError or p.status or "LOST"):sub(1, 40)
+          ar.drawText3D(key .. ":error", color, sx, sy + 1.8, sz, 0, 0, 2, err, true)
+        end
+        if top and (p.x ~= s.x or p.y ~= s.y or p.z ~= s.z) then
+          ar.drawText3D(key .. ":position", color, x, y, z, 0, 0, 2, "#" .. id, true)
+          if p.x ~= s.x or p.z ~= s.z then
+            ar.drawLine3D(key .. ":path", color, sx, y, sz, x, y, z)
+          end
+        end
+        local heading = directions[p.facing]
+        if heading then
+          local dx, dz = heading[1], heading[2]
+          local tx, tz = x + dx * 1.5, z + dz * 1.5
+          ar.drawLine3D(key .. ":heading", color, x, y, z, tx, y, tz)
+          ar.drawLine3D(key .. ":heading:1", color, tx, y, tz, tx - dx * 0.5 - dz * 0.5, y, tz - dz * 0.5 + dx * 0.5)
+          ar.drawLine3D(key .. ":heading:2", color, tx, y, tz, tx - dx * 0.5 + dz * 0.5, y, tz - dz * 0.5 - dx * 0.5)
+        end
+        if top and coordinate(s.bottom) then
+          ar.drawLine3D(key .. ":shaft", os.clock() - r.seen > STALE and color or -1, sx, sy + 2.5, sz, sx, s.bottom, sz)
           local d = directions[type(p.role) == "string" and p.role:match("^[^@]+") or ""]
           if d and coordinate(p.level) and coordinate(p.reach) and p.reach > 0
             and coordinate(p.branchLen) and p.branchLen > 0 then
             local dx, dz = d[1], d[2]
             local width = math.min(p.branchLen, p.reach)
-            local x1, z1 = s.x + dx * p.reach, s.z + dz * p.reach
+            local x1, z1 = sx + dx * p.reach, sz + dz * p.reach
             local x2, z2 = x1 - dz * width, z1 + dx * width
-            local x3, z3 = s.x - dz * width, s.z + dx * width
+            local x3, z3 = sx - dz * width, sz + dx * width
             local y = p.level
-            ar.drawLine3D(key .. ":region:1", color, s.x, y, s.z, x1, y, z1)
+            ar.drawLine3D(key .. ":region:1", color, sx, y, sz, x1, y, z1)
             ar.drawLine3D(key .. ":region:2", color, x1, y, z1, x2, y, z2)
             ar.drawLine3D(key .. ":region:3", color, x2, y, z2, x3, y, z3)
-            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, s.x, y, s.z)
+            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, sx, y, sz)
           end
         end
       end
@@ -1269,6 +1308,7 @@ local function uiLoop()
       elseif a == "a" then selected = nil
       elseif a == "u" then releaseUpdate()
       elseif a == "c" then wantAsk = true
+      elseif a == "v" and ar then toggle3D()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1279,7 +1319,7 @@ local function uiLoop()
       if prev and prev ~= ar then
         pcall(function() prev.clear() prev.update() end)
       end
-      draw3D()
+      if prev ~= ar then redraw() else draw3D() end
     end
     if wantAsk then
       wantAsk = false
