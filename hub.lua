@@ -8,12 +8,13 @@
 -- Controls: tap an ore -> the whole fleet goes mining for it.
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
--- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
+-- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v 3D, q quit.
 -- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
 -- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
+local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
@@ -111,7 +112,7 @@ end
 local hub = loadTable(STATE_FILE) or {}
 hub.target = hub.target           -- nil = paused
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
-hub.progress = hub.progress or {}   -- [role] = { levels=, shaft= }
+hub.progress = hub.progress or {}   -- [shaft x,z + role], or [role] without world coordinates
 hub.totals = hub.totals or {}
 hub.branchLen = hub.branchLen or 64
 -- Old hub.state had 32 as default: bump to 64 once (after that your own value is kept)
@@ -227,9 +228,17 @@ local function send(id, msg)
   elseif id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
 end
 
-local function mergeProgress(role, p)
-  if type(p) ~= "table" or not role then return end
-  local cur = hub.progress[role] or { levels = {} }
+local function progressKey(id, m)
+  local s = m.shaft or (turtles[id] and turtles[id].p.shaft)
+  if type(s) == "table" and type(s.x) == "number" and type(s.z) == "number" then
+    return "shaft:" .. s.x .. "," .. s.z .. ":" .. tostring(m.role)
+  end
+  return m.role
+end
+
+local function mergeProgress(key, p)
+  if type(p) ~= "table" or not key then return end
+  local cur = hub.progress[key] or { levels = {} }
   cur.levels = cur.levels or {}
   if type(p.shaft) == "number" and (not cur.shaft or p.shaft < cur.shaft) then cur.shaft = p.shaft end
   for y, L in pairs(p.levels or {}) do
@@ -245,7 +254,7 @@ local function mergeProgress(role, p)
       if c.offset == nil then c.offset = L.offset end
     end
   end
-  hub.progress[role] = cur
+  hub.progress[key] = cur
 end
 
 -- Turtle updates: put a new miner.lua on this computer (drag it onto the screen).
@@ -311,6 +320,15 @@ local function forget(id)
   flash("Forgot #" .. id .. ". It comes back on the list if it ever gets home again.")
 end
 
+local function sharedShaft(id)
+  local s = turtles[id].p.shaft
+  if type(s) ~= "table" or type(s.x) ~= "number" or type(s.z) ~= "number" then return end
+  for other, r in pairs(turtles) do
+    local o = r.p.shaft
+    if other ~= id and type(o) == "table" and o.x == s.x and o.z == s.z then return other end
+  end
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if hub.forgotten and hub.forgotten[id] then
@@ -318,11 +336,13 @@ local function handle(id, m)
     hub.forgotten[id] = nil
     save()
   end
+  -- Legacy role entries have no shaft owner. Keep them only for local-coordinate miners.
+  local key = progressKey(id, m)
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
   elseif m.type == "job?" and hub.bores[id] then
     send(id, { type = "job", paused = hub.recallAll, bore = hub.bores[id], mineMinutes = hub.mineMinutes,
-      progress = hub.progress[m.role], update = releasedVersion() })
+      progress = hub.progress[key], progressKey = key, update = releasedVersion() })
   elseif m.type == "job?" then
     local ore = oreFor(id)
     local left = sessionLeft()
@@ -332,14 +352,14 @@ local function handle(id, m)
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
       y = o and o.y, targets = o and o.targets, keep = o and o.keep, match = o and o.match, label = o and o.label, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
-      progress = hub.progress[m.role],
+      progress = hub.progress[key], progressKey = key,
       update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
     local hash, code = minerVersion()
     if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
-    mergeProgress(m.role, m.progress)
+    mergeProgress(key, m.progress)
     -- A tunnel job ended (done, or something stopped it): the turtle stays home
     local b = hub.bores[id]
     if b and type(m.bore) == "table" and m.bore.n == b.n then
@@ -503,6 +523,16 @@ local function ids()
   return l
 end
 
+local ar = peripheral.find("ar_controller")
+local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
+
+local function toggle3D()
+  view3D = not view3D
+  local h = fs.open(VIEW_FILE, "w")
+  h.write(textutils.serialize({ enabled = view3D }))
+  h.close()
+end
+
 local function draw(s)
   local t = s.t
   local W, H = t.getSize()
@@ -617,6 +647,11 @@ local function draw(s)
       function() wantAsk = true end)
   end
 
+  if ar then
+    y = y + 2
+    button(1, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
+  end
+
   -- Session timer
   y = y + 2
   x = 1
@@ -672,6 +707,8 @@ local function draw(s)
         statColor = colors.red
       end
     end
+    local other = sharedShaft(id)
+    if other then stat, statColor = "SHAFT #" .. other .. " | " .. stat, colors.red end
     if p.branch and p.phase == "mining" then ore = ore .. " b" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
     local want = minerVersion()
@@ -870,8 +907,6 @@ local function drawInfo(s)
   end
 end
 
-local ar = peripheral.find("ar_controller")
-
 local function coordinate(n)
   return type(n) == "number" and n == n and math.abs(n) < math.huge
 end
@@ -881,30 +916,55 @@ local function draw3D()
   -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
   local ok = pcall(function()
     ar.clear()
+    ar.drawText2D("view", (view3D and 0x55FF55 or 0x999999) - 0x1000000, 4, 4,
+      view3D and "3D: AAN" or "3D: UIT", false)
     local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
-    for id, r in pairs(turtles) do
+    for id, r in pairs(view3D and turtles or {}) do
       local p = r.p
       if coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
         local key = "turtle:" .. id
-        local color = os.clock() - r.seen > STALE and 0x999999 or 0x55FFFF
+        local trouble = p.phase == "lost" or tostring(p.status):find("^LOST")
+          or tostring(p.status):find("^STUCK") or tostring(p.status):find("^ERROR")
+        local color = os.clock() - r.seen > STALE and 0x999999 or (trouble and 0xFF5555 or 0x55FFFF)
         color = color - 0x1000000 -- Opaque ARGB as a signed Java int.
-        ar.drawText3D(key, color, p.x, p.y, p.z, 0, 0, 1, "#" .. id, true)
+        local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
         local s = p.shaft
-        if type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z) and coordinate(s.bottom) then
-          ar.drawLine3D(key .. ":shaft", -1, s.x, s.y, s.z, s.x, s.bottom, s.z)
+        local top = type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z)
+        local sx, sy, sz = top and s.x + 0.5 or x, top and s.y or p.y, top and s.z + 0.5 or z
+        ar.drawText3D(key, color, sx, sy + 3, sz, 0, 0, 6, "#" .. id, true)
+        if trouble then
+          local err = tostring(p.lastError or p.status or "LOST"):sub(1, 40)
+          ar.drawText3D(key .. ":error", color, sx, sy + 1.8, sz, 0, 0, 2, err, true)
+        end
+        if top and (p.x ~= s.x or p.y ~= s.y or p.z ~= s.z) then
+          ar.drawText3D(key .. ":position", color, x, y, z, 0, 0, 2, "#" .. id, true)
+          if p.x ~= s.x or p.z ~= s.z then
+            ar.drawLine3D(key .. ":path", color, sx, y, sz, x, y, z)
+          end
+        end
+        local heading = directions[p.facing]
+        if heading then
+          local dx, dz = heading[1], heading[2]
+          local tx, tz = x + dx * 1.5, z + dz * 1.5
+          ar.drawLine3D(key .. ":heading", color, x, y, z, tx, y, tz)
+          ar.drawLine3D(key .. ":heading:1", color, tx, y, tz, tx - dx * 0.5 - dz * 0.5, y, tz - dz * 0.5 + dx * 0.5)
+          ar.drawLine3D(key .. ":heading:2", color, tx, y, tz, tx - dx * 0.5 + dz * 0.5, y, tz - dz * 0.5 - dx * 0.5)
+        end
+        if top and coordinate(s.bottom) then
+          ar.drawLine3D(key .. ":shaft", os.clock() - r.seen > STALE and color or -1, sx, sy + 2.5, sz, sx, s.bottom, sz)
           local d = directions[type(p.role) == "string" and p.role:match("^[^@]+") or ""]
           if d and coordinate(p.level) and coordinate(p.reach) and p.reach > 0
             and coordinate(p.branchLen) and p.branchLen > 0 then
             local dx, dz = d[1], d[2]
             local width = math.min(p.branchLen, p.reach)
-            local x1, z1 = s.x + dx * p.reach, s.z + dz * p.reach
+            local x1, z1 = sx + dx * p.reach, sz + dz * p.reach
             local x2, z2 = x1 - dz * width, z1 + dx * width
-            local x3, z3 = s.x - dz * width, s.z + dx * width
+            local x3, z3 = sx - dz * width, sz + dx * width
             local y = p.level
-            ar.drawLine3D(key .. ":region:1", color, s.x, y, s.z, x1, y, z1)
+            ar.drawLine3D(key .. ":region:1", color, sx, y, sz, x1, y, z1)
             ar.drawLine3D(key .. ":region:2", color, x1, y, z1, x2, y, z2)
             ar.drawLine3D(key .. ":region:3", color, x2, y, z2, x3, y, z3)
-            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, s.x, y, s.z)
+            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, sx, y, sz)
           end
         end
       end
@@ -1325,6 +1385,7 @@ local function uiLoop()
       elseif a == "a" then selected = nil
       elseif a == "u" then releaseUpdate()
       elseif a == "c" then wantAsk = true
+      elseif a == "v" and ar then toggle3D()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1335,7 +1396,7 @@ local function uiLoop()
       if prev and prev ~= ar then
         pcall(function() prev.clear() prev.update() end)
       end
-      draw3D()
+      if prev ~= ar then redraw() else draw3D() end
     end
     if wantAsk then
       wantAsk = false

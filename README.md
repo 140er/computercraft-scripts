@@ -209,24 +209,27 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 
 #### 3D view
 
-Attach a **CC AR 0.2.1 AR Controller** to the hub, link **AR Goggles** to it and wear them. The 3D view switches on automatically at startup or on peripheral attach/detach, alongside the existing dashboard. It shows numbered turtle positions, white shafts down to their reported dug depths, and planned mining regions at the job's Y level. Reports older than 15 seconds turn grey. With no controller the 2D dashboard behaves as before.
+Attach a **CC AR 0.2.1 AR Controller** to the hub, link **AR Goggles** to it and wear them. Large numbered labels sit three blocks above each shaft opening. Shafts run from 2.5 blocks above the opening down to their reported dug depths. Markers use block centers in X/Z. Smaller labels track turtles away from the shaft top, with a line from the shaft at their height and a heading arrow. Planned mining regions stay at the job's Y level. LOST/STUCK/ERROR labels turn red with a short error below them; reports older than 15 seconds turn grey.
 
-Update the miners too (UPDATE on the hub) for shaft and reach telemetry. Region rectangles follow the main tunnel and clockwise branches, using trip reach and branch length. Older miners show positions only; miners set up with only a height are omitted because they lack world X/Z. Use a dedicated controller: each redraw replaces its contents, and normal quit clears it. A controller error disables 3D until a peripheral event triggers detection again.
+Press `v` or tap the **3D** dashboard button while a controller is attached. The view defaults to on and saves your choice in `hub.3d`. The top-left goggles HUD shows green `3D: AAN` or grey `3D: UIT`. Off clears the world markers and keeps the HUD. With no controller the 2D output stays unchanged.
+
+Update the miners too (UPDATE on the hub) for shaft, reach and current facing telemetry. Regions follow the main tunnel and clockwise branches. Older miners show position labels; height-only setups are omitted because they lack world X/Z. Use a dedicated controller: each redraw replaces its contents, and normal quit clears it. A controller error stops AR calls until a peripheral event triggers detection again.
 
 Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType()` returns `ar_controller`; the hub calls these `@LuaFunction` methods:
 
 ```lua
 drawLine3D(id, color, ax, ay, az, bx, by, bz)
 drawText3D(id, color, x, y, z, xRot, yRot, size, text, centered)
+drawText2D(id, color, x, y, text, centered)
 clear()
 update()
 ```
 
-IDs/text are strings, color is signed Java int ARGB, coordinates/rotations/size are doubles, centered is boolean. Coordinates are absolute world blocks. Text angles are degrees (`xRot` applies about Z, `yRot` about Y); the hub uses zero rotation and size 1. `update()` publishes the frame. `setAnchor(id, x, y)` accepts only 2D lines in this version.
+IDs/text are strings, color is signed Java int ARGB, centered is boolean. 3D coordinates/rotations/size are doubles; 2D X/Y are integer GUI pixels with a default top-left anchor. World coordinates are absolute block corners, so the hub adds 0.5 to X/Z. Text has fixed orientation with zero rotation here. Size 6 is about 1.62 blocks high; smaller labels use size 2. `update()` publishes the frame.
 
 Tom's Peripherals 1.3.1 GPU 3D renders into its own monitor buffer and needs a separate camera/rendering path; it is not supported here.
 
-Tested with Lua 5.2 mocks only: run `lua tests/run.lua` from the repo root with Lua 5.2 and Git installed. Tests compare 2D output against `git show main:hub.lua` and exercise telemetry, geometry, hotplug and errors. Goggles linking, text orientation, terrain occlusion and refresh cost still need an in-game check on Minecraft 1.21.1 NeoForge with CC: Tweaked 1.120.2. The roomsorter stock board is unchanged.
+Tested with Lua 5.2 mocks: run `lua tests/run.lua` from the repo root with Lua 5.2 and Git installed. Tests compare no-controller output against `git show main:hub.lua` and cover geometry, telemetry, persisted key/touch toggles, HUD, hotplug and errors. Label readability, fixed text orientation, terrain occlusion, HUD placement and refresh cost still need an in-game check.
 
 ### Info screen (second monitor)
 Put a normal (grey) monitor next to the hub and reboot the hub. Normal monitors can't be tapped, so they always get the info screen; the biggest advanced monitor gets the dashboard. A 1x1 monitor gets a compact version:
@@ -279,8 +282,10 @@ Any mining turtle can dig a lit 3x3 highway instead of mining. On the pocket pan
 - **Reboots / chunk unloads:** position, heading and progress are saved on every move and turn. After a restart away from home the turtle goes home along its own tunnels first, then carries on.
 - **Heading checks:** at boot it looks for its chest; at the bottom of its shaft it checks which side the main tunnel opening is on and corrects its heading if needed. After a reboot in the middle of a turn, and before it gives up as lost, it looks at the tunnel around it (open behind, rock on the walls) and fixes a heading that is a quarter or half turn off. With GPS it also snaps its coordinates once before declaring LOST.
 - **Recall:** a recalled turtle drops whatever it is doing, also in the middle of an ore vein (it leaves the rest of the vein), and comes straight home.
-- **No blind digging:** on its own routes it never digs through natural rock. Rock where its tunnel should be means it is lost.
+- **No blind digging:** on its own routes it only reopens natural blocks recorded as its own seals, plus the shaft hatch. Other natural rock means it is lost, including rock appearing during a retry.
 - **Lost:** it goes straight up to the surface, digging only natural ground (stone, dirt, sand, gravel, ores, leaves; never cobble, planks, logs or other possible builds, it steps around those). In the open air it builds an 8-block pillar of its blocks and waits on top, also after reboots. The dashboard shows a red `LOST: <name> at x,y,z` (x/z can be a few blocks off if it had to step around something). Why it got lost is in `miner.log` on the turtle and on the hub.
+- **Repeated LOST:** update old miners and check their setups. World-coordinate tunnel progress now belongs to a shaft and direction; older hub progress shared by direction cannot safely be assigned to a shaft. Local-coordinate setups keep sharing by role. A GPS home mismatch stops with `home differs from GPS; run miner setup`, and duplicate shaft claims show red `SHAFT #<id>` in the turtle list. Re-run `miner setup` at the correct home to clear wrongly inherited progress. New natural seals are remembered; old unrecorded seals still need a player to check the obstruction.
+- **Unlimited fuel after a restart:** an interrupted move needs GPS to tell whether it completed. Without a fix it stops with `Cannot resolve interrupted move`; return it home and run `miner home` before restarting.
 - **No chest at home:** it never unloads without its chest. It first turns around looking for it; if it still can't find it, the dashboard shows "ERROR: no chest next to me".
 - **Putting a turtle back:** pick it up (it keeps its files), put it on its home spot next to its chest in any direction, and type `miner`. It finds its chest and resets its position and heading; progress is kept. If needed: Ctrl+T, `miner home`, `miner`.
 

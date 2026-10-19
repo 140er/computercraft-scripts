@@ -438,8 +438,8 @@ local function inReach(x, z)
 end
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
--- the hub keeps tunnel progress per role; a second site (e.g. from the turtle factory) has its own
 local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
+local PROGRESS_KEY = not cfg.loc and ("shaft:" .. SHAFT.x .. "," .. SHAFT.z .. ":" .. ROLE) or ROLE
 
 if args[1] == "home" then
   -- Manual recovery: the turtle is (back) on its home spot, facing its hole.
@@ -471,6 +471,7 @@ st.h = st.h or cfg.facing
 st.levels = st.levels or {}   -- [y] = { spine=, branch=, step= }
 st.shaft = st.shaft or HOME.y -- lowest dug y in the shaft
 st.vein = st.vein or {}       -- path of the current vein excursion
+st.seals = st.seals or {}
 st.phase = st.phase or "home"
 st.dug = st.dug or 0
 st.found = st.found or 0      -- target ores this trip
@@ -478,6 +479,9 @@ st.total = st.total or {}
 local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
+local function worldShaft()
+  if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
+end
 
 local status = "Starting"
 local recall = false
@@ -511,8 +515,9 @@ local function packet()
     type = "status", v = VERSION, hash = MY_HASH, id = os.getComputerID(),
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
+    facing = DIRNAME[st.h],
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
-    shaft = not cfg.loc and { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } or nil,
+    shaft = worldShaft(),
     reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
@@ -740,14 +745,20 @@ local function face(d)
   if d >= 4 then return end
   while st.h ~= d do
     st.turnFrom = st.h
+    local ok, why
     if (d - st.h) % 4 == 3 then
       st.h = (st.h + 3) % 4
       save()
-      turtle.turnLeft()
+      ok, why = turtle.turnLeft()
     else
       st.h = (st.h + 1) % 4
       save()
-      turtle.turnRight()
+      ok, why = turtle.turnRight()
+    end
+    if not ok then
+      st.h, st.turnFrom = st.turnFrom, nil
+      save()
+      error("Turn failed: " .. tostring(why), 0)
     end
   end
 end
@@ -824,12 +835,15 @@ local function scoopLava(d)
   turtle.select(1)
 end
 
--- Blocks that never lie on a route the turtle dug itself (gravel/sand can fall in,
--- seal blocks are cobble, so those are fine). Finding one means position/heading is off.
+-- Natural rock on a known route needs proof that the turtle placed it there.
 local NATURAL = {}
 for _, n in ipairs({ "stone", "deepslate", "tuff", "granite", "diorite", "andesite", "calcite",
   "dirt", "grass_block", "smooth_basalt", "netherrack", "bedrock" }) do
   NATURAL["minecraft:" .. n] = true
+end
+
+local function sealKey(d)
+  return (pos.x + DX[d]) .. "," .. (pos.y + DY[d]) .. "," .. (pos.z + DZ[d])
 end
 
 -- Lava: scoop it as fuel first, then seal with the first placeable non-ore block
@@ -837,10 +851,14 @@ local function seal(d)
   scoopLava(d)
   for s = 1, 16 do
     if turtle.getItemCount(s) > 0 and sealable(s) then
+      local name = turtle.getItemDetail(s).name
       turtle.select(s)
       local ok = placeDir(d)
       turtle.select(1)
-      if ok then return true end
+      if ok then
+        if NATURAL[name] then st.seals[sealKey(d)] = name save() end
+        return true
+      end
     end
   end
   turtle.select(1)
@@ -949,18 +967,20 @@ local function afterDig()
 end
 
 -- Digging with retries (gravel/sand, mobs). Returns false + reason on failure.
-local function dig(d)
+local function dig(d, checkRoute)
   local digf, att
   if d == UP then digf, att = turtle.digUp, turtle.attackUp
   elseif d == DOWN then digf, att = turtle.digDown, turtle.attackDown
   else face(d) digf, att = turtle.dig, turtle.attack end
   for _ = 1, C.RETRY do
     local info = inspect(d)
+    if checkRoute then checkRoute(info) end
     if not info or isLiquid(info) then return true end
     if isUnbreakable(info) then return false, "unbreakable (" .. info.name .. ")" end
     if isTarget(info) then st.found = st.found + 1 end
     local dug, why = digf()
     if dug then
+      if st.seals[sealKey(d)] then st.seals[sealKey(d)] = nil save() end
       afterDig()
     elseif type(why) == "string" and why:lower():find("unbreakable") then
       return false, "unbreakable (" .. info.name .. ")" -- e.g. reinforced deepslate
@@ -1003,7 +1023,7 @@ C.UNLOADED = "outside loaded chunks"
 -- Lava it can't seal: step back up to 2 blocks through its own (empty) tunnel, wait
 -- for the flow to settle, then step forward again as far as it can. Callers work by
 -- position, so it's fine if it ends up a block or two further back.
-local function backOff(d)
+local function backOff(d, checkRoute)
   setStatus("Lava ahead, backing off")
   local back = OPP[d]
   local n = 0
@@ -1017,16 +1037,17 @@ local function backOff(d)
     local info = inspect(d)
     if isLava(info) and not sealLava(d) then return end
     info = inspect(d)
-    if info and not isLiquid(info) and not dig(d) then return end
+    if info and not isLiquid(info) and not dig(d, checkRoute) then return end
     if not rawMove(d) then return end
   end
 end
 
 -- Safe movement: never step into lava (seal it first), dig where needed.
-local function move(d, inVein)
+local function move(d, inVein, checkRoute)
   local lavaTries = 0
   for attempt = 1, C.RETRY do
     local info = inspect(d)
+    if checkRoute then checkRoute(info) end
     while isLava(info) do
       if sealLava(d) then
         info = inspect(d)
@@ -1035,12 +1056,12 @@ local function move(d, inVein)
         -- way, give it time to settle or burn out, come back and try again.
         lavaTries = lavaTries + 1
         if lavaTries > 3 or d >= 4 or inVein then return false, "lava" end
-        backOff(d)
+        backOff(d, checkRoute)
         info = inspect(d)
       end
     end
     if info and not isLiquid(info) then
-      local ok, why = dig(d)
+      local ok, why = dig(d, checkRoute)
       if not ok then
         if why:find("turtle") or why:find("computer") then sleep(1)
         else return false, why end
@@ -1067,16 +1088,18 @@ local function moveOrFail(d, what, inVein)
   local info = inspect(d)
   -- The hatch (Y home-1 in the shaft) is closed with a seal block, which can be
   -- andesite, tuff, deepslate etc.: from above on the way down, from below on the way up
-  local hatch = pos.x == SHAFT.x and pos.z == SHAFT.z and
-    (d == DOWN and pos.y == HOME.y or d == UP and pos.y == HOME.y - 2)
-  local function rock(i) return i and not hatch and (NATURAL[i.name] or isOre(i)) end
+  local function rock(i)
+    local hatch = pos.x == SHAFT.x and pos.z == SHAFT.z and
+      (d == DOWN and pos.y == HOME.y or d == UP and pos.y == HOME.y - 2)
+    return i and not hatch and st.seals[sealKey(d)] ~= i.name and (NATURAL[i.name] or isOre(i))
+  end
   -- Heading off by 90° or 180° looks like solid rock ahead of an open tunnel.
   local function tryHeading()
     if rock(info) and d < 4 and reorient({ 1, 3, 2 }) then info = inspect(d) end
   end
   tryHeading()
   -- GPS available: snap world coords once, then retry the heading check (never dig).
-  if rock(info) and d < 4 and gps and not cfg.loc then
+  if rock(info) and gps and not cfg.loc then
     local x, y, z = gps.locate(1)
     if x then
       x, y, z = math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5)
@@ -1089,11 +1112,14 @@ local function moveOrFail(d, what, inVein)
       end
     end
   end
-  if rock(info) then
-    error(C.LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be ("
-      .. info.name:gsub("^minecraft:", "") .. " to the " .. DIRNAME[d] .. ")", 0)
+  local function checkRoute(i)
+    if rock(i) then
+      error(C.LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be ("
+        .. i.name:gsub("^minecraft:", "") .. " to the " .. DIRNAME[d] .. ")", 0)
+    end
   end
-  local ok, why = move(d, inVein)
+  checkRoute(info)
+  local ok, why = move(d, inVein, checkRoute)
   if not ok then error((what or "Stuck") .. ": " .. tostring(why), 0) end
 end
 
@@ -1822,7 +1848,7 @@ local function request(msg, replyType, timeout)
 end
 
 local function askHub()
-  return request({ type = "job?", id = os.getComputerID(), role = ROLE, hash = MY_HASH }, "job")
+  return request({ type = "job?", id = os.getComputerID(), role = ROLE, shaft = worldShaft(), hash = MY_HASH }, "job")
 end
 
 -- Fetch a new miner.lua from the hub, verify it, save it and reboot.
@@ -1848,7 +1874,7 @@ end
 local function report(haul)
   if not (radio and hubId) then return end
   pcall(rednet.send, hubId, {
-    type = "report", id = os.getComputerID(), role = ROLE, haul = haul,
+    type = "report", id = os.getComputerID(), role = ROLE, shaft = worldShaft(), haul = haul,
     progress = { levels = st.levels, shaft = st.shaft }, bore = st.boreEnd,
   }, PROTOCOL)
 end
@@ -1864,7 +1890,7 @@ local function getJob()
   if reply then
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     updateWanted = false
-    mergeProgress(reply.progress)
+    if reply.progressKey == PROGRESS_KEY or (cfg.loc and reply.progressKey == nil) then mergeProgress(reply.progress) end
     if type(reply.bore) == "table" and not reply.paused then
       -- Tunnel job. One that already ended (done, or stopped by something) is not retried
       if st.boreEnd and st.boreEnd.n == reply.bore.n then return nil, st.boreEnd.why end
@@ -1966,13 +1992,23 @@ local function lostBeacon(why)
   lostWait()
 end
 
--- On boot: a chest next to me means I am on my home spot (there are never
--- chests underground). Also works when the turtle was picked up and put back,
--- facing any direction. Position and heading get reset; progress
--- (tunnels, shaft) is kept.
+local function verifyHome()
+  if not gps or cfg.loc then return end
+  local x, y, z = gps.locate(2)
+  if x and (math.floor(x + 0.5) ~= HOME.x or math.floor(y + 0.5) ~= HOME.y or math.floor(z + 0.5) ~= HOME.z) then
+    local msg = "ERROR: home differs from GPS; run miner setup"
+    logError(msg)
+    save()
+    setStatus(msg)
+    error(msg, 0)
+  end
+end
+
+-- A chest identifies home only when GPS agrees, if available.
 local function calibrateAtHome()
   for i = 0, 3 do
     if chestInFront() then
+      verifyHome()
       -- I face the chest, so I know my heading
       st.h = cfg.chest
       pos.x, pos.y, pos.z = HOME.x, HOME.y, HOME.z
@@ -1992,6 +2028,7 @@ local function calibrateAtHome()
 end
 
 local function recover()
+  if st.phase == "home" then verifyHome() end
   local turnFrom = st.turnFrom -- before calibrateAtHome turns around
   if calibrateAtHome() then
     if st.job then setTargets(st.job.targets, st.job) end
@@ -1999,7 +2036,20 @@ local function recover()
   end
   if st.pending then
     local f = turtle.getFuelLevel()
-    if f ~= "unlimited" and f < st.pending.fuel then
+    local moved
+    if f ~= "unlimited" and st.pending.fuel ~= "unlimited" then
+      moved = f < st.pending.fuel
+    elseif gps and not cfg.loc then
+      local x, y, z = gps.locate(2)
+      if x then
+        x, y, z = math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5)
+        local d = st.pending.d
+        if x == pos.x and y == pos.y and z == pos.z then moved = false
+        elseif x == pos.x + DX[d] and y == pos.y + DY[d] and z == pos.z + DZ[d] then moved = true end
+      end
+    end
+    if moved == nil then error("Cannot resolve interrupted move; return home and run miner home", 0) end
+    if moved then
       applyMove(st.pending.d)
       if st.pending.vein == "pop" then st.vein[#st.vein] = nil
       elseif st.pending.vein then st.vein[#st.vein + 1] = st.pending.d end

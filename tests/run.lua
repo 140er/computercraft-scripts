@@ -44,6 +44,26 @@ local function count(elements, method)
   for _, element in pairs(elements) do if element.method == method then n = n + 1 end end
   return n
 end
+local function hud(m, enabled)
+  equal(frame(m).view.args,
+    { "view", (enabled and 0x55FF55 or 0x999999) - 0x1000000, 4, 4, enabled and "3D: AAN" or "3D: UIT", false })
+  if not enabled then
+    equal(count(frame(m), "drawText3D"), 0, "disabled view kept world labels")
+    equal(count(frame(m), "drawLine3D"), 0, "disabled view kept world lines")
+  end
+end
+local function touch3D(m, label)
+  local x, y, found
+  for _, line in ipairs(m.output) do
+    local call = assert(load("return " .. line, "=output", "t", {}))()
+    if call[1] == "dashboard" then
+      if call[2] == "setCursorPos" then x, y = call[3], call[4]
+      elseif call[2] == "write" and call[3] == label then found = { x, y } end
+    end
+  end
+  assert(found, "3D touch button missing: " .. label)
+  m.push("monitor_touch", "dashboard", found[1], found[2])
+end
 
 test("no controller: full 2D output and event effects match main", function()
   local old, new = start(false, original), start(false)
@@ -54,6 +74,7 @@ test("no controller: full 2D output and event effects match main", function()
     m.push("char", "s")
     m.push("char", "r")
     m.push("char", "h")
+    m.push("char", "v")
     m.push("monitor_resize", "dashboard")
     m.push("term_resize")
     m.push("peripheral", "unrelated")
@@ -68,11 +89,11 @@ test("no controller: full 2D output and event effects match main", function()
   equal(new.arCalls, {}, "3D mode must stay off")
 end)
 
-test("startup detection: one world marker, shaft and region per turtle", function()
+test("shaft labels are raised, centered and readable with smaller turtle markers", function()
   local m = start(true)
   local elements = frame(m)
-  equal(count(elements, "drawText3D"), 4, "one marker per turtle")
-  equal(count(elements, "drawLine3D"), 20, "one shaft and four region edges per turtle")
+  equal(count(elements, "drawText3D"), 8, "shaft and position markers per turtle")
+  equal(count(elements, "drawLine3D"), 24, "shaft, path and four region edges per turtle")
   -- Expected corners from the miner's clockwise branches, including a site-qualified role.
   local corners = {
     { 197, 44, 101, 44 }, { 41, 76, 41, -20 },
@@ -80,24 +101,30 @@ test("startup detection: one world marker, shaft and region per turtle", functio
   }
   for id, p in ipairs(fleet) do
     local key, c = "turtle:" .. id, corners[id]
-    equal(elements[key].args, { key, 0x55FFFF - 0x1000000, p.x, p.y, p.z, 0, 0, 1, "#" .. id, true })
+    equal(elements[key].args,
+      { key, 0x55FFFF - 0x1000000, p.shaft.x + 0.5, 67, p.shaft.z + 0.5, 0, 0, 6, "#" .. id, true })
+    equal(elements[key .. ":position"].args,
+      { key .. ":position", 0x55FFFF - 0x1000000, p.x + 0.5, -57.5, p.z + 0.5, 0, 0, 2, "#" .. id, true })
+    equal(elements[key .. ":path"].args,
+      { key .. ":path", 0x55FFFF - 0x1000000, p.shaft.x + 0.5, -57.5, p.shaft.z + 0.5, p.x + 0.5, -57.5, p.z + 0.5 })
     equal(elements[key .. ":shaft"].args,
-      { key .. ":shaft", -1, p.shaft.x, 64, p.shaft.z, p.shaft.x, -58, p.shaft.z })
+      { key .. ":shaft", -1, p.shaft.x + 0.5, 66.5, p.shaft.z + 0.5, p.shaft.x + 0.5, -58, p.shaft.z + 0.5 })
     equal(elements[key .. ":region:3"].args,
-      { key .. ":region:3", 0x55FFFF - 0x1000000, c[1], -58, c[2], c[3], -58, c[4] })
+      { key .. ":region:3", 0x55FFFF - 0x1000000, c[1] + 0.5, -58, c[2] + 0.5, c[3] + 0.5, -58, c[4] + 0.5 })
   end
   equal(m.rejected, 0)
-  local old = start(false, original)
-  equal(m.output, old.output, "3D changed the 2D dashboard")
+  hud(m, true)
 end)
 
 test("attach, detach and reattach use peripheral events", function()
   local m = start(false)
   m.attached = true
-  local before = #m.output
   m.push("peripheral", "arbitrary_controller_name")
-  equal(#m.output, before, "attach must not add 2D draws")
-  equal(count(frame(m), "drawText3D"), 4)
+  equal(count(frame(m), "drawText3D"), 8)
+  hud(m, true)
+  touch3D(m, " 3D: AAN ")
+  hud(m, false)
+  m.push("char", "v")
   m.attached = false
   m.push("peripheral_detach", "arbitrary_controller_name")
   equal(frame(m), {}, "detach should clear the previous controller")
@@ -107,7 +134,8 @@ test("attach, detach and reattach use peripheral events", function()
   equal(m.detachedCalls, 2, "clear and update on the detached controller")
   m.attached = true
   m.push("peripheral", "arbitrary_controller_name")
-  equal(count(frame(m), "drawText3D"), 4)
+  equal(count(frame(m), "drawText3D"), 8)
+  hud(m, true)
   m.push("char", "q")
   equal(frame(m), {}, "quit should clear the view")
 end)
@@ -119,10 +147,11 @@ test("new frames replace old positions and clamp branch width to reach", functio
   m.status(1, p)
   m.tick()
   local elements = frame(m)
-  equal(count(elements, "drawText3D"), 4)
-  equal(elements["turtle:1"].args[3], 150)
+  equal(count(elements, "drawText3D"), 8)
+  equal(elements["turtle:1"].args[3], 101.5, "shaft label should stay at the opening")
+  equal(elements["turtle:1:position"].args[3], 150.5)
   equal(elements["turtle:1:region:3"].args,
-    { "turtle:1:region:3", 0x55FFFF - 0x1000000, 117, -58, -4, 101, -58, -4 })
+    { "turtle:1:region:3", 0x55FFFF - 0x1000000, 117.5, -58, -3.5, 101.5, -58, -3.5 })
 end)
 
 test("local coordinates, old miners and incomplete geometry are handled", function()
@@ -136,9 +165,87 @@ test("local coordinates, old miners and incomplete geometry are handled", functi
   m.status(3, partial)
   m.tick()
   local elements = frame(m)
-  equal(count(elements, "drawText3D"), 3)
-  equal(count(elements, "drawLine3D"), 5)
+  equal(count(elements, "drawText3D"), 5)
+  equal(count(elements, "drawLine3D"), 7)
   equal(elements["turtle:1"], nil, "local positions must not become world markers")
+  equal(elements["turtle:2"].args[3], legacy.x + 0.5)
+  equal(elements["turtle:3"].args[4], 67, "incomplete shaft depth must not hide the opening")
+end)
+
+test("key and dashboard touch toggles persist both states across restart", function()
+  for _, input in ipairs({ "key", "touch" }) do
+    local function toggle(m, enabled)
+      if input == "key" then m.push("char", "v")
+      else touch3D(m, enabled and " 3D: AAN " or " 3D: UIT ") end
+    end
+    local function restart(m)
+      m.push("char", "q")
+      local nextHub = mocks.new(true, state)
+      nextHub.files = m.files
+      nextHub.start(source)
+      for id, packet in ipairs(fleet) do nextHub.status(id, packet) end
+      nextHub.tick()
+      return nextHub
+    end
+    local m = start(true)
+    hud(m, true)
+    toggle(m, true)
+    hud(m, false)
+    equal(m.env.textutils.unserialize(m.files["hub.3d"]), { enabled = false })
+    m.tick()
+    hud(m, false)
+    m.attached = false
+    m.push("peripheral_detach", "arbitrary_controller_name")
+    m.attached = true
+    m.push("peripheral", "arbitrary_controller_name")
+    hud(m, false)
+    m = restart(m)
+    hud(m, false)
+    toggle(m, false)
+    hud(m, true)
+    equal(count(frame(m), "drawText3D"), 8)
+    equal(m.env.textutils.unserialize(m.files["hub.3d"]), { enabled = true })
+    m = restart(m)
+    hud(m, true)
+    equal(count(frame(m), "drawText3D"), 8)
+  end
+end)
+
+test("turtles at the shaft top need no extra position marker or path", function()
+  local m = start(true)
+  local p = turtle("east", 101, -20)
+  p.x, p.y, p.z = p.shaft.x, p.shaft.y, p.shaft.z
+  m.status(1, p)
+  m.tick()
+  equal(frame(m)["turtle:1:position"], nil)
+  equal(frame(m)["turtle:1:path"], nil)
+end)
+
+test("LOST, STUCK and ERROR show red errors below the label; stale reports stay grey", function()
+  local m = start(true)
+  for id, status in ipairs({ "LOST", "STUCK: blocked", "ERROR: no fuel" }) do
+    local p = turtle("east", 101, -20)
+    p.phase, p.status = id == 1 and "lost" or "mining", status
+    p.lastError = id == 1 and string.rep("Blocked ", 8) or nil
+    m.status(id, p)
+    m.tick()
+    local elements, key = frame(m), "turtle:" .. id
+    equal(elements[key].args[2], 0xFF5555 - 0x1000000)
+    equal(elements[key .. ":position"].args[2], 0xFF5555 - 0x1000000)
+    equal(elements[key .. ":error"].args,
+      { key .. ":error", 0xFF5555 - 0x1000000, 101.5, 65.8, -19.5, 0, 0, 2,
+        (p.lastError or status):sub(1, 40), true })
+  end
+  m.time = m.time + 16
+  m.tick()
+  for key, element in pairs(frame(m)) do
+    if element.method ~= "drawText2D" then
+      equal(element.args[2], 0x999999 - 0x1000000, "stale element " .. key)
+    end
+  end
+  m.status(1, turtle("east", 101, -20))
+  m.tick()
+  equal(frame(m)["turtle:1:error"], nil, "recovered turtle kept its error")
 end)
 
 test("controller failure stops 3D calls and leaves the dashboard running", function()
@@ -161,7 +268,7 @@ test("real miner telemetry supplies world shafts and omits local positions", fun
       local m = mocks.new(false)
       m.files["miner.cfg"] = mocks.encode({ home = { x = 100, y = 64, z = -20 },
         facing = facing, spine = 1, loc = localOnly })
-      m.files["miner.state"] = mocks.encode({ pos = { x = 110, y = -58, z = -20 }, shaft = -58,
+      m.files["miner.state"] = mocks.encode({ pos = { x = 110, y = -58, z = -20 }, h = (facing + 1) % 4, shaft = -58,
         phase = "mining", job = { y = -58, branchLen = 64 }, levels = { [-58] = { branch = 2, step = 4 } } })
       m.env.turtle = { select = function() end, getItemDetail = function() end,
         getItemCount = function() return 0 end, getFuelLevel = function() return 7000 end }
@@ -172,6 +279,7 @@ test("real miner telemetry supplies world shafts and omits local positions", fun
       m.push("rednet_message", 99, { type = "go" }, "minearmy")
       local packet = assert(m.messages[#m.messages], "miner did not publish status")
       equal(packet.type, "status")
+      equal(packet.facing, ({ "north", "east", "south", "west" })[(facing + 1) % 4 + 1])
       if localOnly then
         equal({ packet.x, packet.z, packet.shaft }, {}, "local coordinates leaked into world telemetry")
       else
@@ -183,16 +291,32 @@ test("real miner telemetry supplies world shafts and omits local positions", fun
     end
   end
   hub.tick()
-  equal(count(frame(hub), "drawText3D"), 8)
-  equal(count(frame(hub), "drawLine3D"), 40)
+  equal(count(frame(hub), "drawText3D"), 16)
+  equal(count(frame(hub), "drawLine3D"), 60)
+  local dx, dz = { 1, 0, -1, 0 }, { 0, 1, 0, -1 }
+  for facing = 0, 3 do
+    local key = "turtle:" .. (facing + 10)
+    local tx, tz = 110.5 + dx[facing + 1] * 1.5, -19.5 + dz[facing + 1] * 1.5
+    equal(frame(hub)[key .. ":heading"].args,
+      { key .. ":heading", 0x55FFFF - 0x1000000, 110.5, -57.5, -19.5, tx, -57.5, tz })
+    equal(frame(hub)[key .. ":heading:1"].args,
+      { key .. ":heading:1", 0x55FFFF - 0x1000000, tx, -57.5, tz,
+        tx - dx[facing + 1] * 0.5 - dz[facing + 1] * 0.5, -57.5,
+        tz - dz[facing + 1] * 0.5 + dx[facing + 1] * 0.5 })
+    assert(frame(hub)[key .. ":heading:2"], "missing arrow wing")
+  end
 end)
 
 test("3D mock rejects unverified methods", function()
   local m = mocks.new(true)
   assert(not pcall(function() m.ar.drawBox3D() end))
   equal(m.rejected, 1)
+  assert(not pcall(function() m.ar.drawText2D("hud", 0xFF55FF55, 4, 4, "3D: AAN", false) end))
+  assert(not pcall(function() m.ar.drawText2D("hud", -1, 4.5, 4, "3D: AAN", false) end))
+  assert(not pcall(function() m.ar.drawText2D("hud", -1, 4, 4, "3D: AAN", 0) end))
 end)
 
+dofile("tests/miner_lost.lua")(test, equal, read, mocks)
 dofile("tests/server.lua")(test, equal, read, mocks)
 
 print(passed .. " tests passed")
