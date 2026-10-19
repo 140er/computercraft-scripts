@@ -650,6 +650,41 @@ end
 local byId = {}
 for _, b in ipairs(BOTS) do byId[b.id] = b end
 
+-- Wipe this machine for a fresh start: every file except the installer (disks and rom
+-- stay), the label, and anything the Mine Army hub remembers about it
+local function reset(ask)
+  local what = ({ turtle = "turtle", pocket = "pocket computer", computer = "computer" })[KIND]
+  if ask and screen("Reset this " .. what, nil, {
+      { "This deletes every file on this " .. what .. " (its setup, saved state, logs and scripts) and its name. Only install.lua stays, so you can set it up again." },
+      { "\nDisks are not touched. A miner is also wiped from the hub's memory (its orders, tunnel job and direction).", colors.lightGray } },
+      { { "back", "Back" }, { "reset", "Reset" } }, 1) ~= "reset" then return false end
+  local me = shell and shell.getRunningProgram() or "install.lua"
+  for _, f in ipairs(fs.list("/")) do
+    if f ~= "rom" and f ~= me and f ~= "install.lua" and fs.getDrive(f) == "hdd" then fs.delete(f) end
+  end
+  os.setComputerLabel(nil)
+  -- The hub forgets its orders, tunnel job and direction for this machine
+  for _, name in ipairs(peripheral.getNames()) do
+    if peripheral.getType(name) == "modem" and peripheral.call(name, "isWireless") then
+      rednet.open(name)
+      rednet.broadcast({ type = "reset", id = os.getComputerID() }, "minearmy")
+      break
+    end
+  end
+  if ask then
+    screen("Reset this " .. what, nil, { { "Done: this " .. what .. " is empty. Pick what it should become next.", colors.lime } },
+      { { "ok", "OK" } })
+  else
+    print("Done: this " .. what .. " is empty. Run 'install' to set it up again.")
+  end
+  return true
+end
+
+if args[1] == "reset" then
+  reset(args[2] ~= "now")
+  return
+end
+
 if args[1] and not byId[args[1]] then
   print("Unknown bot: " .. args[1])
   local names = {}
@@ -698,10 +733,13 @@ local function menu()
       if fits(b) then items[#items + 1] = { b.id, b.name, b.hint } else others[#others + 1] = b end
     end
     items[#items + 1] = { "*other", "Bots for other machines", "everything else in the repo" }
+    items[#items + 1] = { "*reset", "Reset this " .. ({ turtle = "turtle", pocket = "pocket computer", computer = "computer" })[KIND],
+      "wipe old setup and state, start fresh" }
     items[#items + 1] = { "*quit", "Exit", " " }
     local what = ({ turtle = "turtle", pocket = "pocket computer", computer = "computer" })[KIND]
     local v = pick("Bot installer", nil, "What should this " .. what .. " become?", items, false)
     if v == "*quit" then clear() return end
+    if v == "*reset" then reset(true) end
     if v == "*other" then
       local list = {}
       for _, b in ipairs(others) do

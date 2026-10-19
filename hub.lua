@@ -383,7 +383,15 @@ local function handle(id, m)
   end
   -- Legacy role entries have no shaft owner. Keep them only for local-coordinate miners.
   local key = progressKey(id, m)
-  if m.type == "status" then
+  if m.type == "reset" then
+    -- That machine was wiped ('install reset'): drop everything kept for it
+    turtles[id] = nil
+    hub.overrides[id], hub.bores[id] = nil, nil
+    if hub.dirs then hub.dirs[id] = nil end
+    if hub.forgotten then hub.forgotten[id] = nil end
+    if selected == id then selected = nil end
+    save()
+  elseif m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
   elseif m.type == "dir?" then
     -- A miner set up without a direction asks for one on its first start

@@ -111,4 +111,45 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     equal(m.env.textutils.unserialize(m.files["miner.cfg"]).spine, 2)
     equal(api.cfg.spine, 2)
   end)
+
+  test("install reset wipes the machine but keeps the installer and disks, and the hub forgets it", function()
+    local files = { ["rom"] = true, ["disk"] = true, ["install.lua"] = true, ["miner.lua"] = true,
+      ["miner.cfg"] = true, ["miner.state"] = true, ["startup.lua"] = true, ["update.lua"] = true }
+    local label, sent = "Miner-east", {}
+    local env = setmetatable({
+      term = { isColour = function() return true end, getSize = function() return 39, 13 end },
+      colors = setmetatable({}, { __index = function() return 1 end }),
+      shell = { getRunningProgram = function() return "install.lua" end },
+      fs = {
+        list = function() local l = {} for f in pairs(files) do l[#l + 1] = f end return l end,
+        delete = function(f) files[f] = nil end,
+        getDrive = function(f) return f == "rom" and "rom" or f == "disk" and "left" or "hdd" end,
+      },
+      os = { setComputerLabel = function(l) label = l end, getComputerID = function() return 5 end,
+        getComputerLabel = function() return label end },
+      peripheral = { getNames = function() return { "back" } end, getType = function() return "modem" end,
+        call = function() return true end },
+      rednet = { open = function() end, broadcast = function(m, p) sent[#sent + 1] = { m = m, p = p } end },
+      print = function() end, turtle = {},
+    }, { __index = _G })
+    assert(load(read("install.lua"), "=install.lua", "t", env))("reset", "now")
+    local left = {}
+    for f in pairs(files) do left[#left + 1] = f end
+    table.sort(left)
+    equal(left, { "disk", "install.lua", "rom" })
+    equal(label, nil)
+    equal(sent, { { m = { type = "reset", id = 5 }, p = "minearmy" } })
+
+    local m = mocks.new(false, { target = "iron", overrides = { [5] = "gold" }, bores = { [5] = { x = 1, z = 2, n = 1 } },
+      dirs = { [5] = "west" } })
+    m.start(hub)
+    m.status(5, { type = "status", phase = "home", role = "west" })
+    m.status(5, { type = "reset", id = 5 })
+    local state = saved(m)
+    equal(state.overrides[5], nil)
+    equal(state.bores[5], nil)
+    equal(state.dirs[5], nil)
+    m.status(5, { type = "dir?", id = 5 })
+    equal(last(m).dir, "east", "a wiped miner kept its old direction")
+  end)
 end

@@ -34,7 +34,7 @@ A guided installer opens. Pick what this machine should become (it only lists th
 - it runs the setup commands for you and shows their output, with **Back**, **Repeat** and **Next**,
 - at the end, **Start now** starts the bot. It starts by itself after every reboot from then on.
 
-Later, `install` opens it again, `install <bot>` goes straight to one bot's setup, and `install <bot> quick` only downloads the files. The bots: `server`, `miner`, `hub`, `relay`, `roomsorter`, `roomclient`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `factory`, `gpshost`, `panel`, `smartmine`. Each bot's section below explains the same setup by hand.
+Later, `install` opens it again, `install <bot>` goes straight to one bot's setup, and `install <bot> quick` only downloads the files. **Reused a turtle or computer?** Pick *Reset this turtle/computer* in the menu, or run `install reset`: it deletes every file except `install.lua` (disks are kept), clears its name, and tells the Mine Army hub to forget that machine's orders, tunnel job and direction. Then set it up again as new. The bots: `server`, `miner`, `hub`, `relay`, `roomsorter`, `roomclient`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `factory`, `gpshost`, `panel`, `smartmine`. Each bot's section below explains the same setup by hand.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
