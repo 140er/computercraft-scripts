@@ -1070,7 +1070,25 @@ local function moveOrFail(d, what, inVein)
   local hatch = pos.x == SHAFT.x and pos.z == SHAFT.z and
     (d == DOWN and pos.y == HOME.y or d == UP and pos.y == HOME.y - 2)
   local function rock(i) return i and not hatch and (NATURAL[i.name] or isOre(i)) end
-  if rock(info) and d < 4 and reorient({ 1, 3 }) then info = inspect(d) end
+  -- Heading off by 90° or 180° looks like solid rock ahead of an open tunnel.
+  local function tryHeading()
+    if rock(info) and d < 4 and reorient({ 1, 3, 2 }) then info = inspect(d) end
+  end
+  tryHeading()
+  -- GPS available: snap world coords once, then retry the heading check (never dig).
+  if rock(info) and d < 4 and gps and not cfg.loc then
+    local x, y, z = gps.locate(1)
+    if x then
+      x, y, z = math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5)
+      if x ~= pos.x or y ~= pos.y or z ~= pos.z then
+        pos.x, pos.y, pos.z = x, y, z
+        save()
+        logError("GPS resync before LOST: now at " .. x .. "," .. y .. "," .. z)
+        info = inspect(d)
+        tryHeading()
+      end
+    end
+  end
   if rock(info) then
     error(C.LOST .. " at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. ": rock where my tunnel should be ("
       .. info.name:gsub("^minecraft:", "") .. " to the " .. DIRNAME[d] .. ")", 0)
@@ -1889,7 +1907,14 @@ local function lostWait()
   local n = 0
   while st.phase == "lost" do
     if n % 30 == 0 then
-      setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z .. (approxPos and " (approx)" or ""))
+      local tip = st.lostWhy or (st.lastError and st.lastError.msg)
+      if tip then
+        tip = tip:gsub("^LOST at [^:]+: ", ""):gsub("%s+", " "):sub(1, 48)
+      end
+      setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z
+        .. (approxPos and " (approx)" or "")
+        .. (tip and (" — " .. tip) or "")
+        .. " (drive home / pick up)")
     end
     n = n + 1
     sleep(1)
@@ -1904,6 +1929,7 @@ local function lostBeacon(why)
   logError(why) -- the reason, in miner.log and on the hub (this never returns)
   st.phase = "lost"
   st.vein = {}
+  st.lostWhy = tostring(why)
   save()
   setStatus("LOST: going up to the surface")
   local airRun, sidesteps = 0, 0
