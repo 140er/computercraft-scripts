@@ -99,6 +99,14 @@ if not modem then error("Attach a wireless or ender modem to this computer.", 0)
 rednet.open(peripheral.getName(modem))
 rednet.host(PROTOCOL, "server")
 
+local ar = peripheral.find("ar_controller")
+local arHub, arUntil, arDrawn = state.arHub, 0, false
+
+local function toggle3D()
+  state.view3D = state.view3D == false
+  save()
+end
+
 local function bot(id, kind, proto)
   local b = state.bots[id]
   if not b then
@@ -139,10 +147,20 @@ end
 
 local function reply(id, m, r)
   r.rid = m.rid
+  r.arOwner, r.view3D = ar ~= nil, state.view3D ~= false
   rednet.send(id, r, PROTOCOL)
 end
 
 local function request(id, m)
+  if m.arClient == true and (m.type == "hub_get" or m.type == "hub_put") then
+    arHub = id
+    arUntil = 0
+    if state.arHub ~= id then state.arHub = id save() end
+  end
+  if id == arHub and (m.type == "ar_ready" or m.type == "hub_put")
+    and type(m.arUntil) == "number" and m.arUntil == m.arUntil then
+    arUntil = math.min(m.arUntil, now() + 10000)
+  end
   if m.type == "get" and known[m.file] then
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
@@ -160,6 +178,11 @@ local function request(id, m)
     if not code then reply(id, m, { type = "file", file = m.file, error = "not cached" }) return end
     reply(id, m, { type = "file", file = m.file, hash = info.hash, size = #code, offset = offset,
       current = m.hash == info.hash, code = m.hash ~= info.hash and code:sub(offset + 1, offset + 12000) or nil })
+  elseif m.type == "ar_ready" and id == arHub then
+    reply(id, m, { type = "ack" })
+  elseif m.type == "ar_toggle" then
+    if ar then toggle3D() end
+    reply(id, m, { type = "ack" })
   elseif m.type == "list" then
     reply(id, m, { type = "versions", files = state.files })
   elseif m.type == "state" or m.type == "hub_get" then
@@ -203,6 +226,87 @@ local function request(id, m)
   end
 end
 
+local function coordinate(n)
+  return type(n) == "number" and n == n and math.abs(n) < math.huge
+end
+
+local function draw3D()
+  if not ar then return end
+  -- Stop before the hub's 15-second fallback, including when replies are lost.
+  if arHub and now() >= arUntil then
+    if arDrawn then pcall(function() ar.clear() ar.update() end) end
+    arDrawn = false
+    return
+  end
+  local ok = pcall(function()
+    ar.clear()
+    local view3D = state.view3D ~= false
+    ar.drawText2D("view", (view3D and 0x55FF55 or 0x999999) - 0x1000000, 4, 4,
+      view3D and "3D: AAN" or "3D: UIT", false)
+    local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
+    local hub = state.hub and state.hub.state or {}
+    for id, b in pairs(view3D and state.bots or {}) do
+      local p = b.status or {}
+      if b.kind == "miner" and not (hub.forgotten and hub.forgotten[id])
+        and coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
+        local key = "turtle:" .. id
+        local trouble = p.phase == "lost" or tostring(p.status):find("^LOST")
+          or tostring(p.status):find("^STUCK") or tostring(p.status):find("^ERROR")
+        local stale = now() - (b.lastSeen or 0) > 15000
+        local color = stale and 0x999999 or (trouble and 0xFF5555 or 0x55FFFF)
+        color = color - 0x1000000 -- Opaque ARGB as a signed Java int.
+        local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
+        local s = p.shaft
+        local top = type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z)
+        local sx, sy, sz = top and s.x + 0.5 or x, top and s.y or p.y, top and s.z + 0.5 or z
+        ar.drawText3D(key, color, sx, sy + 3, sz, 0, 0, 6, "#" .. id, true)
+        if trouble then
+          local err = tostring(p.lastError or p.status or "LOST"):sub(1, 40)
+          ar.drawText3D(key .. ":error", color, sx, sy + 1.8, sz, 0, 0, 2, err, true)
+        end
+        if top and (p.x ~= s.x or p.y ~= s.y or p.z ~= s.z) then
+          ar.drawText3D(key .. ":position", color, x, y, z, 0, 0, 2, "#" .. id, true)
+          if p.x ~= s.x or p.z ~= s.z then
+            ar.drawLine3D(key .. ":path", color, sx, y, sz, x, y, z)
+          end
+        end
+        local heading = directions[p.facing]
+        if heading then
+          local dx, dz = heading[1], heading[2]
+          local tx, tz = x + dx * 1.5, z + dz * 1.5
+          ar.drawLine3D(key .. ":heading", color, x, y, z, tx, y, tz)
+          ar.drawLine3D(key .. ":heading:1", color, tx, y, tz, tx - dx * 0.5 - dz * 0.5, y, tz - dz * 0.5 + dx * 0.5)
+          ar.drawLine3D(key .. ":heading:2", color, tx, y, tz, tx - dx * 0.5 + dz * 0.5, y, tz - dz * 0.5 - dx * 0.5)
+        end
+        if top and coordinate(s.bottom) then
+          ar.drawLine3D(key .. ":shaft", stale and color or -1, sx, sy + 2.5, sz, sx, s.bottom, sz)
+          local d = directions[type(p.role) == "string" and p.role:match("^[^@]+") or ""]
+          if d and coordinate(p.level) and coordinate(p.reach) and p.reach > 0
+            and coordinate(p.branchLen) and p.branchLen > 0 then
+            local dx, dz = d[1], d[2]
+            local width = math.min(p.branchLen, p.reach)
+            local x1, z1 = sx + dx * p.reach, sz + dz * p.reach
+            local x2, z2 = x1 - dz * width, z1 + dx * width
+            local x3, z3 = sx - dz * width, sz + dx * width
+            local y = p.level
+            ar.drawLine3D(key .. ":region:1", color, sx, y, sz, x1, y, z1)
+            ar.drawLine3D(key .. ":region:2", color, x1, y, z1, x2, y, z2)
+            ar.drawLine3D(key .. ":region:3", color, x2, y, z2, x3, y, z3)
+            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, sx, y, sz)
+          end
+        end
+      end
+    end
+    ar.update()
+    arDrawn = true
+  end)
+  if not ok then
+    pcall(function() ar.clear() ar.update() end)
+    ar = nil
+    arDrawn = false
+  end
+end
+
 local function draw()
   local screen = peripheral.find("monitor") or term.native()
   local w, h = screen.getSize()
@@ -229,10 +333,11 @@ local function draw()
     end
   end
   for i = 1, math.min(h, #lines) do screen.setCursorPos(1, i) screen.write(lines[i]:sub(1, w)) end
+  draw3D()
 end
 
 local function network()
-  local timer = os.startTimer(5)
+  local timer = os.startTimer(1)
   local ticks = 0
   draw()
   while true do
@@ -244,17 +349,29 @@ local function network()
         status(id, m, proto)
         save()
       end
+      draw3D()
     elseif ev == "timer" and id == timer then
       ticks = ticks + 1
-      if ticks % 3 == 1 then
+      if ticks % 15 == 5 then
         rednet.broadcast({ type = "panel" }, "minearmy")
         for _, p in ipairs({ "lumber", "farmer", "lava", "builder", "buddy", "turtlefactory" }) do
           rednet.broadcast({ cmd = "status" }, p)
         end
       end
+      if ticks % 5 == 0 then draw() else draw3D() end
+      timer = os.startTimer(1)
+    elseif ev == "char" and id == "v" then
+      toggle3D()
       draw()
-      timer = os.startTimer(5)
-    elseif ev == "monitor_resize" or ev == "term_resize" or ev == "peripheral" or ev == "peripheral_detach" then draw() end
+    elseif ev == "peripheral" or ev == "peripheral_detach" then
+      local prev = ar
+      ar = peripheral.find("ar_controller")
+      if prev and (not ar or peripheral.getName(prev) ~= peripheral.getName(ar)) then
+        pcall(function() prev.clear() prev.update() end)
+        arDrawn = false
+      end
+      draw()
+    elseif ev == "monitor_resize" or ev == "term_resize" then draw() end
   end
 end
 

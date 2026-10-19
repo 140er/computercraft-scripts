@@ -237,7 +237,7 @@ return function(test, equal, read, mocks)
     m.env.rednet.lookup = function() return 99 end
     local receive = m.env.rednet.receive
     m.env.rednet.receive = function(proto, timeout)
-      if proto == "fleetserver" then return 99, s.request({ type = "hub_get", rid = "hub" }), proto end
+      if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
       return receive(proto, timeout)
     end
     m.start(hubCode)
@@ -320,5 +320,310 @@ return function(test, equal, read, mocks)
     local before = #m.sent
     m.push("rednet_message", 7, { type = "get", file = "miner.lua", offset = -1 }, "fleetserver")
     equal(#m.sent, before)
+  end)
+
+  local function frame(m) return assert(m.frames[#m.frames], "no AR frame") end
+  local function miner(phase, status)
+    return { type = "status", label = "Miner-east", phase = phase, status = status, role = "east",
+      x = 110, y = -58, z = 24, facing = "east", level = -58, reach = 96, branchLen = 64,
+      shaft = { x = 100, y = 64, z = 20, bottom = -58 }, fuel = 7000, free = 12 }
+  end
+  local function connect(s, attached)
+    local m = new()
+    m.attached = attached
+    m.env.rednet.lookup = function() return 99 end
+    local receive = m.env.rednet.receive
+    m.env.rednet.receive = function(proto, timeout)
+      if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
+      return receive(proto, timeout)
+    end
+    m.start(hubCode)
+    local cursor = 0
+    function m.exchange()
+      while cursor < #m.sent do
+        cursor = cursor + 1
+        local p = m.sent[cursor]
+        if p.proto == "fleetserver" and p.msg.type ~= "hub_get" then
+          m.push("rednet_message", 99, s.request(p.msg), "fleetserver")
+        end
+      end
+    end
+    m.exchange()
+    return m
+  end
+
+  test("server registry renders the same HUD, shaft geometry and trouble colors as the hub", function()
+    local s, h = new(), new()
+    s.attached, h.attached = true, true
+    s.start(serverCode)
+    h.start(hubCode)
+    for id, status in ipairs({ "Mining", "LOST", "STUCK: blocked", "ERROR: fuel" }) do
+      local p = miner(id == 2 and "lost" or "mining", status)
+      if id == 2 then p.lastError = "Cannot reach home" end
+      s.status(id, p)
+      h.status(id, p)
+    end
+    h.advance(1)
+    equal(frame(s), frame(h), "server and standalone hub AR differ")
+    equal(frame(s).view.args, { "view", 0x55FF55 - 0x1000000, 4, 4, "3D: AAN", false })
+    equal(frame(s)["turtle:2"].args,
+      { "turtle:2", 0xFF5555 - 0x1000000, 100.5, 67, 20.5, 0, 0, 6, "#2", true })
+    equal(frame(s)["turtle:2:error"].args[9], "Cannot reach home")
+    s.advance(20)
+    h.advance(19)
+    equal(frame(s), frame(h), "stale colors differ")
+  end)
+
+  test("server draws mirrored miners, preserves progress and hides forgotten or local miners", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    local p = miner("lost", "LOST")
+    p.lastError = "Blocked"
+    local hub = { overrides = {}, bores = {}, progress = { ["shaft:100,20:east"] = { branch = 3 } },
+      totals = {}, forgotten = { [2] = true } }
+    s.request({ type = "hub_put", hub = hub, turtles = { [1] = { age = 0, p = p }, [2] = { age = 0, p = p } } })
+    equal(s.state().hub.state.progress, hub.progress)
+    equal(s.state().bots[1].status.shaft, p.shaft)
+    equal(frame(s)["turtle:1:error"].args[9], "Blocked")
+    equal(frame(s)["turtle:2"], nil)
+    p = miner("mining", "Mining")
+    p.x, p.z, p.shaft = nil, nil, nil
+    s.status(3, p)
+    equal(frame(s)["turtle:3"], nil)
+    s.push("rednet_message", 4, { type = "lumber_state", x = 1, y = 2, z = 3 }, "lumber")
+    equal(frame(s)["turtle:4"], nil)
+    s.advance(20)
+    equal(frame(s)["turtle:1"].args[2], 0x999999 - 0x1000000)
+  end)
+
+  test("server key and protocol toggles persist across restarts and keep the HUD when off", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    s.push("char", "v")
+    equal(s.state().view3D, false)
+    equal(frame(s), { view = { method = "drawText2D",
+      args = { "view", 0x999999 - 0x1000000, 4, 4, "3D: UIT", false } } })
+    local restored = new()
+    restored.attached, restored.files = true, s.files
+    restored.start(serverCode)
+    equal(frame(restored), frame(s))
+    local ack = restored.request({ type = "ar_toggle", rid = "toggle" })
+    equal(ack, { type = "ack", rid = "toggle", arOwner = true, view3D = true })
+    assert(frame(restored)["turtle:1"], "toggle did not restore labels")
+    s = new()
+    s.attached, s.files = true, restored.files
+    s.start(serverCode)
+    equal(s.request({ type = "state" }).view3D, true)
+    assert(frame(s)["turtle:1"])
+  end)
+
+  test("server detects controller attach, detach and failure without stopping its registry", function()
+    local s = new()
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    equal(#s.arCalls, 0)
+    equal(s.request({ type = "hub_get" }).arOwner, false)
+    s.attached = true
+    s.push("peripheral", "arbitrary_controller_name")
+    assert(frame(s)["turtle:1"])
+    equal(s.request({ type = "list" }).arOwner, true)
+    s.attached = false
+    s.push("peripheral_detach", "arbitrary_controller_name")
+    local calls = #s.arCalls
+    equal(s.request({ type = "hub_get" }).arOwner, false)
+    s.advance(5)
+    equal(#s.arCalls, calls)
+    s.attached = true
+    s.push("peripheral", "arbitrary_controller_name")
+    s.fail = "update"
+    s.advance(5)
+    calls = #s.arCalls
+    equal(s.request({ type = "state" }).arOwner, false)
+    s.advance(5)
+    equal(#s.arCalls, calls)
+    s.fail = nil
+    s.push("peripheral", "arbitrary_controller_name")
+    equal(s.request({ type = "state" }).arOwner, true)
+    assert(frame(s)["turtle:1"])
+  end)
+
+  test("hub clears once and makes no draw calls while the server owns AR, including quit", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    local h = connect(s, true)
+    equal(h.arCalls, { { method = "clear", args = {} }, { method = "update", args = {} } },
+      "hub drew while the server owns AR")
+    for _ = 1, 3 do h.advance(5) h.exchange() end
+    local find, getName = h.env.peripheral.find, h.env.peripheral.getName
+    h.env.peripheral.find = function(kind, filter)
+      if kind == "ar_controller" and h.attached then return setmetatable({}, { __index = h.ar }) end
+      return find(kind, filter)
+    end
+    h.env.peripheral.getName = function(device)
+      if getmetatable(device) then return "arbitrary_controller_name" end
+      return getName(device)
+    end
+    h.push("peripheral", "unrelated")
+    h.attached = false
+    h.push("peripheral_detach", "arbitrary_controller_name")
+    equal(#h.arCalls, 2, "suppressed detach cleared the owner's frame")
+    h.attached = true
+    h.push("peripheral", "arbitrary_controller_name")
+    equal(#h.arCalls, 4, "reattached controller was not cleared once")
+    h.advance(1)
+    h.push("char", "q")
+    equal(#h.arCalls, 4, "quit cleared the owner's frame")
+  end)
+
+  test("hub forwards key and touch toggles to the owner without a local controller", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    local h = connect(s, false)
+    h.push("char", "v")
+    equal(h.sent[#h.sent].msg.type, "ar_toggle")
+    h.exchange()
+    equal(s.state().view3D, false)
+    local x, y, button
+    for _, line in ipairs(h.output) do
+      local p = decode(line)
+      if p[1] == "dashboard" then
+        if p[2] == "setCursorPos" then x, y = p[3], p[4]
+        elseif p[2] == "write" and p[3] == " 3D: UIT " then button = { x, y } end
+      end
+    end
+    assert(button, "remote 3D button missing")
+    h.push("monitor_touch", "dashboard", button[1], button[2])
+    h.exchange()
+    equal(s.state().view3D, true)
+    equal(h.arCalls, {})
+  end)
+
+  test("hub falls back on owner timeout and relinquishes again after replies resume", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true)
+    s.advance(11)
+    equal(frame(s), {}, "server kept drawing past the hub's drawing permission")
+    h.advance(14)
+    equal(#h.arCalls, 2)
+    h.advance(1)
+    assert(frame(h)["turtle:1"], "owner timeout did not resume local AR")
+    h.exchange()
+    equal(frame(h), {}, "recovered owner did not clear fallback frame")
+    local calls = #h.arCalls
+    h.advance(5)
+    h.exchange()
+    equal(#h.arCalls, calls, "recovered owner did not suppress local AR")
+  end)
+
+  test("server waits for the hub to clear before drawing after controller attach", function()
+    local s = new()
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true)
+    assert(frame(h)["turtle:1"])
+    s.attached = true
+    s.push("peripheral", "arbitrary_controller_name")
+    equal(s.arCalls, {}, "server drew before the hub relinquished")
+    h.advance(5)
+    h.exchange()
+    equal(frame(h), {})
+    assert(frame(s)["turtle:1"], "server did not draw after ready acknowledgement")
+  end)
+
+  test("expired ready messages cannot restart server drawing while the hub falls back", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true)
+    local ready
+    for _, p in ipairs(h.sent) do if p.msg.type == "ar_ready" then ready = p.msg end end
+    assert(ready)
+    s.advance(15)
+    h.advance(15)
+    assert(frame(h)["turtle:1"])
+    equal(frame(s), {})
+    s.request(ready)
+    equal(frame(s), {}, "delayed permission revived the old drawer")
+  end)
+
+  test("mirrors without server replies cannot extend drawing into the hub fallback", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true)
+    for _ = 1, 3 do
+      s.advance(5)
+      h.advance(5)
+      local mirror
+      for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
+      s.request(mirror)
+      if h.time >= 10 then equal(frame(s), {}, "unanswered mirrors renewed drawing permission") end
+    end
+    assert(frame(h)["turtle:1"])
+  end)
+
+  test("a missing command ack does not end AR ownership before its liveness timeout", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    local h = connect(s, true)
+    h.push("char", "r")
+    h.advance(2)
+    equal(#h.arCalls, 2, "command fallback also started a second AR drawer")
+  end)
+
+  test("server restart waits for its saved AR hub to relinquish the fallback view", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true)
+    h.advance(15)
+    assert(frame(h)["turtle:1"])
+    local restored = new()
+    restored.attached, restored.files = true, s.files
+    restored.start(serverCode)
+    equal(restored.arCalls, {}, "restarted server drew over the hub fallback")
+    local mirror
+    for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
+    local ack = restored.request(mirror)
+    equal(restored.arCalls, {})
+    h.push("rednet_message", 99, ack, "fleetserver")
+    equal(frame(h), {})
+    equal(h.sent[#h.sent].msg.type, "ar_ready")
+    restored.request(h.sent[#h.sent].msg)
+    assert(frame(restored)["turtle:1"])
+  end)
+
+  test("hub follows controller loss and reattach at the server", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("lost", "LOST"))
+    local h = connect(s, true)
+    s.attached = false
+    s.push("peripheral_detach", "arbitrary_controller_name")
+    h.advance(5)
+    h.exchange()
+    assert(frame(h)["turtle:1"], "server controller loss did not resume local AR")
+    s.attached = true
+    s.push("peripheral", "arbitrary_controller_name")
+    h.advance(5)
+    h.exchange()
+    equal(frame(h), {})
+    local calls = #h.arCalls
+    h.advance(5)
+    h.exchange()
+    equal(#h.arCalls, calls)
   end)
 end
