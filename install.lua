@@ -328,7 +328,7 @@ local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
     files = { "miner.lua" }, start = { "miner" },
     steps = join({
-      { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* A 1x1 hole IN FRONT of it going down.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
+      { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
       { say = "Checking for the chest next to the turtle.", check = function()
           local ok, n = chestNear()

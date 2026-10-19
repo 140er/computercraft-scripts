@@ -99,6 +99,25 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     end
   end)
 
+  test("setup digs its own hole and turns around when placed facing the chest", function()
+    for _, case in ipairs({ { heading = 2, front = "minecraft:dirt" }, { heading = 0 } }) do
+      local m = mocks.miner(cfg)
+      m.files["miner.cfg"] = nil
+      m.heading = case.heading
+      m.world["100,64,19"] = "minecraft:chest"
+      if case.front then m.world["100,64,21"] = case.front end
+      m.env.gps = { locate = function() return m.pos.x, m.pos.y, m.pos.z end }
+      m.env.os.setComputerLabel = function() end
+      assert(load(miner, "=miner.lua", "t", m.env))("setup", "east")
+      local saved = m.env.textutils.unserialize(assert(m.files["miner.cfg"], "setup failed"))
+      equal(saved.facing, 2)
+      equal(saved.chest, 0)
+      equal(m.world["100,64,19"], "minecraft:chest", "dug up its chest")
+      equal(m.world["100,64,21"], nil, "no hole in front")
+      equal(m.pos, cfg.home)
+    end
+  end)
+
   test("setup says why it failed, last on the screen", function()
     for _, case in ipairs({
       { gps = false, want = "No GPS signal" },

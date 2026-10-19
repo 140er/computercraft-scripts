@@ -329,11 +329,25 @@ if args[1] == "setup" then
   local REL = { forward = 0, right = 1, back = 2, left = 3 }
   local hx, hy, hz, facing, role, loc
   local why -- what went wrong, shown under the usage
+  -- Its hole goes in front of it. Placed facing the chest: turn around first. No hole
+  -- there yet: dig the spot in front (the shaft below gets dug on the first trip).
+  local function blocked(dig)
+    local ok, info = (dig == "down" and turtle.inspectDown or turtle.inspect)()
+    return ok and info.name:find("chest") or ok and info.name:find("barrel") or ok and info.name:find("shulker")
+      or ok and info.name:find("computer") or ok and info.name:find("turtle")
+  end
+  local turned = blocked() and true or false
+  if turned then turtle.turnRight() turtle.turnRight() print("Facing the chest: turned around, the hole goes this way.") end
+  if turtle.detect() and not blocked() then
+    for _ = 1, 8 do if not turtle.dig() then break end end -- gravel/sand can fall in
+    if not turtle.detect() then print("Dug the start of its hole in front of it.") end
+  end
   if words[1] == "hub" then
     -- No GPS, but the hub knows where it is: measure the radio distance to the hub
     -- from 3 spots (here, one step into the hole, one down the hole) to find where
     -- the hub is from here; with the facing that gives the world position.
     facing = DIRS[words[2] or ""]
+    if facing and turned then facing = (facing + 2) % 4 end
     if words[3] == "left" or words[3] == "right" then table.insert(words, 3, "auto") end
     role = DIRS[words[3] or "auto"] or (not words[3] or words[3] == "auto") and "auto"
     local side = (words[4] == "left") and -1 or 1
@@ -363,6 +377,7 @@ if args[1] == "setup" then
     if not turtle.forward() then print("Couldn't step forward into its hole.") return end
     local d1 = hubDist()
     local down = turtle.down()
+    if not down and turtle.detectDown() and not blocked("down") then turtle.digDown() down = turtle.down() end
     local d2 = down and hubDist()
     if down then turtle.up() end
     turtle.back()
@@ -380,6 +395,7 @@ if args[1] == "setup" then
   elseif #n >= 3 then
     hx, hy, hz = n[1], n[2], n[3]
     facing, role = DIRS[words[1] or ""], DIRS[words[2] or "auto"] or (not words[2] or words[2] == "auto") and "auto"
+    if facing and turned then facing = (facing + 2) % 4 end
   elseif #n == 1 then
     hx, hy, hz, facing, loc = 0, n[1], 0, 0, true
     role = DIRS[words[1] or "auto"] or REL[words[1] or ""] or (not words[1] or words[1] == "auto") and "auto"
