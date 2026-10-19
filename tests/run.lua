@@ -316,4 +316,6 @@ test("3D mock rejects unverified methods", function()
   assert(not pcall(function() m.ar.drawText2D("hud", -1, 4, 4, "3D: AAN", 0) end))
 end)
 
+dofile("tests/miner_lost.lua")(test, equal, read, mocks)
+
 print(passed .. " tests passed")

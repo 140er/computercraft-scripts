@@ -112,7 +112,7 @@ end
 local hub = loadTable(STATE_FILE) or {}
 hub.target = hub.target           -- nil = paused
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
-hub.progress = hub.progress or {}   -- [role] = { levels=, shaft= }
+hub.progress = hub.progress or {}   -- [shaft x,z + role], or [role] without world coordinates
 hub.totals = hub.totals or {}
 hub.branchLen = hub.branchLen or 64
 -- Old hub.state had 32 as default: bump to 64 once (after that your own value is kept)
@@ -198,9 +198,17 @@ local function send(id, msg)
   if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
 end
 
-local function mergeProgress(role, p)
-  if type(p) ~= "table" or not role then return end
-  local cur = hub.progress[role] or { levels = {} }
+local function progressKey(id, m)
+  local s = m.shaft or (turtles[id] and turtles[id].p.shaft)
+  if type(s) == "table" and type(s.x) == "number" and type(s.z) == "number" then
+    return "shaft:" .. s.x .. "," .. s.z .. ":" .. tostring(m.role)
+  end
+  return m.role
+end
+
+local function mergeProgress(key, p)
+  if type(p) ~= "table" or not key then return end
+  local cur = hub.progress[key] or { levels = {} }
   cur.levels = cur.levels or {}
   if type(p.shaft) == "number" and (not cur.shaft or p.shaft < cur.shaft) then cur.shaft = p.shaft end
   for y, L in pairs(p.levels or {}) do
@@ -216,7 +224,7 @@ local function mergeProgress(role, p)
       if c.offset == nil then c.offset = L.offset end
     end
   end
-  hub.progress[role] = cur
+  hub.progress[key] = cur
 end
 
 -- Turtle updates: put a new miner.lua on this computer (drag it onto the screen).
@@ -282,6 +290,15 @@ local function forget(id)
   flash("Forgot #" .. id .. ". It comes back on the list if it ever gets home again.")
 end
 
+local function sharedShaft(id)
+  local s = turtles[id].p.shaft
+  if type(s) ~= "table" or type(s.x) ~= "number" or type(s.z) ~= "number" then return end
+  for other, r in pairs(turtles) do
+    local o = r.p.shaft
+    if other ~= id and type(o) == "table" and o.x == s.x and o.z == s.z then return other end
+  end
+end
+
 local function handle(id, m)
   if type(m) ~= "table" then return end
   if hub.forgotten and hub.forgotten[id] then
@@ -289,11 +306,13 @@ local function handle(id, m)
     hub.forgotten[id] = nil
     save()
   end
+  -- Legacy role entries have no shaft owner. Keep them only for local-coordinate miners.
+  local key = progressKey(id, m)
   if m.type == "status" then
     turtles[id] = { p = m, seen = os.clock() }
   elseif m.type == "job?" and hub.bores[id] then
     send(id, { type = "job", paused = hub.recallAll, bore = hub.bores[id], mineMinutes = hub.mineMinutes,
-      progress = hub.progress[m.role], update = releasedVersion() })
+      progress = hub.progress[key], progressKey = key, update = releasedVersion() })
   elseif m.type == "job?" then
     local ore = oreFor(id)
     local left = sessionLeft()
@@ -303,14 +322,14 @@ local function handle(id, m)
     send(id, {
       type = "job", paused = paused, ore = (not paused) and ore or nil,
       y = o and o.y, targets = o and o.targets, keep = o and o.keep, match = o and o.match, label = o and o.label, branchLen = hub.branchLen, mineMinutes = hub.mineMinutes, reach = hub.reach, stopIn = left, mode = hub.mode, only = hub.only,
-      progress = hub.progress[m.role],
+      progress = hub.progress[key], progressKey = key,
       update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
     local hash, code = minerVersion()
     if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
-    mergeProgress(m.role, m.progress)
+    mergeProgress(key, m.progress)
     -- A tunnel job ended (done, or something stopped it): the turtle stays home
     local b = hub.bores[id]
     if b and type(m.bore) == "table" and m.bore.n == b.n then
@@ -658,6 +677,8 @@ local function draw(s)
         statColor = colors.red
       end
     end
+    local other = sharedShaft(id)
+    if other then stat, statColor = "SHAFT #" .. other .. " | " .. stat, colors.red end
     if p.branch and p.phase == "mining" then ore = ore .. " b" .. p.branch end
     local name = (p.label or ("#" .. id)):sub(1, 12)
     local want = minerVersion()
