@@ -89,7 +89,7 @@ Put a big **advanced monitor** (several blocks wide and high) next to the server
 
 ### Quick start
 
-1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest next to it (**behind** it, or to its left or right; only one), and a 1x1 hole **in front** of it going down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
+1. **Turtles:** a mining turtle (pickaxe) + wireless modem (normal or ender), a chest next to it (**behind** it, or to its left or right; only one), and its hole **in front** of it. You don't have to dig it: `miner setup` digs the spot in front (and turns around first if you placed it facing the chest), and the first trip digs the shaft down. Put 2 lava buckets in the turtle or chest and a spare empty bucket in the chest.
 2. **Hub:** an (advanced) computer within ~64 blocks of the turtles with a wireless modem. A monitor next to it is optional (advanced monitor = touch buttons), and a second monitor becomes an info screen.
 3. **Install:** run the [installer](#installing) on each turtle (pick "Mining turtle") and on the hub (pick "Mine Army hub"). It does step 4 and the setup below for you.
 4. **Set up each turtle once** (see below), then on the hub: `hub install`, `hub`.

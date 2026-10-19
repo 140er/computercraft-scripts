@@ -304,6 +304,7 @@ function M.miner(cfg, state)
     inspectUp = function() return inspect(4) end, inspectDown = function() return inspect(5) end,
     detectUp = function() return m.world[m.key(4)] ~= nil end,
     detectDown = function() return m.world[m.key(5)] ~= nil end,
+    detect = function() return m.world[m.key(m.heading)] ~= nil end,
     dig = function() return dig(m.heading) end, digUp = function() return dig(4) end,
     digDown = function() return dig(5) end,
     place = function() return place(m.heading) end, placeUp = function() return place(4) end,
