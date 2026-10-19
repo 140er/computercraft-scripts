@@ -350,6 +350,8 @@ local BOTS = {
         when = function(c) return c.how == "hub" end },
       { ask = "y", kind = "number", q = "Its own spot is home (x 0 z 0). Only its height: press F3, look at the turtle. Y:",
         when = function(c) return c.how == "here" end },
+      { say = "With GPS it finds its own position. To find which way it faces it steps into its hole and back.",
+        check = fuelCheck(2), when = function(c) return c.gps end },
       { ask = "role", choices = { { "auto", "Let the hub pick" }, table.unpack(ROLES) }, when = function(c) return c.how ~= "here" end,
         q = "Its role = the direction of its main tunnel. Let the hub pick one (you can change it on the hub or the pocket later), or pick it yourself: give every turtle a different one, so they each mine their own quarter." },
       { ask = "role", when = function(c) return c.how == "here" end,

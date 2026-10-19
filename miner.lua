@@ -328,6 +328,7 @@ if args[1] == "setup" then
   end
   local REL = { forward = 0, right = 1, back = 2, left = 3 }
   local hx, hy, hz, facing, role, loc
+  local why -- what went wrong, shown under the usage
   if words[1] == "hub" then
     -- No GPS, but the hub knows where it is: measure the radio distance to the hub
     -- from 3 spots (here, one step into the hole, one down the hole) to find where
@@ -389,15 +390,24 @@ if args[1] == "setup" then
       if x then return math.floor(x + 0.5), math.floor(y + 0.5), math.floor(z + 0.5) end
     end
     hx, hy, hz = fix()
-    if hx and turtle.forward() then
+    local stepped, stepWhy
+    if hx then stepped, stepWhy = turtle.forward() end
+    if stepped then
       local x, _, z = fix()
       turtle.back()
       for d = 0, 3 do if x and DX[d] == x - hx and DZ[d] == z - hz then facing = d end end
     end
     role = DIRS[words[1] or "auto"] or (facing and REL[words[1] or ""] and (facing + REL[words[1]]) % 4)
       or (not words[1] or words[1] == "auto") and "auto"
-    if hx and not facing then print("GPS works, but it couldn't step into its hole to see which way it faces.") end
+    if not hx then
+      why = "No GPS signal here. Without GPS use: miner setup <y> (its height), or miner setup hub ..."
+    elseif not stepped then
+      why = "GPS works, but it can't step into the hole in front of it to find its facing ("
+        .. tostring(stepWhy) .. (turtle.getFuelLevel() == 0 and ": give it some fuel first, refuel" or "")
+        .. "). It needs fuel and an open 1x1 hole in front."
+    elseif not facing then why = "GPS lost its signal while it stepped into the hole. Try again." end
   end
+  if not role and not why then why = "Unknown role. Use north, east, south or west (or leave it out)." end
   if not (hx and hy and hz and facing and role) then
     print("Usage:")
     print("  miner setup <y> [role]     no GPS: just its height (F3)")
@@ -408,6 +418,11 @@ if args[1] == "setup" then
     print("south/west (no GPS: also forward/right/back/left).")
     print("Leave it out and the hub picks one.")
     print("Add name=<name> to give it a name.")
+    if why then -- last, so it stays on the turtle's small screen
+      if term.isColour and term.isColour() then term.setTextColour(colors.red) end
+      print(why)
+      if term.isColour and term.isColour() then term.setTextColour(colors.white) end
+    end
     return
   end
   -- Its chest: behind it, or else to its right or left (the hole is in front)
