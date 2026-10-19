@@ -99,6 +99,25 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     end
   end)
 
+  test("setup says why it failed, last on the screen", function()
+    for _, case in ipairs({
+      { gps = false, want = "No GPS signal" },
+      { gps = true, block = "Movement obstructed", want = "can't step into the hole" },
+      { gps = true, args = { "setup", "eats" }, want = "Unknown role" },
+    }) do
+      local m = mocks.miner(cfg)
+      m.files["miner.cfg"] = nil
+      m.env.gps = { locate = function() if case.gps then return m.pos.x, m.pos.y, m.pos.z end end }
+      m.blockMove = case.block
+      m.env.os.setComputerLabel = function() end
+      local printed = {}
+      m.env.print = function(t) printed[#printed + 1] = tostring(t) end
+      assert(load(miner, "=miner.lua", "t", m.env))(table.unpack(case.args or { "setup" }))
+      equal(m.files["miner.cfg"], nil)
+      assert(printed[#printed]:find(case.want, 1, true), "last line: " .. tostring(printed[#printed]))
+    end
+  end)
+
   test("miner set up without a direction asks the hub before it starts", function()
     local m = mocks.miner({ home = cfg.home, facing = 2 })
     m.env.rednet.lookup = function() return 99 end
