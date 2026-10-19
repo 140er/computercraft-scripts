@@ -511,6 +511,7 @@ local function packet()
     type = "status", v = VERSION, hash = MY_HASH, id = os.getComputerID(),
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
+    facing = DIRNAME[st.h],
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
     shaft = not cfg.loc and { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } or nil,
     reach = reach,
