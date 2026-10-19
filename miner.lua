@@ -512,6 +512,8 @@ local function packet()
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
+    shaft = not cfg.loc and { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } or nil,
+    reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,

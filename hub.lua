@@ -840,10 +840,55 @@ local function drawInfo(s)
   end
 end
 
+local ar = peripheral.find("ar_controller")
+
+local function coordinate(n)
+  return type(n) == "number" and n == n and math.abs(n) < math.huge
+end
+
+local function draw3D()
+  if not ar then return end
+  -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
+  local ok = pcall(function()
+    ar.clear()
+    local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
+    for id, r in pairs(turtles) do
+      local p = r.p
+      if coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
+        local key = "turtle:" .. id
+        local color = os.clock() - r.seen > STALE and 0x999999 or 0x55FFFF
+        color = color - 0x1000000 -- Opaque ARGB as a signed Java int.
+        ar.drawText3D(key, color, p.x, p.y, p.z, 0, 0, 1, "#" .. id, true)
+        local s = p.shaft
+        if type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z) and coordinate(s.bottom) then
+          ar.drawLine3D(key .. ":shaft", -1, s.x, s.y, s.z, s.x, s.bottom, s.z)
+          local d = directions[type(p.role) == "string" and p.role:match("^[^@]+") or ""]
+          if d and coordinate(p.level) and coordinate(p.reach) and p.reach > 0
+            and coordinate(p.branchLen) and p.branchLen > 0 then
+            local dx, dz = d[1], d[2]
+            local width = math.min(p.branchLen, p.reach)
+            local x1, z1 = s.x + dx * p.reach, s.z + dz * p.reach
+            local x2, z2 = x1 - dz * width, z1 + dx * width
+            local x3, z3 = s.x - dz * width, s.z + dx * width
+            local y = p.level
+            ar.drawLine3D(key .. ":region:1", color, s.x, y, s.z, x1, y, z1)
+            ar.drawLine3D(key .. ":region:2", color, x1, y, z1, x2, y, z2)
+            ar.drawLine3D(key .. ":region:3", color, x2, y, z2, x3, y, z3)
+            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, s.x, y, s.z)
+          end
+        end
+      end
+    end
+    ar.update()
+  end)
+  if not ok then ar = nil end -- A disappearing peripheral must not stop the dashboard.
+end
+
 local function redraw()
   for _, s in ipairs(screens) do
     if s.info then drawInfo(s) else draw(s) end
   end
+  draw3D()
 end
 
 -- Ask for a custom item on the hub computer (monitors have no keyboard)
@@ -1225,6 +1270,9 @@ local function uiLoop()
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       redraw()
+    elseif ev == "peripheral" or ev == "peripheral_detach" then
+      ar = peripheral.find("ar_controller")
+      draw3D()
     end
     if wantAsk then
       wantAsk = false
@@ -1242,6 +1290,7 @@ if fs.exists("hub.release") then
 end
 
 parallel.waitForAny(netLoop, uiLoop, devPairLoop)
+if ar then pcall(function() ar.clear() ar.update() end) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)
