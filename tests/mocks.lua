@@ -132,7 +132,11 @@ function M.new(attached, state)
     time = function() return 12 end, getComputerID = function() return 99 end,
     getComputerLabel = function() return "Hub" end,
     startTimer = function(delay) timer = timer + 1 record("timer", delay) m.timer = timer return timer end,
-    pullEvent = function(filter) return coroutine.yield(filter) end,
+    pullEvent = function(filter)
+      local event = table.pack(coroutine.yield(filter))
+      if event[1] == "terminate" then error("Terminated", 0) end
+      return table.unpack(event, 1, event.n)
+    end,
   }
   env.print = function(...) record("print", ...) end
   env.rednet = {
@@ -158,7 +162,7 @@ function M.new(attached, state)
     local threads, filters = {}, {}
     local function resume(i, ...)
       local ok, filter = coroutine.resume(threads[i], ...)
-      assert(ok, filter)
+      if not ok then error(filter, 0) end
       filters[i] = filter
       return coroutine.status(threads[i]) == "dead"
     end
@@ -169,7 +173,7 @@ function M.new(attached, state)
     while true do
       local event = table.pack(coroutine.yield())
       for i in ipairs(threads) do
-        if filters[i] == nil or filters[i] == event[1] then
+        if filters[i] == nil or filters[i] == event[1] or event[1] == "terminate" then
           if resume(i, table.unpack(event, 1, event.n)) then return end
         end
       end

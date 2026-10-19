@@ -190,13 +190,17 @@ rednet.host(PROTOCOL, "hub")
 local SERVER_PROTOCOL = "fleetserver"
 local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
 local serverSeen, commandSeq, pending = -1e9, 0, {}
+local serverAR, serverView, serverARSeen, serverARUntil = false, nil, -1e9, 0
 if serverId then
-  rednet.send(serverId, { type = "hub_get", rid = "hub" }, SERVER_PROTOCOL)
+  rednet.send(serverId, { type = "hub_get", rid = "hub", arClient = true }, SERVER_PROTOCOL)
   local deadline = os.clock() + 2
   repeat
     local id, m = rednet.receive(SERVER_PROTOCOL, math.max(0, deadline - os.clock()))
     if id == serverId and type(m) == "table" and m.type == "state" and m.rid == "hub" then
       serverSeen = os.clock()
+      serverARSeen = serverSeen
+      serverARUntil = os.epoch("utc") + 10000
+      serverAR, serverView = m.arOwner == true, m.view3D
       if type(m.hub) == "table" and type(m.hub.state) == "table" then
         hub = m.hub.state
         ORES.custom = customEntry(hub.custom)
@@ -525,8 +529,18 @@ end
 
 local ar = peripheral.find("ar_controller")
 local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
+if serverAR and type(serverView) == "boolean" then view3D = serverView end
+local arSuppressed = false
+
+local function serverOwnsAR()
+  return serverAR and os.clock() - serverARSeen < 15
+end
 
 local function toggle3D()
+  if serverOwnsAR() then
+    rednet.send(serverId, { type = "ar_toggle" }, SERVER_PROTOCOL)
+    return
+  end
   view3D = not view3D
   local h = fs.open(VIEW_FILE, "w")
   h.write(textutils.serialize({ enabled = view3D }))
@@ -647,7 +661,7 @@ local function draw(s)
       function() wantAsk = true end)
   end
 
-  if ar then
+  if ar or serverOwnsAR() then
     y = y + 2
     button(1, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
   end
@@ -912,6 +926,15 @@ local function coordinate(n)
 end
 
 local function draw3D()
+  if serverOwnsAR() then
+    if not arSuppressed then
+      if ar then pcall(function() ar.clear() ar.update() end) end
+      arSuppressed = true
+      rednet.send(serverId, { type = "ar_ready", arUntil = serverARUntil }, SERVER_PROTOCOL)
+    end
+    return
+  end
+  arSuppressed = false
   if not ar then return end
   -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
   local ok = pcall(function()
@@ -977,7 +1000,12 @@ local function draw3D()
   end
 end
 
+local serverDirty = false
 local function redraw()
+  if serverDirty then
+    if serverAR and type(serverView) == "boolean" then view3D = serverView end
+    serverDirty = false
+  end
   for _, s in ipairs(screens) do
     if s.info then drawInfo(s) else draw(s) end
   end
@@ -1321,6 +1349,10 @@ local function serverLoop()
     local ev, id, m, proto = os.pullEvent()
     if ev == "rednet_message" and id == serverId and proto == SERVER_PROTOCOL and type(m) == "table" and m.type == "ack" then
       serverSeen = os.clock()
+      serverARSeen = serverSeen
+      serverARUntil = nowMs() + 10000
+      serverAR = m.arOwner == true
+      serverView, serverDirty = m.view3D, true
       if m.rid then pending[m.rid] = nil end
     elseif ev == "timer" and id == timer then
       tick = tick + 1
@@ -1333,7 +1365,8 @@ local function serverLoop()
       if tick % 5 == 0 then
         local fleet = {}
         for tid, t in pairs(turtles) do fleet[tid] = { p = t.p, age = os.clock() - t.seen } end
-        rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet }, SERVER_PROTOCOL)
+        rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet,
+          arClient = true, arUntil = arSuppressed and serverOwnsAR() and serverARUntil or nil }, SERVER_PROTOCOL)
       end
       timer = os.startTimer(1)
     end
@@ -1385,7 +1418,7 @@ local function uiLoop()
       elseif a == "a" then selected = nil
       elseif a == "u" then releaseUpdate()
       elseif a == "c" then wantAsk = true
-      elseif a == "v" and ar then toggle3D()
+      elseif a == "v" and (ar or serverOwnsAR()) then toggle3D()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1393,9 +1426,10 @@ local function uiLoop()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
       local prev = ar
       ar = peripheral.find("ar_controller")
-      if prev and prev ~= ar then
+      if prev and prev ~= ar and not arSuppressed then
         pcall(function() prev.clear() prev.update() end)
       end
+      if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then arSuppressed = false end
       if prev ~= ar then redraw() else draw3D() end
     end
     if wantAsk then
@@ -1414,7 +1448,7 @@ if fs.exists("hub.release") then
 end
 
 parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop)
-if ar then pcall(function() ar.clear() ar.update() end) end
+if ar and not arSuppressed then pcall(function() ar.clear() ar.update() end) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)
