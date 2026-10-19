@@ -101,9 +101,11 @@ rednet.host(PROTOCOL, "server")
 
 local ar = peripheral.find("ar_controller")
 local arHub, arUntil, arDrawn = state.arHub, 0, false
+local arSeen, arDirty, arLastDraw = now(), true, 0
 
 local function toggle3D()
   state.view3D = state.view3D == false
+  arDirty = true
   save()
 end
 
@@ -126,6 +128,7 @@ local function status(id, p, proto, seen)
   local b = bot(id, kind, proto)
   seen = seen or now()
   if b.lastSeen and seen < b.lastSeen then return end
+  arDirty = true
   local err = p.lastError or p.err
   if err and err ~= b.error then log("error", id, err) end
   b.lastSeen, b.status, b.error = seen, p, err
@@ -155,8 +158,10 @@ local function request(id, m)
   if m.arClient == true and (m.type == "hub_get" or m.type == "hub_put") then
     arHub = id
     arUntil = 0
+    arDirty = true
     if state.arHub ~= id then state.arHub = id save() end
   end
+  if id == arHub then arSeen = now() end
   if id == arHub and (m.type == "ar_ready" or m.type == "hub_put")
     and type(m.arUntil) == "number" and m.arUntil == m.arUntil then
     arUntil = math.min(m.arUntil, now() + 10000)
@@ -179,6 +184,7 @@ local function request(id, m)
     reply(id, m, { type = "file", file = m.file, hash = info.hash, size = #code, offset = offset,
       current = m.hash == info.hash, code = m.hash ~= info.hash and code:sub(offset + 1, offset + 12000) or nil })
   elseif m.type == "ar_ready" and id == arHub then
+    arDirty = true
     reply(id, m, { type = "ack" })
   elseif m.type == "ar_toggle" then
     if ar then toggle3D() end
@@ -196,6 +202,7 @@ local function request(id, m)
     and type(m.hub.overrides) == "table" and type(m.hub.bores) == "table"
     and type(m.hub.progress) == "table" and type(m.hub.totals) == "table" then
     state.hub = { id = id, state = m.hub, updated = now() }
+    arDirty = true
     local b = bot(id, "hub", "minearmy")
     b.lastSeen = now()
     b.assignments = { target = m.hub.target, overrides = m.hub.overrides, bores = m.hub.bores }
@@ -231,6 +238,11 @@ local function coordinate(n)
 end
 
 local function draw3D()
+  -- A saved hub gets the same bounded grace as a hub that stops talking.
+  if arHub and now() - arSeen > 20000 then
+    arHub, state.arHub = nil, nil
+    save()
+  end
   if not ar then return end
   -- Stop before the hub's 15-second fallback, including when replies are lost.
   if arHub and now() >= arUntil then
@@ -238,6 +250,7 @@ local function draw3D()
     arDrawn = false
     return
   end
+  if arDrawn and not arDirty and now() - arLastDraw < 5000 then return end
   local ok = pcall(function()
     ar.clear()
     local view3D = state.view3D ~= false
@@ -299,6 +312,7 @@ local function draw3D()
     end
     ar.update()
     arDrawn = true
+    arDirty, arLastDraw = false, now()
   end)
   if not ok then
     pcall(function() ar.clear() ar.update() end)
@@ -333,13 +347,13 @@ local function draw()
     end
   end
   for i = 1, math.min(h, #lines) do screen.setCursorPos(1, i) screen.write(lines[i]:sub(1, w)) end
-  draw3D()
 end
 
 local function network()
   local timer = os.startTimer(1)
   local ticks = 0
   draw()
+  draw3D()
   while true do
     local ev, id, m, proto = os.pullEvent()
     if ev == "rednet_message" and type(m) == "table" then
@@ -349,7 +363,6 @@ local function network()
         status(id, m, proto)
         save()
       end
-      draw3D()
     elseif ev == "timer" and id == timer then
       ticks = ticks + 1
       if ticks % 15 == 5 then
@@ -358,7 +371,8 @@ local function network()
           rednet.broadcast({ cmd = "status" }, p)
         end
       end
-      if ticks % 5 == 0 then draw() else draw3D() end
+      if ticks % 5 == 0 then draw() end
+      draw3D()
       timer = os.startTimer(1)
     elseif ev == "char" and id == "v" then
       toggle3D()
@@ -370,6 +384,7 @@ local function network()
         pcall(function() prev.clear() prev.update() end)
         arDrawn = false
       end
+      arDirty = true
       draw()
     elseif ev == "monitor_resize" or ev == "term_resize" then draw() end
   end

@@ -352,6 +352,80 @@ return function(test, equal, read, mocks)
     return m
   end
 
+  test("server batches message bursts into one frame per second and refreshes stale colors", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    local frames = #s.frames
+    for second = 1, 3 do
+      for i = 1, 100 do
+        local p = miner("mining", "Mining")
+        p.x = second * 100 + i
+        s.status(1, p)
+        s.request({ type = "state" })
+        s.push("term_resize")
+      end
+      equal(#s.frames, frames, "messages drew before the timer")
+      s.advance(1)
+      frames = frames + 1
+      equal(#s.frames, frames, "burst produced more than one frame")
+      equal(frame(s)["turtle:1:position"].args[3], second * 100 + 100.5)
+    end
+    for _ = 1, 4 do
+      s.request({ type = "list" })
+      s.advance(1)
+      equal(#s.frames, frames, "unchanged view redrew before the five-second refresh")
+    end
+    s.advance(1)
+    equal(#s.frames, frames + 1)
+    equal(frame(s)["turtle:1"].args[2], 0x55FFFF - 0x1000000)
+    s.advance(10)
+    equal(#s.frames, frames + 3)
+    equal(frame(s)["turtle:1"].args[2], 0x999999 - 0x1000000)
+  end)
+
+  test("server forgets a silent hub and resumes AR after twenty seconds", function()
+    for _, attached in ipairs({ true, false }) do
+      local s = new()
+      s.attached = true
+      s.start(serverCode)
+      s.status(1, miner("mining", "Mining"))
+      connect(s, attached)
+      s.advance(1)
+      assert(frame(s)["turtle:1"], "ready hub did not allow server AR")
+      s.advance(9)
+      equal(frame(s), {}, "server did not clear before the hub fallback window")
+      local frames = #s.frames
+      s.advance(10)
+      equal(#s.frames, frames, "waiting for the silent hub sent repeated clears")
+      equal(s.state().arHub, 7)
+      s.status(1, miner("mining", "Mining"))
+      s.advance(1)
+      assert(frame(s)["turtle:1"], "silent hub left server AR gated forever")
+      equal(s.state().arHub, nil, "forgotten hub remained a saved gate")
+    end
+  end)
+
+  test("server restart with a saved dead hub resumes AR after one grace window", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    connect(s, true)
+    local restored = new()
+    restored.attached, restored.files = true, s.files
+    restored.start(serverCode)
+    restored.advance(20)
+    equal(restored.arCalls, {}, "saved hub grace ended before the fallback window")
+    restored.advance(1)
+    assert(frame(restored)["turtle:1"], "saved dead hub permanently blocked AR after restart")
+    equal(restored.state().arHub, nil)
+    local again = new()
+    again.attached, again.files = true, restored.files
+    again.start(serverCode)
+    assert(frame(again)["turtle:1"], "expired hub caused another startup wait")
+  end)
+
   test("server registry renders the same HUD, shaft geometry and trouble colors as the hub", function()
     local s, h = new(), new()
     s.attached, h.attached = true, true
@@ -363,13 +437,14 @@ return function(test, equal, read, mocks)
       s.status(id, p)
       h.status(id, p)
     end
+    s.advance(1)
     h.advance(1)
     equal(frame(s), frame(h), "server and standalone hub AR differ")
     equal(frame(s).view.args, { "view", 0x55FF55 - 0x1000000, 4, 4, "3D: AAN", false })
     equal(frame(s)["turtle:2"].args,
       { "turtle:2", 0xFF5555 - 0x1000000, 100.5, 67, 20.5, 0, 0, 6, "#2", true })
     equal(frame(s)["turtle:2:error"].args[9], "Cannot reach home")
-    s.advance(20)
+    s.advance(19)
     h.advance(19)
     equal(frame(s), frame(h), "stale colors differ")
   end)
@@ -383,6 +458,7 @@ return function(test, equal, read, mocks)
     local hub = { overrides = {}, bores = {}, progress = { ["shaft:100,20:east"] = { branch = 3 } },
       totals = {}, forgotten = { [2] = true } }
     s.request({ type = "hub_put", hub = hub, turtles = { [1] = { age = 0, p = p }, [2] = { age = 0, p = p } } })
+    s.advance(1)
     equal(s.state().hub.state.progress, hub.progress)
     equal(s.state().bots[1].status.shaft, p.shaft)
     equal(frame(s)["turtle:1:error"].args[9], "Blocked")
@@ -390,8 +466,10 @@ return function(test, equal, read, mocks)
     p = miner("mining", "Mining")
     p.x, p.z, p.shaft = nil, nil, nil
     s.status(3, p)
+    s.advance(1)
     equal(frame(s)["turtle:3"], nil)
     s.push("rednet_message", 4, { type = "lumber_state", x = 1, y = 2, z = 3 }, "lumber")
+    s.advance(1)
     equal(frame(s)["turtle:4"], nil)
     s.advance(20)
     equal(frame(s)["turtle:1"].args[2], 0x999999 - 0x1000000)
@@ -403,6 +481,7 @@ return function(test, equal, read, mocks)
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     s.push("char", "v")
+    s.advance(1)
     equal(s.state().view3D, false)
     equal(frame(s), { view = { method = "drawText2D",
       args = { "view", 0x999999 - 0x1000000, 4, 4, "3D: UIT", false } } })
@@ -412,6 +491,7 @@ return function(test, equal, read, mocks)
     equal(frame(restored), frame(s))
     local ack = restored.request({ type = "ar_toggle", rid = "toggle" })
     equal(ack, { type = "ack", rid = "toggle", arOwner = true, view3D = true })
+    restored.advance(1)
     assert(frame(restored)["turtle:1"], "toggle did not restore labels")
     s = new()
     s.attached, s.files = true, restored.files
@@ -428,6 +508,7 @@ return function(test, equal, read, mocks)
     equal(s.request({ type = "hub_get" }).arOwner, false)
     s.attached = true
     s.push("peripheral", "arbitrary_controller_name")
+    s.advance(1)
     assert(frame(s)["turtle:1"])
     equal(s.request({ type = "list" }).arOwner, true)
     s.attached = false
@@ -446,6 +527,7 @@ return function(test, equal, read, mocks)
     equal(#s.arCalls, calls)
     s.fail = nil
     s.push("peripheral", "arbitrary_controller_name")
+    s.advance(1)
     equal(s.request({ type = "state" }).arOwner, true)
     assert(frame(s)["turtle:1"])
   end)
@@ -457,7 +539,9 @@ return function(test, equal, read, mocks)
     local h = connect(s, true)
     equal(h.arCalls, { { method = "clear", args = {} }, { method = "update", args = {} } },
       "hub drew while the server owns AR")
-    for _ = 1, 3 do h.advance(5) h.exchange() end
+    for _ = 1, 40 do h.advance(1) h.exchange() s.advance(1) end
+    assert(frame(s).view, "live hub lost server AR")
+    equal(s.state().arHub, 7, "live hub was forgotten")
     local find, getName = h.env.peripheral.find, h.env.peripheral.getName
     h.env.peripheral.find = function(kind, filter)
       if kind == "ar_controller" and h.attached then return setmetatable({}, { __index = h.ar }) end
@@ -517,6 +601,8 @@ return function(test, equal, read, mocks)
     assert(frame(h)["turtle:1"], "owner timeout did not resume local AR")
     h.exchange()
     equal(frame(h), {}, "recovered owner did not clear fallback frame")
+    s.advance(1)
+    assert(frame(s)["turtle:1"], "server did not resume after the hub cleared")
     local calls = #h.arCalls
     h.advance(5)
     h.exchange()
@@ -531,10 +617,12 @@ return function(test, equal, read, mocks)
     assert(frame(h)["turtle:1"])
     s.attached = true
     s.push("peripheral", "arbitrary_controller_name")
+    s.advance(1)
     equal(s.arCalls, {}, "server drew before the hub relinquished")
     h.advance(5)
     h.exchange()
     equal(frame(h), {})
+    s.advance(1)
     assert(frame(s)["turtle:1"], "server did not draw after ready acknowledgement")
   end)
 
@@ -552,6 +640,7 @@ return function(test, equal, read, mocks)
     assert(frame(h)["turtle:1"])
     equal(frame(s), {})
     s.request(ready)
+    s.advance(1)
     equal(frame(s), {}, "delayed permission revived the old drawer")
   end)
 
@@ -561,14 +650,17 @@ return function(test, equal, read, mocks)
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     local h = connect(s, true)
-    for _ = 1, 3 do
-      s.advance(5)
-      h.advance(5)
-      local mirror
-      for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
-      s.request(mirror)
-      if h.time >= 10 then equal(frame(s), {}, "unanswered mirrors renewed drawing permission") end
+    for second = 1, 40 do
+      s.advance(1)
+      h.advance(1)
+      if second % 5 == 0 then
+        local mirror
+        for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
+        s.request(mirror)
+      end
+      if second >= 10 then equal(frame(s), {}, "unanswered mirrors renewed drawing permission") end
     end
+    equal(s.state().arHub, 7, "talking hub was forgotten while its replies were lost")
     assert(frame(h)["turtle:1"])
   end)
 
@@ -593,6 +685,7 @@ return function(test, equal, read, mocks)
     local restored = new()
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
+    restored.advance(1)
     equal(restored.arCalls, {}, "restarted server drew over the hub fallback")
     local mirror
     for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
@@ -602,6 +695,7 @@ return function(test, equal, read, mocks)
     equal(frame(h), {})
     equal(h.sent[#h.sent].msg.type, "ar_ready")
     restored.request(h.sent[#h.sent].msg)
+    restored.advance(1)
     assert(frame(restored)["turtle:1"])
   end)
 
