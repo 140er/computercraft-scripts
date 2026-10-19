@@ -99,7 +99,17 @@ function M.new(attached, state)
     env.colors[name] = 2 ^ (i - 1)
   end
   env.textutils = {
-    serialize = M.encode,
+    serialize = function(value)
+      local seen = {}
+      local function check(v)
+        if type(v) ~= "table" then return end
+        if seen[v] then error("Cannot serialize table with repeated entries", 0) end
+        seen[v] = true
+        for k, item in pairs(v) do check(k) check(item) end
+      end
+      check(value)
+      return M.encode(value)
+    end,
     unserialize = function(text) return assert(load("return " .. text, "=state", "t", {}))() end,
     formatTime = function() return "12:00" end,
   }
