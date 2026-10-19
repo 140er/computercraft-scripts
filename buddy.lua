@@ -983,9 +983,23 @@ local function devPairLoop()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then while true do os.pullEvent("dev_never") end end
   modem.open(DEV_PAIR_CHANNEL)
+  -- Mesh: also pass on rednet messages meant for others, like CC's "repeat" program (each
+  -- message once), so the server and the hub reach bots beyond their range through this
+  -- one. Switch it off with: set fleet.mesh false
+  local relayed = not (settings and settings.get("fleet.mesh") == false) and { n = 0 } or nil
+  if relayed then modem.open(rednet.CHANNEL_REPEAT) end
   while true do
     local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
-    if ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
+    if relayed and ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
+      and type(msg.nRecipient) == "number" and not relayed[msg.nMessageID] then
+      if relayed.n > 500 then
+        for k, t in pairs(relayed) do if k ~= "n" and t < os.clock() then relayed[k] = nil end end
+        relayed.n = 0
+      end
+      relayed[msg.nMessageID], relayed.n = os.clock() + 60, relayed.n + 1
+      modem.transmit(rednet.CHANNEL_REPEAT, replyCh, msg)
+      modem.transmit(msg.nRecipient == rednet.CHANNEL_BROADCAST and msg.nRecipient or msg.nRecipient % 65500, replyCh, msg)
+    elseif ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
       local res
       if fs.exists("dev.key") then res = "Already paired"
       elseif type(dist) ~= "number" or dist > 3 then res = "Too far away"

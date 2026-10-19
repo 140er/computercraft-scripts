@@ -11,11 +11,16 @@ local original = baseline:read("*a")
 assert(baseline:close(), "git show main:hub.lua failed")
 assert(#original > 0, "empty baseline")
 
-local passed = 0
+local passed, failed = 0, 0
 local function test(name, fn)
-  fn()
-  passed = passed + 1
-  print("PASS " .. name)
+  local ok, err = pcall(fn)
+  if ok then
+    passed = passed + 1
+    print("PASS " .. name)
+  else
+    failed = failed + 1
+    print("FAIL " .. name .. "\n  " .. tostring(err):sub(1, 1500))
+  end
 end
 local function equal(actual, expected, message)
   assert(mocks.encode(actual) == mocks.encode(expected), (message or "values differ")
@@ -65,58 +70,99 @@ local function touch3D(m, label)
   m.push("monitor_touch", "dashboard", found[1], found[2])
 end
 
-test("no controller: full 2D output and event effects match main", function()
-  local old, new = start(false, original), start(false)
-  local function events(m)
-    m.push("char", "1")
-    m.push("monitor_touch", "dashboard", 2, 5)
-    m.push("mouse_click", 1, 2, 3)
-    m.push("char", "s")
-    m.push("char", "r")
-    m.push("char", "h")
-    m.push("char", "v")
-    m.push("monitor_resize", "dashboard")
-    m.push("term_resize")
-    m.push("peripheral", "unrelated")
-    m.push("peripheral_detach", "unrelated")
-    m.tick()
-    m.push("char", "q")
-  end
-  events(old)
-  events(new)
-  equal(new.output, old.output, "2D draws, terminal output or event effects changed")
-  equal(new.files, old.files, "saved hub state changed")
-  equal(new.arCalls, {}, "3D mode must stay off")
+test("no controller: the dashboard and its keys work and never touch AR", function()
+  local m = start(false)
+  m.push("char", "1")
+  m.push("monitor_touch", "dashboard", 2, 5)
+  m.push("mouse_click", 1, 2, 3)
+  m.push("char", "s")
+  m.push("char", "r")
+  m.push("char", "h")
+  m.push("char", "v")
+  m.push("monitor_resize", "dashboard")
+  m.push("term_resize")
+  m.push("peripheral", "unrelated")
+  m.push("peripheral_detach", "unrelated")
+  m.tick()
+  equal(m.arCalls, {}, "3D mode must stay off")
+  local out = table.concat(m.output, "\n")
+  assert(out:find(mocks.encode({ "dashboard", "write", " 3D VIEW " }), 1, true), "3D VIEW button missing")
+  equal(m.env.textutils.unserialize(m.files["hub.state"]).recallAll, false, "resume after recall")
+  m.push("char", "q")
 end)
 
-test("no server: controller frames, dashboard and toggles match the pre-change hub", function()
-  local baseline = assert(io.popen("git show 526b10a:hub.lua", "r"))
-  local originalAR = baseline:read("*a")
-  assert(baseline:close(), "git show 526b10a:hub.lua failed")
-  local old, new = start(true, originalAR), start(true)
-  local function events(m)
-    m.push("char", "v")
-    touch3D(m, " 3D: UIT ")
-    m.tick()
-    m.attached = false
-    m.push("peripheral_detach", "arbitrary_controller_name")
-    m.attached = true
-    m.push("peripheral", "arbitrary_controller_name")
-    m.tick()
-    m.push("char", "q")
+test("3D VIEW draws the fleet with teletext pixels, turns, and BACK returns", function()
+  local m = start(false)
+  touch3D(m, " 3D VIEW ")
+  local blits = 0
+  for i = 1, #m.output do
+    local call = assert(load("return " .. m.output[i], "=output", "t", {}))()
+    if call[1] == "dashboard" and call[2] == "blit" then
+      blits = blits + 1
+      equal(#call[3], 80, "row width")
+      equal(#call[4], 80)
+      equal(#call[5], 80)
+    end
   end
-  events(old)
-  events(new)
-  equal(new.output, old.output)
-  equal(new.files, old.files)
-  equal(new.arCalls, old.arCalls, "standalone AR output changed")
+  equal(blits, 38, "one row per line between the title and the controls")
+  local out = table.concat(m.output, "\n")
+  assert(out:find("Miner-east", 1, true), "turtle names in the 3D view")
+  local frames = #m.output
+  m.tick()
+  assert(#m.output > frames, "the view redraws every second")
+  touch3D(m, " < BACK ")
+  assert(table.concat(m.output, "\n", frames):find(mocks.encode({ "dashboard", "write", " STOP " }), 1, true),
+    "BACK did not return to the dashboard")
+  m.push("char", "q")
+end)
+
+test("goggles: HUD lines, ore icons, and frames that delete instead of clearing", function()
+  local m = start(true)
+  local p = turtle("east", 101, -20)
+  p.ore = "diamond"
+  m.status(1, p)
+  m.tick()
+  local elements = frame(m)
+  equal(elements["hud:bg"].method, "drawRect2D")
+  equal(elements["hud:title"].args[5], "Fleet")
+  equal(elements["hud:1"].args[5], "Miner-east: Mining")
+  equal(elements["turtle:1:ore"].args, { "turtle:1:ore", p.shaft.x + 0.5, 69, p.shaft.z + 0.5, 0, 0, 1.5,
+    "minecraft:diamond" })
+  local clears = 0
+  for _, c in ipairs(m.arCalls) do if c.method == "clear" then clears = clears + 1 end end
+  m.tick()
+  m.tick()
+  local after = 0
+  for _, c in ipairs(m.arCalls) do if c.method == "clear" then after = after + 1 end end
+  equal(after, clears, "frames after the first must not clear (that flickers)")
+  -- A forgotten turtle's elements are deleted
+  m.status(2, { type = "reset" })
+  m.tick()
+  equal(frame(m)["turtle:2"], nil)
+  equal(frame(m)["turtle:2:box:1"], nil)
+  equal(frame(m)["hud:4"], nil, "HUD line of the removed turtle")
+end)
+
+test("fleetview draws teletext pixels with the right colours", function()
+  local V = assert(loadfile("fleetview.lua", "t", mocks.new(false).env))()
+  local rows = {}
+  local t = { setCursorPos = function(_, y) rows.y = y end,
+    blit = function(text, fg, bg) rows[rows.y] = { text, fg, bg } end }
+  -- One horizontal red line through the middle of a 4x2 cell area, seen from the side
+  local scene = { lines = { { -10, 0, 0, 10, 0, 0, 2 ^ 14 } }, marks = {}, box = { -10, 10, 0, 0 }, ground = 0 }
+  V.render(t, 1, 1, 4, 2, scene, { yaw = 0, pitch = 0, zoom = 1, panX = 0, panZ = 0 })
+  local all = rows[1][1] .. rows[2][1]
+  local lit = 0
+  for i = 1, #all do if all:byte(i) >= 128 and all:byte(i) <= 159 then lit = lit + 1 end end
+  assert(lit >= 4, "line pixels missing: " .. all)
+  assert((rows[1][2] .. rows[1][3] .. rows[2][2] .. rows[2][3]):find("e", 1, true), "red (e) not used")
 end)
 
 test("shaft labels are raised, centered and readable with smaller turtle markers", function()
   local m = start(true)
   local elements = frame(m)
   equal(count(elements, "drawText3D"), 8, "shaft and position markers per turtle")
-  equal(count(elements, "drawLine3D"), 24, "shaft, path and four region edges per turtle")
+  equal(count(elements, "drawLine3D"), 72, "shaft, path, four region edges and a 12-edge box per turtle")
   -- Expected corners from the miner's clockwise branches, including a site-qualified role.
   local corners = {
     { 197, 44, 101, 44 }, { 41, 76, 41, -20 },
@@ -125,9 +171,11 @@ test("shaft labels are raised, centered and readable with smaller turtle markers
   for id, p in ipairs(fleet) do
     local key, c = "turtle:" .. id, corners[id]
     equal(elements[key].args,
-      { key, 0x55FFFF - 0x1000000, p.shaft.x + 0.5, 67, p.shaft.z + 0.5, 0, 0, 6, "#" .. id, true })
+      { key, 0x55FFFF - 0x1000000, p.shaft.x + 0.5, 67, p.shaft.z + 0.5, 0, 0, 6, p.label, true })
     equal(elements[key .. ":position"].args,
-      { key .. ":position", 0x55FFFF - 0x1000000, p.x + 0.5, -57.5, p.z + 0.5, 0, 0, 2, "#" .. id, true })
+      { key .. ":position", 0x55FFFF - 0x1000000, p.x + 0.5, -56.6, p.z + 0.5, 0, 0, 2, "#" .. id, true })
+    equal(elements[key .. ":box:1"].args,
+      { key .. ":box:1", 0x55FFFF - 0x1000000, p.x - 0.05, -58.05, p.z - 0.05, p.x + 1.05, -58.05, p.z - 0.05 })
     equal(elements[key .. ":path"].args,
       { key .. ":path", 0x55FFFF - 0x1000000, p.shaft.x + 0.5, -57.5, p.shaft.z + 0.5, p.x + 0.5, -57.5, p.z + 0.5 })
     equal(elements[key .. ":shaft"].args,
@@ -189,7 +237,7 @@ test("local coordinates, old miners and incomplete geometry are handled", functi
   m.tick()
   local elements = frame(m)
   equal(count(elements, "drawText3D"), 5)
-  equal(count(elements, "drawLine3D"), 7)
+  equal(count(elements, "drawLine3D"), 43)
   equal(elements["turtle:1"], nil, "local positions must not become world markers")
   equal(elements["turtle:2"].args[3], legacy.x + 0.5)
   equal(elements["turtle:3"].args[4], 67, "incomplete shaft depth must not hide the opening")
@@ -262,7 +310,7 @@ test("LOST, STUCK and ERROR show red errors below the label; stale reports stay 
   m.time = m.time + 16
   m.tick()
   for key, element in pairs(frame(m)) do
-    if element.method ~= "drawText2D" then
+    if element.method ~= "drawText2D" and element.method ~= "drawRect2D" then
       equal(element.args[2], 0x999999 - 0x1000000, "stale element " .. key)
     end
   end
@@ -315,7 +363,7 @@ test("real miner telemetry supplies world shafts and omits local positions", fun
   end
   hub.tick()
   equal(count(frame(hub), "drawText3D"), 16)
-  equal(count(frame(hub), "drawLine3D"), 60)
+  equal(count(frame(hub), "drawLine3D"), 156)
   local dx, dz = { 1, 0, -1, 0 }, { 0, 1, 0, -1 }
   for facing = 0, 3 do
     local key = "turtle:" .. (facing + 10)
@@ -343,4 +391,5 @@ dofile("tests/miner_lost.lua")(test, equal, read, mocks)
 dofile("tests/miner_dirs.lua")(test, equal, read, mocks)
 dofile("tests/server.lua")(test, equal, read, mocks)
 
-print(passed .. " tests passed")
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

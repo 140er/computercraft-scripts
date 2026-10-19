@@ -4,7 +4,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 
 | Bot | File | Runs on | What it does |
 |---|---|---|---|
-| [Server](#server) | `server.lua` | computer | Stores fleet state and logs, caches scripts from GitHub main and serves updates over a modem. |
+| [Server](#server) | `server.lua` | computer | The fleet's central point: keeps all state and logs, passes the hub's orders on until the turtles confirm, shows the fleet on a touchscreen (list, orders, 3D) and drives the AR goggles. Also serves script updates over a modem. |
 | [Mine Army](#mine-army) | `hub.lua`, `miner.lua`, optional `relay.lua` | computer + mining turtles | A hub with a dashboard in your base and a fleet of mining turtles. Each goes down its own shaft to the ore level you pick, mines branch tunnels and comes back to unload and refuel. |
 | [Storage Room](#storage-room) | `roomsorter.lua` | turtle | No modems or cables. A turtle in a closed room maps it, builds its own chests and furnaces, sorts and smelts what you put in, remembers where everything is and brings you items. |
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
@@ -47,12 +47,12 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ## Server
 
-A dedicated computer keeps the fleet registry, last status, positions, errors, assignments and last seen times in `server.state`. It captures status broadcasts and asks existing bots for status every 15 seconds. It also keeps the last 200 join, error, command and code events in that file. An attached monitor shows online, stale and LOST counts, recent errors and the cached server code hash; otherwise it uses the terminal. An optional AR Controller lets this computer drive the [goggles HUD and 3D view](#3d-view) from its registry. A bot becomes stale after 15 seconds without fresh status. LOST comes from the bot's reported phase, not from radio silence.
+A dedicated computer is the fleet's central point. It keeps the fleet registry, last status, positions, errors, assignments and last seen times in `server.state`, and the hub stores its own state there too. It captures status broadcasts and asks existing bots for status every 15 seconds. It also keeps the last 200 join, error, command and code events in that file. The hub's orders (go, recall, update, rename) go through the server: it sends each known miner its own copy and repeats it every 3 seconds until that miner confirms (`cmd_ack`), up to 6 times, and logs a miner that never answers. A touchscreen shows and steers the whole fleet (see [Touchscreen](#touchscreen)); without a monitor it uses the terminal. An optional AR Controller lets this computer drive the [goggles HUD and 3D view](#3d-view) from its registry. A bot becomes stale after 15 seconds without fresh status. LOST comes from the bot's reported phase, not from radio silence.
 
 1. Put a **wireless or ender modem** on a dedicated computer. A monitor is optional. No disk drive is needed; state and cached code use the computer's own disk. Keep its chunk loaded, with enough free disk space for all scripts and state.
-2. Run `install server`, or copy `server.lua` and `update.lua` onto it and run `server install`.
+2. Run `install server`, or copy `server.lua`, `fleetview.lua` and `update.lua` onto it and run `server install`.
 3. Run `server`. With http enabled it downloads the named repo scripts from GitHub **main**, then refreshes them about every five minutes. Missing files are fetched on demand. Valid cached copies survive http failures and reboots. For an entirely offline setup, put the repo's `.lua` scripts in the `server-code` directory before starting it.
-4. Start the hub after the server. With the new `hub.lua`, it restores the server's fleet (and the server's saved `hub.state` only on a hub computer that has none of its own), then mirrors both every five seconds. The restored fleet feeds the dashboard, pocket panel and optional 3D view. The hub sends go, recall and update commands straight to the turtles, since the server may be out of their range, and sends the server a copy for its log and assignments.
+4. Start the hub after the server (a hub started first finds the server within about 30 seconds). It restores the server's fleet and takes the server's copy of `hub.state` when that copy is newer than its own file (each save stamps a `rev`), then mirrors both every five seconds and right after every change. The restored fleet feeds the dashboard, pocket panel and 3D views. The hub sends its orders through the server; when the server does not answer within 2 seconds it sends them straight to the turtles itself, until the server answers again.
 5. On other computers and turtles, install the new `update.lua` once, then use `update` as usual. Without http they need a wireless or ender modem in range of the server. Transfers use chunks and a hash per file; unchanged files are skipped and incomplete or broken downloads never replace working scripts. The installer itself still needs http, or manual file copying.
 6. For AR, attach an **AR Controller to the server**, directly or through wired modems with peripheral sharing enabled. Link your **AR Goggles to that controller** and wear them. The server renders miner positions, shafts and errors from its registry. Press `v` on its terminal, or use `v` or the **3D** dashboard button on a connected hub. The server saves the toggle in `server.state`.
 
@@ -60,11 +60,28 @@ Server AR does not need the hub to stay running. After more than 20 seconds with
 
 With the new `server.lua` and `hub.lua`, a live hub clears once and acknowledges before the server draws. Permission lasts until ten seconds after the hub's last server reply; the server clears once if it expires. The hub falls back after 15 seconds without a reply, or when a reply reports controller loss. Mirrors still arriving prevent the server from forgetting that hub, even if replies are lost. Fallback needs a reachable hub controller and goggles linked to it.
 
-The server hosts rednet protocol `fleetserver`, hostname `server`. Use one server and one hub per fleet. Hub discovery happens at startup; restart the hub if the server was absent then. An already connected hub resumes mirroring when its server returns. Back up `server.state` and `server-code` together. Writes use temporary files and a backup during replacement, reuse matching root scripts, and defer cache writes unless the new copy fits with 64 KiB left for state, preserving existing files on failure. Startup removes stale cache `.tmp` files and recovers interrupted state saves. The monitor or terminal shows free disk bytes and a `disk full` warning after a write failure; errors stay in the central log in memory if state cannot be saved.
+The server hosts rednet protocol `fleetserver`, hostname `server`. Use one server and one hub per fleet. A hub started without a server looks for one about every 30 seconds. An already connected hub resumes mirroring when its server returns. Back up `server.state` and `server-code` together. Writes use temporary files and a backup during replacement, reuse matching root scripts, and defer cache writes unless the new copy fits with 64 KiB left for state, preserving existing files on failure. Startup removes stale cache `.tmp` files and recovers interrupted state saves. The monitor or terminal shows free disk bytes and a `disk full` warning after a write failure; errors stay in the central log in memory if state cannot be saved.
 
-This is the first step toward moving everything onto the server. The hub still assigns mining jobs, replies to miners and runs the panel handlers; keep it running for those tasks. The panel still talks directly to other bots. The hub's own `hub.state` wins when it starts; the server's copy is only used to set up a new hub computer. Old hubs work too: their fleet summaries populate the registry, but they do not mirror their full configuration. Bots without a rednet status handler, including the standalone sorter, relay and GPS host, need an explicit `register` message or an update request to appear; registration alone has no heartbeat. The server does not run other programs or keep chunks loaded. Large fleets are limited by computer disk space and rednet packet size for snapshots.
+The hub still plans the mining (jobs, sessions, directions) and answers the miners' own questions (`job?`, `dir?`) straight back; keep it running for those tasks. The pocket panel still talks directly to the hub and the other bots, and gets its 3D view from the server. Old hubs work too: their fleet summaries populate the registry, but they do not mirror their full configuration. Bots without a rednet status handler, including the standalone sorter, relay and GPS host, need an explicit `register` message or an update request to appear; registration alone has no heartbeat. The server does not run other programs or keep chunks loaded. Large fleets are limited by computer disk space and rednet packet size for snapshots.
 
-Rednet uses the same trusted local network as the existing bots. There is no authentication on the new service, and hashes detect changed or damaged files, not a hostile server. Developer operations and pairing stay on their existing channels. The server only logs the hub's go, recall and update commands; it does not resend them.
+Rednet uses the same trusted local network as the existing bots. There is no authentication on the new service, and hashes detect changed or damaged files, not a hostile server. Developer operations and pairing stay on their existing channels.
+
+**Disk space:** a computer has 1 MB by default, and the server caches every script (about 860 KB with all of them). If it reports `disk full`, raise `computer_space_limit` in the ComputerCraft server config, or remove scripts you don't use from its `FILES` list.
+
+### Mesh: the bots pass messages on
+
+Every bot that runs a radio (miners, lumber, farmer, lava, builder, buddy), the hub and the server also pass on rednet messages meant for others, the way CC's `repeat` program does: each message once, so nothing goes round in circles. A miner deep in its tunnel and out of the server's range still gets its orders through the turtles in between, and the server hears its status the same way. Miners now broadcast their status, so the hub and the server both hear it. It only works through bots that are running, so their chunks must be loaded. With ender modems everywhere it isn't needed; switch it off on a bot with `set fleet.mesh false` (and restart the script). A [relay](#radio-range) high above the base still helps too.
+
+### Touchscreen
+
+Put a big **advanced monitor** (several blocks wide and high) next to the server. It picks the biggest advanced monitor and a text size that fits.
+
+- **Top:** tabs *Fleet*, *3D*, *Log* and *Code*, and the online, stale and LOST counts, free disk space and whether the hub and AR are there.
+- **Fleet:** every bot with its kind, when it was last heard and its state (red = LOST). Tap one for its details: position and facing, fuel, ore and level, the hub's order for it, and whether its code is up to date. On a wide monitor (100 characters or more) the 3D view sits next to the list, otherwise below it.
+- **Bottom bar:** the ore buttons, **STOP**, **RECALL**, **RESUME** and **AR: ON/OFF**. They go to the hub like the pocket panel's buttons, for the whole fleet, or for the miner you tapped (**ALL** goes back to the whole fleet).
+- **3D:** the fleet in 3D on the whole screen; see [3D view on screens](#3d-view-on-screens). Tap a name to pick that bot.
+- **Log:** the server's log, newest first (errors red, orders yellow).
+- **Code:** each script the server hosts, its hash and age, and how many bots still run an older version.
 
 ---
 
@@ -213,17 +230,21 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.
 - **Detail line** (under the turtle table): the full status and last error of the turtle you tapped, or otherwise the most recent error of any turtle in the last 30 minutes. "Going home: after error" means a trip hit an error; the detail line says which. Each turtle also keeps its last 40 errors in `miner.log` (read it on the turtle with `edit miner.log`).
 
-#### 3D view
+#### 3D view on screens
+
+The hub dashboard (**3D VIEW** button, or `w` on its keyboard), the server's touchscreen (*3D* tab) and the pocket panel (*Map* tab, **3D** button) show the fleet in 3D: each shaft from the top down to its depth, the mining area of each miner at its level (blue, red when in trouble), the turtles with their name and an arrow for the way they face, other bots with GPS (lumber, farmer, ...), the hub, and a grid on the ground every 16 blocks (chunk lines) with **N** for north. It turns slowly by itself. The buttons under it: `<` `>` turn, `^` `v` tilt, `+` `-` zoom, `A` turn by itself on/off, `o` back to the start. On the pocket you can also drag it with your finger. Tap a name to pick that bot (on the hub, its orders then go to that turtle only). It is drawn with CC's 2x3 pixel characters, so it needs an advanced (colour) screen. The drawing code is in `fleetview.lua`, which the installer and `update` put next to `hub.lua`, `server.lua` and `panel.lua`; when it is missing they fetch it by themselves.
+
+#### 3D view in the AR goggles
 
 Attach a **CC AR 0.2.1 AR Controller** to the [server computer](#server), directly or through wired modems with peripheral sharing enabled. Link **AR Goggles** to it, wear them and run `server`. A hub is optional for server AR; if used, run the new `hub.lua` after the server. Without a server, attach the controller to the hub and run `hub` as before.
 
-The [server handshake and timeouts](#server) prevent both computers drawing while they communicate. If the hub stops, server AR resumes after the 20-second silence window, including after a server restart with a saved hub. Both scripts detect controller attachment and removal. Relink goggles if switching to a separate fallback controller. Restart the hub if it missed server discovery at startup.
+The [server handshake and timeouts](#server) prevent both computers drawing while they communicate. If the hub stops, server AR resumes after the 20-second silence window, including after a server restart with a saved hub. Both scripts detect controller attachment and removal. Relink goggles if switching to a separate fallback controller.
 
-Large numbered labels sit three blocks above each shaft opening. Shafts run from 2.5 blocks above the opening down to their reported dug depths. Markers use block centers in X/Z. Smaller labels track turtles away from the shaft top, with a line from the shaft at their height and a heading arrow. Planned mining regions stay at the job's Y level. LOST/STUCK/ERROR labels turn red with a short error below them; reports older than 15 seconds turn grey.
+Each miner's name sits in large letters three blocks above its shaft opening, with an icon of the ore it mines above that. Shafts run from 2.5 blocks above the opening down to their reported dug depths. Every turtle gets a box around it, so you can see it through the rock, plus its number, a line from the shaft at its height and an arrow for the way it faces. Planned mining regions stay at the job's Y level. LOST/STUCK/ERROR turn red with a short error below the name; reports older than 15 seconds turn grey. On the server, other bots with a GPS position (lumber, farmer, buddy, ...) get a box and their name in their own colour. Top left, under `3D: AAN`, a dark panel lists every bot with its state. Elements keep their id between frames and the ones that are gone are deleted, instead of clearing the whole picture each time, so it no longer flickers.
 
-Press `v` on the server terminal, or press `v` or tap the **3D** dashboard button on the hub. When the server owns AR, the hub forwards the toggle even without a controller of its own, and the server saves the choice in `server.state`. In hub fallback mode, the hub saves its toggle in `hub.3d` as before. The view defaults to on. The top-left goggles HUD shows green `3D: AAN` or grey `3D: UIT`. Off clears the world markers and keeps the HUD. With no server and no controller the 2D output stays unchanged.
+Press `v` on the server terminal, or press `v` or tap the **3D** dashboard button on the hub. When the server owns AR, the hub forwards the toggle even without a controller of its own, and the server saves the choice in `server.state`. In hub fallback mode, the hub saves its toggle in `hub.3d` as before. The view defaults to on. The top-left goggles HUD shows green `3D: AAN` or grey `3D: UIT`. Off clears the world markers and keeps the HUD.
 
-Update the miners too (UPDATE on the hub) for shaft, reach and current facing telemetry. Regions follow the main tunnel and clockwise branches. Older miners show position labels; height-only setups are omitted because they lack world X/Z. Use a dedicated controller: each redraw replaces its contents, and normal quit clears it. A controller error stops AR calls until a peripheral event triggers detection again.
+Update the miners too (UPDATE on the hub) for shaft, reach and current facing telemetry. Regions follow the main tunnel and clockwise branches. Height-only setups are omitted because they lack world X/Z. Use a dedicated controller: the scripts own its contents, and normal quit clears it. A controller error stops AR calls until a peripheral event triggers detection again.
 
 Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType()` returns `ar_controller`; the server and hub call these `@LuaFunction` methods:
 
@@ -231,9 +252,14 @@ Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType(
 drawLine3D(id, color, ax, ay, az, bx, by, bz)
 drawText3D(id, color, x, y, z, xRot, yRot, size, text, centered)
 drawText2D(id, color, x, y, text, centered)
+drawRect2D(id, color, x1, y1, x2, y2)
+drawItemIcon3D(id, x, y, z, xRot, yRot, size, item)
+delete(id)
 clear()
 update()
 ```
+
+`drawRect2D`, `drawItemIcon3D` and `delete` are only used when the controller has them; without `delete` every frame starts with `clear()` as before.
 
 IDs/text are strings, color is signed Java int ARGB, centered is boolean. 3D coordinates/rotations/size are doubles; 2D X/Y are integer GUI pixels with a default top-left anchor. World coordinates are absolute block corners, so both renderers add 0.5 to X/Z. Text has fixed orientation with zero rotation here. Size 6 is about 1.62 blocks high; smaller labels use size 2. `update()` publishes the frame.
 
