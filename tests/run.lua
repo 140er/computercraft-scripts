@@ -193,4 +193,6 @@ test("3D mock rejects unverified methods", function()
   equal(m.rejected, 1)
 end)
 
+dofile("tests/server.lua")(test, equal, read, mocks)
+
 print(passed .. " tests passed")

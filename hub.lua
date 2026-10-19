@@ -186,6 +186,32 @@ end
 if not modemFound then error("Attach a wireless or ender modem to this computer.", 0) end
 rednet.host(PROTOCOL, "hub")
 
+local SERVER_PROTOCOL = "fleetserver"
+local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
+local serverSeen, commandSeq, pending = -1e9, 0, {}
+if serverId then
+  rednet.send(serverId, { type = "hub_get", rid = "hub" }, SERVER_PROTOCOL)
+  local deadline = os.clock() + 2
+  repeat
+    local id, m = rednet.receive(SERVER_PROTOCOL, math.max(0, deadline - os.clock()))
+    if id == serverId and type(m) == "table" and m.type == "state" and m.rid == "hub" then
+      serverSeen = os.clock()
+      if type(m.hub) == "table" and type(m.hub.state) == "table" then
+        hub = m.hub.state
+        ORES.custom = customEntry(hub.custom)
+        save()
+      end
+      for tid, b in pairs(m.bots or {}) do
+        if b.kind == "miner" and type(b.status) == "table" and not (hub.forgotten and hub.forgotten[tid]) then
+          turtles[tid] = { p = b.status, seen = os.clock() - math.max(0, (os.epoch("utc") - (b.lastSeen or 0)) / 1000) }
+        end
+      end
+      break
+    end
+  until os.clock() >= deadline
+end
+if serverSeen == -1e9 then serverId = nil end
+
 local function oreFor(id)
   local o = hub.overrides[id]
   if o == false then return nil end
@@ -194,7 +220,11 @@ end
 
 local function send(id, msg)
   msg.from = os.getComputerID()
-  if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
+  if serverId and os.clock() - serverSeen < 15 and (msg.type == "go" or msg.type == "recall" or msg.type == "update") then
+    commandSeq = commandSeq + 1
+    pending[commandSeq] = { id = id, msg = msg, at = os.clock() }
+    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL, message = msg }, SERVER_PROTOCOL)
+  elseif id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
 end
 
 local function mergeProgress(role, p)
@@ -1224,6 +1254,32 @@ local function panelRequest(id, m)
     ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
 end
 
+local function serverLoop()
+  if not serverId then while true do os.pullEvent("server_never") end end
+  local timer, tick = os.startTimer(1), 0
+  while true do
+    local ev, id, m, proto = os.pullEvent()
+    if ev == "rednet_message" and id == serverId and proto == SERVER_PROTOCOL and type(m) == "table" and m.type == "ack" then
+      serverSeen = os.clock()
+      if m.rid then pending[m.rid] = nil end
+    elseif ev == "timer" and id == timer then
+      tick = tick + 1
+      for rid, p in pairs(pending) do
+        if os.clock() - p.at >= 2 then
+          if p.id then rednet.send(p.id, p.msg, PROTOCOL) else rednet.broadcast(p.msg, PROTOCOL) end
+          pending[rid], serverSeen = nil, -1e9
+        end
+      end
+      if tick % 5 == 0 then
+        local fleet = {}
+        for tid, t in pairs(turtles) do fleet[tid] = { p = t.p, age = os.clock() - t.seen } end
+        rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet }, SERVER_PROTOCOL)
+      end
+      timer = os.startTimer(1)
+    end
+  end
+end
+
 local function netLoop()
   while true do
     local id, msg = rednet.receive(PROTOCOL)
@@ -1296,7 +1352,7 @@ if fs.exists("hub.release") then
   releaseUpdate()
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop)
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop)
 if ar then pcall(function() ar.clear() ar.update() end) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()

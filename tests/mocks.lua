@@ -123,6 +123,7 @@ function M.new(attached, state)
   }
   env.print = function(...) record("print", ...) end
   env.rednet = {
+    lookup = function() return nil end,
     open = function(...) record("rednet.open", ...) end,
     host = function(...) record("rednet.host", ...) end,
     send = function(id, msg, protocol)
