@@ -878,6 +878,15 @@ end
 
 log("start", os.getComputerID(), "server")
 save()
-local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop)
+-- A Tom's Peripherals GPU (tm_gpu) with bitmap monitors: the fleet in real 3D
+local function gpuLoop()
+  if not V then while true do os.pullEvent("gpu_never") end end
+  V.gpuLoop(function() return V.fromServer(state.bots, now(), forgottenList()) end, function()
+    local pos = state.hub and state.hub.state and state.hub.state.pos
+    return { title = "Fleet", places = pos and { { x = pos.x, y = pos.y, z = pos.z, name = "Hub" } } or nil }
+  end, function(text) log("error", os.getComputerID(), text) save() end)
+end
+
+local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop)
 if ar then pcall(function() ar.clear() ar.update() end) end
 if not ok then error(err, 0) end
