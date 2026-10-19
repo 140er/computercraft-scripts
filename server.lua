@@ -51,7 +51,20 @@ end
 state = state or {}
 state.bots, state.log, state.files = state.bots or {}, state.log or {}, state.files or {}
 local function now() return os.epoch("utc") end
-local function save() writeFile(STATE_FILE, textutils.serialize(state, { compact = true })) end
+local function copy(value, parents)
+  if type(value) ~= "table" then return value end
+  parents = parents or {}
+  if parents[value] then return nil end
+  parents[value] = true
+  local result = {}
+  for k, v in pairs(value) do
+    local key = copy(k, parents)
+    if key ~= nil then result[key] = copy(v, parents) end
+  end
+  parents[value] = nil
+  return result
+end
+local function save() writeFile(STATE_FILE, textutils.serialize(copy(state), { compact = true })) end
 local function log(kind, id, text)
   state.log[#state.log + 1] = { at = now(), kind = kind, id = id, text = tostring(text) }
   while #state.log > 200 do table.remove(state.log, 1) end
@@ -121,8 +134,8 @@ local function status(id, p, proto, seen)
   local err = p.lastError or p.err
   if err and err ~= b.error then log("error", id, err) end
   b.lastSeen, b.status, b.error = seen, p, err
-  b.position = p.gps or (p.x and p.z and { x = p.x, y = p.y, z = p.z })
-  b.localPosition = p.pos
+  b.position = copy(p.gps) or (p.x and p.z and { x = p.x, y = p.y, z = p.z })
+  b.localPosition = copy(p.pos)
   b.hash = p.hash or b.hash
   if kind == "hub" and type(p.turtles) == "table" then
     for _, t in ipairs(p.turtles) do
@@ -175,14 +188,14 @@ local function request(id, m)
     state.hub = { id = id, state = m.hub, updated = now() }
     local b = bot(id, "hub", "minearmy")
     b.lastSeen = now()
-    b.assignments = { target = m.hub.target, overrides = m.hub.overrides, bores = m.hub.bores }
+    b.assignments = { target = m.hub.target, overrides = copy(m.hub.overrides), bores = copy(m.hub.bores) }
     for tid, t in pairs(m.turtles) do
       if type(tid) == "number" and type(t) == "table" and type(t.p) == "table" and t.p.type == "status"
         and type(t.age) == "number" and t.age >= 0 and t.age < math.huge then
         status(tid, t.p, "minearmy", now() - math.max(0, t.age) * 1000)
         local ore = (m.hub.overrides or {})[tid]
         if ore == nil then ore = m.hub.target end
-        state.bots[tid].assignment = { ore = ore, recall = m.hub.recallAll, bore = (m.hub.bores or {})[tid] }
+        state.bots[tid].assignment = { ore = ore, recall = m.hub.recallAll, bore = copy((m.hub.bores or {})[tid]) }
       end
     end
     save()
