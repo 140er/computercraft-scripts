@@ -198,7 +198,7 @@ function M.miner(cfg, state)
   end
   local function move(d)
     if m.beforeMove then m.beforeMove(d) end
-    if m.world[m.key(d)] then return false, "Movement obstructed" end
+    if m.world[m.key(d)] and m.world[m.key(d)] ~= "minecraft:water" then return false, "Movement obstructed" end
     if m.blockMove then return false, m.blockMove end
     m.pos.x, m.pos.y, m.pos.z = m.pos.x + dx[d], m.pos.y + dy[d], m.pos.z + dz[d]
     if m.fuel ~= "unlimited" then m.fuel = m.fuel - 1 end
@@ -214,8 +214,15 @@ function M.miner(cfg, state)
   end
   local function place(d)
     local item = m.inventory[m.selected]
-    if not item or m.world[m.key(d)] then return false end
-    m.world[m.key(d)] = item.name
+    local key, block = m.key(d), m.world[m.key(d)]
+    if not item then return false end
+    if item.name == "minecraft:bucket" then
+      if block ~= "minecraft:lava" or m.flowing then return false end
+      m.world[key], item.name = nil, "minecraft:lava_bucket"
+      return true
+    end
+    if block and block ~= "minecraft:lava" and block ~= "minecraft:water" then return false end
+    m.world[key] = item.name
     item.count = item.count - 1
     return true
   end
@@ -230,7 +237,12 @@ function M.miner(cfg, state)
     getFuelLevel = function() return m.fuel end, getFuelLimit = function() return 20000 end,
     getItemDetail = function(s) local i = m.inventory[s] if i and i.count > 0 then return i end end,
     getItemCount = function(s) return m.inventory[s] and m.inventory[s].count or 0 end,
-    refuel = function() return false end,
+    refuel = function(n)
+      local item = m.inventory[m.selected]
+      if not item or item.name ~= "minecraft:lava_bucket" then return false end
+      if n ~= 0 then item.name = "minecraft:bucket" m.fuel = m.fuel + 1000 end
+      return true
+    end,
     turnRight = function() return turn(1) end, turnLeft = function() return turn(3) end,
     forward = function() return move(m.heading) end, back = function() return move((m.heading + 2) % 4) end,
     up = function() return move(4) end, down = function() return move(5) end,
