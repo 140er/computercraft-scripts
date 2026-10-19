@@ -89,6 +89,58 @@ return function(test, equal, read, mocks)
     equal(r.bots[1].lastSeen, s.bots[1].lastSeen)
   end)
 
+  test("serialize mock rejects shared tables and cycles", function()
+    local serialize = new().env.textutils.serialize
+    local shared = { x = 12 }
+    local cycle = {}
+    cycle.self = cycle
+    for _, value in ipairs({ { shared, shared }, cycle }) do
+      local ok, err = pcall(serialize, value)
+      equal(ok, false)
+      equal(err, "Cannot serialize table with repeated entries")
+    end
+    equal(serialize({ { x = 12 }, { x = 12 } }), "{[1]={[\"x\"]=12},[2]={[\"x\"]=12}}")
+  end)
+
+  test("server saves GPS status and hub assignments across restart", function()
+    local m = new()
+    m.start(serverCode)
+    local gps, pos = { x = 12, y = 64, z = 20 }, { x = 1, y = 2, z = 3 }
+    m.status(5, { type = "status", gps = gps, pos = pos })
+    local hub = { target = "diamond", recallAll = true, overrides = { [5] = "iron" },
+      bores = { [5] = { x = 10, z = 20 } }, progress = { [5] = 3 }, totals = { iron = 42 } }
+    equal(m.request({ type = "hub_put", hub = hub, turtles = {
+      [5] = { age = 0, p = { type = "status", gps = gps, pos = pos } },
+    } }, 99).type, "ack")
+    local restored = new()
+    for path, text in pairs(m.files) do restored.files[path] = text end
+    restored.start(serverCode)
+    local s = restored.state()
+    equal(s.hub.state, hub)
+    equal(s.bots[99].assignments, { target = "diamond", overrides = hub.overrides, bores = hub.bores })
+    equal(s.bots[5].position, gps)
+    equal(s.bots[5].localPosition, pos)
+    equal(s.bots[5].status, { type = "status", gps = gps, pos = pos })
+    equal(s.bots[5].assignment, { ore = "iron", recall = true, bore = hub.bores[5] })
+  end)
+
+  test("server save duplicates nested shared tables and drops only cycles", function()
+    local m = new()
+    m.start(serverCode)
+    local shared = { count = 42 }
+    local packet = { type = "status", first = shared, second = shared }
+    packet.self = packet
+    shared.parent = packet
+    m.status(5, packet)
+    local restored = new()
+    for path, text in pairs(m.files) do restored.files[path] = text end
+    restored.start(serverCode)
+    equal(restored.state().bots[5].status,
+      { type = "status", first = { count = 42 }, second = { count = 42 } })
+    assert(packet.self == packet, "save mutated the live packet")
+    assert(packet.first == packet.second and shared.parent == packet, "save changed live references")
+  end)
+
   test("server recovers interrupted saves and keeps a bounded central log", function()
     local m = new()
     m.files["server.state.tmp"] = mocks.encode({ bots = { [12] = { kind = "sorter" } } })
