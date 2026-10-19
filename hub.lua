@@ -881,7 +881,10 @@ local function draw3D()
     end
     ar.update()
   end)
-  if not ok then ar = nil end -- A disappearing peripheral must not stop the dashboard.
+  if not ok then
+    pcall(function() ar.clear() ar.update() end)
+    ar = nil -- A disappearing peripheral must not stop the dashboard.
+  end
 end
 
 local function redraw()
@@ -1271,7 +1274,11 @@ local function uiLoop()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       redraw()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
+      local prev = ar
       ar = peripheral.find("ar_controller")
+      if prev and prev ~= ar then
+        pcall(function() prev.clear() prev.update() end)
+      end
       draw3D()
     end
     if wantAsk then

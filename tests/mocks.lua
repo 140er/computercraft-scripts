@@ -40,7 +40,12 @@ function M.new(attached, state)
   local ar = {}
   for method, spec in pairs(specs) do
     ar[method] = function(...)
-      if not m.attached then m.detachedCalls = m.detachedCalls + 1 error("call on detached controller") end
+      if not m.attached then
+        m.detachedCalls = m.detachedCalls + 1
+        if method ~= "clear" and method ~= "update" then
+          error("call on detached controller")
+        end
+      end
       assert(select("#", ...) == #spec, method .. ": wrong argument count")
       local args = { ... }
       for i, kind in ipairs(spec) do

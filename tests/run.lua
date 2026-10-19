@@ -100,10 +100,11 @@ test("attach, detach and reattach use peripheral events", function()
   equal(count(frame(m), "drawText3D"), 4)
   m.attached = false
   m.push("peripheral_detach", "arbitrary_controller_name")
+  equal(frame(m), {}, "detach should clear the previous controller")
   local calls = #m.arCalls
   m.tick()
   equal(#m.arCalls, calls, "detached controller was called")
-  equal(m.detachedCalls, 0)
+  equal(m.detachedCalls, 2, "clear and update on the detached controller")
   m.attached = true
   m.push("peripheral", "arbitrary_controller_name")
   equal(count(frame(m), "drawText3D"), 4)
