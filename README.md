@@ -190,6 +190,27 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 - Status colours: orange "Underground" = out on a trip and out of radio range (normal); red "NO SIGNAL" = should be home but isn't answering; red LOST/STUCK/ERROR = needs you.
 - **Detail line** (under the turtle table): the full status and last error of the turtle you tapped, or otherwise the most recent error of any turtle in the last 30 minutes. "Going home: after error" means a trip hit an error; the detail line says which. Each turtle also keeps its last 40 errors in `miner.log` (read it on the turtle with `edit miner.log`).
 
+#### 3D view
+
+Attach a **CC AR 0.2.1 AR Controller** to the hub, link **AR Goggles** to it and wear them. The 3D view switches on automatically at startup or on peripheral attach/detach, alongside the existing dashboard. It shows numbered turtle positions, white shafts down to their reported dug depths, and planned mining regions at the job's Y level. Reports older than 15 seconds turn grey. With no controller the 2D dashboard behaves as before.
+
+Update the miners too (UPDATE on the hub) for shaft and reach telemetry. Region rectangles follow the main tunnel and clockwise branches, using trip reach and branch length. Older miners show positions only; miners set up with only a height are omitted because they lack world X/Z. Use a dedicated controller: each redraw replaces its contents, and normal quit clears it. A controller error disables 3D until a peripheral event triggers detection again.
+
+Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType()` returns `ar_controller`; the hub calls these `@LuaFunction` methods:
+
+```lua
+drawLine3D(id, color, ax, ay, az, bx, by, bz)
+drawText3D(id, color, x, y, z, xRot, yRot, size, text, centered)
+clear()
+update()
+```
+
+IDs/text are strings, color is signed Java int ARGB, coordinates/rotations/size are doubles, centered is boolean. Coordinates are absolute world blocks. Text angles are degrees (`xRot` applies about Z, `yRot` about Y); the hub uses zero rotation and size 1. `update()` publishes the frame. `setAnchor(id, x, y)` accepts only 2D lines in this version.
+
+Tom's Peripherals 1.3.1 GPU 3D renders into its own monitor buffer and needs a separate camera/rendering path; it is not supported here.
+
+Tested with Lua 5.2 mocks only: run `lua tests/run.lua` from the repo root with Lua 5.2 and Git installed. Tests compare 2D output against `git show main:hub.lua` and exercise telemetry, geometry, hotplug and errors. Goggles linking, text orientation, terrain occlusion and refresh cost still need an in-game check on Minecraft 1.21.1 NeoForge with CC: Tweaked 1.120.2. The roomsorter stock board is unchanged.
+
 ### Info screen (second monitor)
 Put a normal (grey) monitor next to the hub and reboot the hub. Normal monitors can't be tapped, so they always get the info screen; the biggest advanced monitor gets the dashboard. A 1x1 monitor gets a compact version:
 ```
