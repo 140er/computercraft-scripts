@@ -109,7 +109,9 @@ local function loadTable(path)
   return type(t) == "table" and t or nil
 end
 
-local hub = loadTable(STATE_FILE) or {}
+local hub = loadTable(STATE_FILE)
+local hadState = hub ~= nil -- our own state wins over the server's copy, which can be older
+hub = hub or {}
 hub.target = hub.target           -- nil = paused
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
 hub.progress = hub.progress or {}   -- [shaft x,z + role], or [role] without world coordinates
@@ -201,7 +203,7 @@ if serverId then
       serverARSeen = serverSeen
       serverARUntil = os.epoch("utc") + 10000
       serverAR, serverView = m.arOwner == true, m.view3D
-      if type(m.hub) == "table" and type(m.hub.state) == "table" then
+      if not hadState and type(m.hub) == "table" and type(m.hub.state) == "table" then
         hub = m.hub.state
         ORES.custom = customEntry(hub.custom)
         save()
@@ -225,11 +227,15 @@ end
 
 local function send(id, msg)
   msg.from = os.getComputerID()
+  -- Orders always go straight to the turtles: the server may be out of their range.
+  -- It only gets a copy for its log and assignments (direct = it does not resend them).
+  if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
   if serverId and os.clock() - serverSeen < 15 and (msg.type == "go" or msg.type == "recall" or msg.type == "update") then
     commandSeq = commandSeq + 1
     pending[commandSeq] = { id = id, msg = msg, at = os.clock() }
-    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL, message = msg }, SERVER_PROTOCOL)
-  elseif id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
+    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL, message = msg,
+      direct = true }, SERVER_PROTOCOL)
+  end
 end
 
 local function progressKey(id, m)
@@ -1358,7 +1364,6 @@ local function serverLoop()
       tick = tick + 1
       for rid, p in pairs(pending) do
         if os.clock() - p.at >= 2 then
-          if p.id then rednet.send(p.id, p.msg, PROTOCOL) else rednet.broadcast(p.msg, PROTOCOL) end
           pending[rid], serverSeen = nil, -1e9
         end
       end

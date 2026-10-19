@@ -54,16 +54,19 @@ local function hashOf(text)
 end
 
 local PROTOCOL = "fleetserver"
-local server
-for _, name in ipairs(peripheral.getNames()) do
-  if peripheral.getType(name) == "modem" and peripheral.call(name, "isWireless") then
-    rednet.open(name)
-    server = rednet.lookup(PROTOCOL, "server")
-    break
-  end
-end
+local server -- looked up the first time GitHub can't be reached
 
 local function fromServer(f)
+  if server == nil then
+    server = false
+    for _, name in ipairs(peripheral.getNames()) do
+      if peripheral.getType(name) == "modem" and peripheral.call(name, "isWireless") then
+        rednet.open(name)
+        server = rednet.lookup(PROTOCOL, "server") or false
+        break
+      end
+    end
+  end
   if not server then return nil end
   local old = read(f)
   local hash = old and hashOf(old)
@@ -95,13 +98,18 @@ end
 local changed, failed = 0, 0
 for _, f in ipairs(files) do
   write(f .. " ... ")
-  local code, err = fromServer(f)
-  if (not code or not load(code, "=" .. f)) and http then
+  -- GitHub first: the server's copy can be up to a few minutes behind main.
+  local code, err
+  if http then
     -- The query string gets past GitHub's cache of the raw file.
     local res
     res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
     code = res and res.readAll()
     if res then res.close() end
+  end
+  if not code or code == "" or not load(code, "=" .. f) then
+    local copy = fromServer(f)
+    if copy then code = copy end
   end
   if not code or code == "" then
     print("failed: " .. tostring(err or "no server copy or http download"))

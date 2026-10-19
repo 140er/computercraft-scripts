@@ -334,7 +334,8 @@ local function request(id, m)
       b.assignment = { by = id, at = now(), message = p }
     end
     save()
-    if m.target then rednet.send(m.target, p, m.protocol) else rednet.broadcast(p, m.protocol) end
+    if m.direct then -- the sender already reached the bots itself
+    elseif m.target then rednet.send(m.target, p, m.protocol) else rednet.broadcast(p, m.protocol) end
     reply(id, m, { type = "ack" })
   end
 end
