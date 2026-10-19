@@ -47,13 +47,18 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
 ## Server
 
-A dedicated computer keeps the fleet registry, last status, positions, errors, assignments and last seen times in `server.state`. It captures status broadcasts and asks existing bots for status every 15 seconds. It also keeps the last 200 join, error, command and code events in that file. An attached monitor shows online, stale and LOST counts, recent errors and the cached server code hash; otherwise it uses the terminal. A bot becomes stale after 15 seconds without fresh status. LOST comes from the bot's reported phase, not from radio silence.
+A dedicated computer keeps the fleet registry, last status, positions, errors, assignments and last seen times in `server.state`. It captures status broadcasts and asks existing bots for status every 15 seconds. It also keeps the last 200 join, error, command and code events in that file. An attached monitor shows online, stale and LOST counts, recent errors and the cached server code hash; otherwise it uses the terminal. An optional AR Controller lets this computer drive the [goggles HUD and 3D view](#3d-view) from its registry. A bot becomes stale after 15 seconds without fresh status. LOST comes from the bot's reported phase, not from radio silence.
 
 1. Put a **wireless or ender modem** on a dedicated computer. A monitor is optional. No disk drive is needed; state and cached code use the computer's own disk. Keep its chunk loaded, with enough free disk space for all scripts and state.
 2. Run `install server`, or copy `server.lua` and `update.lua` onto it and run `server install`.
 3. Run `server`. With http enabled it downloads the named repo scripts from GitHub **main**, then refreshes them about every five minutes. Missing files are fetched on demand. Valid cached copies survive http failures and reboots. For an entirely offline setup, put the repo's `.lua` scripts in the `server-code` directory before starting it.
 4. Start the hub after the server. With the new `hub.lua`, it restores the server's saved `hub.state` and fleet, then mirrors both every five seconds. The restored fleet feeds the dashboard, pocket panel and optional 3D view. The hub sends go, recall and update commands through the server, which records them before forwarding. If an acknowledgement is missing after two seconds, the hub sends the command directly.
 5. On other computers and turtles, install the new `update.lua` once, then use `update` as usual. They need a wireless or ender modem in range of the server, but do not need http. Transfers use chunks and a hash per file; unchanged files are skipped and incomplete or broken downloads never replace working scripts. The installer itself still needs http, or manual file copying.
+6. For AR, put an **AR Controller next to the server computer**, or connect it through wired modems with peripheral sharing enabled. Link your **AR Goggles to that controller** and wear them. Use the new `server.lua` and `hub.lua`, start `server` before `hub`, and keep both running. The server renders miner positions, shafts and errors from its registry; the hub mirrors shaft telemetry and mining progress every five seconds. Press `v` on the server terminal, or use `v` or the **3D** dashboard button on the hub, to toggle the server's view. The server saves this choice as `view3D` in `server.state`.
+
+The server reports AR ownership and the toggle state in its `fleetserver` replies. When it has a controller, the connected hub clears its own controller once and stops drawing, including when both computers can see the same controller. Without a server controller, the hub uses its own controller. It resumes that fallback after 15 seconds without a server reply, or on the next five-second mirror reply reporting controller loss. Attaching a server controller hands the view back on the next reply. A hub needs its own reachable controller and goggles linked to it to provide fallback if the server's controller becomes unreachable.
+
+The hub acknowledges that it stopped drawing before the server starts. Its mirrors grant drawing permission until ten seconds after its last server reply; unanswered mirrors cannot extend that deadline. The server clears once if permission expires, before the hub's 15-second fallback. Keep the connected hub running even if only the server has a controller. The server remembers that hub in `server.state`, so a server restart waits for a fresh acknowledgement too. A server that has never connected to an AR-aware hub draws on its own.
 
 The server hosts rednet protocol `fleetserver`, hostname `server`. Use one server and one hub per fleet. Hub discovery happens at startup; restart the hub if the server was absent then. An already connected hub resumes mirroring when its server returns. Back up `server.state` and `server-code` together. The state save uses a temporary file and recovers it if a reboot interrupted replacement.
 
@@ -209,13 +214,17 @@ Measured in a simulator over one full layer: Fast looks at about **18% more rock
 
 #### 3D view
 
-Attach a **CC AR 0.2.1 AR Controller** to the hub, link **AR Goggles** to it and wear them. Large numbered labels sit three blocks above each shaft opening. Shafts run from 2.5 blocks above the opening down to their reported dug depths. Markers use block centers in X/Z. Smaller labels track turtles away from the shaft top, with a line from the shaft at their height and a heading arrow. Planned mining regions stay at the job's Y level. LOST/STUCK/ERROR labels turn red with a short error below them; reports older than 15 seconds turn grey.
+Attach a **CC AR 0.2.1 AR Controller** next to the [server computer](#server), or connect it through a wired modem network with peripheral sharing enabled. Link **AR Goggles** to that controller and wear them. Run `server`, then `hub`, using the new versions of both scripts. The server draws from its saved fleet registry and the hub's mirrored telemetry. Without a server, attach the controller to the hub and run `hub` as before.
 
-Press `v` or tap the **3D** dashboard button while a controller is attached. The view defaults to on and saves your choice in `hub.3d`. The top-left goggles HUD shows green `3D: AAN` or grey `3D: UIT`. Off clears the world markers and keeps the HUD. With no controller the 2D output stays unchanged.
+With a controller on both computers, the server owns AR while it answers and has a controller. The hub clears once and stops drawing. If the server stops answering for 15 seconds or reports that its controller is gone, the hub draws on its own controller again. Glasses stay linked to their controller: relink them to the hub's controller if you use a separate fallback controller. Both scripts detect controllers attached or detached while running. Start the server before the hub; if discovery missed the server at hub startup, restart the hub to connect it.
+
+Large numbered labels sit three blocks above each shaft opening. Shafts run from 2.5 blocks above the opening down to their reported dug depths. Markers use block centers in X/Z. Smaller labels track turtles away from the shaft top, with a line from the shaft at their height and a heading arrow. Planned mining regions stay at the job's Y level. LOST/STUCK/ERROR labels turn red with a short error below them; reports older than 15 seconds turn grey.
+
+Press `v` on the server terminal, or press `v` or tap the **3D** dashboard button on the hub. When the server owns AR, the hub forwards the toggle even without a controller of its own, and the server saves the choice in `server.state`. In hub fallback mode, the hub saves its toggle in `hub.3d` as before. The view defaults to on. The top-left goggles HUD shows green `3D: AAN` or grey `3D: UIT`. Off clears the world markers and keeps the HUD. With no server and no controller the 2D output stays unchanged.
 
 Update the miners too (UPDATE on the hub) for shaft, reach and current facing telemetry. Regions follow the main tunnel and clockwise branches. Older miners show position labels; height-only setups are omitted because they lack world X/Z. Use a dedicated controller: each redraw replaces its contents, and normal quit clears it. A controller error stops AR calls until a peripheral event triggers detection again.
 
-Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType()` returns `ar_controller`; the hub calls these `@LuaFunction` methods:
+Verified from `ARControllerPeripheral` and renderer bytecode in 0.2.1: `getType()` returns `ar_controller`; the server and hub call these `@LuaFunction` methods:
 
 ```lua
 drawLine3D(id, color, ax, ay, az, bx, by, bz)
@@ -225,7 +234,7 @@ clear()
 update()
 ```
 
-IDs/text are strings, color is signed Java int ARGB, centered is boolean. 3D coordinates/rotations/size are doubles; 2D X/Y are integer GUI pixels with a default top-left anchor. World coordinates are absolute block corners, so the hub adds 0.5 to X/Z. Text has fixed orientation with zero rotation here. Size 6 is about 1.62 blocks high; smaller labels use size 2. `update()` publishes the frame.
+IDs/text are strings, color is signed Java int ARGB, centered is boolean. 3D coordinates/rotations/size are doubles; 2D X/Y are integer GUI pixels with a default top-left anchor. World coordinates are absolute block corners, so both renderers add 0.5 to X/Z. Text has fixed orientation with zero rotation here. Size 6 is about 1.62 blocks high; smaller labels use size 2. `update()` publishes the frame.
 
 Tom's Peripherals 1.3.1 GPU 3D renders into its own monitor buffer and needs a separate camera/rendering path; it is not supported here.
 
