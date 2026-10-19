@@ -378,6 +378,50 @@ test("real miner telemetry supplies world shafts and omits local positions", fun
   end
 end)
 
+test("Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP", function()
+  local env = mocks.new(false).env
+  local saved = {}
+  env.settings = { get = function(k) return saved[k] end, set = function(k, v) saved[k] = v end, save = function() end }
+  local V = assert(loadfile("fleetview.lua", "t", env))()
+  local calls, verts, colors3, size = {}, 0, 0, 16
+  local gl = setmetatable({
+    glVertex = function() verts = verts + 1 end,
+    glColor = function(r, g, b)
+      assert(r >= 0 and r <= 255 and g >= 0 and g <= 255 and b >= 0 and b <= 255, "colour out of range")
+      colors3 = colors3 + 1
+    end,
+  }, { __index = function(_, k) return function(...) calls[#calls + 1] = k end end })
+  local texts = {}
+  local gpu = {
+    refreshSize = function() end,
+    setSize = function(res) size = res end,
+    getSize = function() return 8 * size * 2, 4 * size * 2 end, -- 2x1 monitors of 8x4 blocks... any size
+    createWindow3D = function(x, y, w, h) assert(w > 0 and h > 0) return gl end,
+    filledRectangle = function() end,
+    drawText = function(x, y, text) texts[#texts + 1] = text end,
+    sync = function() calls[#calls + 1] = "gpu.sync" end,
+  }
+  local g = assert(V.gpuOpen(gpu))
+  equal(size, 64, "highest resolution first")
+  assert(g.listW > 0, "a big screen gets the list")
+  local list = { V.entry(1, "miner", { label = "Miner-east", x = 10, y = 40, z = 5, facing = "east",
+    shaft = { x = 0, y = 64, z = 0, bottom = 40 }, level = 40, role = "east", reach = 32, branchLen = 16 }, 0) }
+  V.gpuDraw(g, list, { title = "Fleet", places = { { x = 0, y = 64, z = 0, name = "Hub" } } })
+  assert(verts > 0 and verts % 3 == 0, "whole triangles: " .. verts)
+  assert(colors3 > 0, "colours set")
+  local order = table.concat(calls, " ")
+  assert(order:find("clear.-glBegin.-glEnd.-render.-sync.-gpu.sync"), "frame order: " .. order)
+  assert(table.concat(texts, "|"):find("Miner-east", 1, true), "bot in the list")
+  local flip
+  for _, b in ipairs(g.buttons) do if b[3] == "flip" then flip = b end end
+  equal(V.gpuTouch(g, flip[1] + 1, g.h - 5), "flip")
+  equal(saved["fleet.gpuflip"], true, "FLIP is saved")
+  equal(V.gpuTouch(g, 5, 5), nil, "taps in the 3D area do nothing")
+  local yaw = g.cam.yaw
+  equal(V.gpuTouch(g, g.buttons[1][1] + 1, g.h - 5), "left")
+  assert(g.cam.yaw ~= yaw, "< turns the view")
+end)
+
 test("3D mock rejects unverified methods", function()
   local m = mocks.new(true)
   assert(not pcall(function() m.ar.drawBox3D() end))

@@ -1610,7 +1610,15 @@ if fs.exists("hub.release") then
   releaseUpdate()
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop)
+-- A Tom's Peripherals GPU (tm_gpu) with bitmap monitors: the fleet in real 3D
+local function gpuLoop()
+  if not V then while true do os.pullEvent("gpu_never") end end
+  V.gpuLoop(fleetList, function()
+    return { title = "Mine Army", places = hub.pos and { { x = hub.pos.x, y = hub.pos.y, z = hub.pos.z, name = "Hub" } } }
+  end, flash)
+end
+
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop)
 if ar and not arSuppressed then pcall(function() ar.clear() ar.update() end) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()

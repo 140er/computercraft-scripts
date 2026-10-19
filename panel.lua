@@ -229,11 +229,11 @@ end
 ---------------------------------------------------------------------------
 -- The smaller bots share one "Bots" tab (a list); tapping one opens its own page
 local TABS = { { "home", "Home" }, { "hub", "Mine" }, { "store", "Stor" }, { "bots", "Bots" }, { "map", "Map" },
-  { "console", ">_" } }
+  { "three", "3D" }, { "console", ">_" } }
 local BOT_PAGES = { "wood", "farm", "lava", "build", "buddy" }
 local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = true }
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
-  farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, console = colors.gray }
+  farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, three = colors.lightBlue, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 local openDrive -- the drive screen (further down); takes a bot: { key = DEV key } or { id =, proto =, name = }
 
@@ -1055,7 +1055,8 @@ local function drawMap3D()
       local sel
       for _, e in ipairs(list) do if e.id == wmap.sel3 then sel = e end end
       if sel then
-        text(1, 2, (" " .. (sel.name or ("#" .. sel.id)) .. ": " .. V.stateText(sel)):sub(1, W) .. (" "):rep(W),
+        text(1, 2, (" " .. (sel.name or ("#" .. sel.id)) .. ": " .. V.stateText(sel) .. (sel.y and (" y" .. sel.y) or ""))
+          :sub(1, W) .. (" "):rep(W),
           sel.trouble and colors.red or colors.yellow)
       end
     end
@@ -1070,6 +1071,16 @@ local function drawMap3D()
   end
   list[#list + 1] = { "2D", colors.black, colors.lightBlue, function() wmap.three = false end }
   buttonRow(H - 1, list, 1, W, 0)
+end
+
+-- The 3D tab is the map in 3D; the Map tab is the flat map
+local function openTab(key)
+  if key == "map" or key == "three" then
+    if key == "three" and not wmap.three then wmap.lookAt = -1e9 end
+    wmap.three = key == "three"
+    key = "map"
+  end
+  setTab(key)
 end
 
 local function drawMap()
@@ -1984,11 +1995,12 @@ local function draw()
   local extra = W - tw * #TABS
   for k, t in ipairs(TABS) do
     local w = tw + (k <= extra and 1 or 0)
-    local active = ui.tab == t[1] or (t[1] == "bots" and IN_BOTS[ui.tab])
+    local active = (ui.tab == t[1] and not (t[1] == "map" and wmap.three)) or (t[1] == "bots" and IN_BOTS[ui.tab])
+      or (t[1] == "three" and ui.tab == "map" and wmap.three)
     local key = t[1]
     local fg = active and colors.black or colors.white
     local bg = active and colors.white or TAB_COLOR[key]
-    button(x, 1, w, t[2], fg, bg, function() setTab(key) end)
+    button(x, 1, w, t[2], fg, bg, function() openTab(key) end)
     x = x + w
   end
   if ui.tab == "home" then drawHome()
@@ -2186,7 +2198,7 @@ local function uiLoop()
       draw()
     elseif ev == "char" then
       local n = tonumber(a)
-      if n and TABS[n] then setTab(TABS[n][1]) draw()
+      if n and TABS[n] then openTab(TABS[n][1]) draw()
       elseif a == "q" then return end
     elseif ev == "key" and a == keys.backspace and ui.popup then
       ui.popup = nil

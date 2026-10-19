@@ -161,8 +161,13 @@ function V.scene(list, opt)
   local step = 16
   while (x2 - x1) / step > 6 or (z2 - z1) / step > 6 do step = step * 2 end
   local grid = {}
-  for x = x1, x2, step do grid[#grid + 1] = { x, ground, z1, x, ground, z2, colors.gray } end
-  for z = z1, z2, step do grid[#grid + 1] = { x1, ground, z, x2, ground, z, colors.gray } end
+  -- (dotted, so it stays in the background; field 8 = dotted)
+  for x = x1, x2, step do grid[#grid + 1] = { x, ground, z1, x, ground, z2, colors.gray, true } end
+  for z = z1, z2, step do grid[#grid + 1] = { x1, ground, z, x2, ground, z, colors.gray, true } end
+  -- A dotted drop line from each bot down to the ground shows how deep it is
+  for _, m in ipairs(marks) do
+    if m[6] and math.abs(m[2] - ground) > 1 then grid[#grid + 1] = { m[1], m[2], m[3], m[1], ground, m[3], colors.gray, true } end
+  end
   for _, l in ipairs(lines) do grid[#grid + 1] = l end -- the grid goes underneath everything
   marks[#marks + 1] = { (x1 + x2) / 2, ground, z1, colors.white, "N" }
   return { lines = grid, marks = marks, box = { x1, x2, z1, z2 }, ground = ground }
@@ -222,7 +227,7 @@ function V.render(t, x0, y0, w, h, scene, cam, bg)
     local bx2, by2 = project(l[4], l[5], l[6])
     local n = math.max(math.abs(bx2 - ax), math.abs(by2 - ay))
     n = math.min(math.ceil(n), 600)
-    for k = 0, n do
+    for k = 0, n, l[8] and 3 or 1 do
       local f = n == 0 and 0 or k / n
       plot(ax + (bx2 - ax) * f, ay + (by2 - ay) * f, l[7])
     end
@@ -231,7 +236,8 @@ function V.render(t, x0, y0, w, h, scene, cam, bg)
   for _, m in ipairs(scene.marks) do
     local x, y = project(m[1], m[2], m[3])
     if m[5] ~= "N" then
-      plot(x, y, m[4]) plot(x + 1, y, m[4]) plot(x, y + 1, m[4]) plot(x + 1, y + 1, m[4])
+      -- a 3x3 pixel block, so a bot stands out from the lines
+      for ddx = -1, 1 do for ddy = -1, 1 do plot(x + ddx, y + ddy, m[4]) end end
     end
     local cxl, cyl = math.floor(x / 2), math.floor(y / 3)
     if cxl >= 0 and cyl >= 0 and cxl < w and cyl < h then
@@ -473,6 +479,238 @@ function V.arClear(ar, mem)
   ar.clear()
   ar.update()
   if mem then mem.drawn = nil end
+end
+
+---------------------------------------------------------------------------
+-- Real 3D on a Tom's Peripherals GPU (tm_gpu) with its bitmap monitors
+---------------------------------------------------------------------------
+-- The GPU draws filled, lit triangles, so the fleet becomes solid blocks: grey shaft
+-- columns, a cube per turtle (state colour) with a coloured tag above it, the mining
+-- areas as bars at their level, a chunk grid on the ground. Next to it a list with
+-- each bot's tag colour, name and state, and a row of buttons under it.
+-- Tom's GL (wiki GPU3D, examples/cube3d.lua): glBegin() takes triangles, three
+-- glVertex each; glColor(r, g, b) sets the colour for what follows.
+local RGB = { [colors.white] = { 240, 240, 240 }, [colors.orange] = { 242, 178, 51 },
+  [colors.magenta] = { 229, 127, 216 }, [colors.lightBlue] = { 153, 178, 242 }, [colors.yellow] = { 222, 222, 108 },
+  [colors.lime] = { 127, 204, 25 }, [colors.pink] = { 242, 178, 204 }, [colors.gray] = { 76, 76, 76 },
+  [colors.lightGray] = { 153, 153, 153 }, [colors.cyan] = { 76, 153, 178 }, [colors.purple] = { 178, 102, 229 },
+  [colors.blue] = { 51, 102, 204 }, [colors.brown] = { 127, 102, 76 }, [colors.green] = { 87, 166, 78 },
+  [colors.red] = { 204, 76, 76 }, [colors.black] = { 17, 17, 17 } }
+V.RGB = RGB
+-- Tag colours: each bot gets its own, shown above it and in the list
+local TAGS = { { 255, 85, 85 }, { 85, 170, 255 }, { 255, 210, 60 }, { 120, 230, 120 }, { 230, 120, 230 },
+  { 255, 150, 60 }, { 90, 230, 230 }, { 200, 200, 255 }, { 180, 255, 120 }, { 255, 140, 180 } }
+-- The six faces of a unit cube as triangles (same winding as Tom's cube3d example)
+local CUBE = {
+  { 0, 0, 0, 0, 1, 0, 1, 1, 0 }, { 0, 0, 0, 1, 1, 0, 1, 0, 0 }, { 1, 0, 1, 1, 1, 1, 0, 1, 1 }, { 1, 0, 1, 0, 1, 1, 0, 0, 1 },
+  { 1, 0, 0, 1, 1, 0, 1, 1, 1 }, { 1, 0, 0, 1, 1, 1, 1, 0, 1 }, { 0, 0, 1, 0, 1, 1, 0, 1, 0 }, { 0, 0, 1, 0, 1, 0, 0, 0, 0 },
+  { 0, 1, 0, 0, 1, 1, 1, 1, 1 }, { 0, 1, 0, 1, 1, 1, 1, 1, 0 }, { 1, 0, 1, 0, 0, 1, 0, 0, 0 }, { 1, 0, 1, 0, 0, 0, 1, 0, 0 } }
+
+local function rgbInt(c) return c[1] * 65536 + c[2] * 256 + c[3] end
+
+-- Set up (or redo after a size change) the GPU screens. Returns the view, or nil + why.
+function V.gpuOpen(gpu)
+  -- flip: upside down (the GPU's up/down could not be checked outside the game)
+  local g = { gpu = gpu, cam = V.camera(), buttons = {}, sel = nil, frames = 0,
+    flip = settings ~= nil and settings.get("fleet.gpuflip") == true }
+  gpu.refreshSize()
+  local ok = false
+  for _, res in ipairs({ 64, 32, 16 }) do
+    if pcall(gpu.setSize, res) then
+      local w, h = gpu.getSize()
+      if type(w) == "number" and w > 0 and w * h <= 2000000 then ok = true break end
+    end
+  end
+  if not ok then return nil, "GPU has no monitor" end
+  g.w, g.h = gpu.getSize()
+  g.listW = g.w >= 480 and math.min(260, math.floor(g.w * 0.3)) or 0
+  g.barH = 24
+  local okW, gl = pcall(gpu.createWindow3D, 1, 1, g.w - g.listW, g.h - g.barH)
+  if not okW or type(gl) ~= "table" then return nil, "no 3D window: " .. tostring(gl) end
+  g.gl = gl
+  gl.glFrustum(60, 0.1, 1000)
+  gl.glDirLight(-0.4, -1, -0.6)
+  return g
+end
+
+-- One frame. list = fleetview entries, opt = { places = ..., title = ... }
+function V.gpuDraw(g, list, opt)
+  opt = opt or {}
+  local gpu, gl, cam = g.gpu, g.gl, g.cam
+  g.frames = g.frames + 1
+  local scene = V.scene(list, { selected = g.sel, places = opt.places })
+  -- Size of the world we look at
+  local bx = scene.box or { -16, 16, -16, 16 }
+  local cx, cz = (bx[1] + bx[2]) / 2, (bx[3] + bx[4]) / 2
+  local lowY, highY = scene.ground or 0, scene.ground or 0
+  for _, l in ipairs(scene.lines) do lowY, highY = math.min(lowY, l[2], l[5]), math.max(highY, l[2], l[5]) end
+  local cy = (lowY + highY) / 2
+  local radius = math.max(16, (bx[2] - bx[1]) / 2, (bx[4] - bx[3]) / 2, (highY - lowY) / 2)
+  local thin = radius * 0.006 -- half the thickness of a bar
+  local function box(x1, y1, z1, x2, y2, z2, c)
+    if x2 < x1 then x1, x2 = x2, x1 end
+    if y2 < y1 then y1, y2 = y2, y1 end
+    if z2 < z1 then z1, z2 = z2, z1 end
+    gl.glColor(c[1], c[2], c[3])
+    local sx, sy, sz = x2 - x1, y2 - y1, z2 - z1
+    for _, t in ipairs(CUBE) do
+      gl.glVertex(x1 + t[1] * sx, y1 + t[2] * sy, z1 + t[3] * sz)
+      gl.glVertex(x1 + t[4] * sx, y1 + t[5] * sy, z1 + t[6] * sz)
+      gl.glVertex(x1 + t[7] * sx, y1 + t[8] * sy, z1 + t[9] * sz)
+    end
+  end
+  -- A bar between two points along one axis (or a slanted one, made of steps)
+  local function bar(ax, ay, az, bx2, by, bz, c, t)
+    t = t or thin
+    local dx, dy, dz = bx2 - ax, by - ay, bz - az
+    local axes = (dx ~= 0 and 1 or 0) + (dy ~= 0 and 1 or 0) + (dz ~= 0 and 1 or 0)
+    if axes <= 1 then
+      box(math.min(ax, bx2) - t, math.min(ay, by) - t, math.min(az, bz) - t,
+        math.max(ax, bx2) + t, math.max(ay, by) + t, math.max(az, bz) + t, c)
+    else
+      local n = 6
+      for k = 0, n - 1 do
+        local f1, f2 = k / n, (k + 1) / n
+        box(ax + dx * f1 - t, ay + dy * f1 - t, az + dz * f1 - t, ax + dx * f2 + t, ay + dy * f2 + t, az + dz * f2 + t, c)
+      end
+    end
+  end
+  gl.clear()
+  pcall(gl.glLoadIdentity)
+  gl.glDisable(0xDE1) -- no textures
+  gl.glTranslate(0, 0, 2.6 / cam.zoom)
+  gl.glRotate(math.deg(cam.pitch), 1, 0, 0)
+  gl.glRotate(math.deg(cam.yaw), 0, 1, 0)
+  local s = 1 / radius
+  gl.glScale(s, g.flip and -s or s, s)
+  gl.glTranslate(-cx - cam.panX, -cy, -cz - cam.panZ)
+  gl.glBegin()
+  -- Ground: the chunk grid
+  local ground = scene.ground or 0
+  local step = 16
+  while (bx[2] - bx[1]) / step > 8 or (bx[4] - bx[3]) / step > 8 do step = step * 2 end
+  for x = bx[1], bx[2], step do bar(x, ground, bx[3], x, ground, bx[4], RGB[colors.gray]) end
+  for z = bx[3], bx[4], step do bar(bx[1], ground, z, bx[2], ground, z, RGB[colors.gray]) end
+  bar(cx, ground, bx[3], cx, ground, bx[3] - radius * 0.1, { 240, 240, 240 }, thin * 2) -- north
+  local tagOf = {}
+  for i, e in ipairs(list) do
+    local tag = TAGS[(i - 1) % #TAGS + 1]
+    tagOf[e.id] = tag
+    local col = RGB[e.kind == "miner" and minerColor(e) or (V.KIND_COLOR[e.kind] or colors.white)]
+    if e.stale then col = RGB[colors.gray] end
+    if g.sel == e.id then col = { 255, 255, 120 } end
+    local sh = e.shaft
+    if sh and sh.bottom then
+      local w = math.max(0.4, radius * 0.008)
+      box(sh.x + 0.5 - w, sh.bottom, sh.z + 0.5 - w, sh.x + 0.5 + w, sh.y + 1, sh.z + 0.5 + w, RGB[colors.lightGray])
+    end
+    local r = region(e)
+    if r then
+      local rc = e.stale and RGB[colors.gray] or (e.trouble and RGB[colors.red] or RGB[colors.blue])
+      for k = 1, 4 do
+        local p, q = r[k], r[k % 4 + 1]
+        bar(p[1], p[2], p[3], q[1], q[2], q[3], rc)
+      end
+    end
+    if e.x and e.y then
+      local size = math.max(0.6, radius * 0.025)
+      local x, y, z = e.x + 0.5, e.y + 0.5, e.z + 0.5
+      if sh and (e.x ~= sh.x or e.z ~= sh.z) then bar(sh.x + 0.5, y, sh.z + 0.5, x, y, z, col) end
+      box(x - size, y - size, z - size, x + size, y + size, z + size, col)
+      local d = DIRS[e.facing]
+      if d then
+        box(x + d[1] * size * 1.6 - size * 0.4, y - size * 0.4, z + d[2] * size * 1.6 - size * 0.4,
+          x + d[1] * size * 1.6 + size * 0.4, y + size * 0.4, z + d[2] * size * 1.6 + size * 0.4, col)
+      end
+      -- the tag: a flat coloured block above it, easy to match with the list
+      box(x - size * 0.7, y + size * 1.8, z - size * 0.7, x + size * 0.7, y + size * 2.6, z + size * 0.7, tag)
+    end
+  end
+  gl.glEnd()
+  gl.render()
+  gl.sync()
+  -- 2D: list on the right, buttons at the bottom
+  local W3 = g.w - g.listW
+  if g.listW > 0 then
+    gpu.filledRectangle(W3 + 1, 1, g.listW, g.h, 0x101018)
+    gpu.drawText(W3 + 8, 6, opt.title or "Fleet", 0xFFFFFF, 0x101018, 2)
+    local y = 30
+    for _, e in ipairs(list) do
+      if y > g.h - g.barH - 12 then break end
+      local tag = tagOf[e.id]
+      gpu.filledRectangle(W3 + 8, y, 10, 10, rgbInt(tag))
+      local c = e.stale and 0x999999 or (e.trouble and 0xFF5555 or 0xFFFFFF)
+      gpu.drawText(W3 + 24, y + 1, ((e.name or ("#" .. e.id)) .. ": " .. V.stateText(e)):sub(1, math.floor((g.listW - 30) / 6)),
+        c, 0x101018)
+      y = y + 16
+    end
+  end
+  gpu.filledRectangle(1, g.h - g.barH + 1, g.w, g.barH, 0x303040)
+  g.buttons = {}
+  local x = 4
+  for _, b in ipairs({ { "<", "left" }, { ">", "right" }, { "^", "up" }, { "v", "down" }, { "+", "in" }, { "-", "out" },
+    { "AUTO", "auto" }, { "RESET", "reset" }, { "FLIP", "flip" } }) do
+    local w = math.max(28, #b[1] * 12 + 12)
+    local on = (b[2] == "auto" and cam.auto) or (b[2] == "flip" and g.flip)
+    local bc = on and 0x55AA55 or 0x8888AA
+    gpu.filledRectangle(x, g.h - g.barH + 4, w, g.barH - 7, bc)
+    gpu.drawText(x + 6, g.h - g.barH + 7, b[1], 0x000000, bc, 2)
+    g.buttons[#g.buttons + 1] = { x, x + w - 1, b[2] }
+    x = x + w + 4
+  end
+  gpu.sync()
+end
+
+-- A tap on the GPU monitor (tm_monitor_touch x y): returns what it did, or nil
+function V.gpuTouch(g, x, y)
+  if y < g.h - g.barH then return nil end
+  for _, b in ipairs(g.buttons) do
+    if x >= b[1] and x <= b[2] then
+      if b[3] == "flip" then
+        g.flip = not g.flip
+        if settings then settings.set("fleet.gpuflip", g.flip) pcall(settings.save) end
+      else
+        V.control(g.cam, b[3])
+      end
+      return b[3]
+    end
+  end
+  return nil
+end
+
+-- Runs forever (in parallel with the rest): finds a tm_gpu, draws about 5 frames a
+-- second while there is one, handles taps on its monitor. Without a GPU it only
+-- wakes for peripheral events. getList() -> entries, getOpt() -> { places, title },
+-- report(text) is called once per problem.
+function V.gpuLoop(getList, getOpt, report)
+  local g, timer, look = nil, nil, true
+  while true do
+    if look then
+      look = false
+      g = nil
+      local gpu = peripheral.find("tm_gpu")
+      if gpu then
+        local ok, view, why = pcall(V.gpuOpen, gpu)
+        g = ok and view or nil
+        if not g and report then report("GPU: " .. tostring(ok and why or view)) end
+      end
+      if g then timer = os.startTimer(0) end
+    end
+    local ev, a, b, c = os.pullEvent()
+    if ev == "timer" and a == timer and g then
+      if g.cam.auto then g.cam.yaw = g.cam.yaw + 0.03 end
+      local ok, err = pcall(V.gpuDraw, g, getList(), getOpt())
+      if ok then timer = os.startTimer(0.2)
+      else
+        g = nil
+        if report then report("GPU: " .. tostring(err)) end
+      end
+    elseif ev == "tm_monitor_touch" and g then
+      V.gpuTouch(g, b, c)
+    elseif ev == "peripheral" or ev == "peripheral_detach" or ev == "monitor_resize" then
+      look = true
+    end
+  end
 end
 
 return V
