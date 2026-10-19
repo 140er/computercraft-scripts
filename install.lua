@@ -325,13 +325,6 @@ local function fuelCheck(n)
 end
 
 local BOTS = {
-  { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua" }, start = { "server" },
-    steps = {
-      { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
-        check = modemCheck },
-      { run = function() return { "server", "install" } end },
-    } },
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
     files = { "miner.lua" }, start = { "miner" },
     steps = join({
@@ -523,6 +516,13 @@ local BOTS = {
     }, coords("THIS computer block (F3: 'Targeted Block')")),
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
+  { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
+    files = { "server.lua" }, start = { "server" },
+    steps = {
+      { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
+        check = modemCheck },
+      { run = function() return { "server", "install" } end },
+    } },
   { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket",
     files = { "panel.lua" }, start = { "panel" },
     steps = {

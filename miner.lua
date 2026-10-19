@@ -1186,7 +1186,7 @@ reorient = function(tries)
   if best ~= 0 and bestScore - now >= 2 then
     st.h = (st.h + best) % 4
     save()
-    logError("Heading was off by a quarter turn " .. (best == 1 and "right" or "left") .. ", corrected")
+    logError("Heading was off by " .. (best == 2 and "a half turn" or ("a quarter turn " .. (best == 1 and "right" or "left"))) .. ", corrected")
     return true
   end
   save()
@@ -1939,7 +1939,7 @@ local function lostWait()
       end
       setStatus("LOST: on a pillar at " .. pos.x .. "," .. pos.y .. "," .. pos.z
         .. (approxPos and " (approx)" or "")
-        .. (tip and (" — " .. tip) or "")
+        .. (tip and (" - " .. tip) or "")
         .. " (drive home / pick up)")
     end
     n = n + 1

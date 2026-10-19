@@ -262,6 +262,15 @@ return function(test, equal, read, mocks)
     equal(m.httpCalls, 1)
   end)
 
+  test("update takes GitHub over a server copy that may be behind main", function()
+    local s = new()
+    s.files["server-code/miner.lua"] = "return 'cached'"
+    s.start(serverCode)
+    local m = updater(s, "return 'http'")
+    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.requests, 0)
+  end)
+
   test("update rejects corrupted server content and falls back to http", function()
     local s = new()
     s.files["server-code/miner.lua"] = "return true"
@@ -292,6 +301,7 @@ return function(test, equal, read, mocks)
       if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
       return receive(proto, timeout)
     end
+    m.files["hub.state"] = nil -- a fresh hub computer takes the server's copy
     m.start(hubCode)
     equal(decode(m.files["hub.state"]).target, "diamond")
     m.advance(5)
@@ -318,7 +328,35 @@ return function(test, equal, read, mocks)
     m.advance(2)
     local found = false
     for _, p in ipairs(m.messages) do if p.type == "go" then found = true end end
-    assert(found, "no direct fallback when server stopped acknowledging")
+    assert(found, "orders did not go straight to the turtles")
+    assert(command.direct, "server would resend an order the hub already sent")
+  end)
+
+  test("hub keeps its own saved state over the server's copy and sends orders directly", function()
+    local s = new()
+    s.start(serverCode)
+    s.request({ type = "hub_put", hub = { target = "diamond", overrides = {}, bores = {}, totals = {}, progress = {} },
+      turtles = {} }, 99)
+    local m = new()
+    m.files["hub.state"] = mocks.encode({ target = "gold" })
+    m.env.rednet.lookup = function() return 99 end
+    local receive = m.env.rednet.receive
+    m.env.rednet.receive = function(proto, timeout)
+      if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
+      return receive(proto, timeout)
+    end
+    m.start(hubCode)
+    equal(decode(m.files["hub.state"]).target, "gold", "server copy replaced the hub's own state")
+    local before = #m.messages
+    m.push("char", "r")
+    local direct = false
+    for i = before + 1, #m.messages do if m.messages[i].type == "recall" then direct = true end end
+    assert(direct, "recall waited for the server")
+    local command = m.sent[#m.sent].msg
+    equal(command.type, "command")
+    local sent = #s.messages
+    s.request(command, 99)
+    for i = sent + 1, #s.messages do assert(s.messages[i].type ~= "recall", "server resent a direct order") end
   end)
 
   test("server sees old hub fleets without a hub mirror and uses the terminal without a monitor", function()
