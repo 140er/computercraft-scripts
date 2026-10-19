@@ -317,5 +317,6 @@ test("3D mock rejects unverified methods", function()
 end)
 
 dofile("tests/miner_lost.lua")(test, equal, read, mocks)
+dofile("tests/server.lua")(test, equal, read, mocks)
 
 print(passed .. " tests passed")

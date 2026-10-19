@@ -4,6 +4,7 @@ Turtle and computer scripts for [CC: Tweaked](https://tweaked.cc/) (ComputerCraf
 
 | Bot | File | Runs on | What it does |
 |---|---|---|---|
+| [Server](#server) | `server.lua` | computer | Stores fleet state and logs, caches scripts from GitHub main and serves updates over a modem. |
 | [Mine Army](#mine-army) | `hub.lua`, `miner.lua`, optional `relay.lua` | computer + mining turtles | A hub with a dashboard in your base and a fleet of mining turtles. Each goes down its own shaft to the ore level you pick, mines branch tunnels and comes back to unload and refuel. |
 | [Storage Room](#storage-room) | `roomsorter.lua` | turtle | No modems or cables. A turtle in a closed room maps it, builds its own chests and furnaces, sorts and smelts what you put in, remembers where everything is and brings you items. |
 | [Sorter & Smelter](#sorter--smelter) | `sorter.lua` | turtle or computer | On a wired network of chests and furnaces: empties the miners' chests, smelts the raw ores, keeps the furnaces fuelled and sorts everything into storage. |
@@ -33,7 +34,7 @@ A guided installer opens. Pick what this machine should become (it only lists th
 - it runs the setup commands for you and shows their output, with **Back**, **Repeat** and **Next**,
 - at the end, **Start now** starts the bot. It starts by itself after every reboot from then on.
 
-Later, `install` opens it again, `install <bot>` goes straight to one bot's setup, and `install <bot> quick` only downloads the files. The bots: `miner`, `hub`, `relay`, `roomsorter`, `roomclient`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `factory`, `gpshost`, `panel`, `smartmine`. Each bot's section below explains the same setup by hand.
+Later, `install` opens it again, `install <bot>` goes straight to one bot's setup, and `install <bot> quick` only downloads the files. The bots: `server`, `miner`, `hub`, `relay`, `roomsorter`, `roomclient`, `sorter`, `lumber`, `farmer`, `lava`, `builder`, `buddy`, `factory`, `gpshost`, `panel`, `smartmine`. Each bot's section below explains the same setup by hand.
 
 No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 
@@ -42,7 +43,23 @@ No http? Drag the `.lua` file from this repo onto the computer's screen instead.
 - **One bot:** type `<bot> update` (for example `lumber update`), or just `update`. It fetches the latest version of every script from this repo that is on that computer, checks that it loads, and reboots if anything changed.
 - **Everything at once:** press **Update all** on the [pocket panel](#pocket-panel). Every bot it can reach updates itself at a safe moment: the lumberjack, the farmer, the lava runner and the builder when they're home, the factory between builds, Buddy after its current job, the storage room after putting everything away. The hub fetches the new `hub.lua` and `miner.lua` and hands it to the mining turtles, which update when they get home. Then the panel updates itself.
 - `sorter`, `relay`, `gpshost` and `smartmine` don't listen to the panel, so they only update with their own `update` command.
-- A bot that can't reach GitHub keeps running its current version.
+- `update` first looks for a [server](#server) over rednet, then tries GitHub if the server is missing, silent or has no usable copy. If neither works, the bot keeps its current version. Install the new `update.lua` on each client once to enable this.
+
+## Server
+
+A dedicated computer keeps the fleet registry, last status, positions, errors, assignments and last seen times in `server.state`. It captures status broadcasts and asks existing bots for status every 15 seconds. It also keeps the last 200 join, error, command and code events in that file. An attached monitor shows online, stale and LOST counts, recent errors and the cached server code hash; otherwise it uses the terminal. A bot becomes stale after 15 seconds without fresh status. LOST comes from the bot's reported phase, not from radio silence.
+
+1. Put a **wireless or ender modem** on a dedicated computer. A monitor is optional. No disk drive is needed; state and cached code use the computer's own disk. Keep its chunk loaded, with enough free disk space for all scripts and state.
+2. Run `install server`, or copy `server.lua` and `update.lua` onto it and run `server install`.
+3. Run `server`. With http enabled it downloads the named repo scripts from GitHub **main**, then refreshes them about every five minutes. Missing files are fetched on demand. Valid cached copies survive http failures and reboots. For an entirely offline setup, put the repo's `.lua` scripts in the `server-code` directory before starting it.
+4. Start the hub after the server. With the new `hub.lua`, it restores the server's saved `hub.state` and fleet, then mirrors both every five seconds. The restored fleet feeds the dashboard, pocket panel and optional 3D view. The hub sends go, recall and update commands through the server, which records them before forwarding. If an acknowledgement is missing after two seconds, the hub sends the command directly.
+5. On other computers and turtles, install the new `update.lua` once, then use `update` as usual. They need a wireless or ender modem in range of the server, but do not need http. Transfers use chunks and a hash per file; unchanged files are skipped and incomplete or broken downloads never replace working scripts. The installer itself still needs http, or manual file copying.
+
+The server hosts rednet protocol `fleetserver`, hostname `server`. Use one server and one hub per fleet. Hub discovery happens at startup; restart the hub if the server was absent then. An already connected hub resumes mirroring when its server returns. Back up `server.state` and `server-code` together. The state save uses a temporary file and recovers it if a reboot interrupted replacement.
+
+This is the first step toward moving everything onto the server. The hub still assigns mining jobs, replies to miners and runs the panel handlers; it must stay running. The panel still talks directly to other bots. The server's copy wins when a hub starts, so the last five seconds of hub changes can be lost after a crash. Old hubs work too: their fleet summaries populate the registry, but they do not mirror their full configuration. Bots without a rednet status handler, including the standalone sorter, relay and GPS host, need an explicit `register` message or an update request to appear; registration alone has no heartbeat. The server does not run other programs or keep chunks loaded. Large fleets are limited by computer disk space and rednet packet size for snapshots.
+
+Rednet uses the same trusted local network as the existing bots. There is no authentication on the new service, and hashes detect changed or damaged files, not a hostile server. Developer operations and pairing stay on their existing channels. If a command gets through but its acknowledgement is lost, fallback can repeat it; the hub only routes repeatable go, recall and update commands this way.
 
 ---
 
