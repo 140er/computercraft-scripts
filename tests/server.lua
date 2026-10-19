@@ -124,11 +124,11 @@ return function(test, equal, read, mocks)
     equal(s.bots[5].assignment, { ore = "iron", recall = true, bore = hub.bores[5] })
   end)
 
-  test("server save duplicates nested shared tables and drops only cycles", function()
+  test("server trims unused status fields and copies shared coordinates without changing packets", function()
     local m = new()
     m.start(serverCode)
-    local shared = { count = 42 }
-    local packet = { type = "status", first = shared, second = shared }
+    local shared = { x = 42 }
+    local packet = { type = "status", gps = shared, pos = shared, first = shared, second = shared }
     packet.self = packet
     shared.parent = packet
     m.status(5, packet)
@@ -136,7 +136,7 @@ return function(test, equal, read, mocks)
     for path, text in pairs(m.files) do restored.files[path] = text end
     restored.start(serverCode)
     equal(restored.state().bots[5].status,
-      { type = "status", first = { count = 42 }, second = { count = 42 } })
+      { type = "status", gps = { x = 42 }, pos = { x = 42 } })
     assert(packet.self == packet, "save mutated the live packet")
     assert(packet.first == packet.second and shared.parent == packet, "save changed live references")
   end)
@@ -403,6 +403,260 @@ return function(test, equal, read, mocks)
     m.exchange()
     return m
   end
+
+  local hosted = assert(load("return " .. assert(serverCode:match("local FILES = (%b{})")), "=files"))()
+  local repo = {}
+  for _, f in ipairs(hosted) do repo[f] = read(f) end
+  local function downloads(m, files)
+    m.downloads = 0
+    m.env.http = { get = function(url)
+      m.downloads = m.downloads + 1
+      local code = assert(files[url:match("/([^/?]+)%?t=")], url)
+      return { readAll = function() return code end, close = function() end }
+    end }
+  end
+  local function noTemps(m)
+    for path in pairs(m.files) do assert(not path:match("%.tmp$"), "leftover " .. path) end
+  end
+
+  test("capacity mock raises Out of space at write or close and counts partial bytes", function()
+    for _, deferred in ipairs({ false, true }) do
+      local m = new()
+      m.files, m.capacity, m.writeOnClose = {}, 10, deferred
+      local h = m.env.fs.open("file", "w")
+      local ok, err = pcall(function() h.write(string.rep("x", 11)) h.close() end)
+      equal(ok, false)
+      equal(err, "Out of space")
+      equal(#m.files.file, 10)
+      equal(m.env.fs.getFreeSpace("/"), 0)
+    end
+  end)
+
+  test("server install guards startup writes and logs failures without replacing existing startup", function()
+    for _, failure in ipairs({ "open", "write", "close" }) do
+      local m = new()
+      m.capacity, m.files["startup.lua"] = 1000000, "return 'good'"
+      local open = m.env.fs.open
+      m.env.fs.open = function(path, mode)
+        if path == "startup.lua.tmp" and failure == "open" then error("open failed") end
+        local h = open(path, mode)
+        if path == "startup.lua.tmp" then
+          h[failure] = function() error(failure .. " failed") end
+        end
+        return h
+      end
+      assert(load(serverCode, "=server.lua", "t", m.env))("install")
+      equal(m.files["startup.lua"], "return 'good'")
+      equal(m.state().log[#m.state().log].kind, "state_error")
+      noTemps(m)
+    end
+  end)
+
+  test("one megabyte server mirrors the real repo once and serves matching root scripts", function()
+    local m = new()
+    m.files, m.capacity = {}, 1000000
+    for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
+    downloads(m, repo)
+    m.start(serverCode)
+    m.advance(#hosted - 1)
+    equal(m.downloads, #hosted)
+    for _, f in ipairs(hosted) do
+      local info = assert(m.state().files[f], "missing " .. f)
+      equal(m.files[info.path], repo[f])
+      equal(info.hash, hashOf(repo[f]))
+      if m.files[f] then equal(m.files["server-code/" .. f], nil, "duplicate root " .. f) end
+    end
+    m.status(42, { type = "status", phase = "mining" })
+    equal(m.state().bots[42].status.phase, "mining")
+    for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do
+      equal(m.request({ type = "get", file = f }).code, repo[f]:sub(1, 12000))
+    end
+    noTemps(m)
+    assert(m.env.fs.getFreeSpace("/") > 65536)
+    assert(table.concat(m.output, "\n"):find("bytes free", 1, true))
+  end)
+
+  test("884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code", function()
+    for _, used in ipairs({ 884000, 884 * 1024 }) do
+      local m = new()
+      m.files, m.capacity = {}, 1000000
+      for _, f in ipairs(hosted) do m.files["server-code/" .. f] = repo[f] end
+      for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
+      if used == 884000 then
+        for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files["server-code/" .. f] = nil end
+      end
+      m.files["server.state"] = mocks.encode({ view3D = true }) .. string.rep(" ", 12000)
+      m.files.padding = string.rep("p", used - m.used())
+      equal(m.used(), used)
+      assert(m.env.fs.getFreeSpace("/") < #repo["roomsorter.lua"])
+      m.files["server-code/roomsorter.lua.tmp"] = repo["roomsorter.lua"]:sub(1, m.env.fs.getFreeSpace("/"))
+      equal(m.env.fs.getFreeSpace("/"), 0)
+      local open = m.env.fs.open
+      m.env.fs.open = function(path, mode)
+        assert(mode ~= "w" or not path:match("^server%-code/"), "rewrote unchanged cache: " .. path)
+        return open(path, mode)
+      end
+      downloads(m, repo)
+      m.start(serverCode)
+      m.advance(#hosted - 1)
+      equal(m.downloads, #hosted)
+      for _, f in ipairs(hosted) do
+        equal(m.files[m.state().files[f].path], repo[f])
+      end
+      m.status(42, { type = "status", status = "still running" })
+      equal(m.state().bots[42].status.status, "still running")
+      noTemps(m)
+      -- A changed roomsorter cannot fit alongside its good copy and the state reserve.
+      m.env.fs.open = open
+      local changed = {}
+      for f, code in pairs(repo) do changed[f] = code end
+      changed["roomsorter.lua"] = repo["roomsorter.lua"] .. "\n-- changed\n"
+      downloads(m, changed)
+      m.advance(317)
+      equal(m.files["server-code/roomsorter.lua"], repo["roomsorter.lua"])
+      equal(m.state().files["roomsorter.lua"].hash, hashOf(repo["roomsorter.lua"]))
+      local found = false
+      for _, e in ipairs(m.state().log) do
+        if e.kind == "code_error" and e.text:find("roomsorter.lua", 1, true) then found = true end
+      end
+      assert(found, "deferred cache write was not logged")
+      m.status(42, { type = "status", status = "saved after disk error" })
+      equal(m.state().bots[42].status.status, "saved after disk error")
+      m.advance(5)
+      assert(table.concat(m.output, "\n"):find("disk full", 1, true))
+      noTemps(m)
+    end
+  end)
+
+  test("state and cache backups survive failed promotion and recover on restart", function()
+    local m = new()
+    m.files["server.state.bak"] = mocks.encode({ view3D = false })
+    m.files["server-code/roomsorter.lua.bak"] = repo["roomsorter.lua"]
+    m.start(serverCode)
+    equal(m.state().view3D, false)
+    equal(m.request({ type = "get", file = "roomsorter.lua" }).hash, hashOf(repo["roomsorter.lua"]))
+    equal(m.files["server.state.bak"], nil)
+    equal(m.files["server-code/roomsorter.lua.bak"], nil)
+    local good, move = m.files["server.state"], m.env.fs.move
+    m.env.fs.move = function(a, b)
+      if b == "server.state" then error("move failed") end
+      return move(a, b)
+    end
+    m.status(5, { type = "status", status = "unsaved" })
+    equal(m.files["server.state"], nil)
+    equal(m.files["server.state.bak"], good)
+    noTemps(m)
+    local restored = new()
+    restored.files = m.files
+    restored.start(serverCode)
+    equal(restored.state().view3D, false)
+    equal(restored.state().bots[5], nil)
+  end)
+
+  test("root scripts changed outside the server are not served with a stale hash", function()
+    local m = new()
+    m.files["miner.lua"] = repo["miner.lua"]
+    downloads(m, repo)
+    m.start(serverCode)
+    equal(m.files["server-code/miner.lua"], nil)
+    m.files["miner.lua"] = "return 'changed'"
+    equal(m.request({ type = "get", file = "miner.lua" }).error, "not cached")
+    m.advance(317)
+    equal(m.files["server-code/miner.lua"], repo["miner.lua"])
+    equal(m.request({ type = "get", file = "miner.lua" }).code, repo["miner.lua"]:sub(1, 12000))
+  end)
+
+  test("cache write failures at open, write, close and move keep old code and leave state writable", function()
+    for _, failure in ipairs({ "write", "close", "open", "move" }) do
+      local m = new()
+      m.files, m.capacity = { ["server-code/miner.lua"] = "return 'good'" }, 1000000
+      downloads(m, repo)
+      local open, move = m.env.fs.open, m.env.fs.move
+      m.env.fs.open = function(path, mode)
+        if path ~= "server-code/miner.lua.tmp" or mode ~= "w" then return open(path, mode) end
+        if failure == "open" then return nil end
+        local h = open(path, mode)
+        if failure == "write" or failure == "close" then
+          m.writeOnClose = failure == "close"
+          m.capacity = m.used() + 10
+        end
+        return h
+      end
+      m.env.fs.move = function(a, b)
+        if failure == "move" and a == "server-code/miner.lua.tmp" then error("move failed") end
+        return move(a, b)
+      end
+      m.start(serverCode)
+      equal(coroutine.status(m.app), "suspended")
+      equal(m.files["server-code/miner.lua"], "return 'good'")
+      equal(m.request({ type = "list" }).files["miner.lua"].hash, hashOf("return 'good'"))
+      noTemps(m)
+      local live = m.request({ type = "state" })
+      local found = false
+      for _, e in ipairs(live.log) do if e.kind == "code_error" then found = true end end
+      assert(found, "missing code_error for " .. failure)
+      m.capacity, m.writeOnClose = 1000000, false
+      m.status(1, { type = "status", status = failure })
+      equal(m.state().bots[1].status.status, failure)
+      noTemps(m)
+    end
+  end)
+
+  test("failed state writes preserve the only good state and persist errors after space returns", function()
+    for _, failure in ipairs({ "preflight", "write", "close", "move" }) do
+      local m = new()
+      m.capacity = 1000000
+      m.start(serverCode)
+      local good, open, move = m.files["server.state"], m.env.fs.open, m.env.fs.move
+      if failure == "preflight" then m.capacity = m.used() end
+      m.env.fs.open = function(path, mode)
+        local h = open(path, mode)
+        if mode == "w" and path == "server.state.tmp" and (failure == "write" or failure == "close") then
+          m.writeOnClose = failure == "close"
+          m.capacity = m.used() + 10
+        end
+        return h
+      end
+      m.env.fs.move = function(a, b)
+        if failure == "move" and a == "server.state.tmp" then error("move failed") end
+        return move(a, b)
+      end
+      m.status(1, { type = "status", status = failure })
+      equal(m.files["server.state"], good)
+      noTemps(m)
+      local live = m.request({ type = "state" })
+      equal(live.log[#live.log].kind, "state_error")
+      m.advance(5)
+      assert(table.concat(m.output, "\n"):find("disk full", 1, true))
+      m.env.fs.open, m.env.fs.move = open, move
+      m.capacity, m.writeOnClose = 1000000, false
+      m.status(1, { type = "status", status = "recovered" })
+      equal(m.state().bots[1].status.status, "recovered")
+      local found = false
+      for _, e in ipairs(m.state().log) do if e.kind == "state_error" then found = true end end
+      assert(found, "state failure was lost")
+    end
+  end)
+
+  test("large status packets and old log text stay bounded across saves and restart", function()
+    local m = new()
+    local large = string.rep("x", 150000)
+    m.files["server.state"] = mocks.encode({ bots = { [2] = { status = { type = "status", extra = large } } },
+      log = { { kind = "error", text = large } } })
+    m.start(serverCode)
+    for i = 1, 210 do
+      m.status(1, { type = "status", status = large, lastError = large .. i, ignored = large,
+        turtles = { { payload = large } }, items = { [large] = 1, coal = 2 } })
+    end
+    local s = m.state()
+    equal(#s.log, 200)
+    equal(#s.bots[1].status.status, 256)
+    equal(s.bots[1].status.ignored, nil)
+    equal(s.bots[1].status.turtles, nil)
+    equal(s.bots[1].status.items, { coal = 2 })
+    equal(s.bots[2].status.extra, nil)
+    assert(#m.files["server.state"] < 65536)
+  end)
 
   test("server clears AR and re-raises Terminated through parallel", function()
     local s = new()

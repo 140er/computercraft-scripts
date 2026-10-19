@@ -11,19 +11,6 @@ local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = 
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
 
-local args = { ... }
-if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("server")\n')
-  h.close()
-  print("Server will now start automatically on boot.")
-  return
-elseif args[1] == "update" then
-  if not fs.exists("update.lua") then shell.run("wget", BASE .. "update.lua", "update.lua") end
-  shell.run("update")
-  return
-end
-
 local function read(path)
   if not fs.exists(path) then return nil end
   local h = fs.open(path, "r")
@@ -33,20 +20,11 @@ local function read(path)
   return s
 end
 
-local function writeFile(path, text)
-  local tmp = path .. ".tmp"
-  local h = assert(fs.open(tmp, "w"), "Cannot write " .. tmp)
-  h.write(text)
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
-end
-
-local state
-for _, path in ipairs({ STATE_FILE, STATE_FILE .. ".tmp" }) do
+local state, stateSource
+for _, path in ipairs({ STATE_FILE, STATE_FILE .. ".bak", STATE_FILE .. ".tmp" }) do
   local s = read(path)
   local t = s and textutils.unserialize(s)
-  if type(t) == "table" then state = t break end
+  if type(t) == "table" then state, stateSource = t, path break end
 end
 state = state or {}
 state.bots, state.log, state.files = state.bots or {}, state.log or {}, state.files or {}
@@ -64,11 +42,103 @@ local function copy(value, parents)
   parents[value] = nil
   return result
 end
-local function save() writeFile(STATE_FILE, textutils.serialize(copy(state), { compact = true })) end
 local function log(kind, id, text)
-  state.log[#state.log + 1] = { at = now(), kind = kind, id = id, text = tostring(text) }
+  state.log[#state.log + 1] = { at = now(), kind = kind, id = id, text = tostring(text):sub(1, 256) }
   while #state.log > 200 do table.remove(state.log, 1) end
 end
+
+local diskFull = false
+local function writeFile(path, text, cache)
+  local tmp, backup, h = path .. ".tmp", path .. ".bak"
+  local ok, err = pcall(function()
+    if stateSource and stateSource ~= STATE_FILE and path == STATE_FILE then
+      if fs.exists(path) then fs.delete(path) end
+      fs.move(stateSource, path)
+      stateSource = STATE_FILE
+    end
+    if fs.exists(tmp) then fs.delete(tmp) end
+    if fs.exists(path) and fs.exists(backup) then fs.delete(backup) end
+    local free = fs.getFreeSpace(path)
+    if type(free) == "number" and free < #text + (cache and 65536 or 1024) then
+      error("disk full: insufficient space", 0)
+    end
+    h = assert(fs.open(tmp, "w"), "Cannot write " .. tmp)
+    h.write(text)
+    h.close()
+    h = nil
+    if fs.exists(path) then
+      fs.move(path, backup)
+    end
+    fs.move(tmp, path)
+    local cleaned, cleanupError = pcall(fs.delete, backup)
+    if not cleaned then
+      diskFull = true
+      log(cache and "code_error" or "state_error", nil, path .. ": " .. tostring(cleanupError))
+    end
+  end)
+  if not ok then
+    if h then pcall(h.close) end
+    pcall(function()
+      if fs.exists(backup) and not fs.exists(path) then fs.move(backup, path) end
+    end)
+    if stateSource ~= tmp then pcall(fs.delete, tmp) end
+    diskFull = true
+    log(cache and "code_error" or "state_error", nil, path .. ": " .. tostring(err))
+  end
+  return ok
+end
+local function save()
+  local ok, text = pcall(function() return textutils.serialize(copy(state), { compact = true }) end)
+  if ok then return writeFile(STATE_FILE, text) end
+  log("state_error", nil, text)
+  return false
+end
+
+local args = { ... }
+if args[1] == "install" then
+  if writeFile("startup.lua", 'shell.run("server")\n') then
+    print("Server will now start automatically on boot.")
+  else
+    print("Could not install startup: disk full or write failed.")
+    save()
+  end
+  return
+elseif args[1] == "update" then
+  if not fs.exists("update.lua") then shell.run("wget", BASE .. "update.lua", "update.lua") end
+  shell.run("update")
+  return
+end
+
+local function trimStatus(p)
+  local t = {}
+  for _, k in ipairs({ "type", "label", "phase", "state", "status", "lastError", "lastErrorAt", "hash",
+    "x", "y", "z", "fuel", "free", "ore", "branch", "step", "level", "branchLen", "reach", "role", "facing" }) do
+    local v = p[k]
+    if type(v) == "string" then t[k] = v:sub(1, 256)
+    elseif type(v) == "number" or type(v) == "boolean" then t[k] = v end
+  end
+  for _, k in ipairs({ "gps", "pos", "shaft" }) do
+    if type(p[k]) == "table" then
+      t[k] = {}
+      for _, axis in ipairs({ "x", "y", "z", "bottom" }) do
+        if type(p[k][axis]) == "number" then t[k][axis] = p[k][axis] end
+      end
+    end
+  end
+  if type(p.items) == "table" then
+    t.items = {}
+    local n = 0
+    for name, count in pairs(p.items) do
+      if type(name) == "string" and #name <= 256 and type(count) == "number" and n < 16 then
+        t.items[name], n = count, n + 1
+      end
+    end
+  end
+  return t
+end
+while #state.log > 200 do table.remove(state.log, 1) end
+for _, e in ipairs(state.log) do e.text = tostring(e.text):sub(1, 256) end
+for _, b in pairs(state.bots) do if b.status then b.status = trimStatus(b.status) end end
 
 local function hashOf(text)
   local h = 5381
@@ -77,15 +147,30 @@ local function hashOf(text)
 end
 
 local known = {}
-fs.makeDir(CODE_DIR)
+local function cacheOp(op, ...)
+  local ok, err = pcall(op, ...)
+  if not ok then diskFull = true log("code_error", nil, err) end
+  return ok
+end
+local cacheOK, cacheFiles = pcall(function() fs.makeDir(CODE_DIR) return fs.list(CODE_DIR) end)
+if not cacheOK then diskFull = true log("code_error", nil, cacheFiles) end
+for _, f in ipairs(cacheOK and cacheFiles or {}) do
+  if f:match("%.tmp$") then cacheOp(fs.delete, CODE_DIR .. "/" .. f) end
+end
 for _, f in ipairs(FILES) do
   known[f] = true
-  local code = read(CODE_DIR .. "/" .. f) or read(CODE_DIR .. "/" .. f .. ".tmp")
+  local path = CODE_DIR .. "/" .. f
+  if not fs.exists(path) and fs.exists(path .. ".bak") then cacheOp(fs.move, path .. ".bak", path) end
+  local code, root = read(path), read(f)
+  if root and root ~= "" and load(root, "=" .. f) and (not code or hashOf(root) == hashOf(code)) then
+    code, path = root, f
+    cacheOp(fs.delete, CODE_DIR .. "/" .. f)
+  end
   local old = state.files[f]
   state.files[f] = nil
   if code and code ~= "" and load(code, "=" .. f) then
-    writeFile(CODE_DIR .. "/" .. f, code)
-    state.files[f] = { hash = hashOf(code), size = #code, fetched = old and old.fetched or 0 }
+    cacheOp(fs.delete, CODE_DIR .. "/" .. f .. ".bak")
+    state.files[f] = { hash = hashOf(code), size = #code, fetched = old and old.fetched or 0, path = path }
   end
 end
 
@@ -98,11 +183,16 @@ local function mirror(f)
     log("code_error", nil, f .. ": " .. tostring(err or "broken download"))
   else
     local hash = hashOf(code)
-    if not state.files[f] or state.files[f].hash ~= hash then
-      writeFile(CODE_DIR .. "/" .. f, code)
+    local root, path = read(f), CODE_DIR .. "/" .. f
+    if root and hashOf(root) == hash then
+      path = f
+      cacheOp(fs.delete, CODE_DIR .. "/" .. f)
+    elseif not state.files[f] or state.files[f].hash ~= hash or state.files[f].path ~= path
+      or not fs.exists(path) then
+      if not writeFile(path, code, true) then save() return end
       log("code", nil, f .. " " .. hash)
     end
-    state.files[f] = { hash = hash, size = #code, fetched = now() }
+    state.files[f] = { hash = hash, size = #code, fetched = now(), path = path }
   end
   save()
 end
@@ -145,10 +235,11 @@ local function status(id, p, proto, seen)
   arDirty = true
   local err = p.lastError or p.err
   if err and err ~= b.error then log("error", id, err) end
-  b.lastSeen, b.status, b.error = seen, p, err
-  b.position = copy(p.gps) or (p.x and p.z and { x = p.x, y = p.y, z = p.z })
-  b.localPosition = copy(p.pos)
-  b.hash = p.hash or b.hash
+  b.lastSeen, b.status, b.error = seen, trimStatus(p), type(err) == "string" and err:sub(1, 256) or nil
+  b.position = copy(b.status.gps) or (b.status.x and b.status.z
+    and { x = b.status.x, y = b.status.y, z = b.status.z })
+  b.localPosition = copy(b.status.pos)
+  b.hash = b.status.hash or b.hash
   if kind == "hub" and type(p.turtles) == "table" then
     for _, t in ipairs(p.turtles) do
       if type(t) == "table" and type(t.id) == "number" and type(t.age) == "number" then
@@ -186,7 +277,8 @@ local function request(id, m)
     local info = state.files[m.file]
     if offset == 0 and not info then mirror(m.file) end
     info = state.files[m.file]
-    local code = info and read(CODE_DIR .. "/" .. m.file)
+    local code = info and (read(info.path) or read(info.path .. ".bak"))
+    if code and hashOf(code) ~= info.hash then code = nil end
     local b = state.bots[id] or bot(id, "client", PROTOCOL)
     local kind = m.file:gsub("%.lua$", "")
     if b.kind == "client" and kind ~= "install" and kind ~= "update" then b.kind = kind end
@@ -352,10 +444,11 @@ local function draw()
   local lines = { "Fleet server #" .. os.getComputerID(),
     online .. " online / " .. stale .. " stale / " .. lost .. " LOST",
     "Code: " .. nfiles .. "/" .. #FILES .. " main files",
-    "server.lua: " .. ((state.files["server.lua"] or {}).hash or "not cached") }
+    "server.lua: " .. ((state.files["server.lua"] or {}).hash or "not cached"),
+    "Disk: " .. tostring(fs.getFreeSpace(STATE_FILE)) .. " bytes free" .. (diskFull and " | disk full" or "") }
   for i = #state.log, 1, -1 do
     local e = state.log[i]
-    if e.kind == "error" or e.kind == "code_error" then
+    if e.kind == "error" or e.kind == "code_error" or e.kind == "state_error" then
       lines[#lines + 1] = tostring(e.id or "code") .. ": " .. e.text
       if #lines >= h then break end
     end

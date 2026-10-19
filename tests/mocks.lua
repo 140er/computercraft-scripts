@@ -114,15 +114,47 @@ function M.new(attached, state)
     formatTime = function() return "12:00" end,
   }
   m.files = { ["hub.state"] = M.encode(state or {}) }
+  function m.used()
+    local n = 0
+    for _, text in pairs(m.files) do n = n + #text end
+    return n
+  end
   env.fs = {
     exists = function(path) return m.files[path] ~= nil end,
     delete = function(path) m.files[path] = nil end,
     move = function(from, to) m.files[to], m.files[from] = m.files[from], nil end,
+    getFreeSpace = function() return (m.capacity or math.huge) - m.used() end,
+    makeDir = function() end,
+    list = function(path)
+      local files = {}
+      for name in pairs(m.files) do
+        local child = name:sub(#path + 2)
+        if name:sub(1, #path + 1) == path .. "/" and not child:find("/", 1, true) then
+          files[#files + 1] = child
+        end
+      end
+      table.sort(files)
+      return files
+    end,
     open = function(path, mode)
+      local pending
+      if mode == "w" then m.files[path] = "" end
+      local function write(text)
+        local free = env.fs.getFreeSpace(path)
+        if #text > free then
+          m.files[path] = m.files[path] .. text:sub(1, math.max(0, free))
+          error("Out of space", 0)
+        end
+        m.files[path] = m.files[path] .. text
+      end
       return {
         readAll = function() return assert(m.files[path], path) end,
-        write = function(text) m.files[path] = text end,
-        close = function() end,
+        write = function(text)
+          if m.writeOnClose then pending = (pending or "") .. text else write(text) end
+        end,
+        close = function()
+          if pending then local text = pending pending = nil write(text) end
+        end,
       }
     end,
   }
