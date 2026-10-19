@@ -105,6 +105,8 @@ function M.new(attached, state)
   m.files = { ["hub.state"] = M.encode(state or {}) }
   env.fs = {
     exists = function(path) return m.files[path] ~= nil end,
+    delete = function(path) m.files[path] = nil end,
+    move = function(from, to) m.files[to], m.files[from] = m.files[from], nil end,
     open = function(path, mode)
       return {
         readAll = function() return assert(m.files[path], path) end,
@@ -175,6 +177,75 @@ function M.new(attached, state)
   end
   function m.status(id, packet) m.push("rednet_message", id, packet, "minearmy") end
   m.env = env
+  return m
+end
+
+function M.miner(cfg, state)
+  local m = M.new(false)
+  m.files["miner.cfg"], m.files["miner.state"] = M.encode(cfg), M.encode(state or {})
+  m.world, m.dug, m.inventory = {}, {}, {}
+  m.pos = { x = cfg.home.x, y = cfg.home.y, z = cfg.home.z }
+  m.heading, m.fuel, m.selected = cfg.facing, 7000, 1
+  local dx, dy, dz = { [0] = 0, 1, 0, -1, 0, 0 }, { [0] = 0, 0, 0, 0, 1, -1 }, { [0] = -1, 0, 1, 0, 0, 0 }
+  function m.key(d)
+    return (m.pos.x + (d and dx[d] or 0)) .. "," .. (m.pos.y + (d and dy[d] or 0))
+      .. "," .. (m.pos.z + (d and dz[d] or 0))
+  end
+  local function inspect(d)
+    local name = m.world[m.key(d)]
+    if name then return true, { name = name } end
+    return false, "No block to inspect"
+  end
+  local function move(d)
+    if m.beforeMove then m.beforeMove(d) end
+    if m.world[m.key(d)] then return false, "Movement obstructed" end
+    if m.blockMove then return false, m.blockMove end
+    m.pos.x, m.pos.y, m.pos.z = m.pos.x + dx[d], m.pos.y + dy[d], m.pos.z + dz[d]
+    if m.fuel ~= "unlimited" then m.fuel = m.fuel - 1 end
+    if m.afterMove then m.afterMove(d) end
+    return true
+  end
+  local function dig(d)
+    local key = m.key(d)
+    if not m.world[key] then return false end
+    m.dug[#m.dug + 1] = { key = key, name = m.world[key] }
+    m.world[key] = nil
+    return true
+  end
+  local function place(d)
+    local item = m.inventory[m.selected]
+    if not item or m.world[m.key(d)] then return false end
+    m.world[m.key(d)] = item.name
+    item.count = item.count - 1
+    return true
+  end
+  local function turn(n)
+    if m.failTurn then return false, "Turn obstructed" end
+    m.heading = (m.heading + n) % 4
+    if m.afterTurn then m.afterTurn() end
+    return true
+  end
+  m.env.turtle = {
+    select = function(s) m.selected = s end, getSelectedSlot = function() return m.selected end,
+    getFuelLevel = function() return m.fuel end, getFuelLimit = function() return 20000 end,
+    getItemDetail = function(s) local i = m.inventory[s] if i and i.count > 0 then return i end end,
+    getItemCount = function(s) return m.inventory[s] and m.inventory[s].count or 0 end,
+    refuel = function() return false end,
+    turnRight = function() return turn(1) end, turnLeft = function() return turn(3) end,
+    forward = function() return move(m.heading) end, back = function() return move((m.heading + 2) % 4) end,
+    up = function() return move(4) end, down = function() return move(5) end,
+    inspect = function() return inspect(m.heading) end,
+    inspectUp = function() return inspect(4) end, inspectDown = function() return inspect(5) end,
+    detectUp = function() return m.world[m.key(4)] ~= nil end,
+    detectDown = function() return m.world[m.key(5)] ~= nil end,
+    dig = function() return dig(m.heading) end, digUp = function() return dig(4) end,
+    digDown = function() return dig(5) end,
+    place = function() return place(m.heading) end, placeUp = function() return place(4) end,
+    placeDown = function() return place(5) end,
+    attack = function() end, attackUp = function() end, attackDown = function() end, dropDown = function() end,
+  }
+  m.env.sleep = function() end
+  m.env.os.date = function() return "test" end
   return m
 end
 

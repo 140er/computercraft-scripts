@@ -438,8 +438,8 @@ local function inReach(x, z)
 end
 local SPINE = cfg.spine
 local BRANCH = (SPINE + 1) % 4
--- the hub keeps tunnel progress per role; a second site (e.g. from the turtle factory) has its own
 local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
+local PROGRESS_KEY = not cfg.loc and ("shaft:" .. SHAFT.x .. "," .. SHAFT.z .. ":" .. ROLE) or ROLE
 
 if args[1] == "home" then
   -- Manual recovery: the turtle is (back) on its home spot, facing its hole.
@@ -478,6 +478,9 @@ st.total = st.total or {}
 local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
+local function worldShaft()
+  if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
+end
 
 local status = "Starting"
 local recall = false
@@ -512,7 +515,7 @@ local function packet()
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
-    shaft = not cfg.loc and { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } or nil,
+    shaft = worldShaft(),
     reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
@@ -1822,7 +1825,7 @@ local function request(msg, replyType, timeout)
 end
 
 local function askHub()
-  return request({ type = "job?", id = os.getComputerID(), role = ROLE, hash = MY_HASH }, "job")
+  return request({ type = "job?", id = os.getComputerID(), role = ROLE, shaft = worldShaft(), hash = MY_HASH }, "job")
 end
 
 -- Fetch a new miner.lua from the hub, verify it, save it and reboot.
@@ -1848,7 +1851,7 @@ end
 local function report(haul)
   if not (radio and hubId) then return end
   pcall(rednet.send, hubId, {
-    type = "report", id = os.getComputerID(), role = ROLE, haul = haul,
+    type = "report", id = os.getComputerID(), role = ROLE, shaft = worldShaft(), haul = haul,
     progress = { levels = st.levels, shaft = st.shaft }, bore = st.boreEnd,
   }, PROTOCOL)
 end
@@ -1864,7 +1867,7 @@ local function getJob()
   if reply then
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     updateWanted = false
-    mergeProgress(reply.progress)
+    if reply.progressKey == PROGRESS_KEY or (cfg.loc and reply.progressKey == nil) then mergeProgress(reply.progress) end
     if type(reply.bore) == "table" and not reply.paused then
       -- Tunnel job. One that already ended (done, or stopped by something) is not retried
       if st.boreEnd and st.boreEnd.n == reply.bore.n then return nil, st.boreEnd.why end
