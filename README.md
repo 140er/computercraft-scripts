@@ -238,7 +238,7 @@ IDs/text are strings, color is signed Java int ARGB, centered is boolean. 3D coo
 
 Tom's Peripherals 1.3.1 GPU 3D renders into its own monitor buffer and needs a separate camera/rendering path; it is not supported here.
 
-Tested with Lua 5.2 mocks: run `lua tests/run.lua` from the repo root with Lua 5.2 and Git installed. Tests cover geometry, telemetry, toggles, HUD, hotplug, errors, hub loss and restart recovery, live ownership and burst redraw limits. No-controller output is compared against `git show main:hub.lua`. Label readability, terrain occlusion, HUD placement and actual refresh cost still need an in-game check.
+See [Testing](#testing) for mock tests and the CraftOS-PC sandbox. Label readability, terrain occlusion, HUD placement and actual refresh cost still need an in-game check.
 
 ### Info screen (second monitor)
 Put a normal (grey) monitor next to the hub and reboot the hub. Normal monitors can't be tapped, so they always get the info screen; the biggest advanced monitor gets the dashboard. A 1x1 monitor gets a compact version:
@@ -838,6 +838,24 @@ Keep the tower's chunk loaded (build it at your base). What the map uses:
 - The **pocket computer** asks GPS while the Map tab is open, for the `@` and the distances.
 
 ---
+
+## Testing
+
+Run `lua tests/run.lua` from the repo root with Lua 5.2 and Git installed. The mock tests cover geometry, telemetry, toggles, HUD, hotplug, errors, hub loss and restart recovery, ownership, redraw limits and disk failures. No-controller output is compared against `git show main:hub.lua`.
+
+### Sandbox
+
+Every change must pass the real CC sandbox before it lands on main, as well as the mock tests. From the repo root on Windows:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox\run.ps1
+```
+
+This downloads official CraftOS-PC v2.8.3 portable into `%LOCALAPPDATA%\computercraft-sandbox` and boots server, hub and an idle miner on three computers with native emulated modems. It uses local repo files, including unpushed edits, standards mode, HTTP for the server mirror and a 1,000,000-byte disk per computer. Each program runs for 30 seconds. Lua errors, early exits, crashes, timeouts and missing rednet traffic fail the command. It prints per-computer results and keeps logs and disks in the reported artifacts directory.
+
+Use `-Seconds 60` for a longer run, `-Source C:\path\to\checkout` for another local source, or `-CraftOS C:\path\to\CraftOS-PC_console.exe` (also `CRAFTOS_PC`) for an existing portable install. Scripts are copied onto the emulated disks with LF line endings so the Windows checkout matches HTTP downloads.
+
+CraftOS-PC has no built-in turtle. The miner uses a small idle-home turtle fixture; GPS, the modem's wireless flag and AR controller draw calls are stubbed. This does not cover mining physics, Minecraft radio range, chunk loading or real goggles. Those still need Minecraft checks.
 
 ## License
 
