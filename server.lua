@@ -195,7 +195,7 @@ local function request(id, m)
         status(tid, t.p, "minearmy", now() - math.max(0, t.age) * 1000)
         local ore = (m.hub.overrides or {})[tid]
         if ore == nil then ore = m.hub.target end
-        state.bots[tid].assignment = { ore = ore, recall = m.hub.recallAll, bore = copy(m.hub.bores[tid]) }
+        state.bots[tid].assignment = { ore = ore, recall = m.hub.recallAll, bore = copy((m.hub.bores or {})[tid]) }
       end
     end
     save()
