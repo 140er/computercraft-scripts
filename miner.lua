@@ -305,10 +305,13 @@ if args[1] == "setup" then
   --   miner setup <y> [role]                    no GPS: only its height; its own home is
   --                                             x 0 z 0, facing "north" = the way it faces
   -- role = direction of its main tunnel; without GPS also forward/right/back/left.
-  local n = {}
-  for i = 2, #args do if tonumber(args[i]) then n[#n + 1] = tonumber(args[i]) end end
-  local words = {}
-  for i = 2, #args do if not tonumber(args[i]) then words[#words + 1] = args[i]:lower() end end
+  -- Leave it out (or "auto") and the hub hands one out. name=<name> sets its label.
+  local n, words, name = {}, {}, nil
+  for i = 2, #args do
+    if args[i]:lower():find("^name=") then name = args[i]:sub(6)
+    elseif tonumber(args[i]) then n[#n + 1] = tonumber(args[i])
+    else words[#words + 1] = args[i]:lower() end
+  end
   local REL = { forward = 0, right = 1, back = 2, left = 3 }
   local hx, hy, hz, facing, role, loc
   if words[1] == "hub" then
@@ -316,7 +319,8 @@ if args[1] == "setup" then
     -- from 3 spots (here, one step into the hole, one down the hole) to find where
     -- the hub is from here; with the facing that gives the world position.
     facing = DIRS[words[2] or ""]
-    role = DIRS[words[3] or ""]
+    if words[3] == "left" or words[3] == "right" then table.insert(words, 3, "auto") end
+    role = DIRS[words[3] or "auto"] or (not words[3] or words[3] == "auto") and "auto"
     local side = (words[4] == "left") and -1 or 1
     local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
     local function hubDist()
@@ -330,7 +334,7 @@ if args[1] == "setup" then
       end
     end
     if not (facing and role) then
-      print("Usage: miner setup hub <facing> <role> [left|right]")
+      print("Usage: miner setup hub <facing> [role] [left|right]")
       print("  facing: the way it faces (F3), role: its main tunnel")
       print("  left/right: which side of the turtle the hub is on")
       return
@@ -360,10 +364,10 @@ if args[1] == "setup" then
       .. math.abs(ly) .. (ly < 0 and " down." or " up."))
   elseif #n >= 3 then
     hx, hy, hz = n[1], n[2], n[3]
-    facing, role = DIRS[words[1] or ""], DIRS[words[2] or ""]
+    facing, role = DIRS[words[1] or ""], DIRS[words[2] or "auto"] or (not words[2] or words[2] == "auto") and "auto"
   elseif #n == 1 then
     hx, hy, hz, facing, loc = 0, n[1], 0, 0, true
-    role = DIRS[words[1] or "east"] or REL[words[1] or ""]
+    role = DIRS[words[1] or "auto"] or REL[words[1] or ""] or (not words[1] or words[1] == "auto") and "auto"
   elseif gps then
     -- GPS: where it is, and which way it faces (one step into its hole and back)
     local function fix()
@@ -376,18 +380,20 @@ if args[1] == "setup" then
       turtle.back()
       for d = 0, 3 do if x and DX[d] == x - hx and DZ[d] == z - hz then facing = d end end
     end
-    role = DIRS[words[1] or "east"] or (facing and REL[words[1]] and (facing + REL[words[1]]) % 4)
+    role = DIRS[words[1] or "auto"] or (facing and REL[words[1] or ""] and (facing + REL[words[1]]) % 4)
+      or (not words[1] or words[1] == "auto") and "auto"
     if hx and not facing then print("GPS works, but it couldn't step into its hole to see which way it faces.") end
   end
   if not (hx and hy and hz and facing and role) then
     print("Usage:")
     print("  miner setup <y> [role]     no GPS: just its height (F3)")
     print("  miner setup [role]         with GPS")
-    print("  miner setup hub <facing> <role> [left|right]")
-    print("  miner setup <x> <y> <z> <facing> <role>")
-    print("role: the direction of its main tunnel. Give every")
-    print("turtle a different one: north/east/south/west")
-    print("(no GPS: also forward/right/back/left)")
+    print("  miner setup hub <facing> [role] [left|right]")
+    print("  miner setup <x> <y> <z> <facing> [role]")
+    print("role: the direction of its main tunnel, north/east/")
+    print("south/west (no GPS: also forward/right/back/left).")
+    print("Leave it out and the hub picks one.")
+    print("Add name=<name> to give it a name.")
     return
   end
   -- Its chest: behind it, or else to its right or left (the hole is in front)
@@ -402,21 +408,25 @@ if args[1] == "setup" then
   end
   if not chest then print("WARNING: no chest next to the turtle (behind, left or right)!")
   elseif chests > 1 then print("WARNING: more than one chest next to it. Keep one, or it can get confused about its direction.") end
+  if role == "auto" then role = nil end -- the hub hands out a direction on the first start
   saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc, chest = chest })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
   local h = fs.open("startup.lua", "w")
   h.write('shell.run("miner")\n')
   h.close()
-  os.setComputerLabel("Miner-" .. DIRNAME[role])
+  os.setComputerLabel(name and name ~= "" and name:sub(1, 32)
+    or (role and ("Miner-" .. DIRNAME[role]) or ("Miner-" .. os.getComputerID())))
   if loc then
     print("Saved. Height " .. hy .. ", its own home is x 0 z 0, facing 'north'.")
-    print("Main tunnel " .. ({ [0] = "forward", "to its right", "backward", "to its left" })[role]
-      .. " (" .. DIRNAME[role] .. ")")
+    print(role and ("Main tunnel " .. ({ [0] = "forward", "to its right", "backward", "to its left" })[role]
+      .. " (" .. DIRNAME[role] .. ")") or "Main tunnel: the hub picks it on the first start")
     print("No GPS: it won't show on the pocket's map.")
   else
     print("Saved. Home " .. hx .. "," .. hy .. "," .. hz .. " facing " .. DIRNAME[facing])
-    print("Main tunnel " .. DIRNAME[role] .. ", branches " .. DIRNAME[(role + 1) % 4])
+    print(role and ("Main tunnel " .. DIRNAME[role] .. ", branches " .. DIRNAME[(role + 1) % 4])
+      or "Main tunnel: the hub picks it on the first start")
   end
+  print("Name: " .. os.getComputerLabel())
   print("Start with: miner   (or reboot the turtle)")
   return
 end
@@ -432,6 +442,30 @@ local HOME = cfg.home
 cfg.chest = cfg.chest or OPP[cfg.facing]
 -- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
+if not cfg.spine then
+  -- Set up without a direction: the hub hands one out (and keeps it for this turtle)
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then error("No direction set and no wireless modem to ask the hub. Run: miner setup <role>", 0) end
+  rednet.open(peripheral.getName(modem))
+  print("Asking the hub which way to mine...")
+  while not cfg.spine do
+    local hubAt = rednet.lookup(PROTOCOL, "hub")
+    if hubAt then
+      rednet.send(hubAt, { type = "dir?", id = os.getComputerID(), label = os.getComputerLabel(),
+        shaft = not cfg.loc and { x = SHAFT.x, z = SHAFT.z } or nil }, PROTOCOL)
+      local untilT = os.clock() + 3
+      repeat
+        local from, r = rednet.receive(PROTOCOL, math.max(0.1, untilT - os.clock()))
+        if from == hubAt and type(r) == "table" and r.type == "dir" and (DIRS[r.dir or ""] or 9) < 4 then
+          cfg.spine = DIRS[r.dir]
+        end
+      until cfg.spine or os.clock() >= untilT
+    end
+    if not cfg.spine then print("No answer from the hub (is it running?), trying again") sleep(5) end
+  end
+  saveTable(CFG_FILE, cfg)
+  print("The hub says: main tunnel " .. DIRNAME[cfg.spine])
+end
 local reach = C.REACH -- set per trip from the hub's job
 local function inReach(x, z)
   return math.abs(x - SHAFT.x) <= reach and math.abs(z - SHAFT.z) <= reach
@@ -1890,6 +1924,17 @@ local function getJob()
   if reply then
     if type(reply.update) == "string" and reply.update ~= MY_HASH then selfUpdate(reply.update) end
     updateWanted = false
+    -- The hub gave it another direction: start over in the new quarter (the shaft stays)
+    local nd = type(reply.dir) == "string" and DIRS[reply.dir]
+    if nd and nd < 4 and nd ~= cfg.spine and st.phase == "home" then
+      cfg.spine = nd
+      saveTable(CFG_FILE, cfg)
+      st.levels, st.job = {}, nil
+      save()
+      setStatus("New direction from the hub: " .. DIRNAME[nd] .. ", restarting")
+      sleep(1)
+      os.reboot()
+    end
     if reply.progressKey == PROGRESS_KEY or (cfg.loc and reply.progressKey == nil) then mergeProgress(reply.progress) end
     if type(reply.bore) == "table" and not reply.paused then
       -- Tunnel job. One that already ended (done, or stopped by something) is not retried
@@ -2514,6 +2559,9 @@ local function listener()
       if (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
         if b.from then hubId = b.from end
         recall = (b.type == "recall")
+        publish(true)
+      elseif b.type == "rename" and b.target == os.getComputerID() and type(b.name) == "string" and b.name ~= "" then
+        os.setComputerLabel(b.name:sub(1, 32))
         publish(true)
       elseif b.type == "update" and type(b.hash) == "string" and b.hash ~= MY_HASH then
         if b.from then hubId = b.from end

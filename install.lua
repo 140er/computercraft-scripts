@@ -350,15 +350,18 @@ local BOTS = {
         when = function(c) return c.how == "hub" end },
       { ask = "y", kind = "number", q = "Its own spot is home (x 0 z 0). Only its height: press F3, look at the turtle. Y:",
         when = function(c) return c.how == "here" end },
-      { ask = "role", choices = ROLES, when = function(c) return c.how ~= "here" end,
-        q = "Its role = the direction of its main tunnel. Give every turtle a different one, so they each mine their own quarter." },
+      { ask = "role", choices = { { "auto", "Let the hub pick" }, table.unpack(ROLES) }, when = function(c) return c.how ~= "here" end,
+        q = "Its role = the direction of its main tunnel. Let the hub pick one (you can change it on the hub or the pocket later), or pick it yourself: give every turtle a different one, so they each mine their own quarter." },
       { ask = "role", when = function(c) return c.how == "here" end,
-        choices = { { "right", "To its right" }, { "left", "To its left" }, { "forward", "Straight ahead" }, { "back", "Backward (under the chest)" } },
-        q = "Which way should its main tunnel go? Turtles standing next to each other: give each a different one." },
+        choices = { { "auto", "Let the hub pick" }, { "right", "To its right" }, { "left", "To its left" }, { "forward", "Straight ahead" }, { "back", "Backward (under the chest)" } },
+        q = "Which way should its main tunnel go? Let the hub pick, or pick it: turtles standing next to each other each need a different one." },
+      { ask = "name", optional = true,
+        q = "A name for this miner, shown on the hub and the pocket (you can rename it there later). Empty = Miner-<number>." },
       { run = function(c)
-          if c.gps then return { "miner", "setup", c.role } end
-          if c.how == "hub" then return { "miner", "setup", "hub", c.facing, c.role, c.side } end
-          return { "miner", "setup", c.y, c.role }
+          local name = c.name and ('"name=' .. c.name:gsub('"', "") .. '"') or nil
+          if c.gps then return { "miner", "setup", c.role, name } end
+          if c.how == "hub" then return { "miner", "setup", "hub", c.facing, c.role, c.side, name } end
+          return { "miner", "setup", c.y, c.role, name }
         end },
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
