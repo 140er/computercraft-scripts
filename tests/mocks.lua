@@ -15,6 +15,7 @@ end
 -- Only the bytecode-verified methods used by the hub are exposed.
 local specs = {
   clear = {}, update = {},
+  drawText2D = { "string", "int", "int", "int", "string", "boolean" },
   drawLine3D = { "string", "int", "number", "number", "number", "number", "number", "number" },
   drawText3D = { "string", "int", "number", "number", "number", "number", "number", "number", "string", "boolean" },
 }

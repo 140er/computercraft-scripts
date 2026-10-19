@@ -8,12 +8,13 @@
 -- Controls: tap an ore -> the whole fleet goes mining for it.
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
--- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, q quit.
+-- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v 3D, q quit.
 -- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
 -- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
+local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
@@ -473,6 +474,16 @@ local function ids()
   return l
 end
 
+local ar = peripheral.find("ar_controller")
+local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
+
+local function toggle3D()
+  view3D = not view3D
+  local h = fs.open(VIEW_FILE, "w")
+  h.write(textutils.serialize({ enabled = view3D }))
+  h.close()
+end
+
 local function draw(s)
   local t = s.t
   local W, H = t.getSize()
@@ -585,6 +596,11 @@ local function draw(s)
     local cx = math.max(x, W - #label + 1)
     button(cx, y, label:sub(1, W - cx + 1), active and colors.black or colors.white, active and colors.lime or colors.gray,
       function() wantAsk = true end)
+  end
+
+  if ar then
+    y = y + 2
+    button(1, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
   end
 
   -- Session timer
@@ -840,8 +856,6 @@ local function drawInfo(s)
   end
 end
 
-local ar = peripheral.find("ar_controller")
-
 local function coordinate(n)
   return type(n) == "number" and n == n and math.abs(n) < math.huge
 end
@@ -851,8 +865,10 @@ local function draw3D()
   -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
   local ok = pcall(function()
     ar.clear()
+    ar.drawText2D("view", (view3D and 0x55FF55 or 0x999999) - 0x1000000, 4, 4,
+      view3D and "3D: AAN" or "3D: UIT", false)
     local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
-    for id, r in pairs(turtles) do
+    for id, r in pairs(view3D and turtles or {}) do
       local p = r.p
       if coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
         local key = "turtle:" .. id
@@ -1292,6 +1308,7 @@ local function uiLoop()
       elseif a == "a" then selected = nil
       elseif a == "u" then releaseUpdate()
       elseif a == "c" then wantAsk = true
+      elseif a == "v" and ar then toggle3D()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1302,7 +1319,7 @@ local function uiLoop()
       if prev and prev ~= ar then
         pcall(function() prev.clear() prev.update() end)
       end
-      draw3D()
+      if prev ~= ar then redraw() else draw3D() end
     end
     if wantAsk then
       wantAsk = false
