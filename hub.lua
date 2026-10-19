@@ -1000,7 +1000,12 @@ local function draw3D()
   end
 end
 
+local serverDirty = false
 local function redraw()
+  if serverDirty then
+    if serverAR and type(serverView) == "boolean" then view3D = serverView end
+    serverDirty = false
+  end
   for _, s in ipairs(screens) do
     if s.info then drawInfo(s) else draw(s) end
   end
@@ -1347,9 +1352,8 @@ local function serverLoop()
       serverARSeen = serverSeen
       serverARUntil = nowMs() + 10000
       serverAR = m.arOwner == true
-      if serverAR and type(m.view3D) == "boolean" then view3D = m.view3D end
+      serverView, serverDirty = m.view3D, true
       if m.rid then pending[m.rid] = nil end
-      redraw()
     elseif ev == "timer" and id == timer then
       tick = tick + 1
       for rid, p in pairs(pending) do

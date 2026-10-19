@@ -404,6 +404,42 @@ return function(test, equal, read, mocks)
     return m
   end
 
+  test("server clears AR and re-raises Terminated through parallel", function()
+    local s = new()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    s.advance(1)
+    assert(frame(s)["turtle:1"])
+    local frames, calls = #s.frames, #s.arCalls
+    local ok, err = coroutine.resume(s.app, "terminate")
+    equal(ok, false)
+    equal(err, "Terminated")
+    equal(coroutine.status(s.app), "dead")
+    equal(#s.frames, frames + 1)
+    equal(frame(s), {})
+    equal(#s.arCalls, calls + 2)
+    equal(s.arCalls[calls + 1].method, "clear")
+    equal(s.arCalls[calls + 2].method, "update")
+  end)
+
+  test("hub batches server acks into the existing timer frames", function()
+    local s = new()
+    s.start(serverCode)
+    local h = connect(s, true)
+    for _ = 1, 3 do
+      local frames, output = #h.frames, #h.output
+      for _ = 1, 20 do
+        h.push("rednet_message", 99, { type = "ack", arOwner = false, view3D = true }, "fleetserver")
+      end
+      equal(#h.frames, frames, "acks drew before the timer")
+      equal(#h.output, output, "acks redrew the dashboard")
+      h.advance(1)
+      equal(#h.frames, frames + 1, "acks added frames beyond the timer")
+      assert(frame(h).view)
+    end
+  end)
+
   test("server batches message bursts into one frame per second and refreshes stale colors", function()
     local s = new()
     s.attached = true
@@ -458,7 +494,7 @@ return function(test, equal, read, mocks)
     end
   end)
 
-  test("server restart with a saved dead hub resumes AR after one grace window", function()
+  test("server restart with a saved dead hub clears once and resumes AR after one grace window", function()
     local s = new()
     s.attached = true
     s.start(serverCode)
@@ -467,8 +503,11 @@ return function(test, equal, read, mocks)
     local restored = new()
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
+    equal(restored.arCalls, { { method = "clear", args = {} }, { method = "update", args = {} } })
+    equal(#restored.frames, 1)
+    equal(frame(restored), {})
     restored.advance(20)
-    equal(restored.arCalls, {}, "saved hub grace ended before the fallback window")
+    equal(#restored.arCalls, 2, "saved hub grace ended before the fallback window")
     restored.advance(1)
     assert(frame(restored)["turtle:1"], "saved dead hub permanently blocked AR after restart")
     equal(restored.state().arHub, nil)
@@ -624,6 +663,7 @@ return function(test, equal, read, mocks)
     equal(h.sent[#h.sent].msg.type, "ar_toggle")
     h.exchange()
     equal(s.state().view3D, false)
+    h.advance(1)
     local x, y, button
     for _, line in ipairs(h.output) do
       local p = decode(line)
@@ -652,7 +692,9 @@ return function(test, equal, read, mocks)
     h.advance(1)
     assert(frame(h)["turtle:1"], "owner timeout did not resume local AR")
     h.exchange()
+    h.advance(1)
     equal(frame(h), {}, "recovered owner did not clear fallback frame")
+    h.exchange()
     s.advance(1)
     assert(frame(s)["turtle:1"], "server did not resume after the hub cleared")
     local calls = #h.arCalls
@@ -673,7 +715,9 @@ return function(test, equal, read, mocks)
     equal(s.arCalls, {}, "server drew before the hub relinquished")
     h.advance(5)
     h.exchange()
+    h.advance(1)
     equal(frame(h), {})
+    h.exchange()
     s.advance(1)
     assert(frame(s)["turtle:1"], "server did not draw after ready acknowledgement")
   end)
@@ -738,12 +782,14 @@ return function(test, equal, read, mocks)
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
     restored.advance(1)
-    equal(restored.arCalls, {}, "restarted server drew over the hub fallback")
+    equal(#restored.arCalls, 2, "restarted server drew over the hub fallback")
+    equal(frame(restored), {})
     local mirror
     for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
     local ack = restored.request(mirror)
-    equal(restored.arCalls, {})
+    equal(#restored.arCalls, 2)
     h.push("rednet_message", 99, ack, "fleetserver")
+    h.advance(1)
     equal(frame(h), {})
     equal(h.sent[#h.sent].msg.type, "ar_ready")
     restored.request(h.sent[#h.sent].msg)
@@ -761,11 +807,13 @@ return function(test, equal, read, mocks)
     s.push("peripheral_detach", "arbitrary_controller_name")
     h.advance(5)
     h.exchange()
+    h.advance(1)
     assert(frame(h)["turtle:1"], "server controller loss did not resume local AR")
     s.attached = true
     s.push("peripheral", "arbitrary_controller_name")
     h.advance(5)
     h.exchange()
+    h.advance(1)
     equal(frame(h), {})
     local calls = #h.arCalls
     h.advance(5)

@@ -113,6 +113,7 @@ rednet.open(peripheral.getName(modem))
 rednet.host(PROTOCOL, "server")
 
 local ar = peripheral.find("ar_controller")
+if ar then pcall(function() ar.clear() ar.update() end) end
 local arHub, arUntil, arDrawn = state.arHub, 0, false
 local arSeen, arDirty, arLastDraw = now(), true, 0
 
@@ -412,4 +413,6 @@ end
 
 log("start", os.getComputerID(), "server")
 save()
-parallel.waitForAny(network, refresh)
+local ok, err = pcall(parallel.waitForAny, network, refresh)
+if ar then pcall(function() ar.clear() ar.update() end) end
+if not ok then error(err, 0) end
