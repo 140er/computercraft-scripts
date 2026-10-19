@@ -366,7 +366,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua" }, start = { "hub" },
+    files = { "hub.lua", "miner.lua", "fleetview.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -520,14 +520,14 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua" }, start = { "server" },
+    files = { "server.lua", "fleetview.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
       { run = function() return { "server", "install" } end },
     } },
   { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket",
-    files = { "panel.lua" }, start = { "panel" },
+    files = { "panel.lua", "fleetview.lua" }, start = { "panel" },
     steps = {
       { say = "Use an ADVANCED pocket computer with an ender modem (works anywhere) or a wireless modem (within range).",
         check = modemCheck },

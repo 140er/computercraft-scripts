@@ -14,7 +14,8 @@
 --   Farm   the crop farmer: status, fuel, harvest, pause / harvest now / come home
 --   Lava   the lava runner: lava in stock, drop-off chests, run now / come home
 --   Buddy  chat with Buddy, send it home or to a place it remembers
---   Map    where every bot is, from above (needs GPS hosts: gpshost.lua)
+--   Map    where every bot is, from above (needs GPS hosts: gpshost.lua); 3D = the fleet
+--          in 3D (shafts, mining areas, bots) from the fleet server, drag to turn it
 --   Build  the builder turtle: new jobs (corners typed or from GPS), pause, home, stop
 -- Update all (Home tab, tap twice): every bot fetches its latest version from GitHub.
 -- Q quits.
@@ -955,7 +956,17 @@ end
 ---------------------------------------------------------------------------
 local ZOOMS = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 } -- blocks per character
 local wmap = { zoom = 4, cx = 0, cz = 0, mode = "fit", sel = nil, me = nil, meAt = -1e9, tapX = 0, tapY = 0,
-  blocks = {}, nBlocks = 0, knownAt = -1e9 }
+  blocks = {}, nBlocks = 0, knownAt = -1e9, three = false, view = nil, viewAt = -1e9, viewAsked = -1e9, server = nil, lookAt = -1e9 }
+-- The 3D view comes from fleetview.lua (fetched when it is missing)
+local V = (function()
+  if not fs.exists("fleetview.lua") and shell and fs.exists("update.lua") then
+    pcall(shell.run, "update", "fleetview.lua", "noreboot")
+  end
+  local chunk = loadfile and loadfile("fleetview.lua", "t", _ENV)
+  local ok, lib = pcall(chunk or error)
+  return ok and type(lib) == "table" and lib or nil
+end)()
+wmap.cam = V and V.camera()
 -- Blocks the miners remember (and what driving showed), seen from above: per x,z the most
 -- interesting one of any height: ore, then open space (tunnels, caves), then rock.
 function wmap.learn(b)
@@ -1004,7 +1015,65 @@ local function mapZoom(step)
   if wmap.mode == "fit" then wmap.mode = nil end
 end
 
+-- The fleet in 3D: what the fleet server knows (else the hub's turtles), turning slowly.
+-- Drag to turn it; < > ^ v + - A o under it.
+local function drawMap3D()
+  if not V then
+    text(1, 3, "fleetview.lua is missing:", colors.orange)
+    text(1, 4, "update fleetview.lua", colors.white)
+  else
+    local list = {}
+    if wmap.view and os.clock() - wmap.viewAt < 30 then
+      for _, e in ipairs(wmap.view) do
+        if type(e) == "table" and type(e.id) == "number" then
+          e.age0 = e.age0 or e.age or 0 -- its age when the server sent it
+          e.age = e.age0 + (os.clock() - wmap.viewAt)
+          e.stale = e.age > 15
+          list[#list + 1] = e
+        end
+      end
+    else
+      for _, t in ipairs(data.hub and data.hub.turtles or {}) do
+        list[#list + 1] = V.entry(t.id, "miner", t, t.age)
+      end
+    end
+    if wmap.me then list[#list + 1] = { id = -1, kind = "panel", name = "you", x = wmap.me.x, y = wmap.me.y,
+      z = wmap.me.z, age = 0 } end
+    local scene = V.scene(list, { selected = wmap.sel3 })
+    text(1, 2, (wmap.view and os.clock() - wmap.viewAt < 30) and " from the server" or " from the hub", colors.lightGray)
+    if scene.empty then
+      text(1, 4, " No positions yet.", colors.lightGray)
+      text(1, 5, " Needs GPS or miners set", colors.lightGray)
+      text(1, 6, " up with world coords.", colors.lightGray)
+    else
+      local hits = V.render(term, 1, 3, W, H - 4, scene, wmap.cam)
+      for id, at in pairs(hits) do
+        buttons[#buttons + 1] = { x1 = at[1], y1 = at[2], x2 = at[1] + 4, y2 = at[2], action = function()
+          wmap.sel3 = wmap.sel3 ~= id and id or nil
+        end }
+      end
+      local sel
+      for _, e in ipairs(list) do if e.id == wmap.sel3 then sel = e end end
+      if sel then
+        text(1, 2, (" " .. (sel.name or ("#" .. sel.id)) .. ": " .. V.stateText(sel)):sub(1, W) .. (" "):rep(W),
+          sel.trouble and colors.red or colors.yellow)
+      end
+    end
+  end
+  local list = {}
+  for _, c in ipairs(V and { { "<", "left" }, { ">", "right" }, { "^", "up" }, { "v", "down" }, { "+", "in" },
+    { "-", "out" }, { "A", "auto" } } or {}) do
+    local what = c[2]
+    local on = what == "auto" and wmap.cam.auto
+    list[#list + 1] = { c[1], on and colors.black or colors.white, on and colors.lime or colors.gray,
+      function() V.control(wmap.cam, what) end }
+  end
+  list[#list + 1] = { "2D", colors.black, colors.lightBlue, function() wmap.three = false end }
+  buttonRow(H - 1, list, 1, W, 0)
+end
+
 local function drawMap()
+  if wmap.three then drawMap3D() return end
   local top, bottom = 3, H - 4 -- map rows
   local mw, mh = W, bottom - top + 1
   local marks = mapMarks()
@@ -1134,6 +1203,7 @@ local function drawMap()
       (wmap.mode == "me" or wmap.mode == "sel") and colors.lime or colors.gray, function()
         if selMark then wmap.mode = "sel" else wmap.mode = "me" end
       end },
+    { "3D", colors.black, colors.lightBlue, function() wmap.three = true wmap.lookAt = -1e9 end },
   }, 1, W, 1)
 end
 
@@ -1141,6 +1211,11 @@ end
 local function mapDrag(x, y)
   local dx, dy = x - wmap.tapX, y - wmap.tapY
   if dx == 0 and dy == 0 then return end
+  if wmap.three then
+    if V then V.drag(wmap.cam, dx, dy) end
+    wmap.tapX, wmap.tapY = x, y
+    return
+  end
   wmap.mode = nil
   wmap.cx = wmap.cx - dx * wmap.zoom
   wmap.cz = wmap.cz - dy * wmap.zoom * 1.5
@@ -1999,6 +2074,8 @@ local function receiveLoop()
       elseif proto == "buddy" and m.type == "buddy_state" then
         DEV.buddy.id, DEV.buddy.seen = id, os.clock()
         data.buddy = m
+      elseif proto == "fleetserver" and m.type == "view" and type(m.bots) == "table" then
+        wmap.server, wmap.view, wmap.viewAt = id, m.bots, os.clock()
       elseif proto == "buddy" and m.type == "buddy_answer" then
         DEV.buddy.seen = os.clock()
         addChat(data.buddy and data.buddy.name or "Buddy", tostring(m.text))
@@ -2041,6 +2118,15 @@ local function pollLoop()
         local every = (ui.tab == key or ui.tab == "home" or ui.tab == "map" or (ui.tab == "bots" and IN_BOTS[key])) and d.poll or 10
         if d.id and os.clock() - d.asked >= every then ask(key) end
       end
+      -- the 3D map: the fleet from the fleet server
+      if ui.tab == "map" and wmap.three and os.clock() - wmap.viewAsked >= 2 then
+        wmap.viewAsked = os.clock()
+        if not wmap.server and os.clock() - wmap.lookAt > 20 then
+          wmap.lookAt = os.clock()
+          wmap.server = rednet.lookup("fleetserver", "server")
+        end
+        if wmap.server then rednet.send(wmap.server, { type = "view", rid = "panel3d" }, "fleetserver") end
+      end
       -- the map, zoomed in: ask the miners for the blocks they remember
       if ui.tab == "map" and wmap.zoom <= 2 and os.clock() - wmap.knownAt > 20 then
         wmap.knownAt = os.clock()
@@ -2065,6 +2151,7 @@ local function uiLoop()
   while true do
     local ev, a, b, cc = os.pullEvent()
     if ev == "timer" and a == tick then
+      if V and wmap.three and ui.tab == "map" then V.tick(wmap.cam) end
       consoleTick()
       draw()
       tick = os.startTimer(1)

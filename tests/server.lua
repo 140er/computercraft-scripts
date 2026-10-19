@@ -285,7 +285,7 @@ return function(test, equal, read, mocks)
     equal(m.httpCalls, 1)
   end)
 
-  test("hub restores fleet for both views, mirrors state, and falls back after a lost command ack", function()
+  test("hub restores fleet, orders go through the server, and it falls back after a lost command ack", function()
     local s = new()
     s.start(serverCode)
     local state = { target = "diamond", branchLen64 = true, branchLen = 64, sessionLen = 1800,
@@ -314,13 +314,23 @@ return function(test, equal, read, mocks)
     s.advance(5)
     s.request(mirror, 99)
     equal(s.state().bots[5].lastSeen, 980000, "stale mirror refreshed last seen")
+    local before = #m.messages
     m.push("char", "r")
     local command = m.sent[#m.sent].msg
     equal(command.type, "command")
     equal(command.message.type, "recall")
+    assert(not command.direct, "the server must pass the order on")
+    for i = before + 1, #m.messages do
+      assert(m.messages[i].type ~= "recall", "hub sent the order itself while the server answers")
+    end
+    local sent = #s.sent
     local ack = s.request(command, 99)
     equal(ack.type, "ack")
     equal(s.state().log[#s.state().log].kind, "command")
+    -- The server sends the known miner its own copy, with an id to confirm
+    local copy
+    for i = sent + 1, #s.sent do if s.sent[i].id == 5 then copy = s.sent[i].msg end end
+    assert(copy and copy.type == "recall" and copy.cid, "server did not deliver to the known miner")
     m.push("rednet_message", 99, ack, "fleetserver")
     m.advance(1)
     m.push("char", "h")
@@ -328,35 +338,115 @@ return function(test, equal, read, mocks)
     m.advance(2)
     local found = false
     for _, p in ipairs(m.messages) do if p.type == "go" then found = true end end
-    assert(found, "orders did not go straight to the turtles")
-    assert(command.direct, "server would resend an order the hub already sent")
+    assert(found, "without a server answer the hub did not send the order itself")
   end)
 
-  test("hub keeps its own saved state over the server's copy and sends orders directly", function()
+  test("the newer hub state wins between the hub's file and the server's copy", function()
+    for _, case in ipairs({ { own = 200, server = 100, want = "gold" }, { own = 100, server = 200, want = "diamond" },
+      { server = 100, want = "diamond" } }) do
+      local s = new()
+      s.start(serverCode)
+      s.request({ type = "hub_put", hub = { target = "diamond", rev = case.server, overrides = {}, bores = {},
+        totals = {}, progress = {} }, turtles = {} }, 99)
+      local m = new()
+      m.files["hub.state"] = case.own and mocks.encode({ target = "gold", rev = case.own }) or nil
+      m.env.rednet.lookup = function() return 99 end
+      local receive = m.env.rednet.receive
+      m.env.rednet.receive = function(proto, timeout)
+        if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
+        return receive(proto, timeout)
+      end
+      m.start(hubCode)
+      equal(decode(m.files["hub.state"]).target, case.want)
+      assert(decode(m.files["hub.state"]).rev >= case.server, "saved state has no newer revision")
+    end
+  end)
+
+  test("server repeats an order until the miner confirms it, then gives up and logs", function()
     local s = new()
     s.start(serverCode)
-    s.request({ type = "hub_put", hub = { target = "diamond", overrides = {}, bores = {}, totals = {}, progress = {} },
-      turtles = {} }, 99)
-    local m = new()
-    m.files["hub.state"] = mocks.encode({ target = "gold" })
-    m.env.rednet.lookup = function() return 99 end
-    local receive = m.env.rednet.receive
-    m.env.rednet.receive = function(proto, timeout)
-      if proto == "fleetserver" then return 99, s.request(m.sent[#m.sent].msg), proto end
-      return receive(proto, timeout)
+    s.status(5, { type = "status", phase = "mining", x = 1, y = 2, z = 3 })
+    s.status(6, { type = "status", phase = "mining", x = 1, y = 2, z = 3 })
+    s.request({ type = "command", target = 5, protocol = "minearmy", message = { type = "recall", from = 99 } }, 99)
+    s.request({ type = "command", protocol = "minearmy", message = { type = "go", from = 99 } }, 99)
+    local function count(id, kind)
+      local n = 0
+      for _, p in ipairs(s.sent) do if p.id == id and p.msg.type == kind then n = n + 1 end end
+      return n
     end
-    m.start(hubCode)
-    equal(decode(m.files["hub.state"]).target, "gold", "server copy replaced the hub's own state")
-    local before = #m.messages
-    m.push("char", "r")
-    local direct = false
-    for i = before + 1, #m.messages do if m.messages[i].type == "recall" then direct = true end end
-    assert(direct, "recall waited for the server")
-    local command = m.sent[#m.sent].msg
-    equal(command.type, "command")
-    local sent = #s.messages
-    s.request(command, 99)
-    for i = sent + 1, #s.messages do assert(s.messages[i].type ~= "recall", "server resent a direct order") end
+    -- the later "go" to everyone replaced the waiting "recall" for #5
+    equal(count(5, "recall"), 1)
+    equal(count(5, "go"), 1)
+    local cid
+    for _, p in ipairs(s.sent) do if p.id == 6 and p.msg.type == "go" then cid = p.msg.cid end end
+    s.push("rednet_message", 6, { type = "cmd_ack", cid = cid }, "minearmy")
+    s.advance(4)
+    equal(count(5, "go"), 2, "unconfirmed order was not repeated")
+    equal(count(6, "go"), 1, "confirmed order was repeated")
+    equal(count(5, "recall"), 1, "replaced order was repeated")
+    s.advance(30)
+    equal(count(5, "go"), 6)
+    local logged = false
+    for _, e in ipairs(s.state().log) do if e.id == 5 and e.text:find("no answer to go", 1, true) then logged = true end end
+    assert(logged, "giving up was not logged")
+  end)
+
+  test("touchscreen: tap a miner, give it an order through the hub, switch tabs", function()
+    local s = new()
+    s.start(serverCode)
+    s.status(8, { type = "panel_state", target = "iron", ores = { { key = "diamond", short = "Diamond" },
+      { key = "iron", short = "Iron" } }, turtles = {} })
+    s.status(5, { type = "status", label = "Digger", phase = "mining", status = "Mining", x = 1, y = 2, z = 3,
+      shaft = { x = 0, y = 64, z = 0, bottom = -58 } })
+    s.advance(5)
+    local function find(label)
+      local x, y, found
+      for _, line in ipairs(s.output) do
+        local call = assert(load("return " .. line, "=output", "t", {}))()
+        if call[1] == "dashboard" then
+          if call[2] == "setCursorPos" then x, y = call[3], call[4]
+          elseif call[2] == "write" and type(call[3]) == "string" and call[3]:find(label, 1, true) then
+            found = { x, y }
+          end
+        end
+      end
+      return assert(found, "not on screen: " .. label)
+    end
+    local row = find("Digger")
+    s.push("monitor_touch", "dashboard", row[1], row[2])
+    assert(find("orders: Digger"), "picked miner not shown")
+    local stop = find(" STOP ")
+    s.push("monitor_touch", "dashboard", stop[1], stop[2])
+    local order = s.sent[#s.sent]
+    equal(order.id, 8)
+    equal(order.proto, "minearmy")
+    equal({ order.msg.type, order.msg.cmd, order.msg.turtle }, { "panel", "stop", 5 })
+    local iron = find(" Iron ")
+    s.push("monitor_touch", "dashboard", iron[1], iron[2])
+    equal({ s.sent[#s.sent].msg.cmd, s.sent[#s.sent].msg.ore }, { "target", "iron" })
+    local tab = find(" 3D ")
+    s.push("monitor_touch", "dashboard", tab[1], tab[2])
+    local blits = 0
+    for _, line in ipairs(s.output) do if line:find('"blit"', 1, true) then blits = blits + 1 end end
+    assert(blits > 0, "3D tab drew no pixels")
+    tab = find(" Log ")
+    s.push("monitor_touch", "dashboard", tab[1], tab[2])
+    assert(find("screen: Stop #5"), "order not in the log")
+  end)
+
+  test("miner confirms an order the server passes on", function()
+    local m = mocks.new(false)
+    m.files["miner.cfg"] = mocks.encode({ home = { x = 100, y = 64, z = -20 }, facing = 0, spine = 1 })
+    m.files["miner.state"] = mocks.encode({ pos = { x = 100, y = 64, z = -20 }, h = 0, phase = "home" })
+    m.env.turtle = { select = function() end, getItemDetail = function() end,
+      getItemCount = function() return 0 end, getFuelLevel = function() return 7000 end }
+    local scheduler = m.env.parallel.waitForAny
+    m.env.parallel.waitForAny = function(_, listener) scheduler(listener) end
+    m.start(read("miner.lua"))
+    m.push("rednet_message", 42, { type = "recall", from = 7, cid = 13 }, "minearmy")
+    local acked = false
+    for _, p in ipairs(m.messages) do if p.type == "cmd_ack" and p.cid == 13 then acked = true end end
+    assert(acked, "no cmd_ack")
   end)
 
   test("server sees old hub fleets without a hub mirror and uses the terminal without a monitor", function()
@@ -515,12 +605,16 @@ return function(test, equal, read, mocks)
   end)
 
   test("884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code", function()
-    for _, used in ipairs({ 884000, 884 * 1024 }) do
+    -- Was 884000 and 884 KB with the scripts of then; the same room is left over now
+    local total = 0
+    for _, f in ipairs(hosted) do total = total + #repo[f] end
+    local roots = #repo["server.lua"] + #repo["install.lua"] + #repo["update.lua"]
+    for _, used in ipairs({ total + 69313, total + roots + 23398 }) do
       local m = new()
       m.files, m.capacity = {}, 1000000
       for _, f in ipairs(hosted) do m.files["server-code/" .. f] = repo[f] end
       for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
-      if used == 884000 then
+      if used == total + 69313 then
         for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files["server-code/" .. f] = nil end
       end
       m.files["server.state"] = mocks.encode({ view3D = true }) .. string.rep(" ", 12000)
@@ -599,7 +693,7 @@ return function(test, equal, read, mocks)
     equal(m.files["server-code/miner.lua"], nil)
     m.files["miner.lua"] = "return 'changed'"
     equal(m.request({ type = "get", file = "miner.lua" }).error, "not cached")
-    m.advance(317)
+    m.advance(#hosted + 300)
     equal(m.files["server-code/miner.lua"], repo["miner.lua"])
     equal(m.request({ type = "get", file = "miner.lua" }).code, repo["miner.lua"]:sub(1, 12000))
   end)
@@ -825,7 +919,7 @@ return function(test, equal, read, mocks)
     equal(frame(s), frame(h), "server and standalone hub AR differ")
     equal(frame(s).view.args, { "view", 0x55FF55 - 0x1000000, 4, 4, "3D: AAN", false })
     equal(frame(s)["turtle:2"].args,
-      { "turtle:2", 0xFF5555 - 0x1000000, 100.5, 67, 20.5, 0, 0, 6, "#2", true })
+      { "turtle:2", 0xFF5555 - 0x1000000, 100.5, 67, 20.5, 0, 0, 6, "Miner-east", true })
     equal(frame(s)["turtle:2:error"].args[9], "Cannot reach home")
     s.advance(19)
     h.advance(19)

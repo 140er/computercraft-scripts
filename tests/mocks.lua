@@ -18,6 +18,10 @@ local specs = {
   drawText2D = { "string", "int", "int", "int", "string", "boolean" },
   drawLine3D = { "string", "int", "number", "number", "number", "number", "number", "number" },
   drawText3D = { "string", "int", "number", "number", "number", "number", "number", "number", "string", "boolean" },
+  -- cc_ar 0.2: ARController.java (@LuaFunction)
+  drawRect2D = { "string", "int", "int", "int", "int", "int" },
+  drawItemIcon3D = { "string", "number", "number", "number", "number", "number", "number", "string" },
+  delete = { "string" },
 }
 
 function M.new(attached, state)
@@ -29,7 +33,8 @@ function M.new(attached, state)
   end
   local function screen(name, width, height, color)
     local t = { getSize = function() return width, height end, isColor = function() return color end }
-    for _, method in ipairs({ "setTextScale", "setBackgroundColor", "setTextColor", "clear", "setCursorPos", "write" }) do
+    for _, method in ipairs({ "setTextScale", "setBackgroundColor", "setTextColor", "clear", "setCursorPos", "write",
+      "blit" }) do
       t[method] = function(...) record(name, method, ...) end
     end
     return t
@@ -61,6 +66,7 @@ function M.new(attached, state)
       m.arCalls[#m.arCalls + 1] = { method = method, args = args }
       if m.fail == method then error("controller unavailable") end
       if method == "clear" then m.elements = {}
+      elseif method == "delete" then m.elements[args[1]] = nil
       elseif method == "update" then
         local frame = {}
         for id, element in pairs(m.elements) do frame[id] = element end

@@ -8,7 +8,10 @@
 -- Controls: tap an ore -> the whole fleet goes mining for it.
 -- Tap a turtle in the list first to give only that turtle an order.
 -- STOP = stay home after this trip. RECALL = come home right now.
--- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v 3D, q quit.
+-- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v AR goggles on/off,
+-- w 3D view of the fleet on this screen, q quit.
+-- With a fleet server (server.lua): the hub keeps its state there too, and sends its
+-- orders through it (the server repeats them until the turtle confirms).
 -- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
 -- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
@@ -110,7 +113,7 @@ local function loadTable(path)
 end
 
 local hub = loadTable(STATE_FILE)
-local hadState = hub ~= nil -- our own state wins over the server's copy, which can be older
+local hadState = hub ~= nil -- the server's copy only wins when it is newer (hub.rev)
 hub = hub or {}
 hub.target = hub.target           -- nil = paused
 hub.overrides = hub.overrides or {} -- [turtle id] = ore
@@ -146,7 +149,10 @@ hub.released = hub.released -- hash of the miner.lua released with UPDATE
 hub.recallAll = hub.recallAll or false
 hub.bores = hub.bores or {} -- [turtle id] = tunnel job { x=, z=, every=, n= } (runs until done or STOP)
 
+local pushSoon = false -- the server gets the changed state on the next tick
 local function save()
+  hub.rev = os.epoch("utc")
+  pushSoon = true
   local h = fs.open(STATE_FILE, "w")
   h.write(textutils.serialize(hub))
   h.close()
@@ -204,8 +210,13 @@ if serverId then
       serverARSeen = serverSeen
       serverARUntil = os.epoch("utc") + 10000
       serverAR, serverView = m.arOwner == true, m.view3D
-      if not hadState and type(m.hub) == "table" and type(m.hub.state) == "table" then
+      -- The server keeps the fleet's state: its copy wins when it is newer than ours
+      -- (e.g. a new hub computer, or this one lost its file). An older copy is ignored.
+      if type(m.hub) == "table" and type(m.hub.state) == "table"
+        and (not hadState or (tonumber(m.hub.state.rev) or 0) > (tonumber(hub.rev) or 0)) then
+        local defaults = hub
         hub = m.hub.state
+        for k, v in pairs(defaults) do if hub[k] == nil then hub[k] = v end end
         ORES.custom = customEntry(hub.custom)
         save()
       end
@@ -226,16 +237,23 @@ local function oreFor(id)
   return o or hub.target
 end
 
+-- Orders that go through the fleet server (it passes them on, through other bots when a
+-- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
+-- turtle's own question (job, dir, files) go straight back.
+local ROUTED = { go = true, recall = true, update = true, rename = true }
+local function sendDirect(id, msg)
+  if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
+end
 local function send(id, msg)
   msg.from = os.getComputerID()
-  -- Orders always go straight to the turtles: the server may be out of their range.
-  -- It only gets a copy for its log and assignments (direct = it does not resend them).
-  if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
-  if serverId and os.clock() - serverSeen < 15 and (msg.type == "go" or msg.type == "recall" or msg.type == "update") then
+  if ROUTED[msg.type] and serverId and os.clock() - serverSeen < 15 then
     commandSeq = commandSeq + 1
     pending[commandSeq] = { id = id, msg = msg, at = os.clock() }
-    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL, message = msg,
-      direct = true }, SERVER_PROTOCOL)
+    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL, message = msg },
+      SERVER_PROTOCOL)
+  else
+    -- No server (or it stopped answering): straight to the turtles
+    sendDirect(id, msg)
   end
 end
 
@@ -582,6 +600,16 @@ local function ids()
   return l
 end
 
+-- The 3D view and the AR picture come from fleetview.lua (fetched when it is missing)
+local V = (function()
+  if not fs.exists("fleetview.lua") and shell and fs.exists("update.lua") then
+    pcall(shell.run, "update", "fleetview.lua", "noreboot")
+  end
+  local chunk = loadfile and loadfile("fleetview.lua", "t", _ENV)
+  local ok, lib = pcall(chunk or error)
+  return ok and type(lib) == "table" and lib or nil
+end)()
+local cam = V and V.camera() -- the 3D view's camera, shared by all screens
 local ar = peripheral.find("ar_controller")
 local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
 if serverAR and type(serverView) == "boolean" then view3D = serverView end
@@ -602,7 +630,58 @@ local function toggle3D()
   h.close()
 end
 
+local fleetList -- the fleet for fleetview (below, with the goggles)
+
+-- 3D view on a dashboard screen: the shafts, mining areas and turtles, turning slowly.
+-- Arrows turn and tilt it, + and - zoom, A = turn by itself, o = back to the start.
+-- Tap a turtle's name to pick it (its orders then go to that turtle only).
+local function drawWorld(s)
+  local t = s.t
+  local W, H = t.getSize()
+  s.buttons = {}
+  t.setBackgroundColor(colors.black)
+  t.clear()
+  t.setCursorPos(1, 1)
+  t.setBackgroundColor(colors.blue)
+  t.setTextColor(colors.white)
+  t.write(string.rep(" ", W))
+  t.setCursorPos(1, 1)
+  t.write(" < BACK ")
+  s.buttons[#s.buttons + 1] = { x1 = 1, x2 = 8, y = 1, action = function() s.world = false end }
+  local sel = selected and turtles[selected]
+  local head = sel and ("Picked: " .. (sel.p.label or ("#" .. selected))) or "Mine Army in 3D"
+  if notice and os.clock() < noticeUntil then head = notice end
+  t.setCursorPos(10, 1)
+  t.write(head:sub(1, math.max(0, W - 10)))
+  if not V then
+    t.setCursorPos(2, 3)
+    t.setBackgroundColor(colors.black)
+    t.write("fleetview.lua is missing: run 'update fleetview.lua'")
+    return
+  end
+  local places = hub.pos and { { x = hub.pos.x, y = hub.pos.y, z = hub.pos.z, name = "Hub" } } or nil
+  local scene = V.scene(fleetList(), { selected = selected, places = places })
+  if scene.empty then
+    t.setCursorPos(2, 3)
+    t.setBackgroundColor(colors.black)
+    t.setTextColor(colors.lightGray)
+    t.write("No turtle has sent a world position yet.")
+  else
+    for id, at in pairs(V.render(t, 1, 2, W, H - 2, scene, cam)) do
+      s.buttons[#s.buttons + 1] = { x1 = at[1], x2 = at[1] + 6, y = at[2], action = function()
+        selected = selected ~= id and id or nil
+      end }
+    end
+  end
+  for _, b in ipairs(V.controls(t, 1, H, W, cam)) do
+    s.buttons[#s.buttons + 1] = { x1 = b[1], x2 = b[2], y = b[3], action = function() V.control(cam, b[4]) end }
+  end
+  t.setBackgroundColor(colors.black)
+  t.setTextColor(colors.white)
+end
+
 local function draw(s)
+  if s.world then drawWorld(s) return end
   local t = s.t
   local W, H = t.getSize()
   local col = t.isColor()
@@ -730,9 +809,10 @@ local function draw(s)
     end)
   end
 
+  y = y + 2
+  x = button(1, y, " 3D VIEW ", colors.white, colors.blue, function() s.world = true end)
   if ar or serverOwnsAR() then
-    y = y + 2
-    button(1, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
+    button(x, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
   end
 
   -- Session timer
@@ -990,82 +1070,34 @@ local function drawInfo(s)
   end
 end
 
-local function coordinate(n)
-  return type(n) == "number" and n == n and math.abs(n) < math.huge
+local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
+
+-- The fleet as fleetview entries (see fleetview.lua)
+function fleetList()
+  local list = {}
+  for id, r in pairs(turtles) do
+    local e = V and V.entry(id, "miner", r.p, os.clock() - r.seen)
+    if e then list[#list + 1] = e end
+  end
+  table.sort(list, function(a, b) return a.id < b.id end)
+  return list
 end
 
 local function draw3D()
   if serverOwnsAR() then
     if not arSuppressed then
       if ar then pcall(function() ar.clear() ar.update() end) end
-      arSuppressed = true
+      arSuppressed, arMem.drawn = true, nil
       rednet.send(serverId, { type = "ar_ready", arUntil = serverARUntil }, SERVER_PROTOCOL)
     end
     return
   end
   arSuppressed = false
-  if not ar then return end
-  -- This controller is the fleet view; replace its frame so forgotten turtles disappear.
-  local ok = pcall(function()
-    ar.clear()
-    ar.drawText2D("view", (view3D and 0x55FF55 or 0x999999) - 0x1000000, 4, 4,
-      view3D and "3D: AAN" or "3D: UIT", false)
-    local directions = { north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } }
-    for id, r in pairs(view3D and turtles or {}) do
-      local p = r.p
-      if coordinate(p.x) and coordinate(p.y) and coordinate(p.z) then
-        local key = "turtle:" .. id
-        local trouble = p.phase == "lost" or tostring(p.status):find("^LOST")
-          or tostring(p.status):find("^STUCK") or tostring(p.status):find("^ERROR")
-        local color = os.clock() - r.seen > STALE and 0x999999 or (trouble and 0xFF5555 or 0x55FFFF)
-        color = color - 0x1000000 -- Opaque ARGB as a signed Java int.
-        local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
-        local s = p.shaft
-        local top = type(s) == "table" and coordinate(s.x) and coordinate(s.y) and coordinate(s.z)
-        local sx, sy, sz = top and s.x + 0.5 or x, top and s.y or p.y, top and s.z + 0.5 or z
-        ar.drawText3D(key, color, sx, sy + 3, sz, 0, 0, 6, "#" .. id, true)
-        if trouble then
-          local err = tostring(p.lastError or p.status or "LOST"):sub(1, 40)
-          ar.drawText3D(key .. ":error", color, sx, sy + 1.8, sz, 0, 0, 2, err, true)
-        end
-        if top and (p.x ~= s.x or p.y ~= s.y or p.z ~= s.z) then
-          ar.drawText3D(key .. ":position", color, x, y, z, 0, 0, 2, "#" .. id, true)
-          if p.x ~= s.x or p.z ~= s.z then
-            ar.drawLine3D(key .. ":path", color, sx, y, sz, x, y, z)
-          end
-        end
-        local heading = directions[p.facing]
-        if heading then
-          local dx, dz = heading[1], heading[2]
-          local tx, tz = x + dx * 1.5, z + dz * 1.5
-          ar.drawLine3D(key .. ":heading", color, x, y, z, tx, y, tz)
-          ar.drawLine3D(key .. ":heading:1", color, tx, y, tz, tx - dx * 0.5 - dz * 0.5, y, tz - dz * 0.5 + dx * 0.5)
-          ar.drawLine3D(key .. ":heading:2", color, tx, y, tz, tx - dx * 0.5 + dz * 0.5, y, tz - dz * 0.5 - dx * 0.5)
-        end
-        if top and coordinate(s.bottom) then
-          ar.drawLine3D(key .. ":shaft", os.clock() - r.seen > STALE and color or -1, sx, sy + 2.5, sz, sx, s.bottom, sz)
-          local d = directions[type(p.role) == "string" and p.role:match("^[^@]+") or ""]
-          if d and coordinate(p.level) and coordinate(p.reach) and p.reach > 0
-            and coordinate(p.branchLen) and p.branchLen > 0 then
-            local dx, dz = d[1], d[2]
-            local width = math.min(p.branchLen, p.reach)
-            local x1, z1 = sx + dx * p.reach, sz + dz * p.reach
-            local x2, z2 = x1 - dz * width, z1 + dx * width
-            local x3, z3 = sx - dz * width, sz + dx * width
-            local y = p.level
-            ar.drawLine3D(key .. ":region:1", color, sx, y, sz, x1, y, z1)
-            ar.drawLine3D(key .. ":region:2", color, x1, y, z1, x2, y, z2)
-            ar.drawLine3D(key .. ":region:3", color, x2, y, z2, x3, y, z3)
-            ar.drawLine3D(key .. ":region:4", color, x3, y, z3, sx, y, sz)
-          end
-        end
-      end
-    end
-    ar.update()
-  end)
+  if not ar or not V then return end
+  local ok = pcall(V.ar, ar, fleetList(), view3D, arMem, "Fleet")
   if not ok then
     pcall(function() ar.clear() ar.update() end)
-    ar = nil -- A disappearing peripheral must not stop the dashboard.
+    ar, arMem.drawn = nil, nil -- A disappearing peripheral must not stop the dashboard.
   end
 end
 
@@ -1332,10 +1364,24 @@ local function devPairLoop()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then while true do os.pullEvent("dev_never") end end
   modem.open(DEV_PAIR_CHANNEL)
+  -- Mesh: also pass on rednet messages meant for others, like CC's "repeat" program (each
+  -- message once), so the server and the hub reach bots beyond their range through this
+  -- one. Switch it off with: set fleet.mesh false
+  local relayed = not (settings and settings.get("fleet.mesh") == false) and { n = 0 } or nil
+  if relayed then modem.open(rednet.CHANNEL_REPEAT) end
   modem.open(HUB_POS_CHANNEL)
   while true do
     local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
-    if ch == HUB_POS_CHANNEL and type(msg) == "table" and msg.type == "where_hub" and hub.pos then
+    if relayed and ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
+      and type(msg.nRecipient) == "number" and not relayed[msg.nMessageID] then
+      if relayed.n > 500 then
+        for k, t in pairs(relayed) do if k ~= "n" and t < os.clock() then relayed[k] = nil end end
+        relayed.n = 0
+      end
+      relayed[msg.nMessageID], relayed.n = os.clock() + 60, relayed.n + 1
+      modem.transmit(rednet.CHANNEL_REPEAT, replyCh, msg)
+      modem.transmit(msg.nRecipient == rednet.CHANNEL_BROADCAST and msg.nRecipient or msg.nRecipient % 65500, replyCh, msg)
+    elseif ch == HUB_POS_CHANNEL and type(msg) == "table" and msg.type == "where_hub" and hub.pos then
       -- a miner doing "miner setup hub": it measures how far away we are
       modem.transmit(replyCh, HUB_POS_CHANNEL, { type = "hub_here", x = hub.pos.x, y = hub.pos.y, z = hub.pos.z })
     elseif ch == DEV_PAIR_CHANNEL and type(msg) == "table" and msg.type == "dev_pair" then
@@ -1441,7 +1487,13 @@ local function panelRequest(id, m)
 end
 
 local function serverLoop()
-  if not serverId then while true do os.pullEvent("server_never") end end
+  -- No fleet server yet: look for one now and then (it may be started later)
+  local waited = 0
+  while not serverId do
+    os.pullEvent("timer") -- the screen's timer: about once a second
+    waited = waited + 1
+    if waited % 30 == 0 then serverId = rednet.lookup(SERVER_PROTOCOL, "server") end
+  end
   local timer, tick = os.startTimer(1), 0
   while true do
     local ev, id, m, proto = os.pullEvent()
@@ -1456,10 +1508,13 @@ local function serverLoop()
       tick = tick + 1
       for rid, p in pairs(pending) do
         if os.clock() - p.at >= 2 then
+          -- The server did not take it: send it ourselves, and do so until it answers again
           pending[rid], serverSeen = nil, -1e9
+          sendDirect(p.id, p.msg)
         end
       end
-      if tick % 5 == 0 then
+      if tick % 5 == 0 or pushSoon then
+        pushSoon = false
         local fleet = {}
         for tid, t in pairs(turtles) do fleet[tid] = { p = t.p, age = os.clock() - t.seen } end
         rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet,
@@ -1498,6 +1553,7 @@ local function uiLoop()
         save()
         flash("Time is up: turtles come home and stay there.")
       end
+      if cam then V.tick(cam) end
       local rel = releasedVersion()
       if rel and tick % 10 == 0 and outdatedCount() > 0 then send(nil, { type = "update", hash = rel }) end
       redraw()
@@ -1516,6 +1572,7 @@ local function uiLoop()
       elseif a == "u" then releaseUpdate()
       elseif a == "c" then wantAsk = true
       elseif a == "v" and (ar or serverOwnsAR()) then toggle3D()
+      elseif a == "w" then screens[1].world = not screens[1].world
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1526,7 +1583,9 @@ local function uiLoop()
       if prev and prev ~= ar and not arSuppressed then
         pcall(function() prev.clear() prev.update() end)
       end
-      if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then arSuppressed = false end
+      if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then
+        arSuppressed, arMem.drawn = false, nil
+      end
       if prev ~= ar then redraw() else draw3D() end
     end
     if wantAsk then
