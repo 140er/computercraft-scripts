@@ -92,7 +92,14 @@ function M.open(cfg)
         if not cfg.service.charger then return false,"configure a charging pose" end
         local ok,why=w.charge(cfg.service.charger,target,cfg.service.chargeTimeout or 60000) if not ok then return false,why end
         repeat
-          local moved,err=w.tick() if not moved then return false,err end
+          local moved,err=w.tick()
+          if not moved then
+            if w.state().phase=="done" then
+              local home,why=nav.go(cfg.home,"walk") if not home then return false,why end
+              home,why=nav.face(cfg.home.h) if not home then return false,why end
+            end
+            return false,err
+          end
           (cfg.yield or sleep)(.25)
         until w.state().phase=="done"
         if w.state().reason~="charged" and w.state().reason~="unlimited fuel" then return false,w.state().reason end
@@ -106,6 +113,21 @@ function M.open(cfg)
   function api.start()
     reconcile()
     if state.phase=="home" and state.reason=="complete" then return api.finish() end
+    state.serviceReserve=0
+    if cfg.service and cfg.service.enabled then
+      local d,why=request("wh-sites",{name=cfg.service.drop}) if not d then return false,why end
+      if d.site.kind~="drop" then return false,"configure a drop pose" end
+      local legs={{cfg.home,d.site.pose},{d.site.pose,cfg.home}}
+      if turtle.getFuelLevel()~="unlimited" then
+        local c,why=request("wh-sites",{name=cfg.service.charger}) if not c then return false,why end
+        if c.site.kind~="charge" then return false,"configure a charging pose" end
+        legs[#legs+1]={d.site.pose,c.site.pose} legs[#legs+1]={c.site.pose,d.site.pose}
+      end
+      for _,leg in ipairs(legs) do
+        local cost,why=nav.homeCost(leg[2],leg[1]) if cost==false then return false,why end
+        state.serviceReserve=state.serviceReserve+cost
+      end
+    end
     local r,why=request("mine-lease")
     if not r then return false,why end
     if not r.task then return false,"mine exhausted" end
@@ -130,7 +152,7 @@ function M.open(cfg)
     local fuel=turtle.getFuelLevel()
     local distance,why=nav.homeCost(cfg.home)
     if distance==false then return "no home route: "..tostring(why) end
-    if fuel~="unlimited" and fuel<=distance+(cfg.fuelMargin or 32) then return "low fuel" end
+    if fuel~="unlimited" and fuel<=distance+(state.serviceReserve or 0)+(cfg.fuelMargin or 32) then return "low fuel" end
   end
   function api.tick()
     reconcile()

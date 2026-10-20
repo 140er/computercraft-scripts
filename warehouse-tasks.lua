@@ -91,7 +91,10 @@ function M.run(s,id,m,epoch,pose)
     v.orders[m.key]=j return {ok=true,job=A.copy(j)}
   elseif m.op=="wh-lock" or m.op=="wh-unlock" then
     if not v.sites[m.name] then return fail("unknown site") end
-    if v.locks[m.name] and v.locks[m.name]~=id then return fail("bay occupied") end
+    if v.locks[m.name] and v.locks[m.name]~=id then
+      if m.op=="wh-unlock" then return {ok=true} end
+      return fail("bay occupied")
+    end
     v.locks[m.name]=m.op=="wh-lock" and id or nil
     return {ok=true,site=A.copy(v.sites[m.name])}
   elseif m.op=="wh-claim" then

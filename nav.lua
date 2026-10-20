@@ -225,8 +225,8 @@ function M.open(cfg)
     if not integer(d) or not vectors[d] or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid movement policy" end
     return owned(step,d,policy)
   end
-  local function search(goal,policy,avoid)
-    local start=A.copy(state.pose)
+  local function search(goal,policy,avoid,from)
+    local start=A.copy(from or state.pose)
     local open,cost,parent,nodes={{p=start,g=0,f=distance(start,goal)}},{},{},1
     cost[key(start)]=0
     local expanded=0
@@ -264,10 +264,10 @@ function M.open(cfg)
     end
     return nil,"no route"
   end
-  function api.homeCost(goal)
-    if not S.pose(goal) or not inside(goal,b) then return false,"invalid route" end
+  function api.homeCost(goal,from)
+    if not S.pose(goal) or not inside(goal,b) or from~=nil and (not S.pose(from) or not inside(from,b)) then return false,"invalid route" end
     return owned(function()
-      local route,why=search(goal,"walk",{})
+      local route,why=search(goal,"walk",{},from)
       if not route then return false,why end
       return #route
     end)

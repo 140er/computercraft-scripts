@@ -26,6 +26,10 @@ elseif args[1]=="enable" or args[1]=="disable" then
   cfg.enabled=args[1]=="enable" save() print("Warehouse "..args[1].."d") return
 elseif args[1]=="traffic" then
   assert(args[2]=="on" or args[2]=="off","traffic on or off required") cfg.traffic=args[2]=="on" save() return
+elseif args[1]=="charger" then
+  assert(type(args[2])=="string" and #args[2]>0 and #args[2]<=64,"charger site required")
+  local target=tonumber(args[3]) or 2000 assert(target%1==0 and target>=1 and target<=100000,"invalid fuel target")
+  cfg.charger=args[2] cfg.targetFuel=target save() return
 end
 assert(cfg.server and cfg.secret,"configure warehouse server first")
 peripheral.find("modem",rednet.open)
@@ -62,7 +66,7 @@ local function work()
     request("wh-unlock",{name=args[2]}) assert(ok,err) print("Stock reported") return
   end
   assert(cfg.enabled==true,"warehouse disabled; configure it and run store enable")
-  local worker=dofile("warehouse.lua").open({nav=nav,client=client})
+  local worker=dofile("warehouse.lua").open({nav=nav,client=client,home=cfg.pose,charger=cfg.charger,targetFuel=cfg.targetFuel,chargeTimeout=cfg.chargeTimeout})
   if args[1]=="charge" then assert(worker.charge(args[2],assert(tonumber(args[3])),tonumber(args[4]) or 60000)) end
   while true do
     local ok,why=worker.tick()

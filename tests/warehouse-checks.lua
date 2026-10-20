@@ -7,6 +7,7 @@ return function(test,mocks)
     local inv,source,drop={},{ {name="minecraft:dirt",count=7}, {name="minecraft:iron_ingot",count=11}, {name="minecraft:diamond_pickaxe",count=1} },{}
     local p={dim="minecraft:overworld",x=0,y=65,z=0,h=2}
     local selected,fuel,time=1,40,10000
+    m.moves=0
     local sites={source={kind="source",pose=A.copy(p),side="front"},drop={kind="drop",pose={dim=p.dim,x=3,y=65,z=0,h=1},side="front"},
       charge={kind="charge",pose={dim=p.dim,x=1,y=65,z=0,h=0},side="front"}}
     local job={key="test",token="1:wh:1",drop="drop",status="active",lines={
@@ -37,12 +38,14 @@ return function(test,mocks)
     e.turtle.suckUp=e.turtle.suck e.turtle.suckDown=e.turtle.suck
     e.turtle.dropUp=e.turtle.drop e.turtle.dropDown=e.turtle.drop
     local calls={}
-    local cfg={path="warehouse.state",nav={pose=function() return A.copy(p) end,go=function(q) if m.noRoute then return false,"no route" end p=A.copy(q) return true end,
+    local cfg={path="warehouse.state",charger=false,nav={pose=function() return A.copy(p) end,go=function(q) if m.noRoute and (p.x~=q.x or p.z~=q.z) then return false,"no route" end if p.x~=q.x or p.z~=q.z then m.moves=m.moves+1 end p=A.copy(q) return true end,
+      homeCost=function(q,from) local a=from or p return m.cost or math.abs(q.x-a.x)+math.abs(q.y-a.y)+math.abs(q.z-a.z) end,
       face=function(h) p.h=h return true end,stopped=function() return false end},
       clock=function() return time end,inventory=function() return {list=function() return chest() end} end,
       client={call=function(op,v)
         calls[#calls+1]={op=op,value=A.copy(v or {})}
         if op=="wh-claim" then return {ok=true,job=A.copy(job)} end
+        if op=="wh-sites" then return {ok=true,site=A.copy(sites[v.name])} end
         if op=="wh-lock" then
           if m.busy then return {ok=false,error="bay occupied"} end
           local s=A.copy(sites[v.name]) if m.side then s.side=m.side end
@@ -53,7 +56,7 @@ return function(test,mocks)
         if point==crash then crash=nil error("injected "..point) end
       end}
     local W=e.dofile("warehouse.lua")
-    return W.open(cfg),function() return W.open(cfg) end,inv,source,drop,m,function(dt,gain) time=time+dt fuel=gain=="unlimited" and gain or fuel+(gain or 0) end,calls
+    return W.open(cfg),function() return W.open(cfg) end,inv,source,drop,m,function(dt,gain) time=time+dt fuel=gain=="unlimited" and gain or fuel+(gain or 0) end,calls,cfg
   end
   local function finish(w)
     for _=1,150 do
@@ -98,6 +101,34 @@ return function(test,mocks)
     finish(w)
     for _,v in ipairs(drop) do assert(v.name=="minecraft:diamond_pickaxe") end
     assert(next(inv)==nil and w.state().job.lines[1].delivered==0)
+  end)
+  test("charging preserves an unfinished order and refuses a trip without return fuel",function()
+    local w,reopen,_,_,drop,m,advance,calls=fixture()
+    while w.state().phase~="deliver" do assert(w.tick()) end
+    local picked=w.state().job.lines[1].picked
+    assert(w.charge("charge",60,5000),"active cargo could not charge")
+    assert(w.tick()) advance(1000,20) assert(w.tick())
+    w=reopen() finish(w)
+    local n=0 for _,v in ipairs(drop) do if v.name=="minecraft:iron_ingot" then n=n+v.count end end
+    assert(n==11 and picked==11)
+    w,_,_,_,_,m,advance=fixture() m.cost=100
+    local ok=w.charge("charge",60,5000)
+    assert(not ok and m.moves==0,"stranded on an unaffordable service route")
+  end)
+  test("automatic low-fuel charging survives a crash and continues the same order",function()
+    local w,reopen,_,_,drop,_,advance,_,cfg=fixture("charged-saved")
+    cfg.charger="charge" cfg.targetFuel=80 cfg.fuelMargin=50
+    local crashed=false
+    for _=1,180 do
+      local ran,ok,why=pcall(w.tick)
+      if not ran then assert(not crashed and tostring(ok):find("injected",1,true),ok) crashed=true w=reopen()
+      elseif not ok then assert(why=="charging",why) end
+      if w.state().phase=="charge" then advance(1000,10) end
+      if w.state().phase=="done" then break end
+    end
+    assert(crashed and w.state().phase=="done" and w.state().serviceCharges==1)
+    local n=0 for _,v in ipairs(drop) do if v.name=="minecraft:iron_ingot" then n=n+v.count end end
+    assert(n==11 and w.state().job.lines[2].delivered==1)
   end)
   test("charging needs measured fuel rise and has a durable timeout",function()
     local w,reopen,_,_,_,_,advance=fixture()
