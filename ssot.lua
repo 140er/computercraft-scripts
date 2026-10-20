@@ -265,6 +265,25 @@ function M.new(s, cfg, clock, epoch, save)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
       or not integer(m.counter, 1, 2147483647) then return nil end
+    local enrolOp = m.op == "enrol-issue" or m.op == "enrol-hello" or m.op == "enrol-claim"
+      or m.op == "enrol-neighbour" or m.op == "enrol-confirm"
+    if enrolOp then
+      local key = cfg.controllers and cfg.controllers[tostring(id)]
+      local authed = word(key, 128) and #key >= 16 and m.secret == key
+      if cfg.enrol ~= true then
+        if authed and (m.op == "enrol-issue" or m.op == "enrol-confirm") then
+          return { ok = false, error = "enrol off", v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID() }
+        end
+        return nil
+      end
+      if (m.op == "enrol-issue" or m.op == "enrol-confirm") and not authed then return nil end
+      local loaded, Enrol = pcall(dofile, "enrol.lua")
+      if not loaded or type(Enrol) ~= "table" or type(Enrol.operate) ~= "function" then return nil end
+      local result = Enrol.operate(id, m, clock, cfg)
+      if type(result) ~= "table" then return nil end
+      result.v, result.type, result.rid, result.server = 1, "ssot_reply", m.rid, os.getComputerID()
+      return result
+    end
     local key = cfg.controllers and cfg.controllers[tostring(id)]
     if not word(key, 128) or #key < 16 or m.secret ~= key then return nil end
     local client = s.clients[id] or { counter = 0, cache = {} }

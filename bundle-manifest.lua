@@ -96,7 +96,7 @@ return {
     ["fleetview.lua"]="0f8e8c6d",
     ["gpshost.lua"]="35051764",
     ["hub.lua"]="7471011c",
-    ["install.lua"]="2374573c",
+    ["install.lua"]="6fc62e10",
     ["lava.lua"]="50b443c3",
     ["lumber.lua"]="19a17375",
     ["mine-tasks.lua"]="85edae0a",
@@ -111,7 +111,7 @@ return {
     ["smartmine.lua"]="22b42d7d",
     ["sorter.lua"]="7fee1560",
     ["ssot-client.lua"]="a74c139a",
-    ["ssot.lua"]="9ee8ec73",
+    ["ssot.lua"]="4fe3697a",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="775e45a9",
     ["update.lua"]="e8b5cb85",
@@ -626,5 +626,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="3df1a03b"
+  ["version"]="abc86a02"
 }

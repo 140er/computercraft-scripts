@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = ''
 )
@@ -15,6 +15,7 @@ $previousAudio=$env:SDL_AUDIODRIVER
 if ($OnLinux -or $Scenario -eq 'views') { $env:SDL_VIDEODRIVER='dummy'; $env:SDL_AUDIODRIVER='dummy' }
 if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse','ar','views') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -eq 'install' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 120 }
 $process = $null
 
 # PowerShell cmdlets accept '\' on Linux. System.IO and CraftOS do not.
@@ -101,6 +102,7 @@ try {
             if (Test-Path -LiteralPath (Join-Path $share 'bios.lua')) { $romSource = $share }
         }
     }
+    # SDL writes ALSA and X11 errors when the host has no sound card or display. Any stderr fails the run.
     if ($OnLinux) {
         $env:SDL_AUDIODRIVER = 'dummy'
         $env:SDL_VIDEODRIVER = 'dummy'
@@ -120,14 +122,28 @@ try {
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath (Join-Path $romSource 'bios.lua'), (Join-Path $romSource 'rom') -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $diskLimit = if ($Scenario -eq 'install') { 1000000 } else { 4000000 }
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 4000000
+        standardsMode = $true; computerSpaceLimit = $diskLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
         useHardwareRenderer = $false; useWebP = $false
     } | ConvertTo-Json
     Write-SandboxText "$run\config\global.json" $config $utf8
-    $roles = if ($Scenario -in @('ssot','nav','mining','warehouse','views')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
+    if ($Scenario -eq 'install') {
+        # Payloads live in the ROM so they do not count against the 1000000 byte disk.
+        $payload = Join-Path (Join-Path (Join-Path $run 'rom') 'rom') 'bundle'
+        New-Item -ItemType Directory -Force -Path $payload | Out-Null
+        foreach ($file in (Get-ChildItem -LiteralPath $Source -Filter '*.lua' -File)) {
+            $code = [IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")
+            Write-SandboxText (Join-Path $payload $file.Name) $code $utf8
+        }
+        $roles = @('installer')
+    } elseif ($Scenario -in @('ssot','nav','mining','warehouse','views')) {
+        $roles = @('server','turtle1','turtle2','turtle3','controller','world')
+    } else {
+        $roles = @('server', 'hub', 'miner')
+    }
     if ($Scenario -in @('mining','views')) { $roles += 'hub' }
     if ($Scenario -eq 'ar') { $roles = @('server','turtle1','turtle2','turtle3','controller','hub') }
     $sourceProof=@()
@@ -136,6 +152,21 @@ try {
     for ($id = 0; $id -lt $roles.Count; $id++) {
         $disk = Join-Path (Join-Path $run 'computer') "$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
+        if ($Scenario -eq 'install') {
+            foreach ($name in @('install.lua','update.lua','install-roles.lua','install-core.lua','install-keys.lua','install-shell.lua','enrol.lua')) {
+                $code = [IO.File]::ReadAllText((Join-Path $Source $name)).Replace("`r`n", "`n")
+                Write-SandboxText (Join-Path $disk $name) $code $utf8
+            }
+            foreach ($pair in @(
+                @{ From = (Join-Path $Source 'tests\install-unit.lua'); Name = 'install-unit.lua' },
+                @{ From = (Join-Path $PSScriptRoot 'install-driver.lua'); Name = 'install-driver.lua' }
+            )) {
+                $code = [IO.File]::ReadAllText($pair.From).Replace("`r`n", "`n")
+                Write-SandboxText (Join-Path $disk $pair.Name) $code $utf8
+            }
+            Write-SandboxText (Join-Path $disk 'startup.lua') "shell.run('install-driver.lua')" $utf8
+            continue
+        }
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
         $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
@@ -190,7 +221,7 @@ try {
         }
         Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')" $utf8
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$diskLimit"
     if ($Scenario -eq 'views') { $sourceProof | ConvertTo-Json | Set-Content "$run\source-sha256.json" }
     Write-Output "Artifacts: $run"
     $process = Start-SandboxProcess (ConvertTo-SandboxPath "$run\stdout.log") (ConvertTo-SandboxPath "$run\stderr.log")
