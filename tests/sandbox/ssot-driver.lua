@@ -21,7 +21,7 @@ local function report(value)
   local h = assert(fs.open("sandbox-result.json","w")) h.write(textutils.serializeJSON(value)) h.close()
 end
 if id == 0 then
-  for peer=1,5 do
+  for peer=1,scenario=="mining" and 6 or 5 do
     local name="computer_" .. peer
     if not peripheral.isPresent(name) then
       assert(periphemu.create(tostring(peer),"computer"))
@@ -31,11 +31,17 @@ if id == 0 then
     else peripheral.call(name,"turnOn") end
   end
   program("test-server.lua")
+elseif id==6 then
+  rednet.send(0,true,"ssot_boot")
+  parallel.waitForAny(function() assert(loadfile("hub.lua","t",_ENV))() end,function()
+    sleep(5) report({ok=true,booted=true,errors={},lines={"production hub running during mining"}})
+    while true do sleep(1) end
+  end)
 elseif id == 5 then
   rednet.send(0,true,"ssot_boot")
   local A=dofile("atomic.lua")
   local store=A.store("world.state",function(v) return type(v)=="table" and type(v.poses)=="table" end)
-  local world = dofile("turtle.lua").world(store.value)
+  local world = dofile("turtle.lua").world(store.value,scenario)
   local results,order={},{}
   while true do
     local from,m,proto = rednet.receive()
@@ -61,5 +67,5 @@ elseif id == 5 then
   end
 else
   rednet.send(0,true,"ssot_boot")
-  program("ssot-runtime.lua","sandbox",scenario)
+  program(scenario=="mining" and "mining-runtime.lua" or "ssot-runtime.lua","sandbox",scenario)
 end

@@ -1,0 +1,541 @@
+2026-10-20T08:31:18.7518374Z > forceload add -16 -16 32 16
+Marked 12 chunks in Overworld from [-1, -1] to [2, 1] to be force loaded
+
+2026-10-20T08:31:19.7215455Z > fill -2 63 -2 13 68 8 minecraft:air
+No blocks were filled
+
+2026-10-20T08:31:20.2396141Z > fill -2 63 -2 13 63 8 minecraft:stone
+Successfully filled 176 block(s)
+
+2026-10-20T08:31:20.7253140Z > fill 0 64 1 11 66 6 minecraft:stone
+Successfully filled 216 block(s)
+
+2026-10-20T08:31:21.4840200Z > gamerule spawnChunkRadius 0
+Gamerule spawnChunkRadius is now set to: 0
+
+2026-10-20T08:31:22.4024281Z > setblock -4 65 -4 computercraft:computer_advanced{ComputerId:0}
+Changed the block at -4, 65, -4
+
+2026-10-20T08:31:23.2068365Z > setblock -4 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at -4, 66, -4
+
+2026-10-20T08:31:24.0009559Z > setblock 14 65 -4 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 14, 65, -4
+
+2026-10-20T08:31:25.0178289Z > setblock 14 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 14, 66, -4
+
+2026-10-20T08:31:26.2024797Z > setblock 14 65 -2 computercraft:computer_advanced{ComputerId:6}
+Changed the block at 14, 65, -2
+
+2026-10-20T08:31:27.4220822Z > setblock 14 66 -2 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 14, 66, -2
+
+2026-10-20T08:31:28.5870580Z > setblock 9 65 1 minecraft:diamond_ore
+Changed the block at 9, 65, 1
+
+2026-10-20T08:31:29.5864271Z > setblock 9 66 2 minecraft:diamond_ore
+Changed the block at 9, 66, 2
+
+2026-10-20T08:31:30.5269986Z > setblock 5 66 5 minecraft:deepslate_diamond_ore
+Changed the block at 5, 66, 5
+
+2026-10-20T08:31:31.9004818Z > setblock 3 66 2 minecraft:diamond_ore
+Changed the block at 3, 66, 2
+
+2026-10-20T08:31:33.0289730Z > setblock 7 66 5 minecraft:deepslate_diamond_ore
+Changed the block at 7, 66, 5
+
+2026-10-20T08:31:34.2278722Z > setblock 7 66 4 minecraft:deepslate_diamond_ore
+Changed the block at 7, 66, 4
+
+2026-10-20T08:31:35.1946433Z > setblock 4 65 2 minecraft:deepslate_diamond_ore
+Changed the block at 4, 65, 2
+
+2026-10-20T08:31:35.9254951Z > setblock 3 66 3 minecraft:diamond_ore
+Changed the block at 3, 66, 3
+
+2026-10-20T08:31:36.7593123Z > setblock 6 65 1 minecraft:deepslate_diamond_ore
+Changed the block at 6, 65, 1
+
+2026-10-20T08:31:37.8088639Z > setblock 1 66 1 minecraft:diamond_ore
+Changed the block at 1, 66, 1
+
+2026-10-20T08:31:38.7959979Z > setblock 5 66 3 minecraft:deepslate_diamond_ore
+Changed the block at 5, 66, 3
+
+2026-10-20T08:31:40.1961367Z > setblock 5 66 4 minecraft:deepslate_diamond_ore
+Changed the block at 5, 66, 4
+
+2026-10-20T08:31:41.1300102Z > setblock 1 66 2 minecraft:diamond_ore
+Changed the block at 1, 66, 2
+
+2026-10-20T08:31:42.2186821Z > setblock 3 65 6 minecraft:diamond_ore
+Changed the block at 3, 65, 6
+
+2026-10-20T08:31:43.1708414Z > setblock 6 66 4 minecraft:deepslate_diamond_ore
+Changed the block at 6, 66, 4
+
+2026-10-20T08:31:44.3125851Z > setblock 10 64 5 minecraft:bedrock
+Changed the block at 10, 64, 5
+
+2026-10-20T08:31:45.4644956Z > setblock 8 65 2 minecraft:diamond_ore
+Changed the block at 8, 65, 2
+
+2026-10-20T08:31:46.4381727Z > setblock 5 66 2 minecraft:deepslate_diamond_ore
+Changed the block at 5, 66, 2
+
+2026-10-20T08:31:47.1497620Z > setblock 9 65 4 minecraft:gravel
+Changed the block at 9, 65, 4
+
+2026-10-20T08:31:47.6733694Z > setblock 8 66 2 minecraft:diamond_ore
+Changed the block at 8, 66, 2
+
+2026-10-20T08:31:48.4208974Z > setblock 5 65 1 minecraft:deepslate_diamond_ore
+Changed the block at 5, 65, 1
+
+2026-10-20T08:31:49.3735962Z > setblock 1 64 1 minecraft:diamond_ore
+Changed the block at 1, 64, 1
+
+2026-10-20T08:31:51.3465289Z > setblock 4 66 3 minecraft:deepslate_diamond_ore
+Changed the block at 4, 66, 3
+
+2026-10-20T08:31:52.2399424Z > setblock 1 65 1 minecraft:diamond_ore
+Changed the block at 1, 65, 1
+
+2026-10-20T08:31:52.7588178Z > setblock 5 66 1 minecraft:deepslate_diamond_ore
+Changed the block at 5, 66, 1
+
+2026-10-20T08:31:53.5526492Z > setblock 6 66 5 minecraft:deepslate_diamond_ore
+Changed the block at 6, 66, 5
+
+2026-10-20T08:31:54.4831917Z > setblock 4 66 5 minecraft:deepslate_diamond_ore
+Changed the block at 4, 66, 5
+
+2026-10-20T08:31:55.5524413Z > setblock 4 66 4 minecraft:deepslate_diamond_ore
+Changed the block at 4, 66, 4
+
+2026-10-20T08:31:56.2441082Z > setblock 2 65 1 minecraft:diamond_ore
+Changed the block at 2, 65, 1
+
+2026-10-20T08:31:57.0236834Z > setblock 10 66 2 minecraft:diamond_ore
+Changed the block at 10, 66, 2
+
+2026-10-20T08:31:57.7271134Z > setblock 5 64 1 minecraft:deepslate_diamond_ore
+Changed the block at 5, 64, 1
+
+2026-10-20T08:31:58.1777859Z > setblock 4 66 2 minecraft:deepslate_diamond_ore
+Changed the block at 4, 66, 2
+
+2026-10-20T08:31:58.6766813Z > setblock 7 65 6 minecraft:diamond_ore
+Changed the block at 7, 65, 6
+
+2026-10-20T08:31:59.2722703Z > setblock 0 65 1 minecraft:diamond_ore
+Changed the block at 0, 65, 1
+
+2026-10-20T08:31:59.8214198Z > setblock 7 66 2 minecraft:deepslate_diamond_ore
+Changed the block at 7, 66, 2
+
+2026-10-20T08:32:00.7641523Z > setblock 6 66 3 minecraft:deepslate_diamond_ore
+Changed the block at 6, 66, 3
+
+2026-10-20T08:32:01.7676574Z > setblock 2 66 2 minecraft:diamond_ore
+Changed the block at 2, 66, 2
+
+2026-10-20T08:32:02.9860561Z > setblock 10 66 3 minecraft:diamond_ore
+Changed the block at 10, 66, 3
+
+2026-10-20T08:32:04.2029484Z > setblock 2 66 3 minecraft:diamond_ore
+Changed the block at 2, 66, 3
+
+2026-10-20T08:32:05.2643515Z > setblock 11 66 3 minecraft:diamond_ore
+Changed the block at 11, 66, 3
+
+2026-10-20T08:32:06.1761501Z > setblock 10 65 1 minecraft:diamond_ore
+Changed the block at 10, 65, 1
+
+2026-10-20T08:32:07.2703611Z > setblock 0 66 2 minecraft:diamond_ore
+Changed the block at 0, 66, 2
+
+2026-10-20T08:32:08.3174533Z > setblock 4 65 1 minecraft:deepslate_diamond_ore
+Changed the block at 4, 65, 1
+
+2026-10-20T08:32:09.3976990Z > setblock 7 66 3 minecraft:deepslate_diamond_ore
+Changed the block at 7, 66, 3
+
+2026-10-20T08:32:10.4479091Z > setblock 9 64 1 minecraft:diamond_ore
+Changed the block at 9, 64, 1
+
+2026-10-20T08:32:10.8116359Z > setblock 0 65 2 minecraft:diamond_ore
+Changed the block at 0, 65, 2
+
+2026-10-20T08:32:11.3488664Z > setblock 9 66 1 minecraft:diamond_ore
+Changed the block at 9, 66, 1
+
+2026-10-20T08:32:11.8352691Z > setblock 11 65 6 minecraft:diamond_ore
+Changed the block at 11, 65, 6
+
+2026-10-20T08:32:12.6539711Z > setblock 8 65 1 minecraft:diamond_ore
+Changed the block at 8, 65, 1
+
+2026-10-20T08:32:13.1575330Z > setblock 6 66 2 minecraft:deepslate_diamond_ore
+Changed the block at 6, 66, 2
+
+2026-10-20T08:32:13.8529732Z > setblock 11 66 2 minecraft:diamond_ore
+Changed the block at 11, 66, 2
+
+2026-10-20T08:32:14.3676568Z > setblock 1 65 0 computercraft:turtle_advanced[facing=south]{ComputerId:1,Fuel:10000,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 1, 65, 0
+
+2026-10-20T08:32:14.8297980Z > setblock 5 65 0 computercraft:turtle_advanced[facing=south]{ComputerId:2,Fuel:42,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 5, 65, 0
+
+2026-10-20T08:32:15.7183582Z > setblock 9 65 0 computercraft:turtle_advanced[facing=south]{ComputerId:3,Fuel:10000,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 9, 65, 0
+
+2026-10-20T08:32:16.1397264Z > setblock -6 65 -6 computercraft:computer_advanced{ComputerId:10}
+Changed the block at -6, 65, -6
+
+2026-10-20T08:32:16.6035873Z > setblock -6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, -6
+
+2026-10-20T08:32:17.1108148Z > setblock 6 65 -6 computercraft:computer_advanced{ComputerId:11}
+Changed the block at 6, 65, -6
+
+2026-10-20T08:32:17.7313207Z > setblock 6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 6, 66, -6
+
+2026-10-20T08:32:19.1288342Z > setblock -6 65 6 computercraft:computer_advanced{ComputerId:12}
+Changed the block at -6, 65, 6
+
+2026-10-20T08:32:19.7890695Z > setblock -6 66 6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, 6
+
+2026-10-20T08:32:20.3220123Z > setblock -6 71 -6 computercraft:computer_advanced{ComputerId:13}
+Changed the block at -6, 71, -6
+
+2026-10-20T08:32:20.9234051Z > setblock -6 72 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 72, -6
+
+2026-10-20T08:33:44.7955164Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T08:33:47.2667298Z > computercraft turn-on 0 1 2 3 4 6
+Turned on 6/6 computers
+
+2026-10-20T08:34:02.2165015Z > item replace block 10 65 1 container.1 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:02.5987550Z > item replace block 10 65 1 container.2 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:03.3642169Z > item replace block 10 65 1 container.3 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:03.9326707Z > item replace block 10 65 1 container.4 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:04.9233078Z > item replace block 10 65 1 container.5 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:05.3023171Z > item replace block 10 65 1 container.6 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:05.7181127Z > item replace block 10 65 1 container.7 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:06.1078111Z > item replace block 10 65 1 container.8 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:06.8466347Z > item replace block 10 65 1 container.9 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:07.3956978Z > item replace block 10 65 1 container.10 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:07.7074352Z > item replace block 10 65 1 container.11 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:08.2183221Z > item replace block 10 65 1 container.12 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:08.6297206Z > item replace block 10 65 1 container.13 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:09.2625659Z > item replace block 10 65 1 container.14 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:09.8197315Z > item replace block 10 65 1 container.15 with minecraft:stone 64
+Replaced a slot at 10, 65, 1 with [Stone]
+
+2026-10-20T08:34:13.5760752Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 9996, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 2, Slot: 0b, id: "minecraft:diamond"}, {count: 64, Slot: 1b, id: "minecraft:stone"}, {count: 64, Slot: 2b, id: "minecraft:stone"}, {count: 64, Slot: 3b, id: "minecraft:stone"}, {count: 64, Slot: 4b, id: "minecraft:stone"}, {count: 64, Slot: 5b, id: "minecraft:stone"}, {count: 64, Slot: 6b, id: "minecraft:stone"}, {count: 64, Slot: 7b, id: "minecraft:stone"}, {count: 64, Slot: 8b, id: "minecraft:stone"}, {count: 64, Slot: 9b, id: "minecraft:stone"}, {count: 64, Slot: 10b, id: "minecraft:stone"}, {count: 64, Slot: 11b, id: "minecraft:stone"}, {count: 64, Slot: 12b, id: "minecraft:stone"}, {count: 64, Slot: 13b, id: "minecraft:stone"}, {count: 64, Slot: 14b, id: "minecraft:stone"}, {count: 64, Slot: 15b, id: "minecraft:stone"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T08:34:14.5037017Z > item replace block 9 65 0 container.1 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:15.4062490Z > item replace block 9 65 0 container.2 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:16.1986755Z > item replace block 9 65 0 container.3 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:16.6754024Z > item replace block 9 65 0 container.4 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:17.1672611Z > item replace block 9 65 0 container.5 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:17.9772019Z > item replace block 9 65 0 container.6 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:18.7164324Z > item replace block 9 65 0 container.7 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:19.2722729Z > item replace block 9 65 0 container.8 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:20.0949321Z > item replace block 9 65 0 container.9 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:20.5709692Z > item replace block 9 65 0 container.10 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:21.5014765Z > item replace block 9 65 0 container.11 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:22.8737230Z > item replace block 9 65 0 container.12 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:23.7597248Z > item replace block 9 65 0 container.13 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:24.5949779Z > item replace block 9 65 0 container.14 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:25.3556313Z > item replace block 9 65 0 container.15 with minecraft:air
+Replaced a slot at 9, 65, 0 with [Air]
+
+2026-10-20T08:34:26.9174520Z > item replace block 5 65 0 container.15 with minecraft:coal
+Replaced a slot at 5, 65, 0 with [Coal]
+
+2026-10-20T08:34:29.0099805Z > data get block 2 65 1
+2, 65, 1 has the following block data: {Fuel: 9998, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 2, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 2, Slot: 0b, id: "minecraft:diamond"}], z: 1, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T08:34:30.1220271Z > data get block 5 65 0
+5, 65, 0 has the following block data: {Fuel: 112, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 5, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 5, Slot: 0b, id: "minecraft:diamond"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T08:34:30.9564368Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 9996, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 2, Slot: 0b, id: "minecraft:diamond"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T08:34:31.4157719Z > execute if loaded 1 65 1 run time query gametime
+The time is 3891
+
+2026-10-20T08:34:31.8659090Z > computercraft shutdown 1 2 3
+Shutdown 3/3 computers
+
+2026-10-20T08:34:32.4887737Z > data remove block 2 65 1 RightUpgrade
+Modified block data of 2, 65, 1
+
+2026-10-20T08:34:33.1890279Z > data remove block 5 65 0 RightUpgrade
+Modified block data of 5, 65, 0
+
+2026-10-20T08:34:33.9404480Z > data remove block 9 65 0 RightUpgrade
+Modified block data of 9, 65, 0
+
+2026-10-20T08:34:34.5884143Z > setworldspawn -1000 64 -1000
+Set the world spawn point to -1000, 64, -1000 [0.0]
+
+2026-10-20T08:34:35.2601993Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T08:34:38.5061778Z > execute if loaded 1 65 1 run time query gametime
+
+2026-10-20T08:34:40.0176673Z > stop
+Stopping the server
+
+2026-10-20T08:34:59.2996731Z > forceload add -16 -16 32 16
+Marked 12 chunks in Overworld from [-1, -1] to [2, 1] to be force loaded
+
+2026-10-20T08:35:01.6120011Z > data modify block 2 65 1 RightUpgrade set value "computercraft:wireless_modem_advanced"
+Modified block data of 2, 65, 1
+
+2026-10-20T08:35:02.8187366Z > data modify block 5 65 0 RightUpgrade set value "computercraft:wireless_modem_advanced"
+Modified block data of 5, 65, 0
+
+2026-10-20T08:35:03.7753721Z > data modify block 9 65 0 RightUpgrade set value "computercraft:wireless_modem_advanced"
+Modified block data of 9, 65, 0
+
+2026-10-20T08:35:04.5965154Z > computercraft shutdown 10 11 12 13
+Shutdown 4/4 computers
+
+2026-10-20T08:35:06.9839682Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T08:35:11.0223543Z > computercraft turn-on 0 1 2 3 4 6
+Turned on 3/6 computers
+
+2026-10-20T08:41:52.1417873Z > execute if block 10 64 5 minecraft:bedrock run time query gametime
+The time is 12357
+
+2026-10-20T08:41:53.1070795Z > execute if block 10 64 5 minecraft:air run time query gametime
+
+2026-10-20T08:41:54.2349045Z > execute if block 9 65 1 minecraft:air run time query gametime
+The time is 12398
+
+2026-10-20T08:41:55.2272552Z > execute if block 9 66 2 minecraft:air run time query gametime
+The time is 12418
+
+2026-10-20T08:41:56.4198528Z > execute if block 5 66 5 minecraft:air run time query gametime
+The time is 12442
+
+2026-10-20T08:41:57.3411110Z > execute if block 3 66 2 minecraft:air run time query gametime
+The time is 12461
+
+2026-10-20T08:41:58.4025607Z > execute if block 7 66 5 minecraft:air run time query gametime
+The time is 12481
+
+2026-10-20T08:41:59.3444552Z > execute if block 7 66 4 minecraft:air run time query gametime
+The time is 12500
+
+2026-10-20T08:42:00.3317422Z > execute if block 4 65 2 minecraft:air run time query gametime
+The time is 12521
+
+2026-10-20T08:42:01.3587462Z > execute if block 3 66 3 minecraft:air run time query gametime
+The time is 12542
+
+2026-10-20T08:42:02.4262135Z > execute if block 6 65 1 minecraft:air run time query gametime
+The time is 12563
+
+2026-10-20T08:42:03.6310934Z > execute if block 1 66 1 minecraft:air run time query gametime
+The time is 12585
+
+2026-10-20T08:42:04.8892468Z > execute if block 5 66 3 minecraft:air run time query gametime
+The time is 12611
+
+2026-10-20T08:42:05.8781699Z > execute if block 5 66 4 minecraft:air run time query gametime
+The time is 12632
+
+2026-10-20T08:42:07.0703951Z > execute if block 1 66 2 minecraft:air run time query gametime
+The time is 12655
+
+2026-10-20T08:42:07.8856251Z > execute if block 3 65 6 minecraft:diamond_ore run time query gametime
+The time is 12673
+
+2026-10-20T08:42:08.9784965Z > execute if block 6 66 4 minecraft:air run time query gametime
+The time is 12694
+
+2026-10-20T08:42:10.3255048Z > execute if block 8 65 2 minecraft:air run time query gametime
+The time is 12720
+
+2026-10-20T08:42:11.5194268Z > execute if block 5 66 2 minecraft:air run time query gametime
+The time is 12744
+
+2026-10-20T08:42:12.6622178Z > execute if block 8 66 2 minecraft:air run time query gametime
+The time is 12767
+
+2026-10-20T08:42:14.2247518Z > execute if block 5 65 1 minecraft:air run time query gametime
+The time is 12798
+
+2026-10-20T08:42:15.4388050Z > execute if block 1 64 1 minecraft:air run time query gametime
+The time is 12821
+
+2026-10-20T08:42:16.7268995Z > execute if block 4 66 3 minecraft:air run time query gametime
+The time is 12849
+
+2026-10-20T08:42:18.0134814Z > execute if block 1 65 1 minecraft:air run time query gametime
+The time is 12874
+
+2026-10-20T08:42:19.0427493Z > execute if block 5 66 1 minecraft:air run time query gametime
+The time is 12894
+
+2026-10-20T08:42:20.0917951Z > execute if block 6 66 5 minecraft:air run time query gametime
+The time is 12916
+
+2026-10-20T08:42:21.4944700Z > execute if block 4 66 5 minecraft:air run time query gametime
+The time is 12944
+
+2026-10-20T08:42:23.5657343Z > execute if block 4 66 4 minecraft:air run time query gametime
+The time is 12985
+
+2026-10-20T08:42:24.7049890Z > execute if block 2 65 1 minecraft:air run time query gametime
+The time is 13007
+
+2026-10-20T08:42:25.8689600Z > execute if block 10 66 2 minecraft:air run time query gametime
+The time is 13031
+
+2026-10-20T08:42:27.5116736Z > execute if block 5 64 1 minecraft:air run time query gametime
+The time is 13063
+
+2026-10-20T08:42:28.7040443Z > execute if block 4 66 2 minecraft:air run time query gametime
+The time is 13089
+
+2026-10-20T08:42:29.7213146Z > execute if block 7 65 6 minecraft:diamond_ore run time query gametime
+The time is 13109
+
+2026-10-20T08:42:31.0963677Z > execute if block 0 65 1 minecraft:air run time query gametime
+The time is 13135
+
+2026-10-20T08:42:32.0698816Z > execute if block 7 66 2 minecraft:air run time query gametime
+The time is 13156
+
+2026-10-20T08:42:33.3890191Z > execute if block 6 66 3 minecraft:air run time query gametime
+The time is 13180
+
+2026-10-20T08:42:34.5499213Z > execute if block 2 66 2 minecraft:air run time query gametime
+The time is 13205
+
+2026-10-20T08:42:35.4403040Z > execute if block 10 66 3 minecraft:air run time query gametime
+The time is 13224
+
+2026-10-20T08:42:36.5065042Z > execute if block 2 66 3 minecraft:air run time query gametime
+The time is 13244
+
+2026-10-20T08:42:37.1627758Z > execute if block 11 66 3 minecraft:air run time query gametime
+The time is 13257
+
+2026-10-20T08:42:37.9910145Z > execute if block 10 65 1 minecraft:air run time query gametime
+The time is 13274
+
+2026-10-20T08:42:38.8537898Z > execute if block 0 66 2 minecraft:air run time query gametime
+The time is 13290
+
+2026-10-20T08:42:39.6206254Z > execute if block 4 65 1 minecraft:air run time query gametime
+The time is 13307
+
+2026-10-20T08:42:40.6835726Z > execute if block 7 66 3 minecraft:air run time query gametime
+The time is 13329
+
+2026-10-20T08:42:41.4677026Z > execute if block 9 64 1 minecraft:air run time query gametime
+The time is 13343
+
+2026-10-20T08:42:42.5535584Z > execute if block 0 65 2 minecraft:air run time query gametime
+The time is 13365
+
+2026-10-20T08:42:43.2234644Z > execute if block 9 66 1 minecraft:air run time query gametime
+The time is 13377
+
+2026-10-20T08:42:43.7875181Z > execute if block 11 65 6 minecraft:diamond_ore run time query gametime
+The time is 13391
+
+2026-10-20T08:42:44.8272325Z > execute if block 8 65 1 minecraft:air run time query gametime
+The time is 13410
+
+2026-10-20T08:42:46.1349141Z > execute if block 6 66 2 minecraft:air run time query gametime
+The time is 13434
+
+2026-10-20T08:42:47.2679568Z > execute if block 11 66 2 minecraft:air run time query gametime
+The time is 13460
+
+2026-10-20T08:42:48.5914447Z > data get block 1 65 0
+1, 65, 0 has the following block data: {Fuel: 9966, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 12, Slot: 0b, id: "minecraft:diamond"}, {count: 5, Slot: 1b, id: "minecraft:cobblestone"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T08:42:49.9046740Z > data get block 5 65 0
+5, 65, 0 has the following block data: {Fuel: 60, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 5, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 22, Slot: 0b, id: "minecraft:diamond"}, {count: 5, Slot: 1b, id: "minecraft:cobblestone"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T08:42:50.8246956Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 9962, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 12, Slot: 0b, id: "minecraft:diamond"}, {count: 4, Slot: 1b, id: "minecraft:cobblestone"}, {count: 1, Slot: 2b, id: "minecraft:flint"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T08:43:50.3567526Z > stop
+Stopping the server
+

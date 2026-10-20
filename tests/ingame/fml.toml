@@ -1,0 +1,14 @@
+disableConfigWatcher = true
+earlyWindowControl = true
+maxThreads = -1
+versionCheck = false
+defaultConfigPath = "defaultconfigs"
+disableOptimizedDFU = true
+earlyWindowProvider = "fmlearlywindow"
+earlyWindowWidth = 1280
+earlyWindowHeight = 720
+earlyWindowFBScale = 1
+earlyWindowMaximized = false
+earlyWindowSkipGLVersions = []
+earlyWindowSquir = false
+dependencyOverrides = {}

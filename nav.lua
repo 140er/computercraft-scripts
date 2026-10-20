@@ -254,6 +254,14 @@ function M.open(cfg)
     end
     return nil,"no route"
   end
+  function api.homeCost(goal)
+    if not S.pose(goal) or not inside(goal,b) then return false,"invalid route" end
+    return owned(function()
+      local route,why=search(goal,"walk",{})
+      if not route then return false,why end
+      return #route
+    end)
+  end
   function api.go(goal,policy)
     if not S.pose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
     return owned(function()

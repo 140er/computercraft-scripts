@@ -14,12 +14,12 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 -- Everything in the repo that runs on a computer or turtle
 local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }
 -- The hub hands miner.lua out to the mining turtles, so it keeps a copy too.
 -- fleetview.lua draws the 3D view and the AR goggles for the hub, server and panel.
-local ALSO = { ["hub.lua"] = { "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua" },
-  ["miner.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua" }, ["factory.lua"] = { "miner.lua" },
-  ["server.lua"] = { "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua" }, ["panel.lua"] = { "fleetview.lua" } }
+local ALSO = { ["hub.lua"] = { "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" },
+  ["miner.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }, ["factory.lua"] = { "miner.lua" },
+  ["server.lua"] = { "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }, ["panel.lua"] = { "fleetview.lua" } }
 
 local args = { ... }
 local reboot = true
