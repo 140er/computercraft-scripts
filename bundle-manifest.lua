@@ -235,7 +235,7 @@ return {
     ["storage-peer.lua"]="9a124036",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="86f91913",
-    ["update.lua"]="347b5825",
+    ["update.lua"]="dc2f890d",
     ["view-role.lua"]="72a23f2b",
     ["view-scene.lua"]="97baa2b4",
     ["view-source.lua"]="942bbbac",
@@ -1238,5 +1238,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="be699927"
+  ["version"]="0f1bebd7"
 }
