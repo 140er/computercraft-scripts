@@ -1,7 +1,8 @@
-# Miner offline autonomy (PENDING APPROVAL)
+# Miner offline autonomy (APPROVED)
 
-> PENDING APPROVAL. Jeffrey decides on this plan. Nothing here gets built
-> until he accepts it. These are notes.
+> APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam).
+> The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md) (N1, B1 and B2). Where the plan and
+> these notes differ, the plan wins.
 
 Part of the fleet PR. Miners on a normal wireless modem sometimes leave the
 range of the hub and the server. The server stays the source of truth whenever

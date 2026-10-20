@@ -2,7 +2,7 @@
 
 This is the shared reference for the hardening track, fleet, wizard, layout, and craft. It defines the interfaces those PRs use. Existing `mine-*`, `wh-*`, and navigation operations retain their domain meanings under the authenticated transport below. Legacy packets cannot authorize shared-state changes or updates.
 
-H4 and miner offline autonomy are PENDING APPROVAL by Jeffrey. Their sections contain design notes only. No PR may implement them before approval. No approved interface or implementation prerequisite depends on them. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
+H4 and miner offline autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam). The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md), and its P0 PR freezes the implementable shapes in `docs/design/h4-offline-contract.md`. Where those shapes and the notes below differ, the plan wins. The H1+H2 MAC uses ccryptolib's keyed BLAKE3, and the update manifest is signed with Ed25519. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
 
 ## Ownership and coordinates
 
@@ -435,9 +435,9 @@ After an RPC timeout following a real move, the client freezes further physical 
 
 Craft adopts the same claim fencing and preserves observed progress on expiry. Miner offline leases are outside this approved H5 scope.
 
-## PENDING APPROVAL: H4 disk and cold storage notes
+## APPROVED: H4 disk and cold storage notes
 
-PENDING APPROVAL. Jeffrey accepts or rejects this plan. These are intended shapes, not implementable interfaces. No PR may add this behavior yet. The specification is [H4 and No silent forgetting](hardening.md#h4-disk-budget-pending-approval).
+APPROVED on 2026-10-20 at 17:09 (Europe/Amsterdam). These notes predate the plan. The build order and final shapes come from [the H4 offline plan](../plans/cc-h4-offline-plan.md). The specification is [H4 and No silent forgetting](hardening.md#h4-disk-budget-approved).
 
 The foundation follows a, c, e, then b in the spec. The state server stores no fleet code cache. It reads `fs.getCapacity` and `fs.getFreeSpace` for the actual state mount at runtime. The reported live capacity is 4,000,000 bytes today, with 16,000,000 staged. Neither number is a constant in code. Unknown or unlimited API results are explicit capacity states. The server budgets metadata, rollback, and pending writes before admission.
 
@@ -516,9 +516,9 @@ These proposed messages use authenticated envelopes and bounded pages. They rema
 | `storage-preview` | Policy revision, scope, optional age threshold, cursor, and pinned directory revision. Reply supplies immutable preview ID, digest, exact records, and expiry. |
 | `storage-forget` | Preview ID, digest, policy revision, and directory revision. Operator consent or an explicitly saved forgetting policy authorizes only that recorded scope. Reply supplies exact removals and new revisions. |
 
-## PENDING APPROVAL: miner offline autonomy notes
+## APPROVED: miner offline autonomy notes
 
-PENDING APPROVAL. Jeffrey accepts or rejects this plan separately from H4. These are intended shapes only. No PR may register these messages, settings, or behavior before approval. The specification is [miner offline autonomy](miner-autonomy.md). Approved fleet settings and H5 recovery do not depend on this feature.
+APPROVED on 2026-10-20 at 17:09 (Europe/Amsterdam). These notes predate the plan. The build order and final shapes come from [the H4 offline plan](../plans/cc-h4-offline-plan.md) (N1, B1, B2). The specification is [miner offline autonomy](miner-autonomy.md). Approved fleet settings and H5 recovery do not depend on this feature.
 
 This would be a full feature for normal-modem miners. Ender modems remain optional. Out of range, a miner can work only while a player or chunk loader keeps its area loaded. An unloaded turtle freezes. On reload it reboots without GPS and cannot dig until its pose and heading are re-anchored. A saved lease alone cannot prove position.
 

@@ -7,8 +7,11 @@ for it live in [the wh2 contract](wh2-contract.md).
 
 ## Merge order
 
-PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft. H4 is on hold
-pending approval, so H5 stacks on H1+H2 for now.
+PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft. H4 and miner
+autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam).
+The full program order is in [the H4 offline plan](../plans/cc-h4-offline-plan.md): P0, H3, H1H2, N1, then I1
+and I2 alongside H4a and H4b1, then H5, H4c, W1, then B1 and B2 alongside T1,
+A1 and T2, then S1, H4b2, H4d.
 
 Fleet and wizard develop alongside this track, then rebase onto it and use its
 auth and request queue. Layout and craft start after H3 and H4 are merged.
@@ -22,7 +25,8 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
 
 ## H1+H2: auth and updates
 
-- HMAC-SHA256 over request id, counter, op and body. The key never goes on
+- A MAC over request id, counter, op and body. The approved plan uses
+  ccryptolib's keyed BLAKE3 for it, and an Ed25519-signed manifest. The key never goes on
   the wire, in requests or in replies. Mesh relays forward the MAC, not a key.
 - Replays are rejected. A counter near or at its maximum cannot lock a turtle
   out.
@@ -31,11 +35,11 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
   good version for rollback. No unauthenticated `rednet.lookup` fallback.
 - Extras: version and capability handshake between client and server.
 
-## H4: disk budget (PENDING APPROVAL)
+## H4: disk budget (APPROVED)
 
-> PENDING APPROVAL. Jeffrey decides on the H4 plan (1 MB mode, peer cold
-> storage, storage policy). Nothing in this section gets built until he
-> accepts it. These are notes.
+> APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam).
+> The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md). It splits H4 into H4a, H4b1, H4b2,
+> H4c and H4d. Where the plan and these notes differ, the plan wins.
 
 The server never hardcodes its disk size. Live is 4,000,000 bytes today, with
 16,000,000 staged for the next restart.
