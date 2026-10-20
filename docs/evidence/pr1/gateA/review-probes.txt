@@ -1,0 +1,6 @@
+{
+  doc2_timeout_grants_move = true,
+  doc2_shared_anchor_error = "Cannot serialize table with repeated entries",
+  [ "1000_cells_compact_bytes" ] = 93788,
+  [ "1000_cells_default_bytes" ] = 152789,
+}

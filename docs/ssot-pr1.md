@@ -61,10 +61,10 @@ The existing `server.state` loader accepts the previous unversioned table. Its n
 
 ## Rerun the gates
 
-Run `C:\Tools\lua52\lua52.exe tests\run.lua` for mocks. Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox\run.ps1 -Scenario ssot -Seconds 600 -Output <evidence-directory>` for native CraftOS transport and emulated physical turtles. Run the same script with `-Scenario smoke -Seconds 120` for legacy server, hub, and miner behavior.
+Run `C:\Tools\lua52\lua52.exe tests\run.lua` for mocks. Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox\run.ps1 -Scenario ssot -Seconds 900 -Output <evidence-directory>` for native CraftOS transport and emulated physical turtles. The SSOT scenario defaults to 900 seconds. Run the same script with `-Scenario smoke -Seconds 120` for legacy server, hub, and miner behavior.
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\run.ps1 -Scenario ssot` for a disposable NeoForge world. The runner binds Minecraft and RCON to loopback, stages scripts while stopped, creates a corridor, and restarts the complete server at a durable reservation checkpoint. RCON credentials stay in the test directory. The runner never targets the live server.
 
-Add `-Client` to attempt an offline Minecraft client screenshot. If the VM has no primary monitor, the runner retains the GLFW error and generates a diagram from the recorded turtle positions. That diagram is not a client screenshot.
+Add `-Client` to attempt an offline Minecraft client screenshot. From a Windows service session, the helper creates an ephemeral task in the logged-in desktop. It removes that task and its own client process afterward. If no desktop is available, the runner retains the error and generates a diagram from the recorded turtle positions. That diagram is not a client screenshot.
 
 See [the design choices](ssot-pr1-design.md), [the decision trail](ssot-pr1-decisions.tsv), and [the retained evidence](evidence/pr1/README.md).

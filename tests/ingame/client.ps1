@@ -1,5 +1,41 @@
-param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240)
+param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240, [switch]$OnDesktop)
 $ErrorActionPreference = 'Stop'
+if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
+    $desktopUser = (Get-CimInstance Win32_ComputerSystem).UserName
+    if (!$desktopUser) { throw 'No logged-in Windows desktop is available for the offline client.' }
+    $status = "$TestRoot\client-status.txt"
+    if (Test-Path -LiteralPath $status) { Remove-Item -LiteralPath $status }
+    $launcher = "$TestRoot\client-on-desktop.ps1"
+    $quote = { param($value) "'" + $value.Replace("'", "''") + "'" }
+    $command = '& ' + (& $quote $PSCommandPath) + ' -OnDesktop -TestRoot ' + (& $quote $TestRoot) +
+        ' -Port ' + $Port + ' -RconPort ' + $RconPort + ' -Output ' + (& $quote $Output) + ' -Timeout ' + $Timeout
+    $body = "try { $command; [IO.File]::WriteAllText($(& $quote $status), 'PASS') } catch { [IO.File]::WriteAllText($(& $quote $status), 'FAIL' + [Environment]::NewLine + `$_.Exception.Message) }"
+    [IO.File]::WriteAllText($launcher, $body)
+    $name = 'SSOT-pr1-' + [guid]::NewGuid().ToString('N')
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$launcher`""
+    $principal = New-ScheduledTaskPrincipal -UserId $desktopUser -LogonType Interactive -RunLevel Highest
+    Register-ScheduledTask -TaskName $name -Action $action -Principal $principal | Out-Null
+    try {
+        Start-ScheduledTask -TaskName $name
+        $deadline = [DateTime]::UtcNow.AddSeconds($Timeout + 90)
+        do {
+            if (Test-Path -LiteralPath $status) { break }
+            Start-Sleep -Seconds 1
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (!(Test-Path -LiteralPath $status)) { throw 'Interactive desktop client timed out.' }
+        $result = [IO.File]::ReadAllText($status)
+        if ($result -ne 'PASS') { throw $result }
+    } finally {
+        Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $name -Confirm:$false
+        if (Test-Path "$TestRoot\client\process.id") {
+            $clientId = [int]([IO.File]::ReadAllText("$TestRoot\client\process.id"))
+            $owned = Get-CimInstance Win32_Process -Filter "ProcessId=$clientId" -ErrorAction SilentlyContinue
+            if ($owned -and $owned.CommandLine.Contains($TestRoot.Replace('\','/'))) { Stop-Process -Id $clientId -Force }
+        }
+    }
+    return
+}
 . "$PSScriptRoot\rcon.ps1"
 $client = Join-Path $TestRoot 'client'
 New-Item -ItemType Directory -Force -Path $client, "$client\mods", "$client\config" | Out-Null
@@ -37,6 +73,7 @@ $process = $null
 try {
     $process = Start-Process 'C:\mc-client\jdk\bin\java.exe' -ArgumentList "@$($client.Replace('\','/'))/client.args" -WorkingDirectory $client -WindowStyle Hidden -PassThru -RedirectStandardOutput "$client\stdout.log" -RedirectStandardError "$client\stderr.log"
     $process.PriorityClass = 'AboveNormal'
+    [IO.File]::WriteAllText("$client\process.id", [string]$process.Id)
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {
         if ($process.HasExited) { throw "Offline client exited with code $($process.ExitCode)." }
@@ -59,15 +96,19 @@ using System;
 using System.Runtime.InteropServices;
 public static class SSOTCapture {
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr key, IntPtr value);
+    [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint key, uint mode);
 }
 '@
     $process.Refresh()
     if (!$process.MainWindowHandle) { throw 'Offline client has no screenshot window.' }
-    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x100, [IntPtr]0x71, [IntPtr]0) | Out-Null
-    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x101, [IntPtr]0x71, [IntPtr]0) | Out-Null
+    $scan = [SSOTCapture]::MapVirtualKey(0x71,0)
+    $keyData = [int64](1 -bor ($scan -shl 16))
+    $captureAt = [DateTime]::UtcNow
+    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x100, [IntPtr]0x71, [IntPtr]$keyData) | Out-Null
+    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x101, [IntPtr]0x71, [IntPtr]($keyData -bor 3221225472)) | Out-Null
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
-        $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($shot) { break }
         Start-Sleep -Milliseconds 500
     } while ([DateTime]::UtcNow -lt $deadline)

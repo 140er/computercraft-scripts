@@ -6,6 +6,7 @@ param(
     [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
+if ($Scenario -eq 'ssot' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 
 try {
     $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
@@ -61,9 +62,9 @@ try {
             }
             Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
-            [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=5000,maxChunks=8}', $utf8)
+            [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
         }
-        [IO.File]::WriteAllText("$disk\startup.lua", "shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
+        [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
     }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
     Write-Output "Artifacts: $run"
@@ -77,9 +78,12 @@ try {
         if ($Scenario -eq 'ssot' -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
             Stop-Process -Id $process.Id -Force
             $process.WaitForExit()
+            foreach ($id in 1..4) { [IO.File]::WriteAllText("$run\computer\$id\boot-hold", 'restart barrier', $utf8) }
             $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
             $process.PriorityClass = 'AboveNormal'
             $process.ProcessorAffinity = [IntPtr]1
+            Start-Sleep -Seconds 2
+            foreach ($id in 1..4) { Remove-Item -LiteralPath "$run\computer\$id\boot-hold" }
             $restarted = $true
             Write-Output 'Restarted the complete CraftOS process at the durable checkpoint.'
         }

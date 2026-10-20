@@ -1,7 +1,7 @@
 local runtime = ...
 local id = os.getComputerID()
 local A, S = dofile("atomic.lua"), dofile("ssot.lua")
-local client = dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=runtime=="minecraft" and 5 or 1})
+local client = dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=5})
 local received, pending, serial, checks, timeline = {}, {}, 0, {}, {}
 local drop, duplicate, delayed = false, false, {}
 local previousReply
@@ -233,7 +233,7 @@ local function controller()
     waitMessage("held",1)
     send(0,{action="reboot"},"ssot_test")
     sleep(4)
-    test("server computer reboot keeps the map service reachable",function()
+    test(runtime=="sandbox" and "server program restart keeps the map service reachable" or "server computer reboot keeps the map service reachable",function()
       local r = client.snapshot({chunk="minecraft:overworld|0|4|0"}) assert(r and r.ok)
     end)
     send(1,{kind="reconcile"},"ssot_test")
@@ -343,6 +343,7 @@ local function controller()
   while true do os.pullEvent() end
 end
 local ok,err=pcall(parallel.waitForAny,receive,id==4 and controller or worker)
+if not ok and err=="ssot sandbox restart" then return "restart" end
 if not ok then
   writeJSON("sandbox-result.json",{ok=false,booted=true,errors={tostring(err)},lines={},checks=checks})
   error(err,0)

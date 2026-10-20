@@ -1,0 +1,7 @@
+Minecraft loopback port 60780; RCON loopback port 60781
+NeoForge 21.1.259; Minecraft 1.21.1
+computer_space_limit = 4000000
+computer_threads = 1
+modem_range = 64
+modem_high_altitude_range = 384
+enderModemNerf = false

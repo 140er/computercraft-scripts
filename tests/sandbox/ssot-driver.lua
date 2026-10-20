@@ -9,6 +9,13 @@ end
 rednet.open("left")
 http = nil
 _G.http = nil
+os.reboot = function() error("ssot sandbox restart",0) end
+local function program(path,...)
+  while true do
+    assert(assert(loadfile(path,"t",_ENV))(... )=="restart","test program stopped")
+    sleep(0)
+  end
+end
 local function report(value)
   local h = assert(fs.open("sandbox-result.json","w")) h.write(textutils.serializeJSON(value)) h.close()
 end
@@ -22,7 +29,7 @@ if id == 0 then
       sleep(1)
     else peripheral.call(name,"turnOn") end
   end
-  assert(loadfile("test-server.lua","t",_ENV))()
+  program("test-server.lua")
 elseif id == 5 then
   rednet.send(0,true,"ssot_boot")
   local A=dofile("atomic.lua")
@@ -53,5 +60,5 @@ elseif id == 5 then
   end
 else
   rednet.send(0,true,"ssot_boot")
-  assert(loadfile("ssot-runtime.lua","t",_ENV))("sandbox")
+  program("ssot-runtime.lua","sandbox")
 end

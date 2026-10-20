@@ -48,7 +48,9 @@ end,function()
     end
   end
 end)
+if not ok and err=="ssot sandbox restart" then return "restart" end
 if not ok then
   local h=assert(fs.open("sandbox-result.json","w"))
   h.write(textutils.serializeJSON({ok=false,errors={tostring(err)}})) h.close()
+  error(err,0)
 end

@@ -58,7 +58,7 @@ foreach ($id in 0..4) {
     $startup = if ($id -eq 0) { 'shell.run("test-server.lua")' } else {
         'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft")'
     }
-    $startup = 'while not peripheral.find("modem") do sleep(0.1) end; ' + $startup
+    $startup = 'while fs.exists("boot-hold") do sleep(0.1) end; while not peripheral.find("modem") do sleep(0.1) end; ' + $startup
     Copy-Item "$PSScriptRoot\server.lua" "$disk\test-server.lua"
     [IO.File]::WriteAllText("$disk\startup.lua", $startup, $utf8)
 }
@@ -140,8 +140,13 @@ try {
         'execute in minecraft:the_nether run setblock 512 65 0 computercraft:computer_advanced{ComputerId:4}',
         'execute in minecraft:the_nether run setblock 512 66 0 computercraft:wireless_modem_advanced[facing=down]')) { Rcon $command | Out-Null }
     Stop-TestServer
+    foreach ($id in 0..4) { [IO.File]::WriteAllText("$TestRoot\world\computercraft\computer\$id\boot-hold", 'waiting for GPS hosts', $utf8) }
     Start-TestServer 'restart'
+    Rcon 'computercraft shutdown 10 11 12 13' | Out-Null
+    Start-Sleep -Seconds 1
     Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
+    Start-Sleep -Seconds 2
+    foreach ($id in 0..4) { Remove-Item -LiteralPath "$TestRoot\world\computercraft\computer\$id\boot-hold" }
     Rcon 'computercraft turn-on 0 1 2 3' | Out-Null
     Rcon 'execute in minecraft:the_nether run computercraft turn-on 4' | Out-Null
     Wait-File "$TestRoot\world\computercraft\computer\4\sandbox-result.json"
@@ -153,6 +158,8 @@ try {
     $controller = "$TestRoot\world\computercraft\computer\4"
     $loaded = Rcon 'execute in minecraft:the_nether if loaded 512 65 0 run data get block 512 65 0'
     if ($loaded -notmatch 'ComputerId:\s*4(?=[,}\s])') { throw 'Cannot verify the loaded controller chunk.' }
+    Rcon 'execute in minecraft:the_nether run computercraft shutdown 4' | Out-Null
+    Rcon 'execute in minecraft:the_nether run setblock 512 66 0 minecraft:air' | Out-Null
     Rcon 'execute in minecraft:the_nether run forceload remove 496 -16 528 16' | Out-Null
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     do {

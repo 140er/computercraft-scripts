@@ -1,0 +1,1 @@
+Latest scan revision and empty reservation set survived restart

@@ -1,0 +1,229 @@
+2026-10-20T04:06:15.2419038Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T04:06:16.8897023Z > fill -5 64 -5 5 64 5 minecraft:stone
+Successfully filled 121 block(s)
+
+2026-10-20T04:06:18.1517225Z > fill -5 65 -5 5 68 5 minecraft:air
+No blocks were filled
+
+2026-10-20T04:06:19.2653284Z > fill -3 65 -3 3 67 3 minecraft:stone
+Successfully filled 147 block(s)
+
+2026-10-20T04:06:20.0645942Z > fill -3 65 0 3 66 0 minecraft:air
+Successfully filled 14 block(s)
+
+2026-10-20T04:06:21.0880438Z > fill 0 65 -3 0 66 3 minecraft:air
+Successfully filled 12 block(s)
+
+2026-10-20T04:06:22.2884488Z > setblock -1 65 0 minecraft:stone
+Changed the block at -1, 65, 0
+
+2026-10-20T04:06:23.8581294Z > setblock -4 65 -4 computercraft:computer_advanced{ComputerId:0}
+Changed the block at -4, 65, -4
+
+2026-10-20T04:06:25.2301034Z > setblock -4 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at -4, 66, -4
+
+2026-10-20T04:06:26.4248503Z > setblock 4 65 -4 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 4, 65, -4
+
+2026-10-20T04:06:27.8358975Z > setblock 4 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 4, 66, -4
+
+2026-10-20T04:06:29.2036979Z > setblock -2 65 0 computercraft:turtle_advanced[facing=east]{ComputerId:1,Fuel:10000,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at -2, 65, 0
+
+2026-10-20T04:06:31.0619608Z > setblock 0 65 -2 computercraft:turtle_advanced[facing=south]{ComputerId:2,Fuel:10000,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 0, 65, -2
+
+2026-10-20T04:06:32.5179105Z > setblock 2 65 0 computercraft:turtle_advanced[facing=west]{ComputerId:3,Fuel:10000,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 2, 65, 0
+
+2026-10-20T04:06:33.8376346Z > computercraft turn-on 0
+Turned on 1/1 computers
+
+2026-10-20T04:06:35.3979455Z > setblock -6 65 -6 computercraft:computer_advanced{ComputerId:10}
+Changed the block at -6, 65, -6
+
+2026-10-20T04:06:37.7965994Z > setblock -6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, -6
+
+2026-10-20T04:06:40.2519287Z > setblock 6 65 -6 computercraft:computer_advanced{ComputerId:11}
+Changed the block at 6, 65, -6
+
+2026-10-20T04:06:41.6430180Z > setblock 6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 6, 66, -6
+
+2026-10-20T04:06:43.1691170Z > setblock -6 65 6 computercraft:computer_advanced{ComputerId:12}
+Changed the block at -6, 65, 6
+
+2026-10-20T04:06:44.6969748Z > setblock -6 66 6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, 6
+
+2026-10-20T04:06:45.8521131Z > setblock -6 71 -6 computercraft:computer_advanced{ComputerId:13}
+Changed the block at -6, 71, -6
+
+2026-10-20T04:06:47.1226058Z > setblock -6 72 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 72, -6
+
+2026-10-20T04:06:47.9897701Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T04:06:50.6466298Z > computercraft turn-on 1 2 3 4
+Turned on 4/4 computers
+
+2026-10-20T04:11:46.2272740Z > data get block -2 66 0
+-2, 66, 0 has the following block data: {Fuel: 9993, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: -2, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 66, Items: [{count: 2, Slot: 0b, id: "minecraft:cobblestone"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T04:11:47.0689233Z > data get block 0 66 -2
+0, 66, -2 has the following block data: {Fuel: 9995, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 0, Slot: 0, y: 66, Items: [], z: -2, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T04:11:47.8418221Z > data get block 2 66 0
+2, 66, 0 has the following block data: {Fuel: 9995, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 2, Slot: 0, y: 66, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T04:11:48.8609271Z > setblock 4 66 -4 minecraft:air
+Changed the block at 4, 66, -4
+
+2026-10-20T04:11:49.3456432Z > setblock 4 65 -4 minecraft:air
+Changed the block at 4, 65, -4
+
+2026-10-20T04:11:57.0573625Z > execute in minecraft:the_nether run forceload add 496 -16 528 16
+Marked 9 chunks in The Nether from [31, -1] to [33, 1] to be force loaded
+
+2026-10-20T04:11:59.7997597Z > execute in minecraft:the_nether run fill 510 64 -2 514 68 2 minecraft:bedrock
+Successfully filled 125 block(s)
+
+2026-10-20T04:12:01.6249776Z > execute in minecraft:the_nether run fill 511 65 -1 513 67 1 minecraft:air
+Successfully filled 27 block(s)
+
+2026-10-20T04:12:02.2529112Z > execute in minecraft:the_nether run setblock 512 65 0 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 512, 65, 0
+
+2026-10-20T04:12:02.8262184Z > execute in minecraft:the_nether run setblock 512 66 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 512, 66, 0
+
+2026-10-20T04:12:03.7971303Z > stop
+Stopping the server
+
+2026-10-20T04:14:32.0476364Z > computercraft shutdown 10 11 12 13
+Shutdown 4/4 computers
+
+2026-10-20T04:14:36.5577973Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T04:14:41.6521282Z > computercraft turn-on 0 1 2 3
+Turned on 0/4 computers
+
+2026-10-20T04:14:47.5429471Z > execute in minecraft:the_nether run computercraft turn-on 4
+Turned on 1/1 computers
+
+2026-10-20T04:15:10.7364728Z > execute in minecraft:the_nether if loaded 512 65 0 run data get block 512 65 0
+512, 65, 0 has the following block data: {x: 512, y: 65, z: 0, id: "computercraft:computer_advanced", ComputerId: 4, On: 1b}
+
+2026-10-20T04:15:12.0770692Z > execute in minecraft:the_nether run computercraft shutdown 4
+Shutdown 1/1 computers
+
+2026-10-20T04:15:13.8714611Z > execute in minecraft:the_nether run setblock 512 66 0 minecraft:air
+Changed the block at 512, 66, 0
+
+2026-10-20T04:15:14.8851788Z > execute in minecraft:the_nether run forceload remove 496 -16 528 16
+Unmarked 9 chunks in The Nether from [31, -1] to [33, 1] for force loading
+
+2026-10-20T04:15:18.1272722Z > execute in minecraft:the_nether if loaded 512 65 0 run data get block 512 65 0
+
+2026-10-20T04:15:19.7852329Z > execute in minecraft:the_nether run setblock 512 66 0 minecraft:air
+That position is not loaded
+
+2026-10-20T04:15:21.4234600Z > execute in minecraft:the_nether run setblock 512 65 0 minecraft:air
+That position is not loaded
+
+2026-10-20T04:15:23.5557482Z > execute in minecraft:the_nether run forceload add 496 -16 528 16
+Marked 9 chunks in The Nether from [31, -1] to [33, 1] to be force loaded
+
+2026-10-20T04:15:27.5312372Z > execute in minecraft:overworld run forceload add 496 -16 528 16
+Marked 9 chunks in Overworld from [31, -1] to [33, 1] to be force loaded
+
+2026-10-20T04:15:29.4848586Z > execute in minecraft:overworld run setblock 512 66 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:15:31.3111043Z > execute in minecraft:overworld run setblock 512 65 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:15:32.8865133Z > execute in minecraft:the_nether run setblock 512 64 0 minecraft:bedrock
+Could not set the block
+
+2026-10-20T04:15:34.4014544Z > execute in minecraft:the_nether run setblock 512 65 0 computercraft:computer_advanced{ComputerId:4}
+Could not set the block
+
+2026-10-20T04:15:35.9142531Z > execute in minecraft:the_nether run setblock 512 66 0 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 512, 66, 0
+
+2026-10-20T04:15:37.7380580Z > execute in minecraft:the_nether run computercraft turn-on 4
+Turned on 1/1 computers
+
+2026-10-20T04:15:41.6809906Z > execute in minecraft:the_nether run setblock 512 66 0 minecraft:air
+Changed the block at 512, 66, 0
+
+2026-10-20T04:15:43.5705184Z > execute in minecraft:the_nether run setblock 512 65 0 minecraft:air
+Changed the block at 512, 65, 0
+
+2026-10-20T04:15:44.8967734Z > execute in minecraft:the_nether run forceload add 496 -16 528 16
+No chunks were marked for force loading
+
+2026-10-20T04:15:46.7661289Z > execute in minecraft:overworld run forceload add 496 -16 528 16
+No chunks were marked for force loading
+
+2026-10-20T04:15:48.1124511Z > execute in minecraft:overworld run setblock 512 66 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:15:49.7058166Z > execute in minecraft:overworld run setblock 512 65 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:15:51.5653614Z > execute in minecraft:overworld run setblock 512 64 0 minecraft:bedrock
+Changed the block at 512, 64, 0
+
+2026-10-20T04:15:53.3281930Z > execute in minecraft:overworld run setblock 512 65 0 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 512, 65, 0
+
+2026-10-20T04:15:55.3446076Z > execute in minecraft:overworld run setblock 512 66 0 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 512, 66, 0
+
+2026-10-20T04:15:57.3427565Z > execute in minecraft:overworld run computercraft turn-on 4
+Turned on 1/1 computers
+
+2026-10-20T04:16:02.3068554Z > execute in minecraft:overworld run setblock 512 66 0 minecraft:air
+Changed the block at 512, 66, 0
+
+2026-10-20T04:16:03.6948999Z > execute in minecraft:overworld run setblock 512 65 0 minecraft:air
+Changed the block at 512, 65, 0
+
+2026-10-20T04:16:06.4356484Z > execute in minecraft:the_nether run setblock 512 66 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:16:10.7242432Z > execute in minecraft:the_nether run setblock 512 65 0 minecraft:air
+Could not set the block
+
+2026-10-20T04:16:13.2168229Z > execute in minecraft:the_nether run setblock 512 65 0 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 512, 65, 0
+
+2026-10-20T04:16:15.0229169Z > execute in minecraft:the_nether run setblock 512 66 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 512, 66, 0
+
+2026-10-20T04:16:19.7086774Z > execute in minecraft:the_nether run computercraft turn-on 4
+Turned on 1/1 computers
+
+2026-10-20T04:16:28.2538150Z > data get block 2 66 0
+2, 66, 0 has the following block data: {Fuel: 9995, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 2, Slot: 0, y: 66, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T04:16:31.4925651Z > data get block 0 66 -2
+0, 66, -2 has the following block data: {Fuel: 9995, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 0, Slot: 0, y: 66, Items: [], z: -2, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T04:16:33.8192203Z > data get block -2 66 0
+-2, 66, 0 has the following block data: {Fuel: 9993, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: -2, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 66, Items: [{count: 2, Slot: 0b, id: "minecraft:cobblestone"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T04:16:36.1552162Z > execute in minecraft:the_nether run data get block 512 65 0
+512, 65, 0 has the following block data: {x: 512, y: 65, z: 0, id: "computercraft:computer_advanced", ComputerId: 4, On: 1b}
+
+2026-10-20T04:18:37.0620620Z > stop
+Stopping the server
