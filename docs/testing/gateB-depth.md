@@ -55,6 +55,29 @@ the result from real inventories.
 - Two requests at once.
 - Power loss at the charger.
 
+## Hardening cases
+
+These come from [the 2026-10-20 review](../review/judgment-2026-10-20.md).
+Each one runs in gate A (CraftOS-PC sandbox, added to `tests\sandbox`) and,
+where it involves the world, in gate B.
+
+- Attacker: replayed request, captured secret, faked sender id, a fake server
+  answering `rednet.lookup`/`rednet.host`, a huge counter.
+- Disk: the real limits. Run once with a 1,000,000-byte server disk and
+  realistic content (map chunks, journals, fleet records), and once with the
+  large-disk profile read from `fs.getCapacity`. In 1 MB mode, lose cold-storage
+  peers mid-run and check re-replication, and that unreachable cells stay
+  unknown.
+- Event loss: a rednet burst during a save and during an HTTP call. No request
+  is dropped and the timer still fires.
+- Faults: a commit lost after a real move, the GPS host down, an ender modem
+  removed, the disk full mid-move.
+- Validator fuzzing: random and malformed messages against every validator.
+- Updates: version skew between server and clients, and an update
+  interrupted halfway, which must roll back to the last good version.
+- Soak: at least 2 hours with 4 turtles, logging save time and state size over
+  time. A box-side test server is fine for this.
+
 ## Evidence
 
 - Before and after item counts, read through RCON or inventory APIs, in a
