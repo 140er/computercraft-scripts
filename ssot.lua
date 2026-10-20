@@ -6,6 +6,14 @@ local Planner = dofile("planner-ops.lua")
 local Wh2 = dofile("wh2-dispatch.lua")
 local deadOk, Dead = pcall(dofile, "dead.lua")
 if not deadOk or type(Dead) ~= "table" then Dead = nil end
+local function hubEnabled(cfg)
+  return type(cfg) == "table" and cfg.hubProfile == true
+end
+local HubLib
+local function hub()
+  if not HubLib then HubLib = dofile("ssot-hub.lua") end
+  return HubLib
+end
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -201,6 +209,7 @@ function M.new(s, cfg, clock, epoch, save, map)
   s.planner = Planner.normalize(s.planner, origin, clock())
   cfg = cfg or {}
   local wh2=Wh2.open(cfg.wh2,M.pose)
+  if hubEnabled(cfg) then hub().prepare(s, cfg, clock) end
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
@@ -589,6 +598,7 @@ function M.new(s, cfg, clock, epoch, save, map)
       if not integer(m.target, 0, 2147483647) then return { ok = false, error = "invalid turtle" } end
       return Dead.forget(s, m.target)
     end
+    if hubEnabled(cfg) and hub().owns(op) then return hub().run(s, cfg, clock, id, m, pageBytes, M.pose) end
     return { ok = false, error = "unknown operation" }
   end
   local function plan(event)
@@ -678,7 +688,7 @@ function M.new(s, cfg, clock, epoch, save, map)
     local result = run(id, m)
     result.v, result.type, result.rid, result.server = 1, "ssot_reply", m.rid, os.getComputerID()
     result.auth = paired and key or false
-    if m.op=="snapshot" and #textutils.serialize(result,{compact=true})>pageBytes then s=previous return nil end
+    if (m.op=="snapshot" or m.op=="hub-export") and #textutils.serialize(result,{compact=true})>pageBytes then s=previous return nil end
     client.counter = m.counter
     client.order = client.order or {}
     client.order[#client.order + 1] = m.rid
@@ -772,7 +782,8 @@ function M.open(cfg)
     end
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and Planner.valid(s.planner) and (not Dead or Dead.valid(s.live))
       and Wh2.open(cfg.wh2,M.pose).valid(s.wh2)
-  end, 900000)
+      and (not hubEnabled(cfg) or hub().valid(s))
+  end, hubEnabled(cfg) and hub().budget(cfg) or 900000)
   local map
   if cfg.compactSections then
     local opened, why = dofile("mapstore.lua").open(fs, { reserve = 65536 })
@@ -788,6 +799,16 @@ function M.open(cfg)
   end
   if map then s.rev = math.max(s.rev or 0, map:maxRevision()) end
   s.epoch = s.epoch + 1
+  if hubEnabled(cfg) then
+    local keys = A.store("ssot.keys", hub().validKeys, 65536)
+    local kv = keys.value or { v = 1, keys = {} }
+    cfg.keys = kv.keys
+    cfg.saveKeys = function()
+      kv.keys = cfg.keys
+      return keys.save(kv)
+    end
+    hub().prepare(s, cfg, function() return os.epoch("utc") end)
+  end
   assert(store.save(s))
   if map and map:hasLegacy() then
     local ok, err = map:dropLegacy()

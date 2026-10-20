@@ -267,7 +267,7 @@ local function apply(selection)
     local configured = configuredPaths(manifest)
     local selected, list = {}, {}
     for _, file in ipairs(spec.files) do
-      assert(type(file) == "string" and file:match("^[%w%-]+%.lua$") and manifest.files[file], "invalid role file")
+      assert(type(file) == "string" and file:match("^[%w_%-]+%.lua$") and manifest.files[file], "invalid role file")
       assert(not selected[file], "duplicate role file")
       selected[file], list[#list + 1] = true, file
     end
