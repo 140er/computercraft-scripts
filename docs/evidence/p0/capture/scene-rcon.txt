@@ -1,0 +1,18 @@
+2026-10-20T16:40:40.5058854Z > fill 0 -59 1 4 -57 1 computercraft:monitor_advanced[facing=south]
+Successfully filled 15 block(s)
+
+2026-10-20T16:40:40.6692972Z > time set day
+Set the time to 1000
+
+2026-10-20T16:40:40.9933300Z > weather clear
+Set the weather to clear
+
+2026-10-20T16:40:41.3509997Z > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T16:40:41.7743046Z > setblock 25 -59 0 superbwarfare:charging_station
+Changed the block at 25, -59, 0
+
+2026-10-20T16:40:41.9595582Z > item replace block 25 -59 0 container.0 with minecraft:coal_block 64
+Replaced a slot at 25, -59, 0 with [Block of Coal]
+

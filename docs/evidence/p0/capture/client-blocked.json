@@ -1,0 +1,15 @@
+{
+    "p0ClientStarted":  false,
+    "reason":  "The shared client helper waits while a pre-existing Minecraft client runs. P0 may stop only processes it started.",
+    "screenshots":  0,
+    "videoClips":  0,
+    "existingClient":  [
+                           {
+                               "ProcessId":  9804,
+                               "CreationDate":  "\/Date(1792447140409)\/"
+                           }
+                       ],
+    "status":  "blocked",
+    "at":  "2026-10-20T17:13:12.2568606Z",
+    "stoppedExistingClient":  false
+}

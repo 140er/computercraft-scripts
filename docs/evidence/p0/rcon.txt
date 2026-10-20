@@ -1,0 +1,272 @@
+2026-10-20T18:12:56+0200 > gamerule spawnChunkRadius 0
+Gamerule spawnChunkRadius is now set to: 0
+
+2026-10-20T18:12:56+0200 > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T18:12:56+0200 > time set day
+Set the time to 1000
+
+2026-10-20T18:12:56+0200 > forceload add -16 -16 31 15
+Marked 6 chunks in Overworld from [-1, -1] to [1, 0] to be force loaded
+
+2026-10-20T18:12:56+0200 > forceload add 512 0
+Marked chunk [32, 0] in Overworld to be force loaded
+
+2026-10-20T18:12:56+0200 > forceload add 1024 0
+Marked chunk [64, 0] in Overworld to be force loaded
+
+2026-10-20T18:12:56+0200 > fill -2 -60 -5 28 -60 5 minecraft:stone_bricks
+Successfully filled 341 block(s)
+
+2026-10-20T18:12:56+0200 > setblock 0 -59 0 computercraft:computer_advanced{ComputerId:0}
+Changed the block at 0, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 0 -58 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 0, -58, 0
+
+2026-10-20T18:12:56+0200 > setblock -1 -59 0 advancedperipherals:player_detector
+Changed the block at -1, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 1 -59 0 classicperipherals:cryptographic_accelerator
+Changed the block at 1, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 0 -59 -1 cc_ar:ar_controller
+Changed the block at 0, -59, -1
+
+2026-10-20T18:12:56+0200 > setblock 4 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:1,Fuel:1000,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 4, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 5 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:2,Fuel:1000}
+Changed the block at 5, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 512 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:4,Fuel:1000,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 512, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 1024 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:5,Fuel:1000,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 1024, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 24 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:6,Fuel:100}
+Changed the block at 24, -59, 0
+
+2026-10-20T18:12:56+0200 > setblock 25 -59 0 superbwarfare:charging_station
+Changed the block at 25, -59, 0
+
+2026-10-20T18:12:56+0200 > item replace block 25 -59 0 container.0 with minecraft:coal_block 64
+Replaced a slot at 25, -59, 0 with [Block of Coal]
+
+2026-10-20T18:12:56+0200 > computercraft turn-on 0 1 2 3 4 5 6
+Turned on 7/7 computers
+
+2026-10-20T18:19:53+0200 > computercraft shutdown 0 1 2 3 4 5 6
+Shutdown 7/7 computers
+
+2026-10-20T18:19:53+0200 > computercraft turn-on 0 1 2 3 4 5 6
+Turned on 7/7 computers
+
+2026-10-20T18:24:29+0200 > data get block 0 -59 0
+0, -59, 0 has the following block data: {x: 0, y: -59, z: 0, id: "computercraft:computer_advanced", ComputerId: 0, On: 1b}
+
+2026-10-20T18:24:29+0200 > computercraft dump
+Computer | On | Position
+============================
+#0       | Y  | 0, -59, 0
+#1       | Y  | 4, -59, 0
+#2       | Y  | 5, -59, 0
+#3       | Y  | 8, -59, 0
+#6       | Y  | 24, -59, 0
+#4       | Y  | 512, -59, 0
+#5       | Y  | 1024, -59, 0
+
+2026-10-20T18:27:07+0200 > computercraft shutdown 0 1 2 3 4 5 6
+Shutdown 7/7 computers
+
+2026-10-20T18:27:09+0200 > computercraft turn-on 0 1 2 3 4 5 6
+Turned on 7/7 computers
+
+2026-10-20T18:29:33+0200 > computercraft shutdown 0 1 2 3 4 5 6
+Shutdown 7/7 computers
+
+2026-10-20T18:29:33+0200 > computercraft turn-on 0 1 2 3 4 5 6
+Turned on 1/7 computers
+
+2026-10-20T18:30:13+0200 > setblock 25 -59 0 minecraft:air
+Changed the block at 25, -59, 0
+
+2026-10-20T18:31:21+0200 > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T18:31:21+0200 > time set 1000
+Set the time to 1000
+
+2026-10-20T18:31:27+0200 > time set 6000
+Set the time to 6000
+
+2026-10-20T18:31:33+0200 > time set 500
+Set the time to 500
+
+2026-10-20T18:31:33+0200 > gamerule doDaylightCycle true
+Gamerule doDaylightCycle is now set to: true
+
+2026-10-20T18:31:37+0200 > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T18:31:45+0200 > setblock 0 -58 0 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 0, -58, 0
+
+2026-10-20T18:31:59+0200 > setblock 0 -58 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 0, -58, 0
+
+2026-10-20T18:32:04+0200 > computercraft shutdown 4
+Shutdown 1/1 computers
+
+2026-10-20T18:32:04+0200 > setblock 512 -59 0 minecraft:air
+Changed the block at 512, -59, 0
+
+2026-10-20T18:32:04+0200 > execute in minecraft:the_nether run forceload add 512 0
+Marked chunk [32, 0] in The Nether to be force loaded
+
+2026-10-20T18:32:04+0200 > execute in minecraft:the_nether run setblock 512 64 0 computercraft:turtle_advanced{ComputerId:4,Fuel:1000,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 512, 64, 0
+
+2026-10-20T18:32:04+0200 > computercraft turn-on 4
+Turned on 1/1 computers
+
+2026-10-20T18:32:19+0200 > forceload remove 1024 0
+Unmarked chunk [64, 0] in Overworld for force loading
+
+2026-10-20T18:32:20+0200 > execute if loaded 1024 -59 0 run time query gametime
+
+2026-10-20T18:32:22+0200 > execute if loaded 1024 -59 0 run time query gametime
+
+2026-10-20T18:32:25+0200 > execute if loaded 1024 -59 0 run time query gametime
+
+2026-10-20T18:32:30+0200 > forceload add 1024 0
+Marked chunk [64, 0] in Overworld to be force loaded
+
+2026-10-20T18:38:59+0200 > computercraft shutdown 0
+Shutdown 1/1 computers
+
+2026-10-20T18:38:59+0200 > computercraft turn-on 0
+Turned on 1/1 computers
+
+2026-10-20T18:39:29+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:39:29+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:39:29+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:automata",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:39:29+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:39:48+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:39:48+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:39:48+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:netherite_end_automata",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:39:48+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:40:40+0200 > fill 0 -59 1 4 -57 1 computercraft:monitor_advanced[facing=south]
+Successfully filled 15 block(s)
+
+2026-10-20T18:40:40+0200 > time set day
+Set the time to 1000
+
+2026-10-20T18:40:40+0200 > weather clear
+Set the weather to clear
+
+2026-10-20T18:40:40+0200 > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T18:40:40+0200 > setblock 25 -59 0 superbwarfare:charging_station
+Changed the block at 25, -59, 0
+
+2026-10-20T18:40:40+0200 > item replace block 25 -59 0 container.0 with minecraft:coal_block 64
+Replaced a slot at 25, -59, 0 with [Block of Coal]
+
+2026-10-20T18:43:52+0200 > computercraft shutdown 0
+Shutdown 1/1 computers
+
+2026-10-20T18:43:52+0200 > computercraft turn-on 0
+Turned on 1/1 computers
+
+2026-10-20T18:43:53+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:43:53+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:43:53+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:netherite_end_automata",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:43:53+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:44:10+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:44:10+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:10+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:starbound_end_automata",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:10+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:44:29+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:44:29+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:29+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:creative_end_automata",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:29+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:44:43+0200 > computercraft shutdown 3
+Shutdown 1/1 computers
+
+2026-10-20T18:44:43+0200 > setblock 8 -59 0 minecraft:air
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:43+0200 > setblock 8 -59 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:1000,LeftUpgrade:"turtlematic:chunk_vial",RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 8, -59, 0
+
+2026-10-20T18:44:43+0200 > computercraft turn-on 3
+Turned on 1/1 computers
+
+2026-10-20T18:53:13+0200 > data get block 25 -59 0
+25, -59, 0 has the following block data: {Energy: 152, MaxFuelTick: 16000, x: 25, y: -59, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 0, id: "superbwarfare:charging_station", FuelTick: 941, ShowRange: 0b}
+
+2026-10-20T18:53:13+0200 > data get block 24 -59 0
+24, -59, 0 has the following block data: {Fuel: 8048, x: 24, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 6, On: 1b}
+
+2026-10-20T18:53:13+0200 > data get block 8 -59 0
+8, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 8, LeftUpgrade: {components: {"minecraft:custom_data": {uuid: [I; 77189782, -769832710, -1854789069, 52627353]}}, id: "turtlematic:chunk_vial"}, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T18:53:13+0200 > data get block 4 -59 0
+4, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 4, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T18:53:13+0200 > forceload query
+7 force loaded chunks were found in Overworld at: [1, -1], [-1, -1], [0, 0], [1, 0], [32, 0], [64, 0], [-1, 0]
+
+2026-10-20T18:53:13+0200 > list
+There are 0 of a max of 4 players online: 
+
+2026-10-20T19:22:03+0200 > stop
+Stopping the server
+

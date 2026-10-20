@@ -1,0 +1,14 @@
+{
+  "run": "h4-p0-b7ab5018",
+  "error": "HttpRequestException: An error occurred while sending the request.",
+  "attempts": [
+    {"operation": "initial final evidence download", "result": "failed"},
+    {"operation": "initial final evidence download retry", "result": "completed"},
+    {"operation": "close attempt 1, evidence download", "result": "failed before stop"},
+    {"operation": "close attempt 2, evidence download", "result": "failed before stop"},
+    {"operation": "close attempt 3, stop request", "result": "request failed"},
+    {"operation": "health check", "result": "reachable"},
+    {"operation": "close attempt 4", "result": "stop, stopped-disk download, shutdown logs and deletion completed"}
+  ],
+  "cause": "Not established."
+}

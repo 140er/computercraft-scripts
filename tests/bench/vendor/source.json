@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/migeyel/ccryptolib",
+  "commit": "14489aa1ec408f8a07e1292be5ef91dfe8567c74",
+  "license": "MIT",
+  "changes": [],
+  "sha256": {
+    "ccryptolib/aead.lua": "738c69c55a2894ffde108267dbdc4ae2d953d6b3122dbc03002389fe65fb67a0",
+    "ccryptolib/blake3.lua": "a495f9ab1c7ffaeeb6a273788adce9ba2fbe2012a5ba46bd8bce0624698982d1",
+    "ccryptolib/chacha20.lua": "a741161fba6bcf04556554aa42b7b304e4b639f01b53601d462907df39cd6dac",
+    "ccryptolib/config.lua": "bc95f607825536e21f6bc8d936990cbd1c997fe6641ee031aaef972a11371287",
+    "ccryptolib/ed25519.lua": "15af5a1773347460c59a47d2635e1d6e67ae7f9940b896b8f7740b1f378ea5e0",
+    "ccryptolib/internal/curve25519.lua": "8730d8f2b7970c835e3a2a42816a8879fee1cc318dca85bacaca0b7b873e8cab",
+    "ccryptolib/internal/edwards25519.lua": "c943e22757dcf339b847d699bb90662cec5f50c624921aef9fb7ffbbc66f59d8",
+    "ccryptolib/internal/fp.lua": "543ac4a1f9cb374a707ed63f94ff32b0341e495ccbb8c6ef5d8a936039cd7c08",
+    "ccryptolib/internal/fq.lua": "4161d0fe692ed3c8a82a4d72cce4e9ead7b7405a09c0b51d02d87c6054d7113b",
+    "ccryptolib/internal/hw.lua": "c1420f387520ce054e0fb2e41c45e246daebda3d38c23a75a71fbfdec666b246",
+    "ccryptolib/internal/mp.lua": "d6b955cdc6edbc7dcce667b612492f4e3620fee424ce4b8681fa3daa997a1074",
+    "ccryptolib/internal/packing.lua": "12ceb7323c616289071a3d5e255cf0dade7a7532580155f91b7ac3047bb59476",
+    "ccryptolib/internal/sha512.lua": "989affb1c13828a299195574faa56f3a5d6498c65c739ead7da5d8c50e4e7e37",
+    "ccryptolib/internal/util.lua": "711be5e43900fc3af46c61e812bd64c48abcc6b78d698eb9fb82f0285eef6844",
+    "ccryptolib/poly1305.lua": "7184ab3a15c855034d1472e57b6432561e86b33b6c7eaba14863a870219c8a69",
+    "ccryptolib/random.lua": "bd55dc49f579bf808ea3cca624218e8651fa1da658ba8242a2bd948212f59f48",
+    "ccryptolib/sha256.lua": "956557af41b419e18c5214d9ed337fb905531e23de4b7f53bfa6a8699f52c64e",
+    "ccryptolib/util.lua": "cdce1c0e75a4e56097853e4aa85fb76366866078e4694db00ebc958785c96caf",
+    "ccryptolib/x25519.lua": "f8618a0641c48721f21ea1dfc63a06eafb75efc4be6fbcc6a2939dc80a55c72b",
+    "ccryptolib/x25519c.lua": "1dcf554322d946a426bc04cfb4936ab740aa75078fa7209b6ac1b032d4fbe222"
+  }
+}

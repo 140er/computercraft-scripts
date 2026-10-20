@@ -1,0 +1,16 @@
+#DirectGPU Server Configuration
+[server]
+	#Clear linked DirectGPU displays when a computer shuts down/detaches
+	clearDisplaysOnDetach = true
+	#Skip 3D geometry hidden behind nearer geometry (hierarchical depth tile test) in the server software renderer
+	occlusionCulling3D = true
+	#Reuse the previously rasterised 3D frame when the scene, camera, lights and textures are unchanged
+	frameCache3D = true
+	#Max network updates per second sent for any single display (0 = unlimited). Updates that arrive faster are merged into one.
+	# Default: 0
+	# Range: 0 ~ 1000
+	maxUpdatesPerSecond = 0
+	#Max bandwidth in KB/s sent for any single display (0 = unlimited). When a script out-draws this, queued draw commands are collapsed into one compressed frame instead of being replayed.
+	# Default: 0
+	# Range: 0 ~ 1000000
+	maxKBpsPerDisplay = 0

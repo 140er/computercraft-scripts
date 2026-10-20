@@ -87,7 +87,7 @@ try {
         Start-Sleep -Seconds 2
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($players -notmatch 'SSOTProof') { throw 'Offline client did not join within the timeout.' }
-    $camera = if ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    $camera = if ($View -eq 'p0') { @('gamemode creative SSOTProof','tp SSOTProof 2 -59 8 180 0','time set day','weather clear') } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
     foreach ($command in $camera) {
         Invoke-TestRcon $RconPort $secret $command | Out-Null
     }
@@ -127,6 +127,10 @@ public static class SSOTCapture {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
     Copy-Item $shot.FullName $Target -Force
+    }
+    if ($View -eq 'p0') {
+        . "$PSScriptRoot\..\bench\client-capture.ps1"
+        return
     }
     Save-Frame "$Output\$ShotName"
     if($View -eq 'warehouse') {

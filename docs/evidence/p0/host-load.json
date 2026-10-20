@@ -1,0 +1,75 @@
+{
+    "cpu":  {
+                "Name":  "AMD Ryzen 9 5900X 12-Core Processor            ",
+                "NumberOfCores":  6,
+                "NumberOfLogicalProcessors":  6,
+                "LoadPercentage":  100
+            },
+    "memory":  {
+                   "TotalVisibleMemorySize":  16771836,
+                   "FreePhysicalMemory":  7185472
+               },
+    "processes":  [
+                      {
+                          "Name":  "java",
+                          "Id":  9804,
+                          "CPU":  308248.90625
+                      },
+                      {
+                          "Name":  "MsMpEng",
+                          "Id":  3244,
+                          "CPU":  7725.296875
+                      },
+                      {
+                          "Name":  "Memory Compression",
+                          "Id":  2440,
+                          "CPU":  5055.359375
+                      },
+                      {
+                          "Name":  "System",
+                          "Id":  4,
+                          "CPU":  3324.21875
+                      },
+                      {
+                          "Name":  "svchost",
+                          "Id":  2372,
+                          "CPU":  2717.984375
+                      },
+                      {
+                          "Name":  "dwm",
+                          "Id":  1452,
+                          "CPU":  2129.71875
+                      },
+                      {
+                          "Name":  "GalaxyClient",
+                          "Id":  8168,
+                          "CPU":  920.84375
+                      },
+                      {
+                          "Name":  "NVDisplay.Container",
+                          "Id":  1776,
+                          "CPU":  882.65625
+                      },
+                      {
+                          "Name":  "svchost",
+                          "Id":  4324,
+                          "CPU":  819.078125
+                      },
+                      {
+                          "Name":  "explorer",
+                          "Id":  4776,
+                          "CPU":  489.75
+                      },
+                      {
+                          "Name":  "GOG Galaxy Notifications Renderer",
+                          "Id":  9092,
+                          "CPU":  173.34375
+                      },
+                      {
+                          "Name":  "codex",
+                          "Id":  14408,
+                          "CPU":  143.25
+                      }
+                  ],
+    "at":  "2026-10-20T16:07:13.1959210Z"
+}

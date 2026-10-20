@@ -2,10 +2,18 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse')][string]$Scenario = 'smoke',
-    [string]$Output = ''
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','bench')][string]$Scenario = 'smoke',
+    [string]$Output = '',
+    [ValidateRange(100000, 64000000)][int]$Disk = 4000000
 )
 $ErrorActionPreference = 'Stop'
+$diskLimit = $Disk
+if ($Scenario -eq 'bench') {
+    if (!$PSBoundParameters.ContainsKey('Disk')) { $Disk = 1000000 }
+    if (!$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+    & "$PSScriptRoot\..\bench\gateA.ps1" -Output $Output -CraftOS $CraftOS -Seconds $Seconds -Disk $Disk
+    exit 0
+}
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 
@@ -38,7 +46,7 @@ try {
     Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 4000000
+        standardsMode = $true; computerSpaceLimit = $diskLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
@@ -70,7 +78,7 @@ try {
         }
         [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$diskLimit"
     Write-Output "Artifacts: $run"
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
