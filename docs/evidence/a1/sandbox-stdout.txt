@@ -1,0 +1,129 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+CraftOS                                            CraftOS                                            CraftOS 1.9                                        
+CraftOS-PC                                         CraftOS-PC                                         CraftOS-PC has                                     CraftOS-PC has                                     CraftOS-PC has been                                CraftOS-PC has been                                CraftOS-PC has been updated                        CraftOS-PC has been updated                        CraftOS-PC has been updated to                     CraftOS-PC has been updated to                     CraftOS-PC has been updated to v2.8.3.             CraftOS-PC has been updated to v2.8.3.             CraftOS-PC has been updated to v2.8.3. To          CraftOS-PC has been updated to v2.8.3. To          CraftOS-PC has been updated to v2.8.3. To see      CraftOS-PC has been updated to v2.8.3. To see      CraftOS-PC has been updated to v2.8.3. To see the  CraftOS-PC has been updated to v2.8.3. To see the  
+new                                                new                                                new changes,                                       new changes,                                       new changes, type                                  new changes, type                                  new changes, type "help                            new changes, type "help                            new changes, type "help whatsnew".                 
+PASS                                               PASS                                               PASS flag                                          PASS flag                                          PASS flag defaults                                 PASS flag defaults                                 PASS flag defaults off                             PASS flag defaults off                             PASS flag defaults off and                         PASS flag defaults off and                         PASS flag defaults off and a                       PASS flag defaults off and a                       PASS flag defaults off and a missing               PASS flag defaults off and a missing               PASS flag defaults off and a missing detector      PASS flag defaults off and a missing detector      
+refuses                                            
+PASS                                               PASS                                               PASS look                                          PASS look                                          PASS look vector                                   PASS look vector                                   PASS look vector and                               PASS look vector and                               PASS look vector and ray                           PASS look vector and ray                           PASS look vector and ray stop                      PASS look vector and ray stop                      PASS look vector and ray stop only                 PASS look vector and ray stop only                 PASS look vector and ray stop only on              PASS look vector and ray stop only on              PASS look vector and ray stop only on observed     PASS look vector and ray stop only on observed     
+solid                                              
+PASS                                               PASS                                               PASS chat                                          PASS chat                                          PASS chat samples                                  PASS chat samples                                  PASS chat samples match                            PASS chat samples match                            PASS chat samples match the                        PASS chat samples match the                        PASS chat samples match the keyboard               PASS chat samples match the keyboard               PASS chat samples match the keyboard events        PASS chat samples match the keyboard events        PASS chat samples match the keyboard events and    PASS chat samples match the keyboard events and    PASS chat samples match the keyboard events and the
+ 
+plan                                               
+PASS                                               PASS                                               PASS here                                          PASS here                                          PASS here mode                                     PASS here mode                                     PASS here mode ignores                             PASS here mode ignores                             PASS here mode ignores the                         PASS here mode ignores the                         PASS here mode ignores the ray                     PASS here mode ignores the ray                     PASS here mode ignores the ray and                 PASS here mode ignores the ray and                 PASS here mode ignores the ray and headings        PASS here mode ignores the ray and headings        PASS here mode ignores the ray and headings follow PASS here mode ignores the ray and headings follow 
+ 
+north                                              north                                              north 0                                            
+PASS                                               PASS                                               PASS relative                                      PASS relative                                      PASS relative level,                               PASS relative level,                               PASS relative level, undo,                         PASS relative level, undo,                         PASS relative level, undo, and                     PASS relative level, undo, and                     PASS relative level, undo, and a                   PASS relative level, undo, and a                   PASS relative level, undo, and a second            PASS relative level, undo, and a second            PASS relative level, undo, and a second planner    
+PASS                                               PASS                                               PASS allowlist,                                    PASS allowlist,                                    PASS allowlist, hidden                             PASS allowlist, hidden                             PASS allowlist, hidden prefix,                     PASS allowlist, hidden prefix,                     PASS allowlist, hidden prefix, and                 PASS allowlist, hidden prefix, and                 PASS allowlist, hidden prefix, and other           PASS allowlist, hidden prefix, and other           PASS allowlist, hidden prefix, and other dimensions
+ 
+PASS                                               PASS                                               PASS samples                                       PASS samples                                       PASS samples are                                   PASS samples are                                   PASS samples are 4                                 PASS samples are 4                                 PASS samples are 4 Hz                              PASS samples are 4 Hz                              PASS samples are 4 Hz and                          PASS samples are 4 Hz and                          PASS samples are 4 Hz and frames                   PASS samples are 4 Hz and frames                   PASS samples are 4 Hz and frames are               PASS samples are 4 Hz and frames are               PASS samples are 4 Hz and frames are 2             PASS samples are 4 Hz and frames are 2             PASS samples are 4 Hz and frames are 2 Hz,         PASS samples are 4 Hz and frames are 2 Hz,         PASS samples are 4 Hz and frames are 2 Hz, redrawn PASS samples are 4 Hz and frames are 2 Hz, redrawn 
+ 
+on                                                 on                                                 on boot                                            
+PASS                                               PASS                                               PASS drawing                                       PASS drawing                                       PASS drawing keeps                                 PASS drawing keeps                                 PASS drawing keeps the                             PASS drawing keeps the                             PASS drawing keeps the level                       PASS drawing keeps the level                       PASS drawing keeps the level band,                 PASS drawing keeps the level band,                 PASS drawing keeps the level band, the             PASS drawing keeps the level band, the             PASS drawing keeps the level band, the name,       PASS drawing keeps the level band, the name,       PASS drawing keeps the level band, the name, and   PASS drawing keeps the level band, the name, and   
+the                                                the                                                the element                                        the element                                        the element cap                                    
+PASS                                               PASS                                               PASS geo                                           PASS geo                                           PASS geo scan                                      PASS geo scan                                      PASS geo scan confirms                             PASS geo scan confirms                             PASS geo scan confirms a                           PASS geo scan confirms a                           PASS geo scan confirms a solid                     PASS geo scan confirms a solid                     PASS geo scan confirms a solid hit                 PASS geo scan confirms a solid hit                 PASS geo scan confirms a solid hit and             PASS geo scan confirms a solid hit and             PASS geo scan confirms a solid hit and demotes     PASS geo scan confirms a solid hit and demotes     PASS geo scan confirms a solid hit and demotes air 
+PASS                                               PASS                                               PASS confirm                                       PASS confirm                                       PASS confirm delivers                              PASS confirm delivers                              PASS confirm delivers the                          PASS confirm delivers the                          PASS confirm delivers the copy                     PASS confirm delivers the copy                     PASS confirm delivers the copy code                PASS confirm delivers the copy code                PASS confirm delivers the copy code by             PASS confirm delivers the copy code by             PASS confirm delivers the copy code by whisper,    PASS confirm delivers the copy code by whisper,    
+CraftOS-PC has been updated to v2.8.3. To see the  
+new changes, type "help whatsnew".                 
+PASS flag defaults off and a missing detector      
+refuses                                            
+PASS look vector and ray stop only on observed     
+solid                                              
+PASS chat samples match the keyboard events and the
+plan                                               
+PASS here mode ignores the ray and headings follow 
+north 0                                            
+PASS relative level, undo, and a second planner    
+PASS allowlist, hidden prefix, and other dimensions
+PASS samples are 4 Hz and frames are 2 Hz, redrawn 
+on boot                                            
+PASS drawing keeps the level band, the name, and   
+the element cap                                    
+PASS geo scan confirms a solid hit and demotes air 
+PASS confirm delivers the copy code by whisper,    
+                                                   toast,                                             toast,                                             toast, and                                         toast, and                                         toast, and HUD                                     
+new changes, type "help whatsnew".                 
+PASS flag defaults off and a missing detector      
+refuses                                            
+PASS look vector and ray stop only on observed     
+solid                                              
+PASS chat samples match the keyboard events and the
+plan                                               
+PASS here mode ignores the ray and headings follow 
+north 0                                            
+PASS relative level, undo, and a second planner    
+PASS allowlist, hidden prefix, and other dimensions
+PASS samples are 4 Hz and frames are 2 Hz, redrawn 
+on boot                                            
+PASS drawing keeps the level band, the name, and   
+the element cap                                    
+PASS geo scan confirms a solid hit and demotes air 
+PASS confirm delivers the copy code by whisper,    
+toast, and HUD                                     
+                                                   A1                                                 A1                                                 A1 sandbox                                         A1 sandbox                                         A1 sandbox PASS                                    
+PASS flag defaults off and a missing detector      
+refuses                                            
+PASS look vector and ray stop only on observed     
+solid                                              
+PASS chat samples match the keyboard events and the
+plan                                               
+PASS here mode ignores the ray and headings follow 
+north 0                                            
+PASS relative level, undo, and a second planner    
+PASS allowlist, hidden prefix, and other dimensions
+PASS samples are 4 Hz and frames are 2 Hz, redrawn 
+on boot                                            
+PASS drawing keeps the level band, the name, and   
+the element cap                                    
+PASS geo scan confirms a solid hit and demotes air 
+PASS confirm delivers the copy code by whisper,    
+toast, and HUD                                     
+A1 sandbox PASS                                    
+                                                   
