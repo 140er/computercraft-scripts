@@ -16,7 +16,7 @@ Feature checklist
 - [x] 6. Rebase into small, ordered commits. Stack follow-ups.
 - [x] 7. If the design is contested, `interrogate` before shipping.
   Skip other models and agents under the PR 1 rules.
-- [ ] 8. Run **Opening a PR**.
+- [x] 8. Run **Opening a PR**.
 
 The existing SSOT request handler validates and authenticates messages, copies state, applies one operation, and saves before replying. Navigation journals physical actions and reserves every destination. Miner boot recovers navigation before starting work. Both gate runners copy repository Lua into isolated computer disks.
 
