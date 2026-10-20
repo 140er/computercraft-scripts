@@ -30,7 +30,7 @@ local dependencies = {
   ["hub.lua"] = { "miner.lua", "fleetview.lua", "ar-hud.lua", "views.lua", "directview.lua" },
   ["server.lua"] = { "fleetview.lua", "ssot.lua", "ar-hud.lua" },
   ["panel.lua"] = { "fleetview.lua" },
-  ["factory.lua"] = { "miner.lua" },
+  ["factory.lua"] = { "miner.lua", "craft.lua" },
   ["store.lua"] = { "warehouse.lua", "nav.lua", "ssot-client.lua" },
   ["roomsorter.lua"] = { "store.lua" },
   ["sorter.lua"] = { "store.lua" },
@@ -56,6 +56,23 @@ if pendingViews then
   dependencies["miner.lua"] = { "mining.lua", "nav.lua", "ssot-client.lua" }
   dependencies["hub.lua"] = { "miner.lua", "fleetview.lua", "ar-hud.lua" }
 end
+dependencies["wh2-program.lua"] = { "atomic.lua", "ssot-client.lua", "wh2-client.lua" }
+dependencies["wh2-client.lua"] = { "atomic.lua" }
+dependencies["wh2-dev.lua"] = { "wh2-fleet.lua" }
+for _, file in ipairs({ "hub.lua", "server.lua", "panel.lua", "factory.lua", "store.lua",
+  "roomsorter.lua", "sorter.lua", "miner.lua", "lava.lua", "lumber.lua", "relay.lua",
+  "smartmine.lua", "buddy.lua", "builder.lua", "farmer.lua", "gpshost.lua" }) do
+  local listed = dependencies[file] or {}
+  dependencies[file] = listed
+  listed[#listed + 1] = "wh2-program.lua"
+end
+dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-ar.lua"
+dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-dev.lua"
+dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-ar.lua"
+dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-dev.lua"
+dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-dev.lua"
+dependencies["miner.lua"][#dependencies["miner.lua"] + 1] = "wh2-client.lua"
+dependencies["store.lua"][#dependencies["store.lua"] + 1] = "wh2-client.lua"
 local roles = {}
 local function role(id, entry, startup)
   roles[id] = { entry = entry, startup = startup or false }

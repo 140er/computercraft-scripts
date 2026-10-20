@@ -7,6 +7,12 @@ return {
     ["ar-role.lua"]={
       [1]="hub.lua"
     },
+    ["buddy.lua"]={
+      [1]="wh2-program.lua"
+    },
+    ["builder.lua"]={
+      [1]="wh2-program.lua"
+    },
     ["chat-control.lua"]={
       [1]="ssot.lua"
     },
@@ -14,17 +20,34 @@ return {
       [1]="view-scene.lua"
     },
     ["factory.lua"]={
-      [1]="miner.lua"
+      [1]="miner.lua",
+      [2]="craft.lua",
+      [3]="wh2-program.lua"
+    },
+    ["farmer.lua"]={
+      [1]="wh2-program.lua"
     },
     ["fleetview.lua"]={
       [1]="ar-hud.lua"
+    },
+    ["gpshost.lua"]={
+      [1]="wh2-program.lua"
     },
     ["hub.lua"]={
       [1]="miner.lua",
       [2]="fleetview.lua",
       [3]="ar-hud.lua",
       [4]="views.lua",
-      [5]="directview.lua"
+      [5]="directview.lua",
+      [6]="wh2-program.lua",
+      [7]="wh2-ar.lua",
+      [8]="wh2-dev.lua"
+    },
+    ["lava.lua"]={
+      [1]="wh2-program.lua"
+    },
+    ["lumber.lua"]={
+      [1]="wh2-program.lua"
     },
     ["mine-tasks.lua"]={
       [1]="atomic.lua"
@@ -33,7 +56,9 @@ return {
       [1]="mining.lua",
       [2]="nav.lua",
       [3]="ssot-client.lua",
-      [4]="view-source.lua"
+      [4]="view-source.lua",
+      [5]="wh2-program.lua",
+      [6]="wh2-client.lua"
     },
     ["mining.lua"]={
       [1]="atomic.lua",
@@ -46,7 +71,10 @@ return {
       [2]="ssot.lua"
     },
     ["panel.lua"]={
-      [1]="fleetview.lua"
+      [1]="fleetview.lua",
+      [2]="wh2-program.lua",
+      [3]="wh2-ar.lua",
+      [4]="wh2-dev.lua"
     },
     ["planner-core.lua"]={
       [1]="planner-enrol.lua",
@@ -57,16 +85,26 @@ return {
       [2]="planner-enrol.lua",
       [3]="planner-settings.lua"
     },
+    ["relay.lua"]={
+      [1]="wh2-program.lua"
+    },
     ["roomsorter.lua"]={
-      [1]="store.lua"
+      [1]="store.lua",
+      [2]="wh2-program.lua"
     },
     ["server.lua"]={
       [1]="fleetview.lua",
       [2]="ssot.lua",
-      [3]="ar-hud.lua"
+      [3]="ar-hud.lua",
+      [4]="wh2-program.lua",
+      [5]="wh2-dev.lua"
+    },
+    ["smartmine.lua"]={
+      [1]="wh2-program.lua"
     },
     ["sorter.lua"]={
-      [1]="store.lua"
+      [1]="store.lua",
+      [2]="wh2-program.lua"
     },
     ["ssot-client.lua"]={
       [1]="atomic.lua",
@@ -83,7 +121,9 @@ return {
     ["store.lua"]={
       [1]="warehouse.lua",
       [2]="nav.lua",
-      [3]="ssot-client.lua"
+      [3]="ssot-client.lua",
+      [4]="wh2-program.lua",
+      [5]="wh2-client.lua"
     },
     ["views.lua"]={
       [1]="view-source.lua",
@@ -93,6 +133,17 @@ return {
     ["warehouse.lua"]={
       [1]="atomic.lua",
       [2]="ssot.lua"
+    },
+    ["wh2-client.lua"]={
+      [1]="atomic.lua"
+    },
+    ["wh2-dev.lua"]={
+      [1]="wh2-fleet.lua"
+    },
+    ["wh2-program.lua"]={
+      [1]="atomic.lua",
+      [2]="ssot-client.lua",
+      [3]="wh2-client.lua"
     }
   },
   ["files"]={
@@ -102,9 +153,10 @@ return {
     ["buddy.lua"]="dbe6b9a6",
     ["builder.lua"]="d2138b30",
     ["chat-control.lua"]="7ca4de48",
+    ["craft.lua"]="4cc5bc20",
     ["dead.lua"]="6f90ce7d",
     ["directview.lua"]="7e5470c6",
-    ["factory.lua"]="5d05829b",
+    ["factory.lua"]="f9414d31",
     ["farmer.lua"]="aeacf970",
     ["fleetview.lua"]="e0feb498",
     ["gpshost.lua"]="bc2a6795",
@@ -138,7 +190,12 @@ return {
     ["views.lua"]="e3966575",
     ["warehouse-tasks.lua"]="7ea10cb8",
     ["warehouse.lua"]="51f00b37",
-    ["wh2-dispatch.lua"]="84cab815"
+    ["wh2-ar.lua"]="807a5915",
+    ["wh2-client.lua"]="b3db8469",
+    ["wh2-dev.lua"]="83198de6",
+    ["wh2-dispatch.lua"]="84cab815",
+    ["wh2-fleet.lua"]="1c63b2cd",
+    ["wh2-program.lua"]="f42f186f"
   },
   ["pending"]={
 
@@ -231,7 +288,12 @@ return {
         [23]="views.lua",
         [24]="warehouse-tasks.lua",
         [25]="warehouse.lua",
-        [26]="wh2-dispatch.lua"
+        [26]="wh2-ar.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua"
       },
       ["startup"]={
         [1]="ar-role"
@@ -240,9 +302,22 @@ return {
     ["buddy"]={
       ["entry"]="buddy.lua",
       ["files"]={
-        [1]="buddy.lua",
-        [2]="install.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="buddy.lua",
+        [3]="dead.lua",
+        [4]="install.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="buddy"
@@ -251,9 +326,22 @@ return {
     ["builder"]={
       ["entry"]="builder.lua",
       ["files"]={
-        [1]="builder.lua",
-        [2]="install.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="builder.lua",
+        [3]="dead.lua",
+        [4]="install.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="builder"
@@ -263,24 +351,27 @@ return {
       ["entry"]="factory.lua",
       ["files"]={
         [1]="atomic.lua",
-        [2]="dead.lua",
-        [3]="factory.lua",
-        [4]="install.lua",
-        [5]="mine-tasks.lua",
-        [6]="miner.lua",
-        [7]="mining.lua",
-        [8]="nav.lua",
-        [9]="planner-core.lua",
-        [10]="planner-enrol.lua",
-        [11]="planner-ops.lua",
-        [12]="planner-settings.lua",
-        [13]="ssot-client.lua",
-        [14]="ssot.lua",
-        [15]="update.lua",
-        [16]="view-source.lua",
-        [17]="warehouse-tasks.lua",
-        [18]="warehouse.lua",
-        [19]="wh2-dispatch.lua"
+        [2]="craft.lua",
+        [3]="dead.lua",
+        [4]="factory.lua",
+        [5]="install.lua",
+        [6]="mine-tasks.lua",
+        [7]="miner.lua",
+        [8]="mining.lua",
+        [9]="nav.lua",
+        [10]="planner-core.lua",
+        [11]="planner-enrol.lua",
+        [12]="planner-ops.lua",
+        [13]="planner-settings.lua",
+        [14]="ssot-client.lua",
+        [15]="ssot.lua",
+        [16]="update.lua",
+        [17]="view-source.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua",
+        [20]="wh2-client.lua",
+        [21]="wh2-dispatch.lua",
+        [22]="wh2-program.lua"
       },
       ["startup"]={
         [1]="factory"
@@ -289,9 +380,22 @@ return {
     ["farmer"]={
       ["entry"]="farmer.lua",
       ["files"]={
-        [1]="farmer.lua",
-        [2]="install.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="farmer.lua",
+        [4]="install.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="farmer"
@@ -300,9 +404,22 @@ return {
     ["gpshost"]={
       ["entry"]="gpshost.lua",
       ["files"]={
-        [1]="gpshost.lua",
-        [2]="install.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="gpshost.lua",
+        [4]="install.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="gpshost"
@@ -335,7 +452,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub"
@@ -344,9 +466,22 @@ return {
     ["lava"]={
       ["entry"]="lava.lua",
       ["files"]={
-        [1]="install.lua",
-        [2]="lava.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="install.lua",
+        [4]="lava.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="lava"
@@ -355,9 +490,22 @@ return {
     ["lumber"]={
       ["entry"]="lumber.lua",
       ["files"]={
-        [1]="install.lua",
-        [2]="lumber.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="install.lua",
+        [4]="lumber.lua",
+        [5]="mine-tasks.lua",
+        [6]="planner-core.lua",
+        [7]="planner-enrol.lua",
+        [8]="planner-ops.lua",
+        [9]="planner-settings.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="lumber"
@@ -383,7 +531,9 @@ return {
         [15]="view-source.lua",
         [16]="warehouse-tasks.lua",
         [17]="warehouse.lua",
-        [18]="wh2-dispatch.lua"
+        [18]="wh2-client.lua",
+        [19]="wh2-dispatch.lua",
+        [20]="wh2-program.lua"
       },
       ["startup"]={
         [1]="miner"
@@ -404,10 +554,16 @@ return {
         [10]="planner-enrol.lua",
         [11]="planner-ops.lua",
         [12]="planner-settings.lua",
-        [13]="ssot.lua",
-        [14]="update.lua",
-        [15]="warehouse-tasks.lua",
-        [16]="wh2-dispatch.lua"
+        [13]="ssot-client.lua",
+        [14]="ssot.lua",
+        [15]="update.lua",
+        [16]="warehouse-tasks.lua",
+        [17]="wh2-ar.lua",
+        [18]="wh2-client.lua",
+        [19]="wh2-dev.lua",
+        [20]="wh2-dispatch.lua",
+        [21]="wh2-fleet.lua",
+        [22]="wh2-program.lua"
       },
       ["startup"]={
         [1]="panel"
@@ -440,7 +596,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -450,9 +611,22 @@ return {
     ["relay"]={
       ["entry"]="relay.lua",
       ["files"]={
-        [1]="install.lua",
-        [2]="relay.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="install.lua",
+        [4]="mine-tasks.lua",
+        [5]="planner-core.lua",
+        [6]="planner-enrol.lua",
+        [7]="planner-ops.lua",
+        [8]="planner-settings.lua",
+        [9]="relay.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]={
         [1]="relay"
@@ -477,7 +651,9 @@ return {
         [14]="update.lua",
         [15]="warehouse-tasks.lua",
         [16]="warehouse.lua",
-        [17]="wh2-dispatch.lua"
+        [17]="wh2-client.lua",
+        [18]="wh2-dispatch.lua",
+        [19]="wh2-program.lua"
       },
       ["startup"]={
         [1]="roomsorter",
@@ -503,7 +679,9 @@ return {
         [14]="update.lua",
         [15]="warehouse-tasks.lua",
         [16]="warehouse.lua",
-        [17]="wh2-dispatch.lua"
+        [17]="wh2-client.lua",
+        [18]="wh2-dispatch.lua",
+        [19]="wh2-program.lua"
       },
       ["startup"]={
         [1]="roomsorter"
@@ -524,10 +702,15 @@ return {
         [10]="planner-ops.lua",
         [11]="planner-settings.lua",
         [12]="server.lua",
-        [13]="ssot.lua",
-        [14]="update.lua",
-        [15]="warehouse-tasks.lua",
-        [16]="wh2-dispatch.lua"
+        [13]="ssot-client.lua",
+        [14]="ssot.lua",
+        [15]="update.lua",
+        [16]="warehouse-tasks.lua",
+        [17]="wh2-client.lua",
+        [18]="wh2-dev.lua",
+        [19]="wh2-dispatch.lua",
+        [20]="wh2-fleet.lua",
+        [21]="wh2-program.lua"
       },
       ["startup"]={
         [1]="server"
@@ -536,9 +719,22 @@ return {
     ["smartmine"]={
       ["entry"]="smartmine.lua",
       ["files"]={
-        [1]="install.lua",
-        [2]="smartmine.lua",
-        [3]="update.lua"
+        [1]="atomic.lua",
+        [2]="dead.lua",
+        [3]="install.lua",
+        [4]="mine-tasks.lua",
+        [5]="planner-core.lua",
+        [6]="planner-enrol.lua",
+        [7]="planner-ops.lua",
+        [8]="planner-settings.lua",
+        [9]="smartmine.lua",
+        [10]="ssot-client.lua",
+        [11]="ssot.lua",
+        [12]="update.lua",
+        [13]="warehouse-tasks.lua",
+        [14]="wh2-client.lua",
+        [15]="wh2-dispatch.lua",
+        [16]="wh2-program.lua"
       },
       ["startup"]=false
     },
@@ -561,7 +757,9 @@ return {
         [14]="update.lua",
         [15]="warehouse-tasks.lua",
         [16]="warehouse.lua",
-        [17]="wh2-dispatch.lua"
+        [17]="wh2-client.lua",
+        [18]="wh2-dispatch.lua",
+        [19]="wh2-program.lua"
       },
       ["startup"]={
         [1]="sorter"
@@ -585,7 +783,9 @@ return {
         [13]="update.lua",
         [14]="warehouse-tasks.lua",
         [15]="warehouse.lua",
-        [16]="wh2-dispatch.lua"
+        [16]="wh2-client.lua",
+        [17]="wh2-dispatch.lua",
+        [18]="wh2-program.lua"
       },
       ["startup"]={
         [1]="store"
@@ -618,7 +818,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -652,7 +857,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -686,7 +896,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -720,7 +935,12 @@ return {
         [22]="views.lua",
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
-        [25]="wh2-dispatch.lua"
+        [25]="wh2-ar.lua",
+        [26]="wh2-client.lua",
+        [27]="wh2-dev.lua",
+        [28]="wh2-dispatch.lua",
+        [29]="wh2-fleet.lua",
+        [30]="wh2-program.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -734,5 +954,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="fbaa2008"
+  ["version"]="abdc2ffd"
 }

@@ -479,6 +479,7 @@ dofile("tests/view-ui-checks.lua")
 dofile("tests/view-install-checks.lua")(test,equal,read,mocks)
 dofile("tests/install-unit.lua")(test, equal)
 dofile("tests/bench-checks.lua")(test)
+dofile("tests/wh2-craft-unit.lua")
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
