@@ -557,6 +557,12 @@ local BOTS = {
 -- Walking through one bot's steps
 ---------------------------------------------------------------------------
 -- Returns true when finished, false when the user went back from the first step
+local FLEET_FILES={"atomic.lua","ssot.lua","ssot-client.lua","mine-tasks.lua","warehouse-tasks.lua",
+  "wh2-fleet.lua","wh2-client.lua","wh2-dispatch.lua","wh2-locations.lua","wh2-program.lua","wh2-ar.lua","wh2-dev.lua"}
+for _,bot in ipairs(BOTS) do
+  local present={} for _,file in ipairs(bot.files) do present[file]=true end
+  for _,file in ipairs(FLEET_FILES) do if not present[file] then bot.files[#bot.files+1]=file end end
+end
 local function guide(bot)
   local title = bot.name
   local ctx = {}

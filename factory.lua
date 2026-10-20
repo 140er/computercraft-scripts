@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("factory.lua",...) then return end
+end
 -- factory.lua - Turtle factory: the mining fleet builds its own new turtles (CC: Tweaked)
 --
 -- The factory is a crafty turtle (crafting table + wireless modem) outside the Storage

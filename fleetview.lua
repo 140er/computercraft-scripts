@@ -60,7 +60,7 @@ end
 
 -- The bots the server keeps (state.bots), as entries. forgotten = the hub's list of
 -- turtles that were removed from the fleet.
-function V.fromServer(bots, now, forgotten)
+function V.fromServer(bots, now, forgotten, fleet)
   local list = {}
   for id, b in pairs(bots or {}) do
     if not (b.kind == "miner" and forgotten and forgotten[id]) then
@@ -69,6 +69,7 @@ function V.fromServer(bots, now, forgotten)
     end
   end
   table.sort(list, function(a, b) return a.id < b.id end)
+  if fleet and fs.exists("wh2-ar.lua") then return dofile("wh2-ar.lua").merge(list,fleet,now) end
   return list
 end
 

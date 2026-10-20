@@ -7,18 +7,20 @@ param(
     [int]$Timeout = 600,
     [switch]$PrepareOnly,
     [switch]$Client,
-    [switch]$ResumeProbes
+    [switch]$ResumeProbes,
+    [switch]$Fleet,
+    [switch]$Prepared
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
-if (!$TestRoot) { $TestRoot = 'C:\Work\mc-ssot-pr1-' + [guid]::NewGuid().ToString('N').Substring(0, 8) }
+if (!$TestRoot) { $TestRoot = $(if ($Fleet) { 'C:\Work\mc-wh2-fleet-' } else { 'C:\Work\mc-ssot-pr1-' }) + [guid]::NewGuid().ToString('N').Substring(0, 8) }
 $TestRoot = [IO.Path]::GetFullPath($TestRoot)
-if (!$TestRoot.StartsWith('C:\Work\mc-ssot-pr1-')) { throw 'TestRoot must be a dedicated C:\Work\mc-ssot-pr1-* directory.' }
+if (!$TestRoot.StartsWith('C:\Work\mc-ssot-pr1-') -and !($Fleet -and $TestRoot.StartsWith('C:\Work\mc-wh2-fleet-'))) { throw 'TestRoot must be a dedicated test directory.' }
 if ($ResumeProbes -and ($Scenario -ne 'warehouse' -or !(Test-Path "$TestRoot\server.properties"))) { throw 'Probe resume requires an existing warehouse test world.' }
-if (!$ResumeProbes) {
+if (!$ResumeProbes -and !$Prepared) {
 if (Test-Path "$TestRoot\server.properties") { throw 'Use a fresh test directory.' }
 New-Item -ItemType Directory -Force -Path $TestRoot, $Output, "$TestRoot\mods", "$TestRoot\config", "$TestRoot\world\serverconfig" | Out-Null
 New-Item -ItemType Junction -Path "$TestRoot\libraries" -Target "$Base\libraries" | Out-Null
@@ -31,7 +33,7 @@ foreach ($pattern in $patterns) {
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
 foreach ($file in @('computercraft-server.toml')) {
-    $config = [IO.File]::ReadAllText("$Base\config\$file").Replace('computer_space_limit = 1000000','computer_space_limit = 4000000')
+    $config = [IO.File]::ReadAllText("$Base\config\$file").Replace('computer_space_limit = 4000000','computer_space_limit = 1000000')
     [IO.File]::WriteAllText("$TestRoot\config\$file", $config, $utf8)
     [IO.File]::WriteAllText("$TestRoot\world\serverconfig\$file", $config, $utf8)
 }
@@ -56,7 +58,9 @@ if($Scenario -eq 'warehouse'){$computerIds+=21}
 foreach ($id in $computerIds) {
     $disk = "$TestRoot\world\computercraft\computer\$id"
     New-Item -ItemType Directory -Force -Path $disk | Out-Null
-    foreach ($file in Get-ChildItem "$source\*.lua") {
+    $fleetFiles=@('server.lua','hub.lua','miner.lua','update.lua','fleetview.lua','atomic.lua','ssot.lua','ssot-client.lua',
+        'nav.lua','mine-tasks.lua','mining.lua','warehouse-tasks.lua','warehouse.lua','store.lua','ssot-auth.lua','sha2.lua','ssot-queue.lua')
+    foreach ($file in (Get-ChildItem "$source\*.lua" | Where-Object { !$Fleet -or $_.Name -in $fleetFiles -or $_.Name -like 'wh2-*.lua' })) {
         [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
     }
     Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua", "$source\tests\warehouse-runtime.lua", "$source\tests\warehouse-fixture.lua" $disk
@@ -93,6 +97,7 @@ Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object
     $port=[int]$properties['server-port']; $rconPort=[int]$properties['rcon.port']; $password=$properties['rcon.password']
     $manifest=@(Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash) $([IO.Path]::GetFileName($_.Path))" })
     if(Compare-Object $manifest @(Get-Content "$Output\jar-sha256.txt")){throw 'The probe world mod set changed.'}
+    if ($ResumeProbes) {
     & "$PSScriptRoot\verify-warehouse.ps1" -Computers "$TestRoot\world\computercraft\computer" -Output $Output
     $archive="$Output\before-resume-$([guid]::NewGuid().ToString('N').Substring(0,8))"
     New-Item -ItemType Directory -Path $archive | Out-Null
@@ -102,13 +107,14 @@ Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object
     Get-ChildItem $probe -File | Where-Object {$_.Name -match '^(charge-.*\.json|.*-ready\.json|unload-heartbeat\.json|.*-go)$'} | Remove-Item
     Copy-Item "$PSScriptRoot\charge-probe.lua" "$probe\startup.lua" -Force
     Write-Output 'Resuming hardware probes after validating the completed warehouse world and unchanged production files.'
+    }
 }
 Write-Output "Test directory $TestRoot. Minecraft localhost:$port."
 if ($PrepareOnly) { return }
 $java = 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe'
 $script:process = $null
 function Start-TestServer([string]$Label) {
-    $script:process = Start-Process -FilePath $java -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx4G','@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
+    $script:process = Start-Process -FilePath $java -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx3G','@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
     $script:process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {

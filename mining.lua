@@ -42,6 +42,39 @@ function M.open(cfg)
     if not r or not r.ok then return nil,why or r and r.error or "mining server unavailable" end
     return r
   end
+  local function options() return cfg.fleet and cfg.fleet.settings() end
+  local function boundary(kind)
+    if cfg.beforeAction then return cfg.beforeAction(kind) end
+    return true
+  end
+  local function inventoryFull(v)
+    local free=0
+    for slot=1,16 do if turtle.getItemCount(slot)==0 then free=free+1 end end
+    return free<(v and v.minFreeSlots or 2) or v and (16-free)/16>=v.fullnessHigh
+  end
+  local reserveRevision,serviceWorker
+  local function location(kind,from,selector)
+    local loc,why=cfg.fleet.location(kind,from,selector or nil)
+    if not loc then return nil,why end
+    local name=loc.siteNames and loc.siteNames[kind=="charge" and "charge" or "drop"]
+    if type(name)~="string" or not S.pose(loc.access and loc.access.pose) then return nil,"shared location has no warehouse site" end
+    return loc,name
+  end
+  local function reserveServices()
+    local v,revision=cfg.fleet.settings()
+    local reserve=0
+    for _,service in ipairs({{v.warehouse and v.autoDropoff,"dropoff",v.dropoffId},
+      {v.warehouse and v.autoCharge and turtle.getFuelLevel()~="unlimited","charge",v.chargerId}}) do
+      if service[1] then
+        local loc,why=location(service[2],cfg.home,service[3]) if not loc then return false,why end
+        local out,why=nav.homeCost(loc.access.pose,cfg.home) if out==false then return false,why end
+        local back,why=nav.homeCost(cfg.home,loc.access.pose) if back==false then return false,why end
+        reserve=reserve+out+back
+      end
+    end
+    state.serviceReserve=reserve reserveRevision=revision
+    return true
+  end
   local function reconcile()
     local j=state.action
     if not j then return end
@@ -72,7 +105,76 @@ function M.open(cfg)
   function api.interrupt(reason)
     if state.phase~="done" then state.phase="return" state.reason=reason or "recall" save("return-saved") end
   end
+  local function fleetService()
+    local ok,why=boundary("poll") if not ok then return false,why end
+    if state.phase~="home" and state.phase~="done" then return false,"return home before service" end
+    local v=options()
+    if not serviceWorker then
+      serviceWorker=dofile("warehouse.lua").open({nav=nav,client=client,
+        path=cfg.service and cfg.service.path or "mining-warehouse.state",settings=options,beforeAction=boundary})
+    end
+    local w=serviceWorker
+    local pending=w.state()
+    if not state.service then
+      if pending.phase=="charge" then state.service="charge"
+      elseif pending.phase=="unload" then state.service="drop"
+      else
+        local reserved,err=reserveServices() if not reserved then return false,err end
+        local fuel=turtle.getFuelLevel()
+        local need=math.max(v.minTripFuel,(state.serviceReserve or 0)+v.fuelMargin)
+        if v.warehouse and v.autoCharge and fuel~="unlimited" and (fuel<=v.fuelLow or fuel<need) then
+          if v.fuelTarget<need then return false,"fuel target cannot cover mining and service routes" end
+          state.service="charge"
+        elseif v.warehouse and v.autoDropoff and inventoryFull(v) then state.service="drop"
+        else return true end
+      end
+      save()
+    end
+    if state.service=="drop" or state.service=="charge" then
+      local charging=state.service=="charge"
+      local enabled=v.warehouse and (charging and v.autoCharge or not charging and v.autoDropoff)
+      if not enabled then
+        if pending.phase=="unload" or pending.phase=="charge" and not pending.charge.returning then
+          local ok,why=w.cancelService(charging and "auto-charge disabled" or "auto-drop-off disabled")
+          if not ok then return false,why end
+          pending=w.state()
+        end
+        if pending.phase~="charge" then state.service="home" save() end
+      elseif pending.phase=="idle" or pending.phase=="done" then
+        if not charging and not inventoryFull(v) then state.service="home" save()
+        else
+          local ok,why=boundary(charging and "charge" or "drop") if not ok then return false,why end
+          local selector=v.dropoffId
+          if charging then selector=v.chargerId end
+          local loc,name=location(charging and "charge" or "dropoff",nav.pose(),selector)
+          if not loc then return false,name end
+          local out,err=nav.homeCost(loc.access.pose) if out==false then return false,err end
+          local back,err=nav.homeCost(cfg.home,loc.access.pose) if back==false then return false,err end
+          local fuel=turtle.getFuelLevel()
+          if fuel~="unlimited" and fuel<out+back+v.warehouseFuelMargin then return false,"insufficient fuel for service and home" end
+          if charging then ok,why=w.charge(name,v.fuelTarget,v.chargeTimeoutMs)
+          else ok,why=w.unload(name,v.keep) end
+          if not ok then return false,why end
+        end
+      end
+      if state.service~="home" then
+        local ok,why=w.tick()
+        if w.state().phase~="done" then return false,why or (charging and "charging" or "dropping") end
+        state.service=charging and enabled and "drop" or "home"
+        if charging and not ok and enabled then state.serviceError=why end
+        save()
+        return false,why or "service"
+      end
+    end
+    local ok,why=boundary("return") if not ok then return false,why end
+    ok,why=nav.go(cfg.home,"walk") if not ok then return false,why end
+    ok,why=nav.face(cfg.home.h) if not ok then return false,why end
+    local err=state.serviceError
+    state.service=nil state.serviceError=nil reserveRevision=nil save("service-saved")
+    return not err,err
+  end
   function api.service()
+    if cfg.fleet then return fleetService() end
     if not cfg.service or cfg.service.enabled~=true then return false,"mining service disabled" end
     if state.phase~="home" then return false,"return home before service" end
     local w=dofile("warehouse.lua").open({nav=nav,client=client,path=cfg.service.path or "mining-warehouse.state"})
@@ -112,9 +214,17 @@ function M.open(cfg)
   end
   function api.start()
     reconcile()
+    local allowed,why=boundary("mine") if not allowed then return false,why end
     if state.phase=="home" and state.reason=="complete" then return api.finish() end
     state.serviceReserve=0
-    if cfg.service and cfg.service.enabled then
+    if cfg.fleet then
+      local ok,why=reserveServices() if not ok then return false,why end
+      local v=options()
+      if inventoryFull(v) then return false,"inventory full" end
+      local fuel=turtle.getFuelLevel()
+      if fuel~="unlimited" and (fuel<v.minTripFuel or fuel<=v.fuelLow
+        or fuel<=(state.serviceReserve or 0)+v.fuelMargin) then return false,"low fuel" end
+    elseif cfg.service and cfg.service.enabled then
       local d,why=request("wh-sites",{name=cfg.service.drop}) if not d then return false,why end
       if d.site.kind~="drop" then return false,"configure a drop pose" end
       local legs={{cfg.home,d.site.pose},{d.site.pose,cfg.home}}
@@ -140,7 +250,10 @@ function M.open(cfg)
     end
     local ack,err=request("mine-progress",{token=state.task.token,progress=state.task.progress})
     if not ack then return false,err end
-    if state.phase=="home" or state.phase=="done" then state.phase="resume" end
+    if state.phase=="home" or state.phase=="done" then
+      state.phase="resume"
+      if cfg.fleet then state.tripStarted=os.epoch("utc") state.tripProgress=state.progress end
+    end
     save("lease-saved")
     return true
   end
@@ -148,17 +261,25 @@ function M.open(cfg)
     if cfg.cancelled and cfg.cancelled() then return "recall" end
     local free=0
     for slot=1,16 do if turtle.getItemCount(slot)==0 then free=free+1 end end
-    if free<2 then return "inventory full" end
+    local v=options()
+    if free<(v and v.minFreeSlots or 2) or v and (16-free)/16>=v.fullnessHigh then return "inventory full" end
+    if v and state.tripStarted and os.epoch("utc")-state.tripStarted>=v.tripSeconds*1000 then return "trip time" end
+    if v and state.progress-(state.tripProgress or 0)>=v.branchLength then return "trip length" end
     local fuel=turtle.getFuelLevel()
     local distance,why=nav.homeCost(cfg.home)
     if distance==false then return "no home route: "..tostring(why) end
-    if fuel~="unlimited" and fuel<=distance+(state.serviceReserve or 0)+(cfg.fuelMargin or 32) then return "low fuel" end
+    if fuel~="unlimited" and (v and fuel<=v.fuelLow or fuel<=distance+(state.serviceReserve or 0)+(v and v.fuelMargin or cfg.fuelMargin or 32)) then return "low fuel" end
   end
   function api.tick()
     reconcile()
     if nav.stopped() then return false,"cancelled" end
     if state.phase=="done" or not state.task then return false,state.phase end
     if state.phase=="home" then return false,state.reason or "home" end
+    local allowed,why=boundary(state.phase=="return" and "return" or "mine")
+    if not allowed then
+      if why=="mining disabled" or why=="inventory full" or why=="low fuel" or why=="mining reach" then api.interrupt(why) return true end
+      return false,why
+    end
     if state.phase=="return" then
       local ok,why=nav.go(cfg.home,"walk")
       if not ok then return false,"no home route: "..tostring(why) end
@@ -167,12 +288,17 @@ function M.open(cfg)
       state.phase="home" save("home-saved")
       return false,state.reason or "home"
     end
+    if cfg.fleet then
+      local _,revision=cfg.fleet.settings()
+      if reserveRevision~=revision then local ok,why=reserveServices() if not ok then return false,why end end
+    end
     local reason=interruptReason()
     if reason then api.interrupt(reason) return true end
     local r,why=request("mine-renew",{token=state.task.token})
     if not r then api.interrupt(why) return false,why end
     if state.phase=="resume" then
-      local target=#state.stack>0 and state.stack[#state.stack].pose or state.task.entry
+      local target=#state.stack>0 and state.stack[#state.stack].pose or A.copy(state.task.entry)
+      if #state.stack==0 then target.z=target.z+state.progress end
       local ok,err=nav.go(target,"walk")
       if not ok then return false,"no resume route: "..tostring(err) end
       ok,err=nav.face(target.h or 2)
@@ -196,9 +322,15 @@ function M.open(cfg)
       if not ok then api.interrupt(err) end
       return true
     end
+    local v=options()
+    if v and v.miningMode=="fast" and #state.stack==1 and frame.queued==nil and frame.next<6 then
+      frame.next=6 save()
+    end
     if not frame.scanned then
       for d=0,5 do
         if d<4 then local ok,err=nav.face(d) if not ok then return false,err end end
+        local allowed,why=boundary("mine")
+        if not allowed then if why=="mining disabled" then api.interrupt(why) end return false,why end
         local found,info=(d==4 and turtle.inspectUp or d==5 and turtle.inspectDown or turtle.inspect)()
         if found and (info.name=="minecraft:water" or info.name=="minecraft:lava") then
           local p=neighbor(nav.pose(),d) state.hazards[key(p)]=p
@@ -238,10 +370,13 @@ function M.open(cfg)
     for _,p in pairs(state.hazards) do
       if math.abs(p.x-to.x)+math.abs(p.y-to.y)+math.abs(p.z-to.z)<=1 then safe=false end
     end
-    if frame.queued==d and found and not M.ore(info,cfg.targets) then api.interrupt("queued ore blocked") return true end
+    local v=options()
+    local targets=v and v.miningTargets or cfg.targets
+    if frame.queued==d and found and not M.ore(info,targets) then api.interrupt("queued ore blocked") return true end
     if safe and T.inside(to,state.task) and not state.visited[key(to)]
-      and (found and M.ore(info,cfg.targets) or frame.queued==d and not found) then
+      and (found and M.ore(info,targets) or frame.queued==d and not found) then
       if #state.stack>=768 then api.interrupt("vein budget") return false,"vein budget" end
+      if v and #state.stack>=v.veinLimit then api.interrupt("vein limit") return true end
       local ok,err=move("push",to,function() return nav.step(d,"excavate") end)
       if not ok then api.interrupt(err) end
     else

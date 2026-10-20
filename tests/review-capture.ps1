@@ -1,15 +1,19 @@
-param([string]$Output = 'C:\Work\gemini-input\shots')
+param([string]$Output = 'C:\Work\gemini-input\shots', [string]$DataRoot = '', [switch]$Fleet)
 $ErrorActionPreference = 'Stop'
 $app = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox\craftos-2.8.3'
-$run = Join-Path $env:LOCALAPPDATA ('computercraft-sandbox\review-' + [guid]::NewGuid().ToString('N'))
+$run = if ($DataRoot) { Join-Path $DataRoot ([guid]::NewGuid().ToString('N')) } else { Join-Path $Output ('data\' + [guid]::NewGuid().ToString('N')) }
 New-Item -ItemType Directory -Force "$run\config", "$run\computer\0", $Output | Out-Null
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-[IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":4000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false}', $utf8)
+[IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":1000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false}', $utf8)
 foreach ($name in @('hub.lua','miner.lua','update.lua','fleetview.lua')) {
     Copy-Item -LiteralPath "$PSScriptRoot\..\$name" -Destination "$run\computer\0"
 }
 Copy-Item -LiteralPath "$PSScriptRoot\review-capture-hub.lua" -Destination "$run\computer\0"
-[IO.File]::WriteAllText("$run\computer\0\startup.lua", 'shell.run("review-capture-hub.lua")', $utf8)
+if ($Fleet) {
+    Copy-Item -LiteralPath "$PSScriptRoot\..\wh2-fleet.lua", "$PSScriptRoot\..\wh2-dev.lua", "$PSScriptRoot\review-capture-fleet.lua" -Destination "$run\computer\0"
+}
+$captureProgram=if ($Fleet) { 'review-capture-fleet.lua' } else { 'review-capture-hub.lua' }
+[IO.File]::WriteAllText("$run\computer\0\startup.lua", ('shell.run("'+$captureProgram+'")'), $utf8)
 $oldVideo = $env:SDL_VIDEODRIVER
 $oldAudio = $env:SDL_AUDIODRIVER
 try {
@@ -24,8 +28,9 @@ try {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$p.HasExited) { Stop-Process -Id $p.Id -Force }
     if (!$shot) { throw "No screenshot: $run" }
-    Copy-Item -LiteralPath $shot.FullName -Destination "$Output\hub-current.png"
-    Write-Output "$Output\hub-current.png (existing hub, idle; no Pro Mode exists yet)"
+    $captureName=if ($Fleet) { 'fleet-dev-fixture.png' } else { 'hub-current.png' }
+    Copy-Item -LiteralPath $shot.FullName -Destination "$Output\$captureName"
+    Write-Output "$Output\$captureName (CraftOS UI fixture)"
 } finally {
     $env:SDL_VIDEODRIVER = $oldVideo
     $env:SDL_AUDIODRIVER = $oldAudio

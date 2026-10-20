@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("lumber.lua",...) then return end
+end
 -- lumber.lua - tree farming turtle (CC: Tweaked)
 --
 -- Put a felling turtle (a turtle with an axe) somewhere in the open with a chest

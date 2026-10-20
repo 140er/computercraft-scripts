@@ -28,7 +28,7 @@ function M.open(cfg)
     local n=0
     for k,name in pairs(v.cells) do
       n=n+1
-      if n>maxCells or type(k)~="string" or #k>96 or type(name)~="string" or #name>128 then return false end
+      if n>(cfg.beforeAction and 4096 or maxCells) or type(k)~="string" or #k>96 or type(name)~="string" or #name>128 then return false end
     end
     local j=v.action
     local c=v.control
@@ -54,6 +54,30 @@ function M.open(cfg)
     return p
   end
   local function cancelled() return stopped or cfg.cancelled and cfg.cancelled() end
+  local function boundary(policy,to)
+    if cancelled() then return false,"cancelled" end
+    if cfg.beforeAction then
+      local ok,why=cfg.beforeAction(policy,to)
+      if not ok then return false,why end
+    end
+    if cancelled() then return false,"cancelled" end
+    return true
+  end
+  local function actionReady()
+    if cancelled() then return false,"cancelled" end
+    if cfg.actionReady then return cfg.actionReady() end
+    return true
+  end
+  function api.configure(v)
+    assert(integer(v.navMaxCells) and v.navMaxCells>=1 and v.navMaxCells<=4096
+      and integer(v.navMaxSearch) and v.navMaxSearch>=1 and v.navMaxSearch<=4096
+      and integer(v.navBatch) and v.navBatch>=1 and v.navBatch<=64,"invalid navigation budget")
+    maxCells,maxNodes,batch=v.navMaxCells,v.navMaxSearch,v.navBatch
+    cfg.traffic=v.traffic
+    cfg.trafficWaits,cfg.trafficWaitMs=v.trafficWaits,v.trafficWaitMs
+    cfg.routeRetries,cfg.trafficRouteRetries=v.routeRetries,v.trafficRouteRetries
+    cfg.trailLength=v.trailLength
+  end
   local function remember(p,name)
     local k=key(p)
     if not state.cells[k] then
@@ -108,6 +132,7 @@ function M.open(cfg)
     return sync(previous)
   end
   function api.pose() return A.copy(state.pose) end
+  function api.confirmed() return ready and state.action==nil end
   function api.stopped() return stopped end
   function api.stop() stopped=true state.stopped=true state.resume=nil save() end
   function api.resume()
@@ -137,14 +162,16 @@ function M.open(cfg)
     assert(not busy and S.pose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
     remember(p,name) save()
   end
-  local function turn(h)
+  local function turn(h,policy)
     while state.pose.h~=h do
-      if cancelled() then return false,"cancelled" end
+      local allowed,reason=boundary(policy or "walk")
+      if not allowed then return false,reason end
       local from=A.copy(state.pose)
       local delta=(h-from.h)%4==3 and 3 or 1
       local to=A.copy(from) to.h=(from.h+delta)%4
       state.action={kind="turn",from=from,to=to} save() checkpoint("turn-prepared")
-      if cancelled() then state.action=nil save() return false,"cancelled" end
+      local allowed,reason=actionReady()
+      if not allowed then state.action=nil save() return false,reason end
       local ok,why=(delta==3 and turtle.turnLeft or turtle.turnRight)()
       checkpoint("turn-physical")
       state.pose=ok and to or from state.action=nil save() checkpoint("turn-saved")
@@ -166,13 +193,28 @@ function M.open(cfg)
     if not heading(h) then return false,"invalid heading" end
     return owned(turn,h)
   end
+  local search
+  local function fuelSafe()
+    if cfg.fuelReserve and turtle.getFuelLevel()~="unlimited" then
+      local home,reserve=cfg.fuelReserve()
+      if home then
+        local route,why=search(home,"walk",{})
+        if not route then return false,"no home route: "..tostring(why) end
+        if turtle.getFuelLevel()<#route+2+reserve then return false,"low fuel" end
+      end
+    end
+    return true
+  end
   local function step(d,policy)
+    local allowed,reason=boundary(policy,adjacent(state.pose,d))
+    if not allowed then return false,reason end
+    allowed,reason=fuelSafe() if not allowed then return false,reason end
     local observed,err=observe()
     if not observed or not same(observed,state.pose) then ready=false return false,err or "relocated turtle; calibrate pose" end
     local to=adjacent(state.pose,d)
     if not inside(to,b) then return false,"outside navigation bounds" end
     if policy=="walk" and state.cells[key(to)]~="minecraft:air" then return false,"unknown route" end
-    if d<4 then local ok,why=turn(d) if not ok then return false,why end end
+    if d<4 then local ok,why=turn(d,policy) if not ok then return false,why end end
     if cancelled() then return false,"cancelled" end
     local from=A.copy(state.pose) to.h=from.h
     local inspect=d==4 and turtle.inspectUp or d==5 and turtle.inspectDown or turtle.inspect
@@ -196,13 +238,21 @@ function M.open(cfg)
       local allowed,found=permitted()
       if not allowed then return false,found end
       if found then
-        local dug,err=dig()
-        if not dug then return false,err end
+        local allowed,why=boundary(policy,to) if not allowed then return false,why end
+        allowed,why=fuelSafe() if not allowed then return false,why end
+        allowed,found=permitted() if not allowed then return false,found end
+        if found then
+          local allowed,why=actionReady() if not allowed then return false,why end
+          local dug,err=dig()
+          if not dug then return false,err end
+        end
         if cancelled() then return false,"cancelled" end
         if inspect() then return false,"falling block" end
       end
       checkpoint("move-started")
-      if cancelled() then return false,"cancelled" end
+      local allowed,why=boundary(policy,to) if not allowed then return false,why end
+      allowed,why=fuelSafe() if not allowed then return false,why end
+      allowed,why=actionReady() if not allowed then return false,why end
       local moved,err=move()
       checkpoint("move-physical")
       if moved then
@@ -211,7 +261,7 @@ function M.open(cfg)
         if cfg.traffic then
           if #state.trail>0 and same(state.trail[#state.trail],to) then table.remove(state.trail)
           else state.trail[#state.trail+1]=A.copy(from) end
-          while #state.trail>64 do table.remove(state.trail,1) end
+          while #state.trail>(cfg.trailLength or 64) do table.remove(state.trail,1) end
         end
         state.pose=A.copy(to) remember(to,"minecraft:air")
       end
@@ -225,7 +275,7 @@ function M.open(cfg)
     if not integer(d) or not vectors[d] or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid movement policy" end
     return owned(step,d,policy)
   end
-  local function search(goal,policy,avoid,from)
+  search=function(goal,policy,avoid,from)
     local start=A.copy(from or state.pose)
     local open,cost,parent,nodes={{p=start,g=0,f=distance(start,goal)}},{},{},1
     cost[key(start)]=0
@@ -275,13 +325,17 @@ function M.open(cfg)
   local function traffic(target)
     local r,why=cfg.client.call("traffic",{to=target})
     if not r or not r.ok then return false,why or "traffic server unavailable" end
-    if not r.peer then (cfg.yield or sleep)(.25) return true end
-    if not r.yield then (cfg.yield or sleep)(.25) return true end
+    if not r.peer then (cfg.yield or sleep)((cfg.trafficWaitMs or 250)/1000) return true end
+    if not r.yield then (cfg.yield or sleep)((cfg.trafficWaitMs or 250)/1000) return true end
     if not r.pose then return false,"traffic pose unavailable" end
     local origin,peer=A.copy(state.pose),r.peer
     local axis={x=target.x-origin.x,y=target.y-origin.y,z=target.z-origin.z}
     local found=false
-    for _=1,65 do
+    local retreats=0
+    while retreats<(cfg.trailLength or 64)+1 do
+      local allowed,why=boundary("walk") if not allowed then return false,why end
+      if not cfg.traffic then return false,"traffic disabled" end
+      retreats=retreats+1
       for d=0,5 do
         local v=vectors[d]
         if v[1]*axis.x+v[2]*axis.y+v[3]*axis.z==0 then
@@ -311,12 +365,15 @@ function M.open(cfg)
     end
     if not found then return false,"traffic retreat budget" end
     checkpoint("traffic-yielded")
-    for _=1,cfg.trafficWaits or 80 do
-      if cancelled() then return false,"cancelled" end
+    local waits=0
+    while waits<(cfg.trafficWaits or 80) do
+      local allowed,why=boundary("walk") if not allowed then return false,why end
+      if not cfg.traffic then return false,"traffic disabled" end
+      waits=waits+1
       local p,err=cfg.client.call("traffic",{peer=peer})
       if not p or not p.ok or not p.pose then return false,err or "traffic peer unavailable" end
       if p.pose.dim==origin.dim and distance(p.pose,origin)>1 and distance(p.pose,state.pose)>2 then return true end
-      (cfg.yield or sleep)(.25)
+      (cfg.yield or sleep)((cfg.trafficWaitMs or 250)/1000)
     end
     return false,"traffic wait budget"
   end
@@ -324,7 +381,9 @@ function M.open(cfg)
     if not S.pose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
     return owned(function()
       local avoid={}
-      for _=1,cfg.traffic and 80 or 5 do
+      local attempts=0
+      while attempts<(cfg.traffic and (cfg.trafficRouteRetries or 80) or (cfg.routeRetries or 5)) do
+        attempts=attempts+1
         local route,why=search(goal,policy,avoid)
         if not route then return false,why end
         local complete=true
@@ -332,8 +391,11 @@ function M.open(cfg)
           local target=adjacent(state.pose,d)
           local ok,err=step(d,policy)
           if not ok then
+            if cfg.beforeAction then
+              local allowed,why=boundary(policy) if not allowed then return false,why end
+            end
             if not ready then return false,err end
-            if err=="cancelled" or err=="out of fuel" then return false,err end
+            if err=="cancelled" or err=="out of fuel" or err=="low fuel" or err=="fresh fleet settings required" then return false,err end
             if err=="occupied" or err=="already reserved" then
               if not cfg.traffic then return false,err end
               local detour=A.copy(avoid) detour[key(target)]=true

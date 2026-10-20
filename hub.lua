@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("hub.lua",...) then return end
+end
 -- hub.lua - Mine Army hub + dashboard (CC: Tweaked)
 -- Run on an (advanced) computer in your base with a wireless/ender modem.
 -- A monitor next to it is optional; tapping the monitor works as buttons.
@@ -1563,6 +1566,7 @@ local function uiLoop()
     elseif ev == "monitor_touch" then
       click(a, b, c)
     elseif ev == "char" then
+      if a=="d" and wh2 then dofile("wh2-dev.lua").run(wh2,term.current()) timer=os.startTimer(1) end
       local n = tonumber(a)
       if n and ORDER[n] then setTarget(ORDER[n])
       elseif a == "s" then stopAll()

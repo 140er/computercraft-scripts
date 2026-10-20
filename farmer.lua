@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("farmer.lua",...) then return end
+end
 -- farmer.lua - crop farming turtle (CC: Tweaked)
 --
 -- Put a turtle on the ground at one corner of your field, at the height of the crops,

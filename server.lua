@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("server.lua",...) then return end
+end
 -- server.lua - the fleet server: the one place that knows and steers the whole fleet (CC: Tweaked)
 -- server install: start on boot. server update: update this computer's scripts.
 --
@@ -16,7 +19,8 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua",
+  "wh2-fleet.lua", "wh2-client.lua", "wh2-dispatch.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-ar.lua", "wh2-dev.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -501,7 +505,7 @@ local function draw3D()
   end
   if arDrawn and not arDirty and now() - arLastDraw < 5000 then return end
   local ok = pcall(function()
-    V.ar(ar, V.fromServer(state.bots, now(), forgottenList()), state.view3D ~= false, arMem, "Fleet")
+    V.ar(ar, V.fromServer(state.bots, now(), forgottenList(),ssot and ssot.fleet()), state.view3D ~= false, arMem, "Fleet")
     arDrawn = true
     arDirty, arLastDraw = false, now()
   end)
@@ -632,7 +636,7 @@ local function view3D(x0, y0, w, h)
     text(x0 + 1, y0 + 1, "fleetview.lua is missing: run 'update fleetview.lua'", colors.orange, colors.black)
     return
   end
-  local scene = V.scene(V.fromServer(state.bots, now(), forgottenList()),
+  local scene = V.scene(V.fromServer(state.bots, now(), forgottenList(),ssot and ssot.fleet()),
     { selected = ui.sel, places = { state.hub and state.hub.state and state.hub.state.pos
       and { x = state.hub.state.pos.x, y = state.hub.state.pos.y, z = state.hub.state.pos.z, name = "Hub",
         color = colors.white } or nil } })
@@ -783,7 +787,9 @@ local function drawCode(x0, y0, w, h)
 end
 
 local TABS = { { "fleet", "Fleet" }, { "3d", "3D" }, { "log", "Log" }, { "code", "Code" } }
+if wh2 then TABS[#TABS+1]={"dev","Dev"} end
 local function draw()
+  if ui.dev then return end
   local w, h = screen.getSize()
   ui.buttons, ui.ctl, ui.hits = {}, {}, {}
   screen.setBackgroundColor(colors.black)
@@ -800,7 +806,9 @@ local function draw()
     local on = ui.tab == t[1]
     text(x, 1, " " .. t[2] .. " ", on and colors.black or colors.white, on and colors.white or colors.lightBlue)
     local key = t[1]
-    ui.buttons[#ui.buttons + 1] = { x, 1, x + #t[2] + 1, function() ui.tab, ui.scroll = key, 0 end }
+    ui.buttons[#ui.buttons + 1] = { x, 1, x + #t[2] + 1, function()
+      if key=="dev" then os.queueEvent("wh2_dev_open") else ui.tab,ui.scroll=key,0 end
+    end }
     x = x - 1
   end
   local nfiles = 0
@@ -894,12 +902,14 @@ local function network()
       end
       draw3D()
       timer = os.startTimer(1)
-    elseif ev == "monitor_touch" or ev == "mouse_click" then
+    elseif (ev == "monitor_touch" or ev == "mouse_click") and not ui.dev then
       if touch(m, proto) then draw() end
-    elseif ev == "mouse_scroll" then
+    elseif ev == "mouse_scroll" and not ui.dev then
       ui.scroll = ui.scroll + id
       draw()
-    elseif ev == "char" and id == "v" then
+    elseif ev == "char" and id == "d" and wh2 and not ui.dev then
+      os.queueEvent("wh2_dev_open")
+    elseif ev == "char" and id == "v" and not ui.dev then
       toggle3D()
       draw()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
@@ -931,12 +941,24 @@ save()
 -- A Tom's Peripherals GPU (tm_gpu) with bitmap monitors: the fleet in real 3D
 local function gpuLoop()
   if not V then while true do os.pullEvent("gpu_never") end end
-  V.gpuLoop(function() return V.fromServer(state.bots, now(), forgottenList()) end, function()
+  V.gpuLoop(function() return V.fromServer(state.bots, now(), forgottenList(),ssot and ssot.fleet()) end, function()
     local pos = state.hub and state.hub.state and state.hub.state.pos
     return { title = "Fleet", places = pos and { { x = pos.x, y = pos.y, z = pos.z, name = "Hub" } } or nil }
   end, function(text) log("error", os.getComputerID(), text) save() end)
 end
 
-local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop)
+local function fleetDevLoop()
+  while true do
+    os.pullEvent("wh2_dev_open")
+    if wh2 and not ui.dev then
+      ui.dev=true
+      local ok,err=pcall(dofile("wh2-dev.lua").run,wh2,term.current())
+      ui.dev=false
+      if not ok then note(tostring(err)) end
+      draw()
+    end
+  end
+end
+local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop, fleetDevLoop)
 if ar then pcall(function() ar.clear() ar.update() end) end
 if not ok then error(err, 0) end

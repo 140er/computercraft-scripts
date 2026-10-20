@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("sorter.lua",...) then return end
+end
 -- sorter.lua - Sorter & Smelter (CC: Tweaked)
 -- Runs on a turtle or computer connected to a WIRED modem network of chests and
 -- furnaces. It empties the input chests (e.g. the Mine Army chests), smelts raw
@@ -54,6 +57,7 @@ local function saveTable(path, t)
 end
 
 local cfg = loadTable(CFG_FILE) or {}
+if wh2 then wh2.bindConfig(cfg) end
 cfg.roles = cfg.roles or {}        -- [peripheral name] = { role = "input"|"storage"|..., cat = "any"|... }
 cfg.interval = cfg.interval or 3   -- seconds between rounds when there is nothing to do
 cfg.queue = cfg.queue or 32        -- max items waiting in one furnace
@@ -112,6 +116,7 @@ local function isOreSmelt(name)
 end
 
 local function smeltKind(name)
+  if wh2 and not wh2.allowed("smelting") then return nil end
   if isOreSmelt(name) then return "ore" end
   if listHas(cfg.extraSmelt, name) and not listHas(cfg.noSmelt, name) then return "extra" end
   return nil

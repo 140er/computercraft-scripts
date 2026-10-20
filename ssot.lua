@@ -2,6 +2,7 @@ local M = { version = 1 }
 local A = dofile("atomic.lua")
 local Mining = dofile("mine-tasks.lua")
 local Warehouse = dofile("warehouse-tasks.lua")
+local Wh2 = dofile("wh2-dispatch.lua")
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -84,6 +85,7 @@ function M.new(s, cfg, clock, epoch, save)
   s.moves, s.clients = s.moves or {}, s.clients or {}
   s.rev, s.seq = s.rev or 0, s.seq or 0
   cfg = cfg or {}
+  local wh2=Wh2.open(cfg.wh2,M.pose)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
@@ -98,6 +100,9 @@ function M.new(s, cfg, clock, epoch, save)
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
+    if op:sub(1,4)=="wh2-" then
+      return {ok=false,code="incompatible",error="Authenticated v2 transport required"}
+    end
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
     if op=="traffic" then
@@ -220,7 +225,9 @@ function M.new(s, cfg, clock, epoch, save)
     end
     return { ok = false, error = "unknown operation" }
   end
-  return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
+  return { epoch=epoch,state = function() return A.copy(s) end,
+    fleet=function() return A.copy(s.wh2 and s.wh2.fleet and s.wh2.fleet.records or {}) end,
+    handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
@@ -305,6 +312,7 @@ function M.open(cfg)
       end
     end
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
+      and Wh2.open(cfg.wh2,M.pose).valid(s.wh2)
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }

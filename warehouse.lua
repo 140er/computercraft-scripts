@@ -34,6 +34,16 @@ function M.open(cfg)
     if not r or not r.ok then return nil,err or r and r.error or "warehouse server unavailable" end
     return r
   end
+  local function options() return cfg.settings and cfg.settings() end
+  local function margin()
+    local v=options()
+    return v and v.warehouseFuelMargin or cfg.fuelMargin or 16
+  end
+  local function boundary(kind)
+    if nav.stopped() then return false,"cancelled" end
+    if cfg.beforeAction then return cfg.beforeAction(kind) end
+    return true
+  end
   local function release()
     if state.lock then
       local r,err=call("wh-unlock",{name=state.lock}) if not r then return false,err end
@@ -64,7 +74,7 @@ function M.open(cfg)
           local home,why=nav.homeCost(state.home,state.site.pose) if home==false then return reject(why) end
           reserve=math.max(reserve,home)
         end
-        if fuel<=cost+reserve+(cfg.fuelMargin or 16) then
+        if fuel<=cost+reserve+margin() then
           local ok,why=api.charge(cfg.charger,cfg.targetFuel or 2000,cfg.chargeTimeout or 60000)
           return reject(ok and "charging" or why)
         end
@@ -111,8 +121,11 @@ function M.open(cfg)
     state.pending=nil save("transfer-saved")
   end
   local function transfer(kind,slot,count)
+    local ok,err=boundary(kind=="unload" and "drop" or "warehouse") if not ok then return false,err end
     local inv,why=inventory() if not inv then return false,why end
     local item=turtle.getItemDetail(slot)
+    local v=options()
+    if kind=="unload" and v and item and v.keep[item.name] then state.cargo[slot]=nil save() return true end
     if kind=="pickup" then assert(not item,"pickup needs an empty slot")
     else
       local expected=(kind=="restore" and state.escrow or state.cargo)[slot]
@@ -121,6 +134,12 @@ function M.open(cfg)
     turtle.select(slot)
     state.pending={kind=kind,slot=slot,count=count,before=item and item.count or 0,item=item and item.name,pose=nav.pose()}
     save(kind.."-prepared")
+    local allowed,err=boundary(kind=="unload" and "drop" or "warehouse")
+    if not allowed then state.pending=nil save() return false,err end
+    local v=options()
+    if kind=="unload" and v and v.keep[item.name] then
+      state.pending=nil state.cargo[slot]=nil save() return true
+    end
     local side=state.site.side
     local method=kind=="pickup" and "suck" or "drop"
     method=method..(side=="top" and "Up" or side=="bottom" and "Down" or "")
@@ -144,7 +163,7 @@ function M.open(cfg)
     local origin=nav.pose()
     local outward,err=nav.homeCost(r.site.pose) if outward==false then return false,err end
     local back,err=nav.homeCost(origin,r.site.pose) if back==false then return false,err end
-    if target<back+(cfg.fuelMargin or 16) then return false,"charging target cannot cover the return route" end
+    if target<back+margin() then return false,"charging target cannot cover the return route" end
     local fuel=turtle.getFuelLevel()
     if fuel~="unlimited" and fuel<outward+back then return false,"insufficient fuel for charging round trip" end
     local resume=state.phase~="idle" and state.phase~="done" and state.phase or nil
@@ -165,6 +184,9 @@ function M.open(cfg)
   function api.tick()
     if nav.stopped() then return false,"cancelled" end
     reconcile()
+    local kind=state.phase=="charge" and (state.charge.returning and "return" or "charge")
+      or state.phase=="unload" and "drop" or "warehouse"
+    local allowed,err=boundary(kind) if not allowed then return false,err end
     if state.ack then
       local l=state.job.lines[state.ack]
       local r,why=call("wh-progress",{token=state.job.token,line=state.ack,picked=l.picked,delivered=l.delivered})
@@ -188,9 +210,20 @@ function M.open(cfg)
     if state.phase=="done" then return false,state.reason or "done" end
     if state.phase=="charge" then
       local c=state.charge
+      local v=options()
+      if v and not c.returning then
+        local queued=c.queuedUntil-c.timeout
+        if c.deadline then c.deadline=c.deadline-c.timeout+v.chargeTimeoutMs end
+        c.timeout=v.chargeTimeoutMs c.queuedUntil=queued+c.timeout
+        c.target=math.min(v.fuelTarget,turtle.getFuelLimit())
+        local back,why=nav.homeCost(c.origin)
+        if back==false then return false,why end
+        if c.target<back+margin() then return false,"charging target cannot cover the return route" end
+      end
       local function finish(reason)
         c.outcome=reason c.returning=true save()
         local ok,why=release() if not ok then return false,why end
+        ok,why=boundary("return") if not ok then return false,why end
         ok,why=nav.go(c.origin,"walk") if not ok then return false,why end
         ok,why=nav.face(c.origin.h) if not ok then return false,why end
         local charged=reason=="charged" or reason=="unlimited fuel"
@@ -224,6 +257,15 @@ function M.open(cfg)
       save() return true
     end
     if state.phase=="unload" then
+      local v=options()
+      if v then
+        state.cargo={}
+        for slot=1,16 do
+          local item=turtle.getItemDetail(slot)
+          if item and not v.keep[item.name] then state.cargo[slot]={name=item.name,count=item.count} end
+        end
+        save()
+      end
       local ok,why=reach(state.drop,"drop") if not ok then return false,why end
       local slot=next(state.cargo)
       if slot then return transfer("unload",slot,state.cargo[slot].count) end
@@ -262,6 +304,15 @@ function M.open(cfg)
   function api.next()
     if state.phase~="done" then return false,"warehouse job active" end
     state={version=1,phase="idle",line=1,cargo={},escrow={}} save() return true
+  end
+  function api.cancelService(reason)
+    reconcile()
+    if state.phase~="unload" and state.phase~="charge" then return false,"no automatic service" end
+    local ok,why=release() if not ok then return false,why end
+    if state.phase=="charge" then
+      state.charge.returning=true state.charge.outcome=reason
+    else state.phase="done" state.reason=reason end
+    save() return true
   end
   return api
 end

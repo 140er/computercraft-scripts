@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("roomsorter.lua",...) then return end
+end
 -- roomsorter.lua - Storage room turtle (CC: Tweaked), no modems or cables needed
 -- The turtle lives in a closed room with an INPUT chest and an OUTPUT chest in the walls.
 -- It maps the room itself, builds chests and furnaces from the ones you give it, sorts
@@ -943,6 +946,7 @@ if not turtle then print("Run this on a turtle (or 'roomsorter client' / 'roomso
 -- Settings
 ---------------------------------------------------------------------------
 local cfg = loadTable(FILES.cfg) or {}
+if wh2 then wh2.bindConfig(cfg) end
 cfg.maxSize = cfg.maxSize or 48       -- the room may not reach further than this from the start
 cfg.maxHeight = cfg.maxHeight or 24
 cfg.maxCells = cfg.maxCells or 6000   -- max blocks of air in the room (16x16x4 = 1024)
@@ -999,6 +1003,7 @@ local function short(name) return name:match(":(.+)$") or name end
 local function listHas(l, x) for _, v in ipairs(l) do if v == x then return true end end return false end
 
 local function smeltKind(name)
+  if wh2 and not wh2.allowed("smelting") then return nil end
   if listHas(cfg.noSmelt, name) then return nil end
   local n = short(name)
   if not n:find("_block$") and (n:find("^raw_") or n:find("_ore$") or n == "ancient_debris") then return "ore" end

@@ -25,7 +25,7 @@ local function writeTable(path, value)
 end
 local ok, err = pcall(function()
   assert(config.get("standardsMode") == true, "standardsMode disabled")
-  assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+  assert(fs.getCapacity("/") == 1000000, "wrong disk limit")
   assert(periphemu.create("left", "modem", 1))
   -- Keep native modem transport. Only its wireless flag is absent in CraftOS-PC.
   local call = peripheral.call

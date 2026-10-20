@@ -5,7 +5,7 @@ if fs.exists("sandbox-result.json") then
   if r and r.ok then while true do sleep(1) end end
 end
 local A,F=dofile("atomic.lua"),dofile("warehouse-fixture.lua")
-assert(fs.getCapacity("/")==4000000,"warehouse requires a four-megabyte disk")
+assert(fs.getCapacity("/")==1000000,"warehouse requires a one-megabyte disk")
 local client=dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=3})
 local messages,pending,serial,published={}, {},0,{}
 local send=rednet.send

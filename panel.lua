@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("panel.lua",...) then return end
+end
 -- panel.lua - base control panel for an advanced pocket computer (CC: Tweaked)
 -- Needs a wireless or ender modem (ender = works from anywhere, also other dimensions).
 --
@@ -2199,6 +2202,7 @@ local function uiLoop()
     elseif ev == "char" then
       local n = tonumber(a)
       if n and TABS[n] then openTab(TABS[n][1]) draw()
+      elseif a == "d" and wh2 then dofile("wh2-dev.lua").run(wh2,term.current()) tick=os.startTimer(1) draw()
       elseif a == "q" then return end
     elseif ev == "key" and a == keys.backspace and ui.popup then
       ui.popup = nil

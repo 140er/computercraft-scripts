@@ -3,7 +3,9 @@ param(
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
     [ValidateSet('smoke','ssot','nav','mining','warehouse')][string]$Scenario = 'smoke',
-    [string]$Output = ''
+    [string]$Output = '',
+    [string]$DataRoot = '',
+    [ValidateRange(100000,4000000)][int]$ComputerSpaceLimit = 1000000
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
@@ -32,13 +34,13 @@ try {
         throw 'Use CraftOS-PC v2.8.3 portable (CraftOS-PC_console.exe).'
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
-    $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
+    $run = if ($DataRoot) { Join-Path ([IO.Path]::GetFullPath($DataRoot)) ([guid]::NewGuid().ToString('N')) } else { Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N')) }
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 4000000
+        standardsMode = $true; computerSpaceLimit = $ComputerSpaceLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
@@ -49,7 +51,11 @@ try {
         $disk = "$run\computer\$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $fleetDependencies=@('server.lua','hub.lua','miner.lua','update.lua','fleetview.lua','atomic.lua','ssot.lua','ssot-client.lua',
+            'nav.lua','mine-tasks.lua','mining.lua','warehouse-tasks.lua','warehouse.lua','store.lua','roomsorter.lua','sorter.lua')
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse')) {
+            Get-ChildItem -LiteralPath $Source -Filter '*.lua' | Where-Object { $_.Name -in $fleetDependencies -or $_.Name -like 'wh2-*.lua' -or $_.Name -in @('ssot-auth.lua','sha2.lua','ssot-queue.lua') }
+        } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -70,7 +76,7 @@ try {
         }
         [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$ComputerSpaceLimit"
     Write-Output "Artifacts: $run"
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"

@@ -1,6 +1,6 @@
 local scenario=...
 local id = os.getComputerID()
-assert(config.get("standardsMode") and fs.getCapacity("/") == 4000000)
+assert(config.get("standardsMode") and fs.getCapacity("/") == 1000000)
 if not peripheral.isPresent("left") then assert(periphemu.create("left", "modem", 1)) end
 local call = peripheral.call
 peripheral.call = function(name,method,...)

@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("gpshost.lua",...) then return end
+end
 -- gpshost.lua - one GPS host computer (CC: Tweaked). Four of these give every
 -- turtle and pocket computer its real position, and the pocket panel a live map.
 --

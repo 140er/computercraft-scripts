@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("builder.lua",...) then return end
+end
 -- builder.lua - building / terraforming turtle (CC: Tweaked)
 --
 -- Clears and flattens land, lays floors and platforms, builds walls and lights up an

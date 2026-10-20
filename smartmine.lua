@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("smartmine.lua",...) then return end
+end
 -- smartmine.lua v9 for CC: Tweaked turtles
 -- Usage: smartmine <length> [tunnels] [gap] [block1,block2,...]
 -- Start: turtle faces into the tunnel, chest with coal directly BEHIND the turtle.

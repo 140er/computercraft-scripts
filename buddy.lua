@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("buddy.lua",...) then return end
+end
 -- buddy.lua - an AI companion turtle (CC: Tweaked)
 --
 -- Chat with your turtle and let it do small jobs around your base: walk somewhere,

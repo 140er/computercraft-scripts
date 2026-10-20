@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("lava.lua",...) then return end
+end
 -- lava.lua - lava fuel runner (CC: Tweaked)
 --
 -- A turtle that collects lava in buckets and keeps the other bots' chests stocked with

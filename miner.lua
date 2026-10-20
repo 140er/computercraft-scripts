@@ -255,11 +255,12 @@ local function devPairLoop()
   -- Mesh: also pass on rednet messages meant for others, like CC's "repeat" program (each
   -- message once), so the server and the hub reach bots beyond their range through this
   -- one. Switch it off with: set fleet.mesh false
-  local relayed = not (settings and settings.get("fleet.mesh") == false) and { n = 0 } or nil
+  local relayed = (C.fleetOptIn or not (settings and settings.get("fleet.mesh") == false)) and { n = 0 } or nil
   if relayed then modem.open(rednet.CHANNEL_REPEAT) end
   while true do
     local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
-    if relayed and ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
+    if relayed and (not C.fleetOptIn or not C.fleetSettings or C.fleetSettings.mesh)
+      and ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
       and type(msg.nRecipient) == "number" and not relayed[msg.nMessageID] then
       if relayed.n > 500 then
         for k, t in pairs(relayed) do if k ~= "n" and t < os.clock() then relayed[k] = nil end end
@@ -482,6 +483,8 @@ if not cfg then
   print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
+cfg.wh2=cfg.wh2 or {enabled=false}
+C.fleetOptIn=cfg.wh2.enabled==true
 if args[1]=="service" then
   cfg.warehouse=cfg.warehouse or {enabled=false}
   if args[2]=="enable" or args[2]=="disable" then
@@ -539,7 +542,7 @@ local HOME = cfg.home
 cfg.chest = cfg.chest or OPP[cfg.facing]
 -- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
-if not cfg.spine then
+if not cfg.spine and not C.fleetOptIn then
   -- Set up without a direction: the hub hands one out (and keeps it for this turtle)
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then error("No direction set and no wireless modem to ask the hub. Run: miner setup <role>", 0) end
@@ -567,7 +570,7 @@ local reach = C.REACH -- set per trip from the hub's job
 local function inReach(x, z)
   return math.abs(x - SHAFT.x) <= reach and math.abs(z - SHAFT.z) <= reach
 end
-local SPINE = cfg.spine
+local SPINE = cfg.spine or cfg.facing
 local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
 local PROGRESS_KEY = not cfg.loc and ("shaft:" .. SHAFT.x .. "," .. SHAFT.z .. ":" .. ROLE) or ROLE
@@ -616,6 +619,10 @@ if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
   C.netEvent = "miner_network"
 end
 C.netEvent = C.netEvent or "rednet_message"
+if C.fleetOptIn then
+  assert(C.ssot and cfg.nav and cfg.nav.enabled==true and cfg.mining and cfg.mining.home,
+    "fleet miner needs paired SSOT, calibrated navigation and a mining home")
+end
 local function worldShaft()
   if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
 end
@@ -697,6 +704,91 @@ local function setStatus(s)
   status = s
   print(s)
   publish(true)
+end
+
+function C.fleetSnapshot()
+  local mining=C.mining and C.mining.state()
+  local confirmed=C.nav and C.nav.confirmed()
+  local p=confirmed and C.nav.pose()
+  local phase="idle"
+  if C.estop or C.nav and C.nav.stopped() then phase="stopped"
+  elseif C.fleetError then phase="blocked"
+  elseif mining then
+    phase=mining.service=="drop" and "dropping" or mining.service=="charge" and "charging"
+      or mining.service=="home" and "returning" or mining.phase=="return" and "returning"
+      or (mining.phase=="work" or mining.phase=="resume") and "mining" or "idle"
+  end
+  local used=16-freeSlots()
+  local fuel=turtle.getFuelLevel()
+  return {state=phase,detail=C.fleetError or status,
+    pose=p and {dim=p.dim,x=p.x,y=p.y,z=p.z} or false,heading=p and p.h or false,poseConfirmed=confirmed==true,
+    fuel={level=fuel,limit=fuel=="unlimited" and "unlimited" or turtle.getFuelLimit()},
+    inventory={slots=16,usedSlots=used,fullness=used/16},
+    currentJob=mining and mining.task and {kind="mine",id="zone:"..tostring(mining.task.id),step=mining.service or mining.phase} or false,
+    capabilities={navigation=C.nav~=nil,inventory=true,crafting=false},error=C.fleetError or false}
+end
+
+function C.applyFleet(v)
+  C.fleetSettings=v
+  C.FUEL_MARGIN,C.MIN_TRIP_FUEL,C.JUNK_EVERY=v.fuelMargin,v.minTripFuel,v.junkEvery
+  C.MAX_VEIN,C.REACH,C.RETRY=v.veinLimit,v.reach,v.retrySeconds
+  C.BRANCH_LEN,C.BRANCH_GAP,C.FAST_GAP=v.branchLength,v.thoroughGap,v.fastGap
+  C.LAYER_STEP,C.MAX_LAYERS=v.layerStep,v.layers
+  reach,C.miningMode=v.reach,v.miningMode
+  cfg.ssot.timeout=v.rpcTimeoutMs/1000
+  if C.nav then C.nav.configure(v) end
+end
+
+function C.openFleet()
+  C.fleet=dofile("wh2-client.lua").new({rpc=C.ssot,enabled=true,role="miner",dimension=cfg.ssot.dimension,
+    snapshot=C.fleetSnapshot,apply=C.applyFleet,cacheFile="wh2-settings.cache"})
+end
+
+function C.fleetBoundary(kind,to)
+  C.fleetAction=kind
+  local ok,why=C.fleet.tick()
+  if not ok or not C.fleet.ready() then
+    C.fleetError=why or C.fleet.status().detail or "fresh fleet settings required"
+    return false,C.fleetError
+  end
+  local v=C.fleetSettings
+  why=kind~="poll" and (not v.enabled and "fleet disabled" or not v.navigation and "navigation disabled"
+    or C.estop and "cancelled" or kind=="mine" and not v.mining and "mining disabled"
+    or kind=="return" and not v.returnHome and "return home disabled"
+    or kind=="drop" and (not v.warehouse or not v.autoDropoff) and "auto-drop-off disabled"
+    or kind=="charge" and (not v.warehouse or not v.autoCharge) and "auto-charge disabled")
+  if not why and kind=="mine" then
+    local free=freeSlots()
+    local fuel=turtle.getFuelLevel()
+    if free<v.minFreeSlots or (16-free)/16>=v.fullnessHigh then why="inventory full"
+    elseif fuel~="unlimited" and fuel<=v.fuelLow then why="low fuel"
+    elseif to and C.mining then
+      local task=C.mining.state().task
+      if task and (math.abs(to.x-task.entry.x)>v.reach or math.abs(to.z-task.entry.z)>v.reach) then why="mining reach" end
+    end
+  end
+  if kind~="poll" then C.fleetError=why or nil end
+  return not why,why
+end
+
+function C.fleetFuelReserve()
+  local v=C.fleetSettings
+  if C.fleetAction=="mine" then
+    local state=C.mining and C.mining.state()
+    return cfg.mining.home,v.fuelMargin+(state and state.serviceReserve or 0)
+  elseif C.fleetAction=="drop" or C.fleetAction=="charge" then return cfg.mining.home,v.warehouseFuelMargin end
+end
+
+function C.fleetWait(seconds)
+  local untilAt=os.clock()+seconds
+  local _,revision=C.fleet.settings()
+  local stopped=C.nav.stopped()
+  repeat
+    C.fleetBoundary("poll")
+    local _,current=C.fleet.settings()
+    if current~=revision or C.nav.stopped()~=stopped then break end
+    sleep(math.min(.25,math.max(0,untilAt-os.clock())))
+  until os.clock()>=untilAt
 end
 
 ---------------------------------------------------------------------------
@@ -2115,14 +2207,59 @@ local function groundBlock(info)
   return false
 end
 function C.navCanExcavate(info)
-  if cfg.mining and cfg.mining.enabled then
+  if C.fleet or cfg.mining and cfg.mining.enabled then
     C.miningModule=C.miningModule or dofile("mining.lua")
-    return C.miningModule.excavatable(info,cfg.mining.targets)
+    return C.miningModule.excavatable(info,C.fleet and C.fleetSettings.miningTargets or cfg.mining.targets)
   end
   return not isLiquid(info) and not isUnbreakable(info) and groundBlock(info)
 end
 
+function C.runFleetMining()
+  local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,
+    fleet=C.fleet,service=cfg.warehouse,beforeAction=C.fleetBoundary,cancelled=function() return recall or updateWanted end})
+  C.mining=mining
+  local shown
+  while true do
+    local ok,why=C.fleetBoundary("poll")
+    local state=mining.state()
+    if ok then
+      local ran
+      ran,ok,why=pcall(function()
+        if C.fleetRecovery then
+          local recovered,err=C.nav.recover()
+          if not recovered then return false,"navigation recovery: "..tostring(err) end
+          C.fleetRecovery=nil
+        end
+        if C.estop or C.nav.stopped() then return false,"cancelled" end
+        if state.phase=="home" or state.phase=="done" then
+          if state.phase=="home" and state.reason=="complete" then return mining.finish() end
+          if recall or updateWanted then return false,"recalled" end
+          local serviced,err=mining.service()
+          if serviced then return mining.start() end
+          return false,err
+        end
+        return mining.tick()
+      end)
+      if not ran then
+        if ok=="Terminated" then error(ok,0) end
+        C.fleetRecovery=true why=tostring(ok) ok=false
+      end
+    end
+    state=mining.state()
+    local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+    st.phase=state.phase=="return" and "returning" or (state.phase=="work" or state.phase=="resume") and "mining" or "home"
+    save()
+    local progressing=why=="dropping" or why=="charging" or why=="service" or why=="unloaded" or why=="charged"
+      or state.phase=="home" and why==state.reason
+    C.fleetError=not ok and not progressing and why or nil
+    local message="Fleet "..tostring(why or state.service or state.phase)
+    if message~=shown then setStatus(message) shown=message end
+    C.fleetWait(not ok and not progressing and (C.fleetSettings and C.fleetSettings.retrySeconds or 1) or .1)
+  end
+end
+
 function C.runMining()
+  if C.fleet then return C.runFleetMining() end
   local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
     service=cfg.warehouse,cancelled=function() return recall or updateWanted end})
   while true do
@@ -2787,15 +2924,26 @@ if C.ssot then
       assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
       C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
         bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,traffic=cfg.nav.traffic==true,
+        beforeAction=C.fleetOptIn and function(_,to) return C.fleetBoundary(C.fleetAction or "navigation",to) end or nil,
+        actionReady=C.fleetOptIn and function() return C.fleet.ready(),"fresh fleet settings required" end or nil,
+        fuelReserve=C.fleetOptIn and C.fleetFuelReserve or nil,
         observe=function()
           local x,y,z=gps.locate(2)
           if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
         end,
         cancelled=function() return C.estop or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
+      if C.fleetOptIn then C.openFleet() end
       local ok,why
-      if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
-      assert(ok,why)
+      repeat
+        if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
+        if not ok then
+          if not C.fleet then error(why,0) end
+          C.fleetError="navigation recovery: "..tostring(why)
+          setStatus("Fleet blocked: "..C.fleetError)
+          C.fleetWait(3)
+        end
+      until ok
       recall=C.nav.controlState().kind=="recall"
       local p=C.nav.pose()
       if st.navPending and (p.x~=pos.x or p.y~=pos.y or p.z~=pos.z) then
@@ -2805,6 +2953,7 @@ if C.ssot then
       pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h st.navPending=nil save()
       if C.navCalibration~=nil then print("Navigation pose calibrated") return end
       if C.navSurvey then
+        C.fleetAction="navigation"
         assert(C.nav.go(C.navSurvey,"explore"))
         local q=C.nav.pose() pos.x,pos.y,pos.z,st.h=q.x,q.y,q.z,q.h save()
         print("Navigation route surveyed") return
@@ -2813,7 +2962,7 @@ if C.ssot then
         local r,why=C.ssot.call("mine-config",{zone=C.mineZone})
         assert(r and r.ok,why) print("Mine zones saved: "..r.count) return
       end
-      if cfg.mining and cfg.mining.enabled then C.runMining() return end
+      if C.fleet or cfg.mining and cfg.mining.enabled then C.runMining() return end
       worker()
       return
     end
@@ -2828,7 +2977,7 @@ if C.ssot then
   C.ssotReceive = function()
     while true do
       local _, sender, packet, protocol = os.pullEvent("rednet_message")
-      if not C.ssot.dispatch(sender, packet, protocol) then
+      if not (C.fleet or C.ssot).dispatch(sender, packet, protocol) then
         os.queueEvent(C.netEvent, sender, packet, protocol)
       end
     end
