@@ -620,9 +620,14 @@ end
 -- Returns true when finished, false when the user went back from the first step
 local FLEET_FILES={"atomic.lua","ssot.lua","ssot-client.lua","mine-tasks.lua","warehouse-tasks.lua",
   "wh2-fleet.lua","wh2-client.lua","wh2-dispatch.lua","wh2-locations.lua","wh2-program.lua","wh2-ar.lua","wh2-dev.lua"}
+local SSOT_FILES={"mapstore.lua","mapsection.lua","lib/stubs/b1_n1.lua","lib/stubs/b1_h1.lua","lib/stubs/b1_h4c.lua",
+  "lib/stubs/b1_h5.lua","lib/stubs/b1_w1.lua","lib/stubs/h4d_dep.lua"}
 for _,bot in ipairs(BOTS) do
   local present={} for _,file in ipairs(bot.files) do present[file]=true end
   for _,file in ipairs(FLEET_FILES) do if not present[file] then bot.files[#bot.files+1]=file end end
+  if present["ssot.lua"] then
+    for _,file in ipairs(SSOT_FILES) do if not present[file] then bot.files[#bot.files+1]=file end end
+  end
 end
 local function guide(bot)
   local title = bot.name

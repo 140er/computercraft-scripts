@@ -19,6 +19,7 @@ local function drive()
       fs.delete(path)
     end,
     move = function(from, to) fs.move(from, to) end,
+    makeDir = function(path) fs.makeDir(path) end,
   }
 end
 

@@ -152,6 +152,12 @@ try {
             $code = [IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")
             Write-SandboxText (Join-Path $payload $file.Name) $code $utf8
         }
+        $stubDst = Join-Path $payload 'lib\stubs'
+        New-Item -ItemType Directory -Force -Path $stubDst | Out-Null
+        Get-ChildItem -LiteralPath (Join-Path $Source 'lib\stubs') -Filter '*.lua' -File | ForEach-Object {
+            $code = [IO.File]::ReadAllText($_.FullName).Replace("`r`n", "`n")
+            Write-SandboxText (Join-Path $stubDst $_.Name) $code $utf8
+        }
         $roles = @('installer')
     } elseif ($Scenario -eq 'h4a') {
         $roles = @('mirror', 'fresh', 'server', 'hub')
