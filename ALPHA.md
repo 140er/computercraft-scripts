@@ -47,6 +47,14 @@ Other files:
 
 The server event queue from H3 is always on. It is how the server keeps fleet messages while a download runs.
 
+# Automatic pairing
+
+A second computer that finds the hostname `hub` already taken hosts `view-<id>` on the `minearmy` protocol and runs the view. It asks the fleet server to pair unless `views.cfg` already has a server id and a secret, or this computer already holds a controller key. Server id 0 counts. `views.cfg.example` is left as it is.
+
+`enrol` in `ssot.cfg` stays off until you set it to `true` and reboot the server. While it is off, the view waits four seconds, then continues. It writes neither `views.cfg` nor `ssot.cfg`.
+
+With enrol on, the server screen lists the computer id, the copy code, and the expiry time. Accept sends that code to the view once. Deny burns the code and leaves any stored key in place. The view writes `views.cfg` after the server sends `pair-done`. The pairing key is the secret in that file. It is not shown on the screen, written in the log, or sent over rednet.
+
 # Files the installer does not copy
 
 The updater only accepts a flat `name.lua` role file. Anything under `lib/stubs/` has to be copied by hand before you turn on the feature that loads it.
