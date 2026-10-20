@@ -241,12 +241,18 @@ for _, name in ipairs(peripheral.getNames()) do
 end
 if not modemFound then error("Attach a wireless or ender modem to this computer.", 0) end
 local viewsCfg = loadTable("views.cfg") or {}
-local hosted,hostError=pcall(rednet.host,PROTOCOL,"hub")
-if not hosted then
-  if viewsCfg.enabled==true and tostring(hostError):find("Hostname in use",1,true) then
-    rednet.host(PROTOCOL,"view-"..os.getComputerID())
-  else error(hostError,0) end
-end
+local ViewPair = dofile("view-pair.lua")
+local hosted, hostError = pcall(rednet.host, PROTOCOL, "hub")
+local boot = ViewPair.decide(viewsCfg, {
+  computerId = os.getComputerID(),
+  hubNameFree = hosted,
+  hostError = hostError,
+  ar = peripheral.find("ar_controller") ~= nil,
+  localKey = ViewPair.hasLocalKey(arAuth.cfg, os.getComputerID()),
+})
+if not boot.ok then error(boot.error, 0) end
+if boot.hostname ~= "hub" then rednet.host(PROTOCOL, boot.hostname) end
+local pairingClient
 
 local SERVER_PROTOCOL = "fleetserver"
 local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
@@ -280,6 +286,16 @@ if serverId then
   until os.clock() >= deadline
 end
 if serverSeen == -1e9 then serverId = nil end
+if boot.ask then
+  pairingClient = ViewPair.client({
+    fs = fs, rednet = rednet,
+    now = function() return os.epoch("utc") end,
+    computerId = os.getComputerID(),
+    enableView = boot.runView,
+    lookup = function() return rednet.lookup(SERVER_PROTOCOL, "server") end,
+  })
+  pairingClient.start()
+end
 
 local function oreFor(id)
   local o = hub.overrides[id]
@@ -291,11 +307,12 @@ end
 -- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
 -- turtle's own question (job, dir, files) go straight back.
 local ROUTED = { go = true, recall = true, update = true, rename = true }
-if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
+if boot.runView then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter
 local viewPending = {}
 local viewSequence = 0
-if viewsCfg.enabled == true then
+local function openView()
+  if not boot.runView then return end
   if type(viewsCfg.server) == "number" and type(viewsCfg.secret) == "string" and #viewsCfg.secret >= 16 then
     viewClient = dofile("ssot-client.lua").new(viewsCfg)
     viewSource = dofile("view-source.lua").new(viewClient, viewsCfg)
@@ -306,6 +323,14 @@ if viewsCfg.enabled == true then
   end
   if args[1] == "pro" or args[1] == "warehouse" or args[1] == "map" then viewsCfg.mode = args[1] end
   viewUI = dofile("views.lua").new(viewsCfg, viewSource)
+end
+openView()
+local function takePair(event, id, message, protocol)
+  if not pairingClient then return end
+  local saved = pairingClient.handle(event, id, message, protocol)
+  if type(saved) ~= "table" then return end
+  viewsCfg = saved
+  openView()
 end
 local function sendDirect(id, msg)
   if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
@@ -1668,7 +1693,7 @@ end
 local function arControlLoop()
   local renewed=-1e9
   while true do
-    local secret=arAuth.cfg and arAuth.cfg.controllers[tostring(os.getComputerID())]
+    local secret=ViewPair.localSecret(viewsCfg, arAuth.cfg, os.getComputerID())
     if serverId and secret and arConfig and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID) then
       arAuth.client=arAuth.client or dofile("ssot-client.lua").new({server=serverId,secret=secret,counterFile="hub-ar.counter"})
       local request=table.remove(arAuth.pending,1)
@@ -1702,6 +1727,7 @@ local function serverLoop()
   local waited = 0
   while not serverId do
     os.pullEvent("timer") -- the screen's timer: about once a second
+    takePair("timer")
     waited = waited + 1
     if waited % 30 == 0 then serverId = rednet.lookup(SERVER_PROTOCOL, "server") end
   end
@@ -1717,6 +1743,7 @@ local function serverLoop()
         flash(m.ok==false and ("Command rejected: "..tostring(m.error)) or "Command accepted by server")
       end
     elseif ev == "timer" and id == timer then
+      takePair("timer", id)
       tick = tick + 1
       for rid,at in pairs(viewPending) do
         if os.clock()-at>5 then viewPending[rid]=nil flash("Command acknowledgement timed out") end
@@ -1742,6 +1769,7 @@ end
 local function netLoop()
   while true do
     local _,id,msg,proto=os.pullEvent("rednet_message")
+    takePair("rednet_message", id, msg, proto)
     if viewClient then viewClient.dispatch(id,msg,proto) end
     if proto == PROTOCOL then
       if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg)

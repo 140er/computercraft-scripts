@@ -391,7 +391,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
+    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "view-pair.lua", "enrol.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -545,7 +545,7 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "server" },
+    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "view-pair.lua", "enrol.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
@@ -560,7 +560,7 @@ local BOTS = {
       { say = "Tip: stand next to a bot and type 'pair' in the panel's console (>_) to unlock its developer commands." },
     } },
   { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
-    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
+    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua", "view-pair.lua", "enrol.lua" },
     start = { "ar-role" },
     steps = {
       { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
@@ -569,10 +569,10 @@ local BOTS = {
       { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
     } },
   { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "view-pair.lua", "enrol.lua" }, start = { "hub", "map" },
     steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
   { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "view-pair.lua", "enrol.lua" }, start = { "hub", "pro" },
     steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view." } } },
   { id = "smartmine", name = "Simple tunnel miner", hint = "the old standalone miner, no hub", on = "turtle",
     files = { "smartmine.lua" },
@@ -593,7 +593,7 @@ local BOTS = {
 
 for _,role in ipairs({{id="view-pro",name="Pro fleet hub",mode="pro"},{id="view-warehouse",name="Warehouse monitor",mode="warehouse"},{id="view-map",name="DirectGPU world view",mode="map"}}) do
   BOTS[#BOTS+1]={id=role.id,name=role.name,hint="Optional SSOT view",on="computer",
-    files={"hub.lua","miner.lua","fleetview.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","mining.lua","views.lua","view-source.lua","view-scene.lua","directview.lua"},
+    files={"hub.lua","miner.lua","fleetview.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","mining.lua","views.lua","view-source.lua","view-scene.lua","directview.lua","view-pair.lua","enrol.lua"},
     start={"hub",role.mode},steps={
       {say="Pair this computer with the SSOT server before setup. Movement also requires viewsControl on the selected turtle.",check=modemCheck},
       {ask="server",kind="number",q="Fleet server computer ID:",

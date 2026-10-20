@@ -19,7 +19,7 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "enrol.lua", "view-pair.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
   "warehouse-tasks.lua", "warehouse.lua", "store.lua", "ar-hud.lua", "chat-control.lua", "ar-role.lua",
   "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
   "views.lua", "view-source.lua", "view-scene.lua", "directview.lua",
@@ -464,9 +464,26 @@ local function retryOrders()
   end
 end
 
+local ViewPair, pairIo
+local function pairState()
+  if pairIo then return pairIo end
+  if not ssotConfig or not fs.exists("view-pair.lua") or not fs.exists("enrol.lua") then return nil end
+  local ok, mod = pcall(dofile, "view-pair.lua")
+  if not ok or type(mod) ~= "table" or type(mod.offer) ~= "function" then return nil end
+  ViewPair = mod
+  pairIo = {
+    cfg = ssotConfig, fs = fs, rednet = rednet, computerId = os.getComputerID(), now = now,
+    save = function() return writeFile("ssot.cfg", textutils.serialize(ssotConfig, { compact = true })) end,
+    log = function(id, verb) log("pair", id, verb) end,
+  }
+  return pairIo
+end
+
 local function request(id, m, fetched, receivedAt)
   receivedAt = receivedAt or now()
   if m.type == "ssot" then
+    local pairing = pairState()
+    if pairing and ViewPair.offer(pairing, id, m) then return end
     if ssot then
       local r, err = ssot.handle(id, m)
       if r and r.ok and m.op=="ar-control" then
@@ -523,6 +540,10 @@ local function request(id, m, fetched, receivedAt)
           if #textutils.serialize(r,{compact=true})>8192 then r.recharge=nil end
         end
         rednet.send(id, r, PROTOCOL)
+        if r.ok and m.op == "enrol-claim" then
+          local pairing = pairState()
+          if pairing then ViewPair.observe(pairing, id, m.op, r) end
+        end
       end
       if err then log("ssot_error", id, err) end
     end
@@ -1017,6 +1038,24 @@ local function drawCode(x0, y0, w, h)
   end
 end
 
+local function drawPairs(x, y, w)
+  local pairing = pairState()
+  if not pairing then return 0 end
+  local rows = ViewPair.pending(pairing, now())
+  if #rows == 0 then return 0 end
+  local shown = math.min(4, #rows)
+  for i = 1, shown do
+    local row = rows[i]
+    local acceptAt = math.max(x + 1, x + w - 20)
+    text(x, y, ViewPair.rowText(row):sub(1, math.max(0, acceptAt - x - 1)), colors.white, colors.black)
+    local id = row.computerId
+    button(acceptAt, y, "Accept", colors.black, colors.lime, function() note(ViewPair.accept(pairing, id)) end)
+    button(acceptAt + 10, y, "Deny", colors.white, colors.red, function() note(ViewPair.deny(pairing, id)) end)
+    y = y + 1
+  end
+  return shown
+end
+
 local TABS = { { "fleet", "Fleet" }, { "3d", "3D" }, { "log", "Log" }, { "code", "Code" } }
 if wh2 then TABS[#TABS+1]={"dev","Dev"} end
 local function draw()
@@ -1065,6 +1104,8 @@ local function draw()
   local top, bottom = 3, h - 2 -- rows for the tab's content
   if not touchable then bottom = h end
   if ui.tab == "fleet" then
+    local pairRows = drawPairs(1, top, w)
+    top = top + pairRows
     local rows = bottom - top + 1
     local dh = math.min(9, math.floor(rows / 3))
     if w >= 100 then -- wide: list and details left, 3D right
