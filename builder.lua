@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("builder.lua",...) then return end
+end
 -- builder.lua - building / terraforming turtle (CC: Tweaked)
 --
 -- Clears and flattens land, lays floors and platforms, builds walls and lights up an
@@ -60,6 +63,14 @@ local ORDER_WAIT = 300     -- seconds it waits for an order from storage
 local REORDER = 300        -- don't order the same thing again within this many seconds
 local WAIT = 30            -- seconds between checks while it waits for something
 local RETRY = 20
+local SERVICE_FREE, FULLNESS_HIGH, KEEP_ITEMS = 1, math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    REFUEL_BELOW, REFUEL_TO, FUEL_MARGIN = values.fuelLow, values.fuelTarget, values.fuelMargin
+    MIN_FUEL, KEEP_FREE, SERVICE_FREE = values.minTripFuel, values.minFreeSlots, values.minFreeSlots
+    FULLNESS_HIGH, KEEP_ITEMS = values.fullnessHigh, values.keep
+  end)
+end
 
 -- Directions: 0=north(-z) 1=east(+x) 2=south(+z) 3=west(-x) 4=up 5=down (same as miner.lua)
 local UP, DOWN = 4, 5
@@ -320,6 +331,11 @@ local function freeSlots()
   local n = 0
   for s = 1, 16 do if turtle.getItemCount(s) == 0 then n = n + 1 end end
   return n
+end
+
+local function inventoryNeedsService()
+  local free = freeSlots()
+  return free < SERVICE_FREE or (16 - free) / 16 >= FULLNESS_HIGH
 end
 
 local function count(want)
@@ -896,6 +912,7 @@ local function refuel()
   if fuel() >= REFUEL_BELOW then return true end
   burn(REFUEL_TO)
   if fuel() < REFUEL_BELOW then
+    if wh2 and wh2.managed() then error("Fleet charging blocked: builder journal has no shared service adapter", 0) end
     local per = 80
     take(SUPPLY, isFuel, math.min(64, math.ceil((REFUEL_TO - fuel()) / per)))
     burn(REFUEL_TO)
@@ -916,12 +933,13 @@ end
 
 -- Everything it doesn't need for the job goes in the dump chest
 local function unload(want, keep)
+  if wh2 and wh2.managed() then error("Fleet drop-off blocked: builder journal has no shared service adapter", 0) end
   local d = cfg.dump or SUPPLY
   local kept = 0
   for s = 1, 16 do
     local it = turtle.getItemDetail(s)
     if it then
-      local useful = want and want(it.name) and kept < keep
+      local useful = KEEP_ITEMS[it.name] or want and want(it.name) and kept < keep
       if useful then
         kept = kept + it.count
       elseif not isFuel(it.name) or fuel() >= REFUEL_TO then
@@ -937,7 +955,7 @@ end
 local function restock(j)
   local want = wantFor(j)
   if not want then return 0 end
-  local cap = (16 - KEEP_FREE - 1) * 64
+  local cap = math.max(0, 16 - KEEP_FREE - 1) * 64
   local need = math.min(stillNeeded(j), cap)
   local have = count(want)
   if have >= need then return have end
@@ -970,8 +988,8 @@ local function runJob(j)
     if st.stopNow then return "stop" end
     if st.paused then return "pause" end
     if ui.homeNow or ui.updateNow then return "home" end
-    if fuel() < homeCost() + FUEL_MARGIN + 2 * CAP then return "fuel" end
-    if (j.kind == "clear" or j.kind == "flatten") and freeSlots() < 1 then return "full" end
+    if fuel() < math.max(REFUEL_BELOW, homeCost() + FUEL_MARGIN + 2 * CAP) then return "fuel" end
+    if (j.kind == "clear" or j.kind == "flatten") and inventoryNeedsService() then return "full" end
     if want and j.kind ~= "flatten" and count(want) == 0 then return "material" end
     setStatus(describe(j) .. ": " .. math.floor((j.i - 1) * 100 / math.max(1, j.n)) .. "%")
     local t = task(j, j.i)

@@ -1,6 +1,11 @@
 local args={...}
 local A,S=dofile("atomic.lua"),dofile("ssot.lua")
 local cfg=A.read("warehouse.cfg") or {enabled=false}
+local fleetBootstrap=A.read("wh2.cfg") or {enabled=false}
+local fleetEnabled=fleetBootstrap.enabled==true
+if fleetEnabled then
+  cfg.server,cfg.dimension=fleetBootstrap.server,fleetBootstrap.dimension
+end
 local function save() local f=assert(fs.open("warehouse.cfg","w")) f.write(textutils.serialize(cfg)) f.close() end
 local function pose(offset)
   local p={dim=assert(cfg.dimension,"configure the server and dimension first"),x=tonumber(args[offset]),y=tonumber(args[offset+1]),z=tonumber(args[offset+2])}
@@ -31,9 +36,42 @@ elseif args[1]=="charger" then
   local target=tonumber(args[3]) or 2000 assert(target%1==0 and target>=1 and target<=100000,"invalid fuel target")
   cfg.charger=args[2] cfg.targetFuel=target save() return
 end
-assert(cfg.server and cfg.secret,"configure warehouse server first")
+assert(cfg.server and (fleetEnabled or cfg.secret),"configure warehouse server first")
 peripheral.find("modem",rednet.open)
-local client=dofile("ssot-client.lua").new({server=cfg.server,secret=cfg.secret,timeout=cfg.timeout or 5})
+local client=dofile("ssot-client.lua").new(fleetEnabled and fleetBootstrap or {server=cfg.server,secret=cfg.secret,timeout=cfg.timeout or 5})
+local fleet,nav,worker
+local fleetError
+local function settings() return fleet and fleet.settings() end
+local function boundary(kind)
+  if not fleet then return true end
+  local ok,why=fleet.tick()
+  if not ok or not fleet.ready() then
+    fleetError=why or "Server unavailable. Warehouse waits for shared settings."
+    return false,fleetError
+  end
+  local values=settings()
+  if not values.enabled or not values.warehouse then return false,"Warehouse behavior is disabled" end
+  if kind=="drop" and not values.autoDropoff then return false,"Auto drop-off is disabled" end
+  if kind=="charge" and not values.autoCharge then return false,"Auto-charge is disabled" end
+  if kind=="walk" or kind=="turn" then
+    if not values.navigation then return false,"Navigation is disabled" end
+  end
+  fleetError=nil
+  return true
+end
+if fleetEnabled then
+  fleet=dofile("wh2-client.lua").new({rpc=client,enabled=true,role="store",dimension=cfg.dimension,
+    snapshot=function()
+      local state=worker and worker.state() or {}
+      local used=0 for slot=1,16 do if turtle and turtle.getItemCount(slot)>0 then used=used+1 end end
+      return {state=fleetError and "blocked" or state.phase=="charge" and "charging" or state.phase=="unload" and "dropping" or "returning",
+        detail=fleetError or state.phase or "starting",pose=nav and nav.fleetPose() or false,
+        fuel=turtle and {level=turtle.getFuelLevel(),limit=turtle.getFuelLimit()} or false,
+        inventory=turtle and {slots=16,usedSlots=used,fullness=used/16} or false,
+        capabilities={navigation=turtle~=nil,inventory=turtle~=nil,crafting=false},error=fleetError or false}
+    end,
+    apply=function(values) if nav then nav.configure(values) end end})
+end
 local function request(op,v)
   local r,err=client.call(op,v) assert(r and r.ok,err or r and r.error or "warehouse server unavailable") return r
 end
@@ -47,7 +85,8 @@ local function work()
     local r=request("wh-order",{key=args[2],drop=args[3],lines=lines}) print(textutils.serialize(r.job)) return
   end
   assert(turtle and cfg.pose and cfg.bounds,"a calibrated turtle and navigation bounds are required")
-  local nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic==true,
+  nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic==true,
+    beforeAction=fleet and boundary or nil,actionReady=fleet and function() return fleet.ready(),"Fresh fleet settings required" end or nil,
     observe=function()
       local x,y,z=gps.locate(2)
       if x then return {dim=cfg.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
@@ -68,11 +107,23 @@ local function work()
     end)
     request("wh-unlock",{name=args[2]}) assert(ok,err) print("Stock reported") return
   end
-  assert(cfg.enabled==true,"warehouse disabled; configure it and run store enable")
-  local worker=dofile("warehouse.lua").open({nav=nav,client=client,home=cfg.pose,charger=cfg.charger,targetFuel=cfg.targetFuel,chargeTimeout=cfg.chargeTimeout})
+  assert(fleet or cfg.enabled==true,"warehouse disabled; configure it and run store enable")
+  local workerOptions={nav=nav,client=client,home=cfg.pose,charger=not fleet and cfg.charger or nil,
+    targetFuel=cfg.targetFuel,chargeTimeout=cfg.chargeTimeout,settings=fleet and settings or nil,beforeAction=fleet and boundary or nil}
+  worker=dofile("warehouse.lua").open(workerOptions)
   if args[1]=="charge" then assert(worker.charge(args[2],assert(tonumber(args[3])),tonumber(args[4]) or 60000)) end
   while true do
-    local ok,why=worker.tick()
+    local ok,why=boundary("warehouse")
+    if ok and fleet then
+      local values=settings()
+      workerOptions.targetFuel,workerOptions.chargeTimeout=values.fuelTarget,values.chargeTimeoutMs
+      workerOptions.charger=nil
+      if values.autoCharge and turtle.getFuelLevel()~="unlimited" then
+        local location,err=fleet.location("charge",nav.fleetPose(),values.chargerId)
+        if not location then ok,why=false,err else workerOptions.charger=location.siteNames.charge end
+      end
+    end
+    if ok then ok,why=worker.tick() end
     if worker.state().phase=="done" then
       print("Warehouse "..tostring(worker.state().reason))
       if args[1]=="charge" then return end
@@ -82,5 +133,8 @@ local function work()
   end
 end
 parallel.waitForAny(work,function()
-  while true do local id,m,proto=rednet.receive() client.dispatch(id,m,proto) end
+  while true do
+    local id,m,proto=rednet.receive()
+    if fleet then fleet.dispatch(id,m,proto) else client.dispatch(id,m,proto) end
+  end
 end)

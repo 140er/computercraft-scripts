@@ -18,6 +18,7 @@ end
 function M.valid(v,pose)
   if v==nil then return true end
   if type(v)~="table" or type(v.sites)~="table" or type(v.orders)~="table" or type(v.locks)~="table" then return false end
+  if v.locationsRevision~=nil and not int(v.locationsRevision,0,2147483647) then return false end
   local n=0
   for name,s in pairs(v.sites) do
     n=n+1
@@ -55,7 +56,9 @@ function M.run(s,id,m,epoch,pose)
     end
     local count=0 for _ in pairs(v.sites) do count=count+1 end
     if count>=32 and not v.sites[m.name] then return fail("site limit") end
+    if (v.locationsRevision or 0)>=2147483647 then return fail("location revision limit") end
     v.sites[m.name]=A.copy(m.site) v.sites[m.name].stock=nil
+    v.locationsRevision=(v.locationsRevision or 0)+1
     return {ok=true}
   elseif m.op=="wh-sites" then
     if m.name~=nil then

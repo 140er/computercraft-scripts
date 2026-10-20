@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("panel.lua",...) then return end
+end
 -- panel.lua - base control panel for an advanced pocket computer (CC: Tweaked)
 -- Needs a wireless or ender modem (ender = works from anywhere, also other dimensions).
 --
@@ -1037,6 +1040,7 @@ local function drawMap3D()
         list[#list + 1] = V.entry(t.id, "miner", t, t.age)
       end
     end
+    if wh2 and wh2.records then list=dofile("wh2-ar.lua").merge(list,wh2.records(),os.epoch("utc")) end
     if wmap.me then list[#list + 1] = { id = -1, kind = "panel", name = "you", x = wmap.me.x, y = wmap.me.y,
       z = wmap.me.z, age = 0 } end
     local scene = V.scene(list, { selected = wmap.sel3 })
@@ -2199,6 +2203,7 @@ local function uiLoop()
     elseif ev == "char" then
       local n = tonumber(a)
       if n and TABS[n] then openTab(TABS[n][1]) draw()
+      elseif a == "d" and wh2 then dofile("wh2-dev.lua").run(wh2,term.current()) tick=os.startTimer(1) draw()
       elseif a == "q" then return end
     elseif ev == "key" and a == keys.backspace and ui.popup then
       ui.popup = nil

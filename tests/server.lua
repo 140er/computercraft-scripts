@@ -310,7 +310,7 @@ return function(test, equal, read, mocks)
     })
     m.files["ar.cfg"] = mocks.encode({ enabled = false, ownerName = "Jeffreyy2", ownerUUID = AR_UUID })
     for _, file in ipairs({ "ssot.lua", "atomic.lua", "ar-hud.lua", "chat-control.lua", "ssot-client.lua",
-      "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua" }) do
+      "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua", "wh2-dispatch.lua" }) do
       m.files[file] = read(file)
     end
     m.env.dofile = function(path) return assert(load(read(path), "@" .. path, "t", m.env))() end

@@ -40,7 +40,7 @@ local fleet = { turtle("east", 101, -20), turtle("south", 105, -20),
 local function authorizeLegacyAR(m)
   local owner, uuid = "Jeffreyy2", "12345678-1234-1234-1234-123456789abc"
   for _, path in ipairs({ "ar-hud.lua", "ssot.lua", "atomic.lua", "chat-control.lua",
-    "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua" }) do
+    "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua", "wh2-dispatch.lua" }) do
     m.files[path] = read(path)
   end
   m.files["ssot.cfg"] = mocks.encode({ controllers = {}, chatNames = { owner }, chatUUIDs = { [owner] = uuid } })
@@ -453,6 +453,13 @@ dofile("tests/nav-unit.lua")
 dofile("tests/mining-unit.lua")
 dofile("tests/warehouse-unit.lua")
 dofile("tests/planner-unit.lua")
+dofile("tests/wh2-fleet-adapters.lua")
+dofile("tests/wh2-fleet-domain.lua")
+dofile("tests/wh2-fleet-client.lua")
+dofile("tests/wh2-fleet-controls.lua")
+dofile("tests/wh2-fleet-program.lua")
+dofile("tests/wh2-fleet-store.lua")
+dofile("tests/wh2-fleet-miner.lua")(test,read,mocks)
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 dofile("tests/ar-hud-unit.lua")

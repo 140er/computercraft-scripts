@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("relay.lua",...) then return end
+end
 -- relay.lua - range booster for normal wireless modems (CC: Tweaked)
 --
 -- A wireless modem's range grows with its height: about 64 blocks below y=96,

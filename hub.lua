@@ -1,3 +1,6 @@
+if fs and fs.exists("wh2-program.lua") and not rawget(_ENV,"__wh2Running") then
+  if dofile("wh2-program.lua").run("hub.lua",...) then return end
+end
 -- hub.lua - Mine Army hub + dashboard (CC: Tweaked)
 -- Run on an (advanced) computer in your base with a wireless/ender modem.
 -- A monitor next to it is optional; tapping the monitor works as buttons.
@@ -1182,6 +1185,7 @@ function fleetList()
     if e then list[#list + 1] = e end
   end
   table.sort(list, function(a, b) return a.id < b.id end)
+  if wh2 and wh2.records then return dofile("wh2-ar.lua").merge(list,wh2.records(),os.epoch("utc")) end
   return list
 end
 
@@ -1780,6 +1784,7 @@ local function uiLoop()
       arControls.chat:event(ev,a,b,c,d)
       redraw()
     elseif ev == "char" then
+      if a=="d" and wh2 then dofile("wh2-dev.lua").run(wh2,term.current()) timer=os.startTimer(1) end
       local n = tonumber(a)
       if arConfig and arConfig.enabled and serverOwnsAR() and ({P=true,T=true,O=true,A=true})[a] then
         local field=({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"})[a]

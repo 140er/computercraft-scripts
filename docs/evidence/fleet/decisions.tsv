@@ -1,0 +1,7 @@
+ts	phase	decision	why	evidence	result
+2026-10-20T17:20:00Z	start	Resume the pushed fleet WIP.	The user requires continuation from the paused commit.	d1fd8c4	open
+2026-10-20T17:22:00Z	contract	Merge the contract3 base and push normally.	The user forbids rebase and force-push.	cd3f958	merged and pushed
+2026-10-20T17:29:00Z	implementation	Assign fleet domain, client, and miner work to three Codex processes.	Disjoint files avoid concurrent edits to one module.	C:/Work/gemini-input/p3/evidence/fleet/workers	open
+2026-10-20T17:35:36Z	coordinates	Use north-zero site headings and exclude relative poses from world AR markers.	The contract requires explicit coordinate frames and nav headings.	wh2-locations.lua,wh2-ar.lua	unit tests pass
+2026-10-20T18:20:00Z	gateA	Record the Linux mock suite and the CraftOS fleet scenario.	The user requires those two checks before a draft PR. Gate B stays unrun.	lua5.2 tests/run.lua; tests/sandbox/run.ps1 -Scenario fleet	pass
+2026-10-20T17:39:19Z	fallback	Allow standalone startup until the first accepted server settings.	An absent server must not stop existing programs from starting.	wh2-program.lua	tests pending

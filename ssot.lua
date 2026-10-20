@@ -3,6 +3,7 @@ local A = dofile("atomic.lua")
 local Mining = dofile("mine-tasks.lua")
 local Warehouse = dofile("warehouse-tasks.lua")
 local Planner = dofile("planner-ops.lua")
+local Wh2 = dofile("wh2-dispatch.lua")
 local deadOk, Dead = pcall(dofile, "dead.lua")
 if not deadOk or type(Dead) ~= "table" then Dead = nil end
 local function integer(n, lo, hi)
@@ -52,6 +53,7 @@ function M.config(raw)
     assert(raw.controllers[id] and type(owner)=="table" and word(owner.name,16) and word(owner.uuid,36),
       "invalid enrolled AR controller")
   end
+  raw.wh2=Wh2.config(raw.wh2,raw.controllers)
   return raw
 end
 function M.chatAllowed(cfg,name,uuid)
@@ -115,6 +117,7 @@ function M.new(s, cfg, clock, epoch, save)
   end
   s.planner = Planner.normalize(s.planner, origin, clock())
   cfg = cfg or {}
+  local wh2=Wh2.open(cfg.wh2,M.pose)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
@@ -160,6 +163,9 @@ function M.new(s, cfg, clock, epoch, save)
       return {ok=true}
     end
     if op:sub(1,5)=="plan-" then return Planner.op(s, id, m, clock) end
+    if op:sub(1,4)=="wh2-" then
+      return {ok=false,code="incompatible",error="Authenticated v2 transport required"}
+    end
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
     if op=="traffic" then
@@ -328,6 +334,7 @@ function M.new(s, cfg, clock, epoch, save)
       if not saved then return nil, err end
       return result
     end,
+    fleet=function() return A.copy(s.wh2 and s.wh2.fleet and s.wh2.fleet.records or {}) end,
     handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
@@ -438,6 +445,7 @@ function M.open(cfg)
       end
     end
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and Planner.valid(s.planner) and (not Dead or Dead.valid(s.live))
+      and Wh2.open(cfg.wh2,M.pose).valid(s.wh2)
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }

@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = '',
     [ValidateRange(100000, 64000000)][int]$Disk = 4000000
@@ -15,7 +15,7 @@ $previousVideo=$env:SDL_VIDEODRIVER
 $previousAudio=$env:SDL_AUDIODRIVER
 if ($OnLinux -or $Scenario -eq 'views') { $env:SDL_VIDEODRIVER='dummy'; $env:SDL_AUDIODRIVER='dummy' }
 if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
-if ($Scenario -in @('ssot','nav','mining','warehouse','ar','views') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -in @('ssot','nav','mining','warehouse','ar','views','fleet') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 if ($Scenario -eq 'install' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 120 }
 $process = $null
 
@@ -140,6 +140,8 @@ try {
     Write-SandboxText "$run\config\global.json" $config $utf8
     if ($Scenario -eq 'planner') {
         $roles = @('server','turtle1','turtle2')
+    } elseif ($Scenario -eq 'fleet') {
+        $roles = @('server','turtle1','turtle2','turtle3','operator')
     } elseif ($Scenario -eq 'install') {
         # Payloads live in the ROM so they do not count against the 1000000 byte disk.
         $payload = Join-Path (Join-Path (Join-Path $run 'rom') 'rom') 'bundle'
@@ -178,7 +180,7 @@ try {
             continue
         }
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views','planner')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views','planner','fleet')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -197,6 +199,9 @@ try {
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
         if ($Scenario -eq 'planner') {
             Copy-Item -LiteralPath "$PSScriptRoot\planner-driver.lua" -Destination $disk
+        }
+        if ($Scenario -eq 'fleet') {
+            Copy-Item -LiteralPath "$PSScriptRoot\fleet-driver.lua" -Destination $disk
         }
         if ($Scenario -eq 'ar') {
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
@@ -276,8 +281,11 @@ try {
         foreach ($errorText in $errors) { Write-Output "  error: $errorText" }
         if (!$result.ok) { $failed = $true }
     }
-    $stderr = Get-Content -LiteralPath "$run\stderr.log" -Raw
-    if ($stderr) { Write-Output "Emulator stderr: $stderr"; $failed = $true }
+    $stderrPath = ConvertTo-SandboxPath "$run\stderr.log"
+    if (Test-Path -LiteralPath $stderrPath) {
+        $stderr = Get-Content -LiteralPath $stderrPath -Raw
+        if ($stderr) { Write-Output "Emulator stderr: $stderr"; $failed = $true }
+    }
     if ($timedOut) { Write-Output 'Emulator timed out.' }
     if ($crashed) { Write-Output "Emulator exited early: $($process.ExitCode)" }
     if ($Output) {

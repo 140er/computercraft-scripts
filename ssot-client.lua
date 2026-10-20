@@ -11,7 +11,7 @@ function M.new(cfg)
   end, 8192)
   local journal = store.value or { counter = 0 }
   local synced = false
-  local api = {}
+  local api = {boot=boot}
   function api.dispatch(sender, m, protocol)
     if sender ~= cfg.server or protocol ~= "fleetserver" or type(m) ~= "table" or m.v ~= 1
       or m.type ~= "ssot_reply" or m.server ~= cfg.server or type(m.rid) ~= "string"
