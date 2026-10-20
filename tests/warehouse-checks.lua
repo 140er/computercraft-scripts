@@ -194,6 +194,10 @@ return function(test,mocks)
     command("order","cli-order","output","minecraft:iron_ingot","5","input")
     assert(server.state().warehouse.orders["cli-order"].lines[1].wanted==5)
     e.turtle={} e.gps={locate=function() return 1,65,0 end}
+    local wh=A.mount("/"):open("warehouse.cfg",function(v) return type(v)=="table" end,{class="control",limit=8192})
+    local stored=A.read("warehouse.cfg").value
+    stored.gpsFree=false
+    assert(wh:save(stored))
     command("calibrate","3")
     assert(A.read("store-nav.state").value.pose.h==3 and server.state().poses[99].x==1)
     local m=mocks.miner({home={x=1,y=65,z=0},facing=2,mining={enabled=true}})

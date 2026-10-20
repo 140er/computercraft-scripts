@@ -528,7 +528,7 @@ return function(test, Craft, Recipes, Worker)
       if handle then text = handle:read("*a") handle:close() end
     end
     assert(text, "factory.lua unreadable")
-    assert(text:find("cfg.wh2.enabled == true", 1, true), "craft flag missing")
+    assert(text:find("wh2.enabled == false", 1, true) or text:find("wh2.enabled == nil or wh2.enabled == true", 1, true), "craft flag missing")
     assert(text:find("factory build", 1, true), "legacy factory build removed")
     assert(text:find('dofile("craft.lua")', 1, true), "factory adapter missing")
   end)

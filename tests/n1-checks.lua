@@ -244,7 +244,7 @@ return function(test, equal, mocks)
     local p = { v = 1, frame = frame, yAbs = true, dim = dim, x = 0, y = 64, z = 0, h = 1,
       conf = "certain", src = "typed", anchoredAt = 1000 }
     local ev = { source = "typed", reference = "pad", faces = { [0] = "minecraft:air" } }
-    local api = S.open({ controllers = { ["1"] = secret } })
+    local api = S.open({ controllers = { ["1"] = secret }, compactSections = false })
     assert(request(api, 1, "anchor", { pose = p, evidence = ev }).ok)
     local bad = {}
     for k, v in pairs(p) do bad[k] = v end
@@ -267,6 +267,6 @@ return function(test, equal, mocks)
     assert(not request(api, 6, "frame-merge", { id = frame, toAbs = { dx = 101, dy = 0, dz = 0, rot = 0 } }).ok)
     assert(not request(api, 7, "frame-merge", { id = frame, toAbs = { dx = 100, dy = 1, dz = 0, rot = 0 } }).ok)
     assert(before.chunks and next(before.chunks) == nil)
-    S.open({ controllers = { ["1"] = secret } })
+    S.open({ controllers = { ["1"] = secret }, compactSections = false })
   end)
 end
