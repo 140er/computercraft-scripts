@@ -190,6 +190,8 @@ function M.issue(store, now, issuer, req, rng)
     filesRef = req.filesRef or { role = req.role }, planBot = req.planBot or false,
     used = false, burned = false, attempts = 0,
   }
+  if req.held == true then rec.held = true end
+  if type(req.forId) == "number" and req.forId % 1 == 0 then rec.forId = req.forId end
   store.codes[id] = rec
   return {
     v = 1, id = id, code = code, issuer = issuer, role = rec.role,
@@ -215,8 +217,18 @@ local function gate(rec, now)
   if type(now) ~= "number" or now > rec.untilAt then return { ok = false, error = "code_expired" } end
 end
 
+-- A stranger must not burn the code. reject() counts attempts, and five burns it.
+local function locked(rec, senderId)
+  if type(rec) ~= "table" then return nil end
+  if rec.held or (rec.forId ~= nil and rec.forId ~= senderId) then
+    return { ok = false, error = "code_rejected" }
+  end
+end
+
 function M.hello(store, now, id, msg, serverId, rng)
   local rec = store.codes[msg.codeId]
+  local held = locked(rec, id)
+  if held then return held end
   local blocked = gate(rec, now)
   if blocked then return blocked end
   if type(msg.nNew) ~= "string" or #msg.nNew < 8 or #msg.nNew > 64 then
@@ -233,6 +245,8 @@ end
 
 function M.claim(store, now, id, msg, serverId)
   local rec = store.codes[msg.codeId]
+  local held = locked(rec, id)
+  if held then return held end
   local blocked = gate(rec, now)
   if blocked then return blocked end
   local claim = {
@@ -245,7 +259,9 @@ function M.claim(store, now, id, msg, serverId)
   end
   local key = M.pairingKey(rec.code, claim)
   rec.used, rec.code = true, nil
-  store.paired[tostring(id)] = { role = rec.role, at = now, key = key }
+  local paired = { role = rec.role, at = now, key = key }
+  if rec.forId ~= nil then paired.codeId = rec.id end
+  store.paired[tostring(id)] = paired
   return {
     ok = true, role = rec.role, frame = rec.frame, home = rec.home,
     filesRef = rec.filesRef, settingsRef = rec.settingsRef,
@@ -362,7 +378,11 @@ function M.operate(id, msg, clock, cfg, filesystem)
   local serverId = os.getComputerID()
   local result
   if msg.op == "enrol-issue" then
-    local rec, why = M.issue(store, now, id, msg, math.random)
+    local req = {
+      role = msg.role, frame = msg.frame, home = msg.home,
+      settingsRef = msg.settingsRef, filesRef = msg.filesRef, planBot = msg.planBot,
+    }
+    local rec, why = M.issue(store, now, id, req, math.random)
     if not rec then return { ok = false, error = "code_rejected", detail = why } end
     result = rec
     result.ok = true
