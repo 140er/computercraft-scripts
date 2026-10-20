@@ -237,6 +237,27 @@ local ok,err=pcall(function()
           end
           return module
         end
+        if path=="view-source.lua" and runtime=="minecraft" then
+          local create=module.new
+          module.new=function(...)
+            local source=create(...)
+            local refresh=source.refresh
+            source.refresh=function(...)
+              gpuRun.refresh=gpuRun.refresh or {}
+              gpuRun.refresh.phase,gpuRun.refresh.startedAt="refreshing",os.epoch("utc")
+              json("views-snapshot.json",gpuRun.refresh)
+              local good,why=refresh(...)
+              local scene=source.scene()
+              gpuRun.refresh={phase="complete",ok=good,reason=why,at=os.epoch("utc"),
+                cellCount=scene and scene.cells and #scene.cells or 0,
+                stale=scene and scene.stale,error=scene and scene.error}
+              json("views-snapshot.json",gpuRun.refresh)
+              return good,why
+            end
+            return source
+          end
+          return module
+        end
         if path~="directview.lua" or runtime~="minecraft" or id==8 then return module end
         local create=module.new
         module.new=function(gpu,cfg)
@@ -262,6 +283,7 @@ local ok,err=pcall(function()
             local at=os.epoch("utc")
             local good,reason=draw(scene,camera)
             gpuRun.draws[#gpuRun.draws+1]={ok=good,reason=reason,millis=os.epoch("utc")-at,mode=camera.mode}
+            if #gpuRun.draws>64 then table.remove(gpuRun.draws,1) end
             return good,reason
           end
           return view
@@ -287,6 +309,19 @@ local ok,err=pcall(function()
     parallel.waitForAny(function() assert(loadfile("hub.lua","t",_ENV))(id==8 and "warehouse" or "pro") end,function()
       sleep(15)
       if runtime=="minecraft" and id~=8 then
+        check("real rendered world snapshot becomes ready",function()
+          local deadline=os.epoch("utc")+180000
+          repeat
+            if gpuRun.view and gpuRun.view.displayId and gpuRun.scene and gpuRun.scene.cells and
+              #gpuRun.scene.cells>0 and gpuRun.camera and gpuRun.draw then return end
+            sleep(.5)
+          until os.epoch("utc")>=deadline
+          local scene=gpuRun.scene
+          json("views-readiness.json",{ok=false,generations=gpuRun.generations,
+            sceneCount=scene and scene.cells and #scene.cells or 0,
+            stale=scene and scene.stale,draws=gpuRun.draws,refresh=gpuRun.refresh})
+          error("rendered world snapshot was not ready within 180 seconds; inspect views-readiness.json")
+        end)
         check("real DirectGPU display exists",function()
           local gpu=assert(peripheral.find("directgpu"),"missing real DirectGPU")
           local displays=gpu.listDisplays()
