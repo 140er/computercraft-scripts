@@ -871,8 +871,9 @@ local function network()
       elseif proto == "minearmy" and m.type == "cmd_ack" then
         local o = outbox[m.cid]
         if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
-      elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
-        and (m.type == "status" or tostring(m.type):match("_state$")
+      -- Telemetry stays open. An old miner has no controller secret.
+      -- Commands and hub writes stay behind the pairing check in request.
+      elseif BOTS[proto] and (m.type == "status" or tostring(m.type):match("_state$")
         or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
         if proto == "minearmy" and m.type == "panel_state" then hubPanel = m end
         status(id, m, proto)
