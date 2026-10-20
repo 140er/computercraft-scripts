@@ -46,6 +46,11 @@ local ok, err = pcall(function()
   dofile("install-unit.lua")(test, function(actual, expected, message)
     assert(deep(actual, expected), message or "values differ")
   end)
+  dofile("i2-touch.lua")(test, function(actual, expected, message)
+    assert(deep(actual, expected), message or "values differ")
+  end)
+  if fs.exists("i2-touch.lua") then fs.delete("i2-touch.lua") end
+  if fs.exists("i2-events") then fs.delete("i2-events") end
   local Roles = dofile("install-roles.lua")
   local function drive()
     return {
@@ -72,6 +77,7 @@ local ok, err = pcall(function()
       if fs.getDrive(name) == "hdd" and not fs.isDir(name) then
         local kit = name == "install.lua" or name == "update.lua" or name == "install-roles.lua"
           or name == "install-core.lua" or name == "install-keys.lua" or name == "install-shell.lua"
+          or name == "install-touch.lua"
           or name == "enrol.lua" or name == "install-unit.lua" or name == "install-driver.lua"
           or name == "startup.lua"
         if not kit then fs.delete(name) end

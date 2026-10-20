@@ -41,7 +41,10 @@ return {
       [5]="directview.lua",
       [6]="wh2-program.lua",
       [7]="wh2-ar.lua",
-      [8]="wh2-dev.lua"
+      [8]="wh2-dev.lua",
+      [9]="wh2-wizard-host.lua",
+      [10]="wh2-board.lua",
+      [11]="wh2-recipes.lua"
     },
     ["lava.lua"]={
       [1]="wh2-program.lua"
@@ -74,7 +77,10 @@ return {
       [1]="fleetview.lua",
       [2]="wh2-program.lua",
       [3]="wh2-ar.lua",
-      [4]="wh2-dev.lua"
+      [4]="wh2-dev.lua",
+      [5]="wh2-wizard-host.lua",
+      [6]="wh2-board.lua",
+      [7]="wh2-recipes.lua"
     },
     ["planner-core.lua"]={
       [1]="planner-enrol.lua",
@@ -134,6 +140,11 @@ return {
       [1]="atomic.lua",
       [2]="ssot.lua"
     },
+    ["wh2-board.lua"]={
+      [1]="wh2-wizard-adapter.lua",
+      [2]="wh2-wizard.lua",
+      [3]="atomic.lua"
+    },
     ["wh2-client.lua"]={
       [1]="atomic.lua"
     },
@@ -161,7 +172,7 @@ return {
     ["fleetview.lua"]="e0feb498",
     ["gpshost.lua"]="bc2a6795",
     ["hub.lua"]="6c5a87bd",
-    ["install.lua"]="ad29b8c5",
+    ["install.lua"]="9230e342",
     ["lava.lua"]="2e60f5f2",
     ["lumber.lua"]="6ed6689c",
     ["mine-tasks.lua"]="85edae0a",
@@ -191,11 +202,16 @@ return {
     ["warehouse-tasks.lua"]="7ea10cb8",
     ["warehouse.lua"]="51f00b37",
     ["wh2-ar.lua"]="807a5915",
+    ["wh2-board.lua"]="777dc55f",
     ["wh2-client.lua"]="b3db8469",
     ["wh2-dev.lua"]="83198de6",
     ["wh2-dispatch.lua"]="84cab815",
     ["wh2-fleet.lua"]="1c63b2cd",
-    ["wh2-program.lua"]="f42f186f"
+    ["wh2-program.lua"]="f42f186f",
+    ["wh2-recipes.lua"]="88ecd1ff",
+    ["wh2-wizard-adapter.lua"]="695233e7",
+    ["wh2-wizard-host.lua"]="94119ff6",
+    ["wh2-wizard.lua"]="6318d0ac"
   },
   ["pending"]={
 
@@ -289,11 +305,16 @@ return {
         [24]="warehouse-tasks.lua",
         [25]="warehouse.lua",
         [26]="wh2-ar.lua",
-        [27]="wh2-client.lua",
-        [28]="wh2-dev.lua",
-        [29]="wh2-dispatch.lua",
-        [30]="wh2-fleet.lua",
-        [31]="wh2-program.lua"
+        [27]="wh2-board.lua",
+        [28]="wh2-client.lua",
+        [29]="wh2-dev.lua",
+        [30]="wh2-dispatch.lua",
+        [31]="wh2-fleet.lua",
+        [32]="wh2-program.lua",
+        [33]="wh2-recipes.lua",
+        [34]="wh2-wizard-adapter.lua",
+        [35]="wh2-wizard-host.lua",
+        [36]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="ar-role"
@@ -453,11 +474,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub"
@@ -559,11 +585,16 @@ return {
         [15]="update.lua",
         [16]="warehouse-tasks.lua",
         [17]="wh2-ar.lua",
-        [18]="wh2-client.lua",
-        [19]="wh2-dev.lua",
-        [20]="wh2-dispatch.lua",
-        [21]="wh2-fleet.lua",
-        [22]="wh2-program.lua"
+        [18]="wh2-board.lua",
+        [19]="wh2-client.lua",
+        [20]="wh2-dev.lua",
+        [21]="wh2-dispatch.lua",
+        [22]="wh2-fleet.lua",
+        [23]="wh2-program.lua",
+        [24]="wh2-recipes.lua",
+        [25]="wh2-wizard-adapter.lua",
+        [26]="wh2-wizard-host.lua",
+        [27]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="panel"
@@ -597,11 +628,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -819,11 +855,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -858,11 +899,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -897,11 +943,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -936,11 +987,16 @@ return {
         [23]="warehouse-tasks.lua",
         [24]="warehouse.lua",
         [25]="wh2-ar.lua",
-        [26]="wh2-client.lua",
-        [27]="wh2-dev.lua",
-        [28]="wh2-dispatch.lua",
-        [29]="wh2-fleet.lua",
-        [30]="wh2-program.lua"
+        [26]="wh2-board.lua",
+        [27]="wh2-client.lua",
+        [28]="wh2-dev.lua",
+        [29]="wh2-dispatch.lua",
+        [30]="wh2-fleet.lua",
+        [31]="wh2-program.lua",
+        [32]="wh2-recipes.lua",
+        [33]="wh2-wizard-adapter.lua",
+        [34]="wh2-wizard-host.lua",
+        [35]="wh2-wizard.lua"
       },
       ["startup"]={
         [1]="hub",
@@ -954,5 +1010,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="0e058dfb"
+  ["version"]="8634fda5"
 }

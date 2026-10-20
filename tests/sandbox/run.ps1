@@ -165,16 +165,24 @@ try {
         $disk = Join-Path (Join-Path $run 'computer') "$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         if ($Scenario -eq 'install') {
-            foreach ($name in @('install.lua','update.lua','install-roles.lua','install-core.lua','install-keys.lua','install-shell.lua','enrol.lua')) {
+            foreach ($name in @('install.lua','update.lua','install-roles.lua','install-core.lua','install-keys.lua','install-shell.lua','install-touch.lua','enrol.lua')) {
                 $code = [IO.File]::ReadAllText((Join-Path $Source $name)).Replace("`r`n", "`n")
                 Write-SandboxText (Join-Path $disk $name) $code $utf8
             }
             foreach ($pair in @(
                 @{ From = (Join-Path $Source 'tests\install-unit.lua'); Name = 'install-unit.lua' },
+                @{ From = (Join-Path $Source 'tests\i2-touch.lua'); Name = 'i2-touch.lua' },
                 @{ From = (Join-Path $PSScriptRoot 'install-driver.lua'); Name = 'install-driver.lua' }
             )) {
                 $code = [IO.File]::ReadAllText($pair.From).Replace("`r`n", "`n")
                 Write-SandboxText (Join-Path $disk $pair.Name) $code $utf8
+            }
+            $eventSrc = Join-Path $Source 'tests\i2-events'
+            $eventDst = Join-Path $disk 'i2-events'
+            New-Item -ItemType Directory -Force -Path $eventDst | Out-Null
+            Get-ChildItem -LiteralPath $eventSrc -Filter '*.lua' | ForEach-Object {
+                $code = [IO.File]::ReadAllText($_.FullName).Replace("`r`n", "`n")
+                Write-SandboxText (Join-Path $eventDst $_.Name) $code $utf8
             }
             Write-SandboxText (Join-Path $disk 'startup.lua') "shell.run('install-driver.lua')" $utf8
             continue

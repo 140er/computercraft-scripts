@@ -301,7 +301,21 @@ local function issue(role)
   print("One use, 120 seconds. Type both on the new machine.")
 end
 
-local function paint(state, ui)
+local function paint(state, ui, Touch)
+  if Touch then
+    local target, monitor = Touch.surface()
+    ui.monitor = monitor
+    ui.width, ui.height = target.getSize()
+    if monitor and term and term.clear then
+      if colors and term.setBackgroundColor then
+        term.setBackgroundColor(colors.black)
+        term.setTextColor(colors.white)
+      end
+      term.clear()
+    end
+    Touch.draw(target, Touch.render(state, ui))
+    return
+  end
   local view = Keys.render(state, ui)
   if colors and term.setBackgroundColor then
     term.setBackgroundColor(colors.black)
@@ -323,7 +337,12 @@ end
 
 local function gui(preset, base)
   local state, effects = Core.boot(scan(), Roles.catalog())
-  local ui = Keys.new()
+  local Touch = nil
+  if fs.exists("install-touch.lua") then
+    local loaded = dofile("install-touch.lua")
+    if loaded.available() then Touch = loaded end
+  end
+  local ui = Touch and Touch.new() or Keys.new()
   if preset then
     state, effects = Core.transition(state, { t = "io", op = "scan", ok = true, value = scan() })
     state, effects = Core.transition(state, { t = "choose", n = chooseId(state, "fresh") })
@@ -345,10 +364,11 @@ local function gui(preset, base)
       state, more = Core.transition(state, event)
       for _, item in ipairs(more) do effects[#effects + 1] = item end
     else
-      paint(state, ui)
-      local ev, a = os.pullEvent()
+      paint(state, ui, Touch)
+      local ev, a, b, c = os.pullEvent()
       local event
-      if ev == "key" and keys then event = Keys.event(ui, state, keys.getName(a), nil)
+      if Touch then event = Touch.input(ui, state, ev, a, b, c)
+      elseif ev == "key" and keys then event = Keys.event(ui, state, keys.getName(a), nil)
       elseif ev == "char" then event = Keys.event(ui, state, nil, a) end
       if event then
         state, effects = Core.transition(state, event)

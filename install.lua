@@ -767,17 +767,19 @@ local function roleRequested()
 end
 
 if roleRequested() and args[1] ~= "reset" then
-  local function pull(name)
+  local function pull(name, optional)
     if fs.exists(name) then return true end
     if not http then
-      print("Missing " .. name .. " and http is off.")
+      if not optional then print("Missing " .. name .. " and http is off.") end
       return false
     end
     local res, err = http.get(BASE .. name .. "?t=" .. os.epoch("utc"))
     local code = res and res.readAll()
     if res then res.close() end
     if not code or code == "" or not load(code, "=" .. name) then
-      print("Couldn't download " .. name .. ": " .. tostring(err or "broken download"))
+      if not optional then
+        print("Couldn't download " .. name .. ": " .. tostring(err or "broken download"))
+      end
       return false
     end
     local h = fs.open(name, "w")
@@ -788,6 +790,7 @@ if roleRequested() and args[1] ~= "reset" then
   for _, name in ipairs({ "install-roles.lua", "install-core.lua", "install-keys.lua", "install-shell.lua" }) do
     if not pull(name) then return end
   end
+  pull("install-touch.lua", true)
   return dofile("install-shell.lua")(args, BASE)
 end
 
