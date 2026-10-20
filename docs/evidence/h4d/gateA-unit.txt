@@ -1,0 +1,164 @@
+PASS no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+PASS goggles: HUD lines, ore icons, and frames that delete instead of clearing
+PASS fleetview draws teletext pixels with the right colours
+PASS shaft labels are raised, centered and readable with smaller turtle markers
+PASS attach, detach and reattach use peripheral events
+PASS new frames replace old positions and clamp branch width to reach
+PASS local coordinates, old miners and incomplete geometry are handled
+PASS key and dashboard touch toggles persist both states across restart
+PASS turtles at the shaft top need no extra position marker or path
+PASS LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+PASS controller failure stops 3D calls and leaves the dashboard running
+PASS real miner telemetry supplies world shafts and omits local positions
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+PASS world progress belongs to one shaft, including bore jobs and replacement turtles
+PASS legacy role progress stays available only to miners without world shafts
+PASS old miners with world telemetry use their shaft for reports and jobs
+PASS miner sends shaft identity and rejects unscoped progress from an old hub
+PASS a local-coordinate miner still accepts progress from a legacy hub
+PASS dashboard flags duplicate shafts and clears the warning when a claim changes
+PASS startup refuses a moved home even beside a chest and preserves tunnel state
+PASS home verification rounds GPS and allows local setups or unavailable GPS
+PASS GPS resync also checks vertical routes before declaring LOST
+PASS an underground restart may return home with GPS away from home
+PASS a failed turn never advances the saved heading or permits a move
+PASS turnFrom recovers both sides of an interrupted turn from tunnel geometry
+PASS recorded natural seals can be reopened after a reboot without allowing other rock
+PASS seal permission is consumed after digging and does not match a different block
+PASS failed movement after digging does not advance position, including falling blocks
+PASS known routes reject new natural rock during movement and digging retries
+PASS lava sources and flows use seals, while water never goes in the fuel bucket
+PASS lava that cannot be sealed blocks the route without a false LOST
+PASS fuel checkpoint recovers moves interrupted before or after physical movement
+PASS unlimited fuel needs GPS to resolve an interrupted move
+PASS hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS server captures broadcasts, polls legacy bots and persists registry and log
+PASS serialize mock rejects shared tables and cycles
+PASS server refuses to overwrite corrupt generations without a recoverable state
+PASS server bounds legacy requests when the shared validator is installed
+PASS server saves GPS status and hub assignments across restart
+PASS server trims unused status fields and copies shared coordinates without changing packets
+PASS server recovers interrupted saves and keeps a bounded central log
+PASS server mirrors main, serves chunks and hashes, and keeps good code on failure
+PASS server refreshes its code mirror periodically
+PASS update downloads through the real server without http and skips current code
+PASS update falls back to http with no server or a missing server copy
+PASS update takes GitHub over a server copy that may be behind main
+PASS update rejects corrupted server content and falls back to http
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS the newer hub state wins between the hub's file and the server's copy
+PASS server ESTOP replaces queued movement commands
+PASS server repeats an order until the miner confirms it, then gives up and logs
+PASS touchscreen: tap a miner, give it an order through the hub, switch tabs
+PASS miner confirms an order the server passes on
+PASS server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+PASS hub uses direct commands if a discovered server never answers
+PASS server records directed assignments and leaves developer commands alone
+PASS server ignores malformed hub mirrors and invalid transfers
+PASS capacity mock raises Out of space at write or close and counts partial bytes
+PASS server install guards startup writes and logs failures without replacing existing startup
+PASS four megabyte server mirrors the real repo once and serves matching root scripts
+PASS 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+PASS state and cache backups survive failed promotion and recover on restart
+PASS root scripts changed outside the server are not served with a stale hash
+PASS cache write failures at open, write, close and move keep old code and leave state writable
+PASS failed state writes preserve the only good state and persist errors after space returns
+PASS large status packets and old log text stay bounded across saves and restart
+PASS server clears AR and re-raises Terminated through parallel
+PASS hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors without server replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+PASS paired-controller configuration and UUID chat allowlist fail closed
+PASS six adjacent directions reserve and commit with independent dimension occupancy
+PASS contention, wrong owner, wrong source, teleport, expiry and lease renewal
+PASS explicit calibration checks the prior pose, destination occupancy and pending token
+PASS offline occupancy and restart preserve both cells of uncertain moves
+PASS duplicate requests return the durable result and changed or stale replays fail
+PASS missing fields, bad types, cyclic, oversized and unauthorized packets do not mutate
+PASS sparse tri-state scans, stale deltas, paged snapshots and resident bound
+PASS failed persistence never acknowledges a grant or admits another mutation
+PASS encoded snapshot limits include credentials and request metadata
+PASS explicit calibration carries the pending token across a client failure
+PASS client accepts bounded pages containing long block names
+PASS traffic retreats to known passing space and bounds an impossible dead end
+PASS walk finds the U route and never excavates a changed block
+PASS unknown exploration and authorized excavation have separate policies
+PASS all headings and six displacements keep the physical pose
+PASS search is bounded and ESTOP cancels at the next search batch
+PASS failed turns, fuel, entities and fluids never invent position or solid cells
+PASS GPS loss and relocation refuse recovery until explicit calibration
+PASS every move and turn checkpoint recovers or refuses ambiguous heading
+PASS manual movement cannot interleave and cancellation prevents the next move
+PASS no route, map limits and lost GPS stop without displacement
+PASS ESTOP survives reboot until an idle resume
+PASS a passing turtle does not become a permanent map obstacle
+PASS GPS loss after a physical move leaves a recoverable uncertain action
+PASS falling blocks and charging stations stop excavation without moving
+PASS an interrupted calibration retries its original prior pose after reboot
+PASS late and replayed movement commands cannot clear a newer ESTOP
+PASS a queued resume waits for the active move and a newer ESTOP cancels it
+PASS authenticated boot sync rejects commands from an older server epoch
+PASS mining allocation, ownership, expiry, replay and restart
+PASS mining reserves fuel for the drop, charger and return before leaving home
+PASS six-face veins preserve loops, deepslate, tags, the spacing gap and exact home pose
+PASS crashes before and after traversal moves retain the queue and resume exactly
+PASS inventory and fuel interrupts preserve work and never drop without a chest
+PASS a dig followed by a failed move retains the air cell leading to the rest of the vein
+PASS an active owner renews after a scan outlasts the lease without dropping queued ore
+PASS hazards, protection and blocked home routes report bounded refusal
+PASS in-game mining commands save bounds and home without enabling mining
+PASS the opted-in miner worker executes the lease engine through its real boot adapter
+PASS warehouse stock reservations, partial allocation, replay, bays and restart
+PASS mixed source, partial supply and nonstackable orders preserve exact inventories
+PASS physical pickup and delivery crashes reconcile without double delivery
+PASS full drop retains cargo and resumes after space is available
+PASS vertical interactions, partial drops and empty sources keep exact quantities
+PASS charging preserves an unfinished order and refuses a trip without return fuel
+PASS automatic low-fuel charging survives a crash and continues the same order
+PASS idle workers park away from shared access cells without touching stock
+PASS charging needs measured fuel rise and has a durable timeout
+PASS unavailable charging routes release the bay and competing bays time out
+PASS store commands and sorter aliases configure the opted-in worker without moving
+PASS miner reserves each displacement only when SSOT is enabled
+PASS miner navigation journals veins and recall cannot dig a changed tunnel
+PASS navigation bounds can be configured from the turtle command
+PASS a survey command requires navigation and preserves its world target
+PASS score is the weighted reachability formula
+PASS quota leaves code, navigation, journal, staging, and the control reserve
+PASS validators reject an unknown version and a bad section key
+PASS peer storage stays off until the flag, the floppy key, and a mac are present
+PASS a failed reachability check stores nothing and a retry is idempotent
+PASS two store peers and one computer re-replicate, then an unreachable section is unknown
+PASS one holder cannot drop the local copy
+PASS a killed peer pins the local copy until a second holder verifies
+PASS miners hold extras only and hold none during an offline lease
+PASS a changed boot drops the verified count until the hash matches again
+PASS rebalance moves a replica toward the peer with more free space
+PASS small replicas share a batch file and a bad mac reads as unknown
+PASS malformed replica messages are rejected
+13 h4d tests passed
+98 tests passed

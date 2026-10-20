@@ -440,6 +440,7 @@ dofile("tests/mining-unit.lua")
 dofile("tests/warehouse-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
+dofile("tests/h4d-unit.lua")
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
