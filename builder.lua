@@ -95,24 +95,24 @@ end
 -- Files
 ---------------------------------------------------------------------------
 local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
   end
-  return nil
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec:save(t)
 end
 
 local function isChest(info)
@@ -190,9 +190,7 @@ if args[1] == "setup" then
   end
   saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, world = world, dump = dump })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("builder")\n')
-  h.close()
+  A.replaceBytes("startup.lua", 'shell.run("builder")\n', function(s) return load(s) ~= nil end)
   os.setComputerLabel(os.getComputerLabel() or "Builder")
   print("Saved. Home " .. hx .. "," .. hy .. "," .. hz .. " facing " .. DIRNAME[facing]
     .. (world and "" or " (counted from here)"))
@@ -204,6 +202,27 @@ end
 
 if not turtle then error("builder.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
+if not cfg and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local home, how = plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+      spec.title = "Builder"
+      return plug.ask(plug.termio(), spec)
+    end, "Builder")
+    local facing
+    local world = how == "discover" or how == "prompt"
+    if home then
+      facing = plug.ask(plug.termio(), {
+        kind = "choice", title = "Builder", question = "Which way does it face?", choices = plug.facings(),
+      })
+    end
+    if not home then home, facing, world = { x = 0, y = 0, z = 0 }, 0, false end
+    if facing then
+      saveTable(CFG_FILE, { home = home, facing = facing, world = world, dump = nil })
+      cfg = loadTable(CFG_FILE)
+    end
+  end
+end
 if not cfg then
   print("Not set up yet. First: builder setup")
   return

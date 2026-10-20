@@ -8,6 +8,26 @@ local function enrol()
   return Enrol
 end
 
+local function enrolOn(cfg)
+  return type(cfg) == "table" and (cfg.enrol == nil or cfg.enrol == true)
+end
+
+local function ownerPair(name, uuid)
+  if type(name) ~= "string" or #name < 1 or #name > 16 or not name:match("^[%w_]+$") then return nil end
+  if type(uuid) ~= "string" then return nil end
+  local lowered = uuid:lower()
+  if not lowered:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") then
+    return nil
+  end
+  return { name = name, uuid = lowered }
+end
+
+local function ownerFrom(source)
+  if type(source) == "function" then return ownerPair(source()) end
+  if type(source) ~= "table" then return nil end
+  return ownerPair(source.name or source.ownerName, source.uuid or source.ownerUUID)
+end
+
 function ViewPair.explicit(views)
   if type(views) ~= "table" then return false end
   local server, secret = views.server, views.secret
@@ -22,6 +42,33 @@ function ViewPair.hasLocalKey(ssotCfg, computerId)
   end
   local key = ssotCfg.controllers[tostring(computerId)]
   return type(key) == "string" and #key >= 16 and #key <= 128
+end
+
+function ViewPair.hostHub(views, os, rednet, fs, peripheral, protocol, arConfig, arAuth)
+  if type(views) ~= "table" then views = {} end
+  if views.enabled == nil then views.enabled = true end
+  local hosted, hostError = pcall(rednet.host, protocol, "hub")
+  local boot = ViewPair.decide(views, {
+    computerId = os.getComputerID(),
+    hubNameFree = hosted,
+    hostError = hostError,
+    ar = peripheral and peripheral.find("ar_controller") ~= nil,
+    localKey = ViewPair.hasLocalKey(arAuth and arAuth.cfg, os.getComputerID()),
+  })
+  if not boot.ok then error(boot.error, 0) end
+  if boot.hostname ~= "hub" then rednet.host(protocol, boot.hostname) end
+  if not boot.ask then return boot end
+  return boot, ViewPair.client({
+    fs = fs, rednet = rednet,
+    now = function() return os.epoch("utc") end,
+    computerId = os.getComputerID(),
+    enableView = boot.runView,
+    lookup = function() return rednet.lookup("fleetserver", "server") end,
+    owner = function()
+      if not peripheral or peripheral.find("ar_controller") == nil or type(arConfig) ~= "table" then return nil end
+      return arConfig.ownerName, arConfig.ownerUUID
+    end,
+  })
 end
 
 function ViewPair.decide(views, facts)
@@ -98,7 +145,50 @@ local function hasRoom(cfg, computerId)
   return controllerCount(cfg) < 32
 end
 
-local function commitController(cfg, computerId, key, saveCfg)
+local function listCopy(list)
+  if type(list) ~= "table" then return nil end
+  local out = {}
+  for i, name in ipairs(list) do out[i] = name end
+  return out
+end
+
+local function enrolAr(cfg, computerId, owner)
+  owner = ownerPair(owner and owner.name, owner and owner.uuid)
+  if not owner then return false end
+  local id = tostring(computerId)
+  if type(cfg.controllers[id]) ~= "string" then return false end
+  cfg.arControllers = type(cfg.arControllers) == "table" and cfg.arControllers or {}
+  local current = cfg.arControllers[id]
+  if type(current) == "table" and (current.name ~= owner.name
+    or type(current.uuid) ~= "string" or current.uuid:lower() ~= owner.uuid) then
+    return false
+  end
+  cfg.chatNames = type(cfg.chatNames) == "table" and cfg.chatNames or {}
+  cfg.chatUUIDs = type(cfg.chatUUIDs) == "table" and cfg.chatUUIDs or {}
+  local prior = cfg.chatUUIDs[owner.name]
+  if type(prior) == "string" and prior:lower() ~= owner.uuid then return false end
+  local seen = false
+  for _, allowed in ipairs(cfg.chatNames) do
+    if allowed == owner.name then seen = true break end
+  end
+  if not seen and #cfg.chatNames >= 32 then return false end
+  local changed = false
+  if not seen then
+    cfg.chatNames[#cfg.chatNames + 1] = owner.name
+    changed = true
+  end
+  if prior ~= owner.uuid then
+    cfg.chatUUIDs[owner.name] = owner.uuid
+    changed = true
+  end
+  if type(current) ~= "table" or current.name ~= owner.name or current.uuid ~= owner.uuid then
+    cfg.arControllers[id] = { name = owner.name, uuid = owner.uuid }
+    changed = true
+  end
+  return changed
+end
+
+local function commitController(cfg, computerId, key, owner, saveCfg)
   if type(computerId) ~= "number" or computerId % 1 ~= 0 or computerId < 0 or computerId > 2147483647 then
     return false
   end
@@ -108,12 +198,29 @@ local function commitController(cfg, computerId, key, saveCfg)
   if type(cfg.controllers) ~= "table" then cfg.controllers = {} end
   local id = tostring(computerId)
   local prev = cfg.controllers[id]
-  if prev == key then return true end
   if prev == nil and controllerCount(cfg) >= 32 then return false end
-  cfg.controllers[id] = key
+  local prevAr = cfg.arControllers
+  local prevArRow = type(prevAr) == "table" and prevAr[id] or nil
+  local prevNames = cfg.chatNames
+  local namesCopy = listCopy(prevNames)
+  local prevUuids = cfg.chatUUIDs
+  local prevUuid = type(owner) == "table" and type(prevUuids) == "table" and prevUuids[owner.name] or nil
+  if prev ~= key then cfg.controllers[id] = key end
+  local arChanged = enrolAr(cfg, computerId, owner)
+  if prev == key and not arChanged then return true end
   local ok, saved = pcall(saveCfg)
   if not ok or saved == false then
     if prev == nil then cfg.controllers[id] = nil else cfg.controllers[id] = prev end
+    if prevAr == nil then cfg.arControllers = nil
+    else
+      cfg.arControllers = prevAr
+      cfg.arControllers[id] = prevArRow
+    end
+    cfg.chatNames = namesCopy
+    if type(owner) == "table" then
+      if prevUuids == nil then cfg.chatUUIDs = nil
+      elseif type(cfg.chatUUIDs) == "table" then cfg.chatUUIDs[owner.name] = prevUuid end
+    end
     return false
   end
   return true
@@ -159,6 +266,13 @@ local function delivery(rec)
   return { computerId = rec.forId, codeId = rec.id, code = rec.code }
 end
 
+local function rememberOwner(rec, owner)
+  owner = ownerPair(owner and owner.name, owner and owner.uuid)
+  if not owner or type(rec) ~= "table" or type(rec.owner) == "table" then return false end
+  rec.owner = owner
+  return true
+end
+
 function ViewPair.step(store, cfg, event, now)
   if type(store) ~= "table" or type(event) ~= "table" then return {} end
   store.codes, store.paired = store.codes or {}, store.paired or {}
@@ -169,19 +283,23 @@ function ViewPair.step(store, cfg, event, now)
     local stored = controllerKey(cfg, computerId)
     if event.hasLocal and type(paired) == "table" and type(paired.key) == "string" and stored ~= paired.key
       and (event.codeId == nil or event.codeId == paired.codeId) and hasRoom(cfg, computerId) then
-      return { key = paired.key, keyId = computerId, done = true }
+      local held = event.codeId and store.codes[event.codeId]
+      local owner = type(held) == "table" and held.owner or event.owner
+      return { key = paired.key, keyId = computerId, done = true, owner = owner }
     end
     if event.hasLocal and stored then return { done = true } end
     if event.hasLocal then return { ack = true } end
     local rec, phase = selectRec(store, cfg, computerId, now)
-    if phase == "shown" then return { ack = true } end
+    local dirty = rememberOwner(rec, event.owner)
+    if phase == "shown" then return { ack = true, saveStore = dirty } end
     if phase == "released" then
       local row = delivery(rec)
-      if row then return { deliver = row } end
+      if row then return { deliver = row, saveStore = dirty } end
     end
-    if phase == "claimed" then return { ack = true } end
+    if phase == "claimed" then return { ack = true, saveStore = dirty } end
     local issued = issueForView(store, now, event.issuer or 0, computerId)
     if not issued then return {} end
+    rememberOwner(issued, event.owner)
     return { saveStore = true, ack = true }
   end
   if event.t == "accept" then
@@ -214,9 +332,12 @@ function ViewPair.step(store, cfg, event, now)
     end
     if event.role ~= nil and event.role ~= "view" then return {} end
     if paired.codeId ~= nil and paired.codeId ~= rec.id then return {} end
-    if controllerKey(cfg, computerId) == paired.key then return { done = true } end
+    local owner = type(rec.owner) == "table" and ownerPair(rec.owner.name, rec.owner.uuid) or nil
+    if controllerKey(cfg, computerId) == paired.key then
+      return { done = true, key = paired.key, keyId = computerId, owner = owner }
+    end
     if not hasRoom(cfg, computerId) then return { full = true } end
-    return { key = paired.key, keyId = computerId, done = true }
+    return { key = paired.key, keyId = computerId, done = true, owner = owner }
   end
   return {}
 end
@@ -259,7 +380,7 @@ end
 
 local function applyKey(io, effect)
   if not effect.key then return true end
-  return commitController(io.cfg, effect.keyId, effect.key, io.save)
+  return commitController(io.cfg, effect.keyId, effect.key, effect.owner, io.save)
 end
 
 function ViewPair.rowText(row)
@@ -267,7 +388,7 @@ function ViewPair.rowText(row)
 end
 
 function ViewPair.pending(io, now)
-  if type(io) ~= "table" or type(io.cfg) ~= "table" or io.cfg.enrol ~= true then return {} end
+  if not enrolOn(io and io.cfg) then return {} end
   local store = loadStore(io)
   if not store then return {} end
   local rows = {}
@@ -281,7 +402,7 @@ function ViewPair.pending(io, now)
 end
 
 function ViewPair.offer(io, senderId, msg)
-  if type(io) ~= "table" or type(io.cfg) ~= "table" or io.cfg.enrol ~= true then return false end
+  if not enrolOn(io and io.cfg) then return false end
   if type(msg) ~= "table" or msg.op ~= "enrol-issue" or msg.role ~= "view" then return false end
   if msg.secret ~= nil and msg.secret ~= "" then return false end
   if type(senderId) ~= "number" or senderId % 1 ~= 0 or senderId < 0 or senderId > 2147483647 then
@@ -291,7 +412,7 @@ function ViewPair.offer(io, senderId, msg)
   if not store then return false end
   local effect = ViewPair.step(store, io.cfg, {
     t = "ask", computerId = senderId, hasLocal = msg.hasLocal == true,
-    codeId = msg.codeId, issuer = io.computerId,
+    codeId = msg.codeId, issuer = io.computerId, owner = ownerFrom(msg),
   }, io.now())
   if not applyStore(io, effect, store) then return false end
   if not applyKey(io, effect) then return true end
@@ -327,11 +448,16 @@ function ViewPair.deny(io, computerId)
   return "No request #" .. tostring(computerId)
 end
 
-function ViewPair.observe(io, senderId, op, result)
+function ViewPair.observe(io, senderId, op, result, msg)
   if op ~= "enrol-claim" or type(result) ~= "table" or result.ok ~= true then return end
   if result.role ~= nil and result.role ~= "view" then return end
   local store = loadStore(io)
   if not store then return end
+  local owner = ownerFrom(msg)
+  local stamped = result.codeId and store.codes[result.codeId]
+  if owner and type(stamped) == "table" and stamped.forId == senderId and rememberOwner(stamped, owner) then
+    saveStore(io, store)
+  end
   local effect = ViewPair.step(store, io.cfg, {
     t = "claim", computerId = senderId, codeId = result.codeId, role = result.role or "view",
   }, io.now())
@@ -391,6 +517,10 @@ function ViewPair.client(io)
   local helloRid, claimRid
   local function send(message)
     message.secret = ""
+    local owner = ownerFrom(io.owner)
+    if owner and (message.op == "enrol-issue" or message.op == "enrol-hello" or message.op == "enrol-claim") then
+      message.ownerName, message.ownerUUID = owner.name, owner.uuid
+    end
     io.rednet.send(serverId, message, PROTOCOL)
   end
   local function finish()

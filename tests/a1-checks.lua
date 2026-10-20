@@ -67,11 +67,15 @@ return function(test, equal)
     return n
   end
 
-  test("flag defaults off and a missing detector refuses", function()
+  test("flag defaults on, explicit false stays off, and a missing detector refuses", function()
     local session, why = A.open({ cfg = {}, detector = {}, dimension = DIM })
+    assert(session, why)
+    session, why = A.open({ detector = {}, dimension = DIM })
+    assert(session, why)
+    session, why = A.open({ cfg = { arPlanner = false }, detector = {}, dimension = DIM })
     equal(session, nil)
     equal(why, "off")
-    session, why = A.open({ cfg = { arPlanner = false }, detector = {}, dimension = DIM })
+    session, why = A.open({ cfg = { arPlanner = 1 }, detector = {}, dimension = DIM })
     equal(session, nil)
     equal(why, "off")
     session, why = A.open({ cfg = { arPlanner = true }, dimension = DIM })

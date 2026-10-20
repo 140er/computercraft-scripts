@@ -6,6 +6,9 @@ local Planner = dofile("planner-ops.lua")
 local Wh2 = dofile("wh2-dispatch.lua")
 local deadOk, Dead = pcall(dofile, "dead.lua")
 if not deadOk or type(Dead) ~= "table" then Dead = nil end
+local function onByDefault(value)
+  return value == nil or value == true
+end
 local function hubEnabled(cfg)
   return type(cfg) == "table" and cfg.hubProfile == true
 end
@@ -119,7 +122,20 @@ function M.config(raw)
   assert(raw.deadAfterMs == nil or integer(raw.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
   assert(raw.compactSections == nil or raw.compactSections == true or raw.compactSections == false,
     "invalid compactSections")
-  raw.compactSections = raw.compactSections == true
+  raw.compactSections = onByDefault(raw.compactSections)
+  -- Compact maps need mapstore.lua; without it the server keeps the plain map instead of stopping.
+  if raw.compactSections and type(fs)=="table" and fs.exists and not fs.exists("mapstore.lua") then raw.compactSections = false end
+  assert(raw.leaseV2 == nil or type(raw.leaseV2) == "boolean", "invalid leaseV2")
+  assert(raw.hubProfile == nil or type(raw.hubProfile) == "boolean", "invalid hubProfile")
+  assert(raw.planner == nil or type(raw.planner) == "boolean", "invalid planner")
+  assert(raw.enrol == nil or type(raw.enrol) == "boolean", "invalid enrol")
+  raw.enrol = onByDefault(raw.enrol)
+  if raw.deadTurtles == nil then raw.deadTurtles = true end
+  if raw.leaseV2 == nil then raw.leaseV2 = true end
+  if raw.hubProfile == nil then raw.hubProfile = true end
+  if raw.planner == nil then raw.planner = true end
+  if raw.wh2 == nil then raw.wh2 = {} end
+  if type(raw.wh2) == "table" and raw.wh2.enabled == nil then raw.wh2.enabled = true end
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
@@ -213,12 +229,20 @@ function M.new(s, cfg, clock, epoch, save, map)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
-  local deadOn = cfg.deadTurtles == true
-  local deadAfter = tonumber(cfg.deadAfterMs) or 120000
   assert(cfg.deadTurtles == nil or type(cfg.deadTurtles) == "boolean", "invalid deadTurtles")
   assert(cfg.deadAfterMs == nil or integer(cfg.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
-  if deadOn and not Dead then error("dead.lua is missing", 0) end
-  local LeaseV2 = cfg.leaseV2 == true and dofile("lease.lua") or nil
+  local deadOn = cfg.deadTurtles == true
+  local deadAfter = tonumber(cfg.deadAfterMs) or 120000
+  if deadOn and not Dead then
+    print("Dead turtles need dead.lua. The server continues without that list.")
+    deadOn = false
+  end
+  local LeaseV2
+  if cfg.leaseV2 == true then
+    local loaded, mod = pcall(dofile, "lease.lua")
+    if loaded and type(mod) == "table" then LeaseV2 = mod
+    else print("Lease v2 needs lease.lua and lib/stubs. The server continues without it. " .. tostring(mod)) end
+  end
   local failed = false
   -- A missing turtle does not occupy. dead.lua decides that.
   local function occupied(p, owner)
@@ -648,7 +672,7 @@ function M.new(s, cfg, clock, epoch, save, map)
     if enrolOp then
       local key = cfg.controllers and cfg.controllers[tostring(id)]
       local authed = word(key, 128) and #key >= 16 and m.secret == key
-      if cfg.enrol ~= true then
+      if cfg.enrol ~= nil and cfg.enrol ~= true then
         if authed and (m.op == "enrol-issue" or m.op == "enrol-confirm") then
           return { ok = false, error = "enrol off", v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID() }
         end
@@ -696,7 +720,11 @@ function M.new(s, cfg, clock, epoch, save, map)
     while #client.order > 8 do client.cache[table.remove(client.order, 1)] = nil end
     s.clients[id] = client
     local ok, err = (save or function() return true end)(s)
-    if not ok then s, failed = previous, true return nil, tostring(err) end
+    if not ok then
+      s = previous
+      return { v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID(),
+        auth = paired and key or false, ok = false, error = tostring(err) }
+    end
     return A.copy(result)
   end }
 end

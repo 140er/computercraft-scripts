@@ -7,7 +7,8 @@ return function(test,read,mocks)
       local m=mocks.miner(cfg)
       local calls=0
       m.env.dofile=function(path)
-        assert(path=="ssot-client.lua")
+        if path == "atomic.lua" then return assert(loadfile(path, "t", m.env))() end
+        assert(path=="ssot-client.lua", path)
         return {new=function()
           return {move=function(from,to,execute)
             calls=calls+1

@@ -44,9 +44,9 @@ local dependencies = {
   ["ssot-client.lua"] = { "atomic.lua", "ssot.lua" },
   ["ssot.lua"] = { "atomic.lua", "mine-tasks.lua", "warehouse-tasks.lua", "planner-ops.lua", "dead.lua", "wh2-dispatch.lua", "lease.lua", "ssot-hub.lua" },
   ["ssot-hub.lua"] = { "atomic.lua", "s1_t1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_b1.lua" },
-  ["lease.lua"] = { "journal.lua" },
+  ["lease.lua"] = { "journal.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_w1.lua" },
   ["journal.lua"] = { "atomic.lua" },
-  ["b1-nav.lua"] = { "atomic.lua", "lease.lua", "journal.lua" },
+  ["b1-nav.lua"] = { "atomic.lua", "lease.lua", "journal.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_h4c.lua" },
   ["planner-ops.lua"] = { "planner-core.lua", "planner-enrol.lua", "planner-settings.lua" },
   ["planner-core.lua"] = { "planner-enrol.lua", "planner-settings.lua" },
   ["mine-tasks.lua"] = { "atomic.lua" },
@@ -70,12 +70,26 @@ for _, file in ipairs({ "hub.lua", "server.lua", "panel.lua", "factory.lua", "st
   dependencies[file] = listed
   listed[#listed + 1] = "wh2-program.lua"
 end
+for _, file in ipairs({
+  "miner.lua", "store.lua", "factory.lua", "farmer.lua", "lumber.lua", "lava.lua",
+  "builder.lua", "buddy.lua", "roomsorter.lua", "panel.lua", "server.lua", "gpshost.lua",
+  "planner-panel.lua", "planner-hub.lua",
+}) do
+  local listed = dependencies[file] or {}
+  dependencies[file] = listed
+  listed[#listed + 1] = "plug.lua"
+end
 dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-ar.lua"
 dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-dev.lua"
 dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-ar.lua"
 dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-dev.lua"
 dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-dev.lua"
+dependencies["storage-peer.lua"] = { "lib/stubs/h4d_dep.lua" }
+dependencies["alpha-boot.lua"] = { "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-peer.lua" }
+dependencies["storage-host.lua"] = { "storage-ledger.lua", "storage-buffer.lua", "storage-view.lua" }
 dependencies["server.lua"][#dependencies["server.lua"] + 1] = "storage-peer.lua"
+dependencies["server.lua"][#dependencies["server.lua"] + 1] = "alpha-boot.lua"
+dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "alpha-boot.lua"
 dependencies["planner-host.lua"] = { "planner-view.lua", "planner-map.lua" }
 dependencies["server.lua"][#dependencies["server.lua"] + 1] = "planner-host.lua"
 dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "view-pair.lua"

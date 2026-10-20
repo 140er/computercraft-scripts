@@ -161,10 +161,10 @@ return function(test,mocks)
     local function command(...) assert(loadfile("store.lua","t",e))(...) end
     command("server","0","test-secret-123456","minecraft:overworld")
     command("pose","1","65","0","2") command("bounds","0","64","-4","12","66","9")
-    local A=e.dofile("atomic.lua") assert(A.read("warehouse.cfg").enabled==false)
+    local A=e.dofile("atomic.lua") assert(A.read("warehouse.cfg").value.enabled==false)
     command("enable") command("traffic","on")
-    local c=A.read("warehouse.cfg") assert(c.enabled and c.traffic and c.pose.h==2 and c.bounds.min.z==-4)
-    command("disable") assert(A.read("warehouse.cfg").enabled==false)
+    local c=A.read("warehouse.cfg").value assert(c.enabled and c.traffic and c.pose.h==2 and c.bounds.min.z==-4)
+    command("disable") assert(A.read("warehouse.cfg").value.enabled==false)
     local seen={}
     e.shell={run=function(...) seen[#seen+1]={...} end}
     for _,name in ipairs({"roomsorter.lua","sorter.lua"}) do assert(loadfile(name,"t",e))("ssot","disable") end
@@ -194,18 +194,22 @@ return function(test,mocks)
     command("order","cli-order","output","minecraft:iron_ingot","5","input")
     assert(server.state().warehouse.orders["cli-order"].lines[1].wanted==5)
     e.turtle={} e.gps={locate=function() return 1,65,0 end}
+    local wh=A.mount("/"):open("warehouse.cfg",function(v) return type(v)=="table" end,{class="control",limit=8192})
+    local stored=A.read("warehouse.cfg").value
+    stored.gpsFree=false
+    assert(wh:save(stored))
     command("calibrate","3")
     assert(A.read("store-nav.state").value.pose.h==3 and server.state().poses[99].x==1)
     local m=mocks.miner({home={x=1,y=65,z=0},facing=2,mining={enabled=true}})
     e=m.env e.dofile=function(path) return assert(loadfile(path,"t",e))() end
     for _,v in ipairs({{"drop","drop1"},{"charger","charge"},{"fuel","700"},{"enable"},{"disable"}}) do
       assert(loadfile("miner.lua","t",e))("service",table.unpack(v))
-      local c=e.textutils.unserialize(m.files["miner.cfg"])
+      local c=mocks.value(m.files, "miner.cfg")
       assert(c.warehouse.enabled==(v[1]=="enable"),"service enabled before explicit command")
     end
-    local c=e.textutils.unserialize(m.files["miner.cfg"])
+    local c=mocks.value(m.files, "miner.cfg")
     assert(c.warehouse.drop=="drop1" and c.warehouse.charger=="charge" and c.warehouse.targetFuel==700)
     assert(loadfile("miner.lua","t",e))("nav","traffic","on")
-    assert(e.textutils.unserialize(m.files["miner.cfg"]).nav.traffic==true)
+    assert(mocks.value(m.files, "miner.cfg").nav.traffic==true)
   end)
 end

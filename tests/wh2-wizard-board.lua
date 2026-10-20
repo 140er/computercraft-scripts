@@ -367,6 +367,7 @@ test("hub opens the opt-in board through its actual event loop and keeps fleet k
       return f.board
     end }
   end
+  m.files["views.cfg"] = mocks.encode({ enabled = false })
   m.start(source("hub.lua"))
   assert(f.board and #f.board.state.queue==2,"Hub boot must read and show pending questions")
   local bootCalls=#f.calls
@@ -423,11 +424,18 @@ test("panel opens the opt-in board and returns to its tabs", function()
   assert(coroutine.status(m.app) == "dead")
 end)
 
-test("hub and panel leave the wizard disabled by default on boot",function()
+test("hub and panel leave the wizard off when wh2.enabled is false",function()
+  for _,path in ipairs({"hub.lua","panel.lua"}) do
+    local f=fixture()
+    local m=application(path,f,false)
+    assert(m.boardLoads==0 and #f.calls==0)
+  end
+end)
+test("hub and panel open the wizard when wh2.enabled is unset",function()
   for _,path in ipairs({"hub.lua","panel.lua"}) do
     local f=fixture()
     local m=application(path,f)
-    assert(m.boardLoads==0 and #f.calls==0)
+    assert(m.boardLoads>=1)
   end
 end)
 

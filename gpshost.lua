@@ -24,21 +24,21 @@ local function modem()
   return peripheral.find("modem", function(_, m) return m.isWireless() end)
 end
 
+local A = dofile("atomic.lua")
+local cfgRec
 local function save(x, y, z)
-  local h = fs.open(CFG, "w")
-  h.write(textutils.serialize({ x = x, y = y, z = z }))
-  h.close()
-  h = fs.open("startup.lua", "w")
-  h.write('shell.run("gpshost")\n')
-  h.close()
+  cfgRec = cfgRec or A.mount("/"):open(CFG, function(v) return type(v) == "table" end, { class = "control", limit = 8192 })
+  cfgRec:save({ x = x, y = y, z = z })
+  A.replaceBytes("startup.lua", 'shell.run("gpshost")\n', function(s) return load(s) ~= nil end)
 end
 
 local function load()
-  if not fs.exists(CFG) then return nil end
-  local h = fs.open(CFG, "r")
-  local t = textutils.unserialize(h.readAll())
-  h.close()
-  return t
+  local raw = A.read(CFG)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
+  end
+  return raw
 end
 
 local args = { ... }
@@ -78,6 +78,13 @@ if x and y and z then
   if not os.getComputerLabel() then os.setComputerLabel("GPS " .. x .. "," .. y .. "," .. z) end
 else
   local c = load()
+  if not c and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local fix = plug.ask(plug.termio(), { kind = "coord", title = "GPS host", question = "Where is this computer?" })
+      if fix then c = fix save(fix.x, fix.y, fix.z) end
+    end
+  end
   if not c then
     print("Usage: gpshost <x> <y> <z>")
     print("  the coordinates of THIS computer block")

@@ -391,7 +391,7 @@ return function(test, equal)
     equal(placed.pos.src, "neighbour")
   end)
 
-  test("enrol stays off until ssot.cfg says so, then a claim is single use", function()
+  test("enrol is on unless ssot.cfg sets it false, and a claim is single use", function()
     local loader = loadfile("tests/mocks.lua")
     if not loader then return end
     local mocks = loader()
@@ -407,11 +407,19 @@ return function(test, equal)
       for key, value in pairs(fields or {}) do message[key] = value end
       return api.handle(id, message)
     end
-    local off = { controllers = { ["1"] = "test-secret-123456" } }
+    local off = { controllers = { ["1"] = "test-secret-123456" }, enrol = false }
     local denied = handle(off, 1, "enrol-issue", { role = "miner" }, "test-secret-123456")
     equal(denied.error, "enrol off")
     assert(handle(off, 31, "enrol-hello", { codeId = "c:1:1", nNew = "0123456789abcdef" }) == nil,
       "guest enrol answered while off")
+    local bare = { controllers = { ["1"] = "test-secret-123456" } }
+    local opened = handle(bare, 1, "enrol-issue", { role = "miner" }, "test-secret-123456")
+    assert(opened and opened.ok and opened.code and #opened.code == 16, opened and opened.error)
+    local configured = S.config({ controllers = { ["1"] = "test-secret-123456" } })
+    equal(configured.enrol, true)
+    local disabled = S.config({ controllers = { ["1"] = "test-secret-123456" }, enrol = false })
+    equal(disabled.enrol, false)
+    assert(not pcall(S.config, { controllers = { ["1"] = "test-secret-123456" }, enrol = "yes" }))
     local on = { controllers = { ["1"] = "test-secret-123456" }, enrol = true }
     local api = S.new({}, on, function() return 5000 end, "boot", function() return true end)
     local function send(id, op, fields, secret)

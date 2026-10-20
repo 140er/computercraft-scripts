@@ -1,6 +1,6 @@
--- Strata map (H4b2). Baseline plus exceptions, behind a flag that defaults off.
+-- Strata map (H4b2). Baseline plus exceptions. The flag defaults on.
 --
--- Flag: pass { strata = true } to open. Any other value stays off.
+-- Flag: pass { strata = false } to stay off. A missing key stays on.
 -- Off: no new baseline, no predicted confidence, observed air and named cells remain.
 -- On: overworld abs frames and yAbs frames can publish a frozen baseline.
 -- Predicted cells never authorize a walk.
@@ -14,7 +14,7 @@ local Hash = dofile("lib/stubs/h4b2_h1.lua")
 local Slots = dofile("lib/stubs/h4b2_h4b1.lua")
 local Journal = dofile("lib/stubs/h4b2_b1.lua")
 
-local M = { v = 2, FLAG = "strata", DEFAULT_ON = false }
+local M = { v = 2, FLAG = "strata", DEFAULT_ON = true }
 local H = {}
 
 M.PROTOTYPE_BYTES = 9460
@@ -76,15 +76,21 @@ function M.columnIndex(p)
   return 1 + (p.x % 64) + 64 * (p.z % 64)
 end
 
+function M.flagOn(value)
+  if value == nil then return M.DEFAULT_ON end
+  return value == true
+end
+
 function M.enabled(cfg)
-  return type(cfg) == "table" and cfg.strata == true
+  if type(cfg) ~= "table" then return M.DEFAULT_ON end
+  return M.flagOn(cfg.strata)
 end
 
 function M.new(cfg)
-  cfg = cfg or {}
+  if type(cfg) ~= "table" then cfg = {} end
   return {
     v = 2,
-    enabled = cfg.strata == true,
+    enabled = M.enabled(cfg),
     regions = {},
     sections = {},
     baselines = {},

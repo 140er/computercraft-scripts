@@ -6,7 +6,9 @@ return function(test, equal, read, mocks)
     local ViewPair = m.env.dofile("view-pair.lua")
     local Enrol = m.env.dofile("enrol.lua")
     local clock = { n = 5000000 }
-    local cfg = { controllers = {}, enrol = enrolOn and true or nil }
+    local cfg = { controllers = {} }
+    if enrolOn == true then cfg.enrol = true
+    elseif enrolOn == false then cfg.enrol = false end
     local sent, logs = {}, {}
     local io = {
       cfg = cfg, fs = m.env.fs, computerId = 1,
@@ -197,7 +199,7 @@ return function(test, equal, read, mocks)
     equal(ViewPair.pending(io, clock.n), {})
   end)
 
-  local function finish(m, ViewPair, Enrol, io, sent, clock, enableView)
+  local function finish(m, ViewPair, Enrol, io, sent, clock, enableView, owner)
     local viewSent = {}
     local client = ViewPair.client({
       fs = m.env.fs,
@@ -207,6 +209,7 @@ return function(test, equal, read, mocks)
       now = function() return clock.n end,
       computerId = 31, enableView = enableView,
       lookup = function() return 1 end,
+      owner = owner,
     })
     client.start()
     local ask = viewSent[#viewSent].msg
@@ -268,6 +271,8 @@ return function(test, equal, read, mocks)
     })
     equal(saved.secret, key)
     equal(cfg.controllers["31"], key)
+    equal(cfg.arControllers, nil)
+    equal(cfg.chatNames, nil)
     local disk = m.env.textutils.unserialize(m.files["views.cfg"])
     equal(disk.server, 1)
     equal(disk.secret, key)
@@ -372,6 +377,71 @@ return function(test, equal, read, mocks)
     local payloads = flat(sent)
     assert(not payloads:find(key, 1, true))
     assert(code == delivery.code and claimMsg.op == "enrol-claim")
+  end)
+
+  test("a missing enrol flag still shows the pairing request", function()
+    local m, ViewPair, _, cfg, io, sent, _, clock = world()
+    equal(cfg.enrol, nil)
+    local ask = {
+      v = 1, type = "ssot", op = "enrol-issue", role = "view", secret = "",
+      expect = "ssot_reply", rid = "view-pair-31", boot = "view-31", counter = 1,
+    }
+    assert(ViewPair.offer(io, 31, ask))
+    equal(#ViewPair.pending(io, clock.n), 1)
+    equal(#sent, 1)
+    equal(sent[1].msg.pending, true)
+    assert(sent[1].msg.code == nil and sent[1].msg.key == nil and sent[1].msg.secret == nil)
+    assert(m.files["enrol.store"])
+    assert(not m.files["views.cfg"])
+    equal(cfg.controllers["31"], nil)
+  end)
+
+  test("accept of an AR computer fills the owner allowlist", function()
+    local m, ViewPair, Enrol, cfg, io, sent, logs, clock = world(true)
+    local uuid = "11111111-2222-3333-4444-555555555555"
+    local saved, code, screen, _, viewSent, delivery, claimMsg = finish(
+      m, ViewPair, Enrol, io, sent, clock, true, { name = "Ada_1", uuid = uuid })
+    local key = Enrol.pairingKey(code, {
+      id = 31, server = 1, codeId = delivery.codeId, nNew = claimMsg.nNew, nServer = claimMsg.nServer,
+      newPub = "", serverPub = "",
+    })
+    equal(saved.secret, key)
+    equal(cfg.controllers["31"], key)
+    equal(cfg.arControllers["31"].name, "Ada_1")
+    equal(cfg.arControllers["31"].uuid, uuid)
+    local listed = false
+    for _, name in ipairs(cfg.chatNames) do if name == "Ada_1" then listed = true end end
+    assert(listed, "owner missing from the chat allowlist")
+    equal(cfg.chatUUIDs["Ada_1"], uuid)
+    local auth = m.env.textutils.unserialize(m.files["ssot.cfg"])
+    equal(auth.arControllers["31"].name, "Ada_1")
+    equal(auth.arControllers["31"].uuid, uuid)
+    equal(auth.chatUUIDs["Ada_1"], uuid)
+    assert(viewSent[1].msg.ownerName == "Ada_1" and viewSent[1].msg.ownerUUID == uuid)
+    assert(delivery.ownerName == nil and delivery.ownerUUID == nil and delivery.key == nil)
+    local shown = screen .. "\n" .. table.concat(logs, "\n") .. "\n" .. flat(sent)
+    assert(not shown:find(key, 1, true), "pairing key left the controller file")
+    assert(not screen:find(uuid, 1, true) and not table.concat(logs, "\n"):find(uuid, 1, true))
+  end)
+
+  test("a bad or conflicting AR owner still pairs and leaves that enrolment unchanged", function()
+    local m, ViewPair, Enrol, cfg, io, sent, _, clock = world(true)
+    local saved = finish(m, ViewPair, Enrol, io, sent, clock, true, { name = "Ada_1", uuid = "not-a-uuid" })
+    equal(cfg.controllers["31"], saved.secret)
+    equal(cfg.arControllers, nil)
+    equal(cfg.chatNames, nil)
+    local other = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    local uuid = "11111111-2222-3333-4444-555555555555"
+    local n, ViewPair2, Enrol2, cfg2, io2, sent2, _, clock2 = world(true)
+    cfg2.arControllers = { ["31"] = { name = "Other", uuid = other } }
+    cfg2.chatUUIDs = { Ada_1 = "22222222-3333-4444-5555-666666666666" }
+    cfg2.chatNames = { "Ada_1" }
+    io2.save()
+    local kept = finish(n, ViewPair2, Enrol2, io2, sent2, clock2, true, { name = "Ada_1", uuid = uuid })
+    equal(cfg2.controllers["31"], kept.secret)
+    equal(cfg2.arControllers["31"].name, "Other")
+    equal(cfg2.arControllers["31"].uuid, other)
+    equal(cfg2.chatUUIDs.Ada_1, "22222222-3333-4444-5555-666666666666")
   end)
 
   test("ssot-client ignores an enrol reply that has no auth", function()

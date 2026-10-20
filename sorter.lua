@@ -32,9 +32,7 @@ if args[1] == "update" then
   return
 end
 if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("sorter")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("sorter")\n', function(s) return load(s) ~= nil end)
   print("Sorter will now start automatically on boot.")
   return
 end
@@ -43,17 +41,27 @@ end
 -- Storage
 ---------------------------------------------------------------------------
 local function loadTable(path)
-  if not fs.exists(path) then return nil end
-  local h = fs.open(path, "r")
-  local t = textutils.unserialize(h.readAll())
-  h.close()
-  return type(t) == "table" and t or nil
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
+  end
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
+local function slot(path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec
+end
 local function saveTable(path, t)
-  local h = fs.open(path, "w")
-  h.write(textutils.serialize(t))
-  h.close()
+  return slot(path):save(t)
 end
 
 local cfg = loadTable(CFG_FILE) or {}

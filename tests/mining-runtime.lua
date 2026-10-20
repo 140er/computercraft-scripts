@@ -1,6 +1,6 @@
-local runtime=...
+local runtime, _, diskText = ...
 local id=os.getComputerID()
-assert(fs.getCapacity("/")==4000000,"mining requires a four-megabyte test disk")
+dofile("gate-disk.lua")(diskText)
 local A=dofile("atomic.lua")
 local client=dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=5})
 local messages,pending,serial={}, {},0
@@ -60,7 +60,7 @@ local function worker()
   local ok,why
   for _=1,30 do ok,why=nav.recover() if ok then break end sleep(1) end
   assert(ok,why)
-  local gate=A.store("mining-gate.state",function(v) return type(v)=="table" end)
+  local gate=A.mount("/"):open("mining-gate.state",function(v) return type(v)=="table" end,{class="bulk",limit=900000})
   local g=gate.value or {}
   local mine=Mine.open({nav=nav,client=client,home=home})
   if not g.restart then
@@ -80,10 +80,10 @@ local function worker()
         json("inventory-ready.json",{pose=nav.pose(),empty=empty})
         while not fs.exists("inventory-filled") do sleep(.1) end
       end
-      g.inventory=true assert(gate.save(g))
+      g.inventory=true assert(gate:save(g))
     end
     if not g.restart and #s.stack>=2 and (id~=2 or g.fuel) and (id~=3 or g.inventoryServiced) then
-      g.restart=true assert(gate.save(g))
+      g.restart=true assert(gate:save(g))
       json("mining-paused.json",{pose=nav.pose(),state=s})
       send(4,{kind="paused"},"mining_test")
       while true do sleep(1) end
@@ -99,14 +99,14 @@ local function worker()
           while not fs.exists("fuel-filled") do sleep(.1) end
           turtle.select(16) assert(turtle.refuel(1)) turtle.select(1)
         end
-        g.fuel=true assert(gate.save(g)) assert(mine.start())
+        g.fuel=true assert(gate:save(g)) assert(mine.start())
       elseif state.phase=="home" and state.reason=="inventory full" and id==3 and not g.inventoryServiced then
         local slots=0 for i=1,16 do if turtle.getItemCount(i)>0 then slots=slots+1 end end
         assert(slots>=15,"inventory did not fill")
         json("inventory-returned.json",{pose=nav.pose(),slots=slots})
         if runtime=="sandbox" then world("inventory-clear")
         else while not fs.exists("inventory-cleared") do sleep(.1) end end
-        g.inventoryServiced=true assert(gate.save(g)) assert(mine.start())
+        g.inventoryServiced=true assert(gate:save(g)) assert(mine.start())
       elseif state.phase=="home" and state.reason=="complete" then assert(mine.finish()) break
       else error(err) end
     end
@@ -123,7 +123,7 @@ local function worker()
   end
 end
 local function controller()
-  local phase=A.store("mining-controller.state",function(v) return type(v)=="table" end)
+  local phase=A.mount("/"):open("mining-controller.state",function(v) return type(v)=="table" end,{class="bulk",limit=900000})
   if not phase.value then
     if runtime=="sandbox" then
       dofile("mining-unit.lua")
@@ -138,7 +138,7 @@ local function controller()
       assert(claim.task.entry.x==peer*4-3)
     end
     for peer=1,3 do wait("paused",peer) end
-    assert(phase.save({restart=true}))
+    assert(phase:save({restart=true}))
     json("restart-ready.json",{ok=true})
     while true do sleep(1) end
   end

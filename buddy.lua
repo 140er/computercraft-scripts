@@ -55,6 +55,14 @@ local function readFile(path)
   fh.close()
   return text
 end
+local function readSlot(path)
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
+  end
+  return raw
+end
 
 local function writeFile(path, text)
   local fh = fs.open(path, "w")
@@ -71,10 +79,21 @@ local cfg = {
   think = false,        -- own server: let reasoning models (GLM, Qwen, ...) think first. Slower.
 }
 do
-  local saved = textutils.unserialize(readFile(CFG_FILE) or "")
+  local saved = readSlot(CFG_FILE)
   if type(saved) == "table" then for k, v in pairs(saved) do cfg[k] = v end end
 end
-local function saveCfg() writeFile(CFG_FILE, textutils.serialize(cfg)) end
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local buddySlots = {}
+local function saveSlot(path, value)
+  local rec = buddySlots[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    buddySlots[path] = rec
+  end
+  return rec:save(value)
+end
+local function saveCfg() saveSlot(CFG_FILE, cfg) end
 
 -- Position relative to home: x = right, z = forward, y = up, as seen from home.
 -- facing 0 = the way it faced at home, 1 = right of that, 2 = back, 3 = left.
@@ -85,21 +104,21 @@ local FACING_NAME = { [0] = "the way you face at home", "right of that", "back t
 
 local state = { facing = 0, path = { { x = 0, y = 0, z = 0 } } }
 do
-  local saved = textutils.unserialize(readFile(STATE_FILE) or "")
+  local saved = readSlot(STATE_FILE)
   if type(saved) == "table" and saved.path and #saved.path > 0 then state = saved end
 end
-local function saveState() writeFile(STATE_FILE, textutils.serialize(state)) end
+local function saveState() saveSlot(STATE_FILE, state) end
 
 -- places[name] = { path = path from home, facing = ..., note = ... }; notes = things to remember
 local memory = { places = {}, notes = {} }
 do
-  local saved = textutils.unserialize(readFile(MEMORY_FILE) or "")
+  local saved = readSlot(MEMORY_FILE)
   if type(saved) == "table" then
     memory.places = saved.places or {}
     memory.notes = saved.notes or {}
   end
 end
-local function saveMemory() writeFile(MEMORY_FILE, textutils.serialize(memory)) end
+local function saveMemory() saveSlot(MEMORY_FILE, memory) end
 local function pos() return state.path[#state.path] end
 
 -- ---------------------------------------------------------------- text helpers
@@ -724,9 +743,16 @@ if cmd == "server" then
   print("Model: " .. cfg.model)
   return
 elseif cmd == "key" then
-  if not args[2] then print("Usage: buddy key <API key>") return end
-  writeFile(KEY_FILE, args[2])
-  print("Key saved in " .. KEY_FILE .. ". Keep that file to yourself.")
+  local key = args[2]
+  if not key and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      key = plug.ask(plug.termio(), { kind = "hidden", title = "Buddy", question = "xAI API key" })
+    end
+  end
+  if type(key) ~= "string" or key == "" then print("Key was not saved.") return end
+  writeFile(KEY_FILE, key)
+  print("Key saved in " .. KEY_FILE .. ".")
   return
 elseif cmd == "setup" then
   if args[2] then cfg.name = args[2] end
@@ -763,9 +789,36 @@ end
 
 if not http then print("http is disabled in the ComputerCraft config.") return end
 if usesGrok() and not apiKey() then
-  print("No model server set. Your own: buddy server http://<host>:<port>")
-  print("Or Grok: get a key at console.x.ai, then buddy key <key>")
-  return
+  local paired = false
+  if fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local which = plug.ask(plug.termio(), {
+        kind = "choice", title = "Buddy", question = "Which brain?",
+        choices = { { value = "own", label = "My own model server" }, { value = "grok", label = "xAI Grok" } },
+      })
+      if which == "own" then
+        local url = plug.ask(plug.termio(), { kind = "text", title = "Buddy", question = "Model server address" })
+        if type(url) == "string" and url ~= "" then
+          cfg.servers, cfg.model = { baseUrl(url) }, "auto"
+          saveCfg()
+          paired = true
+        end
+      elseif which == "grok" then
+        local key = plug.ask(plug.termio(), { kind = "hidden", title = "Buddy", question = "xAI API key" })
+        if type(key) == "string" and key ~= "" then
+          writeFile(KEY_FILE, key)
+          print("Key saved in " .. KEY_FILE .. ".")
+          paired = true
+        end
+      end
+    end
+  end
+  if not paired and usesGrok() and not apiKey() then
+    print("No model server set. Your own: buddy server http://<host>:<port>")
+    print("Or Grok: get a key at console.x.ai, then buddy key <key>")
+    return
+  end
 end
 
 if cmd == "models" then

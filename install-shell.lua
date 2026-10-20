@@ -2,7 +2,7 @@
 -- scans, downloads a role bundle, writes install.cfg, and reboots.
 -- Run: install role | install role <id> | install role <id> quick
 --      install role issue <id> | install role confirm <side>
--- The menu stays on the old installer until settings set install.roles true.
+-- Plain install opens this shell. install classic, or settings set install.roles false, keeps the old menu.
 
 local Core = dofile("install-core.lua")
 local Keys = dofile("install-keys.lua")

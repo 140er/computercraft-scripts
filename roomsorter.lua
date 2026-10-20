@@ -47,9 +47,7 @@ if args[1] == "install" then
   -- roomsorter install         (turtle)
   -- roomsorter install board   (computer with the stock board monitor)
   local mode = args[2] and (" " .. args[2]) or ""
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("roomsorter' .. mode .. '")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("roomsorter' .. mode .. '")\n', function(s) return load(s) ~= nil end)
   print("roomsorter" .. mode .. " will now start automatically on boot.")
   return
 end
@@ -57,18 +55,57 @@ end
 ---------------------------------------------------------------------------
 -- Storage
 ---------------------------------------------------------------------------
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
+local function slot(path)
+  local rec = saved[path]
+  if not rec then
+    local class, limit = "bulk", 900000
+    if path == FILES.pos then class, limit = "control", 4096 end
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = class, limit = limit })
+    saved[path] = rec
+  end
+  return rec
+end
 local function loadTable(path)
-  if not fs.exists(path) then return nil end
-  local h = fs.open(path, "r")
-  local t = textutils.unserialize(h.readAll())
-  h.close()
-  return type(t) == "table" and t or nil
+  return slot(path).value
+end
+local function saveTable(path, t)
+  return slot(path):save(t)
 end
 
-local function saveTable(path, t)
-  local h = fs.open(path, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
+local function pickMonitor(colorOnly)
+  local cfg = loadTable(FILES.cfg) or {}
+  local found = { peripheral.find("monitor", function(_, device)
+    if not colorOnly then return true end
+    return device.isColor and device.isColor()
+  end) }
+  if found[1] == nil then return nil end
+  if type(cfg.monitor) == "string" and peripheral.getName then
+    for _, device in ipairs(found) do
+      if peripheral.getName(device) == cfg.monitor then return device end
+    end
+  end
+  if #found == 1 then return found[1] end
+  if fs.exists("plug.lua") and peripheral.getName then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local choices = {}
+      for _, device in ipairs(found) do
+        choices[#choices + 1] = { value = device, label = peripheral.getName(device) }
+      end
+      local picked = plug.ask(plug.termio(), {
+        kind = "choice", title = "Storage", question = "Which monitor?", choices = choices,
+      })
+      if type(picked) == "table" then
+        cfg.monitor = peripheral.getName(picked)
+        saveTable(FILES.cfg, cfg)
+        return picked
+      end
+    end
+  end
+  return found[1]
 end
 
 ---------------------------------------------------------------------------
@@ -663,7 +700,7 @@ if args[1] == "client" then
     end
   end
 
-  local mon = peripheral.find("monitor", function(_, m) return m.isColor() end)
+  local mon = pickMonitor(true)
   if mon and args[2] ~= "text" then
     -- Advanced monitor: order screen there (tap it), commands typed here
     mon.setTextScale(0.5)
@@ -696,7 +733,7 @@ local function board()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then print("Needs a wireless (or ender) modem.") return end
   rednet.open(peripheral.getName(modem))
-  local mon = peripheral.find("monitor")
+  local mon = pickMonitor(false)
   local t = mon or term.current()
   if mon then
     mon.setTextScale(1)

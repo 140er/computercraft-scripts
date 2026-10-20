@@ -3,8 +3,11 @@ local mocks = dofile("tests/mocks.lua")
 local m = mocks.new(true)
 local cfg = H.defaults()
 local UUID="00000000-0000-4000-8000-000000000001"
+assert(cfg.enabled==true,"AR defaults on")
+assert(cfg.chatEnabled==nil,"chat stays off")
 local auth={chatNames={"Jeffreyy2"},chatUUIDs={Jeffreyy2=UUID}}
 cfg.ownerName,cfg.ownerUUID="Jeffreyy2",UUID
+cfg.enabled=false
 local mem = {}
 local snap = { turtles = {
   { id=1,name="Miner",phase="mining",fuel=100,maxFuel=1000,x=1,y=64,z=2,dim="minecraft:overworld" },
@@ -14,7 +17,7 @@ local snap = { turtles = {
   { x=4,y=64,z=2,dim="minecraft:overworld",state="AIR" },
 }, anchors = { hub={x=0,y=64,z=0,dim="minecraft:overworld"} } }
 H.render(m.ar,snap,mem,cfg,auth)
-assert(#m.arCalls==0,"default disabled must not touch controller")
+assert(#m.arCalls==0,"explicit false must not touch controller")
 cfg.enabled=true
 cfg.origin={x=0,y=64,z=0,dim="minecraft:overworld"}
 H.render(m.ar,snap,mem,cfg,auth)
@@ -92,3 +95,52 @@ HM.render(m.ar,snap,restarted,settings,auth)
 assert(not next(restarted.elements),"disabled HUD retained its elements")
 assert(m.elements.foreign,"disabled HUD removed another producer")
 print("PASS AR owner authorization, preserved hub keys, config persistence and restart cleanup")
+
+local bare={turtles={
+  {id=9,name="Rack",status="Waiting for orders",y=19},
+  {id=10,name="Fix",status="Waiting for orders",x=-170,y=19,z=-690},
+  {id=11,name="Reckoned",status="Waiting for orders",pose={x=-172,y=19,z=-692,conf="suspect",src="reckoned"}},
+  {id=12,name="Lost",status="Waiting for orders",pose={x=-171,y=19,z=-691,conf="lost",src="reckoned"}},
+},world_map={},anchors={}}
+local placedCfg={enabled=true,dimension="minecraft:overworld",ownerName="Jeffreyy2",ownerUUID=UUID,
+  origin={x=-174,y=19,z=-695,dim="minecraft:overworld"},proHud=true,xrayTurtles=true,xrayOres=true}
+local placedAuth={chatNames={"Jeffreyy2"},chatUUIDs={Jeffreyy2=UUID}}
+local placedMem={}
+H.render(m.ar,bare,placedMem,placedCfg,placedAuth)
+assert(m.elements["ssot-ar:turtle:10:edge:1"],"missing dimension was dropped")
+assert(m.elements["ssot-ar:turtle:11:edge:1"],"dead-reckoned pose was dropped")
+assert(m.elements["ssot-ar:radar:turtle:10"],"radar dropped a turtle with no dimension")
+assert(m.elements["ssot-ar:radar:turtle:11"],"radar dropped a reckoned turtle")
+assert(not m.elements["ssot-ar:turtle:9:edge:1"],"unknown position invented a box")
+assert(not m.elements["ssot-ar:turtle:12:edge:1"],"lost pose was drawn")
+assert(m.elements["ssot-ar:card:9:state"].args[5]:find("no position",1,true),"unknown turtle vanished from the HUD")
+assert(m.elements["ssot-ar:card:12:state"].args[5]:find("no position",1,true),"lost turtle vanished from the HUD")
+assert(m.elements["ssot-ar:radar:missing"].args[5]=="2 no position","radar hid turtles with no fix")
+assert(m.elements["ssot-ar:card:11:state"].args[5]:find("suspect",1,true),"suspect fix was silent")
+assert(not m.elements["ssot-ar:footer"],"hint listed controls that are not wired")
+placedCfg.input={keys=true,touch=true,server=false}
+H.render(m.ar,bare,placedMem,placedCfg,placedAuth)
+assert(m.elements["ssot-ar:footer"].args[5]=="Shift+P HUD | Shift+T turtles | Shift+O ore | Shift+A air",
+  "working keys were hidden")
+placedAuth.chatUUIDs={}
+H.render(m.ar,bare,placedMem,placedCfg,placedAuth)
+assert(m.elements["ssot-ar:footer"].args[5]=="Shift+P HUD","unauthorized xray keys were offered")
+assert(not m.elements["ssot-ar:turtle:10:edge:1"],"unauthorized owner kept turtle boxes")
+placedCfg.input={keys=false,touch=true,server=false}
+H.render(m.ar,bare,placedMem,placedCfg,placedAuth)
+assert(m.elements["ssot-ar:footer"].args[5]=="Tap HUD","monitor hint offered shift keys")
+placedCfg.input={keys=true,touch=false,server=true}
+H.render(m.ar,bare,placedMem,placedCfg,placedAuth)
+assert(not m.elements["ssot-ar:footer"],"server-owned hint offered controls the queue would reject")
+local originCfg={enabled=true,dimension="minecraft:overworld"}
+assert(H.ensureOrigin(originCfg,{x=-174,y=19,z=-695}))
+assert(originCfg.origin.dim=="minecraft:overworld" and originCfg.origin.x==-174,"hub position did not become the origin")
+assert(not H.ensureOrigin(originCfg,{x=1,y=2,z=3}),"a saved origin was replaced")
+local paired={enabled=true,dimension="minecraft:overworld"}
+assert(H.ensureOrigin(paired,{pos={x=4,y=5,z=6,dim="minecraft:the_nether"}}))
+assert(paired.origin.dim=="minecraft:the_nether" and paired.origin.z==6,"paired position was ignored")
+assert(not H.ensureOrigin({enabled=false,dimension="minecraft:overworld"},{x=1,y=2,z=3}))
+assert(H.layerKey("char","P")=="P" and H.layerKey("char","p")==nil)
+assert(H.layerKey("key","p",true)=="P" and H.layerKey("key","p",false)==nil)
+assert(H.layerKey("key","t",true)=="T" and H.layerKey("monitor_touch","P")==nil)
+print("PASS AR positions, honest hints, origin and layer keys")

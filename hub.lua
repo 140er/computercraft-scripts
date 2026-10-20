@@ -13,10 +13,6 @@ end
 -- STOP = stay home after this trip. RECALL = come home right now.
 -- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v AR goggles on/off,
 -- w 3D view of the fleet on this screen, q quit.
--- With a fleet server (server.lua): the hub keeps its state there too, and sends its
--- orders through it (the server repeats them until the turtle confirms).
--- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
--- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
@@ -78,10 +74,21 @@ if args[1] == "update" then
   fs.delete("hub.release") -- only reached when nothing changed
   return
 end
+if args[1] == "shelf" then
+  local roleList = dofile("roles.lua")
+  local shelf = dofile("shelf.lua")
+  local ok, err = shelf.enable(roleList.resident("hub", false), { roles = roleList, shelf = "fleet", role = "hub" })
+  if not ok then print("Shelf off: " .. tostring(err)) return end
+  local keep = {}
+  for _, name in ipairs(roleList.program("hub")) do keep[name] = true end
+  for _, name in ipairs(roleList.catalog()) do
+    if fs.exists(name) and not keep[name] then fs.delete(name) end
+  end
+  print("Shelf on")
+  return
+end
 if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("hub")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("hub")\n', function(s) return load(s) ~= nil end)
   print("Hub will now start automatically on boot.")
   return
 end
@@ -241,18 +248,8 @@ for _, name in ipairs(peripheral.getNames()) do
 end
 if not modemFound then error("Attach a wireless or ender modem to this computer.", 0) end
 local viewsCfg = loadTable("views.cfg") or {}
-local ViewPair = dofile("view-pair.lua")
-local hosted, hostError = pcall(rednet.host, PROTOCOL, "hub")
-local boot = ViewPair.decide(viewsCfg, {
-  computerId = os.getComputerID(),
-  hubNameFree = hosted,
-  hostError = hostError,
-  ar = peripheral.find("ar_controller") ~= nil,
-  localKey = ViewPair.hasLocalKey(arAuth.cfg, os.getComputerID()),
-})
-if not boot.ok then error(boot.error, 0) end
-if boot.hostname ~= "hub" then rednet.host(PROTOCOL, boot.hostname) end
-local pairingClient
+local ViewPair=dofile("view-pair.lua")
+local boot,pair=ViewPair.hostHub(viewsCfg,os,rednet,fs,peripheral,PROTOCOL,arConfig,arAuth)
 
 local SERVER_PROTOCOL = "fleetserver"
 local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
@@ -286,15 +283,10 @@ if serverId then
   until os.clock() >= deadline
 end
 if serverSeen == -1e9 then serverId = nil end
-if boot.ask then
-  pairingClient = ViewPair.client({
-    fs = fs, rednet = rednet,
-    now = function() return os.epoch("utc") end,
-    computerId = os.getComputerID(),
-    enableView = boot.runView,
-    lookup = function() return rednet.lookup(SERVER_PROTOCOL, "server") end,
-  })
-  pairingClient.start()
+if AH and arConfig and saveAR and AH.ensureOrigin(arConfig, hub.pos) then
+  if pcall(saveAR) then
+    print("AR origin is " .. arConfig.origin.x .. " " .. arConfig.origin.y .. " " .. arConfig.origin.z .. ".")
+  end
 end
 
 local function oreFor(id)
@@ -313,6 +305,12 @@ local viewPending = {}
 local viewSequence = 0
 local function openView()
   if not boot.runView then return end
+  local gpuOn=false
+  if type(viewsCfg.gpu) == "string" and peripheral and peripheral.isPresent then
+    local ok, present = pcall(peripheral.isPresent, viewsCfg.gpu)
+    gpuOn = ok and present == true
+  end
+  if not gpuOn then print("No GPU. The text view stays on.") end
   if type(viewsCfg.server) == "number" and type(viewsCfg.secret) == "string" and #viewsCfg.secret >= 16 then
     viewClient = dofile("ssot-client.lua").new(viewsCfg)
     viewSource = dofile("view-source.lua").new(viewClient, viewsCfg)
@@ -322,15 +320,14 @@ local function openView()
     viewSequence=viewCounter.value and viewCounter.value.sequence or 0
   end
   if args[1] == "pro" or args[1] == "warehouse" or args[1] == "map" then viewsCfg.mode = args[1] end
-  viewUI = dofile("views.lua").new(viewsCfg, viewSource)
+  local okUI, ui = pcall(function() return dofile("views.lua").new(viewsCfg, viewSource) end)
+  if okUI and type(ui) == "table" then viewUI = ui
+  else print("Views did not start.") end
 end
 openView()
-local function takePair(event, id, message, protocol)
-  if not pairingClient then return end
-  local saved = pairingClient.handle(event, id, message, protocol)
-  if type(saved) ~= "table" then return end
-  viewsCfg = saved
-  openView()
+local function takePair(e,i,m,p)
+  local saved=pair and pair.handle(e,i,m,p)
+  if type(saved)=="table" then viewsCfg=saved openView() end
 end
 local function sendDirect(id, msg)
   if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
@@ -397,7 +394,19 @@ local function hashOf(text)
   for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
   return string.format("%08x", h)
 end
+local function shelfFlag()
+  local cfg = dofile("atomic.lua").read("shelf.cfg")
+  if type(cfg) == "table" and type(cfg.value) == "table" and cfg.v == 1 then cfg = cfg.value end
+  return type(cfg) == "table" and cfg.codeShelf == true
+end
 local function minerVersion()
+  if shelfFlag() then
+    local text, err = dofile("shelf.lua").fetch("miner.lua")
+    if type(text) ~= "string" then return nil, nil, err or "shelf_absent" end
+    local h = 5381
+    for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+    return string.format("%08x", h), text
+  end
   if not fs.exists(MINER_FILE) then return nil end
   local attr = fs.attributes and fs.attributes(MINER_FILE)
   local mod = attr and (attr.modified .. ":" .. attr.size) or nil
@@ -535,8 +544,10 @@ local function handle(id, m)
       update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
-    local hash, code = minerVersion()
-    if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
+    local hash, code, err = minerVersion()
+    if not code then
+      if err then send(id, { type = "miner_file", error = err }) end
+    elseif hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(key, m.progress)
     -- A tunnel job ended (done, or something stopped it): the turtle stays home
@@ -560,8 +571,9 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
+local wh2On = settings and settings.get and settings.get("wh2.enabled", true)
 local wh2 = {
-  enabled = settings and settings.get("wh2.enabled", false) == true,
+  enabled = settings and settings.get and (wh2On == nil or wh2On == true),
   active = nil, context = { enabled = true, role = "hub" },
 }
 if wh2.enabled then
@@ -746,6 +758,50 @@ local V = (function()
 end)()
 local cam = V and V.camera() -- the 3D view's camera, shared by all screens
 local ar = peripheral.find("ar_controller")
+local arOwnerNoted, arMissingNoted = false, false
+local function saveAuth()
+  if type(arAuth.cfg) ~= "table" then return false end
+  local ok = pcall(function()
+    local text = textutils.serialize(arAuth.cfg)
+    local handle = fs.open("ssot.cfg.tmp", "w")
+    if not handle then error("open") end
+    handle.write(text)
+    handle.close()
+    if fs.exists("ssot.cfg.bak") then fs.delete("ssot.cfg.bak") end
+    if fs.exists("ssot.cfg") then fs.move("ssot.cfg", "ssot.cfg.bak") end
+    fs.move("ssot.cfg.tmp", "ssot.cfg")
+  end)
+  return ok
+end
+local function claimOwner(name, uuid)
+  if not AH or not arConfig or arConfig.enabled == false or not ar then return end
+  if type(arConfig.ownerName) == "string" and arConfig.ownerName ~= ""
+    and type(arConfig.ownerUUID) == "string" and arConfig.ownerUUID ~= "" then return end
+  if not arAuth.cfg then
+    arAuth.cfg = { controllers = {}, chatNames = {}, chatUUIDs = {}, arControllers = {} }
+    if not arAuth.lib and fs.exists("ssot.lua") then
+      local ok, lib = pcall(dofile, "ssot.lua")
+      if ok and type(lib) == "table" then arAuth.lib = lib end
+    end
+  end
+  local changed
+  if name ~= nil or uuid ~= nil then changed = AH.adopt(arConfig, arAuth.cfg, name, uuid)
+  else changed = AH.claim(arConfig, arAuth.cfg, os.getComputerID(), peripheral.find("player_detector")) end
+  if changed then
+    if saveAR then pcall(saveAR) end
+    saveAuth()
+    print("AR owner is " .. tostring(arConfig.ownerName) .. ".")
+  elseif not arOwnerNoted then
+    print("AR is on. The owner fills in from the first player or from enrol.")
+    arOwnerNoted = true
+  end
+end
+if AH and arConfig and arConfig.enabled ~= false and not ar and not arMissingNoted then
+  print("No AR controller. Goggles stay blank.")
+  arMissingNoted = true
+end
+claimOwner()
+if pair then pair.start() end
 local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
 if serverAR and type(serverView) == "boolean" then view3D = serverView end
 local arSuppressed = false
@@ -819,6 +875,7 @@ local function drawWorld(s)
   t.setTextColor(colors.white)
 end
 
+local arButtons
 local function draw(s)
   if s.world then drawWorld(s) return end
   local t = s.t
@@ -1103,13 +1160,16 @@ local function draw(s)
       col = col + #txt + 2
     end
   end
-  at(1, H, ("Tap a turtle = only that one. 1-7 ore c custom s stop r recall u update q quit"):sub(1, W), colors.gray)
+  if not arButtons(s, H) then
+    at(1, H, ("Tap a turtle = only that one. 1-7 ore c custom s stop r recall u update q quit"):sub(1, W), colors.gray)
+  end
 end
 
 -- Info screen for a normal (grey) monitor: no buttons, just the overview
 local function drawInfo(s)
   local t = s.t
   local W, H = t.getSize()
+  s.buttons = {}
   t.setBackgroundColor(colors.black)
   t.clear()
   local y = 1
@@ -1207,6 +1267,7 @@ local function drawInfo(s)
     line("ALL TIME", colors.lightGray)
     itemLines(hub.totals, H - y + 1)
   end
+  arButtons(s, H)
 end
 
 local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
@@ -1219,6 +1280,54 @@ local arControls=AH and AH.controls(arConfig,saveAR,function(action)
   local ok,why=arAuth.queue("recharge",nil,nil,selected)
   return ok,ok and "Recharge request queued; awaiting server acceptance." or why
 end,flash,arAuth.cfg)
+local shiftDown, layerArmed = false, nil
+local function layerField(letter)
+  return ({ P = "proHud", T = "xrayTurtles", O = "xrayOres", A = "xrayTunnels" })[letter]
+end
+local function layerWorks(letter)
+  local field = layerField(letter)
+  if not field or not AH or not arConfig or arConfig.enabled ~= true then return false end
+  local allowed = arAuth.cfg and arAuth.lib.chatAllowed(arAuth.cfg, arConfig.ownerName, arConfig.ownerUUID) == true
+  if serverOwnsAR() then return allowed end
+  if field ~= "proHud" and not allowed then return false end
+  return true
+end
+local function applyLayer(letter)
+  if not layerWorks(letter) then return false end
+  if serverOwnsAR() then
+    local ok, why = arAuth.queue("layer", letter, not arConfig[layerField(letter)])
+    flash(ok and "AR layer request queued." or why)
+    return true
+  end
+  return arControls and arControls.key(letter) and true or false
+end
+arButtons = function(s, y)
+  if not AH or not arConfig or arConfig.enabled ~= true then return false end
+  local labels = { P = " HUD ", T = " TRT ", O = " ORE ", A = " AIR " }
+  local x, W = 1, s.t.getSize()
+  local drawn = false
+  for _, letter in ipairs({ "P", "T", "O", "A" }) do
+    if layerWorks(letter) then
+      local label = labels[letter]
+      if x + #label - 1 > W then break end
+      local on = arConfig[layerField(letter)] ~= false
+      s.t.setCursorPos(x, y)
+      if s.t.isColor and s.t.isColor() then
+        s.t.setBackgroundColor(on and colors.green or colors.gray)
+        s.t.setTextColor(on and colors.black or colors.white)
+      end
+      s.t.write(label)
+      if s.t.isColor and s.t.isColor() then
+        s.t.setBackgroundColor(colors.black)
+        s.t.setTextColor(colors.white)
+      end
+      local key = letter
+      s.buttons[#s.buttons + 1] = { x1 = x, x2 = x + #label - 1, y = y, action = function() applyLayer(key) end }
+      x, drawn = x + #label + 1, true
+    end
+  end
+  return drawn
+end
 local function clearAR(device)
   if AH and arConfig.enabled then AH.clear(device,hudMem) else V.arClear(device,arMem) end
 end
@@ -1251,6 +1360,11 @@ local function draw3D()
       local cfg={}
       for k,v in pairs(arConfig) do cfg[k]=v end
       if not view3D then cfg.enabled=false end
+      cfg.input = {
+        keys = not wh2.active,
+        touch = (not viewUI or viewUI.mode == "classic") and not wh2.active,
+        server = serverOwnsAR() or false,
+      }
       AH.render(ar,AH.snapshot(fleetList(),nil,cfg,arAuth.cfg,hudMem),hudMem,cfg,arAuth.cfg)
     else V.ar(ar,fleetList(),view3D and arConfig~=nil and arAuth.cfg~=nil
       and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID),arMem,"Fleet") end
@@ -1693,7 +1807,7 @@ end
 local function arControlLoop()
   local renewed=-1e9
   while true do
-    local secret=ViewPair.localSecret(viewsCfg, arAuth.cfg, os.getComputerID())
+    local secret=ViewPair.localSecret(viewsCfg,arAuth.cfg,os.getComputerID())
     if serverId and secret and arConfig and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID) then
       arAuth.client=arAuth.client or dofile("ssot-client.lua").new({server=serverId,secret=secret,counterFile="hub-ar.counter"})
       local request=table.remove(arAuth.pending,1)
@@ -1846,6 +1960,7 @@ local function uiLoop()
         save()
         flash("Time is up: turtles come home and stay there.")
       end
+      claimOwner()
       if cam then V.tick(cam) end
       local rel = releasedVersion()
       if rel and tick % 10 == 0 and outdatedCount() > 0 then send(nil, { type = "update", hash = rel }) end
@@ -1855,19 +1970,29 @@ local function uiLoop()
       click("term", b, c)
     elseif ev == "monitor_touch" then
       click(a, b, c)
-    elseif ev=="chat" and arControls and arControls.chat and not serverOwnsAR() then
-      arControls.chat:event(ev,a,b,c,d)
-      redraw()
+    elseif ev == "key" then
+      if keys and (a == keys.leftShift or a == keys.rightShift) then shiftDown = true
+      elseif shiftDown and not b and AH and keys and type(keys.getName) == "function" then
+        local letter = AH.layerKey("key", keys.getName(a), true)
+        if letter and applyLayer(letter) then layerArmed = letter redraw() end
+      end
+    elseif ev == "key_up" then
+      if keys and (a == keys.leftShift or a == keys.rightShift) then shiftDown = false end
+    elseif ev=="chat" then
+      claimOwner(a, c)
+      if arControls and arControls.chat and not serverOwnsAR() then
+        arControls.chat:event(ev,a,b,c,d)
+        redraw()
+      end
     elseif ev == "char" then
       if a=="d" and wh2 then dofile("wh2-dev.lua").run(wh2,term.current()) timer=os.startTimer(1) end
       local n = tonumber(a)
-      if arConfig and arConfig.enabled and serverOwnsAR() and ({P=true,T=true,O=true,A=true})[a] then
-        local field=({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"})[a]
-        local ok,why=arAuth.queue("layer",a,not arConfig[field])
-        flash(ok and "AR layer request queued." or why)
-      elseif arControls and arControls.key(a) then
+      if layerArmed and a == layerArmed then
+        layerArmed = nil
+      elseif AH and AH.layerKey("char", a) and applyLayer(a) then
       elseif viewUI and a == "p" then viewUI.mode=viewUI.mode=="classic" and "pro" or "classic"
-      elseif viewUI and viewUI.mode ~= "classic" and a ~= "q" and not n and a ~= "c" and a ~= "s" and a ~= "u" and a ~= "a" then viewAction(viewUI.key(a))
+      elseif viewUI and viewUI.mode ~= "classic" and a ~= "q" and not n and a ~= "c" and a ~= "s" and a ~= "u" and a ~= "a"
+        and not (wh2.enabled and (a == "i" or a == "x")) then viewAction(viewUI.key(a))
       elseif n and ORDER[n] then setTarget(ORDER[n])
       elseif a == "s" then stopAll()
       elseif a == "r" then recallNow()
@@ -1890,6 +2015,11 @@ local function uiLoop()
       if directView then pcall(directView.close) directView=nil end
       local prev = ar
       ar = peripheral.find("ar_controller")
+      if not ar and AH and arConfig and arConfig.enabled ~= false and not arMissingNoted then
+        print("No AR controller. Goggles stay blank.")
+        arMissingNoted = true
+      end
+      claimOwner()
       if prev and prev ~= ar and not arSuppressed then
         pcall(clearAR,prev)
       end
@@ -1964,6 +2094,23 @@ end
 local function wh2Worker()
   if wh2.host then return wh2.host.worker() end
   while true do os.pullEvent("wh2_host_idle") end
+end
+
+local alphaBoot
+if fs.exists("alpha-boot.lua") then
+  local ok, boot = pcall(dofile, "alpha-boot.lua")
+  if ok and type(boot) == "table" and type(boot.hub) == "function" then
+    local ran, result = pcall(boot.hub, {
+      ar = ar,
+      enabled = arConfig and arConfig.enabled,
+      noted = arMissingNoted,
+      cfg = arAuth.cfg or {},
+      dimension = arConfig and arConfig.dimension,
+    })
+    if ran then alphaBoot = result else print("Alpha features did not start.") end
+  else
+    print("Alpha features did not start.")
+  end
 end
 
 parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop, viewLoop, viewRenderLoop, wh2Loop, wh2Worker)

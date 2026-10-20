@@ -43,8 +43,13 @@ foreach ($pattern in $patterns) {
 }
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
+$diskLimit = 8000000
 foreach ($file in @('computercraft-server.toml')) {
-    $config = [IO.File]::ReadAllText("$Base\config\$file").Replace('computer_space_limit = 4000000','computer_space_limit = 1000000')
+    $config = [regex]::Replace([IO.File]::ReadAllText("$Base\config\$file"), 'computer_space_limit\s*=\s*\d+', "computer_space_limit = $diskLimit")
+    $limits = @([regex]::Matches($config, 'computer_space_limit\s*=\s*(\d+)') | ForEach-Object { $_.Groups[1].Value })
+    if ($limits.Count -lt 1 -or @($limits | Where-Object { $_ -ne "$diskLimit" }).Count -gt 0) {
+        throw "computer_space_limit in $file did not become $diskLimit."
+    }
     [IO.File]::WriteAllText("$TestRoot\config\$file", $config, $utf8)
     [IO.File]::WriteAllText("$TestRoot\world\serverconfig\$file", $config, $utf8)
 }
@@ -65,20 +70,26 @@ $properties = @('level-name=world','online-mode=false',"server-port=$port",'serv
     'level-type=minecraft:flat','generate-structures=false','motd=Disposable SSOT PR 1 test')
 [IO.File]::WriteAllLines("$TestRoot\server.properties", $properties, $utf8)
 [IO.File]::WriteAllText("$TestRoot\eula.txt", 'eula=true', $utf8)
+. "$PSScriptRoot\role-closure.ps1"
 $computerIds=if($Scenario -eq 'mining'){@(0,1,2,3,4,6)}else{@(0,1,2,3,4)}
 if($Scenario -eq 'warehouse'){$computerIds+=21}
 foreach ($id in $computerIds) {
     $disk = "$TestRoot\world\computercraft\computer\$id"
     New-Item -ItemType Directory -Force -Path $disk | Out-Null
-    $fleetFiles=@('server.lua','hub.lua','miner.lua','update.lua','fleetview.lua','atomic.lua','ssot.lua','ssot-client.lua',
-        'nav.lua','mine-tasks.lua','mining.lua','warehouse-tasks.lua','warehouse.lua','store.lua','ssot-auth.lua','sha2.lua','ssot-queue.lua')
-    foreach ($file in (Get-ChildItem "$source\*.lua" | Where-Object { !$Fleet -or $_.Name -in $fleetFiles -or $_.Name -like 'wh2-*.lua' })) {
-        [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
+    if (-not $Fleet -and $Scenario -in @('ssot','nav','mining','warehouse')) {
+        Write-GateRoleFiles -Disk $disk -Source $source -Entry (Get-GateEntries $source $Scenario $id) -Utf8 $utf8 | Out-Null
+    } else {
+        $fleetFiles=@('server.lua','hub.lua','miner.lua','update.lua','fleetview.lua','atomic.lua','ssot.lua','ssot-client.lua',
+            'nav.lua','mine-tasks.lua','mining.lua','warehouse-tasks.lua','warehouse.lua','store.lua','ssot-auth.lua','sha2.lua','ssot-queue.lua')
+        foreach ($file in (Get-ChildItem "$source\*.lua" | Where-Object { -not $Fleet -or $_.Name -in $fleetFiles -or $_.Name -like 'wh2-*.lua' })) {
+            [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
+        }
+        Copy-Item "$source\tests\ssot-runtime.lua", "$source\tests\gate-disk.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua", "$source\tests\warehouse-runtime.lua", "$source\tests\warehouse-fixture.lua" $disk
+        Copy-Item "$PSScriptRoot\server.lua" "$disk\test-server.lua"
     }
-    Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua", "$source\tests\warehouse-runtime.lua", "$source\tests\warehouse-fixture.lua" $disk
     [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
     $startup = if ($id -eq 0) { 'shell.run("test-server.lua")' } else {
-        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '")'
+        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '", "' + $diskLimit + '")'
     }
     if ($Scenario -eq 'warehouse') { $startup = $startup.Replace('ssot-runtime.lua','warehouse-runtime.lua') }
     if ($Scenario -eq 'warehouse' -and $id -eq 21) {
@@ -91,7 +102,6 @@ foreach ($id in $computerIds) {
     }
     if ($Scenario -eq 'nav' -and $id -eq 3) { $startup = 'if fs.exists("nav-probe") then shell.run("nav-probe.lua") else ' + $startup + ' end' }
     $startup = 'while fs.exists("boot-hold") do sleep(0.1) end; while not peripheral.find("modem") do sleep(0.1) end; ' + $startup
-    Copy-Item "$PSScriptRoot\server.lua" "$disk\test-server.lua"
     [IO.File]::WriteAllText("$disk\startup.lua", $startup, $utf8)
 }
 $hosts = @(@(-6,65,-6),@(6,65,-6),@(-6,65,6),@(-6,71,-6))
@@ -259,9 +269,12 @@ try {
         $loaded = Rcon 'execute in minecraft:the_nether if loaded 512 65 0 run data get block 512 65 0'
     } while ($loaded -match 'ComputerId:' -and [DateTime]::UtcNow -lt $deadline)
     if ($loaded -match 'ComputerId:') { throw 'Controller chunk did not unload.' }
-    $statePath = "$TestRoot\world\computercraft\computer\0\ssot.state".Replace('\','/')
-    $check = "local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))(); f:close(); assert(s.value.poses[4]); print('Offline occupied cell retained')"
-    & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\offline-occupancy.txt"
+    $root = "$TestRoot\world\computercraft\computer\0".Replace('\','/')
+    $helper = [IO.Path]::GetFullPath("$PSScriptRoot\read-ssot.lua").Replace('\','/')
+    $check = "local control = dofile([[$helper]])([[$root]]); assert(control and control.poses[4]); print('Offline occupied cell retained')"
+    $lua52 = 'C:\Tools\lua52\lua52.exe'
+    if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+    & $lua52 -e $check | Set-Content "$Output\offline-occupancy.txt"
     if ($LASTEXITCODE -ne 0) { throw 'Offline occupancy was lost.' }
     Move-Item -LiteralPath "$controller\sandbox-result.json" -Destination "$controller\before-unload.json" -Force
     foreach ($dimension in @('minecraft:the_nether','minecraft:overworld')) {
@@ -324,9 +337,12 @@ try {
         Start-Sleep -Seconds 3
         $boundary=Rcon 'data get block 31 66 4'
         if ($boundary -notmatch 'ComputerId:\s*3(?=[,}\s])') { throw 'Disabled loader did not preserve the boundary pose.' }
-        $statePath="$TestRoot\world\computercraft\computer\0\ssot.state".Replace('\','/')
-        $check="local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))().value; f:close(); local p=assert(s.poses[3]); assert(p.x==31 and p.y==66 and p.z==4); print('Offline boundary occupancy retained')"
-        & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\disabled-occupancy.txt"
+        $root="$TestRoot\world\computercraft\computer\0".Replace('\','/')
+        $helper=[IO.Path]::GetFullPath("$PSScriptRoot\read-ssot.lua").Replace('\','/')
+        $check="local control = dofile([[$helper]])([[$root]]); local p=assert(control and control.poses[3]); assert(p.x==31 and p.y==66 and p.z==4); print('Offline boundary occupancy retained')"
+        $lua52 = 'C:\Tools\lua52\lua52.exe'
+        if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+        & $lua52 -e $check | Set-Content "$Output\disabled-occupancy.txt"
         if ($LASTEXITCODE -ne 0) { throw 'Offline boundary occupancy was lost.' }
         Copy-Item "$TestRoot\logs\latest.log" "$Output\before-loader-restart.log"
         Stop-TestServer
