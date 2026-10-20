@@ -1,0 +1,15 @@
+H4b2 Gate A
+
+lua5.2 tests/run.lua
+111 tests passed, exit 0.
+Includes tests/strata-unit.lua. The prototype workload encoded to 10123 bytes.
+The plan's prototype is 9460 bytes. The allowed band is 7568 to 11352.
+
+CraftOS-PC 2.8.3 Linux sandbox, tests/sandbox smoke, 120 seconds, disk 4000000.
+server: PASS booted=True errors=0 disk_free=2957541 http_ok=27/27
+hub: PASS booted=True errors=0 disk_free=3764172 http_ok=1/1
+miner: PASS booted=True errors=0 disk_free=3864328 http_ok=0/0
+Sandbox PASS
+
+ssot, nav, mining, and warehouse scenarios were not re-run. This change does not alter those programs.
+Gate B: NOT RUN

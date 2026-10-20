@@ -492,6 +492,7 @@ for _, path in ipairs({"tests/wh2-wizard-state.lua", "tests/wh2-wizard-contract3
 end
 dofile("tests/i2-touch.lua")(test, equal)
 dofile("tests/map-checks.lua")(test)
+dofile("tests/strata-unit.lua")(test, equal)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
