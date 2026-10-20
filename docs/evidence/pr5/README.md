@@ -20,7 +20,7 @@ The sixth attempt stopped when a production miner could not obtain a GPS observa
 
 Client polling now waits for complete JSON and preserves the exact parsed bytes. A valid failure verdict still fails immediately. `client-json-checks.txt` records the focused checks.
 
-The next retry also spaces out computer boots to reduce overlap during startup. All computers still run together for the native checks. `startup-stagger.json` records the delays and syntax checks. This is a fixture experiment, not a claim that startup overlap caused the earlier watchdog failures.
+The next retry also spaces out computer boots to reduce overlap during startup. All computers still run together for the native checks. `startup-stagger.json` records the delays. PowerShell and all nine generated Lua startup files passed syntax checks. This is a fixture experiment, not a claim that startup overlap caused the earlier watchdog failures.
 
 The warehouse fixture replaces only PR 4's `wh-sites` read boundary. Mine snapshots, command authentication and navigation use production code. See `../../ssot-pr5.md` for the interface and configuration.
 

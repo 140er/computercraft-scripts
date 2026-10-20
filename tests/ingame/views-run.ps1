@@ -101,6 +101,9 @@ function Start-ViewsServer([string]$Phase) {
     }
     $gcLog="-Xlog:gc*,safepoint:file=gc-$Phase.log:time,uptime,level,tags"
     $script:process=Start-Process 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe' -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx3G',$gcLog,"-Dssot.test.root=$TestRoot",'@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Phase.log" -RedirectStandardError "$TestRoot\stderr-$Phase.log"
+    $script:process.PriorityClass='AboveNormal'
+    @{phase=$Phase;pid=$process.Id;priority='AboveNormal';at=[DateTime]::UtcNow.ToString('o')} |
+        ConvertTo-Json | Set-Content "$Output\server-priority-$Phase.json"
     [IO.File]::WriteAllText("$Output\server.pid",[string]$process.Id)
     $end=[DateTime]::UtcNow.AddSeconds($Timeout)
     do {
