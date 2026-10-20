@@ -78,6 +78,13 @@ if x and y and z then
   if not os.getComputerLabel() then os.setComputerLabel("GPS " .. x .. "," .. y .. "," .. z) end
 else
   local c = load()
+  if not c and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local fix = plug.ask(plug.termio(), { kind = "coord", title = "GPS host", question = "Where is this computer?" })
+      if fix then c = fix save(fix.x, fix.y, fix.z) end
+    end
+  end
   if not c then
     print("Usage: gpshost <x> <y> <z>")
     print("  the coordinates of THIS computer block")

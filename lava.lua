@@ -194,10 +194,25 @@ if args[1] == "setup" then
     if not found then print("WARNING: no chest found next to the turtle!") end
     home = gpsHere()
     if not home then
-      print("No GPS here. Use: lava setup <x> <y> <z> <facing>")
-      return
+      local plug
+      if fs.exists("plug.lua") then
+        local ok, mod = pcall(dofile, "plug.lua")
+        if ok then plug = mod end
+      end
+      if plug then
+        home = plug.ask(plug.termio(), { kind = "coord", title = "Lava", question = "Where is this turtle?" })
+        if home then
+          facing = plug.ask(plug.termio(), {
+            kind = "choice", title = "Lava", question = "Which way does it face?", choices = plug.facings(),
+          })
+        end
+      end
+      if not (home and facing) then
+        print("No GPS here. Use: lava setup <x> <y> <z> <facing>")
+        return
+      end
     end
-    facing = gpsFacing(home)
+    if not facing then facing = gpsFacing(home) end
     if not facing then
       print("GPS works, but I need a free block in front of or behind me (and a little fuel)")
       print("to find my facing. Or: lava setup <x> <y> <z> <facing>")
@@ -217,6 +232,26 @@ end
 
 if not turtle then error("lava.lua runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
+if not cfg and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local home, how = plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+      spec.title = "Lava"
+      return plug.ask(plug.termio(), spec)
+    end, "Lava")
+    local facing
+    if home then
+      facing = plug.ask(plug.termio(), {
+        kind = "choice", title = "Lava", question = "Which way does it face?", choices = plug.facings(),
+      })
+    end
+    if home and facing then
+      saveTable(CFG_FILE, { home = home, facing = facing, drops = {}, pool = nil, exit = nil })
+      cfg = loadTable(CFG_FILE)
+    end
+    if how == "prompt" then print("Saved this spot.") end
+  end
+end
 if not cfg then
   print("Not set up yet. First: lava setup <x> <y> <z> <facing>")
   print("(or just lava setup, with GPS)")
