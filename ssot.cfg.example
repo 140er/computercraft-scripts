@@ -3,6 +3,8 @@
   maxChunks = 64,
   pageBytes = 8192,
   leaseMs = 30000,
+  deadTurtles = false,
+  deadAfterMs = 120000,
   chatNames = { "Jeffreyy2", "njov10", "yolobeerman" },
   chatUUIDs = {},
 }

@@ -41,4 +41,60 @@ return function(test,Client)
     rednet.send=send
     assert(ok,err)
   end)
+  local function replies(client, secret, decide)
+    local ops = {}
+    local send = rednet.send
+    rednet.send = function(_, m, protocol)
+      ops[#ops + 1] = m.op
+      local reply = { v = 1, type = "ssot_reply", server = 0, rid = m.rid, auth = secret, ok = true,
+        epoch = "epoch", token = "t", untilAt = os.epoch("utc") + 10000 }
+      decide(m, reply, ops)
+      assert(client.dispatch(0, reply, protocol))
+    end
+    return ops, function() rednet.send = send end
+  end
+  test("a finished move syncs the destination when commit is late and dead turtles are enabled", function()
+    local secret = "test-secret-123456"
+    local client = Client.new({ server = 0, secret = secret, counterFile = "client-dead-recover.counter", deadTurtles = true })
+    local ops, restore = replies(client, secret, function(m, reply)
+      if m.op == "commit" then reply.ok, reply.error = false, "expired; reconcile" end
+    end)
+    local p = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+    local to = { dim = p.dim, x = 1, y = 64, z = 0 }
+    local ok, err = pcall(function() assert(client.move(p, to, function() return true end)) end)
+    restore()
+    assert(ok, err)
+    assert(ops[1] == "sync" and ops[2] == "reserve" and ops[3] == "start" and ops[4] == "commit" and ops[5] == "sync")
+  end)
+  test("a late commit still stops movement when dead turtles are disabled", function()
+    local secret = "test-secret-123456"
+    local client = Client.new({ server = 0, secret = secret, counterFile = "client-dead-halt.counter" })
+    local ops, restore = replies(client, secret, function(m, reply)
+      if m.op == "commit" then reply.ok, reply.error = false, "expired; reconcile" end
+    end)
+    local p = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+    local to = { dim = p.dim, x = 1, y = 64, z = 0 }
+    local ok = pcall(function() client.move(p, to, function() return true end) end)
+    restore()
+    assert(not ok)
+    assert(ops[#ops] == "commit")
+    local halted, why = client.move(to, { dim = to.dim, x = 2, y = 64, z = 0 }, function() return true end)
+    assert(halted == false and why == "SSOT movement stopped; reboot and reconcile")
+  end)
+  test("a failed recovery sync still stops the turtle", function()
+    local secret = "test-secret-123456"
+    local client = Client.new({ server = 0, secret = secret, counterFile = "client-dead-conflict.counter", deadTurtles = true })
+    local syncs = 0
+    local _, restore = replies(client, secret, function(m, reply)
+      if m.op == "commit" then reply.ok, reply.error = false, "expired; reconcile" end
+      if m.op == "sync" then
+        syncs = syncs + 1
+        if syncs > 1 then reply.ok, reply.error = false, "pose conflict" end
+      end
+    end)
+    local p = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+    local ok = pcall(function() client.move(p, { dim = p.dim, x = 1, y = 64, z = 0 }, function() return true end) end)
+    restore()
+    assert(not ok)
+  end)
 end

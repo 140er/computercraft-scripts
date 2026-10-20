@@ -2,6 +2,8 @@ local M = { version = 1 }
 local A = dofile("atomic.lua")
 local Mining = dofile("mine-tasks.lua")
 local Warehouse = dofile("warehouse-tasks.lua")
+local deadOk, Dead = pcall(dofile, "dead.lua")
+if not deadOk or type(Dead) ~= "table" then Dead = nil end
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -31,6 +33,8 @@ function M.config(raw)
   for name,bounds in pairs({maxChunks={1,64},pageBytes={1024,8192},leaseMs={1000,30000}}) do
     assert(raw[name] == nil or integer(raw[name],bounds[1],bounds[2]),"invalid " .. name)
   end
+  assert(raw.deadTurtles == nil or type(raw.deadTurtles) == "boolean", "invalid deadTurtles")
+  assert(raw.deadAfterMs == nil or integer(raw.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
@@ -87,11 +91,20 @@ function M.new(s, cfg, clock, epoch, save)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
+  local deadOn = cfg.deadTurtles == true
+  local deadAfter = tonumber(cfg.deadAfterMs) or 120000
+  assert(cfg.deadTurtles == nil or type(cfg.deadTurtles) == "boolean", "invalid deadTurtles")
+  assert(cfg.deadAfterMs == nil or integer(cfg.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
+  if deadOn and not Dead then error("dead.lua is missing", 0) end
   local failed = false
+  -- A missing turtle does not occupy. dead.lua decides that.
   local function occupied(p, owner)
-    for id, pos in pairs(s.poses) do if id ~= owner and equal(p, pos) then return id end end
+    for id, pos in pairs(s.poses) do
+      if id ~= owner and not (deadOn and Dead.missing(s, id)) and equal(p, pos) then return id end
+    end
     for id, r in pairs(s.moves) do
-      if id ~= owner and (r.phase == "started" or (r.epoch == epoch and r.untilAt > clock()))
+      if id ~= owner and not (deadOn and Dead.missing(s, id))
+        and (r.phase == "started" or (r.epoch == epoch and r.untilAt > clock()))
         and (equal(p, r.to) or equal(p, r.from)) then return id end
     end
     return false
@@ -124,14 +137,18 @@ function M.new(s, cfg, clock, epoch, save)
       end
       s.poses[id],s.moves[id]=clone(p),nil
       s.poses[id].boot=m.boot
+      if deadOn then Dead.revive(s, id, clock()) end
       return {ok=true,pose=clone(p),epoch=epoch}
     elseif op == "sync" then
       if not M.pose(p) or occupied(p, id) then return { ok = false, error = "pose conflict" } end
       if r and not equal(p, r.from) and not equal(p, r.to) then return { ok = false, error = "reconcile source or destination" } end
       if r and r.phase == "granted" and not equal(p, r.from) then return { ok = false, error = "move never started" } end
-      if s.poses[id] and not r and not equal(p, s.poses[id]) then return { ok = false, error = "manual reconciliation required" } end
+      if s.poses[id] and not r and not equal(p, s.poses[id]) then
+        if not (deadOn and Dead.missing(s, id)) then return { ok = false, error = "manual reconciliation required" } end
+      end
       s.poses[id], s.moves[id] = clone(p), nil
       s.poses[id].boot = m.boot
+      if deadOn then Dead.revive(s, id, clock()) end
       return { ok = true, pose = clone(p), epoch = epoch }
     elseif op == "reserve" then
       if not M.pose(p) or not M.pose(m.to) or not equal(p, s.poses[id]) or s.poses[id].boot ~= m.boot or p.dim ~= m.to.dim
@@ -158,6 +175,7 @@ function M.new(s, cfg, clock, epoch, save)
         if r.phase ~= "started" or not M.pose(m.to) or not equal(m.to, r.to) then return { ok = false, error = "not started/destination" } end
         s.poses[id], s.moves[id] = clone(r.to), nil
         s.poses[id].boot = m.boot
+        if deadOn then Dead.revive(s, id, clock()) end
       end
       return { ok = true, untilAt = r.untilAt }
     elseif op == "scan" then
@@ -217,10 +235,39 @@ function M.new(s, cfg, clock, epoch, save)
       end
       if #out.cells==0 and out.cursor~=0 then return {ok=false,error="page budget too small"} end
       return out
+    elseif op == "turtle-forget" then
+      if not deadOn then return { ok = false, error = "dead turtles disabled" } end
+      if not integer(m.target, 0, 2147483647) then return { ok = false, error = "invalid turtle" } end
+      return Dead.forget(s, m.target)
     end
     return { ok = false, error = "unknown operation" }
   end
-  return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
+  local function persist(previous)
+    local ok, err = (save or function() return true end)(s)
+    if not ok then s, failed = previous, true return nil, tostring(err) end
+    return true
+  end
+  return { epoch=epoch,state = function() return A.copy(s) end,
+    missing = function(id) return deadOn and Dead.missing(s, id) or false end,
+    sweep = function()
+      if failed or not deadOn then return false end
+      local previous = s
+      s = A.copy(s)
+      if not Dead.sweep(s, clock(), deadAfter) then s = previous return false end
+      return persist(previous)
+    end,
+    forget = function(id)
+      if failed or not deadOn then return { ok = false, error = "dead turtles disabled" } end
+      if not integer(id, 0, 2147483647) then return { ok = false, error = "invalid turtle" } end
+      local previous = s
+      s = A.copy(s)
+      local result = Dead.forget(s, id)
+      if not result.ok or not result.changed then s = previous return result end
+      local saved, err = persist(previous)
+      if not saved then return nil, err end
+      return result
+    end,
+    handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
@@ -242,6 +289,10 @@ function M.new(s, cfg, clock, epoch, save)
     local previous = s
     s = A.copy(s)
     client = s.clients[id] or { counter = 0, cache = {}, order = {} }
+    if deadOn then
+      Dead.note(s, id, clock())
+      Dead.sweep(s, clock(), deadAfter)
+    end
     local result = run(id, m)
     result.v, result.type, result.rid, result.server = 1, "ssot_reply", m.rid, os.getComputerID()
     result.auth = key
@@ -304,7 +355,7 @@ function M.open(cfg)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
     end
-    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
+    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and (not Dead or Dead.valid(s.live))
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }

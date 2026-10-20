@@ -1236,4 +1236,58 @@ return function(test, equal, read, mocks)
     h.exchange()
     equal(#h.arCalls, calls)
   end)
+
+  test("a vanished turtle shows as missing and the fleet screen offers forget turtle", function()
+    local m = new()
+    m.env.dofile = function(path) return assert(loadfile(path, "t", m.env))() end
+    for _, name in ipairs({ "ssot.lua", "atomic.lua", "dead.lua", "mine-tasks.lua", "warehouse-tasks.lua" }) do
+      m.files[name] = read(name)
+    end
+    m.files["ssot.cfg"] = '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456"},deadTurtles=true,deadAfterMs=10000,leaseMs=5000}'
+    m.start(serverCode)
+    local n = 0
+    local function call(id, op, fields)
+      n = n + 1
+      local msg = {}
+      for k, v in pairs(fields or {}) do msg[k] = v end
+      msg.v, msg.type, msg.expect, msg.op = 1, "ssot", "ssot_reply", op
+      msg.boot, msg.rid, msg.counter, msg.secret = "turtle-" .. id, "h5-" .. n, n, "test-secret-123456"
+      local before = #m.sent
+      m.push("rednet_message", id, msg, "fleetserver")
+      equal(#m.sent, before + 1, op .. " got no reply")
+      return m.sent[#m.sent].msg
+    end
+    local p = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+    local to = { dim = p.dim, x = 1, y = 64, z = 0 }
+    equal(call(1, "sync", { pose = p }).ok, true)
+    local g = call(1, "reserve", { pose = p, to = to })
+    equal(g.ok, true)
+    equal(call(1, "start", { pose = p, token = g.token, epoch = g.epoch }).ok, true)
+    m.push("rednet_message", 1, { type = "status", label = "Digger", status = "mining" }, "minearmy")
+    m.advance(12)
+    local beside = { dim = p.dim, x = 2, y = 64, z = 0 }
+    equal(call(2, "sync", { pose = beside }).ok, true)
+    equal(call(2, "reserve", { pose = beside, to = to }).ok, true, "started cells stayed reserved after silence")
+    local function lastWrite(text)
+      local x, y, cx, cy, found = 1, 1, 1, 1, false
+      for _, line in ipairs(m.output) do
+        local item = assert(load("return " .. line, "=out", "t", {}))()
+        if item[1] == "dashboard" and item[2] == "setCursorPos" then cx, cy = item[3], item[4]
+        elseif item[1] == "dashboard" and item[2] == "write" and type(item[3]) == "string" and item[3]:find(text, 1, true) then
+          found, x, y = true, cx, cy
+        end
+      end
+      assert(found, "screen never wrote " .. text)
+      return x, y
+    end
+    local _, row = lastWrite("missing")
+    m.push("monitor_touch", "dashboard", 2, row)
+    local fx, fy = lastWrite("forget turtle")
+    m.push("monitor_touch", "dashboard", fx + 1, fy)
+    local stored = assert(load("return " .. m.files["ssot.state"], "=ssot", "t", {}))()
+    equal(stored.value.poses[1], nil)
+    equal(stored.value.poses[2].x, 2)
+    equal(stored.value.moves[2].to.x, 1)
+    assert(table.concat(m.output, "\n"):find("Forgot turtle #1", 1, true), "forget was not confirmed")
+  end)
 end
