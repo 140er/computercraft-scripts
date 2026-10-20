@@ -67,7 +67,10 @@ where it involves the world, in gate B.
   realistic content (map chunks, journals, fleet records), and once with the
   limit read from `fs.getCapacity` on a larger disk. A failed save recovers.
   At the real 1 MB limit, lose cold-storage peers mid-run: data re-replicates,
-  and unreachable cells stay unknown, never free.
+  and unreachable cells stay unknown, never free. Hit the storage warning at
+  1 MB, decline forgetting, enroll a turtle on the panel and check the data
+  moves to it. Then pick `forget-old` and check that exactly the previewed data
+  goes, and nothing else.
 - Event loss: a rednet burst during a save and during an HTTP call. No request
   is dropped and the timer still fires.
 - Faults: a commit lost after a real move, the GPS host down, an ender modem

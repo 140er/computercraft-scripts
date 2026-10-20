@@ -64,6 +64,36 @@ Cold storage on peers, built on top of that foundation:
 - Unreachable cold data counts as unknown, never as free. Turtles route
   conservatively around it.
 
+### No silent forgetting
+
+The server never forgets data on its own. The local LRU cache only drops
+copies that still live on peers.
+
+Storage policy, one setting per server, on the panel and in dev mode:
+
+| Policy | Behavior |
+| --- | --- |
+| `ask` (default) | Ask the player when space runs low. |
+| `expand` | Use cold-storage peers only. Never forget. |
+| `forget-old` | Evict the oldest data to unknown, with an optional age threshold. |
+| `hybrid` | Peers first. Forget only when the peers are full too. |
+
+Capacity flow:
+
+- The server tracks total and used space across its own disk and every peer.
+- At a warning threshold (default 80%), the panel and the AR glasses ask:
+  "Storage almost full: add N turtles as storage, or allow forgetting data
+  older than X?" N is estimated from the current growth rate.
+- Enrolling a turtle as storage is one click on the panel, after a
+  reachability check.
+- Until the player answers, new map data is held compressed and writes pause
+  gracefully. Nothing is lost and nothing crashes. Miners keep working on their
+  local journal.
+
+The panel has a storage view: each peer's capacity, use and reachability, what
+each one holds, where `forget` would apply, and a preview of exactly what would
+be forgotten.
+
 ## H5: dead turtles
 
 - Live recovery from the move journal, without a reboot.
