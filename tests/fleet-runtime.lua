@@ -91,7 +91,7 @@ if id == 0 then
   end
   for peer = 1, 3 do
     local row = command(peer, "refresh")
-    assert(row.revision == 0 and row.fuelLow == 200 and row.offlineAutonomy == false)
+    assert(row.revision == 0 and row.fuelLow == 200 and row.offlineAutonomy == true)
   end
   command(1, "report", { frame = "abs", x = 0, conf = "certain" })
   command(2, "report", { frame = "abs", x = 8, conf = "certain" })

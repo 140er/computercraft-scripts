@@ -11,7 +11,7 @@ M.keys = {
 }
 
 local defaults = {
-  offlineAutonomy = false,
+  offlineAutonomy = true,
   checkInEveryMs = 60000,
   leaseMs = 900000,
   returnMarginMs = 120000,

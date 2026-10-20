@@ -11,7 +11,7 @@ local client={call=function(op,body)
 end}
 local dev=env.dofile("wh2-dev.lua").open({client=client,screen={}})
 dev.tick()
-assert(dev.effective.autoCharge==false and requests[1].body.field=="defaults")
+assert(dev.effective.autoCharge==true and requests[1].body.field=="defaults")
 assert(dev.set("autoCharge",true))
 assert(dev.set("fuelLow",150))
 dev.tick() dev.tick()

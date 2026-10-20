@@ -78,7 +78,12 @@ test("registry contains every approved setting",function()
   end
   assert(next(names)==nil and count==95)
   local d=F.defaults()
-  assert(d.enabled==false and d.mining==false and d.mesh==true and d.returnHome==true)
+  assert(d.enabled==true and d.navigation==true and d.mining==true and d.warehouse==true)
+  assert(d.sorting==true and d.smelting==true and d.crafting==true and d.forestry==true)
+  assert(d.farming==true and d.building==true and d.lavaCollection==true and d.following==true)
+  assert(d.autoCharge==true and d.autoDropoff==true and d.traffic==true and d.offlineAutonomy==true)
+  assert(d.compactInventory==false and d.filteredTrash==false and d.stuckSkip==false)
+  assert(d.mesh==true and d.returnHome==true)
   assert(d.fuelLow==200 and d.fuelTarget==2000 and d.fullnessHigh==0.875)
   assert(d.branchLength==64 and d.reach==96 and d.navMaxCells==2048 and d.navBatch==32)
   assert(d.roomIntervalMs==5000 and d.wiredIntervalMs==3000)
@@ -138,7 +143,7 @@ test("settings inherit per key and preserve explicit false",function()
   assert(result.ok and result.effective.fuelTarget==5000 and result.effective.autoCharge==true)
   assert(result.effective.dropoffId=="mine-drop" and s.wh2.fleet.settings.computers["17"]==nil)
   result=patch(s,{unset={"fuelTarget","autoCharge","dropoffId"}})
-  assert(result.ok and result.effective.fuelTarget==2000 and result.effective.autoCharge==false)
+  assert(result.ok and result.effective.fuelTarget==2000 and result.effective.autoCharge==true)
   assert(result.effective.dropoffId==false and result.revision==5)
 end)
 
@@ -397,7 +402,7 @@ test("disabled requests and reads preserve absent subtrees",function()
   local result=call(s,4,"wh2-get",{topic="fleet"})
   assert(result.ok and result.revision==0 and #result.records==0 and s.wh2==nil)
   result=call(s,4,"wh2-get",{topic="settings"})
-  assert(result.ok and result.records[1].effective.enabled==false and s.wh2==nil)
+  assert(result.ok and result.records[1].effective.enabled==true and s.wh2==nil)
   assert(F.valid(nil,pose))
   s=state()
   local layout,wizard,craft=s.wh2.layout,s.wh2.wizard,s.wh2.craft
@@ -549,9 +554,9 @@ end)
 
 test("global controls exclude every role and computer override",function()
   local s=state()
-  assert(patch(s,{scope="role",role="other",set={autoCharge=true}}).ok)
-  assert(call(s,19,"wh2-get",{topic="settings"}).records[1].effective.autoCharge==true)
-  assert(call(s,19,"wh2-get",{topic="settings",field="defaults"}).records[1].effective.autoCharge==false)
+  assert(patch(s,{scope="role",role="other",set={autoCharge=false}}).ok)
+  assert(call(s,19,"wh2-get",{topic="settings"}).records[1].effective.autoCharge==false)
+  assert(call(s,19,"wh2-get",{topic="settings",field="defaults"}).records[1].effective.autoCharge==true)
   assert(patch(s,{set={autoCharge=false}}).effective.autoCharge==false)
 end)
 
@@ -641,9 +646,12 @@ end)
 test("B1 and B2 settings enforce ranges and effective combinations",function()
   local s=state()
   local defaults=F.defaults()
-  for _,key in ipairs({"offlineAutonomy","compactInventory","filteredTrash","unbreakableDetour","avoidFluids",
-    "containFluids","fallingRetry","blockedRetry","rerouteBlocked","reanchor","stuckBackoff","stuckSkip"}) do
-    assert(defaults[key]==false)
+  for _,key in ipairs({"offlineAutonomy","unbreakableDetour","avoidFluids","containFluids","fallingRetry",
+    "blockedRetry","rerouteBlocked","reanchor","stuckBackoff"}) do
+    assert(defaults[key]==true, key)
+  end
+  for _,key in ipairs({"compactInventory","filteredTrash","stuckSkip"}) do
+    assert(defaults[key]==false, key)
   end
   for _,values in ipairs({
     {leaseMs=59999},{leaseMs=3600001},{checkInEveryMs=999},{returnMarginMs=999},
