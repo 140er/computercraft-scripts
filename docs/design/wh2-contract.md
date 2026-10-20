@@ -4,17 +4,17 @@ This is the shared reference for the hardening track, fleet, wizard, layout, and
 
 H4 and miner offline autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam). The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md), and its P0 PR freezes the implementable shapes in `docs/design/h4-offline-contract.md`. Where those shapes and the notes below differ, the plan wins. The H1+H2 MAC uses ccryptolib's keyed BLAKE3, and the update manifest is signed with Ed25519. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
 
-## Ownership and coordinates (#46, #49, #56)
+## Ownership and coordinates (#46, #49, #53, #56)
 
 The server's sole SSOT dispatcher owns durable shared state. New modules use its serialized validate, replay, mutate, save, and reply transaction. They do not write separate shared state files or send replies themselves. W1 requires H4a through H4c's storage backend before adding wh2 state.
 
 ```lua
 wh2 = {
 	schema = 1,
-	fleet = { v = 1, revision = 0, records = {}, settings = {} },
-	layout = { v = 1, revision = 0, locations = {}, rooms = {}, slots = {}, classDefaults = {} },
+	fleet = { v = 1, revision = 0, records = {}, settings = { v = 1, revision = 0, global = {}, roles = {}, computers = {} } },
+	layout = { v = 1, revision = 0, locations = {}, rooms = {}, slots = {}, classDefaults = {}, uploads = {} },
 	wizard = { v = 1, revision = 0, classes = {}, questions = {} },
-	craft = { v = 1, revision = 0, jobs = {}, queries = {} },
+	craft = { v = 1, revision = 0, jobs = {}, queries = {}, planUploads = {} },
 }
 wh2Config = { enabled = false, operators = { ["4"] = true }, recipeHubId = 5 }
 pos = {
@@ -56,7 +56,7 @@ There is no general false-means-unknown rule. An omitted key is legal only where
 | Behavior flags, capabilities, `scanComplete`, `localCopy`, `holdsOfflineLease`, `yAbs`, `pinned`, `renew` | Disabled, absent capability, incomplete scan, or the named negative boolean fact. `yAbs=false` means relative height. |
 | Non-turtle `turtleId`, `fuel`, `inventory` | Not applicable. A turtle requires its numeric `turtleId` and fuel and inventory tables. A turtle's unmeasured `fuel.level`, `fuel.limit`, or inventory measurement is false and means unknown, never zero. |
 | `pose`, `contents`, `frame.toAbs` | Unknown position, unobserved contents, or an unanchored frame. A known empty inventory uses `{}`. |
-| `currentJob`, `error`, peer `why`, `category`, `recipeId`, `nbt`, unallocated `orderKey` and `line`, job `owner`, `token`, `epoch`, `overdueAt`, optional site names and lock IDs | No job, no error, no ineligibility reason, no assigned category or recipe, no fingerprint requirement, no reservation or claim, no overdue time, or no site or lock. Claim fields are all present together or all false. An absent fingerprint requirement never proves component equality. |
+| `currentJob`, `error`, peer `why`, `category`, `recipeId`, `nbt`, unallocated `orderKey` and `line`, question `draft`, job `owner`, `token`, `epoch`, `overdueAt`, optional site names and lock IDs | No job, no error, no ineligibility reason, no assigned category or recipe, no fingerprint requirement, no reservation, draft, or claim, no overdue time, or no site or lock. Claim fields are all present together or all false. An absent fingerprint requirement never proves component equality. |
 | `dropoffId`, `chargerId`, `parkingId` | Automatic location selection. It does not disable the behavior. |
 | `storagePolicy.forgetOlderThanMs` | No age cutoff. It grants no consent to forget in `ask` or `expand` mode. |
 | `leaseId` on issue, a renewed `lease` in a check-in reply | No previous lease, or no renewal granted. |
@@ -98,8 +98,8 @@ Fleet owns one registry of behavior settings. Each registry entry supplies a typ
 
 ```lua
 settings = {
-	revision = 4,
-	defaults = {
+	v = 1, revision = 4,
+	global = {
 		enabled = false, navigation = false, mining = false,
 		warehouse = false, sorting = false, smelting = false, crafting = false,
 		autoCharge = false, autoDropoff = false, traffic = false,
@@ -124,22 +124,41 @@ settings = {
 		navMaxCells = 2048, navMaxSearch = 2048, navBatch = 32,
 		trafficWaits = 80, trafficWaitMs = 250, routeRetries = 5,
 		trafficRouteRetries = 80, trailLength = 64, rpcTimeoutMs = 5000,
+		offlineAutonomy = false, checkInEveryMs = 60000, leaseMs = 900000,
+		returnMarginMs = 120000, journalMaxBytes = 90000, journalMaxEvents = 1024,
+		compactInventory = false, filteredTrash = false, trashItems = {}, fuelReturnMargin = 120,
+		unbreakableDetour = false, detourMaxCells = 64,
+		avoidFluids = false, containFluids = false, maxFluidBlocks = 16,
+		fallingRetry = false, fallingMaxRetries = 8,
+		blockedRetry = false, blockedMaxRetries = 3, rerouteBlocked = false, rerouteMaxCells = 128,
+		reanchor = false, reanchorMaxAttempts = 3,
+		stuckBackoff = false, stuckMaxAttempts = 3, stuckSkip = false,
+		storagePolicy = { v = 1, mode = "ask", warnAt = 0.8, forgetOlderThanMs = false, controlReserve = 65536 },
 	},
-	overrides = { ["17"] = { autoCharge = true, fuelTarget = 4000 } },
+	roles = { miner = { returnHome = true } },
+	computers = { ["17"] = { autoCharge = true, fuelTarget = 4000 } },
 }
 settingsPatch = {
-	scope = "turtle", computerId = 17, baseRevision = 4,
+	scope = "computer", computerId = 17, baseRevision = 4,
 	set = { autoDropoff = false }, unset = { "fuelTarget" },
 }
+globalPatch = { scope = "global", baseRevision = 4, set = { autoCharge = false }, unset = {} }
+rolePatch = { scope = "role", role = "miner", baseRevision = 4, set = { checkInEveryMs = 45000 }, unset = {} }
 ```
 
-Effective settings are registry defaults, then global `defaults`, then the string-keyed computer override. An override can contain every registry key. `false` is an explicit value; `unset` restores inheritance. Map and array values replace a whole value rather than merging their contents. Unknown keys and invalid combinations fail the entire patch. The server uses `baseRevision` to reject stale edits and increments the revision once per accepted patch.
+Effective settings apply registry defaults, then `settings.global`, then `settings.roles[role]`, then `settings.computers[decimal(computerId)]`. Thus global < role < computer. The role comes from the enrolled configuration, not an untrusted telemetry label. `scope="global"` forbids role and computerId. `scope="role"` requires a known role and forbids computerId. `scope="computer"` requires a numeric CC computer ID and forbids role. These are the only scope values.
+
+`os.getComputerID()` supplies an integer number, 0 through 2147483647. The wire keeps `computerId=17` numeric. The persisted `computers` map deliberately uses decimal string keys without leading zeros, so every write and lookup converts 17 to `"17"` once. The same serialization rule applies to `wh2Config.operators`. It does not change numeric IDs in plan peer and holder records.
+
+`storagePolicy` is global-only and controls the authority's ledger. Role or computer patches containing it fail. Other behavior keys may appear at every scope. `false` is an explicit value with the field meaning above. `unset` removes the value at the named scope and restores inheritance. Map and array values replace a whole value. Unknown keys and invalid effective combinations fail the entire patch, including a global patch that would invalidate a computer override. The server checks `baseRevision` and increments the revision once per accepted patch.
 
 Fuel counts and retained counts are nonnegative integers. `fuelTarget` is 1 through 100000 and exceeds `fuelLow`. `minFreeSlots` is 0 through 16. `fullnessHigh` is greater than 0 and at most 1. Other durations and counts are positive integers. `miningMode` is `thorough` or `fast`. Target and keep maps contain namespaced IDs mapped to true. `extraSmelt`, `noSmelt`, and fuel preferences are arrays of item IDs. `leave` maps item IDs to retained counts. Explicit class answers override imported smelting preferences. Disabling a behavior still prevents its route from executing. Existing module limits still apply, including mining geometry and navigation budgets.
 
+W1 registers every B1 and B2 key shown above before those PRs read it. `leaseMs` is 60000 through 3600000. `checkInEveryMs` is at least 1000 and less than `leaseMs-returnMarginMs`. `returnMarginMs` is at least 1000 and leaves time for check-in. `journalMaxBytes` is a ceiling of 4096 through 262144 bytes, not an allocation. The actual journal budget is the smaller runtime-derived allowance. `journalMaxEvents` is 1 through 4096. Retry and anchor attempt limits are 1 through 32. Detour and reroute cell limits are 1 through `navMaxCells`. `maxFluidBlocks` is 1 through 64, and `trashItems` has at most 64 namespaced IDs. `fuelReturnMargin` is 0 through 100000 fuel units. `storagePolicy.warnAt` is greater than 0 and at most 1. Its age cutoff is false or a positive millisecond duration. `controlReserve` is at least 65536 bytes and must fit the measured disk. A disabled problem handler waits or returns safely. It cannot bypass confidence, lease, corridor, or journal limits.
+
 Auto-charge starts at `fuelLow` or when the known service and return route plus the role's fuel margin requires more fuel. Auto drop-off starts when free slots fall below `minFreeSlots` or fullness reaches `fullnessHigh`. A lower `fuelLow` cannot authorize movement without enough fuel for the known return route. With a service toggle off, the turtle stops or returns safely when necessary. It does not silently run that service. `mining=false` interrupts extraction before its next physical action and retains unfinished work.
 
-The server persists settings in `s.wh2.fleet.settings` before acknowledging them. It sends a change hint to online clients. The turtle's existing receiver queues a settings fetch through one outbound SSOT worker. A known newer revision pauses new autonomous actions until the fetch completes. Heartbeats also check the revision at least every 3000 ms. A turtle saves its effective settings and revision in `wh2-settings.cache` through `atomic.lua`, applies them before its next unstarted action, then reports `appliedSettingsRevision`. An in-progress native turtle call completes first. Offline turtles fetch before resuming work.
+The server persists settings in `s.wh2.fleet.settings` before acknowledging them. It sends a change hint to online clients. The turtle's existing receiver queues a settings fetch through one outbound SSOT worker. A known newer revision pauses new autonomous actions until the fetch completes. Heartbeats also check the revision at least every 3000 ms. A turtle saves its effective settings and revision in `wh2-settings.cache` through `atomic.lua`, applies them before its next unstarted action, then reports `appliedSettingsRevision`. During a cooperative live change, an in-progress native call completes first. A chunk unload or power loss may interrupt that call and leave its outcome unknown. On boot, N1 resolves the physical intent before work resumes. Offline turtles fetch settings before resuming work.
 
 Pairing keys, server identity, dimension, calibrated pose, and physical journals remain local setup. Both the server's `ssot.cfg.wh2.enabled` and the turtle's local `wh2.enabled` default off. A remote behavior setting cannot bypass those prerequisites or clear ESTOP. After bootstrap opt-in, reads and authorized management requests remain available while behavior flags are off. Existing configurations seed settings only through an explicit opt-in import. The adapter maps `mineMinutes` to `tripSeconds` by multiplying by 60, so 15 becomes 900. `sessionLen` is already seconds and maps to `sessionSeconds` unchanged. Legacy room and wired intervals are seconds and multiply by 1000 for `roomIntervalMs` and `wiredIntervalMs`, preserving defaults 5000 and 3000. `chargeTimeoutMs` stays milliseconds. `roomFuelLow` is fuel units. `cook` maps to `smelting`. Normal startup does not overwrite shared settings with old `miner.cfg`, `room.cfg`, or `sorter.cfg` values.
 
@@ -192,7 +211,7 @@ Room bounds are inclusive. SSOT chunk observations remain the source for observe
 
 Access paths contain adjacent, observed air cells and end at the location's standing cell. Layout validates paths against current observations before allocation or placement. `reserved` prevents building on access paths, entrances, parking cells, charger cells, and machine access cells. Reservation kinds are `access`, `entrance`, `parking`, `charge`, or `machine`. These are layout reservations. Transient movement reservations remain exclusively in `s.moves`, with their existing tokens and restart behavior.
 
-## Storage and item classes (#51, #56)
+## Storage and item classes (#51, #52, #56)
 
 One storage slot describes one physical inventory and its placement intent. `contents` uses the inventory's native numbered slots.
 
@@ -218,7 +237,13 @@ itemClass = {
 }
 unknownQuestion = {
 	v = 1, id = "item:example:raw_tin", item = "example:raw_tin", state = "open",
-	firstSeen = 1792500000000, sampleLocationId = "warehouse-in",
+	revision = 1, firstSeen = 1792500000000, sampleLocationId = "warehouse-in", draft = false,
+}
+answeringQuestion = {
+	v = 1, id = "item:example:raw_tin", item = "example:raw_tin", state = "answering",
+	revision = 2, firstSeen = 1792500000000, sampleLocationId = "warehouse-in",
+	draft = { v = 1, editor = 4, revision = 1, step = "recipe", updatedAt = 1792500001000,
+		answers = { class = "ores", route = "blast", storeCategory = "ingots" }, text = "example:tin" },
 }
 ```
 
@@ -232,9 +257,19 @@ Layout owns exact-ID defaults in `s.wh2.layout.classDefaults`, with `source="lay
 
 Question states are exactly `open`, `answering`, or `resolved`. Only a validated answer can move a question to resolved. A draft never enters the effective class table.
 
+### Wizard drafts and boot redisplay (#51, #56)
+
+The question owns its persisted draft, including the editor, draft revision, current step, accepted partial fields, and current text. Steps are `class`, `route`, `category`, `recipe`, or `review`. `open` requires `draft=false`. `answering` requires a valid draft. `resolved` requires a valid class row and `draft=false`. A draft may omit unanswered fields, but every supplied field must pass its field validator. Each draft is at most 4096 encoded bytes.
+
+The board saves each accepted input change locally in `wh2-wizard.cache` before showing the changed text or next step. It queues `wh2-class` action `draft` through the one RPC worker. The server saves the draft and question revision before acknowledging. An editor's local cache holds the unacknowledged change through a reboot. A second editor must refresh and explicitly take over the current draft using its revisions. A stale editor cannot overwrite it.
+
+On every panel or hub boot, the wizard reads every page of `wh2-get` topic `questions`. It redisplays all open and answering questions, including each saved step and partial answer. It compares the local draft and pending outbox result with the server revisions before uploading. A conflict preserves the local text for review and does not replace the server draft. A finished answer uses action `resolve` with `questionId`, `baseRevision`, `draftRevision`, and the complete class `value`. One transaction saves the class answer, resolves the question, and removes its draft. A discard resets it to open. Repeated unknown reports still coalesce by item ID and do not reset a draft or reopen an answered question.
+
 `wh2-client.lookupClass(itemId)` returns the effective row and class revision through `wh2-get`, or a row with `route="unknown"` when no definition exists. `reportUnknown(itemId, locationId)` queues `wh2-unknown`. A class change hint or a changed revision invalidates cached rows. Before wizard is installed, defaults remain readable and unknown reporting returns `unavailable`; the worker retains the item for a later report. Layout callers use these methods and do not import the wizard module.
 
 Every transfer takes the existing physical site lock. Existing warehouse stock reservations remain the authority for pickup quantities. Craft reserves ingredients through those orders; it does not subtract stock in a second ledger. Layout refuses to move or remove locations used by an active lock or job.
+
+Before craft lands, layout extends warehouse reservation lines with `nbt=false` for an item-only requirement or the exact verified component fingerprint string, at most 128 bytes. Availability, reservations, and pickup validation use item and fingerprint together when the requirement is present. Item-only stock totals cannot allocate that line. The worker rechecks the fingerprint against the observed source slot before moving it. An unsupported fingerprint remains an explicit unresolved requirement.
 
 ## Recipe graph and production (#52, #53, #56)
 
@@ -253,6 +288,7 @@ alternativeIngredient = { count = 1, items = { "minecraft:coal", "minecraft:char
 craftJob = {
 	v = 1, id = "craft:17:9", key = "board:17:request9", requestedBy = 17, revision = 2,
 	output = { item = "minecraft:red_stained_glass_pane", count = 32 },
+	recipeChoices = {}, generation = "hub:5:boot7:catalog1",
 	outputLocationId = "warehouse-out", state = "blocked", owner = false,
 	token = false, epoch = false, currentStep = 1,
 	steps = {
@@ -264,33 +300,60 @@ craftJob = {
 			} },
 	},
 	missing = { { item = "minecraft:red_dye", count = 1 } },
+	unresolved = {}, progressSeq = 0,
 	produced = 0, delivered = 0, error = false,
 }
 craftCreate = {
 	action = "create", key = "board:17:request9",
 	output = { item = "minecraft:red_stained_glass_pane", count = 32 },
 	outputLocationId = "warehouse-out",
+	recipeChoices = {},
 }
 craftProgress = {
 	action = "progress", jobId = "craft:17:9", token = "claim:17:9", epoch = 3,
-	stepId = 1, state = "done",
-	observed = { locationId = "furnace-1", item = "minecraft:glass", count = 6, stockRevision = 8 },
+	eventId = "cp:17:23", seq = 23, stepId = 1, state = "done",
+	observed = { locationId = "furnace-1", item = "minecraft:glass", count = 6, delivered = 0, stockRevision = 8 },
 }
 ```
 
 An ingredient has `count` and exactly one of `item`, `tag`, or `items`. Tags have no leading `#`. `more=true` means an API alternatives list is incomplete. `resolveTag` returns complete item-tag membership. A capped alternatives list cannot prove an unlisted substitute is invalid or available. The planner records each concrete choice and checks actual stock before reservation.
 
+### Recipe and ingredient choice (#52)
+
+Create may supply `recipeChoices`, a map of output item IDs to recipe IDs, for the root and dependencies. The job retains it. A selected recipe must produce that exact item and required components, have an installed adapter, and have positive guaranteed output. An invalid explicit choice blocks with its reason. Without a choice, the planner sorts eligible recipe IDs by byte order and chooses the first. If none qualifies, it records the rejected candidate reasons in recipe-ID order. It does not switch recipes after a stock shortage or cycle. The player can submit a different choice in a new request. Recipe IDs, tag membership, and stock observations pin the provider generation and stock revisions in the staged plan. Dependency traversal follows input-array order, with ready steps ordered by recipe ID then input index. The same choices, definitions, and stock snapshot produce the same graph.
+
+After computing batches, a tag edge uses complete `resolveTag` membership. An `items` edge uses its listed members. Among valid members with enough unreserved matching stock for the whole edge, the lowest item ID wins. If none has enough, the lowest ID with an eligible producing recipe wins and its shortfall becomes a dependency. If none can be produced, the lowest listed ID wins and its exact shortage enters `missing`. This rule selects one concrete member per edge. It does not silently split that edge across substitutes. Ties between matching fingerprints use fingerprint byte order. A `more=true` edge may choose a listed valid member. If no listed member suffices, incomplete membership yields `alternatives_incomplete`, without claiming that all substitutes are missing. An empty complete tag yields `empty_tag`. The selected item, fingerprint, quantity, and membership generation stay in the plan and are revalidated before reservation.
+
 Recipe kinds use `type`, not the human `machine` text. `minecraft:crafting` plus a numeric `pattern` is shaped; the same type without it is shapeless. Pattern keys are turtle slots 1, 2, 3, 5, 6, 7, 9, 10, and 11. Other turtle slots must be empty for crafting. Cooking kinds are `minecraft:smelting`, `minecraft:blasting`, and `minecraft:smoking`. Other types retain their source IDs and require a matching installed machine adapter. An unsupported adapter produces a blocked step with its type, never a successful craft.
 
 Optional `fluids`, `heat`, `time`, `steps`, `loops`, and `transitional` retain the API shapes and omissions. Fluid amounts are millibuckets and time is ticks. Sequenced assembly keeps ordered steps and repeats them `loops` times. Step addition counts multiply by loops; the transitional item is not an addition. An API step has `type`, `machine`, and `inputs`, with optional `outputs` and `fluids`. It has no invented `heat`, `time`, `pattern`, or `id` fields. Unknown heat, tools, energy costs, component requirements, or container returns need an adapter or a blocked reason.
 
-Production steps use `ceil(required / guaranteedOutputCount)` batches, share surplus within the plan, and consume each dependency once. Outputs with chance below 1 cannot satisfy a guaranteed count. Cycles terminate with an explicit unresolved requirement. A step's `needs` references earlier step IDs. `ingredients` records chosen item fingerprints and per-batch counts. `orderKey` and `line` reference existing warehouse reservation lines, or are false before allocation. A component-sensitive ingredient needs verified matching stock; existing item-only totals cannot prove that match. States are `pending`, `running`, `done`, `blocked`, or `uncertain`. Job states are `planning`, `planned`, `running`, `blocked`, `done`, `cancelled`, or `uncertain`. A missing ingredient blocks execution and reports its exact count.
+`guaranteedOutputCount` sums only outputs of the requested item and components whose chance is 1. Before division, the planner requires it to be greater than zero. A zero count yields `unresolved` reason `chance_only` and no batches or executable step. Chance-only outputs cannot satisfy a guaranteed request. For a positive count, batches are `ceil(required / guaranteedOutputCount)`. The plan shares surplus and consumes each dependency once. Cycles terminate with reason `cycle` and the ordered item and recipe path. `missing` contains only exact item shortages. `unresolved` contains `{code, item, recipeId, path, detail}` records. Codes are `chance_only`, `cycle`, `adapter_unsupported`, `components_unresolved`, `alternatives_incomplete`, `empty_tag`, or `plan_limit`. A path is a dense array of `{kind="item" or "recipe", id}` entries in traversal order. No unresolved requirement can produce a planned or done job.
+
+A step's `needs` references earlier step IDs. `ingredients` records chosen item fingerprints and per-batch counts. `orderKey` and `line` reference the existing warehouse ledger, or are both false before allocation. Layout mints order keys as `cw:<computerId>:<durableCounter>`, within the warehouse's 64-byte restricted alphabet. It stores the job and step references in the order instead of appending a suffix to a possibly 64-byte job ID. Fingerprint-sensitive lines require the warehouse extension above. States are `pending`, `running`, `done`, `blocked`, or `uncertain`. Job states are `planning`, `planned`, `running`, `blocked`, `done`, `cancelled`, or `uncertain`. A missing ingredient blocks execution and reports its exact count.
 
 Validators enforce job and step states together. A `planning` job has no executable or running step and no worker claim. A `planned` job has a complete graph with no running step. A `running` step requires a `running` job and a current claim. Blocked or uncertain work starts no new physical action. A `done` job has no missing or unresolved requirements, all required steps done, and the requested count observed in the output inventory. It cannot retain a running step. Claim `owner`, `token`, and `epoch` are all false before allocation, or all valid together. Completed and cancelled jobs fence their claim and preserve observed quantities.
 
-Create returns a `planning` job. Only the configured hub planner publishes its plan with `wh2-craft` action `plan`, carrying `jobId`, `baseRevision`, `generation`, `offset`, `steps`, `missing`, and `final`. Step offsets start at 0 and count accepted steps. The server stages one plan per job and commits only a complete validated graph. Plans have at most 128 steps and use the same byte limits as other uploads. A changed job revision or provider generation rejects the staged plan. Physical workers claim only a complete plan. Fuel and machine operating inputs are explicit requirements when an adapter knows them.
+Create returns a `planning` job. Only the configured hub planner publishes its plan with `wh2-craft` action `plan`, carrying `jobId`, `baseRevision`, `generation`, `offset`, `steps`, `missing`, `unresolved`, and `final`. Step offsets start at 0 and count accepted steps. Craft owns `s.wh2.craft.planUploads`, keyed by job ID and upload generation. It shares no mutable stage with layout or wizard. It commits only a complete validated graph. Plans have at most 128 steps and 65536 encoded bytes. A step-count or byte limit yields `plan_limit` in `unresolved`, never a truncated plan. A changed job revision or provider generation rejects the stage. Physical workers claim only a complete plan with no missing or unresolved requirements. Fuel and machine operating inputs are explicit requirements when an adapter knows them.
 
 Creating a craft uses a caller key that remains stable across retries. Jobs retain ownership across restarts. Workers journal physical actions through the existing navigation and warehouse boundaries. An uncertain transfer, smelt, or craft requires inventory reconciliation before retry. `produced` and `delivered` count observed output, not requested output or acknowledged commands. Completion requires the requested count in the output inventory. Batch surplus stays recorded stock.
+
+### Craft progress and warehouse capacity (#52, #53)
+
+Before sending progress, the worker journals a stable `eventId`, the next job sequence, step ID, claim, and cumulative observed counts. Event IDs use `cp:<computerId>:<durableCounter>`, within 64 bytes, without appending to a job ID. A new transport counter does not create a new progress event. The server keys acceptance on job ID and sequence and stores the exact event identity and result with the updated job. Identical repeats return that result. Changed duplicates, reused event IDs, and sequence gaps fail. This cursor outlives the eight-request transport cache and survives owner recovery. The worker saves the acknowledged sequence locally before clearing its pending event.
+
+`observed.count` is that step's cumulative verified output, including output already moved under the journal. `observed.delivered` is the cumulative portion verified in the final output inventory. They are totals, not increments. The server replaces the step's totals after validation and derives job totals once. Only steps producing the requested final item contribute to job `produced`. The glass progress sample does not add six panes. `delivered` counts only final output observations. A second event with the same counts adds nothing. A decrease or an uncertain inventory change requires reconciliation. A reboot during a native call resolves its journal before publishing a new observation.
+
+Layout raises the existing warehouse count limits before craft uses them. These bounds include metadata and fingerprints in compact encoded bytes.
+
+| Collection | Count ceiling | Encoded byte ceiling per active generation |
+| --- | --- | --- |
+| Warehouse sites | 256 sites, raised from 32 | 65536 total |
+| Warehouse orders | 256 orders, raised from 32 | 98304 total |
+| Lines in one order | 64 lines, raised from 8 | 8192 per order, within the order total |
+| Selected craft plans and jobs | 128 steps per plan | 65536 per plan and 98304 across jobs and query fragments |
+
+One plan can have 128 steps without requiring 128 simultaneous orders. Ready steps allocate from the same warehouse ledger in topological order and defer when its active byte or order limit is reached. Completed orders retain a bounded idempotency receipt before their bulky lines are reclaimed. Unresolved physical work is never reclaimed. These count ceilings do not preallocate space or override the profile's shared byte budget. Aggregate admission includes layout contents and in-progress uploads, both state copies, and the control reserve. It returns `capacity` before mutation if the combined state cannot fit. The hub budget below is the outer limit.
 
 ### Hub limits and recipe service (#54, #56)
 
@@ -407,7 +470,7 @@ Boot restores that pending envelope before minting another counter, boot-depende
 
 Operation names stay within 16 bytes. Requests and replies stay within 8192 compact serialized bytes, including envelope and MAC, and existing `ssot.bounded` limits. Canonical signed bytes also have an 8192-byte cap before hashing. Oversized records use smaller pages. Ordinary pages target 4096 bytes with at most 64 records. Larger records use explicit subresource pages, never truncated facts.
 
-`wh2-get` starts with cursor 0. Later pages pin `revision`; cursor 0 in a reply means complete. Records sort by stable ID. A changed revision returns `stale_revision` and restarts the read. Mutation errors use `ok=false`, `code`, and a readable `error`. Codes are `invalid`, `forbidden`, `disabled`, `unavailable`, `stale_revision`, `busy`, `capacity`, `blocked`, `too_large`, `recipe_unavailable`, `incompatible`, `overdue`, or `reconcile_required`. Invalid authentication retains silent rejection.
+`wh2-get` starts with cursor 0. Later pages pin `revision`; cursor 0 in a reply means complete. Records sort by stable ID. A changed revision returns `stale_revision` and restarts the read. Mutation errors use `ok=false`, `code`, and a readable `error`. Codes are `invalid`, `forbidden`, `disabled`, `unavailable`, `stale_revision`, `busy`, `capacity`, `blocked`, `too_large`, `recipe_unavailable`, `incompatible`, `overdue`, `upload_expired`, or `reconcile_required`. Invalid authentication retains silent rejection.
 
 The server signs one change hint per paired recipient with that recipient's hint key. A session-local increasing hint counter rejects old hints. The hint only schedules an authenticated read. It never applies settings or causes movement. Clients validate its identity, session, MAC, and sequence and coalesce hints. Lost hints recover through heartbeat polling.
 
@@ -417,9 +480,9 @@ The operation payloads are fixed by this table. Request fields live in `body`. S
 | --- | --- | --- |
 | `wh2-get` | `topic`, `cursor`, optional pinned `revision`, optional record `id`, optional subresource `field` and `pathId` | `revision`, `records`, `cursor`. Topics `fleet`, `settings`, `locations`, `rooms`, `slots`, `classes`, `questions`, and `crafts` route to their subtree owner. Classes use the composed view above. |
 | `wh2-report` | `record`, `appliedSettingsRevision` | Server-stamped own record, `settingsRevision`. Fleet. |
-| `wh2-settings` | The settings patch above | `revision`, effective settings for the target. Fleet. |
-| `wh2-layout` | `baseRevision`, `kind`, `id`, and one of `value`, `remove=true`, or the upload fields below | `revision`, accepted record. Kinds `location`, `room`, `slot`, `classDefault`. Layout. Large scans use existing `scan`; paths and contents use bounded subresource pages. |
-| `wh2-class` | `baseRevision`, `item`, `value` | `revision`, class row, resolved question. Wizard. |
+| `wh2-settings` | The global, role, or computer patch above | `revision`, accepted scope, and effective settings for a requested computer. Fleet. |
+| `wh2-layout` | `baseRevision`, `kind`, `id`, and one of `value`, `remove=true`, or the upload fields below. `action="status"` with upload identity reads its durable receipt. | `revision`, accepted record or upload status. Kinds `location`, `room`, `slot`, `classDefault`. Layout. Large scans use existing `scan`; paths and contents use bounded subresource pages. |
+| `wh2-class` | `action` is `draft`, `resolve`, `discard`, or `set`. All use `baseRevision` and `item`. Question edits require `questionId` and `draftRevision`. Draft carries `draft`, resolve or set carries `value`. | `revision`, saved question and draft, or the class row and resolved question. `set` edits a known class without a question. An outstanding question uses `resolve` instead. Wizard. |
 | `wh2-unknown` | `item`, `sampleLocationId` | Existing or new question. A paired worker reports only an observed item. Wizard. |
 | `wh2-recipe` | `action` plus query, ticket, or fragment fields | Actions `query`, `claim`, `publish`, `read`, `advance`, `release`. Replies contain a ticket and pending state, a query, or one fragment. Craft owns queue; hub supplies data. |
 | `wh2-craft` | `action`, `key` for create, `jobId` otherwise, action fields | Actions `create`, `plan`, `claim`, `progress`, `reconcile`, `cancel`. Replies contain the job or a bounded job summary. Craft. |
@@ -431,7 +494,7 @@ Layout subresource messages have these operation fields. Each example's `op` goe
 ```lua
 layoutUpload = {
 	op = "wh2-layout", kind = "room", id = "room:main", field = "accessPaths",
-	pathId = "mine-drop", baseRevision = 3, offset = 0, final = true,
+	uploadId = "layout:4:12", pathId = "mine-drop", baseRevision = 3, offset = 0, final = true,
 	records = {
 		{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
 			x = 9, y = 65, z = 20, h = 1, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
@@ -445,7 +508,13 @@ layoutRead = {
 }
 ```
 
-Room fields are `accessPaths`, `blocked`, and `reserved`. The slot field is `contents`. A path upload identifies one `pathId` and streams poses. Blocked and reserved records have named `key` and `value` fields. Contents records have named `slot` and `stack` fields. Offsets are zero-based counts of accepted records. Replies contain `nextOffset` and the unchanged base revision until `final` commits a new revision. Read cursors follow the ordinary `wh2-get` rule. The server stages one edit of at most 65536 encoded bytes per operator, rejects gaps or changed revisions, and publishes only a validated final record. Staging expires after 30000 ms idle without replacing the current record. These fragments count toward the shared state limit. No partially uploaded room becomes executable.
+### Layout upload ownership and recovery (#53)
+
+Room fields are `accessPaths`, `blocked`, and `reserved`. The slot field is `contents`. A path upload identifies one `pathId` and streams poses. Blocked and reserved records have named `key` and `value` fields. Contents records have named `slot` and `stack` fields. Offsets are zero-based counts of accepted records. Replies contain `nextOffset` and the unchanged base revision until `final` commits a new revision. Read cursors follow the ordinary `wh2-get` rule.
+
+Layout owns its durable `s.wh2.layout.uploads`. A stage key contains the authenticated operator ID, kind, record ID, field, pathId when present, and caller-minted uploadId. `layout:<computerId>:<durableCounter>` IDs are never reused. Each operator may have two separate layout uploads, each at most 65536 encoded bytes and subject to the shared profile budget. A second upload cannot mutate the first stage. Craft's plan stages and wizard drafts live only in their own subtrees. A generic shared mutable `context.stage` is forbidden.
+
+Each accepted fragment and next offset save before ack. A retry at an accepted offset must match its saved bytes and returns the same next offset. Gaps and changed fragments fail. Final validates the complete record against its base revision and atomically publishes it with a durable upload receipt. Concurrent edits to the same record make the later final stale. A stage expires after 30000 UTC milliseconds idle and leaves the current record intact. After a reboot or timeout, the client reads upload status before continuing. Expired IDs return `upload_expired` and cannot restart. The client reads the current revision and begins at offset 0 with a new uploadId. A durable per-operator ID watermark rejects old IDs even after detailed receipts are compacted. An exact transport replay may return its original ack, but cannot revive an expired stage. These stages and receipts count toward the shared byte budget. No partial room becomes executable.
 
 ## Versions and updates (#47, #56)
 
