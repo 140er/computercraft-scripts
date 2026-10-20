@@ -7,7 +7,6 @@ param(
     [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
-# Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
 $OnLinux = $false
 if ($PSVersionTable.PSVersion.Major -ge 6) { $OnLinux = $IsLinux -eq $true }
 if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }

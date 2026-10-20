@@ -58,6 +58,18 @@ return function(test, equal, read, mocks)
     assert(sawMiner and not sawSsot)
   end)
 
+  test("a second dofile returns the same mount and the same reserve", function()
+    local m = mocks.new(false)
+    m.capacity = 1000000
+    local first = m.env.dofile("atomic.lua")
+    local second = m.env.dofile("atomic.lua")
+    assert(first == second)
+    assert(rawget(m.env, "atomicBox") == nil)
+    first.mount("/"):open("pose.control", function(v) return type(v) == "table" end,
+      { class = "control", limit = 32768 })
+    equal(second.mount("/"):reserve(), 32768 + 8192)
+  end)
+
   test("a failed slot write keeps the previous value and the same handle saves the next one", function()
     local function trial(failure)
       local m = mocks.new(false)

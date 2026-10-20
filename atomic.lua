@@ -1,13 +1,9 @@
-local M = {}
+local M = rawget(_ENV, "atomic.lua")
+if type(M) == "table" and type(M.mount) == "function" then return M end
+M = {}
 M.writeMargin = 8192
 M.controlCeiling = 32768
-
--- dofile runs this file again. One disk has one reserve, so both copies share the box.
-local BOX = rawget(_ENV, "atomicBox")
-if type(BOX) ~= "table" then
-  BOX = { mounts = {} }
-  rawset(_ENV, "atomicBox", BOX)
-end
+M.disks = {}
 
 function M.hash(text)
   local h = 5381
@@ -30,15 +26,15 @@ function M.copy(value)
 end
 
 function M.report()
-  return BOX.report
+  return M.failure
 end
 
 local function note(path, class, err)
-  BOX.report = { path = path, class = class, error = err, at = os.epoch("utc") }
+  M.failure = { path = path, class = class, error = err, at = os.epoch("utc") }
 end
 
 local function clearReport()
-  BOX.report = nil
+  M.failure = nil
 end
 
 local function rawText(path)
@@ -98,10 +94,10 @@ local record = {}
 
 function M.mount(root)
   root = root or "/"
-  local found = BOX.mounts[root]
+  local found = M.disks[root]
   if found then return found end
   local self = { root = root, records = {}, controlLimit = 0 }
-  BOX.mounts[root] = self
+  M.disks[root] = self
   return setmetatable(self, { __index = mount })
 end
 
@@ -379,4 +375,5 @@ function M.replaceBytes(path, text, valid)
   return true
 end
 
+rawset(_ENV, "atomic.lua", M)
 return M
