@@ -922,6 +922,7 @@ local function worker()
   draw3D()
   while true do
     local processed = 0
+    local batchUntil = now() + 100
     for _ = 1, 8 do
       local entry = queue[queueHead]
       if not entry then break end
@@ -993,6 +994,7 @@ local function worker()
         screen, touchable = pickScreen()
         draw()
       end
+      if now() >= batchUntil then break end
     end
     if processed > 0 then os.queueEvent("server_space") end
     if queueHead <= queueTail then yieldWork() else os.pullEvent() end

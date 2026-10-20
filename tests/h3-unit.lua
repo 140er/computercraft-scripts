@@ -252,6 +252,36 @@ return function(test, equal, read, mocks)
     assert(delivered >= 2, "worker starved the maintenance coroutine")
   end)
 
+  test("H3 slow saves cannot hold the event pump for a whole watchdog interval", function()
+    local m = fixture()
+    m.env.os.clock = function() return 0 end
+    m.start(source)
+    local find, paused = m.env.peripheral.find, true
+    m.env.peripheral.find = function(kind, filter)
+      if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+      return find(kind, filter)
+    end
+    m.push("peripheral", "view")
+    local events = {}
+    for i = 1, 16 do events[i] = { "rednet_message", 1, { type = "register", kind = "miner", rid = i }, "fleetserver" } end
+    m.burst(events)
+    local serialize, pull = m.env.textutils.serialize, m.env.os.pullEvent
+    local lastYield, largest = m.time, 0
+    m.env.textutils.serialize = function(value, options)
+      if value.bots then m.time = m.time + 1.1 end
+      return serialize(value, options)
+    end
+    m.env.os.pullEvent = function(...)
+      largest = math.max(largest, m.time - lastYield)
+      lastYield = m.time
+      return pull(...)
+    end
+    paused = false
+    m.push("h3_view_ready")
+    for i = 1, 16 do assert(m.reply(i), "slow save lost a queued request") end
+    assert(largest < 7, "individually bounded saves exceeded the native watchdog between event pulls")
+  end)
+
   test("H3 failed HTTP completion releases callers and permits the same cache miss to retry", function()
     local m = fixture()
     local failed, closed = true, 0
