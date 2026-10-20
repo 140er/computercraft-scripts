@@ -1,0 +1,5 @@
+local ok, err = pcall(function() return require("wh2-wizard-gate-runtime").run() end)
+local h = assert(fs.open("sandbox-result.json", "w"))
+h.write(textutils.serializeJSON({ok=false, booted=ok, errors={tostring(err or "wizard driver stopped")}}))
+h.close()
+error(err or "wizard driver stopped", 0)

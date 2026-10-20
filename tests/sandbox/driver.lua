@@ -1,5 +1,6 @@
-local seconds, scenario = ...
+local seconds, scenario, diskLimit = ...
 seconds = assert(tonumber(seconds))
+diskLimit = tonumber(diskLimit) or 4000000
 if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
   local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)
   local h = assert(fs.open("sandbox-result.json","w"))
@@ -25,7 +26,7 @@ local function writeTable(path, value)
 end
 local ok, err = pcall(function()
   assert(config.get("standardsMode") == true, "standardsMode disabled")
-  assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+  assert(fs.getCapacity("/") == diskLimit, "wrong disk limit")
   assert(periphemu.create("left", "modem", 1))
   -- Keep native modem transport. Only its wireless flag is absent in CraftOS-PC.
   local call = peripheral.call

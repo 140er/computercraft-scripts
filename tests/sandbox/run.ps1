@@ -3,7 +3,9 @@ param(
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
     [ValidateSet('smoke','ssot','nav','mining','warehouse')][string]$Scenario = 'smoke',
-    [string]$Output = ''
+    [string]$Output = '',
+    [ValidateRange(1000000, 16000000)][int]$DiskLimit = 4000000,
+    [string]$DataRoot = ''
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
@@ -32,13 +34,14 @@ try {
         throw 'Use CraftOS-PC v2.8.3 portable (CraftOS-PC_console.exe).'
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
-    $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
+    $runBase = if ($DataRoot) { $DataRoot } else { Join-Path $cache 'runs' }
+    $run = Join-Path $runBase ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 4000000
+        standardsMode = $true; computerSpaceLimit = $DiskLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
@@ -68,9 +71,9 @@ try {
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
             [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
         }
-        [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
+        [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario', '$DiskLimit')", $utf8)
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$DiskLimit"
     Write-Output "Artifacts: $run"
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"

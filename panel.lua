@@ -235,6 +235,23 @@ local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = t
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
   farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, three = colors.lightBlue, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
+local wh2 = {
+  enabled = settings and settings.get("wh2.enabled", false) == true,
+  active = nil, context = { enabled = true, role = "panel" },
+}
+if wh2.enabled then
+  local ok, host = pcall(require, "wh2-wizard-host")
+  if ok then wh2.host = host.open({ role = "panel" }) wh2.context = wh2.host.context end
+end
+local function openWizard()
+  if not wh2.enabled then return end
+  local ok, module = pcall(require, "wh2-board")
+  if ok and type(module) == "table" and type(module.open) == "function" then
+    ok, module = pcall(module.open, wh2.context)
+    if ok then wh2.active = module return end
+  end
+  toast("Material wizard unavailable")
+end
 local openDrive -- the drive screen (further down); takes a bot: { key = DEV key } or { id =, proto =, name = }
 
 local function setTab(t)
@@ -304,6 +321,7 @@ end
 local function drawHome()
   text(2, 2, "Base control", colors.white)
   button(W - 11, 2, 12, "Update all", colors.white, colors.blue, function() updateAll() end)
+  if wh2.enabled then button(1, 2, W - 12, "Wizard", colors.white, colors.blue, openWizard) end
   local cards = {
     { key = "hub", title = "MINE ARMY", lines = function()
       local h = data.hub
@@ -1979,6 +1997,7 @@ end
 local function draw()
   if ui.typing then return end
   W, H = term.getSize()
+  if wh2.active then wh2.active.draw(term.current(), "term") return end
   buttons = {}
   term.setCursorBlink(false)
   if ui.drive then
@@ -2162,7 +2181,12 @@ local function uiLoop()
   local tick = os.startTimer(1)
   while true do
     local ev, a, b, cc = os.pullEvent()
-    if ev == "timer" and a == tick then
+    if wh2.active and (ev == "char" or ev == "key" or ev == "paste" or ev == "mouse_click"
+      or ev == "monitor_touch" or ev == "mouse_scroll") then
+      wh2.active.handle(ev, a, b, cc)
+      if wh2.active.state.closed then wh2.active.close() wh2.active = nil end
+      draw()
+    elseif ev == "timer" and a == tick then
       if V and wmap.three and ui.tab == "map" then V.tick(wmap.cam) end
       consoleTick()
       draw()
@@ -2198,7 +2222,8 @@ local function uiLoop()
       draw()
     elseif ev == "char" then
       local n = tonumber(a)
-      if n and TABS[n] then openTab(TABS[n][1]) draw()
+      if a == "i" and wh2.enabled then openWizard() draw()
+      elseif n and TABS[n] then openTab(TABS[n][1]) draw()
       elseif a == "q" then return end
     elseif ev == "key" and a == keys.backspace and ui.popup then
       ui.popup = nil
@@ -2223,7 +2248,24 @@ local function pairLoop()
   end
 end
 
-parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, pairLoop, mapLoop)
+local function wh2Loop()
+  if not wh2.enabled then while true do os.pullEvent("wh2_disabled") end end
+  while true do
+    if wh2.active then
+      local ok, err = pcall(wh2.active.tick)
+      if not ok then toast(tostring(err)) wh2.active = nil end
+      redrawSoon()
+    end
+    sleep(0.25)
+  end
+end
+
+local function wh2Worker()
+  if wh2.host then return wh2.host.worker() end
+  while true do os.pullEvent("wh2_host_idle") end
+end
+
+parallel.waitForAny(uiLoop, receiveLoop, findLoop, pollLoop, pairLoop, mapLoop, wh2Loop, wh2Worker)
 term.setBackgroundColor(colors.black)
 term.setTextColor(colors.white)
 term.clear()
