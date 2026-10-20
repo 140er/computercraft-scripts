@@ -187,11 +187,11 @@ return {
     ["relay.lua"]="e081fc0c",
     ["role-adapter.lua"]="708c90da",
     ["roomsorter.lua"]="fe24af85",
-    ["server.lua"]="20632d86",
+    ["server.lua"]="a800d562",
     ["smartmine.lua"]="2bfddca3",
     ["sorter.lua"]="c1975121",
-    ["ssot-client.lua"]="8b03473e",
-    ["ssot.lua"]="03abb86a",
+    ["ssot-client.lua"]="4114d83c",
+    ["ssot.lua"]="d0dabce5",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="f8ce7150",
     ["update.lua"]="e8b5cb85",
@@ -1010,5 +1010,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="b974c0a2"
+  ["version"]="8322f56a"
 }

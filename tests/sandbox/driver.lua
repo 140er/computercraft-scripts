@@ -1,5 +1,11 @@
 local seconds, scenario, diskLimit = ...
 seconds = assert(tonumber(seconds))
+if scenario == "h3" then
+  return assert(loadfile("h3-driver.lua", "t", _ENV))("sandbox")
+end
+if scenario == "h3-burst" then
+  return assert(loadfile("h3-burst.lua", "t", _ENV))(seconds)
+end
 if scenario == "ar" then
   local ok,err = pcall(assert(loadfile("ar-driver.lua","t",_ENV)))
   local h = assert(fs.open("sandbox-result.json","w"))

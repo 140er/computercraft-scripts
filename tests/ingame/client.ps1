@@ -409,6 +409,7 @@ public static class SSOTCapture {
         . "$PSScriptRoot\..\bench\client-capture.ps1"
         return
     }
+
     if($View -eq 'warehouse') {
         $encoder=$env:SSOT_FFMPEG
         if(!$encoder){$encoder='C:\Work\gemini-input\p2\test-tools\ffmpeg-8.1.2\verified\ffmpeg-8.1.2-essentials_build\bin\ffmpeg.exe'}

@@ -1,5 +1,5 @@
 param(
-    [ValidateRange(15, 3600)][int]$Seconds = 30,
+    [ValidateRange(15, 86400)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
     [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet')][string]$Scenario = 'smoke',
@@ -324,6 +324,9 @@ try {
         }
         if (Test-Path "$run\source-sha256.json") { Copy-Item "$run\source-sha256.json" $Output -Force }
     }
+    if ($Scenario -eq 'h3') {
+        Test-H3Results -Computers "$run\computer" -Output $Output -RequireFullSoak:($Seconds -ge 7200)
+    }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {
         & (Join-Path (Join-Path $Source 'tests') 'ingame/verify-results.ps1') -Computers (Join-Path $run 'computer') -Output $Output -Title 'Navigation PR 2'
@@ -337,6 +340,10 @@ try {
     Write-Output 'Sandbox PASS'
     exit 0
 } catch {
+    if ($Scenario -eq 'h3' -and $Output -and (Test-Path -LiteralPath $Output) -and !(Test-Path -LiteralPath "$Output\h3-results.json")) {
+        $failure = @{ok=$false;scenario='h3';gateEligible=$false;errors=@($_.Exception.Message)} | ConvertTo-Json
+        [IO.File]::WriteAllText("$Output\h3-results.json", $failure)
+    }
     Write-Output "Sandbox FAIL: $($_.Exception.Message)"
     exit 1
 } finally {

@@ -4,6 +4,7 @@ param(
     [string]$DataRoot = ''
 )
 $ErrorActionPreference = 'Stop'
+if (!$Output) { $Output = if ($Scenario -eq 'h3') { 'C:\Work\gemini-input\p3\evidence\h3\review-' + [guid]::NewGuid().ToString('N').Substring(0,8) } else { 'C:\Work\gemini-input\shots' } }
 $app = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox\craftos-2.8.3'
 if (!$DataRoot) { $DataRoot = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox' }
 $viewScenario = $Scenario -in @('hub-current','hub-pro','warehouse-normal')

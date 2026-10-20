@@ -500,7 +500,6 @@ function M.open(cfg)
         for i,name in pairs(ch.cells) do
           if not integer(i,1,4096) or not integer(name,0,#s.names) then return false end
         end
-        if count%4==0 then sleep(0) end
       end
     elseif cfg.compactSections and s.schema == 2 then
       if s.chunks ~= nil or s.names ~= nil or type(s.map) ~= "table" or s.map.v ~= 2 then return false end
