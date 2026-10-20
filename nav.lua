@@ -35,11 +35,16 @@ function M.open(cfg)
     if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
       or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop") then return false end
     if v.stopped~=nil and type(v.stopped)~="boolean" or v.resume~=nil and type(v.resume)~="boolean" then return false end
+    if v.trail~=nil then
+      if type(v.trail)~="table" or #v.trail>64 then return false end
+      for i,p in pairs(v.trail) do if not integer(i) or i<1 or i>#v.trail or not S.pose(p) then return false end end
+    end
     return j==nil or type(j)=="table" and (j.kind=="move" or j.kind=="turn" or j.kind=="calibrate")
       and S.pose(j.from) and S.pose(j.to) and heading(j.from.h) and heading(j.to.h)
   end
   local store=A.store(cfg.path or "nav.state",valid,400000)
   local state=store.value or {version=1,pose=A.copy(cfg.pose),cells={}}
+  state.trail=state.trail or {}
   local api,busy,stopped,ready={},false,state.stopped==true,false
   local function save() assert(store.save(state)) end
   local function checkpoint(name) if cfg.checkpoint then cfg.checkpoint(name) end end
@@ -98,7 +103,7 @@ function M.open(cfg)
     if not p then return false,why end
     if not inside(p,b) then return false,"outside navigation bounds" end
     local previous=A.copy(state.action and state.action.from or state.pose)
-    if not same(p,state.pose) then state.cells={} end
+    if not same(p,state.pose) then state.cells={} state.trail={} end
     p.h=h state.pose=A.copy(p) state.action={kind="calibrate",from=previous,to=A.copy(p)} save()
     return sync(previous)
   end
@@ -203,6 +208,11 @@ function M.open(cfg)
       if moved then
         local observed=observe()
         assert(observed and same(observed,to),"physical pose needs GPS reconciliation")
+        if cfg.traffic then
+          if #state.trail>0 and same(state.trail[#state.trail],to) then table.remove(state.trail)
+          else state.trail[#state.trail+1]=A.copy(from) end
+          while #state.trail>64 do table.remove(state.trail,1) end
+        end
         state.pose=A.copy(to) remember(to,"minecraft:air")
       end
       save() checkpoint("move-observed")
@@ -262,11 +272,59 @@ function M.open(cfg)
       return #route
     end)
   end
+  local function traffic(target)
+    local r,why=cfg.client.call("traffic",{to=target})
+    if not r or not r.ok then return false,why or "traffic server unavailable" end
+    if not r.peer then (cfg.yield or sleep)(.25) return true end
+    if not r.yield then (cfg.yield or sleep)(.25) return true end
+    if not r.pose then return false,"traffic pose unavailable" end
+    local origin,peer=A.copy(state.pose),r.peer
+    local axis={x=target.x-origin.x,y=target.y-origin.y,z=target.z-origin.z}
+    local found=false
+    for _=1,65 do
+      for d=0,5 do
+        local v=vectors[d]
+        if v[1]*axis.x+v[2]*axis.y+v[3]*axis.z==0 then
+          local q=adjacent(state.pose,d)
+          if inside(q,b) and state.cells[key(q)]=="minecraft:air" then
+            local ok=step(d,"walk")
+            if ok then found=true break end
+          end
+        end
+      end
+      if found then break end
+      local back=state.trail[#state.trail]
+      for d=0,5 do
+        local v=vectors[d]
+        local q=adjacent(state.pose,d)
+        if v[1]*axis.x+v[2]*axis.y+v[3]*axis.z<0 and inside(q,b) and state.cells[key(q)]=="minecraft:air" then back=q break end
+      end
+      if not back then return false,"traffic dead end" end
+      local moved=false
+      for d=0,5 do
+        if same(adjacent(state.pose,d),back) then
+          local ok,err=step(d,"walk") if not ok then return false,err end
+          moved=true break
+        end
+      end
+      if not moved then return false,"traffic trail needs reconciliation" end
+    end
+    if not found then return false,"traffic retreat budget" end
+    checkpoint("traffic-yielded")
+    for _=1,cfg.trafficWaits or 80 do
+      if cancelled() then return false,"cancelled" end
+      local p,err=cfg.client.call("traffic",{peer=peer})
+      if not p or not p.ok or not p.pose then return false,err or "traffic peer unavailable" end
+      if p.pose.dim==origin.dim and distance(p.pose,origin)>1 and distance(p.pose,state.pose)>2 then return true end
+      (cfg.yield or sleep)(.25)
+    end
+    return false,"traffic wait budget"
+  end
   function api.go(goal,policy)
     if not S.pose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
     return owned(function()
       local avoid={}
-      for _=1,5 do
+      for _=1,cfg.traffic and 80 or 5 do
         local route,why=search(goal,policy,avoid)
         if not route then return false,why end
         local complete=true
@@ -276,8 +334,13 @@ function M.open(cfg)
           if not ok then
             if not ready then return false,err end
             if err=="cancelled" or err=="out of fuel" then return false,err end
-            if err=="occupied" or err=="already reserved" then return false,err end
-            avoid[key(target)]=true complete=false break
+            if err=="occupied" or err=="already reserved" then
+              if not cfg.traffic then return false,err end
+              local detour=A.copy(avoid) detour[key(target)]=true
+              if search(goal,policy,detour) then avoid=detour
+              else local ok,why=traffic(target) if not ok then return false,why end end
+            else avoid[key(target)]=true end
+            complete=false break
           end
         end
         if complete then return true end

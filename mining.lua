@@ -72,6 +72,37 @@ function M.open(cfg)
   function api.interrupt(reason)
     if state.phase~="done" then state.phase="return" state.reason=reason or "recall" save("return-saved") end
   end
+  function api.service()
+    if not cfg.service or cfg.service.enabled~=true then return false,"mining service disabled" end
+    if state.phase~="home" then return false,"return home before service" end
+    local w=dofile("warehouse.lua").open({nav=nav,client=client,path=cfg.service.path or "mining-warehouse.state"})
+    if not state.service then state.service="drop" save() end
+    if state.service=="drop" then
+      if not cfg.service.drop then return false,"configure a drop pose" end
+      if w.state().phase~="unload" then local ok,why=w.unload(cfg.service.drop,cfg.service.keep) if not ok then return false,why end end
+      repeat
+        local ok,why=w.tick() if not ok and w.state().phase~="done" then return false,why end
+        (cfg.yield or sleep)(.1)
+      until w.state().phase=="done"
+      state.service="charge" save()
+    end
+    if state.service=="charge" then
+      local target=cfg.service.targetFuel or 2000
+      if turtle.getFuelLevel()~="unlimited" and turtle.getFuelLevel()<target or w.state().phase=="charge" then
+        if not cfg.service.charger then return false,"configure a charging pose" end
+        local ok,why=w.charge(cfg.service.charger,target,cfg.service.chargeTimeout or 60000) if not ok then return false,why end
+        repeat
+          local moved,err=w.tick() if not moved then return false,err end
+          (cfg.yield or sleep)(.25)
+        until w.state().phase=="done"
+        if w.state().reason~="charged" and w.state().reason~="unlimited fuel" then return false,w.state().reason end
+      end
+      state.service="home" save()
+    end
+    local ok,why=nav.go(cfg.home,"walk") if not ok then return false,why end
+    ok,why=nav.face(cfg.home.h) if not ok then return false,why end
+    state.service=nil save("service-saved") return true
+  end
   function api.start()
     reconcile()
     if state.phase=="home" and state.reason=="complete" then return api.finish() end

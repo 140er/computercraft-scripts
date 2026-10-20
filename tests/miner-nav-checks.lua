@@ -47,4 +47,12 @@ return function(test,read,mocks)
     local cfg=m.env.textutils.unserialize(m.files["miner.cfg"])
     assert(cfg.nav.bounds.min.x==-8 and cfg.nav.bounds.max.z==9 and not cfg.nav.enabled)
   end)
+  test("a survey command requires navigation and preserves its world target",function()
+    local m=mocks.miner({home={x=0,y=65,z=0},facing=1,spine=2,
+      ssot={enabled=true,server=0,secret="test-secret-123456",dimension="minecraft:overworld"},nav={enabled=true}})
+    m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
+    local code=assert(source:match("^(.*)\nopenModem%(%)"))
+    local api=assert(load(code.."\nreturn C","=miner.lua","t",m.env))("nav","survey","3","65","-2")
+    assert(api.navSurvey.x==3 and api.navSurvey.z==-2 and api.navSurvey.dim=="minecraft:overworld")
+  end)
 end
