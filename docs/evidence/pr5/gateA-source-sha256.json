@@ -1,0 +1,1178 @@
+[
+    {
+        "computer":  0,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  0,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  1,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  2,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  3,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  4,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  5,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "atomic.lua",
+        "sha256":  "7A5D3FB9D2F7517BAB5F3F1E3416BA63B9E2B1200B940D30B98DF36C93A8ED96",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "buddy.lua",
+        "sha256":  "E72268E58D4A2CD01FE2A59FEC3066D5C0E7289F302E6F6796E6864434119E8D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "builder.lua",
+        "sha256":  "6A32D5E261AB7A8D671753424C3FBB06074F23F3432C42C7A5FBE93867D8F54F",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "directview.lua",
+        "sha256":  "23D804AAAF1B7857F223A3D0DCDB1A8113A6976260F058C23A00D37FCAF3556D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "factory.lua",
+        "sha256":  "89484255E77035BEDBE23D77BF0F88A9598EA453C86DCF085A78B79CB236225C",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "farmer.lua",
+        "sha256":  "F9E628F15F4A8E89B5F68681CDEFC1D028A09289648F3B45EFF424F6DF68C5AC",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "fleetview.lua",
+        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "gpshost.lua",
+        "sha256":  "C01BE0920E096663F73AE3FB9A0C18472D22B91488A83EE3D6DFEB9814F8A0B3",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "hub.lua",
+        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "install.lua",
+        "sha256":  "EAEF861785DC71FE18A277ACEE3780384AEE97AD603250F606A0640AEBD1C96A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "lava.lua",
+        "sha256":  "621E95D94EDD5C957C581CE3A4FAC1BBEA9C1639E2427D05E48776D877B4B740",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "lumber.lua",
+        "sha256":  "AC752C40BECA8D64029A7C5292299CA4361400A8CDA956C91DFE94BCB5AAA4E5",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "mine-tasks.lua",
+        "sha256":  "27F9EA497178F3F72F41B8717716AE3308138E8C085D37E644425E8DA3B30F24",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "miner.lua",
+        "sha256":  "D048AF20E9BC8972DEE88DE27A9B987E95C4B5C7601EEBAF5DC3967A4225C57A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "mining.lua",
+        "sha256":  "DDF4B41BB1F11A54D352EC9EFC23EE8EFA5C903A1D9FADE38F2AEEC363AD7436",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "nav.lua",
+        "sha256":  "C36FA882C7B37D11CA059A9265F20CE3FDBCBA56027F954E522EB2757D032B18",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "panel.lua",
+        "sha256":  "890C1416AD783E06F5E180282BC9862869A512D181CE47FC3ECFEAEEB0F7E272",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "relay.lua",
+        "sha256":  "09715499F70EED360EEBDFF4B52E05A3D532A26DC6DBF25FCA38809DF3DA58E7",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "roomsorter.lua",
+        "sha256":  "5A4559352FA8162D5194C794003FB98262274CD6350793478FF869A5A22E03A8",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "server.lua",
+        "sha256":  "90C7FA1EC9E79D78BB8CD076E1599EE4D93A19E525AA3FA4A4D6D7B696050874",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "smartmine.lua",
+        "sha256":  "CE2FB9B2E689B47C8DEC3DD91FDFC89446819C778FFEE2DA912422C5F709083A",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "sorter.lua",
+        "sha256":  "6DE8A2CDC70CF9B6DA34D5418B85153DA964D6DBE48BEFB365AB83409C26D922",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "ssot-client.lua",
+        "sha256":  "7664253709A337D061B4269B0EDFD51E0E10A4375DA93AB5260D9281F09830A9",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "ssot.lua",
+        "sha256":  "D21B824B30E2DFAF094B73420DAD1AC25181544F4650DABAE3EAA8E953C2FE73",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "update.lua",
+        "sha256":  "1E3FEFC00564919B01A64EAC30E04E8B636C1234533CA93BC8764635C5660B7E",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "view-scene.lua",
+        "sha256":  "FC88D25A348F1711860738F701B92F236B13F08388A6C7F7E90938B27D592CEA",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "view-source.lua",
+        "sha256":  "05EFB9D04C7CD423A4A5EFFE3D806737F7D60487AFDBBEAB854F6BBC10DD209D",
+        "normalization":  "LF"
+    },
+    {
+        "computer":  6,
+        "file":  "views.lua",
+        "sha256":  "D68713BF66556ED7BBDB2EC20B48F4EEA1564C1A51E12984740A0949D2BD7114",
+        "normalization":  "LF"
+    }
+]

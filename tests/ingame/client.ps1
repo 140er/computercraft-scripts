@@ -87,12 +87,32 @@ try {
         Start-Sleep -Seconds 2
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($players -notmatch 'SSOTProof') { throw 'Offline client did not join within the timeout.' }
-    $camera = if ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    if ($View -eq 'views') {
+        $probeDisk="$TestRoot\world\computercraft\computer\6"
+        [IO.File]::WriteAllText("$probeDisk\client-probe-arm",'Measure orbit frames while the real client is connected.')
+        $deadline=[DateTime]::UtcNow.AddSeconds(120)
+        while (!(Test-Path "$probeDisk\client-probe-result.json")) {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'Connected-client orbit measurement did not finish.' }
+            Start-Sleep -Seconds 1
+        }
+        Copy-Item "$probeDisk\client-probe-result.json" "$Output\client-probe-result.json" -Force
+        $probe=Get-Content "$probeDisk\client-probe-result.json" -Raw | ConvertFrom-Json
+        if (!$probe.ok) { throw 'Connected-client orbit measurement failed.' }
+    }
+    $shotPlan = if ($View -eq 'views') {
+        @(@('directgpu-single.png','tp SSOTProof 0.5 63.9 11.35 180 1'),
+          @('directgpu-wall.png','tp SSOTProof 7.5 64.38 13 180 0'),
+          @('hub-pro-ingame.png','tp SSOTProof 0.5 65 6.5 0 36.7'),
+          @('warehouse-normal-ingame.png','tp SSOTProof 14.5 64.38 13 180 0'))
+    } else { @(@($ShotName,'')) }
+    foreach ($planned in $shotPlan) {
+    $ShotName=$planned[0]
+    $camera = if ($View -eq 'views') { @('gamemode spectator SSOTProof',$planned[1],'time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
     foreach ($command in $camera) {
         Invoke-TestRcon $RconPort $secret $command | Out-Null
     }
     Start-Sleep -Seconds 5
-    Add-Type @'
+    if (-not ('SSOTCapture' -as [type])) { Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class SSOTCapture {
@@ -100,8 +120,16 @@ public static class SSOTCapture {
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint key, uint mode);
 }
 '@
+    }
     $process.Refresh()
     if (!$process.MainWindowHandle) { throw 'Offline client has no screenshot window.' }
+    if ($View -eq 'views' -and $ShotName -eq 'hub-pro-ingame.png') {
+        Invoke-TestRcon $RconPort $secret 'gamemode creative SSOTProof' | Out-Null
+        Start-Sleep -Seconds 1
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x204,[IntPtr]2,[IntPtr]0) | Out-Null
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x205,[IntPtr]0,[IntPtr]0) | Out-Null
+        Start-Sleep -Seconds 2
+    }
     $scan = [SSOTCapture]::MapVirtualKey(0x71,0)
     $keyData = [int64](1 -bor ($scan -shl 16))
     $captureAt = [DateTime]::UtcNow
@@ -115,10 +143,59 @@ public static class SSOTCapture {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
     Copy-Item $shot.FullName "$Output\$ShotName" -Force
+    if ($View -eq 'views') {
+        New-Item -ItemType Directory -Force -Path 'C:\Work\gemini-input\shots' | Out-Null
+        Copy-Item $shot.FullName "C:\Work\gemini-input\shots\$ShotName" -Force
+    }
+    if ($View -eq 'views' -and $ShotName -eq 'hub-pro-ingame.png') {
+        $escapeScan=[SSOTCapture]::MapVirtualKey(0x1b,0)
+        $escapeData=[int64](1 -bor ($escapeScan -shl 16))
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x100,[IntPtr]0x1b,[IntPtr]$escapeData) | Out-Null
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x101,[IntPtr]0x1b,[IntPtr]($escapeData -bor 3221225472)) | Out-Null
+    }
+    }
+    if ($View -eq 'views') {
+        $hubDisk="$TestRoot\world\computercraft\computer\6"
+        [IO.File]::WriteAllText("$hubDisk\client-click-arm",'Select turtle 1 through the production Pro row, then await a real client click.')
+        $deadline=[DateTime]::UtcNow.AddSeconds(120)
+        while (!(Test-Path "$hubDisk\client-click-ready.json")) {
+            if ([DateTime]::UtcNow -ge $deadline) { throw 'DirectGPU click target was not ready.' }
+            Start-Sleep -Seconds 1
+        }
+        $click=Get-Content "$hubDisk\client-click-ready.json" -Raw | ConvertFrom-Json
+        $point=$click.world
+        if (!$point -or !$point.normal) { throw 'DirectGPU click target has no verified world projection.' }
+        $eyeX=$point.x+$point.normal.x*2.5
+        $eyeY=$point.y+$point.normal.y*2.5
+        $eyeZ=$point.z+$point.normal.z*2.5
+        $yaw=[Math]::Atan2($point.normal.x,-$point.normal.z)*180/[Math]::PI
+        $pitch=[Math]::Asin($point.normal.y)*180/[Math]::PI
+        $culture=[Globalization.CultureInfo]::InvariantCulture
+        $teleport=[string]::Format($culture,'tp SSOTProof {0} {1} {2} {3} {4}',$eyeX,($eyeY-1.62),$eyeZ,$yaw,$pitch)
+        Invoke-TestRcon $RconPort $secret 'gamemode spectator SSOTProof' | Out-Null
+        Invoke-TestRcon $RconPort $secret $teleport | Out-Null
+        Start-Sleep -Seconds 3
+        $attempts=@()
+        for ($attempt=1;$attempt -le 3;$attempt++) {
+            $attempts+=[pscustomobject]@{at=[DateTime]::UtcNow.ToString('o');attempt=$attempt;camera=$teleport;target=$click.target}
+            [SSOTCapture]::PostMessage($process.MainWindowHandle,0x201,[IntPtr]1,[IntPtr]0) | Out-Null
+            [SSOTCapture]::PostMessage($process.MainWindowHandle,0x202,[IntPtr]0,[IntPtr]0) | Out-Null
+            $deadline=[DateTime]::UtcNow.AddSeconds(45)
+            while (!(Test-Path "$hubDisk\client-click-result.json") -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Seconds 1 }
+            if (Test-Path "$hubDisk\client-click-result.json") { break }
+        }
+        $attempts | ConvertTo-Json -Depth 6 | Set-Content "$Output\client-click-attempts.json"
+        foreach ($name in @('client-click-ready.json','client-click-events.json','client-click-result.json')) {
+            if (Test-Path "$hubDisk\$name") { Copy-Item "$hubDisk\$name" "$Output\$name" -Force }
+        }
+        if (!(Test-Path "$hubDisk\client-click-result.json")) { throw 'Real DirectGPU mouse clicks did not produce verified turtle movement.' }
+        $clicked=Get-Content "$hubDisk\client-click-result.json" -Raw | ConvertFrom-Json
+        if (!$clicked.ok) { throw 'Real DirectGPU click movement failed.' }
+    }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
 } finally {
     $env:GALLIUM_DRIVER = $previousDriver
-    if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force }
+    if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
     foreach ($file in @('logs\latest.log','stderr.log')) {
         if (Test-Path "$client\$file") { Copy-Item "$client\$file" "$Output\client-$([IO.Path]::GetFileName($file))" -Force }
     }

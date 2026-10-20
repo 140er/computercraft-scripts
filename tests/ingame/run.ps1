@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot','nav','mining')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav','mining','views')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -9,13 +9,18 @@ param(
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
+if ($Scenario -eq 'views' -and !$PrepareOnly) {
+    & "$PSScriptRoot\views-run.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -Client:$Client
+    return
+}
 if ($Scenario -in @('nav','mining')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
-if (!$TestRoot) { $TestRoot = 'C:\Work\mc-ssot-pr1-' + [guid]::NewGuid().ToString('N').Substring(0, 8) }
+$prefix = if ($Scenario -eq 'views') { 'C:\Work\mc-ssot-pr5-' } else { 'C:\Work\mc-ssot-pr1-' }
+if (!$TestRoot) { $TestRoot = $prefix + [guid]::NewGuid().ToString('N').Substring(0, 8) }
 $TestRoot = [IO.Path]::GetFullPath($TestRoot)
-if (!$TestRoot.StartsWith('C:\Work\mc-ssot-pr1-')) { throw 'TestRoot must be a dedicated C:\Work\mc-ssot-pr1-* directory.' }
+if (!$TestRoot.StartsWith($prefix)) { throw "TestRoot must be a dedicated $prefix directory." }
 if (Test-Path "$TestRoot\server.properties") { throw 'Use a fresh test directory.' }
 New-Item -ItemType Directory -Force -Path $TestRoot, $Output, "$TestRoot\mods", "$TestRoot\config", "$TestRoot\world\serverconfig" | Out-Null
 New-Item -ItemType Junction -Path "$TestRoot\libraries" -Target "$Base\libraries" | Out-Null
@@ -41,6 +46,7 @@ function Get-FreePort {
 }
 $port = Get-FreePort
 $rconPort = Get-FreePort
+while ($rconPort -eq $port) { $rconPort = Get-FreePort }
 $password = [guid]::NewGuid().ToString('N')
 $properties = @('level-name=world','online-mode=false',"server-port=$port",'server-ip=127.0.0.1',
     'spawn-protection=0','view-distance=3','simulation-distance=3','enable-rcon=true',"rcon.port=$rconPort",
