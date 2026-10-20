@@ -2123,9 +2123,23 @@ function C.navCanExcavate(info)
 end
 
 function C.runMining()
-  local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
-    service=cfg.warehouse,cancelled=function() return recall or updateWanted end})
+  local nav, b1 = C.nav, nil
+  if cfg.leaseV2 == true and cfg.offlineAutonomy == true then
+    b1 = dofile("b1-nav.lua").wrap(C.nav, {
+      client = C.ssot, secret = cfg.ssot.secret, mac = dofile("lib/stubs/b1_h1.lua").keyed,
+      now = function() return os.epoch("utc") end, free = function() return fs.getFreeSpace("/") end,
+      spec = cfg.lease, confidence = cfg.lease and cfg.lease.confidence,
+    })
+    nav = b1
+  end
+  local mining=dofile("mining.lua").open({nav=nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
+    service=cfg.warehouse,cancelled=function() return recall or updateWanted end,b1=b1})
   while true do
+    if b1 and not b1.ready() then
+      local ok, why = b1.ensure()
+      if not ok then setStatus("Lease " .. tostring(why)) sleep(5) end
+    end
+    if not b1 or b1.ready() then
     local state=mining.state()
     if state.phase=="home" and cfg.warehouse and cfg.warehouse.enabled==true and not recall and not C.estop then
       local ok,why=mining.service()
@@ -2140,7 +2154,7 @@ function C.runMining()
       if ok then
         repeat
           ok,why=mining.tick()
-          local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+          local p=nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
           st.phase=mining.state().phase=="return" and "returning" or "mining" save()
           setStatus("Mining "..tostring(why or mining.state().phase))
           sleep(0)
@@ -2148,6 +2162,7 @@ function C.runMining()
       end
       setStatus("Mining "..tostring(why)) sleep(5)
     else setStatus("Mining paused") sleep(1) end
+    end
   end
 end
 

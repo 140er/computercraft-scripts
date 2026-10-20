@@ -87,6 +87,7 @@ function M.new(s, cfg, clock, epoch, save)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
+  local LeaseV2 = cfg.leaseV2 == true and dofile("lease.lua") or nil
   local failed = false
   local function occupied(p, owner)
     for id, pos in pairs(s.poses) do if id ~= owner and equal(p, pos) then return id end end
@@ -94,12 +95,17 @@ function M.new(s, cfg, clock, epoch, save)
       if id ~= owner and (r.phase == "started" or (r.epoch == epoch and r.untilAt > clock()))
         and (equal(p, r.to) or equal(p, r.from)) then return id end
     end
+    if LeaseV2 then
+      local holder = LeaseV2.occupies(s, p, owner, clock())
+      if holder then return holder end
+    end
     return false
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
+    if LeaseV2 and op:sub(1,6)=="lease-" then return LeaseV2.run(s,id,m,clock,epoch,cfg) end
     if op=="traffic" then
       if not s.poses[id] or s.poses[id].boot~=m.boot then return {ok=false,error="sync before traffic"} end
       if m.peer~=nil then
@@ -303,6 +309,9 @@ function M.open(cfg)
         if cached>8 or not word(rid,80) or type(entry)~="table" or not word(entry.request,32768)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
+    end
+    if s.leases ~= nil or s.leaseMap ~= nil or s.leaseAck ~= nil or s.leaseItems ~= nil then
+      if not dofile("lease.lua").validStored(s) then return false end
     end
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
   end, 900000)

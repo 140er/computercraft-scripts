@@ -1,0 +1,25 @@
+Gate A for B1. Recorded on Linux with lua5.2 and CraftOS-PC v2.8.3.
+
+CraftOS-PC AppImage sha256:
+f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+
+Both CraftOS runs used --headless, SDL_AUDIODRIVER=dummy, SDL_VIDEODRIVER=dummy,
+standardsMode true, and computerSpaceLimit 4000000. pwsh is not installed here,
+so tests/sandbox/run.ps1 was not the process that launched the emulator. The
+smoke computers used that script's startup (driver.lua, 30 seconds, smoke) and
+the same file copy rules.
+
+lua5.2 tests/run.lua
+98 tests passed. Transcript: lua52.txt. The eight B1 cases are in tests/b1-unit.lua.
+
+CraftOS B1 computer
+startup ran tests/b1-craftos.lua, which checks standardsMode and the 4 MB disk,
+then runs tests/b1-unit.lua. Result: craftos-b1.json (ok true, free 3863468).
+
+CraftOS smoke, three computers
+server, hub, and miner all reported ok true. Results: smoke-0.json, smoke-1.json,
+smoke-2.json. The ssot, nav, mining, and warehouse scenarios from run.ps1 were
+not run.
+
+Gate B
+NOT RUN. No local Minecraft server, no screenshots, no video.

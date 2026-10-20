@@ -37,6 +37,9 @@ function M.open(cfg)
     assert(store.save(state))
     if point and cfg.checkpoint then cfg.checkpoint(point) end
   end
+  local function autonomous()
+    return type(cfg.b1)=="table" and cfg.b1.enabled==true and cfg.b1.offline and cfg.b1.offline()
+  end
   local function request(op,fields)
     local r,why=client.call(op,fields)
     if not r or not r.ok then return nil,why or r and r.error or "mining server unavailable" end
@@ -167,10 +170,20 @@ function M.open(cfg)
       state.phase="home" save("home-saved")
       return false,state.reason or "home"
     end
+    if type(cfg.b1)=="table" and cfg.b1.enabled==true and cfg.b1.gate then
+      local mode=cfg.b1.gate()
+      if mode=="denied" then return false,"lease" end
+      if mode=="home" or mode=="check in" then
+        api.interrupt(mode=="check in" and "check in" or "journal budget")
+        return true
+      end
+    end
     local reason=interruptReason()
     if reason then api.interrupt(reason) return true end
-    local r,why=request("mine-renew",{token=state.task.token})
-    if not r then api.interrupt(why) return false,why end
+    if not autonomous() then
+      local r,why=request("mine-renew",{token=state.task.token})
+      if not r then api.interrupt(why) return false,why end
+    end
     if state.phase=="resume" then
       local target=#state.stack>0 and state.stack[#state.stack].pose or state.task.entry
       local ok,err=nav.go(target,"walk")
@@ -214,10 +227,12 @@ function M.open(cfg)
         local ok,err=nav.face(frame.pose.h)
         if not ok then return false,err end
         state.stack={}
-        local renewed,why=request("mine-renew",{token=state.task.token})
-        if not renewed then return false,why end
-        local ack,err=request("mine-progress",{token=state.task.token,progress=state.progress})
-        if not ack then return false,err end
+        if not autonomous() then
+          local renewed,why=request("mine-renew",{token=state.task.token})
+          if not renewed then return false,why end
+          local ack,err=request("mine-progress",{token=state.task.token,progress=state.progress})
+          if not ack then return false,err end
+        end
         state.task.progress=state.progress save("strip-saved")
       else
         local parent=state.stack[#state.stack-1].pose
