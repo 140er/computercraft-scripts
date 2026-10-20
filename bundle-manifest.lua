@@ -116,7 +116,8 @@ return {
       [2]="ssot.lua",
       [3]="ar-hud.lua",
       [4]="wh2-program.lua",
-      [5]="wh2-dev.lua"
+      [5]="wh2-dev.lua",
+      [6]="storage-peer.lua"
     },
     ["smartmine.lua"]={
       [1]="wh2-program.lua"
@@ -223,6 +224,7 @@ return {
     ["ssot-client.lua"]="4114d83c",
     ["ssot-hub.lua"]="edc5ee05",
     ["ssot.lua"]="3c2a629f",
+    ["storage-peer.lua"]="9a124036",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="f8ce7150",
     ["update.lua"]="339caf44",
@@ -895,13 +897,14 @@ return {
         [19]="ssot-client.lua",
         [20]="ssot-hub.lua",
         [21]="ssot.lua",
-        [22]="update.lua",
-        [23]="warehouse-tasks.lua",
-        [24]="wh2-client.lua",
-        [25]="wh2-dev.lua",
-        [26]="wh2-dispatch.lua",
-        [27]="wh2-fleet.lua",
-        [28]="wh2-program.lua"
+        [22]="storage-peer.lua",
+        [23]="update.lua",
+        [24]="warehouse-tasks.lua",
+        [25]="wh2-client.lua",
+        [26]="wh2-dev.lua",
+        [27]="wh2-dispatch.lua",
+        [28]="wh2-fleet.lua",
+        [29]="wh2-program.lua"
       },
       ["startup"]={
         [1]="server"
@@ -1224,5 +1227,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="7dd6afce"
+  ["version"]="36346404"
 }
