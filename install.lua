@@ -326,7 +326,7 @@ end
 
 local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua" }, start = { "miner" },
+    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua" }, start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -368,7 +368,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua" }, start = { "hub" },
+    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -522,7 +522,7 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua" }, start = { "server" },
+    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },

@@ -558,6 +558,12 @@ st.total = st.total or {}
 local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
+if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
+  assert(not cfg.loc and type(cfg.ssot.dimension) == "string", "SSOT needs GPS and a dimension")
+  C.ssot = dofile("ssot-client.lua").new(cfg.ssot)
+  C.netEvent = "miner_network"
+end
+C.netEvent = C.netEvent or "rednet_message"
 local function worldShaft()
   if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
 end
@@ -1078,13 +1084,16 @@ local function applyMove(d)
 end
 
 -- One step, with the fuel trick so a reboot mid-move does not lose the position.
-local function rawMove(d, inVein)
+local function rawMove(d, inVein, backward)
+  if C.ssotMoving then return false, "SSOT movement busy" end
   local mv = turtle.forward
-  if d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
+  if backward then mv = turtle.back
+  elseif d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
   -- inVein: true = step into a vein (push), "pop" = step back out (pop). Saved together
   -- with the move, so a reboot right after the move can't leave the vein list wrong.
+  local function execute()
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
-  st.turnFrom = nil -- a move only starts after the last turn is done
+  if not backward or C.ssot then st.turnFrom = nil end
   save()
   local ok, why = mv()
   if ok then
@@ -1094,6 +1103,15 @@ local function rawMove(d, inVein)
   end
   st.pending = nil
   save()
+  return ok, why
+  end
+  if not C.ssot then return execute() end
+  C.ssotMoving = true
+  local from = { dim = cfg.ssot.dimension, x = pos.x, y = pos.y, z = pos.z }
+  local to = { dim = from.dim, x = pos.x + DX[d], y = pos.y + DY[d], z = pos.z + DZ[d] }
+  local success, ok, why = pcall(C.ssot.move, from, to, execute)
+  C.ssotMoving = false
+  if not success then error(ok, 0) end
   return ok, why
 end
 
@@ -1918,7 +1936,7 @@ local function request(msg, replyType, timeout)
   local timer = os.startTimer(timeout or 4)
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == "rednet_message" and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == replyType then
+    if ev == C.netEvent and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == replyType then
       return b
     elseif ev == "timer" and a == timer then
       hubId = nil
@@ -2575,18 +2593,13 @@ local function listener()
       if dir == "up" then ok, why = rawMove(UP) elseif dir == "down" then ok, why = rawMove(DOWN)
       elseif dir == "forward" then ok, why = rawMove(st.h)
       else
-        local d = OPP[st.h] -- back: without turning around
-        st.pending = { d = d, fuel = turtle.getFuelLevel() }
-        save()
-        ok, why = turtle.back()
-        if ok then applyMove(d) end
-        st.pending = nil
-        save()
+        ok, why = rawMove(OPP[st.h], nil, true)
       end
       if ok then lostFix(dir) end
       return ok, why
     end,
     busy = function()
+      if C.ssot then return "Manual driving is disabled while SSOT is enabled" end
       if st.phase == "lost" then
         if not st.lostAt then return "Still climbing to the surface, try again in a moment" end
         lostFix()
@@ -2601,7 +2614,7 @@ local function listener()
   }
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
+    if ev == C.netEvent and c == PROTOCOL and type(b) == "table" then
       -- An order passed on by the fleet server: confirm it, or it keeps sending it
       if b.cid and (b.target == nil or b.target == os.getComputerID()) then
         pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid }, PROTOCOL)
@@ -2633,4 +2646,25 @@ end
 openModem()
 if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
-parallel.waitForAny(worker, listener, heartbeat, devPairLoop)
+if C.ssot then
+  C.ssotWorker = function()
+    assert(not st.pending and not st.turnFrom, "Resolve the miner movement journal before SSOT boot")
+    local x, y, z = gps.locate(2)
+    assert(x and x % 1 == 0 and y % 1 == 0 and z % 1 == 0, "SSOT boot needs an observed GPS pose")
+    pos.x, pos.y, pos.z = x, y, z
+    assert(C.ssot.resync({ dim = cfg.ssot.dimension, x = x, y = y, z = z }))
+    save()
+    worker()
+  end
+  C.ssotReceive = function()
+    while true do
+      local _, sender, packet, protocol = os.pullEvent("rednet_message")
+      if not C.ssot.dispatch(sender, packet, protocol) then
+        os.queueEvent(C.netEvent, sender, packet, protocol)
+      end
+    end
+  end
+  parallel.waitForAny(C.ssotReceive, C.ssotWorker, listener, heartbeat, devPairLoop)
+else
+  parallel.waitForAny(worker, listener, heartbeat, devPairLoop)
+end

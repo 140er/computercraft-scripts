@@ -26,7 +26,7 @@ local specs = {
 
 function M.new(attached, state)
   local m = { output = {}, messages = {}, arCalls = {}, elements = {}, frames = {}, rejected = 0,
-    detachedCalls = 0, attached = attached, time = 0 }
+    detachedCalls = 0, attached = attached, time = 0, queued = {} }
   local env = setmetatable({}, { __index = _G })
   local function record(...)
     m.output[#m.output + 1] = M.encode({ ... })
@@ -166,6 +166,8 @@ function M.new(attached, state)
   }
   local timer = 0
   env.os = {
+    queueEvent = function(...) m.queued[#m.queued+1]=table.pack(...) end,
+    cancelTimer = function() end,
     clock = function() return m.time end, epoch = function() return 1000000 + m.time * 1000 end,
     time = function() return 12 end, getComputerID = function() return 99 end,
     getComputerLabel = function() return "Hub" end,
@@ -224,6 +226,11 @@ function M.new(attached, state)
   function m.push(...)
     local ok, err = coroutine.resume(m.app, ...)
     assert(ok, err)
+    while #m.queued>0 do
+      local event=table.remove(m.queued,1)
+      ok,err=coroutine.resume(m.app,table.unpack(event,1,event.n))
+      assert(ok,err)
+    end
   end
   function m.tick()
     m.time = m.time + 1

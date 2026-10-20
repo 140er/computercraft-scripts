@@ -16,7 +16,7 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -30,13 +30,19 @@ local function read(path)
   return s
 end
 
-local state, stateSource
+local state, stateSource, stateExists
 for _, path in ipairs({ STATE_FILE, STATE_FILE .. ".bak", STATE_FILE .. ".tmp" }) do
+  stateExists=stateExists or fs.exists(path)
   local s = read(path)
-  local t = s and textutils.unserialize(s)
-  if type(t) == "table" then state, stateSource = t, path break end
+  local ok, t = pcall(textutils.unserialize, s or "")
+  if not ok then t = nil end
+  if type(t) == "table" and (t.schema == nil or t.schema == 1)
+    and (t.bots == nil or type(t.bots) == "table") and (t.log == nil or type(t.log) == "table")
+    and (t.files == nil or type(t.files) == "table") then state, stateSource = t, path break end
 end
+if not state and stateExists then error("No valid server.state generation; preserve the files for recovery.",0) end
 state = state or {}
+state.schema = 1
 state.bots, state.log, state.files = state.bots or {}, state.log or {}, state.files or {}
 local function now() return os.epoch("utc") end
 local function copy(value, parents)
@@ -76,11 +82,17 @@ local function writeFile(path, text, cache)
     h.write(text)
     h.close()
     h = nil
+    assert(read(tmp) == text, "write verification failed")
+    if path == STATE_FILE then
+      local parsed = textutils.unserialize(read(tmp))
+      assert(type(parsed) == "table" and parsed.schema == 1, "state verification failed")
+    end
     if fs.exists(path) then
       fs.move(path, backup)
     end
     fs.move(tmp, path)
-    local cleaned, cleanupError = pcall(fs.delete, backup)
+    local cleaned, cleanupError = true, nil
+    if cache or path ~= STATE_FILE then cleaned, cleanupError = pcall(fs.delete, backup) end
     if not cleaned then
       diskFull = true
       log(cache and "code_error" or "state_error", nil, path .. ": " .. tostring(cleanupError))
@@ -102,6 +114,17 @@ local function save()
   if ok then return writeFile(STATE_FILE, text) end
   log("state_error", nil, text)
   return false
+end
+local SSOT, ssot, ssotConfig
+if fs.exists("ssot.lua") and fs.exists("atomic.lua") then
+  local ok,lib=pcall(dofile,"ssot.lua")
+  if ok and type(lib)=="table" then SSOT=lib end
+end
+if fs.exists("ssot.cfg") then
+  assert(SSOT,"SSOT modules are missing or invalid")
+  ssotConfig = assert(dofile("atomic.lua").read("ssot.cfg"), "invalid ssot.cfg")
+  assert(type(ssotConfig) == "table" and type(ssotConfig.controllers) == "table", "invalid controllers")
+  ssot = SSOT.open(ssotConfig)
 end
 
 local args = { ... }
@@ -150,9 +173,16 @@ while #state.log > 200 do table.remove(state.log, 1) end
 for _, e in ipairs(state.log) do e.text = tostring(e.text):sub(1, 256) end
 for _, b in pairs(state.bots) do if b.status then b.status = trimStatus(b.status) end end
 
+local function yieldWork()
+  os.queueEvent("server_work")
+  os.pullEvent("server_work")
+end
 local function hashOf(text)
   local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  for i = 1, #text do
+    h = (h * 33 + text:byte(i)) % 4294967296
+    if i%16384==0 then yieldWork() end
+  end
   return string.format("%08x", h)
 end
 
@@ -182,6 +212,7 @@ for _, f in ipairs(FILES) do
     cacheOp(fs.delete, CODE_DIR .. "/" .. f .. ".bak")
     state.files[f] = { hash = hashOf(code), size = #code, fetched = old and old.fetched or 0, path = path }
   end
+  yieldWork()
 end
 
 local function mirror(f)
@@ -232,7 +263,10 @@ local function meshLoop()
   while true do
     local _, side, ch, replyCh, msg = os.pullEvent("modem_message")
     if ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
-      and type(msg.nRecipient) == "number" and not relayed[msg.nMessageID] then
+      and msg.nMessageID>=0 and msg.nMessageID<=2147483647 and msg.nMessageID%1==0
+      and type(msg.nRecipient) == "number" and msg.nRecipient>=0 and msg.nRecipient<=2147483647
+      and msg.nRecipient%1==0 and type(replyCh)=="number" and replyCh>=0 and replyCh<=65535 and replyCh%1==0
+      and (not SSOT or SSOT.bounded(msg,262144,true)) and not relayed[msg.nMessageID] then
       relayed[msg.nMessageID], count = os.clock() + 30, count + 1
       if count > 500 then
         for k, t in pairs(relayed) do if t < os.clock() then relayed[k], count = nil, count - 1 end end
@@ -337,6 +371,19 @@ local function retryOrders()
 end
 
 local function request(id, m)
+  if SSOT and (not SSOT.bounded(m,262144,true)
+    or #textutils.serialize(copy(m),{compact=true})>262144) then return end
+  if m.type == "ssot" then
+    if ssot then
+      local r, err = ssot.handle(id, m)
+      if r then rednet.send(id, r, PROTOCOL) end
+      if err then log("ssot_error", id, err) end
+    end
+    return
+  end
+  if ssotConfig and
+    (m.type == "hub_put" or m.type == "command" or m.type == "register" or m.type == "ar_toggle" or m.type == "ar_ready" or m.arClient)
+    and not ssotConfig.controllers[tostring(id)] then return end
   if m.arClient == true and (m.type == "hub_get" or m.type == "hub_put") then
     arHub = id
     arUntil = 0
@@ -817,12 +864,14 @@ local function network()
   draw3D()
   while true do
     local ev, id, m, proto = os.pullEvent()
-    if ev == "rednet_message" and type(m) == "table" then
+    if ev == "rednet_message" and type(m) == "table" and type(id)=="number" and id>=0 and id<=2147483647
+      and id%1==0 and (not SSOT or SSOT.bounded(m,262144,true)) then
       if proto == PROTOCOL then request(id, m)
       elseif proto == "minearmy" and m.type == "cmd_ack" then
         local o = outbox[m.cid]
         if o and o.target == id then outbox[m.cid] = nil end
-      elseif BOTS[proto] and (m.type == "status" or tostring(m.type):match("_state$")
+      elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
+        and (m.type == "status" or tostring(m.type):match("_state$")
         or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
         if proto == "minearmy" and m.type == "panel_state" then hubPanel = m end
         status(id, m, proto)
