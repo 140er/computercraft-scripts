@@ -16,7 +16,7 @@ wh2 = {
 	wizard = { v = 1, revision = 0, classes = {}, questions = {} },
 	craft = { v = 1, revision = 0, jobs = {}, queries = {}, planUploads = {} },
 }
-wh2Config = { enabled = false, operators = { ["4"] = true }, recipeHubId = 5 }
+wh2Config = { enabled = false, operators = { ["4"] = true }, enrolledRoles = { ["17"] = "miner" }, recipeHubId = 5 }
 pos = {
 	v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
 	x = 10, y = 65, z = 20, h = 0, conf = "certain", src = "neighbour",
@@ -102,6 +102,7 @@ settings = {
 	global = {
 		enabled = false, navigation = false, mining = false,
 		warehouse = false, sorting = false, smelting = false, crafting = false,
+		forestry = false, farming = false, building = false, lavaCollection = false, following = false,
 		autoCharge = false, autoDropoff = false, traffic = false,
 		mesh = true, returnHome = true,
 		fuelLow = 200, fuelTarget = 2000, fuelMargin = 32,
@@ -153,6 +154,10 @@ Effective settings apply registry defaults, then `settings.global`, then `settin
 `storagePolicy` is global-only and controls the authority's ledger. Role or computer patches containing it fail. Other behavior keys may appear at every scope. `false` is an explicit value with the field meaning above. `unset` removes the value at the named scope and restores inheritance. Map and array values replace a whole value. Unknown keys and invalid effective combinations fail the entire patch, including a global patch that would invalidate a computer override. The server checks `baseRevision` and increments the revision once per accepted patch.
 
 The fleet dev controls read global values with `wh2-get`, `topic="settings"`, and `field="defaults"`. The bounded result has one row `{id="defaults", revision=revision, effective=values}`. Values include registry defaults and global defaults, without a computer override. Ordinary settings reads return the target computer's effective values. This lets global controls read a bounded page without downloading every override.
+
+The fleet adapter reads enrolled roles from private `wh2Config.enrolledRoles[decimal(computerId)]`. Each entry requires an existing pairing. Telemetry cannot change it. A settings query with `role="miner"` returns one `{id="role:miner", revision=revision, effective=values}` row with registry, global, and role values. It forbids `id`, `computerId`, and `field`. Role controls use this bounded view before a role patch.
+
+The fleet retrofit adds default-off `forestry`, `farming`, `building`, `lavaCollection`, and `following` switches for the existing lumber, farmer, builder, lava, and buddy programs. They use the same scopes and inheritance as the other behavior switches. Intrinsic farm and build geometry remains local. Common service thresholds come from effective fleet settings while the program is managed.
 
 Fuel counts and retained counts are nonnegative integers. `fuelTarget` is 1 through 100000 and exceeds `fuelLow`. `minFreeSlots` is 0 through 16. `fullnessHigh` is greater than 0 and at most 1. Other durations and counts are positive integers. `miningMode` is `thorough` or `fast`. Target and keep maps contain namespaced IDs mapped to true. `extraSmelt`, `noSmelt`, and fuel preferences are arrays of item IDs. `leave` maps item IDs to retained counts. Explicit class answers override imported smelting preferences. Disabling a behavior still prevents its route from executing. Existing module limits still apply, including mining geometry and navigation budgets.
 

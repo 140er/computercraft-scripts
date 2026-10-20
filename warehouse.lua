@@ -12,9 +12,16 @@ function M.open(cfg)
     end
     return true
   end
+  local function sharedSite(site)
+    return type(site)=="table" and type(site.name)=="string" and #site.name>0 and #site.name<=64
+      and type(site.locationId)=="string" and #site.locationId>0 and #site.locationId<=64
+      and S.pose(site.pose) and site.pose.v==nil and site.pose.frame==nil and integer(site.pose.h,0,3)
+      and (site.side=="front" or site.side=="top" or site.side=="bottom")
+  end
   local function valid(v)
     return type(v)=="table" and v.version==1 and phases[v.phase]==true and slots(v.cargo)
       and slots(v.escrow) and integer(v.line,1,9)
+      and (v.serviceSite==nil or sharedSite(v.serviceSite))
       and (v.phase~="charge" or type(v.charge)=="table" and type(v.charge.name)=="string"
         and integer(v.charge.target,0,100000) and integer(v.charge.queuedUntil,0,9007199254740991)
         and integer(v.charge.timeout,1000,3600000) and S.pose(v.charge.origin) and integer(v.charge.origin.h,0,3))
@@ -55,6 +62,11 @@ function M.open(cfg)
     local ok,err=release()
     return false,ok and why or err
   end
+  local function matches(site,expected)
+    local p,q=site and site.pose,expected and expected.pose
+    return type(p)=="table" and type(q)=="table" and p.dim==q.dim and p.x==q.x and p.y==q.y
+      and p.z==q.z and p.h==q.h and site.side==expected.side
+  end
   local function reach(name,kind)
     if state.lock~=name or confirmedLock~=name then
       if state.lock~=name then local ok,err=release() if not ok then return false,err end end
@@ -62,6 +74,9 @@ function M.open(cfg)
       state.lock,state.site,confirmedLock=name,r.site,name save()
     end
     if state.site.kind~=kind then return reject("wrong interaction site kind") end
+    if state.serviceSite and (state.serviceSite.name~=name or not matches(state.site,state.serviceSite)) then
+      return reject("shared location changed; refresh service")
+    end
     local cost,err=nav.homeCost(state.site.pose)
     if cost==false then return reject(err) end
     local fuel=turtle.getFuelLevel()
@@ -152,14 +167,29 @@ function M.open(cfg)
     return true
   end
   function api.state() return A.copy(state) end
-  function api.charge(name,target,timeout)
+  function api.bindService(site)
+    reconcile()
+    if state.phase~="unload" and state.phase~="charge" then return false,"no automatic service" end
+    if not sharedSite(site) then return false,"invalid shared service site" end
+    local name=state.phase=="charge" and state.charge.name or state.drop
+    if name~=site.name or state.serviceSite and not matches(state.serviceSite,site)
+      or state.site and not matches(state.site,site) then
+      local ok,why=release() if not ok then return false,why end
+    end
+    if state.phase=="charge" then state.charge.name=site.name else state.drop=site.name end
+    state.serviceSite=A.copy(site) save()
+    return true
+  end
+  function api.charge(name,target,timeout,site)
     if state.phase=="charge" then return true end
     reconcile()
     if next(state.escrow) then return false,"return source escrow before charging" end
+    if site~=nil and not sharedSite(site) then return false,"invalid shared service site" end
     assert(type(name)=="string" and type(target)=="number" and target>=0 and target%1==0
       and type(timeout)=="number" and timeout>=1000 and timeout<=3600000,"invalid charging target")
     local r,why=call("wh-sites",{name=name}) if not r then return false,why end
     if r.site.kind~="charge" then return false,"wrong interaction site kind" end
+    if site and not matches(r.site,site) then return false,"shared location changed; refresh service" end
     local origin=nav.pose()
     local outward,err=nav.homeCost(r.site.pose) if outward==false then return false,err end
     local back,err=nav.homeCost(origin,r.site.pose) if back==false then return false,err end
@@ -169,6 +199,7 @@ function M.open(cfg)
     local resume=state.phase~="idle" and state.phase~="done" and state.phase or nil
     state.phase="charge" state.charge={name=name,target=target,timeout=timeout,queuedUntil=clock()+timeout,
       origin=origin,resume=resume,reason=state.reason}
+    state.serviceSite=site and A.copy(site) or nil
     save("charge-saved") return true
   end
   function api.unload(name,keep)
@@ -215,7 +246,8 @@ function M.open(cfg)
         local queued=c.queuedUntil-c.timeout
         if c.deadline then c.deadline=c.deadline-c.timeout+v.chargeTimeoutMs end
         c.timeout=v.chargeTimeoutMs c.queuedUntil=queued+c.timeout
-        c.target=math.min(v.fuelTarget,turtle.getFuelLimit())
+        local limit=turtle.getFuelLimit()
+        c.target=limit=="unlimited" and v.fuelTarget or math.min(v.fuelTarget,limit)
         local back,why=nav.homeCost(c.origin)
         if back==false then return false,why end
         if c.target<back+margin() then return false,"charging target cannot cover the return route" end
@@ -229,7 +261,7 @@ function M.open(cfg)
         local charged=reason=="charged" or reason=="unlimited fuel"
         state.phase=c.resume or "done" state.reason=c.resume and c.reason or reason
         if charged and c.resume then state.serviceCharges=(state.serviceCharges or 0)+1 end
-        state.charge=nil save("charged-saved")
+        state.charge=nil state.serviceSite=nil save("charged-saved")
         return charged,reason
       end
       if c.returning then return finish(c.outcome) end
@@ -269,7 +301,8 @@ function M.open(cfg)
       local ok,why=reach(state.drop,"drop") if not ok then return false,why end
       local slot=next(state.cargo)
       if slot then return transfer("unload",slot,state.cargo[slot].count) end
-      assert(release()) state.phase="done" state.reason="unloaded" save() return true
+      local released,why=release() if not released then return false,why end
+      state.phase="done" state.reason="unloaded" state.serviceSite=nil save() return true
     end
     local l=state.job.lines[state.line]
     if not l then
@@ -305,13 +338,13 @@ function M.open(cfg)
     if state.phase~="done" then return false,"warehouse job active" end
     state={version=1,phase="idle",line=1,cargo={},escrow={}} save() return true
   end
-  function api.cancelService(reason)
+  function api.cancelService(reason,preserveUnload)
     reconcile()
     if state.phase~="unload" and state.phase~="charge" then return false,"no automatic service" end
     local ok,why=release() if not ok then return false,why end
     if state.phase=="charge" then
       state.charge.returning=true state.charge.outcome=reason
-    else state.phase="done" state.reason=reason end
+    else state.phase=preserveUnload and "unload" or "done" state.reason=reason end
     save() return true
   end
   return api

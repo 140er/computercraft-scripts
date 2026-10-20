@@ -1040,6 +1040,7 @@ local function drawMap3D()
         list[#list + 1] = V.entry(t.id, "miner", t, t.age)
       end
     end
+    if wh2 and wh2.records then list=dofile("wh2-ar.lua").merge(list,wh2.records(),os.epoch("utc")) end
     if wmap.me then list[#list + 1] = { id = -1, kind = "panel", name = "you", x = wmap.me.x, y = wmap.me.y,
       z = wmap.me.z, age = 0 } end
     local scene = V.scene(list, { selected = wmap.sel3 })

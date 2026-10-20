@@ -114,7 +114,21 @@ if ($PrepareOnly) { return }
 $java = 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe'
 $script:process = $null
 function Start-TestServer([string]$Label) {
+    if ($Fleet) {
+        $fleetOwnerPath='C:\Work\gemini-input\p2\gateB.lock\owner.txt'
+        if (!(Test-Path -LiteralPath $fleetOwnerPath) -or [IO.File]::ReadAllText($fleetOwnerPath) -ne 'fleet') {
+            throw 'Fleet must hold the Gate B lock before starting Java.'
+        }
+        if ((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory*1KB -lt 5GB) {
+            throw 'Fleet needs at least 5 GB free RAM before starting Java.'
+        }
+        foreach ($fleetPort in @($port,$rconPort)) {
+            $fleetListener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,$fleetPort)
+            try { $fleetListener.Start() } finally { $fleetListener.Stop() }
+        }
+    }
     $script:process = Start-Process -FilePath $java -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx3G','@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
+    if ($Fleet) { Add-Content -LiteralPath "$Output\owned-java-pids.txt" -Value $script:process.Id }
     $script:process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {

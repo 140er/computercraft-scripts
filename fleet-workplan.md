@@ -15,7 +15,7 @@ The server owns fleet records, effective settings and shared service locations. 
 
 ## Throughput checkpoint
 
-- Blocking first steps. Read the contract and source. Establish module signatures before parallel edits. H12 must pass before the required rebase and Gate B.
+- Blocking first steps. Read the contract and source. Establish module signatures before parallel edits. H12 must pass before its merge and Gate B.
 - Independent workstreams. Fleet domain and its tests, the shared client and its tests, and miner integration use disjoint files. The parent owns dispatcher integration, other callers, manifests and runtime evidence.
 - Shared mutable state. SSOT alone persists shared state. Agents share this worktree but own disjoint files. Only the parent runs git mutations and gates.
 - Smallest safe decomposition. Three Codex workers use gpt-6.1-sol. No other model or paid service runs.
@@ -33,10 +33,16 @@ Two candidate integrations were considered. A separate telemetry receiver would 
 - [ ] Integrate miner actions and server-known services.
 - [ ] Integrate remaining program reporting, views and manifests.
 - [ ] Run mock suite and CraftOS sandbox under 1,000,000 bytes.
-- [ ] Rebase onto the furthest passing hardening branch, at least H12, and rerun Gate A.
+- [ ] Merge the furthest passing hardening branch, at least H12, and rerun Gate A.
 - [ ] Run Gate B with the shared lock and retain failed attempts.
 - [ ] Review, commit, push, open PR and write SUMMARY.
 
 ## Decisions
 
 Model the Domain led to one settings registry instead of repeated validators. Prove It Works requires real inventory counts and screenshots before a gate can pass. Offline autonomy and H4 remain unimplemented.
+
+## Contract3 pickup
+
+The paused WIP is d1fd8c4. Merge cd3f958 picks up contract3 without rewriting branch history. Three Codex workers own the fleet domain, shared client, and miner service files. The parent owns program adapters, dispatch, controls, and runtime evidence. Every worker uses gpt-6.1-sol. Offline autonomy remains outside this PR because the user explicitly excludes it.
+
+The fleet record and settings tables gain v=1. Settings inherit global, role, then computer values. Poses carry their frame, heading, confidence, source, and anchor timestamp. The location adapter converts configured legacy world sites at one boundary. Relative reports never create world AR coordinates. Authentication, durable envelopes, queue ownership, chunk storage, and expiry remain hardening integration requirements.

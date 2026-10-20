@@ -6,9 +6,16 @@ function M.entries(records, now)
       local age=math.max(0,(now-(record.lastSeen or 0))/1000)
       local entry={id=record.computerId,kind=record.role,name=record.label,role=record.role,
         age=age,stale=age>=15,phase=record.state,status=age>=15 and "offline" or record.state,
-        err=record.error or nil,trouble=record.state=="blocked",poseConfirmed=record.poseConfirmed==true,
+        err=record.error or nil,trouble=record.state=="blocked",
         settingsRevision=record.appliedSettingsRevision,fuel=type(record.fuel)=="table" and record.fuel.level or nil}
-      if type(record.pose)=="table" then entry.x,entry.y,entry.z,entry.dim=record.pose.x,record.pose.y,record.pose.z,record.pose.dim end
+      local pose=record.pose
+      entry.pose=pose
+      entry.poseConfirmed=type(pose)=="table" and pose.v==1 and pose.frame=="abs" and pose.conf=="certain"
+      if type(pose)=="table" and pose.v==1 and pose.frame=="abs" and pose.yAbs==true
+        and (pose.conf=="certain" or pose.conf=="suspect") then
+        entry.x,entry.y,entry.z,entry.dim=pose.x,pose.y,pose.z,pose.dim
+        if pose.conf=="suspect" then entry.status=entry.status.." [suspect]" end
+      end
       entries[#entries+1]=entry
     end
   end

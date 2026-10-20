@@ -1,4 +1,5 @@
 local M = {}
+local roles={miner=true,store=true,crafter=true,factory=true,hub=true,server=true,panel=true,other=true}
 function M.open(context)
   local client,screen=context.client,context.screen or term.current()
   local registry=dofile("wh2-fleet.lua").registry
@@ -13,7 +14,9 @@ function M.open(context)
     local target=api.target
     if type(action)=="table" then target=action.target end
     local request={wh2=1,topic="settings",cursor=0}
-    if target~=false then request.computerId=target else request.field="defaults" end
+    if type(target)=="number" then request.computerId=target
+    elseif type(target)=="string" then request.role=target
+    else request.field="defaults" end
     local result,err=client.call("wh2-get",request)
     result=body(result)
     if not result or not result.ok then api.note=tostring(err or result and result.error or "Server unavailable") return end
@@ -21,8 +24,9 @@ function M.open(context)
     if not row or type(row.effective)~="table" then api.note="Settings response is incomplete" return end
     if api.target==target then api.revision,api.effective=result.revision,row.effective end
     if type(action)=="table" then
-      local patch={wh2=1,scope=target==false and "global" or "turtle",baseRevision=result.revision,set={},unset={}}
-      if target~=false then patch.computerId=target end
+      local patch={wh2=1,scope=target==false and "global" or type(target)=="string" and "role" or "computer",baseRevision=result.revision,set={},unset={}}
+      if type(target)=="number" then patch.computerId=target
+      elseif type(target)=="string" then patch.role=target end
       if action.unset then patch.unset={action.key} else patch.set[action.key]=action.value end
       local saved,why=client.call("wh2-settings",patch) saved=body(saved)
       api.note=saved and saved.ok and "Settings saved" or tostring(why or saved and saved.error or "Save failed")
@@ -30,7 +34,8 @@ function M.open(context)
     else api.note="Settings revision "..tostring(api.revision) end
   end
   function api.select(computerId)
-    if computerId~=false and (type(computerId)~="number" or computerId<0 or computerId%1~=0) then return false end
+    if computerId~=false and not roles[computerId] and
+      (type(computerId)~="number" or computerId<0 or computerId>2147483647 or computerId%1~=0) then return false end
     api.target,api.pending=computerId,"refresh" return true
   end
   function api.set(key,value)
@@ -47,7 +52,7 @@ function M.open(context)
     local w,h=screen.getSize()
     screen.setBackgroundColor(colors.black) screen.setTextColor(colors.white) screen.clear()
     local function line(y,text) screen.setCursorPos(1,y) screen.write(tostring(text):sub(1,w)) end
-    line(1,"Fleet dev | "..(api.target==false and "Global defaults" or "Computer #"..api.target))
+    line(1,"Fleet dev | "..(api.target==false and "Global defaults" or type(api.target)=="string" and "Role "..api.target or "Computer #"..api.target))
     local rows=math.max(1,h-4)
     local first=math.max(1,math.min(api.index-math.floor(rows/2),#names-rows+1))
     for i=first,math.min(#names,first+rows-1) do
@@ -56,7 +61,7 @@ function M.open(context)
       line(i-first+2,(i==api.index and "> " or "  ")..key.." = "..tostring(value))
     end
     line(h-2,"Arrows select. Enter edits. U inherits.")
-    line(h-1,"G global. T turtle. Esc closes.")
+    line(h-1,"G global. T computer. R role. Esc closes.")
     line(h,api.note)
   end
   function api.handle(event,key)
@@ -68,7 +73,8 @@ function M.open(context)
     elseif event=="char" then
       if key=="u" then api.unset(names[api.index])
       elseif key=="g" then api.select(false)
-      elseif key=="t" then return "target" end
+      elseif key=="t" then return "target"
+      elseif key=="r" then return "role" end
     end
     return "draw"
   end
@@ -82,10 +88,11 @@ function M.run(client,screen)
       local event,key=os.pullEvent()
       local action,name,value=dev.handle(event,key)
       if action=="close" then return end
-      if action=="target" or action=="edit" then
-        print(action=="target" and "Computer ID" or name.." as a Lua value")
+      if action=="target" or action=="role" or action=="edit" then
+        print(action=="target" and "Computer ID" or action=="role" and "Role name" or name.." as a Lua value")
         local input=read()
         if action=="target" then dev.select(tonumber(input))
+        elseif action=="role" then dev.select(input)
         else
           local parsed=textutils.unserialize(input)
           if parsed~=nil then dev.set(name,parsed) else dev.note="Invalid value" end

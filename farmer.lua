@@ -45,6 +45,14 @@ local FUEL_MARGIN = 30
 local REFUEL_BELOW = 2000  -- at home, top up from the fuel chest when below this...
 local REFUEL_TO = 3000     -- ...to about this (a lava bucket is 1000)
 local MIN_FUEL = 200       -- below this it waits at home for fuel
+local FULLNESS_HIGH, KEEP_ITEMS = math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    REFUEL_BELOW, REFUEL_TO, FUEL_MARGIN = values.fuelLow, values.fuelTarget, values.fuelMargin
+    MIN_FUEL, MIN_FREE = values.minTripFuel, values.minFreeSlots
+    FULLNESS_HIGH, KEEP_ITEMS = values.fullnessHigh, values.keep
+  end)
+end
 local RETRY = 20
 
 -- Directions relative to the home spot:
@@ -316,6 +324,11 @@ local function freeSlots()
   return n
 end
 
+local function inventoryNeedsService()
+  local free = freeSlots()
+  return free < MIN_FREE or (16 - free) / 16 >= FULLNESS_HIGH
+end
+
 local function findSlot(test)
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
@@ -385,7 +398,7 @@ end
 
 -- Enough fuel to do 'extra' more and still get home? Burns carried fuel if needed.
 local function fuelFor(extra)
-  local need = homeCost() + extra + FUEL_MARGIN
+  local need = math.max(wh2 and wh2.managed() and REFUEL_BELOW or 0, homeCost() + extra + FUEL_MARGIN)
   return fuel() >= need or burn(need)
 end
 
@@ -658,7 +671,7 @@ local function round()
   setStatus("Looking after the field (" .. (st.cursor - 1) .. "/" .. #CELLS .. ")")
   while st.cursor <= #CELLS do
     if st.paused or ui.homeNow then return "stop" end
-    if freeSlots() < MIN_FREE then return "full" end
+    if inventoryNeedsService() then return "full" end
     local cell = CELLS[st.cursor]
     if not fuelFor(math.abs(cell[1] - pos.f) + math.abs(cell[2] - pos.s) + 4) then return "fuel" end
     travel(cell[1], cell[2])
@@ -750,6 +763,7 @@ end
 local function refuelHome()
   burn(REFUEL_TO)
   if fuel() >= REFUEL_BELOW then return end
+  if wh2 and wh2.managed() then error("Fleet charging blocked: farmer journal has no shared service adapter", 0) end
   local ok, info = turtle.inspectDown()
   if ok and isChest(info) then
     for _ = 1, 32 do
@@ -782,7 +796,7 @@ local function unload(dropFn, harvestOnly)
     local d = turtle.getItemDetail(s)
     if d then
       local keep = 0
-      if isFuelItem(d) or (harvestOnly and d.name == "minecraft:bucket") then keep = d.count
+      if KEEP_ITEMS[d.name] or isFuelItem(d) or (harvestOnly and d.name == "minecraft:bucket") then keep = d.count
       elseif seeds[d.name] then
         keep = math.min(d.count, math.max(0, KEEP_SEEDS - (kept[d.name] or 0)))
         kept[d.name] = (kept[d.name] or 0) + keep
@@ -807,7 +821,7 @@ local function haveHarvest()
   local seeds, kept = seedKinds(), {}
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
-    if d and not isFuelItem(d) and d.name ~= "minecraft:bucket" then
+    if d and not KEEP_ITEMS[d.name] and not isFuelItem(d) and d.name ~= "minecraft:bucket" then
       if not seeds[d.name] then return true end
       kept[d.name] = (kept[d.name] or 0) + d.count
       if kept[d.name] > KEEP_SEEDS then return true end
@@ -818,6 +832,7 @@ end
 
 -- Bring the harvest to the drop chest (cfg.drop). False if it couldn't get there.
 local function deliver()
+  if wh2 and wh2.managed() then error("Fleet drop-off blocked: farmer journal has no shared service adapter", 0) end
   local t = cfg.drop
   local cost = 2 * (math.abs(t.f) + math.abs(t.s) + math.abs(t.y) + 2 * HOP) + 20
   if not fuelFor(cost) then return false end
@@ -838,6 +853,7 @@ local function deliver()
 end
 
 local function service()
+  if wh2 and wh2.managed() then error("Fleet services blocked: farmer journal has no shared service adapter", 0) end
   setStatus("Unloading")
   while not findChest() do
     setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: farmer home")

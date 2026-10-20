@@ -55,6 +55,14 @@ local FUEL_MARGIN = 30
 local REFUEL_BELOW = 4000  -- at home, top up from the fuel chest when below this...
 local REFUEL_TO = 5000     -- ...to about this (a lava bucket is 1000)
 local MIN_FUEL = 300       -- below this it waits at home for fuel
+local MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = 4, math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    REFUEL_BELOW, REFUEL_TO, FUEL_MARGIN = values.fuelLow, values.fuelTarget, values.fuelMargin
+    MIN_FUEL, MIN_FREE = values.minTripFuel, values.minFreeSlots
+    FULLNESS_HIGH, KEEP_ITEMS = values.fullnessHigh, values.keep
+  end)
+end
 local RETRY = 20
 
 -- Directions relative to the home spot:
@@ -288,6 +296,11 @@ local function freeSlots()
   return n
 end
 
+local function inventoryNeedsService()
+  local free = freeSlots()
+  return free < MIN_FREE or (16 - free) / 16 >= FULLNESS_HIGH
+end
+
 local function findSlot(test)
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
@@ -363,7 +376,7 @@ end
 
 -- Enough fuel to do 'extra' more and still get home? Burns carried fuel if needed.
 local function fuelFor(extra)
-  local need = homeCost() + extra + FUEL_MARGIN
+  local need = math.max(wh2 and wh2.managed() and REFUEL_BELOW or 0, homeCost() + extra + FUEL_MARGIN)
   return fuel() >= need or burn(need)
 end
 
@@ -792,7 +805,7 @@ local function explore(budget)
   land()
   for _ = 1, budget do
     if st.cursor > #CELLS or countSpots() >= MAX_SPOTS or st.paused or ui.homeNow then break end
-    if freeSlots() < 4 or not fuelFor(TREE_FUEL + 2 * SPACING) then break end
+    if inventoryNeedsService() or not fuelFor(TREE_FUEL + 2 * SPACING) then break end
     local cell = CELLS[st.cursor]
     while pos.f ~= cell[1] or pos.s ~= cell[2] do
       local d
@@ -808,7 +821,7 @@ local function explore(budget)
         flyTo(cell[1], cell[2], flightAlt())
         land()
       end
-      if freeSlots() < 4 then break end
+      if inventoryNeedsService() then break end
     end
     if pos.f == cell[1] and pos.s == cell[2] then
       st.cursor = st.cursor + 1
@@ -878,14 +891,14 @@ local function trip()
   local list = dueSpots()
   while #list > 0 do
     if st.paused or ui.homeNow then return felled, "stop" end
-    if freeSlots() < 4 then return felled, "full" end
+    if inventoryNeedsService() then return felled, "full" end
     local spot, dist = nearest(list)
     if not fuelFor(dist + 2 * HOP + TREE_FUEL) then return felled, "fuel" end
     if visit(spot) then felled = felled + 1 end
   end
   if saplingCount() > SAPLING_RESERVE and countSpots() < MAX_SPOTS and fuelToSpare() then plantSpares() end
   if st.paused or ui.homeNow then return felled, "stop" end
-  if st.cursor <= #CELLS and countSpots() < MAX_SPOTS and freeSlots() >= 4 then
+  if st.cursor <= #CELLS and countSpots() < MAX_SPOTS and not inventoryNeedsService() then
     -- only worth the flight if there is fuel left for a good part of the search
     local from = CELLS[st.cursor - 1]
     local dist = math.abs(from[1] - pos.f) + math.abs(from[2] - pos.s) + 2 * HOP
@@ -970,6 +983,7 @@ end
 local function refuelHome()
   burn(REFUEL_TO)
   if fuel() >= REFUEL_BELOW then return end
+  if wh2 and wh2.managed() then error("Fleet charging blocked: lumber journal has no shared service adapter", 0) end
   -- 1. a fuel chest under it: take one item at a time
   local ok, info = turtle.inspectDown()
   if ok and isChest(info) then
@@ -1028,7 +1042,7 @@ local function deposit()
     local d = turtle.getItemDetail(s)
     if d then
       local keep = 0
-      if isBoneMeal(d) then keep = d.count
+      if KEEP_ITEMS[d.name] or isBoneMeal(d) then keep = d.count
       elseif isPlantable(d) then
         keep = math.min(d.count, math.max(0, KEEP_SAPLINGS - (kept[d.name] or 0)))
         kept[d.name] = (kept[d.name] or 0) + keep
@@ -1048,6 +1062,7 @@ local function deposit()
 end
 
 local function service()
+  if wh2 and wh2.managed() then error("Fleet services blocked: lumber journal has no shared service adapter", 0) end
   setStatus("Unloading")
   while not findChest() do
     setStatus("ERROR: no chest behind me. Put me on my home spot, Ctrl+T, type: lumber home")

@@ -59,6 +59,15 @@ local FUEL_MARGIN = 30
 local JUNK_EVERY = 10
 local MAX_VEIN = 48
 local RETRY = 30
+local FUEL_LOW, FUEL_TARGET, MIN_TRIP_FUEL, REFUEL_WAIT = 0, 2000, 0, 500
+local MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = 1, math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    FUEL_LOW, FUEL_TARGET, FUEL_MARGIN = values.fuelLow, values.fuelTarget, values.fuelMargin
+    MIN_TRIP_FUEL, REFUEL_WAIT = values.minTripFuel, values.fuelLow
+    MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = values.minFreeSlots, values.fullnessHigh, values.keep
+  end)
+end
 
 -- Position: dir 0=forward(+z) 1=right(+x) 2=back 3=left ; 4=up 5=down
 local x, y, z, dir = 0, 0, 0, 0
@@ -206,12 +215,17 @@ local function freeSlots()
   return n
 end
 
+local function inventoryNeedsService()
+  local free = freeSlots()
+  return free < MIN_FREE or (16 - free) / 16 >= FULLNESS_HIGH
+end
+
 -- Drop junk, keep one stack of placeable junk for lava
 local function dropJunk()
   local kept = false
   for s = 1, 16 do
     local it = turtle.getItemDetail(s)
-    if it and JUNK[it.name] then
+    if it and JUNK[it.name] and not KEEP_ITEMS[it.name] then
       turtle.select(s)
       if not kept and sealable(s) then
         kept = true -- keep 1 stack as seal material
@@ -234,12 +248,14 @@ local function goHome()
 end
 
 local function unloadAndFuel()
+  if wh2 and wh2.managed() then error("Fleet services blocked: smartmine path has no shared service adapter", 0) end
   -- Unload, keep fuel
   for s = 1, 16 do
-    if turtle.getItemCount(s) > 0 and not isFuel(s) then turtle.select(s) turtle.drop() end
+    local item = turtle.getItemDetail(s)
+    if item and not KEEP_ITEMS[item.name] and not isFuel(s) then turtle.select(s) turtle.drop() end
   end
   -- Coal from the chest
-  local need = function() return turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < 2000 end
+  local need = function() return turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < FUEL_TARGET end
   local tries = 0
   while need() and tries < 20 do
     turtle.select(16)
@@ -248,7 +264,7 @@ local function unloadAndFuel()
     else
       tries = tries + 1
       for s = 1, 16 do turtle.select(s) turtle.refuel() end
-      if turtle.getFuelLevel() < 500 then print("No coal in chest, waiting...") sleep(5) else break end
+      if turtle.getFuelLevel() < REFUEL_WAIT then print("No coal in chest, waiting...") sleep(5) else break end
     end
   end
   turtle.select(1)
@@ -263,6 +279,7 @@ local function resume(saved)
 end
 
 local function service()
+  if wh2 and wh2.managed() then error("Fleet services blocked: smartmine path has no shared service adapter", 0) end
   local saved = goHome()
   unloadAndFuel()
   resume(saved)
@@ -272,7 +289,7 @@ end
 local function checkFuel()
   local f = turtle.getFuelLevel()
   if f == "unlimited" then return end
-  if f <= #path + FUEL_MARGIN then
+  if f <= math.max(FUEL_LOW, #path + FUEL_MARGIN) then
     print("Fuel low, going home")
     service()
   end
@@ -281,9 +298,9 @@ end
 local function afterDig()
   dug = dug + 1
   if dug % JUNK_EVERY == 0 then dropJunk() end
-  if freeSlots() == 0 then
+  if inventoryNeedsService() then
     dropJunk()
-    if freeSlots() == 0 then print("Inventory full, unloading") service() end
+    if inventoryNeedsService() then print("Inventory full, unloading") service() end
   end
 end
 
@@ -391,7 +408,8 @@ end
 
 -- Main program
 local function main()
-  if turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < LEN + FUEL_MARGIN then
+  if turtle.getFuelLevel() ~= "unlimited" and turtle.getFuelLevel() < math.max(MIN_TRIP_FUEL, LEN + FUEL_MARGIN) then
+    if wh2 and wh2.managed() then error("Fleet charging blocked: smartmine path has no shared service adapter", 0) end
     face(2) unloadAndFuel() face(0)
   end
   for t = 1, TUNNELS do

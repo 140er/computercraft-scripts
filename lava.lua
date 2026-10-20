@@ -64,6 +64,14 @@ local REFUEL_TO = 2000     -- ...up to about this (a lava bucket is 1000)
 local MIN_FUEL = 100       -- below this it stays home
 local WAIT = 60            -- seconds between looks when there is nothing to do
 local RETRY = 20
+local FUEL_MARGIN, MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = 50, 0, math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    REFUEL_BELOW, REFUEL_TO, FUEL_MARGIN = values.fuelLow, values.fuelTarget, values.fuelMargin
+    MIN_FUEL, MIN_FREE = values.minTripFuel, values.minFreeSlots
+    FULLNESS_HIGH, KEEP_ITEMS = values.fullnessHigh, values.keep
+  end)
+end
 
 local LAVA, BUCKET = "minecraft:lava_bucket", "minecraft:bucket"
 
@@ -432,6 +440,11 @@ local function freeSlots()
   return n
 end
 
+local function inventoryNeedsService()
+  local free = freeSlots()
+  return free < MIN_FREE or (16 - free) / 16 >= FULLNESS_HIGH
+end
+
 -- A chest next to the turtle ("front" or "bottom") as a peripheral: its contents
 local function chestList(side)
   local c = peripheral.wrap(side)
@@ -542,7 +555,8 @@ local function dist(p) return math.abs(p.x - pos.x) + math.abs(p.y - pos.y) + ma
 
 -- Enough fuel to go 'extra' blocks more and still get home? Burns carried lava if needed.
 local function fuelFor(extra)
-  local need = extra + math.max(#st.path, dist(HOME)) + 2 * HOP + 50
+  local need = math.max(wh2 and wh2.managed() and REFUEL_BELOW or 0,
+    extra + math.max(#st.path, dist(HOME)) + 2 * HOP + FUEL_MARGIN)
   return fuel() >= need or burnLava(need)
 end
 
@@ -692,6 +706,7 @@ end
 ---------------------------------------------------------------------------
 -- An empty bucket to use, with room for the full one it becomes
 local function canScoop()
+  if inventoryNeedsService() then return false end
   local s = findItem(BUCKET)
   return s ~= nil and (turtle.getItemCount(s) == 1 or emptySlot() ~= nil)
 end
@@ -907,6 +922,7 @@ end
 
 -- At home: own fuel, full buckets into the chest, a stack of empty buckets to carry
 local function service()
+  if wh2 and wh2.managed() then error("Fleet services blocked: lava journal has no shared service adapter", 0) end
   face(BACK)
   local ok, info = turtle.inspect()
   if not (ok and isChest(info)) then
@@ -922,7 +938,7 @@ local function service()
   local full = false
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
-    if d and (d.name ~= BUCKET or kept) then
+    if d and not KEEP_ITEMS[d.name] and (d.name ~= BUCKET or kept) then
       turtle.select(s)
       if not turtle.drop() then full = true end
     elseif d then

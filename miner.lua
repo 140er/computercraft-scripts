@@ -709,23 +709,35 @@ end
 function C.fleetSnapshot()
   local mining=C.mining and C.mining.state()
   local confirmed=C.nav and C.nav.confirmed()
-  local p=confirmed and C.nav.pose()
+  local p=confirmed and C.nav.fleetPose()
   local phase="idle"
   if C.estop or C.nav and C.nav.stopped() then phase="stopped"
   elseif C.fleetError then phase="blocked"
   elseif mining then
     phase=mining.service=="drop" and "dropping" or mining.service=="charge" and "charging"
       or mining.service=="home" and "returning" or mining.phase=="return" and "returning"
-      or (mining.phase=="work" or mining.phase=="resume") and "mining" or "idle"
+      or (mining.phase=="work" or mining.phase=="resume") and "mining" or mining.task and "blocked" or "idle"
   end
-  local used=16-freeSlots()
-  local fuel=turtle.getFuelLevel()
-  return {state=phase,detail=C.fleetError or status,
-    pose=p and {dim=p.dim,x=p.x,y=p.y,z=p.z} or false,heading=p and p.h or false,poseConfirmed=confirmed==true,
-    fuel={level=fuel,limit=fuel=="unlimited" and "unlimited" or turtle.getFuelLimit()},
-    inventory={slots=16,usedSlots=used,fullness=used/16},
+  local used=0
+  for slot=1,16 do
+    local ok,count=pcall(turtle.getItemCount,slot)
+    if not ok or type(count)~="number" or count<0 or count%1~=0 then used=false break end
+    if count>0 then used=used+1 end
+  end
+  local function fuelValue(fn)
+    if type(fn)~="function" then return false end
+    local ok,n=pcall(fn)
+    return ok and (n=="unlimited" or type(n)=="number" and n>=0 and n%1==0 and n<math.huge) and n or false
+  end
+  local fuel=fuelValue(turtle.getFuelLevel)
+  local limit=fuel=="unlimited" and "unlimited" or fuelValue(turtle.getFuelLimit)
+  if fuel~="unlimited" and limit=="unlimited" then limit=false end
+  return {state=phase,detail=tostring(C.fleetError or status):sub(1,256),
+    pose=p or false,
+    fuel={level=fuel,limit=limit},
+    inventory={slots=16,usedSlots=used,fullness=used and used/16 or false},
     currentJob=mining and mining.task and {kind="mine",id="zone:"..tostring(mining.task.id),step=mining.service or mining.phase} or false,
-    capabilities={navigation=C.nav~=nil,inventory=true,crafting=false},error=C.fleetError or false}
+    capabilities={navigation=C.nav~=nil,inventory=true,crafting=false},error=C.fleetError and tostring(C.fleetError):sub(1,256) or false}
 end
 
 function C.applyFleet(v)
@@ -741,7 +753,8 @@ end
 
 function C.openFleet()
   C.fleet=dofile("wh2-client.lua").new({rpc=C.ssot,enabled=true,role="miner",dimension=cfg.ssot.dimension,
-    snapshot=C.fleetSnapshot,apply=C.applyFleet,cacheFile="wh2-settings.cache"})
+    snapshot=C.fleetSnapshot,apply=C.applyFleet,cacheFile="wh2-settings.cache",
+    routeCost=function(goal,from) return C.nav.homeCost(goal,from) end})
 end
 
 function C.fleetBoundary(kind,to)
@@ -755,6 +768,7 @@ function C.fleetBoundary(kind,to)
   why=kind~="poll" and (not v.enabled and "fleet disabled" or not v.navigation and "navigation disabled"
     or C.estop and "cancelled" or kind=="mine" and not v.mining and "mining disabled"
     or kind=="return" and not v.returnHome and "return home disabled"
+    or kind=="warehouse" and not v.warehouse and "warehouse disabled"
     or kind=="drop" and (not v.warehouse or not v.autoDropoff) and "auto-drop-off disabled"
     or kind=="charge" and (not v.warehouse or not v.autoCharge) and "auto-charge disabled")
   if not why and kind=="mine" then
@@ -766,6 +780,14 @@ function C.fleetBoundary(kind,to)
       local task=C.mining.state().task
       if task and (math.abs(to.x-task.entry.x)>v.reach or math.abs(to.z-task.entry.z)>v.reach) then why="mining reach" end
     end
+    if not why and C.mining then
+      local _,revision=C.fleet.settings()
+      if C.mining.state().serviceSettingsRevision~=revision then why="service routes need refresh" end
+    end
+  end
+  if not why and (kind=="drop" or kind=="charge") and C.mining then
+    local _,revision=C.fleet.settings()
+    if C.mining.state().serviceActionRevision~=revision then why="service settings need refresh" end
   end
   if kind~="poll" then C.fleetError=why or nil end
   return not why,why
@@ -2216,7 +2238,7 @@ end
 
 function C.runFleetMining()
   local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,
-    fleet=C.fleet,service=cfg.warehouse,beforeAction=C.fleetBoundary,cancelled=function() return recall or updateWanted end})
+    fleet=C.fleet,beforeAction=C.fleetBoundary,cancelled=function() return recall or updateWanted end})
   C.mining=mining
   local shown
   while true do
@@ -2879,7 +2901,9 @@ local function listener()
       if C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop")
         and (b.target==nil or b.target==os.getComputerID()) then
         local why
-        apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid)
+        local epoch=b.commandEpoch
+        if type(epoch)=="string" and epoch:match("^%d+$") then epoch=tonumber(epoch) end
+        apply,why=C.nav.control(b.type,epoch,b.cid)
         valid=why~="invalid command"
         C.estop=C.nav.stopped()
       end

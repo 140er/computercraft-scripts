@@ -42,7 +42,9 @@ function M.open(cfg)
     if not r or not r.ok then return nil,why or r and r.error or "mining server unavailable" end
     return r
   end
-  local function options() return cfg.fleet and cfg.fleet.settings() end
+  local function options()
+    if cfg.fleet then return cfg.fleet.settings() end
+  end
   local function boundary(kind)
     if cfg.beforeAction then return cfg.beforeAction(kind) end
     return true
@@ -52,13 +54,17 @@ function M.open(cfg)
     for slot=1,16 do if turtle.getItemCount(slot)==0 then free=free+1 end end
     return free<(v and v.minFreeSlots or 2) or v and (16-free)/16>=v.fullnessHigh
   end
-  local reserveRevision,serviceWorker
+  local serviceWorker
   local function location(kind,from,selector)
-    local loc,why=cfg.fleet.location(kind,from,selector or nil)
+    local origin=nav.fleetPose(from)
+    if not origin then return nil,"confirmed service origin required" end
+    local loc,why=cfg.fleet.location(kind,origin,selector)
     if not loc then return nil,why end
     local name=loc.siteNames and loc.siteNames[kind=="charge" and "charge" or "drop"]
-    if type(name)~="string" or not S.pose(loc.access and loc.access.pose) then return nil,"shared location has no warehouse site" end
-    return loc,name
+    local target,err=nav.legacyTarget(loc.access and loc.access.pose)
+    if not target then return nil,err end
+    if type(name)~="string" or #name==0 then return nil,"shared location has no warehouse site" end
+    return {name=name,locationId=loc.id,pose=target,side=loc.access.side}
   end
   local function reserveServices()
     local v,revision=cfg.fleet.settings()
@@ -66,14 +72,21 @@ function M.open(cfg)
     for _,service in ipairs({{v.warehouse and v.autoDropoff,"dropoff",v.dropoffId},
       {v.warehouse and v.autoCharge and turtle.getFuelLevel()~="unlimited","charge",v.chargerId}}) do
       if service[1] then
-        local loc,why=location(service[2],cfg.home,service[3]) if not loc then return false,why end
-        local out,why=nav.homeCost(loc.access.pose,cfg.home) if out==false then return false,why end
-        local back,why=nav.homeCost(cfg.home,loc.access.pose) if back==false then return false,why end
+        local site,why=location(service[2],cfg.home,service[3]) if not site then return false,why end
+        local out,why=nav.homeCost(site.pose,cfg.home) if out==false then return false,why end
+        local back,why=nav.homeCost(cfg.home,site.pose) if back==false then return false,why end
         reserve=reserve+out+back
       end
     end
-    state.serviceReserve=reserve reserveRevision=revision
+    state.serviceReserve=reserve state.serviceSettingsRevision=revision
     return true
+  end
+  local function droppable(v)
+    for slot=1,16 do
+      local item=turtle.getItemDetail(slot)
+      if item and not v.keep[item.name] then return true end
+    end
+    return false
   end
   local function reconcile()
     local j=state.action
@@ -108,7 +121,8 @@ function M.open(cfg)
   local function fleetService()
     local ok,why=boundary("poll") if not ok then return false,why end
     if state.phase~="home" and state.phase~="done" then return false,"return home before service" end
-    local v=options()
+    local v,revision=options()
+    state.serviceActionRevision=revision
     if not serviceWorker then
       serviceWorker=dofile("warehouse.lua").open({nav=nav,client=client,
         path=cfg.service and cfg.service.path or "mining-warehouse.state",settings=options,beforeAction=boundary})
@@ -125,7 +139,9 @@ function M.open(cfg)
         if v.warehouse and v.autoCharge and fuel~="unlimited" and (fuel<=v.fuelLow or fuel<need) then
           if v.fuelTarget<need then return false,"fuel target cannot cover mining and service routes" end
           state.service="charge"
-        elseif v.warehouse and v.autoDropoff and inventoryFull(v) then state.service="drop"
+        elseif v.warehouse and v.autoDropoff and inventoryFull(v) then
+          if not droppable(v) then return false,"inventory full; all items are kept" end
+          state.service="drop"
         else return true end
       end
       save()
@@ -133,27 +149,39 @@ function M.open(cfg)
     if state.service=="drop" or state.service=="charge" then
       local charging=state.service=="charge"
       local enabled=v.warehouse and (charging and v.autoCharge or not charging and v.autoDropoff)
+      local reason=charging and "auto-charge disabled" or "auto-drop-off disabled"
+      if not charging then
+        local old=state.dropThresholds
+        if enabled and old and (old.minFreeSlots~=v.minFreeSlots or old.fullnessHigh~=v.fullnessHigh)
+          and not inventoryFull(v) then enabled=false reason="drop-off threshold changed" end
+        if enabled and not droppable(v) then enabled=false reason="no items available for drop-off" end
+        state.dropThresholds={minFreeSlots=v.minFreeSlots,fullnessHigh=v.fullnessHigh}
+      end
       if not enabled then
         if pending.phase=="unload" or pending.phase=="charge" and not pending.charge.returning then
-          local ok,why=w.cancelService(charging and "auto-charge disabled" or "auto-drop-off disabled")
+          local ok,why=w.cancelService(reason,not charging and not (v.warehouse and v.autoDropoff))
           if not ok then return false,why end
           pending=w.state()
         end
         if pending.phase~="charge" then state.service="home" save() end
-      elseif pending.phase=="idle" or pending.phase=="done" then
-        if not charging and not inventoryFull(v) then state.service="home" save()
+      elseif not (pending.phase=="charge" and pending.charge.returning) then
+        if (pending.phase=="idle" or pending.phase=="done") and not charging and not inventoryFull(v) then state.service="home" save()
         else
           local ok,why=boundary(charging and "charge" or "drop") if not ok then return false,why end
           local selector=v.dropoffId
           if charging then selector=v.chargerId end
-          local loc,name=location(charging and "charge" or "dropoff",nav.pose(),selector)
-          if not loc then return false,name end
-          local out,err=nav.homeCost(loc.access.pose) if out==false then return false,err end
-          local back,err=nav.homeCost(cfg.home,loc.access.pose) if back==false then return false,err end
+          local site,err=location(charging and "charge" or "dropoff",nav.pose(),selector)
+          if not site then return false,err end
+          local out,err=nav.homeCost(site.pose) if out==false then return false,err end
+          local back,err=nav.homeCost(cfg.home,site.pose) if back==false then return false,err end
           local fuel=turtle.getFuelLevel()
           if fuel~="unlimited" and fuel<out+back+v.warehouseFuelMargin then return false,"insufficient fuel for service and home" end
-          if charging then ok,why=w.charge(name,v.fuelTarget,v.chargeTimeoutMs)
-          else ok,why=w.unload(name,v.keep) end
+          if pending.phase=="idle" or pending.phase=="done" then
+            if charging then ok,why=w.charge(site.name,v.fuelTarget,v.chargeTimeoutMs,site)
+            else ok,why=w.unload(site.name,v.keep) end
+            if not ok then return false,why end
+          end
+          ok,why=w.bindService(site)
           if not ok then return false,why end
         end
       end
@@ -170,7 +198,7 @@ function M.open(cfg)
     ok,why=nav.go(cfg.home,"walk") if not ok then return false,why end
     ok,why=nav.face(cfg.home.h) if not ok then return false,why end
     local err=state.serviceError
-    state.service=nil state.serviceError=nil reserveRevision=nil save("service-saved")
+    state.service=nil state.serviceError=nil state.dropThresholds=nil save("service-saved")
     return not err,err
   end
   function api.service()
@@ -214,17 +242,20 @@ function M.open(cfg)
   end
   function api.start()
     reconcile()
+    if cfg.fleet then
+      local allowed,why=boundary("poll") if not allowed then return false,why end
+      local ok,why=reserveServices() if not ok then return false,why end
+    end
     local allowed,why=boundary("mine") if not allowed then return false,why end
     if state.phase=="home" and state.reason=="complete" then return api.finish() end
-    state.serviceReserve=0
     if cfg.fleet then
-      local ok,why=reserveServices() if not ok then return false,why end
       local v=options()
       if inventoryFull(v) then return false,"inventory full" end
       local fuel=turtle.getFuelLevel()
       if fuel~="unlimited" and (fuel<v.minTripFuel or fuel<=v.fuelLow
         or fuel<=(state.serviceReserve or 0)+v.fuelMargin) then return false,"low fuel" end
     elseif cfg.service and cfg.service.enabled then
+      state.serviceReserve=0
       local d,why=request("wh-sites",{name=cfg.service.drop}) if not d then return false,why end
       if d.site.kind~="drop" then return false,"configure a drop pose" end
       local legs={{cfg.home,d.site.pose},{d.site.pose,cfg.home}}
@@ -237,7 +268,7 @@ function M.open(cfg)
         local cost,why=nav.homeCost(leg[2],leg[1]) if cost==false then return false,why end
         state.serviceReserve=state.serviceReserve+cost
       end
-    end
+    else state.serviceReserve=0 end
     local r,why=request("mine-lease")
     if not r then return false,why end
     if not r.task then return false,"mine exhausted" end
@@ -275,6 +306,14 @@ function M.open(cfg)
     if nav.stopped() then return false,"cancelled" end
     if state.phase=="done" or not state.task then return false,state.phase end
     if state.phase=="home" then return false,state.reason or "home" end
+    if cfg.fleet then
+      local allowed,why=boundary("poll") if not allowed then return false,why end
+      local _,revision=options()
+      if state.phase~="return" and state.serviceSettingsRevision~=revision then
+        local ok,why=reserveServices()
+        if not ok then api.interrupt(why) return false,why end
+      end
+    end
     local allowed,why=boundary(state.phase=="return" and "return" or "mine")
     if not allowed then
       if why=="mining disabled" or why=="inventory full" or why=="low fuel" or why=="mining reach" then api.interrupt(why) return true end
@@ -287,10 +326,6 @@ function M.open(cfg)
       if not ok then return false,why end
       state.phase="home" save("home-saved")
       return false,state.reason or "home"
-    end
-    if cfg.fleet then
-      local _,revision=cfg.fleet.settings()
-      if reserveRevision~=revision then local ok,why=reserveServices() if not ok then return false,why end end
     end
     local reason=interruptReason()
     if reason then api.interrupt(reason) return true end

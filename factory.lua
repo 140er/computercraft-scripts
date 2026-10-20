@@ -32,6 +32,12 @@ local PROGRAM = (shell and shell.getRunningProgram()) or "factory.lua"
 
 local FUEL_PER_COAL = 80
 local FUEL_MARGIN = 40
+local MIN_TRIP_FUEL = 0
+if wh2 then
+  wh2.bind(function(values)
+    FUEL_MARGIN, MIN_TRIP_FUEL = values.fuelMargin, values.minTripFuel
+  end)
+end
 local ORDER_RETRY = 300   -- seconds without new parts before ordering the missing ones again
 local ORDER_GIVEUP = 1800 -- seconds before a build gives up waiting for parts
 
@@ -448,7 +454,7 @@ end
 local function partsFor(sl)
   local p = cfg.pos
   local dist = (cfg.cruise - p.y - 1) + math.abs(sl.x - p.x) + math.abs(sl.z - p.z) + math.max(0, cfg.cruise - sl.y)
-  local coal = math.ceil((dist + FUEL_MARGIN) / FUEL_PER_COAL)
+  local coal = math.ceil(math.max(MIN_TRIP_FUEL, dist + FUEL_MARGIN) / FUEL_PER_COAL)
   return {
     { names = { IRON }, n = 7 }, { names = { COMPUTER }, n = 1 }, { names = { CHEST }, n = 1 },
     { names = { PICKAXE }, n = 1 }, { names = { MODEM }, n = 1 }, { names = FUELS, n = coal },

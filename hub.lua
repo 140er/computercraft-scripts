@@ -1083,6 +1083,7 @@ function fleetList()
     if e then list[#list + 1] = e end
   end
   table.sort(list, function(a, b) return a.id < b.id end)
+  if wh2 and wh2.records then return dofile("wh2-ar.lua").merge(list,wh2.records(),os.epoch("utc")) end
   return list
 end
 

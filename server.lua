@@ -482,7 +482,7 @@ local function request(id, m)
   elseif m.type == "view" then
     -- The fleet for 3D views (pocket panel): every bot with where it is and how it does
     local forgotten = state.hub and state.hub.state and state.hub.state.forgotten
-    reply(id, m, { type = "view", bots = V and V.fromServer(state.bots, now(), forgotten) or {},
+    reply(id, m, { type = "view", bots = V and V.fromServer(state.bots, now(), forgotten,ssot and ssot.fleet()) or {},
       hubPos = state.hub and state.hub.state and state.hub.state.pos, nolib = V == nil })
   end
 end

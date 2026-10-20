@@ -35,6 +35,7 @@ function M.config(raw)
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
+  raw.wh2=Wh2.config(raw.wh2,raw.controllers)
   return raw
 end
 function M.chatAllowed(cfg,name,uuid)

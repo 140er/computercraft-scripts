@@ -35,6 +35,12 @@ local GROK = "https://api.x.ai/v1/"
 local MAX_STEPS = 16     -- blocks per move command
 local MAX_HISTORY = 30   -- messages kept in the conversation
 local TIMEOUT = 60       -- seconds to wait for an answer (CC allows at most 60)
+local FUEL_TARGET, MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = math.huge, 0, math.huge, {}
+if wh2 then
+  wh2.bind(function(values)
+    FUEL_TARGET, MIN_FREE, FULLNESS_HIGH, KEEP_ITEMS = values.fuelTarget, values.minFreeSlots, values.fullnessHigh, values.keep
+  end)
+end
 
 -- Blocks it refuses to break, whatever it is told
 local PROTECTED = { "chest", "barrel", "shulker", "computer", "turtle", "monitor", "modem",
@@ -236,6 +242,11 @@ local function findSlots(item)
   return slots
 end
 
+local function inventoryNeedsService()
+  local used = #findSlots()
+  return 16 - used < MIN_FREE or used / 16 >= FULLNESS_HIGH
+end
+
 local function inventory()
   local lines = {}
   for s = 1, 16 do
@@ -336,10 +347,12 @@ tool("drop", "Drop items: into a chest/container on that side, or on the ground.
   local dropped = 0
   for _, s in ipairs(findSlots(a.item)) do
     if want and dropped >= want then break end
-    turtle.select(s)
-    local before = turtle.getItemCount(s)
-    SIDE_FN.drop[a.side](want and math.min(before, want - dropped) or nil)
-    dropped = dropped + before - turtle.getItemCount(s)
+    if not KEEP_ITEMS[turtle.getItemDetail(s).name] then
+      turtle.select(s)
+      local before = turtle.getItemCount(s)
+      SIDE_FN.drop[a.side](want and math.min(before, want - dropped) or nil)
+      dropped = dropped + before - turtle.getItemCount(s)
+    end
   end
   turtle.select(1)
   if dropped == 0 then return a.item and ("dropped nothing (no " .. a.item .. " or the container is full)") or "dropped nothing" end
@@ -360,13 +373,14 @@ tool("pick_up", "Take items from a chest/container on that side, or pick up item
   local before = itemTotal()
   turtle.select(1)
   while true do
+    if inventoryNeedsService() then break end
     local got = itemTotal() - before
     if want and got >= want then break end
     if not SIDE_FN.suck[a.side](want and math.max(1, math.min(64, want - got)) or nil) then break end
   end
   local got = itemTotal() - before
   if got == 0 then return "nothing to pick up there (or my inventory is full)" end
-  local full = #findSlots() == 16
+  local full = #findSlots() == 16 or inventoryNeedsService()
   return "picked up " .. got .. " items" .. (full and ", my inventory is full now" or "")
 end)
 
@@ -378,7 +392,14 @@ tool("refuel", "Burn fuel items you carry (coal, charcoal, planks, lava bucket, 
   for _, s in ipairs(findSlots(a.item)) do
     turtle.select(s)
     if turtle.refuel(0) then
-      turtle.refuel(tonumber(a.count))
+      if wh2 and wh2.managed() then
+        for _ = 1, tonumber(a.count) or 64 do
+          local fuel = turtle.getFuelLevel()
+          if fuel == "unlimited" or fuel >= FUEL_TARGET or not turtle.refuel(1) then break end
+        end
+      else
+        turtle.refuel(tonumber(a.count))
+      end
       break
     end
   end

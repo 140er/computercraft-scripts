@@ -10,7 +10,7 @@ local function suite(test,read,mocks)
     if opted==false then cfg.wh2=nil end
     local m=mocks.miner(cfg)
     local e=m.env
-    local now,revision,counter=10000,1,0
+    local now,revision,counter,epoch=10000,1,0,1
     local online,inCall,inNative=true,false,false
     local values={enabled=true,navigation=true,mining=true,warehouse=false,autoDropoff=false,autoCharge=false,
       returnHome=true,mesh=true,traffic=false,fuelLow=200,fuelTarget=2000,fuelMargin=32,minTripFuel=2000,
@@ -40,7 +40,7 @@ local function suite(test,read,mocks)
       local result
       if op=="wh2-get" then
         if body.topic=="settings" then
-          result={ok=true,revision=revision,cursor=0,records={{id="1",revision=revision,effective=copy(values)}}}
+          result={ok=true,revision=revision,cursor=0,records={{v=1,id="1",revision=revision,effective=copy(values)}}}
         elseif body.topic=="locations" then
           local rows={}
           for _,loc in ipairs(locations) do if body.id==nil or body.id==loc.id then rows[#rows+1]=copy(loc) end end
@@ -72,7 +72,7 @@ local function suite(test,read,mocks)
     end
     rpc.call=call
     function rpc.resync(p)
-      local r,why=call("sync",{pose=p}) return r and r.ok,why,"1"
+      local r,why=call("sync",{pose=p}) return r and r.ok,why,epoch
     end
     function rpc.move(from,to,execute)
       local grant,why=call("reserve",{pose=from,to=to})
@@ -93,10 +93,10 @@ local function suite(test,read,mocks)
     end
     local scheduled
     e.parallel.waitForAny=function(...) scheduled={...} end
-    local app=assert(load(source.."\nreturn {C=C,cfg=cfg,pos=pos,st=st,mesh=devPairLoop}","=miner.lua","t",e))()
+    local app=assert(load(source.."\nreturn {C=C,cfg=cfg,pos=pos,st=st,mesh=devPairLoop,listener=listener}","=miner.lua","t",e))()
     assert(#scheduled==5,"SSOT boot did not retain its receiver and role worker")
     assert(call("mine-config",{zone={min={dim=dim,x=0,y=64,z=1},max={dim=dim,x=3,y=66,z=3},spacing=4}}).ok)
-    local f={m=m,e=e,app=app,home=home,values=values,requested=requested,reports=reports,locks=locks,locations=locations}
+    local f={m=m,e=e,app=app,home=home,values=values,requested=requested,reports=reports,locks=locks,locations=locations,sites=sites}
     function f.change(p)
       for k,v in pairs(p) do values[k]=v end
       revision=revision+1
@@ -105,6 +105,15 @@ local function suite(test,read,mocks)
         {verified=true,op="wh2-changed",body={wh2=1,topic="settings",revision=revision}},"fleetserver")
       assert(ok,why)
       assert(#requested==count,"receiver sent an outbound settings request")
+    end
+    local settings={v=1,revision=revision,global=copy(values),roles={},computers={}}
+    function f.scopeChange(scope,patch)
+      local target=settings.global
+      if scope=="role" then settings.roles.miner=settings.roles.miner or {} target=settings.roles.miner
+      elseif scope=="computer" then settings.computers["1"]=settings.computers["1"] or {} target=settings.computers["1"] end
+      for key,value in pairs(patch) do target[key]=value end
+      settings.revision=settings.revision+1
+      f.change(e.dofile("wh2-fleet.lua").effective(settings,1,"miner"))
     end
     function f.boot()
       m.app=coroutine.create(app.C.ssotReceive)
@@ -126,9 +135,12 @@ local function suite(test,read,mocks)
     end
     function f.untilTrue(predicate,limit)
       for _=1,limit or 1000 do if predicate() then return end f.step() end
-      error("fleet worker did not reach the expected state")
+      local state=f.app.C.mining and f.app.C.mining.state() or {}
+      error("fleet worker did not reach the expected state: "..tostring(f.app.C.fleetError)
+        ..", phase="..tostring(state.phase)..", service="..tostring(state.service)..", dropped="..f.dropped)
     end
     function f.online(v) online=v end
+    function f.epoch(v) epoch=v end
     function f.advance(dt) now=now+dt end
     function f.native(fn,...)
       inNative=true local result=table.pack(pcall(fn,...)) inNative=false
@@ -142,7 +154,10 @@ local function suite(test,read,mocks)
       local p={dim=dim,x=x or home.x,y=home.y,z=home.z,h=home.h}
       local name="old-"..id
       sites[name]={kind=kind=="charge" and "charge" or "drop",pose=copy(p),side="front"}
-      locations[#locations+1]={id=id,kind=kind,enabled=true,access={pose=copy(p),side="front"},
+      p.v,p.frame,p.yAbs,p.conf,p.src,p.anchoredAt=1,"abs",true,"certain","typed",now
+      local block=copy(p) block.z=block.z+1
+      locations[#locations+1]={v=1,id=id,kind=kind,enabled=true,block=block,access={pose=copy(p),side="front"},
+        revision=1,lockId="inventory:"..id,
         siteNames={drop=kind=="dropoff" and name or false,charge=kind=="charge" and name or false,source=false}}
       return name
     end
@@ -151,6 +166,7 @@ local function suite(test,read,mocks)
     e.turtle.drop=function(count)
       local item=m.inventory[m.selected]
       assert(item and next(locks),"drop did not own its physical site")
+      if f.fullChest then return false end
       local moved=math.min(count,item.count)
       item.count=item.count-moved if item.count==0 then m.inventory[m.selected]=nil end
       f.dropped=f.dropped+moved
@@ -186,8 +202,10 @@ local function suite(test,read,mocks)
     f.app.pos.x=999
     assert(f.app.C.fleet.record()) assert(f.app.C.fleet.tick())
     local report=assert(f.reports[#f.reports])
-    assert(report.id=="cc:1" and report.role=="miner" and report.pose.x==1 and report.poseConfirmed)
-    assert(report.heading==2 and report.inventory.usedSlots==2 and report.inventory.fullness==.125)
+    assert(report.v==1 and report.id=="cc:1" and report.role=="miner" and report.pose.x==1)
+    assert(report.pose.v==1 and report.pose.frame=="abs" and report.pose.yAbs and report.pose.h==2)
+    assert(report.pose.conf=="certain" and report.pose.src=="gps" and report.pose.anchoredAt>0)
+    assert(report.heading==nil and report.poseConfirmed==nil and report.inventory.usedSlots==2 and report.inventory.fullness==.125)
     assert(report.appliedSettingsRevision==1)
   end)
   test("a settings hint during digging pauses the next move and retains unfinished ore",function()
@@ -345,8 +363,8 @@ local function suite(test,read,mocks)
     local name=f.site("drop","dropoff")
     for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
     f.afterDrop=function() f.afterDrop=nil error("injected transfer crash") end
-    local ok,why=pcall(f.boot)
-    assert(not ok and tostring(why):find("injected transfer crash",1,true))
+    f.boot()
+    assert(f.app.C.fleetRecovery and f.app.C.fleetSnapshot().state=="blocked")
     local saved=f.e.dofile("atomic.lua").read("mining-warehouse.state").value
     assert(saved.pending and f.dropped==1 and f.locks[name]==1)
     f.reboot()
@@ -424,7 +442,7 @@ local function suite(test,read,mocks)
     f.e.sleep=function() end
     local nav=f.app.C.nav
     for x=2,3 do nav.record({dim=f.home.dim,x=x,y=65,z=0},"minecraft:air") end
-    f.change({mining=true}) assert(f.app.C.fleetBoundary("mine"))
+    f.change({mining=true}) assert(f.app.C.mining.start()) assert(f.app.C.fleetBoundary("mine"))
     f.m.fuel=3
     local ok,why=nav.go({dim=f.home.dim,x=3,y=65,z=0},"walk")
     assert(not ok and why=="low fuel" and f.m.pos.x==2 and f.m.fuel==2)
@@ -445,6 +463,303 @@ local function suite(test,read,mocks)
     assert(nav.go({dim=f.home.dim,x=4,y=65,z=0},"walk"))
     assert(nav.homeCost(f.home)==3,"budget change deleted the known return route")
   end)
+  test("framed observations require reconciliation and service targets cross an explicit boundary",function()
+    local f=fixture({mining=false}) f.boot()
+    local nav=f.app.C.nav
+    local observed=nav.fleetPose()
+    assert(observed.v==1 and observed.frame=="abs" and observed.h==2 and observed.anchoredAt>0)
+    local target=assert(nav.legacyTarget(observed))
+    assert(target.v==nil and target.frame==nil and target.x==1 and target.h==2)
+    for key,value in pairs({v=2,frame="f:other",yAbs=false,conf="suspect",src="unknown",anchoredAt=0,h=4}) do
+      local bad=f.e.dofile("atomic.lua").copy(observed) bad[key]=value
+      assert(not nav.legacyTarget(bad),"unsafe service pose crossed the legacy boundary")
+    end
+    assert(not nav.legacyTarget(false) and not nav.legacyTarget(nav.pose()))
+    assert(not nav.go(observed,"walk") and nav.homeCost(observed)==false)
+    f.e.gps.locate=function() end
+    assert(not nav.recover() and not nav.fleetPose() and f.app.C.fleetSnapshot().pose==false)
+  end)
+  test("north remains heading zero in framed reports and legacy movement",function()
+    local f=fixture({mining=false}) f.boot()
+    f.e.sleep=function() end
+    assert(f.app.C.fleetBoundary("navigation"))
+    assert(f.app.C.nav.face(0))
+    local observed=f.app.C.fleetSnapshot().pose
+    assert(observed.h==0 and f.m.heading==0)
+    f.app.C.nav.record({dim=f.home.dim,x=1,y=65,z=-1},"minecraft:air")
+    assert(f.app.C.nav.step(0,"walk"))
+    assert(f.m.pos.z==-1 and f.app.C.fleetSnapshot().pose.h==0)
+  end)
+  test("unknown turtle measurements stay false while measured zero stays zero",function()
+    local f=fixture({mining=false}) f.boot()
+    f.e.turtle.getFuelLevel=function() return false end
+    f.e.turtle.getFuelLimit=function() return nil end
+    f.e.turtle.getItemCount=function() return false end
+    local s=f.app.C.fleetSnapshot()
+    assert(s.fuel.level==false and s.fuel.limit==false)
+    assert(s.inventory.usedSlots==false and s.inventory.fullness==false)
+    assert(f.app.C.fleet.record())
+    f.e.turtle.getFuelLevel=function() return 0 end
+    f.e.turtle.getFuelLimit=function() return 20000 end
+    f.e.turtle.getItemCount=function() return 0 end
+    s=f.app.C.fleetSnapshot()
+    assert(s.fuel.level==0 and s.inventory.usedSlots==0 and s.inventory.fullness==0)
+  end)
+  test("waiting at home retains the mining job without reporting idle",function()
+    local f=fixture()
+    local dig=f.e.turtle.dig
+    f.e.turtle.dig=function() local ok,why=dig() f.change({mining=false}) return ok,why end
+    f.m.world["1,65,1"]="minecraft:diamond_ore" f.boot()
+    f.untilTrue(function() return f.app.C.mining.state().phase=="home" end)
+    f.app.C.fleetError=nil
+    local s=f.app.C.fleetSnapshot()
+    assert(s.state=="blocked" and s.currentJob.kind=="mine")
+    assert(f.app.C.fleet.record())
+  end)
+  test("server epoch zero is numeric after decimal migration and survives reboot",function()
+    for _,epoch in ipairs({0,"0"}) do
+      local f=fixture({mining=false}) f.epoch(epoch) f.boot()
+      assert(f.app.C.nav.controlState().epoch==0)
+      assert(f.app.C.nav.control("estop",0,1))
+      assert(not f.app.C.nav.control("go","0",2))
+      f.reboot()
+      assert(f.app.C.nav.controlState().epoch==0 and f.app.C.nav.stopped())
+    end
+    for _,epoch in ipairs({"1e2"," 1","-1",2147483648,false}) do
+      local f=fixture({mining=false}) f.epoch(epoch) f.boot()
+      assert(not f.app.C.nav.confirmed() and f.app.C.fleetSnapshot().pose==false)
+      assert(f.m.pos.z==0 and #f.m.dug==0)
+    end
+  end)
+  test("global and navigation disables stop the next extraction action without losing the job",function()
+    for _,flag in ipairs({"enabled","navigation"}) do
+      local f=fixture()
+      f.m.world["1,65,1"]="minecraft:diamond_ore"
+      local dig=f.e.turtle.dig
+      f.e.turtle.dig=function()
+        return f.native(function() local ok,why=dig() f.change({[flag]=false}) return ok,why end)
+      end
+      f.boot() f.untilTrue(function() return #f.m.dug==1 end) f.step(25)
+      assert(f.m.pos.z==0 and #f.m.dug==1 and f.app.C.mining.state().task)
+      f.e.turtle.dig=dig f.change({[flag]=true})
+      f.untilTrue(function() return f.app.C.mining.state().phase=="done" end)
+    end
+  end)
+  test("missing and disabled shared locations never use local service configuration",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+    local name=f.site("shared","dropoff")
+    f.locations[1].enabled=false
+    f.app.cfg.warehouse={enabled=true,drop=name,charger="local-charge",targetFuel=1}
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.boot() f.step(25)
+    assert(f.dropped==0 and not next(f.locks) and f.m.pos.z==0)
+    f.locations[1].enabled=true f.change({dropoffId="missing"}) f.step(25)
+    assert(f.dropped==0 and not next(f.locks))
+    f.change({dropoffId=false})
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("automatic service selection skips an unreachable closer location",function()
+    local f=fixture({mining=false}) f.boot()
+    f.site("near","dropoff",2)
+    local name=f.site("far","dropoff",4)
+    for _,p in ipairs({{1,-1},{2,-1},{3,-1},{4,-1},{4,0}}) do
+      f.app.C.nav.record({dim=f.home.dim,x=p[1],y=65,z=p[2]},"minecraft:air")
+    end
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.change({warehouse=true,autoDropoff=true})
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+    for _,r in ipairs(f.requested) do if r.op=="wh-lock" then assert(r.fields.name==name) end end
+  end)
+  test("a shared location and legacy site disagreement blocks before movement or transfer",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+    local name=f.site("drop","dropoff")
+    f.sites[name].pose.x=2
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.boot() f.step(25)
+    assert(f.dropped==0 and f.m.pos.x==1 and not f.locks[name])
+    assert(f.app.C.fleetSnapshot().state=="blocked")
+    f.sites[name].pose.x=1
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("a full chest retains cargo and retries without claiming a successful drop",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+    local name=f.site("drop","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.fullChest=true f.boot() f.step(25)
+    local pending=f.e.dofile("atomic.lua").read("mining-warehouse.state").value
+    assert(pending.phase=="unload" and next(pending.cargo) and pending.pending==nil)
+    assert(f.dropped==0 and f.locks[name]==1 and f.app.C.fleetSnapshot().state=="blocked")
+    f.fullChest=false
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("all-kept inventory blocks without a pointless service trip",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true,keep={["minecraft:diamond"]=true}})
+    f.site("drop","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.boot() f.step(25)
+    assert(f.dropped==0 and not next(f.locks) and f.app.C.fleetSnapshot().state=="blocked")
+  end)
+  test("live service toggles stop before the next drop and preserve the remaining cargo",function()
+    for _,flag in ipairs({"enabled","navigation","warehouse","autoDropoff"}) do
+      local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+      local name=f.site("drop","dropoff")
+      for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+      f.afterDrop=function() f.afterDrop=nil f.change({[flag]=false}) end
+      f.boot() f.untilTrue(function() return f.dropped==1 end) f.step(25)
+      assert(f.dropped==1 and f.app.C.fleetSnapshot().inventory.usedSlots==13)
+      f.change({[flag]=true})
+      f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+    end
+  end)
+  test("a raised drop threshold cancels an active unload before its next item",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+    local name=f.site("drop","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.afterDrop=function() f.afterDrop=nil f.change({minFreeSlots=0,fullnessHigh=1}) end
+    f.boot() f.untilTrue(function() return f.dropped==1 and not f.locks[name] end) f.step(25)
+    assert(f.dropped==1)
+    f.change({fullnessHigh=.5})
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("a changed shared selector retargets the service before its next transfer",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true,dropoffId="a"})
+    local first=f.site("a","dropoff") local second=f.site("b","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    local changed=false
+    f.afterDrop=function() f.afterDrop=nil changed=true f.change({dropoffId="b"}) end
+    f.boot() f.untilTrue(function() return changed and f.dropped==14 and not f.locks[second] end)
+    assert(not f.locks[first])
+    local seenSecond=false
+    for _,r in ipairs(f.requested) do
+      if r.op=="wh-lock" then
+        if r.fields.name==second then seenSecond=true end
+        if seenSecond then assert(r.fields.name~=first) end
+      end
+    end
+    assert(seenSecond)
+  end)
+  test("offline service workers stop with their cargo even if offline autonomy is requested",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true,offlineAutonomy=true})
+    local name=f.site("drop","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.afterDrop=function() f.afterDrop=nil f.online(false) end
+    f.boot() f.untilTrue(function() return f.dropped==1 end) f.step(25)
+    assert(f.dropped==1 and f.locks[name]==1 and f.app.C.fleetSnapshot().inventory.usedSlots==13)
+    f.online(true) f.advance(3001)
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("a charger without enough round-trip fuel cannot start a physical service action",function()
+    local f=fixture({mining=false}) f.boot()
+    f.site("charge","charge",2)
+    f.app.C.nav.record({dim=f.home.dim,x=2,y=65,z=0},"minecraft:air")
+    f.m.fuel=0 f.change({warehouse=true,autoCharge=true,minTripFuel=600}) f.step(25)
+    assert(f.m.pos.x==1 and f.m.pos.z==0 and not next(f.locks) and f.dropped==0)
+    assert(f.app.C.fleetSnapshot().state=="blocked")
+  end)
+  test("global role and computer settings all stop extraction before its next native action",function()
+    for _,scope in ipairs({"global","role","computer"}) do
+      local f=fixture()
+      f.m.world["1,65,1"]="minecraft:diamond_ore"
+      local dig=f.e.turtle.dig
+      f.e.turtle.dig=function()
+        return f.native(function()
+          local ok,why=dig() f.scopeChange(scope,{mining=false}) return ok,why
+        end)
+      end
+      f.boot()
+      f.untilTrue(function() return #f.m.dug==1 and f.app.C.mining.state().phase=="home" end)
+      assert(f.m.pos.z==0 and f.app.C.mining.state().task and f.app.C.fleetSnapshot().currentJob)
+      f.e.turtle.dig=dig f.scopeChange(scope,{mining=true})
+      f.untilTrue(function() return f.app.C.mining.state().phase=="done" end)
+    end
+  end)
+  test("numeric command epochs work while decimal legacy commands convert once",function()
+    local f=fixture({mining=false}) f.epoch(0) f.boot()
+    local listener=coroutine.create(f.app.listener) assert(coroutine.resume(listener))
+    local function command(kind,epoch,cid)
+      local ok,why=coroutine.resume(listener,"miner_network",0,{type=kind,commandEpoch=epoch,cid=cid},"minearmy")
+      assert(ok,why)
+    end
+    command("estop",0,1) assert(f.app.C.nav.stopped())
+    command("go",0,2) assert(not f.app.C.nav.stopped())
+    command("estop","0",3) assert(f.app.C.nav.stopped() and f.app.C.nav.controlState().epoch==0)
+    command("go","1e2",4) assert(f.app.C.nav.stopped() and f.app.C.nav.controlState().epoch==0)
+  end)
+  test("a disabled shared location stops the next transfer without a local fallback",function()
+    local f=fixture({mining=false,warehouse=true,autoDropoff=true})
+    local name=f.site("drop","dropoff")
+    for slot=1,14 do f.m.inventory[slot]={name="minecraft:diamond",count=1} end
+    f.afterDrop=function() f.afterDrop=nil f.locations[1].enabled=false end
+    f.boot()
+    f.untilTrue(function() return f.dropped==1 and f.app.C.fleetSnapshot().state=="blocked" end)
+    f.step(20)
+    assert(f.dropped==1 and f.locks[name]==1 and f.app.C.fleetSnapshot().inventory.usedSlots==13)
+    f.locations[1].enabled=true
+    f.untilTrue(function() return f.dropped==14 and not f.locks[name] end)
+  end)
+  test("disabling auto-charge during a move returns home and releases the bay",function()
+    local f=fixture({mining=false}) f.boot()
+    local name=f.site("charge","charge",2)
+    f.app.C.nav.record({dim=f.home.dim,x=2,y=65,z=0},"minecraft:air")
+    local changed=false
+    f.m.afterMove=function()
+      if not changed then changed=true f.change({autoCharge=false}) end
+    end
+    f.m.fuel=100 f.change({warehouse=true,autoCharge=true,minTripFuel=600})
+    f.untilTrue(function() return changed and f.m.pos.x==1 and not f.locks[name] end)
+    f.step(20)
+    assert(f.m.fuel==98 and f.m.pos.x==1 and not f.locks[name] and f.dropped==0)
+  end)
+  test("unlimited fuel during charging releases the bay and reports both unlimited values",function()
+    local f=fixture({mining=false,warehouse=true,autoCharge=true,minTripFuel=600})
+    local name=f.site("charge","charge")
+    f.m.fuel=100 f.boot() f.untilTrue(function() return f.locks[name]==1 end)
+    f.e.turtle.getFuelLevel=function() return "unlimited" end
+    f.e.turtle.getFuelLimit=function() return "unlimited" end
+    f.untilTrue(function() return not f.locks[name] end)
+    local s=f.app.C.fleetSnapshot()
+    assert(s.fuel.level=="unlimited" and s.fuel.limit=="unlimited")
+    assert(not f.app.C.fleetRecovery)
+  end)
+  test("return-home can pause away from home without losing the unfinished vein",function()
+    local f=fixture()
+    for x=1,3 do f.m.world[x..",65,1"]="minecraft:diamond_ore" end
+    local dig=f.e.turtle.dig
+    f.e.turtle.dig=function()
+      return f.native(function()
+        local ok,why=dig()
+        if #f.m.dug==2 then f.change({mining=false,returnHome=false}) end
+        return ok,why
+      end)
+    end
+    f.boot()
+    f.untilTrue(function() return #f.m.dug==2 and f.app.C.mining.state().phase=="return" end)
+    f.step(20)
+    assert(f.m.pos.z==1 and f.app.C.mining.state().task and f.m.world["3,65,1"])
+    f.change({returnHome=true})
+    f.untilTrue(function() return f.app.C.mining.state().phase=="home" end)
+    assert(f.m.pos.z==0 and #f.m.dug==2)
+    f.e.turtle.dig=dig f.change({mining=true})
+    f.untilTrue(function() return f.app.C.mining.state().phase=="done" end)
+    assert(not f.m.world["3,65,1"])
+  end)
+  test("new service routes must be checked before extraction can make another move",function()
+    local f=fixture()
+    f.site("unreachable","dropoff",4)
+    f.m.world["1,65,1"]="minecraft:diamond_ore"
+    local dig=f.e.turtle.dig
+    local moves=0
+    f.m.afterMove=function() moves=moves+1 end
+    f.e.turtle.dig=function()
+      return f.native(function()
+        local ok,why=dig() f.change({warehouse=true,autoDropoff=true}) return ok,why
+      end)
+    end
+    f.boot()
+    f.untilTrue(function() return #f.m.dug==1 and f.app.C.mining.state().phase=="home" end)
+    f.step(20)
+    assert(moves==0 and f.app.C.mining.state().task and f.app.C.fleetSnapshot().state=="blocked")
+  end)
 end
 
 if ...=="standalone" then
@@ -453,6 +768,7 @@ if ...=="standalone" then
     local h=assert(io.open(path,"rb")) local value=h:read("*a") h:close() return value
   end
   suite(function(name,fn)
+    if arg[2] and not name:find(arg[2],1,true) then return end
     if debug and debug.sethook then debug.sethook(function() error(debug.traceback("test did not yield")) end,"",10000000) end
     local ok,why=pcall(fn)
     if debug and debug.sethook then debug.sethook() end

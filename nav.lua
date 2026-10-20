@@ -10,20 +10,29 @@ end
 local function distance(a,b) return math.abs(a.x-b.x)+math.abs(a.y-b.y)+math.abs(a.z-b.z) end
 local function integer(n) return type(n)=="number" and n==n and n%1==0 end
 local function heading(h) return integer(h) and h>=0 and h<4 end
+local sources={gps=true,neighbour=true,radio=true,typed=true,reckoned=true,inherited=true}
+local function legacyPose(p)
+  return S.pose(p) and p.v==nil and p.frame==nil and p.yAbs==nil
+    and p.conf==nil and p.src==nil and p.anchoredAt==nil
+end
+local function serverEpoch(value)
+  if type(value)=="string" and value:match("^%d+$") then value=tonumber(value) end
+  if integer(value) and value>=0 and value<=2147483647 then return value end
+end
 local function inside(p,b)
   return p.dim==b.min.dim and p.x>=b.min.x and p.x<=b.max.x
     and p.y>=b.min.y and p.y<=b.max.y and p.z>=b.min.z and p.z<=b.max.z
 end
 function M.open(cfg)
-  assert(S.pose(cfg.pose) and heading(cfg.pose.h),"calibrated pose required")
+  assert(legacyPose(cfg.pose) and heading(cfg.pose.h),"calibrated pose required")
   local b=cfg.bounds
-  assert(type(b)=="table" and S.pose(b.min) and S.pose(b.max) and b.min.dim==b.max.dim
+  assert(type(b)=="table" and legacyPose(b.min) and legacyPose(b.max) and b.min.dim==b.max.dim
     and b.min.x<=b.max.x and b.min.y<=b.max.y and b.min.z<=b.max.z and inside(cfg.pose,b),"navigation bounds required")
   local maxCells,maxNodes,batch=cfg.maxCells or 2048,cfg.maxNodes or 2048,cfg.batch or 32
   assert(integer(maxCells) and maxCells>=1 and maxCells<=4096 and integer(maxNodes) and maxNodes>=1
     and maxNodes<=4096 and integer(batch) and batch>=1 and batch<=64,"invalid navigation budget")
   local function valid(v)
-    if type(v)~="table" or v.version~=1 or not S.pose(v.pose) or not heading(v.pose.h)
+    if type(v)~="table" or v.version~=1 or not legacyPose(v.pose) or not heading(v.pose.h)
       or type(v.cells)~="table" then return false end
     local n=0
     for k,name in pairs(v.cells) do
@@ -32,25 +41,27 @@ function M.open(cfg)
     end
     local j=v.action
     local c=v.control
-    if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
+    if c~=nil and (type(c)~="table" or type(c.epoch)~="number" or serverEpoch(c.epoch)~=c.epoch or not integer(c.cid) or c.cid<0 or c.cid>2147483647
       or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop") then return false end
     if v.stopped~=nil and type(v.stopped)~="boolean" or v.resume~=nil and type(v.resume)~="boolean" then return false end
     if v.trail~=nil then
       if type(v.trail)~="table" or #v.trail>64 then return false end
-      for i,p in pairs(v.trail) do if not integer(i) or i<1 or i>#v.trail or not S.pose(p) then return false end end
+      for i,p in pairs(v.trail) do if not integer(i) or i<1 or i>#v.trail or not legacyPose(p) then return false end end
     end
     return j==nil or type(j)=="table" and (j.kind=="move" or j.kind=="turn" or j.kind=="calibrate")
-      and S.pose(j.from) and S.pose(j.to) and heading(j.from.h) and heading(j.to.h)
+      and legacyPose(j.from) and legacyPose(j.to) and heading(j.from.h) and heading(j.to.h)
   end
   local store=A.store(cfg.path or "nav.state",valid,400000)
   local state=store.value or {version=1,pose=A.copy(cfg.pose),cells={}}
   state.trail=state.trail or {}
   local api,busy,stopped,ready={},false,state.stopped==true,false
+  local anchoredAt=0
   local function save() assert(store.save(state)) end
   local function checkpoint(name) if cfg.checkpoint then cfg.checkpoint(name) end end
   local function observe()
     local p=cfg.observe()
-    if not S.pose(p) or p.dim~=state.pose.dim then return nil,"GPS unavailable or wrong dimension" end
+    if not legacyPose(p) or p.dim~=state.pose.dim then return nil,"GPS unavailable or wrong dimension" end
+    anchoredAt=os.epoch("utc")
     return p
   end
   local function cancelled() return stopped or cfg.cancelled and cfg.cancelled() end
@@ -92,8 +103,8 @@ function M.open(cfg)
     else ok,why,epoch=cfg.client.resync(state.pose) end
     if not ok then return false,why end
     local announced=epoch
-    epoch=tonumber(epoch)
-    if announced~=nil and (not integer(epoch) or epoch<1 or epoch>2147483647) then return false,"invalid server epoch" end
+    epoch=serverEpoch(epoch)
+    if announced~=nil and epoch==nil then return false,"invalid server epoch" end
     if epoch and (not state.control or epoch>state.control.epoch) then
       state.control={epoch=epoch,cid=0,kind=state.control and state.control.kind}
     end
@@ -133,6 +144,21 @@ function M.open(cfg)
   end
   function api.pose() return A.copy(state.pose) end
   function api.confirmed() return ready and state.action==nil end
+  function api.fleetPose(p)
+    if not api.confirmed() or anchoredAt<=0 then return false end
+    p=p or state.pose
+    if not legacyPose(p) or not heading(p.h) or not inside(p,b) then return false end
+    -- GPS and the legacy journal establish this observation, not framed SSOT authority.
+    return {v=1,frame="abs",yAbs=true,dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h,
+      conf="certain",src=same(p,state.pose) and "gps" or "inherited",anchoredAt=anchoredAt}
+  end
+  function api.legacyTarget(p)
+    if type(p)~="table" or p.v~=1 or p.frame~="abs" or p.yAbs~=true or p.conf~="certain"
+      or not integer(p.anchoredAt) or p.anchoredAt<=0 or p.anchoredAt>9007199254740991
+      or not sources[p.src] or not heading(p.h) or not S.pose(p)
+      or not inside(p,b) then return nil,"anchored absolute service pose required" end
+    return {dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h}
+  end
   function api.stopped() return stopped end
   function api.stop() stopped=true state.stopped=true state.resume=nil save() end
   function api.resume()
@@ -141,7 +167,7 @@ function M.open(cfg)
   end
   function api.controlState() return A.copy(state.control or {}) end
   function api.control(kind,epoch,cid)
-    if (kind~="go" and kind~="recall" and kind~="estop") or not integer(epoch) or epoch<1 or epoch>2147483647
+    if (kind~="go" and kind~="recall" and kind~="estop") or type(epoch)~="number" or serverEpoch(epoch)==nil
       or not integer(cid) or cid<1 or cid>2147483647 then return false,"invalid command" end
     local c=state.control
     if c and (epoch<c.epoch or epoch==c.epoch and cid<=c.cid) then return false,"stale command" end
@@ -159,7 +185,7 @@ function M.open(cfg)
     return api.resume()
   end
   function api.record(p,name)
-    assert(not busy and S.pose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
+    assert(not busy and legacyPose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
     remember(p,name) save()
   end
   local function turn(h,policy)
@@ -315,7 +341,7 @@ function M.open(cfg)
     return nil,"no route"
   end
   function api.homeCost(goal,from)
-    if not S.pose(goal) or not inside(goal,b) or from~=nil and (not S.pose(from) or not inside(from,b)) then return false,"invalid route" end
+    if not legacyPose(goal) or not inside(goal,b) or from~=nil and (not legacyPose(from) or not inside(from,b)) then return false,"invalid route" end
     return owned(function()
       local route,why=search(goal,"walk",{},from)
       if not route then return false,why end
@@ -378,7 +404,7 @@ function M.open(cfg)
     return false,"traffic wait budget"
   end
   function api.go(goal,policy)
-    if not S.pose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
+    if not legacyPose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
     return owned(function()
       local avoid={}
       local attempts=0
