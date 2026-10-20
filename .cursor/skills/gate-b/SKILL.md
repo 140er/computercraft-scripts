@@ -55,7 +55,7 @@ If the ref has `docs/testing/gateB-depth.md`, each `- ` item needs a line in `te
 warehouse | Build the warehouse room in the world.
 ```
 
-The text is the start of the depth item. An item counts as covered only when its mapped scenario passed in this run. Uncovered items go to `depth-not-run.txt` and fail the run.
+The text is the start of the depth item. An item counts as covered only when its mapped scenario passed in this run. An item mapped to a scenario that a subset skipped leaves the run at PARTIAL. Uncovered items go to `depth-not-run.txt` and fail the run.
 
 ## Rules
 

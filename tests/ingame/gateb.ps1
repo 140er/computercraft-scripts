@@ -57,10 +57,14 @@ function Remove-TestTree([string]$Path) {
 # The client command line names its test root. The server's does not (relative @libraries argfile), so it is matched by parent PID.
 function Stop-RunJava([string]$RunStamp, [int]$OwnerPid, [int64]$OwnerStart, [int64]$Before = [int64]::MaxValue) {
     $needle = "mc-ssot-pr1-gb$RunStamp-"
-    Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" | Where-Object {
+    $pids = @(Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" | Where-Object {
         ($_.CommandLine -and $_.CommandLine.Replace('/', '\').Contains($needle)) -or
         ($_.ParentProcessId -eq $OwnerPid -and $_.CreationDate.ToUniversalTime().Ticks -ge $OwnerStart -and $_.CreationDate.ToUniversalTime().Ticks -lt $Before)
-    } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    } | ForEach-Object { $_.ProcessId })
+    if ($pids) {
+        Stop-Process -Id $pids -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $pids -Timeout 30 -ErrorAction SilentlyContinue
+    }
 }
 function Invoke-Reclaim([string]$Lock) {
     $text = Get-Content "$Lock\owner.txt" -Raw -ErrorAction SilentlyContinue
@@ -108,9 +112,11 @@ function Enter-ClientLock {
     $deadline = [DateTime]::UtcNow.AddSeconds($LockTimeoutSec)
     while ($true) {
         Invoke-Reclaim $clientLock
-        try { Enter-GatebClientLock $owner 600; $script:holdsClient = $true; return } catch { }
+        try { Enter-GatebClientLock $owner 600; $script:holdsClient = $true; return }
+        catch { if ($_.Exception.Message -ne 'client lock timeout') { throw } }
         if ([DateTime]::UtcNow -gt $deadline) { throw "gateB-client.lock not available within $LockTimeoutSec s." }
         Set-Phase 'waiting for gateB-client.lock'
+        Start-Sleep -Seconds 60
     }
 }
 function Exit-OwnLock([string]$Lock) {
@@ -192,7 +198,7 @@ try {
         $map = @(Get-Content "$src\tests\ingame\depth-map.txt" -ErrorAction SilentlyContinue | ForEach-Object { if ($_ -match '^\s*(\w+)\s*\|\s*(.+?)\s*$') { [pscustomobject]@{ Scenario = $Matches[1]; Item = $Matches[2] } } })
         $passed = @($rows | ForEach-Object { if ($_ -match '^\| (\w+) \| PASS \|') { $Matches[1] } })
         $uncovered = @(Get-Content $depth | Where-Object { $_ -match '^- ' } | ForEach-Object { $_.Substring(2).Trim() } | Where-Object {
-            $item = $_; !($map | Where-Object { $item.StartsWith($_.Item) -and $passed -contains $_.Scenario }) })
+            $item = $_; !($map | Where-Object { $item.StartsWith($_.Item) -and ($passed -contains $_.Scenario -or $Scenario -notcontains $_.Scenario) }) })
         if ($uncovered) {
             [IO.File]::WriteAllLines("$Output\depth-not-run.txt", $uncovered, $utf8)
             $problems.Add("$($uncovered.Count) gateB-depth.md items have no passing scenario in tests/ingame/depth-map.txt. See $Output\depth-not-run.txt.")
