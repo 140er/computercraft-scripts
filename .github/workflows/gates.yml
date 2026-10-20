@@ -1,0 +1,80 @@
+name: gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      XDG_CACHE_HOME: ${{ github.workspace }}/.craftos-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the main baseline
+        run: |
+          git fetch --no-tags origin main
+          git branch -f main FETCH_HEAD
+
+      - name: Install Lua 5.2 and PowerShell
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2 libfuse2 libpulse0 libx11-6 libx11-dev libxext6 libxrandr2 libxcursor1 libxi6 libxinerama1 libxss1 libxxf86vm1 libxkbcommon0 libreadline8 libxrender1 libxfixes3 libx11-xcb1
+          curl -fsSL -o /tmp/powershell.deb -L https://github.com/PowerShell/PowerShell/releases/download/v7.5.4/powershell_7.5.4-1.deb_amd64.deb
+          sudo dpkg -i /tmp/powershell.deb || sudo apt-get install -f -y
+          lua5.2 -v
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+
+      - name: Cache the CraftOS runtime
+        uses: actions/cache@v4
+        with:
+          path: .craftos-cache/computercraft-sandbox/craftos-2.8.3-linux
+          key: craftos-pc-2.8.3-f25536c7a05f6782-${{ runner.os }}
+
+      - name: Mock suite
+        run: lua5.2 tests/run.lua
+
+      - name: Gate A smoke
+        id: smoke
+        if: always()
+        continue-on-error: true
+        run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario smoke -Seconds 120 -Output gate-a/smoke
+
+      - name: Gate A ssot
+        id: ssot
+        if: always()
+        continue-on-error: true
+        run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario ssot -Output gate-a/ssot
+
+      - name: Gate A nav
+        id: nav
+        if: always()
+        continue-on-error: true
+        run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario nav -Output gate-a/nav
+
+      - name: Gate A mining
+        id: mining
+        if: always()
+        continue-on-error: true
+        run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario mining -Output gate-a/mining
+
+      - name: Gate A warehouse
+        id: warehouse
+        if: always()
+        continue-on-error: true
+        run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario warehouse -Output gate-a/warehouse
+
+      - name: Fail the job when a scenario failed
+        if: always() && (steps.smoke.outcome == 'failure' || steps.ssot.outcome == 'failure' || steps.nav.outcome == 'failure' || steps.mining.outcome == 'failure' || steps.warehouse.outcome == 'failure')
+        run: exit 1
+
+      - name: Upload sandbox output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-output
+          path: gate-a/
+          if-no-files-found: warn
