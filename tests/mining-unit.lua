@@ -31,6 +31,8 @@ assert(not call(2,"mine-progress",{token=tasks[1].token,progress=1}).ok,"foreign
 assert(call(1,"mine-progress",{token=tasks[1].token,progress=0}).ok)
 clock=clock+31000
 assert(not call(1,"mine-progress",{token=tasks[1].token,progress=1}).ok,"expired claim advanced")
+assert(not call(2,"mine-renew",{token=tasks[1].token}).ok,"foreign renewal")
+assert(call(1,"mine-renew",{token=tasks[1].token}).ok,"active owner could not renew")
 api=S.new(api.state(),cfg,function() return clock end,"2")
 local resumed=call(1,"mine-lease") assert(resumed.task.token==tasks[1].token,"lost active claim on restart")
 assert(call(1,"mine-progress",{token=tasks[1].token,progress=2}).ok)

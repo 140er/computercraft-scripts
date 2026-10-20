@@ -116,7 +116,7 @@ function M.open(cfg)
     end
     local reason=interruptReason()
     if reason then api.interrupt(reason) return true end
-    local r,why=request("mine-progress",{token=state.task.token,progress=state.task.progress})
+    local r,why=request("mine-renew",{token=state.task.token})
     if not r then api.interrupt(why) return false,why end
     if state.phase=="resume" then
       local target=#state.stack>0 and state.stack[#state.stack].pose or state.task.entry
@@ -161,6 +161,8 @@ function M.open(cfg)
         local ok,err=nav.face(frame.pose.h)
         if not ok then return false,err end
         state.stack={}
+        local renewed,why=request("mine-renew",{token=state.task.token})
+        if not renewed then return false,why end
         local ack,err=request("mine-progress",{token=state.task.token,progress=state.progress})
         if not ack then return false,err end
         state.task.progress=state.progress save("strip-saved")

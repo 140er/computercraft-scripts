@@ -9,7 +9,7 @@ param(
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
-if ($Scenario -eq 'nav') { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
+if ($Scenario -in @('nav','mining')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
@@ -84,7 +84,7 @@ $java = 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe'
 $script:process = $null
 function Start-TestServer([string]$Label) {
     $script:process = Start-Process -FilePath $java -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx4G','@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
-    $script:process.PriorityClass = if ($Scenario -eq 'nav') { 'High' } else { 'AboveNormal' }
+    $script:process.PriorityClass = if ($Scenario -in @('nav','mining')) { 'High' } else { 'AboveNormal' }
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {
         if ($script:process.HasExited) { throw "Minecraft exited during $Label boot. See $TestRoot." }

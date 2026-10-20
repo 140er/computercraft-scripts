@@ -4,7 +4,8 @@ return function(test,mocks)
     local e=m.env
     e.dofile=function(path) return assert(loadfile(path,"t",e))() end
     local A,S=e.dofile("atomic.lua"),e.dofile("ssot.lua")
-    local server=S.new({},{controllers={["1"]="test-secret-123456"}},function() return 10000 end,"1")
+    local time=10000
+    local server=S.new({},{controllers={["1"]="test-secret-123456"}},function() return time end,"1")
     local counter=0
     local function call(op,fields)
       counter=counter+1 local msg=A.copy(fields or {})
@@ -35,7 +36,7 @@ return function(test,mocks)
       nav=e.dofile("nav.lua").open(nc) assert(nav.recover()) cfg.nav=nav
       miner=Mine.open(cfg) return miner,nav
     end
-    return m,miner,reopen,home,nav,Mine
+    return m,miner,reopen,home,nav,Mine,function(dt) time=time+dt end
   end
   local function complete(miner,limit)
     for _=1,limit or 500 do
@@ -101,6 +102,14 @@ return function(test,mocks)
     assert(injected and not m.world["2,65,1"] and m.world["3,65,1"])
     mine=reopen() assert(mine.start()) assert(complete(mine)=="complete") assert(mine.finish())
     assert(not m.world["3,65,1"],"lost the vein behind the dug air cell")
+  end)
+  test("an active owner renews after a scan outlasts the lease without dropping queued ore",function()
+    local m,mine,_,_,_,_,advance=fixture()
+    m.world["1,65,1"]="minecraft:diamond_ore"
+    assert(mine.start()) assert(mine.tick()) advance(31000)
+    assert(mine.tick(),"expired active owner did not renew")
+    assert(complete(mine)=="complete") assert(mine.finish())
+    assert(not m.world["1,65,1"])
   end)
   test("hazards, protection and blocked home routes report bounded refusal",function()
     for _,block in ipairs({"minecraft:water","minecraft:lava","minecraft:bedrock","minecraft:chest"}) do

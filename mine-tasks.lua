@@ -85,6 +85,10 @@ function M.run(s,id,m,clock,epoch,pose)
   local t
   for _,task in ipairs(s.mining.tasks) do if task.owner==id and task.token==m.token then t=task break end end
   if t and t.status=="done" and m.op=="mine-finish" then return {ok=true} end
+  if t and t.status=="active" and m.op=="mine-renew" then
+    t.untilAt=now+30000
+    return {ok=true}
+  end
   if not t or t.status=="done" or t.untilAt<=now and m.op~="mine-finish" then return fail("expired or stale mining token") end
   if m.op=="mine-progress" then
     local length=t.max.z-t.min.z+1
