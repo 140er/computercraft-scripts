@@ -1,4 +1,5 @@
 return function(S, A, test)
+  dofile("ssot-hub-checks.lua")(S, A, test)
   test("paired-controller configuration and UUID chat allowlist fail closed", function()
     local cfg=S.config({controllers={["1"]="test-secret-123456"}})
     assert(cfg.chatNames[1]=="Jeffreyy2" and cfg.chatNames[2]=="njov10" and cfg.chatNames[3]=="yolobeerman")
