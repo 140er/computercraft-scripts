@@ -1,12 +1,21 @@
 local args={...}
 local A,S=dofile("atomic.lua"),dofile("ssot.lua")
-local cfg=A.read("warehouse.cfg") or {enabled=false}
-local fleetBootstrap=A.read("wh2.cfg") or {enabled=false}
+local function unwrap(raw)
+  if type(raw)~="table" then return raw end
+  if (raw.v==1 or raw.schema==1) and type(raw.value)=="table" then return raw.value end
+  return raw
+end
+local cfg=unwrap(A.read("warehouse.cfg")) or {enabled=false}
+local fleetBootstrap=unwrap(A.read("wh2.cfg")) or {enabled=false}
 local fleetEnabled=fleetBootstrap.enabled==true
 if fleetEnabled then
   cfg.server,cfg.dimension=fleetBootstrap.server,fleetBootstrap.dimension
 end
-local function save() local f=assert(fs.open("warehouse.cfg","w")) f.write(textutils.serialize(cfg)) f.close() end
+local cfgRec
+local function save()
+  cfgRec=cfgRec or A.mount("/"):open("warehouse.cfg",function(v) return type(v)=="table" end,{class="control",limit=8192})
+  assert(cfgRec:save(cfg))
+end
 local function pose(offset)
   local p={dim=assert(cfg.dimension,"configure the server and dimension first"),x=tonumber(args[offset]),y=tonumber(args[offset+1]),z=tonumber(args[offset+2])}
   assert(S.pose(p),"integer world coordinates required") return p

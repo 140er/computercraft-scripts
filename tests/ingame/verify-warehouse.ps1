@@ -1,5 +1,6 @@
 param([string]$Computers,[string]$Output)
 $ErrorActionPreference='Stop'
+if ($Output) { New-Item -ItemType Directory -Force -Path $Output | Out-Null }
 $results=@()
 foreach($id in 1..3) {
     $r=Get-Content "$Computers\$id\sandbox-result.json" -Raw | ConvertFrom-Json
@@ -33,8 +34,11 @@ if(Test-Path "$Computers\5\world.json") {
     if($ore -ne 2){throw 'The mining service lost ore.'}
     @{ok=$true;turtles=3;collisions=0;moves=$world.timeline.Count;physicalYield=$true;restart=$true} | ConvertTo-Json | Set-Content "$Output\coverage.json"
 }
-$state=[IO.Path]::GetFullPath("$Computers\0\ssot.state").Replace('\','/')
-$check="local h=assert(io.open([[$state]])); local s=assert(load('return '..h:read('*a'),'state','t',{}))().value; h:close(); assert(next(s.moves)==nil); assert(next(s.warehouse.locks)==nil); local n=0; for _,j in pairs(s.warehouse.orders) do n=n+1; assert(j.status=='partial'); assert(j.lines[1].wanted==12 and j.lines[1].delivered==11 and j.lines[2].delivered==1); end; assert(n==3); assert(s.mining and #s.mining.tasks==1 and s.mining.tasks[1].owner==3 and s.mining.tasks[1].status=='done' and s.mining.tasks[1].progress==2); print('Three partial orders, exact quantities, empty bays, empty moves and completed mining survived restart')"
-& 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\durable-state.txt"
+$root=[IO.Path]::GetFullPath("$Computers\0").Replace('\','/')
+$helper=[IO.Path]::GetFullPath("$PSScriptRoot\read-ssot.lua").Replace('\','/')
+$check="local control, map = dofile([[$helper]])([[$root]]); assert(control and next(control.moves)==nil); assert(map and next(map.warehouse.locks)==nil); local n=0; for _,j in pairs(map.warehouse.orders) do n=n+1; assert(j.status=='partial'); assert(j.lines[1].wanted==12 and j.lines[1].delivered==11 and j.lines[2].delivered==1); end; assert(n==3); assert(map.mining and #map.mining.tasks==1 and map.mining.tasks[1].owner==3 and map.mining.tasks[1].status=='done' and map.mining.tasks[1].progress==2); print('Three partial orders, exact quantities, empty bays, empty moves and completed mining survived restart')"
+$lua52 = 'C:\Tools\lua52\lua52.exe'
+if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+& $lua52 -e $check | Set-Content "$Output\durable-state.txt"
 if($LASTEXITCODE -ne 0){throw 'Warehouse durable state mismatch.'}
 Write-Output 'Three exact deliveries, charging, physical-transfer restart and mining continuation passed.'

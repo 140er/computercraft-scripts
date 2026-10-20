@@ -30,9 +30,7 @@ end
 
 local args = { ... }
 if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("panel")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("panel")\n', function(s) return load(s) ~= nil end)
   print("The panel will now start when the pocket computer turns on.")
   return
 end

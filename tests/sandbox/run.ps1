@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 86400)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet','h4a')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = '',
     [ValidateRange(100000, 64000000)][int]$Disk = 4000000
@@ -17,6 +17,8 @@ if ($OnLinux -or $Scenario -eq 'views') { $env:SDL_VIDEODRIVER='dummy'; $env:SDL
 if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse','ar','views','fleet') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 if ($Scenario -eq 'install' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 120 }
+if ($Scenario -eq 'h4a' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 90 }
+if ($Scenario -eq 'h4a' -and !$PSBoundParameters.ContainsKey('Disk')) { $Disk = 1000000 }
 $process = $null
 
 # PowerShell cmdlets accept '\' on Linux. System.IO and CraftOS do not.
@@ -130,7 +132,7 @@ try {
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath (Join-Path $romSource 'bios.lua'), (Join-Path $romSource 'rom') -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
-    $diskLimit = if ($Scenario -eq 'install') { 1000000 } else { 4000000 }
+    $diskLimit = if ($Scenario -eq 'install' -or $Scenario -eq 'h4a') { 1000000 } else { 4000000 }
     $config = @{
         standardsMode = $true; computerSpaceLimit = $diskLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
@@ -151,6 +153,8 @@ try {
             Write-SandboxText (Join-Path $payload $file.Name) $code $utf8
         }
         $roles = @('installer')
+    } elseif ($Scenario -eq 'h4a') {
+        $roles = @('mirror', 'fresh', 'server', 'hub')
     } elseif ($Scenario -in @('ssot','nav','mining','warehouse','views')) {
         $roles = @('server','turtle1','turtle2','turtle3','controller','world')
     } else {
@@ -188,8 +192,18 @@ try {
             continue
         }
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views','planner','fleet')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
-            Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
+        $files = if ($Scenario -eq 'h4a') {
+            $which = if ($roles[$id] -eq 'mirror') { 'fleet' } elseif ($roles[$id] -eq 'fresh') { '' } else { $roles[$id] }
+            $kind = if ($roles[$id] -eq 'mirror') { 'union' } else { 'program' }
+            $listed = if ($roles[$id] -eq 'fresh') { @('shelf.lua', 'atomic.lua', 'roles.lua', 'update.lua') } else {
+                $script = Join-Path $PSScriptRoot 'role-files.lua'
+                $lines = & lua5.2 $script $Source $kind $which
+                if ($LASTEXITCODE -ne 0) { throw "role file list failed for $kind $which" }
+                @($lines | Where-Object { $_ })
+            }
+            @($listed | ForEach-Object { Get-Item -LiteralPath (Join-Path $Source $_) })
+        } elseif ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views','planner','fleet')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+            Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua", "$Source\atomic.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
             # Match wget's LF text so a Windows checkout does not duplicate the HTTP cache.
@@ -204,7 +218,14 @@ try {
                 $sourceProof += [pscustomobject]@{computer=$id;file=$file.Name;sha256=$actual;normalization='LF'}
             }
         }
-        Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        if ($Scenario -eq 'h4a') {
+            Copy-Item -LiteralPath "$PSScriptRoot\h4a-driver.lua" -Destination $disk
+            if ($roles[$id] -eq 'fresh') {
+                Write-SandboxText "$disk\shelf.cfg" '{v=1,codeShelf=true,shelf="fleet",role="miner"}' $utf8
+            }
+        } else {
+            Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        }
         if ($Scenario -eq 'planner') {
             Copy-Item -LiteralPath "$PSScriptRoot\planner-driver.lua" -Destination $disk
         }
@@ -245,7 +266,8 @@ try {
             Write-SandboxText "$disk\views-network" ([string]$viewsNetwork) $utf8
             Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456",["6"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
         }
-        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')" $utf8
+        $entry = if ($Scenario -eq 'h4a') { 'h4a-driver.lua' } else { 'driver.lua' }
+        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario')" $utf8
     }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$diskLimit"
     if ($Scenario -eq 'views') { $sourceProof | ConvertTo-Json | Set-Content "$run\source-sha256.json" }

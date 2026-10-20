@@ -533,6 +533,12 @@ local function request(id, m, fetched, receivedAt)
     and not ssotConfig.controllers[tostring(id)] then return end
   if m.type=="ar_layer" or m.type=="ar_ready" or m.type=="ar_toggle" then return end
   if m.type == "get" and known[m.file] then
+    local shelfCfg = dofile("atomic.lua").read("shelf.cfg")
+    if type(shelfCfg) == "table" and type(shelfCfg.value) == "table" then shelfCfg = shelfCfg.value end
+    if type(shelfCfg) == "table" and shelfCfg.codeShelf == true then
+      reply(id, m, { type = "file", file = m.file, error = "shelf" })
+      return
+    end
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
     local info = state.files[m.file]

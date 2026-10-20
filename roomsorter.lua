@@ -47,9 +47,7 @@ if args[1] == "install" then
   -- roomsorter install         (turtle)
   -- roomsorter install board   (computer with the stock board monitor)
   local mode = args[2] and (" " .. args[2]) or ""
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("roomsorter' .. mode .. '")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("roomsorter' .. mode .. '")\n', function(s) return load(s) ~= nil end)
   print("roomsorter" .. mode .. " will now start automatically on boot.")
   return
 end
@@ -57,18 +55,24 @@ end
 ---------------------------------------------------------------------------
 -- Storage
 ---------------------------------------------------------------------------
-local function loadTable(path)
-  if not fs.exists(path) then return nil end
-  local h = fs.open(path, "r")
-  local t = textutils.unserialize(h.readAll())
-  h.close()
-  return type(t) == "table" and t or nil
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
+local function slot(path)
+  local rec = saved[path]
+  if not rec then
+    local class, limit = "bulk", 900000
+    if path == FILES.pos then class, limit = "control", 4096 end
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = class, limit = limit })
+    saved[path] = rec
+  end
+  return rec
 end
-
+local function loadTable(path)
+  return slot(path).value
+end
 local function saveTable(path, t)
-  local h = fs.open(path, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
+  return slot(path):save(t)
 end
 
 ---------------------------------------------------------------------------

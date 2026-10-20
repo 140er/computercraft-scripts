@@ -76,24 +76,24 @@ end
 -- Files
 ---------------------------------------------------------------------------
 local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
   end
-  return nil
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec:save(t)
 end
 
 local function hasTag(info, t) return info and info.tags and info.tags[t] end
@@ -146,9 +146,7 @@ if args[1] == "setup" then
   saveTable(CFG_FILE, { length = math.floor(len), width = math.floor(wid), left = args[4] == "left",
     drop = old.drop, seed = old.seed })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("farmer")\n')
-  h.close()
+  A.replaceBytes("startup.lua", 'shell.run("farmer")\n', function(s) return load(s) ~= nil end)
   os.setComputerLabel(os.getComputerLabel() or "Farmer")
   print("Saved: a field of " .. math.floor(len) .. " x " .. math.floor(wid) .. " to the "
     .. (args[4] == "left" and "left" or "right") .. ", in front of the turtle.")

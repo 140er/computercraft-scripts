@@ -30,11 +30,11 @@ function M.open(cfg)
     for _,f in ipairs(v.stack) do if not S.pose(f.pose) or type(f.next)~="number" or f.next%1~=0 or f.next<0 or f.next>6 then return false end end
     return v.phase=="work" or v.phase=="return" or v.phase=="home" or v.phase=="resume" or v.phase=="done"
   end
-  local store=A.store(cfg.path or "mining.state",valid,250000)
+  local store=A.mount("/"):open(cfg.path or "mining.state",valid,{class="bulk",limit=250000})
   local state=store.value or {version=1,stack={},visited={},hazards={},progress=0,phase="home"}
   local api={}
   local function save(point)
-    assert(store.save(state))
+    assert(store:save(state))
     if point and cfg.checkpoint then cfg.checkpoint(point) end
   end
   local function autonomous()

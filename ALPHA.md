@@ -44,6 +44,7 @@ Other files:
 - Strata. Call `strata.new` with `strata = true`. Nothing in the boot path turns this on.
 - Storage ledger. `storage-host.lua` stays off until `enabled = true` is passed to `create`.
 - Peer cold storage. `storage-peer.lua` stays off until `peerStorage` is true and a mac and floppy key are present.
+- Code shelf. In `shelf.cfg`, `codeShelf = true`. The server then refuses code-cache downloads, and a hub fetches `miner.lua` from the shelf. A missing file or any other value leaves this off. `hub shelf` writes that file on the hub.
 
 The server event queue from H3 is always on. It is how the server keeps fleet messages while a download runs.
 
@@ -63,6 +64,14 @@ wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/al
 
 Lease v2 needs the five `b1_` files. Peer storage needs `h4d_dep.lua`.
 
+The role manifest does not install the code shelf. Copy these before `codeShelf` is turned on. The mirror computer also needs `mirror.lua`.
+
+```
+wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/roles.lua roles.lua
+wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/shelf.lua shelf.lua
+wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/mirror.lua mirror.lua
+```
+
 # What still runs on a stub
 
 These stubs stay because the real module does not have the same functions.
@@ -73,19 +82,18 @@ These stubs stay because the real module does not have the same functions.
 - `lib/stubs/h4b2_h4b1.lua`, `lib/stubs/h4b2_h1.lua`, and `lib/stubs/h4b2_b1.lua`. `mapstore.lua` has no `sectionSlot`. H1 is not in alpha.
 - `lib/stubs/layout_dep.lua`. Layout observation reads schema 1 chunks. The compact section store is a different shape.
 - `lib/stubs/craft_dep.lua`. Craft uses `wh2-layout.lua` `reserveCraft` when that function exists, and `wh2-client.lua` for class lookup. `register` stays on the stub.
-- `lib/stubs/h4c_dep.lua`. The H4a usage helper stays here. H4a is not in alpha.
+- `lib/stubs/h4c_dep.lua`. Callers still use this usage helper. `atomic.lua` does not export that shape.
 - `lib/stubs/b1_h1.lua`, `b1_h4c.lua`, `b1_h5.lua`, `b1_n1.lua`, and `b1_w1.lua`. `position.lua` does not export the copy and compare helpers B1 calls. H1 stays out.
 - `s1_t1.lua`, `s1_h4c.lua`, `s1_i1.lua`, and `s1_b1.lua`. These check stored hub records. The real planner, ledger, enrol, and lease modules do not export that shape.
-- `lib/stubs/h4d_dep.lua`. H4a capacity, the H4b1 section codec, the B2 offline-lease bit, and the H1 mac stay here.
+- `lib/stubs/h4d_dep.lua`. H4a capacity stays here with the H4b1 section codec, the B2 offline-lease bit, and the H1 mac. `atomic.lua` is the two-slot save used by new shelf code.
 
 # Not in this branch
 
 - H1H2, pull request 77. Signing stays `pending-h1h2`.
-- H4a. There is no pull request.
 
 # Checks
 
-`lua5.2 tests/run.lua` printed `371 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 29 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
+`lua5.2 tests/run.lua` printed `377 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 29 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
 
 The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime.lua` line 388, 10000 cells.
 
