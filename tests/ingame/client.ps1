@@ -111,7 +111,18 @@ public static class SSOTCapture {
     $deadline = [DateTime]::UtcNow.AddSeconds(30)
     do {
         $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($shot) { break }
+        if ($shot) {
+            $ready=$false
+            try {
+                $bytes=[IO.File]::ReadAllBytes($shot.FullName)
+                if($bytes.Length -ge 12) {
+                    $tail=[BitConverter]::ToString($bytes, $bytes.Length-12)
+                    $ready=$tail -eq '00-00-00-00-49-45-4E-44-AE-42-60-82'
+                }
+            } catch { }
+            if($ready){break}
+            $shot=$null
+        }
         Start-Sleep -Milliseconds 500
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
