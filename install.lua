@@ -687,6 +687,39 @@ local function reset(ask)
   return true
 end
 
+local function roleRequested()
+  if args[1] == "role" or args[1] == "roles" then return true end
+  local ok, on = pcall(function()
+    return settings ~= nil and settings.get ~= nil and settings.get("install.roles") == true
+  end)
+  return ok and on == true
+end
+
+if roleRequested() and args[1] ~= "reset" then
+  local function pull(name)
+    if fs.exists(name) then return true end
+    if not http then
+      print("Missing " .. name .. " and http is off.")
+      return false
+    end
+    local res, err = http.get(BASE .. name .. "?t=" .. os.epoch("utc"))
+    local code = res and res.readAll()
+    if res then res.close() end
+    if not code or code == "" or not load(code, "=" .. name) then
+      print("Couldn't download " .. name .. ": " .. tostring(err or "broken download"))
+      return false
+    end
+    local h = fs.open(name, "w")
+    h.write(code)
+    h.close()
+    return true
+  end
+  for _, name in ipairs({ "install-roles.lua", "install-core.lua", "install-keys.lua", "install-shell.lua" }) do
+    if not pull(name) then return end
+  end
+  return dofile("install-shell.lua")(args, BASE)
+end
+
 if args[1] == "reset" then
   reset(args[2] ~= "now")
   return

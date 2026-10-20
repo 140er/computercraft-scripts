@@ -1,0 +1,19 @@
+Gate A for I1. Linux. Gate B was not run.
+
+lua5.2 tests/run.lua
+Lua 5.2.4
+109 tests passed, including every role on an empty disk, a reinstall, and an upgrade.
+
+CraftOS-PC v2.8.3 headless
+pwsh -File tests/sandbox/run.ps1 -Scenario install
+standardsMode=true computerSpaceLimit=1000000
+installer: PASS booted=true errors=0 disk_free=837271
+roles: miner hub relay roomsorter roomclient sorter lumber farmer lava builder buddy factory gpshost server panel smartmine store
+Each role was installed on a wiped disk, upgraded over a stale file and junk.lua, then reinstalled with nothing written.
+Result: gateA-install.json
+
+pwsh -File tests/sandbox/run.ps1 -Scenario smoke -Seconds 90
+disk=4000000
+server PASS, hub PASS, miner PASS
+
+ssot, nav, mining, and warehouse were not re-run. Issue 58 still fails those scenarios in standards mode.

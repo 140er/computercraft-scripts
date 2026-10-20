@@ -31,6 +31,21 @@ end
 for _, a in ipairs(args) do
   if a == "noreboot" then reboot = false else add(a) end
 end
+local pruneRole = false
+if #files == 0 and fs.exists("install.cfg") and fs.exists("install-roles.lua") then
+  local hf = fs.open("install.cfg", "r")
+  local raw = hf and hf.readAll()
+  if hf then hf.close() end
+  local ok, cfg = pcall(textutils.unserialize, raw or "")
+  if ok and type(cfg) == "table" and cfg.v == 1 and type(cfg.role) == "string" then
+    local loaded, Roles = pcall(dofile, "install-roles.lua")
+    local listed = loaded and type(Roles) == "table" and Roles.updateFiles and Roles.updateFiles(cfg.role)
+    if listed then
+      pruneRole = cfg.role
+      for _, f in ipairs(listed) do add(f) end
+    end
+  end
+end
 if #files == 0 then
   for _, f in ipairs(KNOWN) do
     if fs.exists(f) then
@@ -131,6 +146,15 @@ for _, f in ipairs(files) do
     fs.move(f .. ".new", f)
     print("updated")
     changed = changed + 1
+  end
+end
+
+if pruneRole and fs.exists("install-roles.lua") then
+  local loaded, Roles = pcall(dofile, "install-roles.lua")
+  if loaded and type(Roles) == "table" and Roles.pruneNames then
+    for _, name in ipairs(Roles.pruneNames(pruneRole, fs.list("/"))) do
+      if not fs.isDir(name) and fs.getDrive(name) == "hdd" then fs.delete(name) end
+    end
   end
 end
 
