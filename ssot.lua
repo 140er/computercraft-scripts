@@ -1,5 +1,6 @@
 local M = { version = 1 }
 local A = dofile("atomic.lua")
+local Mining = dofile("mine-tasks.lua")
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -96,6 +97,7 @@ function M.new(s, cfg, clock, epoch, save)
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
+    if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op=="calibrate" then
       local previous=s.poses[id]
       if not M.pose(p) or not M.pose(m.previous) or p.dim~=m.previous.dim or occupied(p,id) then
@@ -289,7 +291,7 @@ function M.open(cfg)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
     end
-    return true
+    return Mining.valid(s.mining,M.pose)
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }

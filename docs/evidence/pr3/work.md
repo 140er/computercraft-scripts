@@ -1,0 +1,31 @@
+PR 3 work record
+
+Feature checklist
+
+- [x] 1. `how` over the affected subsystem.
+- [x] 2. `architect` for parallel design exploration.
+  Single-agent exploration follows the PR 1 instruction. No delegates or other models.
+- [x] 3. Write the throughput checkpoint as four todo items.
+  Blocking first steps. Check the branch base and baseline mocks before edits.
+  Independent workstreams. Allocation, extraction and gate fixtures share contracts, so edits stay sequential.
+  Shared mutable state. The SSOT server owns leases. Each miner owns its traversal file.
+  Smallest safe decomposition. One owner extends the existing RPC, atomic store and navigation.
+- [ ] 4. Delegate code-writing to a subagent using your configured feature model.
+  Skip delegation because the PR 1 rules require one agent. Keep a separate review pass.
+- [ ] 5. Verify on the matching surface.
+- [ ] 6. Rebase into small, ordered commits. Stack follow-ups.
+- [ ] 7. If the design is contested, `interrogate` before shipping.
+  Skip other models and agents under the PR 1 rules.
+- [ ] 8. Run **Opening a PR**.
+
+The existing SSOT request handler validates and authenticates messages, copies state, applies one operation, and saves before replying. Navigation journals physical actions and reserves every destination. Miner boot recovers navigation before starting work. Both gate runners copy repository Lua into isolated computer disks.
+
+Two designs were considered. A global ore-cell claim table would permit veins across strip boundaries but add a second allocator and per-cell renewal. Disjoint rectangular zones keep lease ownership and extraction bounds together. This PR uses zones. Boundary ore remains untouched. Coverage is measured against seeded blocks, including an ore hidden in a spacing-four gap.
+
+Data shapes
+
+- The server stores a mine configuration and a bounded array of zone tasks. A task has an owner, token, deadline, status and acknowledged tunnel progress.
+- A miner stores its task, tunnel progress, a bounded DFS stack with a six-face cursor per frame, visited cells, and a return reason. Navigation owns physical pose and movement recovery.
+- Expired active tasks remain quarantined to their owner. Renewal resumes them. Unstarted offers can expire and change owners. A stale token cannot acknowledge or finish a task.
+
+Mining stays disabled unless `miner.cfg` explicitly enables it. Configuration uses a paired computer command. Warehouse delivery and charging remain PR 4 work. This PR returns to a configured home pose and reports unavailable service without dropping items into the world.
