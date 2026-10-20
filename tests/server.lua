@@ -119,6 +119,22 @@ return function(test, equal, read, mocks)
     equal(m.state().bots[7],nil)
     equal(m.request({type="register",kind="miner",rid="valid"}).type,"ack")
   end)
+  test("an old miner still reports after SSOT pairing is turned on", function()
+    local m = new()
+    m.files["ssot.lua"] = read("ssot.lua")
+    m.files["atomic.lua"] = read("atomic.lua")
+    m.files["mine-tasks.lua"] = read("mine-tasks.lua")
+    m.files["warehouse-tasks.lua"] = read("warehouse-tasks.lua")
+    m.files["ssot.cfg"] = mocks.encode({ controllers = { ["7"] = "test-secret-123456" } })
+    m.env.dofile = function(path) return assert(loadfile(path, "t", m.env))() end
+    m.start(serverCode)
+    m.status(5, { type = "status", phase = "mining", x = 1, y = 2, z = 3 })
+    equal(m.state().bots[5].status.phase, "mining")
+    local sent = #m.sent
+    m.push("rednet_message", 5, { type = "command", protocol = "minearmy", target = 5,
+      message = { type = "go" } }, "fleetserver")
+    equal(#m.sent, sent)
+  end)
 
   test("server saves GPS status and hub assignments across restart", function()
     local m = new()
