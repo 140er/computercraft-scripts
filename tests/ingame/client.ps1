@@ -129,6 +129,34 @@ public static class SSOTCapture {
     Copy-Item $shot.FullName $Target -Force
     }
     Save-Frame "$Output\$ShotName"
+    if ($View -eq 'h3') {
+        Invoke-TestRcon $RconPort $secret 'tp SSOTProof -5 65.5 0 180 12' | Set-Content "$Output\h3-capture-rcon.txt"
+        Start-Sleep -Seconds 2
+        Save-Frame "$Output\h3-board.png"
+        $encoder = $env:SSOT_FFMPEG
+        if (!$encoder) { $encoder = 'C:\Work\gemini-input\p2\test-tools\ffmpeg-8.1.2\verified\ffmpeg-8.1.2-essentials_build\bin\ffmpeg.exe' }
+        if (!(Test-Path -LiteralPath $encoder)) { throw 'Set SSOT_FFMPEG to a local FFmpeg executable.' }
+        $frames = Join-Path $Output 'h3-frames'
+        New-Item -ItemType Directory -Force -Path $frames | Out-Null
+        $times = @()
+        for ($index = 0; $index -lt 20; $index++) {
+            $times += [DateTime]::UtcNow
+            Save-Frame (Join-Path $frames ('{0:d4}.png' -f $index))
+            Start-Sleep -Milliseconds 500
+        }
+        $list = @()
+        for ($index = 0; $index -lt $times.Count; $index++) {
+            $path = (Join-Path $frames ('{0:d4}.png' -f $index)).Replace('\','/')
+            $duration = if ($index -lt $times.Count - 1) { ($times[$index + 1] - $times[$index]).TotalSeconds } else { 1 }
+            $list += "file '$path'"
+            $list += 'duration ' + $duration.ToString('0.000',[Globalization.CultureInfo]::InvariantCulture)
+        }
+        $list += "file '$path'"
+        [IO.File]::WriteAllLines("$frames\frames.txt", $list, $utf8)
+        & $encoder -y -loglevel error -f concat -safe 0 -i "$frames\frames.txt" -fps_mode vfr -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p "$Output\h3-burst.mp4" 2> "$Output\h3-encoder.log"
+        if ($LASTEXITCODE -ne 0) { throw 'H3 video encoding failed.' }
+        & $encoder -version | Select-Object -First 1 | Set-Content "$Output\encoder-version.txt"
+    }
     if($View -eq 'warehouse') {
         $encoder=$env:SSOT_FFMPEG
         if(!$encoder){$encoder='C:\Work\gemini-input\p2\test-tools\ffmpeg-8.1.2\verified\ffmpeg-8.1.2-essentials_build\bin\ffmpeg.exe'}

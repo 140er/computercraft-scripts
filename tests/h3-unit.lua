@@ -279,7 +279,7 @@ return function(test, equal, read, mocks)
     paused = false
     m.push("h3_view_ready")
     for i = 1, 16 do assert(m.reply(i), "slow save lost a queued request") end
-    assert(largest < 7, "individually bounded saves exceeded the native watchdog between event pulls")
+    assert(largest < 7, ("individually bounded saves held the event pump for %.3f seconds"):format(largest))
   end)
 
   test("H3 failed HTTP completion releases callers and permits the same cache miss to retry", function()

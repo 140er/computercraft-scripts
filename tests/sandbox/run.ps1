@@ -1,13 +1,19 @@
 param(
-    [ValidateRange(15, 3600)][int]$Seconds = 30,
+    [ValidateRange(15, 86400)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse')][string]$Scenario = 'smoke',
-    [string]$Output = ''
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','h3')][string]$Scenario = 'smoke',
+    [string]$Output = '',
+    [int]$H3SeedBatches = 4,
+    [ValidateRange(1,60)][double]$H3IntervalSeconds = 2,
+    [string]$H3QueueConfig = ''
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -eq 'h3' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 7200 }
+$h3Http = $null
+$process = $null
 
 try {
     $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
@@ -33,6 +39,15 @@ try {
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
     $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
+    if ($Scenario -eq 'h3' -and !$Output) { $Output = 'C:\Work\gemini-input\p3\evidence\h3\gateA-' + [guid]::NewGuid().ToString('N').Substring(0,8) }
+    if ($Scenario -eq 'h3') {
+        $run = Join-Path $Output ('sandbox-' + [guid]::NewGuid().ToString('N'))
+        . "$Source\tests\h3-support.ps1"
+        New-Item -ItemType Directory -Force -Path $Output | Out-Null
+        $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0)
+        $listener.Start(); $h3Port = $listener.LocalEndpoint.Port; $listener.Stop()
+        $h3Http = Start-H3Http -Source $Source -Output $Output -Port $h3Port
+    }
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
@@ -45,7 +60,9 @@ try {
     [IO.File]::WriteAllText("$run\config\global.json", $config, $utf8)
     $roles = if ($Scenario -in @('ssot','nav','mining','warehouse')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
     if ($Scenario -eq 'mining') { $roles += 'hub' }
+    if ($Scenario -eq 'h3') { $roles = @('server','turtle1','turtle2','turtle3','turtle4','controller') }
     for ($id = 0; $id -lt $roles.Count; $id++) {
+        if ($Scenario -eq 'h3') { continue }
         $disk = "$run\computer\$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
@@ -70,15 +87,27 @@ try {
         }
         [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
     }
+    if ($Scenario -eq 'h3') {
+        New-H3Disks -Source $Source -Computers "$run\computer" -Runtime 'sandbox' -HttpBase "http://127.0.0.1:$h3Port" -Seconds $Seconds -SeedBatches $H3SeedBatches -IntervalSeconds $H3IntervalSeconds -QueueConfig $H3QueueConfig
+    }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
     Write-Output "Artifacts: $run"
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
     $process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
     if ($Scenario -notin @('nav','mining','warehouse')) { $process.ProcessorAffinity = [IntPtr]1 }
-    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
+    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + $(if ($Scenario -eq 'h3') { 1200 } else { 35 }))
     $restarted = $false
     do {
+        if ($Scenario -eq 'h3' -and !$restarted -and (Test-Path "$run\computer\0\restart-ready.json")) {
+            Copy-Item -LiteralPath "$run\computer" -Destination "$Output\before-restart" -Recurse
+            Stop-Process -Id $process.Id -Force
+            $process.WaitForExit()
+            $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
+            $process.PriorityClass = 'AboveNormal'
+            $restarted = $true
+            Write-Output 'Restarted CraftOS during the H3 burst with requests pending on all four turtles.'
+        }
         if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
             Stop-Process -Id $process.Id -Force
             $process.WaitForExit()
@@ -117,13 +146,16 @@ try {
         if (!$result.ok) { $failed = $true }
     }
     $stderr = Get-Content -LiteralPath "$run\stderr.log" -Raw
-    if ($stderr) { Write-Output "Emulator stderr: $stderr"; $failed = $true }
+    if ($stderr) { Write-Output "Emulator stderr is saved in $run\stderr.log. Last output: $($stderr.Substring([Math]::Max(0,$stderr.Length-1500)))"; $failed = $true }
     if ($timedOut) { Write-Output 'Emulator timed out.' }
     if ($crashed) { Write-Output "Emulator exited early: $($process.ExitCode)" }
     if ($Output) {
         New-Item -ItemType Directory -Force -Path $Output | Out-Null
         Copy-Item -LiteralPath "$run\computer", "$run\stdout.log", "$run\stderr.log", "$run\config" -Destination $Output -Recurse -Force
         Get-ChildItem -LiteralPath $run -Filter '*.log' | Copy-Item -Destination $Output -Force
+    }
+    if ($Scenario -eq 'h3') {
+        Test-H3Results -Computers "$run\computer" -Output $Output -RequireFullSoak:($Seconds -ge 7200)
     }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {
@@ -138,6 +170,13 @@ try {
     Write-Output 'Sandbox PASS'
     exit 0
 } catch {
+    if ($Scenario -eq 'h3' -and $Output -and (Test-Path -LiteralPath $Output) -and !(Test-Path -LiteralPath "$Output\h3-results.json")) {
+        $failure = @{ok=$false;scenario='h3';gateEligible=$false;errors=@($_.Exception.Message)} | ConvertTo-Json
+        [IO.File]::WriteAllText("$Output\h3-results.json", $failure)
+    }
     Write-Output "Sandbox FAIL: $($_.Exception.Message)"
     exit 1
+} finally {
+    if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force }
+    if ($h3Http -and !$h3Http.HasExited) { Stop-Process -Id $h3Http.Id -Force }
 }
