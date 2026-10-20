@@ -23,20 +23,65 @@ local function configuredDim(explicit, cfg)
   if type(explicit)=="string" and explicit~="" then return explicit end
   if type(cfg)=="table" and type(cfg.dimension)=="string" and cfg.dimension~="" then return cfg.dimension end
 end
--- A fix is a known x y z, or a dead-reckoned pose that is not lost.
--- A missing dimension uses the configured one. No fix stays unplaced.
-function H.place(t, cfg)
-  if type(t)~="table" then return nil end
-  local at, dim = coords(t), type(t.dim)=="string" and t.dim or nil
-  if not at and type(t.pose)=="table" then at, dim = coords(t.pose), t.pose.dim end
-  if not at and type(t.gps)=="table" then at, dim = coords(t.gps), t.gps.dim or t.dim end
-  if not at and type(t.pos)=="table" and (t.pos.dim or t.pos.conf or t.pos.src or t.pos.v) then
-    at, dim = coords(t.pos), t.pos.dim or t.dim
-  end
-  if not at then return nil end
-  dim = configuredDim(dim, cfg)
+local function point(p)
+  return type(p)=="table" and finite(p.x) and finite(p.y) and finite(p.z) and p.conf~="lost" and p or nil
+end
+function H.hubPoint(cfg)
+  if type(cfg)~="table" then return nil end
+  local hub=point(cfg.hub) or point(cfg.origin)
+  if not hub then return nil end
+  local dim=configuredDim(type(hub.dim)=="string" and hub.dim or nil, cfg)
   if not dim then return nil end
-  return { x=at.x, y=at.y, z=at.z, dim=dim, conf=at.conf, src=at.src }
+  return { x=hub.x, y=hub.y, z=hub.z, dim=dim }
+end
+local function addRel(home, rel)
+  local x,y,z=home.x,home.y,home.z
+  if type(rel)=="table" then
+    if finite(rel.x) then x=x+rel.x end
+    if finite(rel.y) then y=y+rel.y end
+    if finite(rel.z) then z=z+rel.z end
+  end
+  return { x=x, y=y, z=z }
+end
+local function hubSpread(id, hub)
+  local n=math.abs(math.floor(tonumber(id) or 0))%16
+  local col,row=n%4,math.floor(n/4)
+  return {
+    x=hub.x+(col-1.5)*0.75, y=hub.y, z=hub.z+(row-1.5)*0.75,
+    dim=hub.dim, style="unknown", src="hub",
+  }
+end
+-- A fix is a known x y z, or a dead-reckoned pose that is not lost.
+-- A missing dimension uses the configured one. With no fix, the marker uses
+-- the last world point, then a home or shaft plus its offset, then the hub.
+function H.place(t, cfg, extra)
+  if type(t)~="table" then return nil end
+  extra=type(extra)=="table" and extra or {}
+  local at, dim, src = coords(t), type(t.dim)=="string" and t.dim or nil, "fix"
+  if not at and type(t.pose)=="table" then at, dim, src = coords(t.pose), t.pose.dim, "pose" end
+  if not at and type(t.gps)=="table" then at, dim, src = coords(t.gps), t.gps.dim or t.dim, "gps" end
+  if not at and type(t.pos)=="table" and (t.pos.dim or t.pos.conf or t.pos.src or t.pos.v) then
+    at, dim, src = coords(t.pos), t.pos.dim or t.dim, "pos"
+  end
+  if at then
+    dim=configuredDim(dim, cfg)
+    if not dim then return nil end
+    return { x=at.x, y=at.y, z=at.z, dim=dim, conf=at.conf, src=at.src or src, style="fix" }
+  end
+  local remembered=type(extra.last)=="table" and extra.last[tostring(t.id)] or nil
+  local last=point(remembered) or point(t.last) or point(t.lastKnown)
+  if last then
+    dim=configuredDim(type(last.dim)=="string" and last.dim or nil, cfg)
+    if dim then return { x=last.x, y=last.y, z=last.z, dim=dim, conf=last.conf, src="last", style="approx" } end
+  end
+  local home=point(t.home) or point(t.shaft)
+  if home then
+    at=addRel(home, t.rel or t.offset)
+    dim=configuredDim(type(home.dim)=="string" and home.dim or (type(t.dim)=="string" and t.dim or nil), cfg)
+    if dim then return { x=at.x, y=at.y, z=at.z, dim=dim, src="home", style="approx" } end
+  end
+  local hub=point(extra.hub) and extra.hub or H.hubPoint(cfg)
+  if hub and type(hub.dim)=="string" then return hubSpread(t.id, hub) end
 end
 function H.ensureOrigin(cfg, spot)
   if type(cfg)~="table" or cfg.enabled==false or position(cfg.origin) then return false end
@@ -58,6 +103,83 @@ local keyNames = { p="P", t="T", o="O", a="A" }
 function H.layerKey(ev, key, shifted)
   if ev=="char" and layers[key] then return key end
   if ev=="key" and shifted==true and type(key)=="string" then return keyNames[key:lower()] end
+end
+local layerOrder={"P","T","O","A"}
+function H.nextLayer(cfg, authCfg, previous)
+  if type(cfg)~="table" or cfg.enabled~=true then return nil end
+  local start=1
+  if type(previous)=="string" then
+    for i,letter in ipairs(layerOrder) do
+      if letter==previous then start=i%#layerOrder+1 break end
+    end
+  end
+  for step=0,#layerOrder-1 do
+    local letter=layerOrder[(start-1+step)%#layerOrder+1]
+    local layer=layers[letter]
+    if layer=="proHud" or authorized(cfg, authCfg) then return letter end
+  end
+end
+function H.gesture(ev, name, ownerName)
+  if ev=="playerClick" and type(name)=="string" and type(ownerName)=="string"
+    and name~="" and name==ownerName then return "cycle" end
+end
+local redstoneSides={"bottom","top","back","front","right","left"}
+local function sideOn(read, side)
+  if type(read)~="function" then return false end
+  local ok,on=pcall(read, side)
+  return ok and on==true
+end
+function H.redstoneSample(read)
+  local now={}
+  for _,side in ipairs(redstoneSides) do now[side]=sideOn(read, side) end
+  return now
+end
+function H.redstoneRise(previous, read)
+  local now,roseSide={},nil
+  previous=type(previous)=="table" and previous or {}
+  for _,side in ipairs(redstoneSides) do
+    now[side]=sideOn(read, side)
+    if now[side] and not previous[side] then roseSide=roseSide and "many" or side end
+  end
+  return roseSide~=nil and roseSide~="many", now
+end
+function H.side(side)
+  if type(redstone)~="table" or type(redstone.getInput)~="function" then return false end
+  local ok,on=pcall(redstone.getInput, side)
+  return ok and on==true
+end
+function H.gestureState()
+  return { level=H.redstoneSample(H.side), cursor=nil }
+end
+function H.feed(state, ev, arg, cfg, authCfg, apply)
+  if type(state)~="table" or type(cfg)~="table" or type(apply)~="function" then return false end
+  local hit=false
+  if ev=="playerClick" then hit=H.gesture(ev, arg, cfg.ownerName)=="cycle"
+  elseif ev=="redstone" then
+    local rose,now=H.redstoneRise(state.level, H.side)
+    state.level=now
+    hit=rose and true or false
+  else return false end
+  if not hit then return false end
+  local letter=H.nextLayer(cfg, authCfg, state.cursor)
+  if letter and apply(letter) then state.cursor=letter return true end
+  return false
+end
+function H.lights(cfg)
+  if type(cfg)~="table" or cfg.enabled~=true then return nil end
+  return { P=cfg.proHud~=false, T=cfg.xrayTurtles~=false, O=cfg.xrayOres~=false, A=cfg.xrayTunnels~=false }
+end
+function H.hubFrom(pos, dim)
+  if not point(pos) then return nil end
+  return { x=pos.x, y=pos.y, z=pos.z, dim=dim }
+end
+function H.inputMode(wizard, mode, serverOwned)
+  local quiet=wizard and true or false
+  return {
+    keys=not quiet,
+    touch=not quiet and (mode==nil or mode=="classic" or mode=="pro"),
+    server=serverOwned and true or false,
+  }
 end
 function H.hints(cfg, authCfg, input)
   if type(cfg)~="table" or cfg.enabled~=true then return nil end
@@ -98,7 +220,7 @@ local function context(turtles,cfg)
   out.origin=nil
   for _,t in ipairs(turtles or {}) do
     local placed = H.place(t, cfg)
-    if tostring(t.id)==tostring(cfg.followTarget) and not t.stale and placed then
+    if tostring(t.id)==tostring(cfg.followTarget) and not t.stale and placed and placed.style=="fix" then
       out.origin={x=placed.x,y=placed.y,z=placed.z,dim=placed.dim}
       out.dimension=placed.dim
       break
@@ -374,7 +496,9 @@ function H.snapshot(fleet,state,cfg,authCfg,cache)
       t.conf=pose.conf
     end
     local placed=H.place(t,cfg)
-    if placed then t.x,t.y,t.z,t.dim,t.conf=placed.x,placed.y,placed.z,placed.dim,placed.conf t.unplaced=nil
+    if placed and placed.style=="fix" then
+      t.x,t.y,t.z,t.dim,t.conf=placed.x,placed.y,placed.z,placed.dim,placed.conf
+      t.unplaced=nil
     else t.unplaced=true end
     snap.turtles[#snap.turtles+1]=t
   end
@@ -480,6 +604,7 @@ function H.render(ar,snap,mem,cfg,authCfg)
     if next(mem.elements or {}) then H.clear(ar,mem) end
     return
   end
+  local hubAt=H.hubPoint(cfg)
   cfg=context(snap.turtles,cfg)
   local allowed=authorized(cfg,authCfg)
   local desired={}
@@ -506,13 +631,19 @@ function H.render(ar,snap,mem,cfg,authCfg)
     if #turtles>=limit(cfg.maxTurtles,32,32) then break end
     local t={}
     for k,v in pairs(raw) do t[k]=v end
-    local placed=H.place(t,cfg)
-    if placed then
+    mem.last=mem.last or {}
+    local placed=H.place(t,cfg,{last=mem.last,hub=hubAt})
+    if placed and placed.style=="fix" then
       t.x,t.y,t.z,t.dim,t.conf=placed.x,placed.y,placed.z,placed.dim,placed.conf
       t.unplaced=nil
+      t.mark=placed
+      mem.last[tostring(t.id)]={x=placed.x,y=placed.y,z=placed.z,dim=placed.dim}
       if placed.conf=="suspect" and not tostring(t.status or ""):find("suspect",1,true) then
         t.status=tostring(t.status or t.phase or "Unknown").." [suspect]"
       end
+    elseif placed then
+      t.unplaced=true
+      t.mark=placed
     else t.unplaced=true end
     turtles[#turtles+1]=t
   end
@@ -538,7 +669,9 @@ function H.render(ar,snap,mem,cfg,authCfg)
       rect(id..":bg",8,y,210,29,C.bg)
       text(id..":name",12,y+3,"#"..tostring(t.id).." "..tostring(t.name or t.role or "Turtle"),C.white)
       local stateText=t.stale and "No signal" or t.status or t.phase or t.state or "Unknown"
-      if t.unplaced then stateText=tostring(stateText).." | no position" end
+      if t.mark and t.mark.style=="unknown" then stateText=tostring(stateText).." | unknown"
+      elseif t.mark and t.mark.style=="approx" then stateText=tostring(stateText).." | approx"
+      elseif t.unplaced then stateText=tostring(stateText).." | no position" end
       text(id..":state",12,y+15,stateText,C.muted)
       rect(id..":fuelbg",164,y+18,48,5,C.border)
       local pct=t.fuel=="unlimited" and 1 or (finite(t.fuel) and math.max(0,math.min(1,t.fuel/(finite(t.maxFuel) and math.max(1,t.maxFuel) or 20000))) or 0)
@@ -549,7 +682,7 @@ function H.render(ar,snap,mem,cfg,authCfg)
     if position(cfg.origin) and cfg.origin.dim==cfg.dimension then
       rect("radar:origin",420,86,3,3,C.gold)
       local missing=0
-      for _,t in ipairs(turtles) do if t.unplaced and not t.stale then missing=missing+1 end end
+      for _,t in ipairs(turtles) do if not t.mark and not t.stale then missing=missing+1 end end
       if missing>0 then text("radar:missing",380,58,missing.." no position",C.gold) end
       for i,cell in ipairs(snap.world_map or {}) do
         if i>limit(cfg.maxCells,128,256) then break end
@@ -563,20 +696,32 @@ function H.render(ar,snap,mem,cfg,authCfg)
         end
       end
       for _,t in ipairs(turtles) do
-        if allowed and cfg.xrayTurtles~=false and nearby(t,cfg) and not t.stale then
+        local at=t.mark
+        if allowed and cfg.xrayTurtles~=false and at and nearby(at,cfg) and not t.stale then
           local scale=36/limit(cfg.radius,64,256)
-          local x,y=421+math.floor((t.x-cfg.origin.x)*scale),87+math.floor((t.z-cfg.origin.z)*scale)
-          rect("radar:turtle:"..tostring(t.id),x,y,3,3,C.green)
+          local x,y=421+math.floor((at.x-cfg.origin.x)*scale),87+math.floor((at.z-cfg.origin.z)*scale)
+          rect("radar:turtle:"..tostring(t.id),x,y,3,3,at.style=="fix" and C.green or C.gold)
         end
       end
     else text("radar:unknown",380,78,cfg.followTarget and "Target lost" or "Set origin",C.gold) end
   end
   if allowed and cfg.xrayTurtles~=false then
     for _,t in ipairs(turtles) do
-      if nearby(t,cfg) and not t.stale then
+      local at=t.mark
+      local hubNear=at and at.style=="unknown" and position(hubAt) and at.dim==hubAt.dim
+        and (at.x-hubAt.x)^2+(at.y-hubAt.y)^2+(at.z-hubAt.z)^2<=limit(cfg.radius,64,256)^2
+      if at and not t.stale and (nearby(at,cfg) or hubNear) then
         local id="turtle:"..tostring(t.id)
-        box(id,t,C.green)
-        put("drawText3D",id..":label",color(C.green),t.x+0.5,t.y+1.4,t.z+0.5,0,0,2,"#"..tostring(t.id),true)
+        if at.style=="unknown" then
+          line(id..":unknown",at,{x=at.x,y=at.y+2,z=at.z},C.gold)
+          put("drawText3D",id..":unknown:label",color(C.gold),at.x,at.y+2.2,at.z,0,0,2,
+            ("#"..tostring(t.id).." unknown"):sub(1,32),true)
+        else
+          local tint=at.style=="approx" and C.gold or C.green
+          box(id,at,tint)
+          put("drawText3D",id..":label",color(tint),at.x+0.5,at.y+1.4,at.z+0.5,0,0,2,
+            "#"..tostring(t.id)..(at.style=="approx" and " ~" or ""),true)
+        end
       end
     end
   end
