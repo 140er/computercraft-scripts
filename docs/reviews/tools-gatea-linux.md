@@ -20,7 +20,7 @@ CraftOS-PC 2.8.3 with `standardsMode` true aborts a computer that does not yield
 
 Three `-Scenario nav` runs failed in the 10000-cell scan with `SSOT timeout (stopped)`. One server terminal ended at `/rom/apis/rednet.lua:470: Too long without yielding`. A temporary log around `server.lua` `ssot.handle`, not kept in this branch, recorded one scan at 7062 ms that returned `ok=nil` and `/atomic.lua:52: Too long without yielding`. The next scans returned in 0 ms with `ok=nil`. `atomic.lua:65` sets `poisoned` when `save` throws, and `ssot.lua:256` then refuses later mutations. That is the same silence as issue 33, triggered here by the yield abort rather than a full disk.
 
-A one-computer bench copied a 3432-cell `ssot.state` from an earlier run in 2 ms and serialized it in 5 ms. The 7 second abort happens with the fleet loaded, not on that copy alone. Filed as https://github.com/140er/computercraft-scripts/issues/58.
+A one-computer bench copied a 3432-cell `ssot.state` from an earlier run in 2 ms and serialized it in 5 ms. The 7 second abort happens with the fleet loaded, not on that copy alone. GitHub Actions run 39459767437 on `ubuntu-latest` failed the same scan. The controller error was `SSOT timeout (stopped)` at `tests/ssot-runtime.lua:388`. Smoke and the mock suite passed on that run. Filed as https://github.com/140er/computercraft-scripts/issues/58.
 
 ## 3. Low. Gate A still boots the fleet at 4000000 bytes
 

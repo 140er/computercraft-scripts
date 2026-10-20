@@ -38,19 +38,38 @@ jobs:
         run: lua5.2 tests/run.lua
 
       - name: Gate A smoke
+        id: smoke
+        if: always()
+        continue-on-error: true
         run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario smoke -Seconds 120 -Output gate-a/smoke
 
       - name: Gate A ssot
+        id: ssot
+        if: always()
+        continue-on-error: true
         run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario ssot -Output gate-a/ssot
 
       - name: Gate A nav
+        id: nav
+        if: always()
+        continue-on-error: true
         run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario nav -Output gate-a/nav
 
       - name: Gate A mining
+        id: mining
+        if: always()
+        continue-on-error: true
         run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario mining -Output gate-a/mining
 
       - name: Gate A warehouse
+        id: warehouse
+        if: always()
+        continue-on-error: true
         run: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario warehouse -Output gate-a/warehouse
+
+      - name: Fail the job when a scenario failed
+        if: always() && (steps.smoke.outcome == 'failure' || steps.ssot.outcome == 'failure' || steps.nav.outcome == 'failure' || steps.mining.outcome == 'failure' || steps.warehouse.outcome == 'failure')
+        run: exit 1
 
       - name: Upload sandbox output
         if: always()
