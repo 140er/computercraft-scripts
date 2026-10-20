@@ -3,6 +3,7 @@
   maxChunks = 64,
   pageBytes = 8192,
   leaseMs = 30000,
+  compactSections = false,
   chatNames = { "Jeffreyy2", "njov10", "yolobeerman" },
   chatUUIDs = {},
 }
