@@ -103,6 +103,36 @@ function Get-LuaCalls([string]$Text) {
     return @{ Literals = $literals; Dynamics = $dynamics }
 }
 
+function Get-GateManifestRole([string]$Source, [string[]]$Entry) {
+    $sourceFull = [IO.Path]::GetFullPath($Source)
+    foreach ($path in $Entry) {
+        $full = [IO.Path]::GetFullPath($path)
+        $rel = $full.Substring($sourceFull.Length).TrimStart('\','/').Replace('\','/')
+        if ($rel -eq 'tests/ingame/server.lua') { return 'server' }
+        if ($rel -eq 'hub.lua') { return 'hub' }
+    }
+    return $null
+}
+
+function Get-GateBundleFiles([string]$Source, [string]$Role) {
+    $text = [IO.File]::ReadAllText((Join-Path $Source 'bundle-manifest.lua'))
+    $set = @{}
+    if ($Role -eq '*stubs') {
+        foreach ($hit in [regex]::Matches($text, '\["(lib/stubs/[^"]+\.lua)"\]=')) {
+            $set[$hit.Groups[1].Value] = $true
+        }
+        if ($set.Count -eq 0) { throw "bundle-manifest.lua lists no lib/stubs files." }
+        return $set
+    }
+    $body = [regex]::Match($text, '\["' + [regex]::Escape($Role) + '"\]=\{[\s\S]*?\["files"\]=\{([\s\S]*?)\r?\n      \}')
+    if (-not $body.Success) { throw "bundle-manifest.lua has no file list for $Role." }
+    foreach ($hit in [regex]::Matches($body.Groups[1].Value, '="([^"]+)"')) {
+        $set[$hit.Groups[1].Value] = $true
+    }
+    if ($set.Count -eq 0) { throw "bundle-manifest.lua lists no files for $Role." }
+    return $set
+}
+
 function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
     $sourceFull = [IO.Path]::GetFullPath($Source)
     $allow = @(
@@ -116,6 +146,17 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
         (Join-Path $sourceFull 'tests\ingame\charge-probe.lua'),
         (Join-Path $sourceFull 'tests\gate-disk.lua')
     )
+    $manifestRole = Get-GateManifestRole $Source $Entry
+    $roleFiles = $null
+    $stubAllow = @{}
+    if ($manifestRole) {
+        $roleFiles = Get-GateBundleFiles $Source $manifestRole
+        foreach ($relStub in @($roleFiles.Keys)) {
+            if ($relStub.StartsWith('lib/stubs/')) { $stubAllow[$relStub] = $true }
+        }
+    } else {
+        $stubAllow = Get-GateBundleFiles $Source '*stubs'
+    }
     $seen = @{}
     $queue = New-Object System.Collections.Generic.Queue[string]
     foreach ($path in $Entry) {
@@ -159,7 +200,11 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
             }
             if (-not $target) { $target = $found[0] }
             $relTarget = $target.Substring($sourceFull.Length).TrimStart('\','/').Replace('\','/')
-            if ($relTarget.StartsWith('lib/stubs/')) { continue }
+            if ($relTarget.StartsWith('lib/stubs/')) {
+                if (-not $stubAllow.ContainsKey($relTarget)) { continue }
+                if (-not $seen.ContainsKey($target)) { $queue.Enqueue($target) }
+                continue
+            }
             $underTests = $relTarget.StartsWith('tests/')
             $allowedTests = $allow -contains $target
             if ($underTests -and -not $allowedTests) { continue }
@@ -168,9 +213,28 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
             if (-not $seen.ContainsKey($target)) { $queue.Enqueue($target) }
         }
     }
-    $rows = foreach ($path in $seen.Keys) {
-        $disk = if ($path -eq [IO.Path]::GetFullPath((Join-Path $sourceFull 'tests\ingame\server.lua'))) { 'test-server.lua' } else { [IO.Path]::GetFileName($path) }
-        [pscustomobject]@{ DiskName = $disk; SourcePath = $path }
+    $rows = New-Object System.Collections.Generic.List[object]
+    foreach ($path in $seen.Keys) {
+        $rel = $path.Substring($sourceFull.Length).TrimStart('\','/').Replace('\','/')
+        $disk = if ($path -eq [IO.Path]::GetFullPath((Join-Path $sourceFull 'tests\ingame\server.lua'))) { 'test-server.lua' }
+            elseif ($rel.StartsWith('lib/stubs/')) { $rel }
+            else { [IO.Path]::GetFileName($path) }
+        $rows.Add([pscustomobject]@{ DiskName = $disk; SourcePath = $path })
+    }
+    if ($roleFiles) {
+        $have = @{}
+        foreach ($row in $rows) { $have[$row.DiskName] = $true }
+        foreach ($rel in @($roleFiles.Keys)) {
+            if ($have.ContainsKey($rel)) { continue }
+            $src = Join-Path $sourceFull ($rel.Replace('/','\'))
+            if (-not (Test-Path -LiteralPath $src)) { continue }
+            $rows.Add([pscustomobject]@{ DiskName = $rel; SourcePath = [IO.Path]::GetFullPath($src) })
+            $have[$rel] = $true
+        }
+        $missing = @($roleFiles.Keys | Where-Object { -not $have.ContainsKey($_) } | Sort-Object)
+        if ($missing.Count -gt 0) {
+            throw "Gate B copy left out files bundle-manifest.lua lists for ${manifestRole}: $($missing -join ', ')"
+        }
     }
     $names = @{}
     foreach ($row in $rows) {
@@ -183,8 +247,10 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
 function Write-GateRoleFiles([string]$Disk, [string]$Source, [string[]]$Entry, [Text.Encoding]$Utf8) {
     $files = @(Get-GateRoleFiles -Source $Source -Entry $Entry)
     foreach ($file in $files) {
+        $dest = [IO.Path]::Combine($Disk, ($file.DiskName -replace '/','\'))
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($dest)) | Out-Null
         $text = [IO.File]::ReadAllText($file.SourcePath).Replace("`r`n","`n")
-        [IO.File]::WriteAllText((Join-Path $Disk $file.DiskName), $text, $Utf8)
+        [IO.File]::WriteAllText($dest, $text, $Utf8)
     }
     return $files
 }
@@ -208,10 +274,11 @@ if ($MyInvocation.InvocationName -ne '.') {
         $entries = Get-GateEntries $source $role.Scenario $role.Id
         Write-GateRoleFiles -Disk $root -Source $source -Entry $entries -Utf8 $utf8 | Out-Null
         $sum = 0
-        Get-ChildItem $root -File | Sort-Object Name | ForEach-Object {
+        Get-ChildItem $root -Recurse -File | Sort-Object FullName | ForEach-Object {
             $sum += $_.Length
-            Write-Output ("{0,8}  {1}" -f $_.Length, $_.Name)
+            $rel = $_.FullName.Substring($root.Length).TrimStart('\')
+            Write-Output ("{0,8}  {1}" -f $_.Length, $rel)
         }
-        Write-Output ("== {0} == {1} files {2} bytes" -f $role.Name, (Get-ChildItem $root -File).Count, $sum)
+        Write-Output ("== {0} == {1} files {2} bytes" -f $role.Name, (Get-ChildItem $root -Recurse -File).Count, $sum)
     }
 }
