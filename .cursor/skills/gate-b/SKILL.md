@@ -42,6 +42,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\gateb.ps1 -Ref 
 - A skipped scenario, a missing screenshot or a missing video is a `GATES: FAIL`. Report it as a fail with the reason. Never round it up to a pass.
 - If the ref has `docs/testing/gateB-depth.md`, the script lists its items in `depth-not-run.txt` and fails. Cover them by adding scenarios to `tests/ingame/run.ps1` on the branch, then run again.
 
+## If a run is killed
+
+Killing the PowerShell process skips the teardown.
+The lock `owner.txt` names the run stamp and its PID.
+Clean up only a run whose PID is gone and whose stamp is yours.
+Stop the java processes that run started, remove its two lock folders, and delete `C:\Work\gateb-run-<stamp>` and `C:\Work\mc-ssot-pr1-gb<stamp>-*`.
+Unlink each `libraries` junction with `cmd /c rmdir` before any recursive delete.
+
 ## Report
 
 Quote the `GATES:` line, the ref and sha, the scenario table and the problems from `SUMMARY.md`.
