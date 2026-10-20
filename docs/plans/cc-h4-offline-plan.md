@@ -36,7 +36,7 @@ pos = {
   frame = "abs",          -- "abs" or "f:<frameId>"; relative frames never enter the absolute map
   yAbs = true,            -- true when y is world y even in a relative frame ("miner setup <y>" mode)
   dim = "minecraft:overworld",
-  x = 10, y = 65, z = 20, h = 0,   -- h uses nav.lua headings, east 0 to north 3
+  x = 10, y = 65, z = 20, h = 0,   -- h uses nav.lua headings, north 0, east 1, south 2, west 3
   conf = "certain",       -- "certain", "suspect" or "lost"
   src = "neighbour",      -- "gps", "neighbour", "radio", "typed", "reckoned", "inherited"
   anchoredAt = 1792500000000,
