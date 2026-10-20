@@ -63,22 +63,36 @@ try {
     Rcon 'computercraft turn-on 0 1 2 3 4 6' | Out-Null
     Mining-Wait "$computers\4\restart-ready.json"
     Copy-Item "$TestRoot\logs\latest.log" "$Output\before-restart.log"
+    $paused=@{}
     foreach ($id in 1..3) {
         $p=(Get-Content "$computers\$id\mining-paused.json" -Raw | ConvertFrom-Json).pose
+        $paused[$id]=$p
         Rcon "data get block $($p.x) $($p.y) $($p.z)" | Out-Null
     }
+    $loaded=Rcon 'execute if loaded 1 65 1 run time query gametime'
+    if($loaded -notmatch '^The time is \d+'){throw 'Loaded-chunk query did not return its numeric result.'}
+    Rcon 'computercraft shutdown 1 2 3' | Out-Null
+    foreach($id in 1..3) {
+        $p=$paused[$id]
+        Rcon "data remove block $($p.x) $($p.y) $($p.z) RightUpgrade" | Out-Null
+    }
+    Rcon 'setworldspawn -1000 64 -1000' | Out-Null
     Rcon 'forceload remove all' | Out-Null
     $until=[DateTime]::UtcNow.AddSeconds(90)
     do {
         Start-Sleep -Seconds 2
-        $loaded=Rcon 'execute if loaded 1 65 1 run say MINING_CHUNK_LOADED'
-    } while ($loaded -match 'MINING_CHUNK_LOADED' -and [DateTime]::UtcNow -lt $until)
-    if($loaded -match 'MINING_CHUNK_LOADED'){throw 'Mining chunk did not unload.'}
+        $loaded=Rcon 'execute if loaded 1 65 1 run time query gametime'
+    } while ($loaded -match '^The time is \d+' -and [DateTime]::UtcNow -lt $until)
+    if($loaded -match '^The time is \d+'){throw 'Mining chunk did not unload.'}
     'The active mining chunk unloaded before the server restart.' | Set-Content "$Output\chunk-unload.txt"
     Stop-TestServer
     foreach ($id in 0..4) { [IO.File]::WriteAllText("$computers\$id\boot-hold",'GPS barrier',$utf8) }
     Start-TestServer 'restart'
     Rcon 'forceload add -16 -16 32 16' | Out-Null
+    foreach($id in 1..3) {
+        $p=$paused[$id]
+        Rcon "data modify block $($p.x) $($p.y) $($p.z) RightUpgrade set value `"computercraft:wireless_modem_advanced`"" | Out-Null
+    }
     Rcon 'computercraft shutdown 10 11 12 13' | Out-Null
     Start-Sleep -Seconds 1
     Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
@@ -90,13 +104,16 @@ try {
     $mined=0
     $remaining=0
     $observations=@()
+    $positive=Rcon 'execute if block 10 64 5 minecraft:bedrock run time query gametime'
+    $negative=Rcon 'execute if block 10 64 5 minecraft:air run time query gametime'
+    if($positive -notmatch '^The time is \d+' -or $negative -match '^The time is \d+') {throw 'Block-query positive or negative control failed.'}
     foreach ($position in $finalBlocks.Keys) {
         if ($finalBlocks[$position] -notlike '*_ore') { continue }
         $v=$position.Split(' ')
         $gap=([int]$v[0]%4 -eq 3 -and [int]$v[1] -eq 65 -and [int]$v[2] -eq 6)
         $expected=if($gap){$finalBlocks[$position]}else{'minecraft:air'}
-        $response=Rcon "execute if block $position $expected run say MINING_BLOCK_PASS"
-        if ($response -notmatch 'MINING_BLOCK_PASS') { throw "Expected $expected at $position." }
+        $response=Rcon "execute if block $position $expected run time query gametime"
+        if ($response -notmatch '^The time is \d+') { throw "Expected $expected at $position." }
         if($gap){$remaining++}else{$mined++}
         $observations+=@{position=$position;expected=$expected;ok=$true}
     }
@@ -105,7 +122,6 @@ try {
         $block=Rcon "data get block $x 65 0"
         if ($block -notmatch "ComputerId:\s*$id(?=[,}\s])") { throw "Turtle $id did not return home." }
     }
-    Rcon 'execute if block 10 64 5 minecraft:bedrock run say MINING_PROTECTED_PASS' | Out-Null
     $observations | ConvertTo-Json | Set-Content "$Output\block-observations.json"
     & "$PSScriptRoot\verify-mining.ps1" -Computers $computers -Output $Output
     @{ok=$true;mined=$mined;intentionallyUntouched=$remaining;restart=$true} | ConvertTo-Json | Set-Content "$Output\coverage.json"
