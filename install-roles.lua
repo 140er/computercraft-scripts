@@ -12,39 +12,39 @@ local KIT = {
 
 local ROLES = {
   { id = "miner", name = "Mining turtle", on = "turtle", boot = "miner",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "plug.lua" } },
+    files = { "miner.lua", "atomic.lua", "b1-nav.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "mining.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-wizard.lua" } },
   { id = "hub", name = "Mine Army hub", on = "computer", boot = "hub",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" } },
+    files = { "hub.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-hub.lua", "planner-ops.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" } },
   { id = "relay", name = "Radio relay", on = "computer", boot = "relay",
-    files = { "relay.lua" } },
+    files = { "relay.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "roomsorter", name = "Storage Room turtle", on = "turtle", boot = "roomsorter",
-    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua", "plug.lua" } },
+    files = { "roomsorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" } },
   { id = "roomclient", name = "Storage order computer", on = "computer",
-    files = { "roomsorter.lua", "plug.lua" } },
+    files = { "roomsorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" } },
   { id = "sorter", name = "Sorter & Smelter", on = "any", boot = "sorter",
-    files = { "sorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" } },
+    files = { "sorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "lumber", name = "Lumberjack", on = "turtle", boot = "lumber",
-    files = { "lumber.lua", "plug.lua" } },
+    files = { "lumber.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "farmer", name = "Farmer", on = "turtle", boot = "farmer",
-    files = { "farmer.lua", "plug.lua" } },
+    files = { "farmer.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "lava", name = "Lava runner", on = "turtle", boot = "lava",
-    files = { "lava.lua", "plug.lua" } },
+    files = { "lava.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "builder", name = "Builder", on = "turtle", boot = "builder",
-    files = { "builder.lua", "plug.lua" } },
+    files = { "builder.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "buddy", name = "Buddy", on = "turtle", boot = "buddy",
-    files = { "buddy.lua", "plug.lua" } },
+    files = { "buddy.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "factory", name = "Turtle factory", on = "turtle", boot = "factory",
-    files = { "factory.lua", "miner.lua", "plug.lua" } },
+    files = { "factory.lua", "atomic.lua", "b1-nav.lua", "craft.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/craft_dep.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "miner.lua", "mining.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "gpshost", name = "GPS host", on = "computer",
-    files = { "gpshost.lua", "plug.lua" } },
+    files = { "gpshost.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "server", name = "Fleet server", on = "computer", boot = "server",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "enrol.lua", "plug.lua" } },
+    files = { "server.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-host.lua", "planner-map.lua", "planner-ops.lua", "planner-settings.lua", "planner-view.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard.lua" } },
   { id = "panel", name = "Pocket panel", on = "pocket", boot = "panel",
-    files = { "panel.lua", "fleetview.lua", "plug.lua" } },
+    files = { "panel.lua", "atomic.lua", "dead.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-panel.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" } },
   { id = "smartmine", name = "Simple tunnel miner", on = "turtle",
-    files = { "smartmine.lua" } },
+    files = { "smartmine.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" } },
   { id = "store", name = "SSOT warehouse turtle", on = "turtle",
-    files = { "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua", "plug.lua" } },
+    files = { "store.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-wizard.lua" } },
 }
 
 M.kit = KIT
@@ -176,14 +176,20 @@ function M.apply(fsapi, root, id, bundle, free)
   end
   local names = listRoot()
   local disk = {}
+  local function readText(where)
+    if not fsapi.exists(where) or (fsapi.isDir and fsapi.isDir(where)) then return nil end
+    local h = fsapi.open(where, "r")
+    local text = h.readAll()
+    h.close()
+    return text
+  end
   for _, name in ipairs(names) do
-    local where = path(name)
-    if not fsapi.isDir(where) and fsapi.exists(where) then
-      local h = fsapi.open(where, "r")
-      local text = h.readAll()
-      h.close()
-      disk[name] = text
-    end
+    local text = readText(path(name))
+    if text then disk[name] = text end
+  end
+  for _, name in ipairs(role.files) do
+    local text = readText(path(name))
+    if text then disk[name] = text end
   end
   local incoming = {}
   for name, body in pairs(bundle) do
@@ -206,8 +212,15 @@ function M.apply(fsapi, root, id, bundle, free)
     end
   end
   if type(free) == "number" and need > free then return nil, "disk_full" end
+  local function ensureDir(dir)
+    if not dir or dir == "" or not fsapi.makeDir then return end
+    local parent = dir:match("^(.*)/[^/]+$")
+    if parent and parent ~= "" then ensureDir(parent) end
+    if not fsapi.exists(dir) then fsapi.makeDir(dir) end
+  end
   for _, name in ipairs(writes) do
     local where = path(name)
+    ensureDir(where:match("^(.*)/[^/]+$"))
     local tmp = where .. ".new"
     local h = assert(fsapi.open(tmp, "w"), "open failed")
     h.write(incoming[name].text)

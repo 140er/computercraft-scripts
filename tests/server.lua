@@ -668,7 +668,7 @@ return function(test, equal, read, mocks)
     m.downloads = 0
     m.env.http = { get = function(url)
       m.downloads = m.downloads + 1
-      local code = assert(files[url:match("/([^/?]+)%?t=")], url)
+      local code = assert(files[url:match("heads/[%w%-]+/([^?]+)")], url)
       return { readAll = function() return code end, close = function() end }
     end }
   end
@@ -766,13 +766,12 @@ return function(test, equal, read, mocks)
       m.status(42, { type = "status", status = "still running" })
       equal(m.state().bots[42].status.status, "still running")
       noTemps(m)
-      -- A changed roomsorter cannot fit alongside its good copy and the state reserve.
       m.env.fs.open = open
       local changed = {}
       for f, code in pairs(repo) do changed[f] = code end
       changed["roomsorter.lua"] = repo["roomsorter.lua"] .. "\n-- changed\n"
       downloads(m, changed)
-      m.advance(317)
+      m.advance(301 + #hosted)
       equal(m.files["server-code/roomsorter.lua"], repo["roomsorter.lua"])
       equal(m.state().files["roomsorter.lua"].hash, hashOf(repo["roomsorter.lua"]))
       local found = false

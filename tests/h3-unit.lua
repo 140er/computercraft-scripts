@@ -413,10 +413,16 @@ return function(test, equal, read, mocks)
     assert(m.reply("lost-wake-register"), "lost private notification stranded an accepted request")
     assert(m.reply("lost-wake-download") and m.reply("lost-wake-download").code == "return true",
       "lost private notification stranded HTTP or its completion")
-    local before = m.state().files["relay.lua"]
+    local before = 0
+    for _, info in pairs(m.state().files) do
+      if type(info) == "table" and type(info.fetched) == "number" and info.fetched > before then before = info.fetched end
+    end
     m.advance(5)
-    assert(m.state().files["relay.lua"] and (not before or m.state().files["relay.lua"].fetched >= before.fetched),
-      "refresh stopped after a lost completion notification")
+    local after = 0
+    for _, info in pairs(m.state().files) do
+      if type(info) == "table" and type(info.fetched) == "number" and info.fetched > after then after = info.fetched end
+    end
+    assert(after > before, "refresh stopped after a lost completion notification")
   end)
 
   test("H3 200 requests during a slow save each get a reply or busy and the timer fires every second", function()

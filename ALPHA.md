@@ -55,9 +55,11 @@ This one still defaults off.
 
 The server event queue from H3 is always on. It is how the server keeps fleet messages while a download runs.
 
-# Files the installer does not copy
+# Files copied with ssot
 
-`install` and `update` copy `lib/stubs/b1_n1.lua`, `b1_h1.lua`, `b1_h4c.lua`, `b1_h5.lua`, `b1_w1.lua`, and `h4d_dep.lua` with the roles that load them. Lease v2 needs the five `b1_` files. Peer storage needs `h4d_dep.lua`.
+`install`, `update`, and the role shell copy `mapstore.lua` and `mapsection.lua` onto every role that loads `ssot.lua`. `mapstore.lua` loads `mapsection.lua` when it starts. The same roles also get `lib/stubs/b1_n1.lua`, `b1_h1.lua`, `b1_h4c.lua`, `b1_h5.lua`, `b1_w1.lua`, and `h4d_dep.lua`. Lease v2 needs the five `b1_` files. Peer storage needs `h4d_dep.lua`.
+
+# Files the installer does not copy
 
 The role manifest does not install the code shelf. Copy these before `codeShelf` is turned on. The mirror computer also needs `mirror.lua`.
 
@@ -88,7 +90,7 @@ These stubs stay because the real module does not have the same functions.
 
 # Checks
 
-`lua5.2 tests/run.lua` printed `388 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
+`lua5.2 tests/run.lua` printed `389 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
 
 The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime.lua` line 388, 10000 cells.
 

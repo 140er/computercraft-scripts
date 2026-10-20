@@ -350,7 +350,7 @@ end
 
 local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "plug.lua" }, start = { "miner" },
+    files = { "miner.lua", "atomic.lua", "b1-nav.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "mining.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-wizard.lua" }, start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -392,7 +392,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
+    files = { "hub.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-hub.lua", "planner-ops.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -403,14 +403,14 @@ local BOTS = {
       { say = "Set up each mining turtle with this installer too (pick 'Mining turtle'). On the dashboard you pick a time and an ore." },
     }) },
   { id = "relay", name = "Radio relay", hint = "range booster for normal wireless modems", on = "computer",
-    files = { "relay.lua" }, start = { "relay" },
+    files = { "relay.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "relay" },
     steps = {
       { say = "Put this computer high above your base (y 250 or more, e.g. on a pillar) with a wireless modem, in a chunk that stays loaded. It passes all messages on, so the hub hears the turtles everywhere.",
         check = modemCheck },
       { run = function() return { "relay", "install" } end },
     } },
   { id = "roomsorter", name = "Storage Room turtle", hint = "sorts, smelts and fetches in a closed room", on = "turtle",
-    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua", "plug.lua" }, start = { "roomsorter" },
+    files = { "roomsorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" }, start = { "roomsorter" },
     steps = {
       { say = "Build a closed room with a flat floor and ceiling (any size and shape), at least 3 high for furnaces. Build an INPUT chest and an OUTPUT chest into its walls, so you can reach them from outside. Best: both at floor height." },
       { say = "Put this turtle on the floor of the room, FACING THE INPUT CHEST, with some coal in it. A wireless modem is optional (for the pocket panel and the order computer).",
@@ -422,7 +422,7 @@ local BOTS = {
       { say = "Last step: put chests or barrels, furnaces / blast furnaces and coal in the input chest. The turtle builds its storage with them." },
     } },
   { id = "roomclient", name = "Storage order computer", hint = "order screen or stock board outside the room", on = "computer",
-    files = { "roomsorter.lua", "plug.lua" },
+    files = { "roomsorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" },
     steps = {
       { ask = "mode", choices = { { "client", "Order screen / prompt" }, { "board", "Stock board on a monitor" } },
         q = "What should this computer be?" },
@@ -432,7 +432,7 @@ local BOTS = {
     },
     start = function(c) return { "roomsorter", c.mode } end },
   { id = "sorter", name = "Sorter & Smelter", hint = "wired network of chests and furnaces", on = "any",
-    files = { "sorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "sorter" },
+    files = { "sorter.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "store.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "sorter" },
     steps = {
       { say = "Put a WIRED modem against this turtle/computer and connect your chests, furnaces and blast furnaces with cables and wired modems (right-click each modem so it turns red)." },
       { say = "Next, setup walks past every chest on the network and asks its role. Tip: put a marker item in a chest to recognise it." },
@@ -440,14 +440,14 @@ local BOTS = {
       { run = function() return { "sorter", "install" } end },
     } },
   { id = "lumber", name = "Lumberjack", hint = "tree farm: fells, replants, brings logs", on = "turtle",
-    files = { "lumber.lua", "plug.lua" }, start = { "lumber" },
+    files = { "lumber.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "lumber" },
     steps = {
       { say = "Build this:\n\n* A felling turtle (axe), in the open, next to a chest (behind it is best).\n* Lava buckets in that chest as fuel (it never burns its own wood).\n* The space above the turtle free: it flies out through there.\n* A few saplings help it get going (optional).\n* A wireless modem for the pocket panel (optional)." },
       { ask = "radius", kind = "number", default = 48, q = "How far from its chest may it look for trees? (blocks)" },
       { run = function(c) return { "lumber", "setup", c.radius } end },
     } },
   { id = "farmer", name = "Farmer", hint = "crop farm: harvests and replants", on = "turtle",
-    files = { "farmer.lua", "plug.lua" }, start = { "farmer" },
+    files = { "farmer.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "farmer" },
     steps = {
       { say = "Put the turtle on the ground at one CORNER of the field, at the height of the crops, with a chest BEHIND it. The field lies in front of it. Keep the block above it free. A hoe is best (it tills dried-out dirt)." },
       { say = "Fuel: lava buckets or coal in a chest UNDER the turtle (or in the chest behind it, unless that one is the storage room's input)." },
@@ -470,7 +470,7 @@ local BOTS = {
       { run = function(c) return { "farmer", "seed", c.seed } end, when = function(c) return c.seed ~= "none" end },
     } },
   { id = "lava", name = "Lava runner", hint = "fills buckets, stocks the bots' chests", on = "turtle",
-    files = { "lava.lua", "plug.lua" }, start = { "lava" },
+    files = { "lava.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "lava" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a wireless or ender modem.\n* A chest BEHIND it with some empty buckets.\n* One lava bucket in it as fuel to start.\n* Lava: a dripstone cauldron farm in a corridor in front of it, and/or a lava pool somewhere.",
         check = modemCheck },
@@ -491,7 +491,7 @@ local BOTS = {
       { run = function(c) return { "lava", "pool", c.px, c.py, c.pz } end, when = function(c) return c.px end },
     }) },
   { id = "builder", name = "Builder", hint = "floors, walls, flat land, torches", on = "turtle",
-    files = { "builder.lua", "plug.lua" }, start = { "builder" },
+    files = { "builder.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "builder" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a pickaxe (and a wireless modem to order blocks and for the panel).\n* A supply chest next to it. Best: against the outside of the Storage Room's pickup chest, so what it orders lands there.\n* Some fuel in it." },
       { ask = "pos", choices = { { "gps", "GPS, or count from its home" }, { "type", "I'll type its coordinates" } },
@@ -505,7 +505,7 @@ local BOTS = {
       { say = "Give it jobs from the pocket panel (Bots tab, Builder), or type them, e.g.: builder floor x1 y1 z1 x2 y2 z2" },
     }) },
   { id = "buddy", name = "Buddy", hint = "a companion turtle you chat with (AI)", on = "turtle",
-    files = { "buddy.lua", "plug.lua" }, start = { "buddy" },
+    files = { "buddy.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "buddy" },
     steps = {
       { say = "Buddy needs a language model: your own server (vLLM, Ollama, LM Studio, ...) that the Minecraft server can reach, or xAI's Grok (paid). http must be enabled in the CC config. A Chat Box on it lets you talk in game chat (optional)." },
       { ask = "brain", choices = { { "own", "My own model server" }, { "grok", "xAI Grok" } }, q = "Which brain?" },
@@ -520,7 +520,7 @@ local BOTS = {
       { run = function(c) return { "buddy", "setup", c.bname } end },
     } },
   { id = "factory", name = "Turtle factory", hint = "crafty turtle that builds new miners", on = "turtle",
-    files = { "factory.lua", "miner.lua", "plug.lua" }, start = { "factory" },
+    files = { "factory.lua", "atomic.lua", "b1-nav.lua", "craft.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/craft_dep.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "miner.lua", "mining.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" }, start = { "factory" },
     steps = join({
       { say = "Around the factory (a crafty turtle with a wireless modem), outside the Storage Room:\n\n* FRONT: the room's pickup chest.\n* BELOW: a chest of its own for parts and coal.\n* ABOVE: the build spot, open to the sky.\n* A disk drive with a floppy right next to the build spot.\n\nThe Storage Room turtle needs a modem and a crafting table too.",
         check = modemCheck },
@@ -538,7 +538,7 @@ local BOTS = {
       { run = function() return { "factory", "disk" } end },
     }) },
   { id = "gpshost", name = "GPS host", hint = "one of 4 computers for positions + map", on = "computer",
-    files = { "gpshost.lua", "plug.lua" },
+    files = { "gpshost.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" },
     steps = join({
       { say = "A GPS tower is 4 computers with modems (ender modems are easiest), a few blocks apart, NOT all at the same height and NOT in one line, e.g. an L of three and the fourth 3 higher. Keep the chunk loaded.",
         check = modemCheck },
@@ -546,14 +546,14 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "plug.lua" }, start = { "server" },
+    files = { "server.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-host.lua", "planner-map.lua", "planner-ops.lua", "planner-settings.lua", "planner-view.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
       { run = function() return { "server", "install" } end },
     } },
   { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket",
-    files = { "panel.lua", "fleetview.lua", "plug.lua" }, start = { "panel" },
+    files = { "panel.lua", "atomic.lua", "dead.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-panel.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" }, start = { "panel" },
     steps = {
       { say = "Use an ADVANCED pocket computer with an ender modem (works anywhere) or a wireless modem (within range).",
         check = modemCheck },
@@ -561,7 +561,7 @@ local BOTS = {
       { say = "Tip: stand next to a bot and type 'pair' in the panel's console (>_) to unlock its developer commands." },
     } },
   { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
-    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
+    files = { "ar-role.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "hub.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" },
     start = { "ar-role" },
     steps = {
       { say = "Attach an ar_controller and link cc_ar goggles. AR turns on when the controller is attached. Chat commands stay off.",
@@ -570,13 +570,13 @@ local BOTS = {
       { say = "The first player, or an enrol record for this computer, becomes the AR owner. No hand-edited ar.cfg or ssot.cfg is required. Use hub chat enable on only if you want chat commands. With the goggles on, use the player detector, or a button on one side of the computer, to cycle the layers." },
     } },
   { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
+    files = { "hub.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-hub.lua", "planner-ops.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" }, start = { "hub", "map" },
     steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
   { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
+    files = { "hub.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-hub.lua", "planner-ops.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" }, start = { "hub", "pro" },
     steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view. The bottom row HUD, TRT, ORE, and AIR toggles the AR layers by touch." } } },
   { id = "smartmine", name = "Simple tunnel miner", hint = "the old standalone miner, no hub", on = "turtle",
-    files = { "smartmine.lua" },
+    files = { "smartmine.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-wizard.lua" },
     steps = {
       { say = "A mining turtle facing into the tunnel, with a chest of coal directly BEHIND it." },
       { ask = "len", kind = "number", default = 32, q = "Length of each tunnel:" },
@@ -586,7 +586,7 @@ local BOTS = {
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
   { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
-    files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua","plug.lua"},
+    files = { "store.lua", "atomic.lua", "dead.lua", "enrol.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/layout_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "nav.lua", "planner-core.lua", "planner-enrol.lua", "planner-ops.lua", "planner-settings.lua", "plug.lua", "position.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "update.lua", "warehouse-tasks.lua", "warehouse.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-wizard.lua" },
     start = { "store" },
     done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
     steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
@@ -594,7 +594,7 @@ local BOTS = {
 
 for _,role in ipairs({{id="view-pro",name="Pro fleet hub",mode="pro"},{id="view-warehouse",name="Warehouse monitor",mode="warehouse"},{id="view-map",name="DirectGPU world view",mode="map"}}) do
   BOTS[#BOTS+1]={id=role.id,name=role.name,hint="Optional SSOT view",on="computer",
-    files={"hub.lua","miner.lua","fleetview.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","mining.lua","views.lua","view-source.lua","view-scene.lua","directview.lua"},
+    files = { "hub.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "atomic.lua", "chat-control.lua", "dead.lua", "directview.lua", "enrol.lua", "fleetview.lua", "journal.lua", "lease.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4b2_b1.lua", "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua", "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "planner-core.lua", "planner-enrol.lua", "planner-hub.lua", "planner-ops.lua", "planner-settings.lua", "planner-tools.lua", "plug.lua", "roles.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_t1.lua", "shelf.lua", "ssot-client.lua", "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua", "storage-peer.lua", "storage-view.lua", "strata.lua", "update.lua", "view-scene.lua", "view-source.lua", "views.lua", "warehouse-tasks.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua", "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua", "wh2-wizard-host.lua", "wh2-wizard.lua" },
     start={"hub",role.mode},steps={
       {say="Pair this computer with the SSOT server before setup. Movement also requires viewsControl on the selected turtle.",check=modemCheck},
       {ask="server",kind="number",q="Fleet server computer ID:",
@@ -614,16 +614,6 @@ for _,role in ipairs({{id="view-pro",name="Pro fleet hub",mode="pro"},{id="view-
     }}
 end
 
----------------------------------------------------------------------------
--- Walking through one bot's steps
----------------------------------------------------------------------------
--- Returns true when finished, false when the user went back from the first step
-local FLEET_FILES={"atomic.lua","ssot.lua","ssot-client.lua","mine-tasks.lua","warehouse-tasks.lua",
-  "wh2-fleet.lua","wh2-client.lua","wh2-dispatch.lua","wh2-locations.lua","wh2-program.lua","wh2-ar.lua","wh2-dev.lua"}
-for _,bot in ipairs(BOTS) do
-  local present={} for _,file in ipairs(bot.files) do present[file]=true end
-  for _,file in ipairs(FLEET_FILES) do if not present[file] then bot.files[#bot.files+1]=file end end
-end
 local function guide(bot)
   local title = bot.name
   local ctx = {}
