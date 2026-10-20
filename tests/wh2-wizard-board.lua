@@ -423,11 +423,18 @@ test("panel opens the opt-in board and returns to its tabs", function()
   assert(coroutine.status(m.app) == "dead")
 end)
 
-test("hub and panel leave the wizard disabled by default on boot",function()
+test("hub and panel leave the wizard off when wh2.enabled is false",function()
+  for _,path in ipairs({"hub.lua","panel.lua"}) do
+    local f=fixture()
+    local m=application(path,f,false)
+    assert(m.boardLoads==0 and #f.calls==0)
+  end
+end)
+test("hub and panel open the wizard when wh2.enabled is unset",function()
   for _,path in ipairs({"hub.lua","panel.lua"}) do
     local f=fixture()
     local m=application(path,f)
-    assert(m.boardLoads==0 and #f.calls==0)
+    assert(m.boardLoads>=1)
   end
 end)
 

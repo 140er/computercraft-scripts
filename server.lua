@@ -770,7 +770,7 @@ local function pickScreen()
 end
 local screen, touchable = pickScreen()
 local plannerHost
-if ssot and ssot.plan and ssotConfig and ssotConfig.planner == true and fs.exists("planner-host.lua") then
+if ssot and ssot.plan and ssotConfig and (ssotConfig.planner == nil or ssotConfig.planner == true) and fs.exists("planner-host.lua") then
   local loaded, Host = pcall(dofile, "planner-host.lua")
   if loaded and type(Host) == "table" and type(Host.attach) == "function" then
     local opened, host = pcall(Host.attach, { ssot = ssot, screen = screen, clock = now })

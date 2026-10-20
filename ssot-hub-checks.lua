@@ -103,8 +103,8 @@ return function(S, A, test)
     }, "\n")
   end
 
-  test("hub profile stays off unless ssot.cfg asks for it", function()
-    local api = S.new({}, { controllers = { ["1"] = "test-secret-123456" } }, function() return 1 end, "1", function() return true end)
+  test("hub profile stays off when ssot.cfg sets hubProfile false", function()
+    local api = S.new({}, { controllers = { ["1"] = "test-secret-123456" }, hubProfile = false }, function() return 1 end, "1", function() return true end)
     local r = api.handle(1, { v = 1, type = "ssot", expect = "ssot_reply", op = "hub-freeze",
       rid = "off", counter = 1, boot = "turtle", secret = "test-secret-123456" })
     assert(r and r.ok == false and r.error == "unknown operation")

@@ -92,12 +92,18 @@ local function safePath(path)
   if type(path) ~= "string" or path == "" or path:sub(1, 1) == "/" or path:find("\\", 1, true) then return false end
   for part in path:gmatch("[^/]+") do if part == "." or part == ".." then return false end end
   if not fs.getDrive then return true end
-  -- fs.getDrive is nil for missing paths (removed or not yet created files), so check the nearest existing parent.
   local probe = path
   while probe ~= "" and not fs.exists(probe) do probe = probe:match("^(.*)/[^/]*$") or "" end
   return fs.getDrive(probe) == "hdd"
 end
+local function ensureParent(path)
+  local dir = path:match("^(.*)/[^/]+$")
+  if not dir or dir == "" or fs.exists(dir) then return end
+  ensureParent(dir)
+  fs.makeDir(dir)
+end
 local function writeFile(path, text)
+  ensureParent(path)
   local h = assert(fs.open(path, "w"), "cannot open " .. path)
   local ok, err = pcall(h.write, text)
   h.close()
@@ -271,7 +277,8 @@ local function apply(selection)
     local configured = configuredPaths(manifest)
     local selected, list = {}, {}
     for _, file in ipairs(spec.files) do
-      assert(type(file) == "string" and file:match("^[%w_%-]+%.lua$") and manifest.files[file], "invalid role file")
+      assert(type(file) == "string" and manifest.files[file]
+        and (file:match("^[%w_%-]+%.lua$") or file:match("^lib/stubs/[%w_%-]+%.lua$")), "invalid role file")
       assert(not selected[file], "duplicate role file")
       selected[file], list[#list + 1] = true, file
     end

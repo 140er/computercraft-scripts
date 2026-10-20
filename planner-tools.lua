@@ -134,7 +134,7 @@ function M.config(raw)
   if type(raw) ~= "table" then raw = {} end
   local server = false
   if integer(raw.server, 0, 2147483647) then server = raw.server end
-  return { enabled = raw.enabled == true, server = server }
+  return { enabled = raw.enabled == nil or raw.enabled == true, server = server }
 end
 
 function M.clip(list, cap)

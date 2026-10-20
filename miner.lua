@@ -533,8 +533,15 @@ if not cfg then
   saveTable(CFG_FILE, { home = home, facing = facing, spine = nil, chest = chest })
   cfg = loadTable(CFG_FILE)
 end
-cfg.wh2=cfg.wh2 or {enabled=false}
-C.fleetOptIn=cfg.wh2.enabled==true
+local function onByDefault(value)
+  return value == nil or value == true
+end
+local function wh2On(wh2)
+  if wh2 == nil then return true end
+  if type(wh2) ~= "table" then return false end
+  return onByDefault(wh2.enabled)
+end
+C.fleetOptIn=wh2On(cfg.wh2)
 if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
   local plug = plugmod()
   if plug then
@@ -626,6 +633,10 @@ local HOME = cfg.home
 cfg.chest = cfg.chest or OPP[cfg.facing]
 -- The shaft is 1 block IN FRONT of the home spot (that is where the holes are)
 local SHAFT = { x = HOME.x + DX[cfg.facing], z = HOME.z + DZ[cfg.facing] }
+if C.fleetOptIn and not (type(cfg.ssot)=="table" and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true and cfg.mining and cfg.mining.home) then
+  print("Fleet control needs paired SSOT, navigation and a mining home. This miner keeps its own route.")
+  C.fleetOptIn = false
+end
 if not cfg.spine and not C.fleetOptIn then
   -- Set up without a direction: the hub hands one out (and keeps it for this turtle)
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
@@ -710,9 +721,9 @@ if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
   C.netEvent = "miner_network"
 end
 C.netEvent = C.netEvent or "rednet_message"
-if C.fleetOptIn then
-  assert(C.ssot and cfg.nav and cfg.nav.enabled==true and cfg.mining and cfg.mining.home,
-    "fleet miner needs paired SSOT, calibrated navigation and a mining home")
+if C.fleetOptIn and not (C.ssot and cfg.nav and cfg.nav.enabled==true and cfg.mining and cfg.mining.home) then
+  print("Fleet control needs paired SSOT, navigation and a mining home. This miner keeps its own route.")
+  C.fleetOptIn = false
 end
 local function worldShaft()
   if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
@@ -2389,13 +2400,16 @@ end
 function C.runMining()
   if C.fleet then return C.runFleetMining() end
   local nav, b1 = C.nav, nil
-  if cfg.leaseV2 == true and cfg.offlineAutonomy == true then
-    b1 = dofile("b1-nav.lua").wrap(C.nav, {
-      client = C.ssot, secret = cfg.ssot.secret, mac = dofile("lib/stubs/b1_h1.lua").keyed,
-      now = function() return os.epoch("utc") end, free = function() return fs.getFreeSpace("/") end,
-      spec = cfg.lease, confidence = cfg.lease and cfg.lease.confidence,
-    })
-    nav = b1
+  if onByDefault(cfg.leaseV2) and onByDefault(cfg.offlineAutonomy) then
+    local loaded, wrapped = pcall(function()
+      return dofile("b1-nav.lua").wrap(C.nav, {
+        client = C.ssot, secret = cfg.ssot.secret, mac = dofile("lib/stubs/b1_h1.lua").keyed,
+        now = function() return os.epoch("utc") end, free = function() return fs.getFreeSpace("/") end,
+        spec = cfg.lease, confidence = cfg.lease and cfg.lease.confidence,
+      })
+    end)
+    if loaded and type(wrapped) == "table" then b1, nav = wrapped, wrapped
+    else print("Lease v2 unavailable. Mining continues without it. " .. tostring(wrapped)) end
   end
   local mining=dofile("mining.lua").open({nav=nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
     service=cfg.warehouse,cancelled=function() return recall or updateWanted end,b1=b1})
@@ -3180,7 +3194,7 @@ if C.ssot then
       assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
       C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
         bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,traffic=cfg.nav.traffic==true,
-        gpsFree=cfg.nav.gpsFree==true,
+        gpsFree=onByDefault(cfg.nav.gpsFree),
         beforeAction=C.fleetOptIn and function(_,to) return C.fleetBoundary(C.fleetAction or "navigation",to) end or nil,
         actionReady=C.fleetOptIn and function() return C.fleet.ready(),"fresh fleet settings required" end or nil,
         fuelReserve=C.fleetOptIn and C.fleetFuelReserve or nil,
@@ -3200,12 +3214,16 @@ if C.ssot then
           if not ok then
             C.fleetError="navigation recovery: "..tostring(why)
             setStatus("Fleet blocked: "..C.fleetError)
+            if onByDefault(cfg.nav.gpsFree) then
+              print("Navigation: " .. tostring(why) .. ". The turtle keeps running.")
+              break
+            end
             C.fleetWait(3)
           end
         until ok
       else
         ok,why=C.bootNavigation()
-        assert(ok,why)
+        if not ok then print("Navigation: " .. tostring(why) .. ". The turtle keeps running.") end
       end
       recall=C.nav.controlState().kind=="recall" or C.nav.controlState().kind=="recharge"
       local p=C.nav.pose()

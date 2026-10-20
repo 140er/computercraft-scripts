@@ -1,4 +1,4 @@
--- Layout registry. Default off until ssot.cfg.wh2.enabled is true.
+-- Layout registry. On unless ssot.cfg sets wh2.enabled to false.
 -- W1 routes wh2-layout and the locations, rooms, slots, and classes topics here.
 -- H4b1 replaces lib/stubs/layout_dep.lua. T1 sends verified fixtures through kind "fixture".
 

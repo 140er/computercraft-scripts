@@ -296,10 +296,13 @@ function M.input(ui, state, ev, a, b, c)
 end
 
 local function settingOn()
-  local ok, on = pcall(function()
-    return settings and settings.get and settings.get("install.touch") == true
+  local ok, value = pcall(function()
+    if not (settings and settings.get) then return nil end
+    return settings.get("install.touch")
   end)
-  return ok and on == true
+  if not ok or value == false then return false end
+  if value == nil or value == true then return true end
+  return false
 end
 
 local function colourMonitor()

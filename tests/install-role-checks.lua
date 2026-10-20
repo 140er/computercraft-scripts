@@ -39,7 +39,7 @@ return function(test, read, mocks)
       end
     end
     env.http = { get = function(url)
-      local file = assert(url:match("/([^/]+)%.lua%?")) .. ".lua"
+      local file = assert(url:match("heads/[%w%-]+/([^?]+)"))
       requests[file] = true
       return { readAll = function() return read(file) end, close = function() end }
     end }
@@ -258,7 +258,7 @@ return function(test, read, mocks)
     local source = { ["bundle-manifest.lua"] = read("bundle-manifest.lua") }
     for _, file in ipairs(manifest().roles.miner.files) do source[file] = read(file) end
     env.http.get = function(url)
-      local file = assert(url:match("/([^/]+)%.lua%?")) .. ".lua"
+      local file = assert(url:match("heads/[%w%-]+/([^?]+)"))
       return { readAll = function() return assert(source[file]) end, close = function() end }
     end
     local before, move = mocks.encode(m.files), env.fs.move

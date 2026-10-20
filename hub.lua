@@ -13,10 +13,6 @@ end
 -- STOP = stay home after this trip. RECALL = come home right now.
 -- Keyboard: 1-7 ore, s stop, r recall, h resume, u update, a all turtles, v AR goggles on/off,
 -- w 3D view of the fleet on this screen, q quit.
--- With a fleet server (server.lua): the hub keeps its state there too, and sends its
--- orders through it (the server repeats them until the turtle confirms).
--- Update: "hub update" fetches the latest hub.lua and miner.lua from GitHub and releases it
--- to the turtles. Or drag a new miner.lua onto this computer and press UPDATE (or u).
 
 local PROTOCOL = "minearmy"
 local STATE_FILE = "hub.state"
@@ -560,8 +556,9 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
+local wh2On = settings and settings.get and settings.get("wh2.enabled", true)
 local wh2 = {
-  enabled = settings and settings.get("wh2.enabled", false) == true,
+  enabled = settings and settings.get and (wh2On == nil or wh2On == true),
   active = nil, context = { enabled = true, role = "hub" },
 }
 if wh2.enabled then
