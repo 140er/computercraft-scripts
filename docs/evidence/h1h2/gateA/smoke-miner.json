@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "lines": [
+    "Unloading",
+    "Waiting for orders",
+    "Unloading",
+    "Waiting for orders"
+  ],
+  "free": 3863947,
+  "httpAttempts": 0,
+  "booted": true,
+  "rx": 18,
+  "errors": [],
+  "httpOK": 0
+}

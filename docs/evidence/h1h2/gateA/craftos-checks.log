@@ -1,0 +1,6 @@
+PASS keyed BLAKE3 and Ed25519 match published vectors
+PASS requireMac defaults off and v1 requests still pass
+PASS attacker suite: replay, captured packet, spoofed id, ceiling counter
+PASS honest client rolls the counter and ignores a fake fleetserver
+PASS manifest signature pins the server id and the secret stays off the manifest
+PASS update never trusts rednet.lookup and the H3 stub bounds the MAC queue

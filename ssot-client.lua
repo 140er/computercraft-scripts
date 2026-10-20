@@ -6,18 +6,28 @@ function M.new(cfg)
   local boot = tostring(os.epoch("utc")) .. ":" .. os.getComputerID()
   local pending, busy, moving, stopped = {}, false, false, false
   local path = cfg.counterFile or "ssot.counter"
+  local macOn = cfg.requireMac == true
   local store = A.store(path, function(v)
     return type(v) == "table" and type(v.counter) == "number" and v.counter >= 0 and v.counter % 1 == 0
+      and (v.counterEpoch == nil or (type(v.counterEpoch) == "number" and v.counterEpoch >= 1
+        and v.counterEpoch % 1 == 0 and v.counterEpoch <= 2147483646))
   end, 8192)
   local journal = store.value or { counter = 0 }
+  local crypto
+  local function h1h2()
+    if not crypto then crypto = dofile("h1h2.lua") end
+    return crypto
+  end
   local synced = false
   local api = {}
   function api.dispatch(sender, m, protocol)
-    if sender ~= cfg.server or protocol ~= "fleetserver" or type(m) ~= "table" or m.v ~= 1
+    if sender ~= cfg.server or protocol ~= "fleetserver" or type(m) ~= "table"
       or m.type ~= "ssot_reply" or m.server ~= cfg.server or type(m.rid) ~= "string"
-      or m.auth ~= cfg.secret
       or type(m.ok) ~= "boolean" or not S.bounded(m, 32768)
       or #textutils.serialize(m,{compact=true})>8192 then return false end
+    if m.v == 2 or macOn then
+      if m.v ~= 2 or m.auth ~= nil or m.secret ~= nil or not h1h2().verifyMac(cfg.secret, m) then return false end
+    elseif m.v ~= 1 or m.auth ~= cfg.secret then return false end
     local slot = pending[m.rid]
     if slot and not slot.result then slot.result = m os.queueEvent("ssot_reply", m.rid) return true end
     return false
@@ -25,14 +35,29 @@ function M.new(cfg)
   function api.call(op, fields)
     if busy then return nil, "SSOT busy" end
     busy = true
-    journal.counter = journal.counter + 1
+    if macOn then
+      local epochN, counterN = h1h2().nextCounter(journal.counterEpoch or 1, journal.counter)
+      if not epochN then busy = false return nil, tostring(counterN) end
+      journal.counterEpoch, journal.counter = epochN, counterN
+    else
+      journal.counter = journal.counter + 1
+    end
     local ok, err = store.save(journal)
     if not ok then busy = false return nil, tostring(err) end
     local rid = boot .. ":" .. journal.counter
     local m = {}
     for k, v in pairs(fields or {}) do m[k] = v end
-    m.type, m.v, m.op, m.rid = "ssot", 1, op, rid
-    m.counter, m.boot, m.secret, m.expect = journal.counter, boot, cfg.secret, "ssot_reply"
+    m.type, m.op, m.rid = "ssot", op, rid
+    m.counter, m.boot, m.expect = journal.counter, boot, "ssot_reply"
+    if macOn then
+      m.v, m.id, m.counterEpoch = 2, os.getComputerID(), journal.counterEpoch
+      m.secret = nil
+      local mok, macOrErr = pcall(function() return h1h2().mac(cfg.secret, m) end)
+      if not mok then busy = false return nil, tostring(macOrErr) end
+      m.mac = macOrErr
+    else
+      m.v, m.secret = 1, cfg.secret
+    end
     if not S.bounded(m, 32768) or #textutils.serialize(m, { compact = true }) > 8192 then
       busy = false return nil, "invalid request"
     end

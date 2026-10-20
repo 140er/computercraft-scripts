@@ -34,6 +34,8 @@ function M.config(raw)
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
+  assert(raw.requireMac == nil or type(raw.requireMac) == "boolean", "invalid requireMac")
+  if raw.requireMac == nil then raw.requireMac = false end
   return raw
 end
 function M.chatAllowed(cfg,name,uuid)
@@ -77,6 +79,11 @@ local function canonical(v)
   end)
   for _,k in ipairs(keys) do parts[#parts+1]="[" .. canonical(k) .. "]=" .. canonical(v[k]) end
   return "{" .. table.concat(parts,",") .. "}"
+end
+local crypto
+local function h1h2()
+  if not crypto then crypto = dofile("h1h2.lua") end
+  return crypto
 end
 function M.new(s, cfg, clock, epoch, save)
   s.schema = 1
@@ -222,11 +229,13 @@ function M.new(s, cfg, clock, epoch, save)
   end
   return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
-      or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
+      or #textutils.serialize(m, { compact = true }) > 8192 or (m.v ~= 1 and m.v ~= 2) or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
       or not integer(m.counter, 1, 2147483647) then return nil end
     local key = cfg.controllers and cfg.controllers[tostring(id)]
-    if not word(key, 128) or #key < 16 or m.secret ~= key then return nil end
+    if not word(key, 128) or #key < 16 then return nil end
+    local mode = h1h2().authorize(cfg, id, m, key)
+    if not mode then return nil end
     local client = s.clients[id] or { counter = 0, cache = {} }
     local request = canonical(m)
     local cached = client.cache[m.rid]
@@ -235,7 +244,7 @@ function M.new(s, cfg, clock, epoch, save)
         #textutils.serialize(cached.result,{compact=true})<=pageBytes) then return A.copy(cached.result) end
       return nil
     end
-    if m.counter <= client.counter then return nil end
+    if not h1h2().fresh(client, m) then return nil end
     local clients = 0
     for _ in pairs(s.clients) do clients = clients + 1 end
     if clients >= 32 and not s.clients[id] then return nil end
@@ -243,10 +252,12 @@ function M.new(s, cfg, clock, epoch, save)
     s = A.copy(s)
     client = s.clients[id] or { counter = 0, cache = {}, order = {} }
     local result = run(id, m)
-    result.v, result.type, result.rid, result.server = 1, "ssot_reply", m.rid, os.getComputerID()
-    result.auth = key
+    result.type, result.rid, result.server = "ssot_reply", m.rid, os.getComputerID()
+    if m.v == 2 then h1h2().sealReply(key, m, result)
+    else result.v, result.auth = 1, key end
     if m.op=="snapshot" and #textutils.serialize(result,{compact=true})>pageBytes then s=previous return nil end
     client.counter = m.counter
+    if m.v == 2 then client.counterEpoch = m.counterEpoch or 1 end
     client.order = client.order or {}
     client.order[#client.order + 1] = m.rid
     client.cache[m.rid] = { request = request, result = A.copy(result) }
@@ -296,7 +307,8 @@ function M.open(cfg)
     for id,c in pairs(s.clients) do
       count=count+1
       if count>32 or not integer(id,0,2147483647) or type(c)~="table"
-        or not integer(c.counter,0,2147483647) or type(c.cache)~="table" or type(c.order)~="table" or #c.order>8 then return false end
+        or not integer(c.counter,0,2147483647) or type(c.cache)~="table" or type(c.order)~="table" or #c.order>8
+        or (c.counterEpoch ~= nil and not integer(c.counterEpoch,1,2147483646)) then return false end
       local cached=0
       for rid,entry in pairs(c.cache) do
         cached=cached+1
