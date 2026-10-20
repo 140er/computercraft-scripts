@@ -22,6 +22,26 @@ return function(test,Client)
     rednet.send=send
     assert(ok,err)
   end)
+  test("a full queue busy reply is retried with the same request id",function()
+    local secret="test-secret-123456"
+    local client=Client.new({server=0,secret=secret,counterFile="client-busy.counter",timeout=1})
+    local send,rids=rednet.send,{}
+    rednet.send=function(_,m,protocol)
+      rids[#rids+1]=m.rid
+      if #rids<3 then
+        assert(client.dispatch(0,{type="busy",error="busy",rid=m.rid},protocol))
+      else
+        assert(client.dispatch(0,{v=1,type="ssot_reply",server=0,rid=m.rid,auth=secret,ok=true},protocol))
+      end
+    end
+    local ok,err=pcall(function()
+      local reply=client.sync({pose={dim="minecraft:overworld",x=0,y=64,z=0}})
+      assert(reply and reply.ok)
+      assert(#rids==3 and rids[1]==rids[2] and rids[2]==rids[3],"busy retry changed the request id")
+    end)
+    rednet.send=send
+    assert(ok,err)
+  end)
   test("client accepts bounded pages containing long block names",function()
     local secret="test-secret-123456"
     local client=Client.new({server=0,secret=secret,counterFile="client-boundary.counter"})

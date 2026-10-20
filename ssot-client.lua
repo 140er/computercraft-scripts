@@ -13,6 +13,12 @@ function M.new(cfg)
   local synced = false
   local api = {}
   function api.dispatch(sender, m, protocol)
+    if sender == cfg.server and protocol == "fleetserver" and type(m) == "table"
+      and m.type == "busy" and m.error == "busy" and type(m.rid) == "string" and #m.rid <= 80 then
+      local slot = pending[m.rid]
+      if slot and not slot.result then slot.busyNote = true os.queueEvent("ssot_reply", m.rid) return true end
+      return false
+    end
     if sender ~= cfg.server or protocol ~= "fleetserver" or type(m) ~= "table" or m.v ~= 1
       or m.type ~= "ssot_reply" or m.server ~= cfg.server or type(m.rid) ~= "string"
       or m.auth ~= cfg.secret
@@ -37,19 +43,35 @@ function M.new(cfg)
       busy = false return nil, "invalid request"
     end
     local slot = {} pending[rid] = slot
-    for _ = 1, 3 do
-      rednet.send(cfg.server, m, "fleetserver")
-      local timer = os.startTimer(cfg.timeout or 1)
-      while not slot.result do
+    local timeouts, busyTries = 0, 0
+    local busyDeadline = os.epoch("utc") + math.floor((cfg.timeout or 1) * 20000)
+    local function waitFor(seconds)
+      local timer = os.startTimer(seconds)
+      while not slot.result and not slot.busyNote do
         local event, value = os.pullEvent()
         if event == "timer" and value == timer then break end
       end
       os.cancelTimer(timer)
+    end
+    while timeouts < 3 do
+      rednet.send(cfg.server, m, "fleetserver")
+      local inlineBusy = slot.busyNote
+      if not slot.result and not inlineBusy then waitFor(cfg.timeout or 1) end
       if slot.result then break end
+      if slot.busyNote then
+        slot.busyNote = nil
+        busyTries = busyTries + 1
+        if busyTries >= 400 or os.epoch("utc") >= busyDeadline then break end
+        if not inlineBusy then waitFor(0.05) end
+        if slot.result then break end
+      else
+        timeouts = timeouts + 1
+      end
     end
     pending[rid], busy = nil, false
-    if not slot.result then return nil, "SSOT timeout (stopped)" end
-    return slot.result, slot.result.error
+    if slot.result then return slot.result, slot.result.error end
+    if timeouts < 3 then return nil, "SSOT busy" end
+    return nil, "SSOT timeout (stopped)"
   end
   for _, op in ipairs({ "sync", "reserve", "start", "commit", "release", "renew", "scan", "snapshot" }) do
     api[op] = function(fields) return api.call(op, fields) end

@@ -215,7 +215,7 @@ for _, f in ipairs(FILES) do
 end
 
 local queue, queueHead, queueTail, queueBytes = {}, 1, 0, 0
-local QUEUE_LIMIT, QUEUE_BYTES, FILE_BYTES = 128, 1048576, 262144
+local QUEUE_LIMIT, QUEUE_BYTES, FILE_BYTES = 32, 1048576, 262144
 local function enqueue(event, bytes, receivedAt)
   bytes = bytes or 64
   if queueTail - queueHead + 1 >= QUEUE_LIMIT or queueBytes + bytes > QUEUE_BYTES then return false end

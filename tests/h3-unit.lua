@@ -222,7 +222,7 @@ return function(test, equal, read, mocks)
     end
     m.push("peripheral", "view")
     local events = {}
-    for i = 1, 64 do events[i] = { "rednet_message", 1, { type = "register", kind = "miner", rid = i }, "fleetserver" } end
+    for i = 1, 32 do events[i] = { "rednet_message", 1, { type = "register", kind = "miner", rid = i }, "fleetserver" } end
     m.burst(events)
     local serialize = m.env.textutils.serialize
     m.env.textutils.serialize = function(value, options)
@@ -236,7 +236,7 @@ return function(test, equal, read, mocks)
         for _, sent in ipairs(m.sent) do
           if sent.message.type == "ack" and type(sent.message.rid) == "number" then replies = replies + 1 end
         end
-        if replies > 0 and replies < 64 then progressed = true end
+        if replies > 0 and replies < 32 then progressed = true end
       end
       return startTimer(delay)
     end
@@ -247,7 +247,7 @@ return function(test, equal, read, mocks)
       if sent.message.cid == 1 then delivered = delivered + 1 end
       if sent.message.type == "ack" and type(sent.message.rid) == "number" then replied = replied + 1 end
     end
-    equal(replied, 64, "backlog lost requests")
+    equal(replied, 32, "backlog lost requests")
     assert(progressed, "worker did not let another coroutine run before draining the backlog")
     assert(delivered >= 2, "worker starved the maintenance coroutine")
   end)
@@ -417,5 +417,51 @@ return function(test, equal, read, mocks)
     m.advance(5)
     assert(m.state().files["relay.lua"] and (not before or m.state().files["relay.lua"].fetched >= before.fetched),
       "refresh stopped after a lost completion notification")
+  end)
+
+  test("H3 200 requests during a slow save each get a reply or busy and the timer fires every second", function()
+    local m = fixture()
+    installSSOT(m)
+    m.start(source)
+    local find, paused = m.env.peripheral.find, true
+    m.env.peripheral.find = function(kind, filter)
+      if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+      return find(kind, filter)
+    end
+    m.push("peripheral", "view")
+    local serialize = m.env.textutils.serialize
+    m.env.textutils.serialize = function(value, options)
+      if type(value) == "table" and value.schema == 1 and type(value.value) == "table" and value.value.chunks then
+        m.time = m.time + 0.25
+      end
+      return serialize(value, options)
+    end
+    local events = {}
+    for i = 1, 200 do
+      events[i] = { "rednet_message", 1, packet("snapshot", i, { chunk = "minecraft:overworld|0|4|0" }), "fleetserver" }
+    end
+    m.burst(events)
+    paused = false
+    m.push("h3_view_ready")
+    local reply, busy, seen = 0, 0, {}
+    for _, sent in ipairs(m.sent) do
+      local rid = sent.message.rid
+      local n = type(rid) == "string" and tonumber(rid:match("^h3%-(%d+)$"))
+      if n and n >= 1 and n <= 200 and not seen[n] then
+        seen[n] = sent.message.type == "busy" and "busy" or "reply"
+        if seen[n] == "busy" then busy = busy + 1 else reply = reply + 1 end
+      end
+    end
+    equal(reply + busy, 200, "a request during the slow save got neither a reply nor busy")
+    assert(reply > 0 and reply <= 32, "the queue admitted more than 32 requests from the burst")
+    assert(busy >= 200 - 32, "a full queue did not answer busy")
+    local oneSecond = 0
+    local startTimer = m.env.os.startTimer
+    m.env.os.startTimer = function(delay)
+      if delay == 1 then oneSecond = oneSecond + 1 end
+      return startTimer(delay)
+    end
+    for _ = 1, 3 do m.advance(1) end
+    assert(oneSecond >= 3, "the one-second timer did not fire on each advanced second")
   end)
 end

@@ -54,7 +54,10 @@ function Read-H3BoxText([string]$Id, [string]$Path) {
         }
     }
 }
-if (([uri]$script:GatebUrl).Host -notin @('100.78.96.94','127.0.0.1','localhost')) { throw 'Use the disposable box daemon.' }
+$gatebHost = ([uri]$script:GatebUrl).Host
+$allowedHosts = @('127.0.0.1', 'localhost')
+if ($env:GATEB_HOST) { $allowedHosts += $env:GATEB_HOST }
+if ($gatebHost -notin $allowedHosts) { throw 'Use the disposable box daemon.' }
 $run = $null
 $httpJob = $null
 $failure = $null

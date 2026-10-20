@@ -3,10 +3,9 @@ function New-H3Disks {
     param([string]$Source, [string]$Computers, [string]$Runtime, [string]$HttpBase,
         [int]$Seconds = 7200, [int]$SpaceLimit = 4000000, [int]$SeedBatches = 4,
         [double]$IntervalSeconds = 2, [string]$QueueConfig = '')
-    if ($HttpBase -notmatch '^http://(127\.0\.0\.1|localhost|100\.(?:[6-9][0-9]|1[01][0-9]|12[0-7])\.\d+\.\d+):\d+$') {
-        throw 'HTTP fixture must use loopback or a tailnet address and an explicit port.'
+    if ($HttpBase -notmatch '^http://(127\.0\.0\.1|localhost):\d+$') {
+        throw 'HTTP fixture must use loopback and an explicit port.'
     }
-    if ($HttpBase -match '100\.91\.208\.60') { throw 'Live addresses are forbidden.' }
     foreach ($id in 0..5) {
         $disk = Join-Path $Computers $id
         New-Item -ItemType Directory -Force -Path $disk | Out-Null

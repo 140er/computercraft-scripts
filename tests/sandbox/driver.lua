@@ -3,6 +3,9 @@ seconds = assert(tonumber(seconds))
 if scenario == "h3" then
   return assert(loadfile("h3-driver.lua", "t", _ENV))("sandbox")
 end
+if scenario == "h3-burst" then
+  return assert(loadfile("h3-burst.lua", "t", _ENV))(seconds)
+end
 if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
   local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)
   local h = assert(fs.open("sandbox-result.json","w"))

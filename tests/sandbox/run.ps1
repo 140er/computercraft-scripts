@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 86400)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','h3')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','h3','h3-burst')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [int]$H3SeedBatches = 4,
     [ValidateRange(1,60)][double]$H3IntervalSeconds = 2,
@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 if ($Scenario -eq 'h3' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 7200 }
+if ($Scenario -eq 'h3-burst' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 120 }
 $h3Http = $null
 $process = $null
 
@@ -61,6 +62,7 @@ try {
     $roles = if ($Scenario -in @('ssot','nav','mining','warehouse')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
     if ($Scenario -eq 'mining') { $roles += 'hub' }
     if ($Scenario -eq 'h3') { $roles = @('server','turtle1','turtle2','turtle3','turtle4','controller') }
+    if ($Scenario -eq 'h3-burst') { $roles = @('server') }
     for ($id = 0; $id -lt $roles.Count; $id++) {
         if ($Scenario -eq 'h3') { continue }
         $disk = "$run\computer\$id"
@@ -75,6 +77,7 @@ try {
             [IO.File]::WriteAllText("$disk\$($file.Name)", $code, $utf8)
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        if ($Scenario -eq 'h3-burst') { Copy-Item -LiteralPath "$Source\tests\h3-burst.lua" -Destination $disk }
         if ($Scenario -in @('ssot','nav','mining','warehouse')) {
             foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')) {
                 Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
