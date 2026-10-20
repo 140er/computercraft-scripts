@@ -438,6 +438,7 @@ dofile("tests/ssot-unit.lua")
 dofile("tests/nav-unit.lua")
 dofile("tests/mining-unit.lua")
 dofile("tests/warehouse-unit.lua")
+dofile("tests/wh2-layout.lua")(test, equal)
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 

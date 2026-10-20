@@ -240,6 +240,21 @@ function M.open(cfg)
     if state.phase=="pickup" then
       if l.picked>=l.count then state.line=state.line+1 save() return true end
       local ok,why=reach(l.source,"source") if not ok then return false,why end
+      if type(l.nbt)=="string" then
+        local inv,err=inventory() if not inv then return false,err end
+        local modOk,layout=pcall(dofile,"wh2-layout.lua")
+        local listed=type(inv.list)=="function" and inv.list() or {}
+        local matched=false
+        if modOk and type(listed)=="table" then
+          for slot,stack in pairs(listed) do
+            if type(stack)=="table" and stack.name==l.item then
+              local detail=type(inv.getItemDetail)=="function" and inv.getItemDetail(slot,true) or stack
+              if layout.fingerprintMatches(detail,l.nbt) then matched=true break end
+            end
+          end
+        end
+        if not matched then return false,"unresolved fingerprint" end
+      end
       for slot=1,16 do if turtle.getItemCount(slot)==0 then return transfer("pickup",slot,math.min(64,l.count-l.picked)) end end
       state.phase="restore" state.endLine=true state.reason="source exceeds escrow capacity" save() return true
     elseif state.phase=="restore" then
