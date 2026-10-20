@@ -80,6 +80,45 @@ local function pretty(name)
 end
 
 if args[1] == "client" then
+  local hasHost, hostModule = pcall(require, "wh2-wizard-host")
+  local host = hasHost and hostModule.open({ role = "roomsorter" }) or nil
+  local function receiver()
+    while true do
+      local _, sender, msg, protocol = os.pullEvent("rednet_message")
+      if host then host.dispatch(sender, msg, protocol) end
+      if protocol == PROTOCOL or protocol == PROTOCOL .. "_relay" then
+        os.queueEvent("room_client_reply", sender, msg, protocol)
+      end
+    end
+  end
+  local function outbound()
+    if host then host.worker() end
+    while true do os.pullEvent("wh2_wizard_host_idle") end
+  end
+  local wizardActive = false
+  local function wizard(T, monitorName)
+    if not host then return "Material wizard unavailable" end
+    local ok, board = pcall(require, "wh2-board")
+    if not ok then return "Material wizard unavailable" end
+    local context = { enabled = host.context.enabled, client = host.context.client,
+      role = host.context.role, term = T, monitorName = monitorName }
+    wizardActive = true
+    os.queueEvent("room_client_wizard_opened")
+    board.run(context)
+    wizardActive = false
+    os.queueEvent("room_client_wizard_closed")
+  end
+  if args[2] == "wizard" then
+    if not host or host.error then print(host and host.error or "Material wizard unavailable") return end
+    local modem = peripheral.find("modem")
+    if not modem then print("Material wizard needs a modem") return end
+    rednet.open(peripheral.getName(modem))
+    parallel.waitForAny(function()
+      local err = wizard(term.current())
+      if err then print(err) end
+    end, receiver, outbound)
+    return
+  end
   -- A wireless modem, or a wired modem with a cable to the board computer (which passes
   -- the messages on to the turtle)
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end) or peripheral.find("modem")
@@ -127,7 +166,7 @@ if args[1] == "client" then
     local kept, reply = {}, nil
     while true do
       local e = table.pack(os.pullEvent())
-      if e[1] == "rednet_message" and e[2] == id and e[4] == proto
+      if e[1] == "room_client_reply" and e[2] == id and e[4] == proto
         and (type(e[3]) ~= "table" or e[3].rid == nil or e[3].rid == rid) then
         reply = e[3]
         break
@@ -322,6 +361,8 @@ if args[1] == "client" then
           end
         elseif ev == "key" and a == keys.backspace and not onMonitor then
           return "back"
+        elseif (ev == "char" and a == "w" and not onMonitor) or ev == "room_client_wizard" then
+          return "wizard"
         end
       end
     end
@@ -401,13 +442,13 @@ if args[1] == "client" then
       tiles[#tiles + 1] = { icon = "All items", name = "All items", color = colors.white, empty = all == 0,
         sub = all .. " items", action = { "cat", "all" } }
       drawTiles(tiles)
-      if not canCraft then text(2, H - 1, ("No crafting table: only what's in storage."):sub(1, W - 2), colors.gray) end
+      button(2, H - 1, math.min(W - 2, 22), 1, "Materials/Wizard [w]", colors.cyan, colors.black, "wizard")
       if onMonitor then
         button(2, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
         text(12, H, (W >= 45 and "Type commands on the computer" or "type on the computer"):sub(1, W - 12), colors.gray)
       else
-        button(2, H, 18, 1, "Type it myself", colors.yellow, colors.black, "type")
-        button(21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
+        button(2, H, W < 45 and 8 or 18, 1, W < 45 and "Type" or "Type it myself", colors.yellow, colors.black, "type")
+        button(W < 45 and 11 or 21, H, 9, 1, "Refresh", colors.lightGray, colors.black, "refresh")
         button(W - 6, H, 6, 1, "Quit", colors.red, colors.white, "quit")
       end
     end
@@ -541,7 +582,10 @@ if args[1] == "client" then
       elseif screen == "cat" then drawCat()
       elseif screen == "amount" then drawAmount() end
       local a = waitClick()
-      if a == "tick" then
+      if a == "wizard" then
+        local err = wizard(T, monName)
+        if err then message = { err } os.queueEvent("room_client_wizard_closed") end
+      elseif a == "tick" then
         refresh() -- status and counts every few seconds
         if screen == "amount" then -- keep the numbers of the open item up to date
           for _, e in ipairs(entries()) do if e.name == item.name then item = e end end
@@ -584,13 +628,30 @@ if args[1] == "client" then
     print("quit = stop")
     local history = {}
     while true do
+      while wizardActive do os.pullEvent("room_client_wizard_closed") end
       write("> ")
-      local line = read(nil, history)
+      local line, interrupted
+      parallel.waitForAny(function() line = read(nil, history) end, function()
+        os.pullEvent("room_client_wizard_opened")
+        interrupted = true
+      end)
+      if interrupted then
+        while wizardActive do os.pullEvent("room_client_wizard_closed") end
+        line = ""
+      end
       if not line or line == "quit" or line == "q" or line == "exit" then return end
       history[#history + 1] = line
       local words = {}
       for wd in line:gmatch("%S+") do words[#words + 1] = wd end
-      if #words > 0 then
+      if words[1] == "wizard" then
+        if args[2] ~= "text" and peripheral.find("monitor", function(_, m) return m.isColor() end) then
+          os.queueEvent("room_client_wizard")
+          os.pullEvent("room_client_wizard_closed")
+        else
+          local err = wizard(term.current())
+          if err then print(err) end
+        end
+      elseif #words > 0 then
         local n = tonumber(words[#words])
         if n and #words == 1 then n = nil end
         local text = table.concat(words, " ", 2, n and #words - 1 or #words)
@@ -609,12 +670,13 @@ if args[1] == "client" then
     term.clear()
     term.setCursorPos(1, 1)
     print("Order screen is on the monitor (" .. peripheral.getName(mon) .. ").")
-    parallel.waitForAny(function() gui(mon, true) end, textPrompt)
+    parallel.waitForAny(function() gui(mon, true) end, textPrompt, receiver, outbound)
   elseif term.isColor() and args[2] ~= "text" then
-    gui(term.current(), false) -- advanced computer: buttons here (click with the mouse)
+    parallel.waitForAny(function() gui(term.current(), false) end, receiver, outbound)
   else
-    textPrompt()
+    parallel.waitForAny(textPrompt, receiver, outbound)
   end
+  return
 end
 
 ---------------------------------------------------------------------------

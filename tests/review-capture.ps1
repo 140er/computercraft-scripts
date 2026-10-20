@@ -52,7 +52,7 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     do {
         $shot = Get-ChildItem -Path "$run\screenshots\*.png" -ErrorAction SilentlyContinue | Select-Object -Last 1
-        if ($shot -or $p.HasExited) { break }
+        if ($shot -or $p.HasExited -or (Test-Path -LiteralPath "$run\computer\0\capture-error.txt")) { break }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($shot -and !$p.HasExited) { $null = $p.WaitForExit(5000) }

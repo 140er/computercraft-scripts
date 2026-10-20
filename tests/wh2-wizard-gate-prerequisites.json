@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "contract": "docs/design/wh2-contract.md",
+  "authentication": {
+    "version": 2,
+    "mac": "blake3-keyed",
+    "requireMac": true,
+    "keyOnWire": false,
+    "manifestSignature": "ed25519"
+  },
+  "roles": {
+    "server": [
+      "atomic.lua", "server.lua", "ssot.lua", "mine-tasks.lua", "warehouse-tasks.lua",
+      "ssot-auth.lua", "ccryptolib", "ssot-storage.lua", "chunk-store.lua", "storage-ledger.lua",
+      "wh2-fleet.lua", "wh2-wizard.lua"
+    ],
+    "client": [
+      "atomic.lua", "ssot.lua", "ssot-client.lua", "mine-tasks.lua", "warehouse-tasks.lua",
+      "ssot-auth.lua", "ccryptolib", "wh2-client.lua", "wh2-wizard-adapter.lua", "wh2-board.lua"
+    ]
+  },
+  "productionBoundaries": [
+    {"owner":"H3", "boundary":"serialized SSOT request worker", "operations":["receive", "validate", "replay", "mutate", "save", "reply"]},
+    {"owner":"H1H2", "boundary":"authenticated v2 transport", "operations":["handshake", "MAC verification", "durable outbox", "counter rollover", "pinned discovery", "signed update rollback"]},
+    {"owner":"N1", "boundary":"framed poses", "operations":["anchor", "frame-merge"]},
+    {"owner":"H4a-H4c", "boundary":"durable storage", "operations":["two-copy save", "chunk save", "storage ledger", "control reserve", "save timing"]},
+    {"owner":"H5", "boundary":"expiry and recovery", "operations":["live journal recovery", "fenced claims", "quantity reconciliation"]},
+    {"owner":"W1", "boundary":"shared wh2 client and dispatcher", "operations":["wh2-get", "wh2-report", "wh2-settings", "wh2-unknown", "wh2-class"]},
+    {"owner":"Layout", "boundary":"real inventory job lifecycle", "operations":["full-chest", "no-fuel", "removed-machine", "modem-removal", "unload"]}
+  ],
+  "unboundRuntimeApis": [
+    "The production server has no callable gate entry that exposes its serialized dispatcher and measured storage saves.",
+    "The available ssot-client is v1 and sends its pairing secret. It cannot authenticate new wh2 operations.",
+    "The fleet client exports new({rpc=...}), but the required v2 SSOT transport is absent.",
+    "The native inventory helper measures transfers. It does not provide layout site locks or a production job worker.",
+    "Authentication, HTTP and timer burst, update rollback, and unloaded-job checks need their production owners. File presence alone cannot pass them."
+  ]
+}

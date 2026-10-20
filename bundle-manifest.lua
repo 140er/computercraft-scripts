@@ -160,7 +160,7 @@ return {
     ["farmer.lua"]="aeacf970",
     ["fleetview.lua"]="e0feb498",
     ["gpshost.lua"]="bc2a6795",
-    ["hub.lua"]="20c0eceb",
+    ["hub.lua"]="6c5a87bd",
     ["install.lua"]="ad29b8c5",
     ["lava.lua"]="2e60f5f2",
     ["lumber.lua"]="6ed6689c",
@@ -168,14 +168,14 @@ return {
     ["miner.lua"]="c2834fcb",
     ["mining.lua"]="7a1bc071",
     ["nav.lua"]="a51ee61c",
-    ["panel.lua"]="da3d0aca",
+    ["panel.lua"]="a88eab5a",
     ["planner-core.lua"]="c37e4fe1",
     ["planner-enrol.lua"]="6b4af71b",
     ["planner-ops.lua"]="191fb60f",
     ["planner-settings.lua"]="32da0b49",
     ["relay.lua"]="e081fc0c",
     ["role-adapter.lua"]="708c90da",
-    ["roomsorter.lua"]="0cc705a2",
+    ["roomsorter.lua"]="fe24af85",
     ["server.lua"]="20632d86",
     ["smartmine.lua"]="2bfddca3",
     ["sorter.lua"]="c1975121",
@@ -954,5 +954,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="abdc2ffd"
+  ["version"]="0e058dfb"
 }

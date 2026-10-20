@@ -252,22 +252,22 @@ try {
             foreach ($id in 1..4) { Write-SandboxText "$run\computer\$id\boot-hold" 'restart barrier' $utf8 }
             $process = Start-SandboxProcess (ConvertTo-SandboxPath "$run\stdout-restart.log") (ConvertTo-SandboxPath "$run\stderr-restart.log")
             Start-Sleep -Seconds 2
-            foreach ($id in 1..4) { Remove-Item -LiteralPath "$run\computer\$id\boot-hold" }
+            foreach ($held in 1..4) { Remove-Item -LiteralPath (Join-Path (Join-Path (Join-Path $run 'computer') "$held") 'boot-hold') }
             $restarted = $true
             Write-Output 'Restarted the complete CraftOS process at the durable checkpoint.'
         }
-        $complete = @(0..($roles.Count - 1) | Where-Object { Test-Path -LiteralPath "$run\computer\$_\sandbox-result.json" }).Count -eq $roles.Count
-        $reports = @(Get-ChildItem "$run\computer" -Recurse -Filter sandbox-result.json | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json })
-        if ($complete -or $process.HasExited -or @($reports | Where-Object { !$_.ok }).Count -gt 0) { break }
+        $complete = @(0..($roles.Count - 1) | Where-Object { Test-Path -LiteralPath (Join-Path (Join-Path (Join-Path $run 'computer') "$_") 'sandbox-result.json') }).Count -eq $roles.Count
+        $reports = @(Get-ChildItem (Join-Path $run 'computer') -Recurse -Filter sandbox-result.json | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json })
+        if ($complete -or $process.HasExited -or (!$wizard -and @($reports | Where-Object { !$_.ok }).Count -gt 0)) { break }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $deadline)
     $timedOut = !$complete -and !$process.HasExited -and [DateTime]::UtcNow -ge $deadline
     $crashed = $process.HasExited
     # Keep computers alive until all reports exist: shutdown can strand sibling timers.
-    if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
+    if (!$process.HasExited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
     $failed = $timedOut -or $crashed
     foreach ($id in 0..($roles.Count - 1)) {
-        $path = "$run\computer\$id\sandbox-result.json"
+        $path = Join-Path (Join-Path (Join-Path $run 'computer') "$id") 'sandbox-result.json'
         if (!(Test-Path -LiteralPath $path)) {
             Write-Output "$($roles[$id]): FAIL booted=unknown errors=missing result (crash or timeout)"
             $failed = $true
@@ -276,7 +276,8 @@ try {
         $result = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
         $errors = @($result.errors | Where-Object { $_ -is [string] -and $_ })
         $status = if ($result.ok) { 'PASS' } else { 'FAIL' }
-        Write-Output "$($roles[$id]): $status booted=$($result.booted) errors=$($errors.Count) disk_free=$($result.free) rx=$($result.rx) http_ok=$($result.httpOK)/$($result.httpAttempts)"
+        if ($wizard) { Write-Output "$($roles[$id]): $status booted=$($result.booted) capacity=$($result.capacity) disk_free=$($result.free) errors=$($errors.Count)" }
+        else { Write-Output "$($roles[$id]): $status booted=$($result.booted) errors=$($errors.Count) disk_free=$($result.free) rx=$($result.rx) http_ok=$($result.httpOK)/$($result.httpAttempts)" }
         foreach ($line in $result.lines) { Write-Output "  last: $line" }
         foreach ($errorText in $errors) { Write-Output "  error: $errorText" }
         if (!$result.ok) { $failed = $true }
@@ -290,7 +291,7 @@ try {
     if ($crashed) { Write-Output "Emulator exited early: $($process.ExitCode)" }
     if ($Output) {
         New-Item -ItemType Directory -Force -Path $Output | Out-Null
-        Copy-Item -LiteralPath "$run\computer", "$run\stdout.log", "$run\stderr.log", "$run\config" -Destination $Output -Recurse -Force
+        Copy-Item -LiteralPath (Join-Path $run 'computer'), $stdout, $stderrPath, (Join-Path $run 'config') -Destination $Output -Recurse -Force
         Get-ChildItem -LiteralPath $run -Filter '*.log' | Copy-Item -Destination $Output -Force
         if ($Scenario -eq 'ar') {
             $checks = if (Test-Path "$run\computer\4\checks.json") { Get-Content "$run\computer\4\checks.json" -Raw | ConvertFrom-Json } else { @() }
@@ -317,13 +318,13 @@ try {
     }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {
-        & "$Source\tests\ingame\verify-results.ps1" -Computers "$run\computer" -Output $Output -Title 'Navigation PR 2'
+        & (Join-Path (Join-Path $Source 'tests') 'ingame/verify-results.ps1') -Computers (Join-Path $run 'computer') -Output $Output -Title 'Navigation PR 2'
     }
     if ($Scenario -eq 'mining') {
-        & "$Source\tests\ingame\verify-mining.ps1" -Computers "$run\computer" -Output $Output
+        & (Join-Path (Join-Path $Source 'tests') 'ingame/verify-mining.ps1') -Computers (Join-Path $run 'computer') -Output $Output
     }
     if ($Scenario -eq 'warehouse') {
-        & "$Source\tests\ingame\verify-warehouse.ps1" -Computers "$run\computer" -Output $Output
+        & (Join-Path (Join-Path $Source 'tests') 'ingame/verify-warehouse.ps1') -Computers (Join-Path $run 'computer') -Output $Output
     }
     Write-Output 'Sandbox PASS'
     exit 0

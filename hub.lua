@@ -535,6 +535,27 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
+local wh2 = {
+  enabled = settings and settings.get("wh2.enabled", false) == true,
+  active = nil, context = { enabled = true, role = "hub" },
+}
+if wh2.enabled then
+  local ok, host = pcall(require, "wh2-wizard-host")
+  if ok then wh2.host = host.open({ role = "hub" }) wh2.context = wh2.host.context end
+end
+local function openWh2(module)
+  if not wh2.enabled or wh2.booting then return end
+  local ok, extension = pcall(require, module)
+  if ok and type(extension) == "table" and type(extension.open) == "function" then
+    ok, extension = pcall(extension.open, wh2.context)
+    if ok and type(extension) == "table" and type(extension.tick) == "function"
+      and type(extension.draw) == "function" and type(extension.handle) == "function" then
+      wh2.active = extension
+      return
+    end
+  end
+  flash(module .. " unavailable")
+end
 local function rebuildScreens()
   screens = { { t = term.native(), name = "term", buttons = {} } }
   local monitors = { peripheral.find("monitor") }
@@ -1248,8 +1269,24 @@ local function redraw()
     serverDirty = false
   end
   for _, s in ipairs(screens) do
-    if viewUI and viewUI.mode ~= "classic" then viewUI.draw(s,viewFleet(),selected,notice and os.clock()<noticeUntil and notice or nil)
-    elseif s.info then drawInfo(s) else draw(s) end
+    if wh2.active then
+      wh2.active.draw(s.t, s.name)
+    elseif viewUI and viewUI.mode ~= "classic" then viewUI.draw(s,viewFleet(),selected,notice and os.clock()<noticeUntil and notice or nil)
+    else
+      if s.info then drawInfo(s) else draw(s) end
+      if wh2.enabled then
+        local w, h = s.t.getSize()
+        local x = math.max(1, w - 18)
+        s.t.setCursorPos(x, h)
+        s.t.setBackgroundColor(colors.blue)
+        s.t.setTextColor(colors.white)
+        s.t.write(" Wizard  | Recipes ")
+        table.insert(s.buttons, 1, { x1 = x, x2 = x + 7, y = h,
+          action = function() openWh2("wh2-board") end })
+        table.insert(s.buttons, 1, { x1 = x + 9, x2 = w, y = h,
+          action = function() openWh2("wh2-recipes") end })
+      end
+    end
   end
   draw3D()
 end
@@ -1758,7 +1795,17 @@ local function uiLoop()
   while true do
     local event = {os.pullEvent()}
     local ev, a, b, c, d = table.unpack(event)
-    if ev == "timer" and a == timer then
+    if wh2.active and (ev == "char" or ev == "key" or ev == "mouse_click" or ev == "monitor_touch"
+      or ev == "mouse_scroll" or ev == "paste") then
+      local keepOpen = wh2.active.handle(ev, a, b, c)
+      if keepOpen == false or wh2.active.state and wh2.active.state.closed then
+        if wh2.active.close then wh2.active.close() end
+        wh2.active = nil
+      end
+      redraw()
+    elseif ev == "wh2_hub_redraw" then
+      redraw()
+    elseif ev == "timer" and a == timer then
       -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
       if hub.recallAll and tick % 5 == 0 then send(nil, { type = "recall" }) end
@@ -1802,6 +1849,8 @@ local function uiLoop()
       elseif a == "c" then wantAsk = true
       elseif a == "v" and (ar or serverOwnsAR()) then toggle3D()
       elseif a == "w" then screens[1].world = not screens[1].world
+      elseif a == "i" then openWh2("wh2-board")
+      elseif a == "x" then openWh2("wh2-recipes")
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
@@ -1861,7 +1910,35 @@ local function gpuLoop()
   end, flash)
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop, viewLoop, viewRenderLoop)
+local function wh2Loop()
+  if not wh2.enabled then while true do os.pullEvent("wh2_disabled") end end
+  wh2.booting=true
+  local loaded,module=pcall(require,"wh2-board")
+  if loaded and type(module)=="table" and type(module.open)=="function" then
+    local opened,board=pcall(module.open,wh2.context)
+    if opened and type(board)=="table" and type(board.state)=="table" and type(board.state.queue)=="table" then
+      local read=pcall(board.tick)
+      if read and (#board.state.queue>0 or board.state.draft) then wh2.active=board
+      elseif board.close then pcall(board.close) end
+    end
+  end
+  wh2.booting=false
+  while true do
+    if wh2.active then
+      local ok, err = pcall(wh2.active.tick)
+      if not ok then flash(tostring(err)) wh2.active = nil end
+      os.queueEvent("wh2_hub_redraw")
+    end
+    sleep(0.25)
+  end
+end
+
+local function wh2Worker()
+  if wh2.host then return wh2.host.worker() end
+  while true do os.pullEvent("wh2_host_idle") end
+end
+
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop, viewLoop, viewRenderLoop, wh2Loop, wh2Worker)
 if directView then pcall(directView.close) end
 if ar and not arSuppressed then pcall(clearAR,ar) end
 term.native().setBackgroundColor(colors.black)

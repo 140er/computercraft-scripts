@@ -73,6 +73,12 @@ dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-dev.lua"
 dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-dev.lua"
 dependencies["miner.lua"][#dependencies["miner.lua"] + 1] = "wh2-client.lua"
 dependencies["store.lua"][#dependencies["store.lua"] + 1] = "wh2-client.lua"
+dependencies["wh2-board.lua"] = { "wh2-wizard-adapter.lua", "wh2-wizard.lua", "atomic.lua" }
+for _, file in ipairs({ "hub.lua", "panel.lua" }) do
+  for _, name in ipairs({ "wh2-wizard-host.lua", "wh2-board.lua", "wh2-recipes.lua" }) do
+    dependencies[file][#dependencies[file] + 1] = name
+  end
+end
 local roles = {}
 local function role(id, entry, startup)
   roles[id] = { entry = entry, startup = startup or false }

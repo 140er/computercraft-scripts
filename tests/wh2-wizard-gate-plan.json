@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "feature": "wizard",
+  "enabledByDefault": false,
+  "diskLimit": 1000000,
+  "soakSeconds": 7200,
+  "sampleSeconds": 30,
+  "computers": { "server": 0, "turtles": [1, 2, 3, 4], "board": 5, "otherBoard": 6 },
+  "rooms": [
+    { "id": "small", "min": [0, 64, 0], "max": [8, 69, 8], "pillar": false },
+    { "id": "large", "min": [16, 64, 0], "max": [32, 71, 12], "pillar": false },
+    { "id": "irregular", "min": [40, 64, 0], "max": [52, 70, 12], "pillar": [46, 65, 6], "notch": [[48, 65, 8], [51, 69, 11]] }
+  ],
+  "inventories": [
+    { "id": "input", "block": "minecraft:barrel", "pose": [-2, 65, 1], "contents": [
+      { "item": "minecraft:raw_iron", "count": 64 },
+      { "item": "minecraft:raw_copper", "count": 37 },
+      { "item": "minecraft:sand", "count": 64 },
+      { "item": "minecraft:potato", "count": 17 },
+      { "item": "minecraft:red_dye", "count": 13 },
+      { "item": "minecraft:coal", "count": 32 },
+      { "item": "superbwarfare:galena_ore", "count": 64 },
+      { "item": "superbwarfare:silver_ore", "count": 19 }
+    ] },
+    { "id": "store", "block": "minecraft:chest", "pose": [-2, 65, 3], "contents": [] },
+    { "id": "full", "block": "minecraft:chest", "pose": [-2, 65, 5], "fill": { "item": "minecraft:cobblestone", "count": 64 }, "contents": [] },
+    { "id": "furnace", "block": "minecraft:furnace", "pose": [-2, 65, 7], "contents": [] },
+    { "id": "blast", "block": "minecraft:blast_furnace", "pose": [-2, 65, 9], "contents": [] },
+    { "id": "smoker", "block": "minecraft:smoker", "pose": [-2, 65, 11], "contents": [] }
+  ],
+  "unknowns": ["superbwarfare:galena_ore", "superbwarfare:silver_ore"],
+  "answer": { "class": "misc", "route": "store", "storeCategory": "misc", "recipeId": false },
+  "requirements": [
+    { "id": "disk", "applies": true, "evidence": "Native capacity and free space on every disk, capacity exactly 1000000 in Gate A." },
+    { "id": "rooms", "applies": true, "evidence": "Three built rooms, irregular walls and pillar, room and inventory observations." },
+    { "id": "mixed-load", "applies": true, "evidence": "Exact counts for all eight item IDs before and after every transfer." },
+    { "id": "unknowns", "applies": true, "evidence": "Two real modded IDs absent from class defaults, repeated reports coalesce, stacks retained before answer." },
+    { "id": "board", "applies": true, "evidence": "Real wh2-board controls submit both answers through authenticated wh2-client requests." },
+    { "id": "skip", "applies": true, "evidence": "Skip leaves the question open, refresh and another board visit still show it." },
+    { "id": "route", "applies": true, "evidence": "Each of four turtles moves 64 galena ore and 19 silver ore to misc storage only after the answers; all item totals conserved." },
+    { "id": "computer-reboot", "applies": true, "evidence": "Reboot the board and four turtles; refetch the same effective classes and resolved questions." },
+    { "id": "wizard-draft", "applies": true, "evidence": "Reboot during a route or recipe answer. Redisplay the saved step, partial answer, and text. Repeated unknown reports preserve the draft. A stale editor cannot overwrite it." },
+    { "id": "server-restart", "applies": true, "evidence": "Stop and start the disposable server process; refetch answers and route another load without another answer." },
+    { "id": "durable-outbox", "applies": true, "evidence": "Crash after outbox save, transmit, and server commit. Restore the identical envelope, counter, and old boot identity. Exact retries cannot change the answer or count a physical action twice." },
+    { "id": "full-chest", "applies": true, "evidence": "A full destination retains every input item and reports blocked; empty it and retry once." },
+    { "id": "no-fuel", "applies": true, "evidence": "A zero-fuel turtle and empty furnace retain work and items, with visible blocked reasons." },
+    { "id": "removed-machine", "applies": true, "evidence": "Remove a furnace during a job, invalidate observation and retain unfinished work without loss." },
+    { "id": "modem-removal", "applies": true, "evidence": "Remove board modem during an answer, retain pending question, restore and refetch authority before retry." },
+    { "id": "concurrent", "applies": true, "evidence": "Four concurrent unknown reporters and two board answers at one revision; stale loser refetches and retries." },
+    { "id": "fuzz", "applies": true, "evidence": "Deterministic malformed bodies and bounded random cases reject without durable state changes." },
+    { "id": "authentication", "applies": true, "evidence": "Unpaired sender, fake server, sender forgery, replay and huge counter cannot change answers. requireMac=false preserves legacy operations. Local upgrade rejects v1, and config removal or rollback cannot remove its durable upgrade marker." },
+    { "id": "event-bursts", "applies": true, "evidence": "Concurrent reports during real saves and HTTP waits retain every question and timer progress." },
+    { "id": "soak", "applies": true, "evidence": "At least 7200 seconds with four active turtles, periodic inventory totals, save durations, state sizes and disk free space." },
+    { "id": "capture", "applies": true, "owner": "lead", "evidence": "Real client F2 room, board and wizard screenshots, plus a video of the main flow, under the client lock." },
+    { "id": "craft", "applies": false, "reason": "Craft feature flow belongs to the craft PR. Wizard checks absent craft panel without inventing a craft worker." },
+    { "id": "miner-dropoff", "applies": false, "reason": "Miner delivery and fleet settings belong to fleet. This scenario uses a named storage boundary for wizard routing." },
+    { "id": "ar", "applies": false, "reason": "Wizard does not change AR rendering." },
+    { "id": "h4", "applies": true, "evidence": "Approved H4 dependencies run at native 1 MB and larger capacity. Failed saves recover, lost cold peers re-replicate, unreachable cells stay unknown, warning refusal preserves data, enrolment moves data, and forgetting removes only the unchanged preview. Record both state copies, allocated code and data bytes, scratch, and the 65536-byte control reserve." },
+    { "id": "movement-recovery", "applies": false, "reason": "Lost movement commit, GPS recovery, charger power loss and disk-full movement remain hardening gates. No movement allocator changes belong to wizard." },
+    { "id": "unload", "applies": true, "evidence": "Unload and reload a reporter chunk; durable unanswered questions and totals survive." },
+    { "id": "updates", "applies": true, "evidence": "Keep hardening update-skew and interrupted-update evidence with the integrated stack; absent evidence blocks the overall gate." }
+  ]
+}
