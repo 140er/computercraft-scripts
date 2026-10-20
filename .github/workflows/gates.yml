@@ -14,13 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch the main baseline
-        run: |
-          git fetch --no-tags origin main
-          if ! git show-ref --verify --quiet refs/heads/main; then
-            git branch main FETCH_HEAD
-          fi
-
       - name: Install Lua 5.2 and PowerShell
         run: |
           sudo apt-get update
