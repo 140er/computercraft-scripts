@@ -1,0 +1,71 @@
+Compiled from "TurtleAPI.java"
+public class dan200.computercraft.shared.turtle.apis.TurtleAPI implements dan200.computercraft.api.lua.ILuaAPI {
+  private final dan200.computercraft.core.metrics.MetricsObserver metrics;
+  private final dan200.computercraft.shared.turtle.core.TurtleAccessInternal turtle;
+  public dan200.computercraft.shared.turtle.apis.TurtleAPI(dan200.computercraft.core.metrics.MetricsObserver, dan200.computercraft.shared.turtle.core.TurtleAccessInternal);
+  public java.lang.String[] getNames();
+  private dan200.computercraft.api.lua.MethodResult trackCommand(dan200.computercraft.api.turtle.TurtleCommand);
+  public final dan200.computercraft.api.lua.MethodResult forward();
+  public final dan200.computercraft.api.lua.MethodResult back();
+  public final dan200.computercraft.api.lua.MethodResult up();
+  public final dan200.computercraft.api.lua.MethodResult down();
+  public final dan200.computercraft.api.lua.MethodResult turnLeft();
+  public final dan200.computercraft.api.lua.MethodResult turnRight();
+  public final dan200.computercraft.api.lua.MethodResult dig(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult digUp(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult digDown(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult place(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult placeUp(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult placeDown(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult drop(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult dropUp(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult dropDown(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult select(int) throws dan200.computercraft.api.lua.LuaException;
+  public final int getItemCount(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final int getItemSpace(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult detect();
+  public final dan200.computercraft.api.lua.MethodResult detectUp();
+  public final dan200.computercraft.api.lua.MethodResult detectDown();
+  public final dan200.computercraft.api.lua.MethodResult compare();
+  public final dan200.computercraft.api.lua.MethodResult compareUp();
+  public final dan200.computercraft.api.lua.MethodResult compareDown();
+  public final dan200.computercraft.api.lua.MethodResult attack(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult attackUp(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult attackDown(java.util.Optional<dan200.computercraft.api.turtle.TurtleSide>);
+  public final dan200.computercraft.api.lua.MethodResult suck(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult suckUp(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult suckDown(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final java.lang.Object getFuelLevel();
+  public final dan200.computercraft.api.lua.MethodResult refuel(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult compareTo(int) throws dan200.computercraft.api.lua.LuaException;
+  public final dan200.computercraft.api.lua.MethodResult transferTo(int, java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  public final int getSelectedSlot();
+  public final java.lang.Object getFuelLimit();
+  public final dan200.computercraft.api.lua.MethodResult equipLeft();
+  public final dan200.computercraft.api.lua.MethodResult equipRight();
+  public final java.util.Map<?, ?> getEquippedLeft();
+  public final java.util.Map<?, ?> getEquippedRight();
+  public final dan200.computercraft.api.lua.MethodResult inspect();
+  public final dan200.computercraft.api.lua.MethodResult inspectUp();
+  public final dan200.computercraft.api.lua.MethodResult inspectDown();
+  public final dan200.computercraft.api.lua.MethodResult getItemDetail(dan200.computercraft.api.lua.ILuaContext, java.util.Optional<java.lang.Integer>, java.util.Optional<java.lang.Boolean>) throws dan200.computercraft.api.lua.LuaException;
+  private static int checkSlot(int) throws dan200.computercraft.api.lua.LuaException;
+  private static java.util.Optional<java.lang.Integer> checkSlot(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  private static int checkCount(java.util.Optional<java.lang.Integer>) throws dan200.computercraft.api.lua.LuaException;
+  private java.lang.Object[] lambda$getItemDetail$0(int) throws dan200.computercraft.api.lua.LuaException;
+  private static dan200.computercraft.api.turtle.TurtleCommandResult lambda$select$0(int, dan200.computercraft.api.turtle.ITurtleAccess);
+}
+Compiled from "MonitorPeripheral.java"
+public class dan200.computercraft.shared.peripheral.monitor.MonitorPeripheral extends dan200.computercraft.core.apis.TermMethods implements dan200.computercraft.api.peripheral.IPeripheral {
+  private final dan200.computercraft.shared.peripheral.monitor.MonitorBlockEntity monitor;
+  public dan200.computercraft.shared.peripheral.monitor.MonitorPeripheral(dan200.computercraft.shared.peripheral.monitor.MonitorBlockEntity);
+  public java.lang.String getType();
+  public final void setTextScale(double) throws dan200.computercraft.api.lua.LuaException;
+  public final double getTextScale() throws dan200.computercraft.api.lua.LuaException;
+  public void attach(dan200.computercraft.api.peripheral.IComputerAccess);
+  public void detach(dan200.computercraft.api.peripheral.IComputerAccess);
+  public boolean equals(dan200.computercraft.api.peripheral.IPeripheral);
+  private dan200.computercraft.shared.peripheral.monitor.ServerMonitor getMonitor() throws dan200.computercraft.api.lua.LuaException;
+  public dan200.computercraft.core.terminal.Terminal getTerminal() throws dan200.computercraft.api.lua.LuaException;
+  public java.lang.Object getTarget();
+}

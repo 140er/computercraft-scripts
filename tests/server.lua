@@ -101,6 +101,24 @@ return function(test, equal, read, mocks)
     end
     equal(serialize({ { x = 12 }, { x = 12 } }), "{[1]={[\"x\"]=12},[2]={[\"x\"]=12}}")
   end)
+  test("server refuses to overwrite corrupt generations without a recoverable state",function()
+    local m=new()
+    m.files["server.state"]="broken state"
+    local ok=pcall(m.start,serverCode)
+    equal(ok,false)
+    equal(m.files["server.state"],"broken state")
+  end)
+  test("server bounds legacy requests when the shared validator is installed",function()
+    local m=new()
+    m.files["ssot.lua"],m.files["atomic.lua"]=read("ssot.lua"),read("atomic.lua")
+    m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
+    m.start(serverCode)
+    local sent=#m.sent
+    m.push("rednet_message",7,{type="register",kind="spoof",rid=string.rep("x",300000)},"fleetserver")
+    equal(#m.sent,sent)
+    equal(m.state().bots[7],nil)
+    equal(m.request({type="register",kind="miner",rid="valid"}).type,"ack")
+  end)
 
   test("server saves GPS status and hub assignments across restart", function()
     local m = new()
@@ -199,10 +217,11 @@ return function(test, equal, read, mocks)
     end }
     m.start(serverCode)
     equal(downloads, 1)
-    m.advance(16)
-    equal(downloads, 17)
+    local count = #assert(load("return " .. assert(serverCode:match("local FILES = (%b{})"))))()
+    m.advance(count - 1)
+    equal(downloads, count)
     m.advance(301)
-    equal(downloads, 18)
+    equal(downloads, count + 1)
   end)
 
   local function updater(server, httpCode)
@@ -605,13 +624,12 @@ return function(test, equal, read, mocks)
   end)
 
   test("884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code", function()
-    -- Was 884000 and 884 KB with the scripts of then; the same room is left over now
     local total = 0
     for _, f in ipairs(hosted) do total = total + #repo[f] end
     local roots = #repo["server.lua"] + #repo["install.lua"] + #repo["update.lua"]
     for _, used in ipairs({ total + 69313, total + roots + 23398 }) do
       local m = new()
-      m.files, m.capacity = {}, 1000000
+      m.files, m.capacity = {}, used + 23398
       for _, f in ipairs(hosted) do m.files["server-code/" .. f] = repo[f] end
       for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
       if used == total + 69313 then
@@ -667,7 +685,7 @@ return function(test, equal, read, mocks)
     m.start(serverCode)
     equal(m.state().view3D, false)
     equal(m.request({ type = "get", file = "roomsorter.lua" }).hash, hashOf(repo["roomsorter.lua"]))
-    equal(m.files["server.state.bak"], nil)
+    assert(decode(m.files["server.state.bak"]), "previous good generation missing")
     equal(m.files["server-code/roomsorter.lua.bak"], nil)
     local good, move = m.files["server.state"], m.env.fs.move
     m.env.fs.move = function(a, b)

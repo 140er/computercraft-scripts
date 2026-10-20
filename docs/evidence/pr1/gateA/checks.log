@@ -1,0 +1,26 @@
+PASS paired-controller configuration and UUID chat allowlist fail closed
+PASS six adjacent directions reserve and commit with independent dimension occupancy
+PASS contention, wrong owner, wrong source, teleport, expiry and lease renewal
+PASS offline occupancy and restart preserve both cells of uncertain moves
+PASS duplicate requests return the durable result and changed or stale replays fail
+PASS missing fields, bad types, cyclic, oversized and unauthorized packets do not mutate
+PASS sparse tri-state scans, stale deltas, paged snapshots and resident bound
+PASS failed persistence never acknowledges a grant or admits another mutation
+PASS encoded snapshot limits include credentials and request metadata
+PASS client accepts bounded pages containing long block names
+PASS tree copies serialize repeated values without aliasing
+PASS recover generations after open failure
+PASS recover generations after write failure
+PASS recover generations after close failure
+PASS recover generations after verify failure
+PASS recover generations after rotate failure
+PASS recover generations after promote failure
+PASS explicit small-disk failure preserves an acknowledged state
+PASS miner reserves each displacement only when SSOT is enabled
+PASS server program restart keeps the map service reachable
+PASS timeout never calls a physical movement
+PASS late commit is rejected and started occupancy requires reconciliation
+PASS malformed, oversize and unpaired clients leave the server responsive
+PASS 10000 sparse observations persist and snapshots stay within 8 KiB
+PASS resident chunk limit rejects a ninth chunk without evicting observations
+PASS real server disk fill refuses mutations and preserves the acknowledged map

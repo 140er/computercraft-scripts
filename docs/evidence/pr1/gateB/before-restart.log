@@ -1,0 +1,185 @@
+[20Oct2026 06:04:49.158] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserver, --fml.neoForgeVersion, 21.1.259, --fml.fmlVersion, 4.0.45, --fml.mcVersion, 1.21.1, --fml.neoFormVersion, 20240808.144430, nogui]
+[20Oct2026 06:04:49.284] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12.1+1-LTS
+[20Oct2026 06:04:49.338] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12.1 by Eclipse Adoptium; OS Windows 10 arch amd64 version 10.0
+[20Oct2026 06:04:50.398] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserver
+[20Oct2026 06:04:50.899] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Work/mc-ssot-pr1-218dc2b9/libraries/net/fabricmc/sponge-mixin/0.16.4+mixin.0.8.7/sponge-mixin-0.16.4+mixin.0.8.7.jar%2373!/ Service=ModLauncher Env=SERVER
+[20Oct2026 06:04:53.066] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "server-1.21.1-20240808.144430-srg.jar" [locator: production server provider +net.neoforged:neoforge:21.1.259:server]
+[20Oct2026 06:04:53.317] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "neoforge-21.1.259-universal.jar" [locator: PathBasedLocator[name=neoforge, paths=[libraries\net\neoforged\neoforge\21.1.259\neoforge-21.1.259-universal.jar]], reader: mod manifest]
+[20Oct2026 06:04:53.412] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "AdvancedPeripherals-1.21.1-0.7.62b.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.446] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "cc-tweaked-1.21.1-forge-1.120.2.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.507] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "cc_ar-0.2.1.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.540] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "classicperipherals-neoforge-1.21.1-0.6.5.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.591] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "directgpu-1.0.25-neoforge-1.21.1.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.612] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinforforge-5.12.0-all.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.673] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "turtlebattery-0.3.0.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:53.738] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "turtlematic-forge-1.21.1-1.4.10.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr1-218dc2b9\mods}, reader: mod manifest]
+[20Oct2026 06:04:58.993] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 21 dependencies adding them to mods collection
+[20Oct2026 06:04:59.003] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "mixinextras-neoforge-0.5.5.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.010] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "jzlib-1.1.3.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 06:04:59.025] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "tweakium-forge-1.21.1-1.4.9.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.032] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "broccolium-forge-1.21.1-1.4.6.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.040] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kaleido-config-0.3.3+1.3.2.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar]
+[20Oct2026 06:04:59.042] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "bcprov-jdk18on-1.78.1.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar]
+[20Oct2026 06:04:59.055] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-coroutines-jdk8-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.061] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "net.neoforged.neoforge-coremods-21.1.259.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.077] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-jdk7-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.085] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-jdk8-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.087] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "thedarkcolour.kfflang-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.087] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "thedarkcolour.kfflib-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.088] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-serialization-core-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.095] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "cobalt-0.9.9.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 06:04:59.105] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "thedarkcolour.kffmod-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.124] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.130] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "peripheralium-forge-1.21.1-1.4.6.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.132] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-reflect-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.134] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-serialization-json-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.143] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "sable-companion-common-1.21.1-1.6.0.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 06:04:59.155] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-coroutines-core-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 06:04:59.187] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]:
+     Mod List:
+		Name Version (Mod Id)
+
+		Advanced Peripherals 0.7.62b (advancedperipherals)
+		Broccolium 1.4.6 (broccolium)
+		CC: AR(Neoforge port) 0.2.1 (cc_ar)
+		CC: Tweaked 1.120.2 (computercraft)
+		Classic Peripherals 0.6.5 (classicperipherals)
+		DirectGPU 1.0.25-neoforge-1.21.1 (directgpu)
+		Kotlin For Forge 5.12.0 (kotlinforforge)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.259 (neoforge)
+		Peripheralium 1.4.6 (peripheralium)
+		Sable Companion 1.6.0 (sablecompanion)
+		Turtle Battery 0.3.0 (turtlebattery)
+		Turtlematic 1.4.10 (turtlematic)
+		Tweakium 1.4.9 (tweakium)
+[20Oct2026 06:05:01.989] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[20Oct2026 06:05:02.040] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserver' with arguments [nogui]
+[20Oct2026 06:05:13.083] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.5).
+[20Oct2026 06:05:34.724] [modloading-worker-0/INFO] [Advanced Peripherals/]: AdvancedPeripherals says hello!
+[20Oct2026 06:05:35.989] [modloading-worker-0/INFO] [Advanced Peripherals/]: mekanism not loaded, skip integration loading
+[20Oct2026 06:05:36.007] [modloading-worker-0/WARN] [Advanced Peripherals/]: Failed to load integration for mekanism
+[20Oct2026 06:05:36.008] [modloading-worker-0/INFO] [Advanced Peripherals/]: powah not loaded, skip integration loading
+[20Oct2026 06:05:36.009] [modloading-worker-0/WARN] [Advanced Peripherals/]: Failed to load integration for powah
+[20Oct2026 06:05:37.239] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.259, for MC 1.21.1
+[20Oct2026 06:05:37.793] [modloading-worker-0/INFO] [thedarkcolour.kotlinforforge.neoforge.test.KotlinForForge/]: Kotlin For Forge Enabled!
+[20Oct2026 06:05:45.250] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Configuration LoadedConfig[config=SynchronizedConfig{DataHolder:{base=SynchronizedConfig{DataHolder:{cooldownTreshholdLevel=100, xpToFuelRate=10}}, turtlePeripherals=SynchronizedConfig{DataHolder:{enableTurtleChatter=true, enableCreativeChest=true, enablePistonTurtle=true, enableStickyPistonTurtle=true, pistonPitchLevel=5.0, pistonVolumeLevel=5.0, enableLaaBucket=true, enableChunkVial=true, chunkVialTimeLimit=5000, enableBowTurtle=true, bowTurtlePowerLimit=10.0, enableMimicGadget=true, mimicGadgetRMLLimit=8, enableInspectionMonocle=true}}, operations=SynchronizedConfig{DataHolder:{swingCooldown=1000, swingCost=1, transformBlockCooldown=500, transformBlockCost=1, useCooldown=1000, useCost=1, harvestCooldown=1000, harvestCost=1, suckCooldown=1000, suckCost=1, tradeCooldown=1000, tradeCost=5, restockCooldown=60000, restockCost=500, brewCooldown=1000, brewCost=5, smithCooldown=1000, smithCost=1, captureCooldown=50000, captureCost=100, enchantmentCooldown=5000, enchantmentCost=10, warpCooldown=1000, warpCost=1, scanBlocksCooldown=2000, scanBlocksMaxFreeRadius=8, scanBlocksMaxCostRadius=16, scanBlocksExtraBlockCost=0.17, scanEntitiesCooldown=2000, scanEntitiesMaxFreeRadius=8, scanEntitiesMaxCostRadius=16, scanEntitiesExtraBlockCost=0.17, scanItemsCooldown=2000, scanItemsMaxFreeRadius=8, scanItemsMaxCostRadius=16, scanItemsExtraBlockCost=0.17, chatMessageCooldown=100, smeltCooldown=1, smeltCost=80, chiselCooldown=1000, chiselCost=1, xpTransferCooldown=1000, xpTransferCost=1, throwPotionCooldown=1000, throwPotionCost=10, shootCooldown=1000, shootCost=10}}, automataCores=SynchronizedConfig{DataHolder:{enableWeakAutomataCore=true, enableEndAutomataCore=true, enableHusbandryAutomataCore=true, enableProtectiveAutomataCore=true, enableEnormousAutomata=true, enableBrewingAutomataCore=true, enableSmithingAutomataCore=true, enableEnchantingAutomataCore=true, enableMasonAutomataCore=true, enableMercantileAutomataCore=true, endAutomataCoreWarpPointLimit=64, durabilityRestoreChance=0.1, starboundAutomataFuelGenerationChance=0.15, starboundAutomataFuelGenerationAmount=1, brewingXPReward=0.8, brewingPowerLimit=10.0, enchantmentWipeChance=0.05, tier1AutomataCoreInteractionRadius=2, tier1AutomataCoreMaxFuelConsumptionRate=2, tier1AutomataCoreCooldownReduceFactor=1.0, tier2AutomataCoreInteractionRadius=4, tier2AutomataCoreMaxFuelConsumptionRate=3, tier2AutomataCoreCooldownReduceFactor=1.0, tier3AutomataCoreInteractionRadius=8, tier3AutomataCoreMaxFuelConsumptionRate=4, tier3AutomataCoreCooldownReduceFactor=0.8, tier4AutomataCoreInteractionRadius=16, tier4AutomataCoreMaxFuelConsumptionRate=6, tier4AutomataCoreCooldownReduceFactor=0.5, creativeAutomataCoreInteractionRadius=2147483647, creativeAutomataCoreMaxFuelConsumptionRate=2147483647, creativeAutomataCoreCooldownReduceFactor=0.0}}}}, path=C:\Work\mc-ssot-pr1-218dc2b9\config\turtlematic.toml, modConfig=net.neoforged.fml.config.ModConfig@43c47a20] is not correct. Correcting
+[20Oct2026 06:05:45.253] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.transformBlockCooldown was corrected from 500 to its default, 1000.
+[20Oct2026 06:05:45.259] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.chatMessageCooldown was corrected from 100 to its default, 1000.
+[20Oct2026 06:05:45.261] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.smeltCooldown was corrected from 1 to its default, 1000.
+[20Oct2026 06:05:45.262] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.enchantmentWipeChance was corrected from 0.05 to its default, 0.1.
+[20Oct2026 06:05:45.284] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.creativeAutomataCoreInteractionRadius was corrected from 2147483647 to its default, 64.
+[20Oct2026 06:05:45.289] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.creativeAutomataCoreMaxFuelConsumptionRate was corrected from 2147483647 to its default, 32.
+[20Oct2026 06:05:47.067] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[20Oct2026 06:05:47.416] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Starting version check at https://api.modrinth.com/updates/cc-tweaked/forge_updates.json
+[20Oct2026 06:05:47.593] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Work/mc-ssot-pr1-218dc2b9/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23125!/assets/.mcassetsroot' uses unexpected schema
+[20Oct2026 06:05:47.608] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Work/mc-ssot-pr1-218dc2b9/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23125!/data/.mcassetsroot' uses unexpected schema
+[20Oct2026 06:05:49.830] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Found status: BETA Current: 1.120.2 Target: null
+[20Oct2026 06:05:52.282] [main/INFO] [net.minecraft.server.Main/]: No existing world data, creating new world
+[20Oct2026 06:05:52.305] [main/ERROR] [net.minecraft.server.dedicated.DedicatedServerProperties/]: No key layers in MapLike[{}]
+[20Oct2026 06:05:59.092] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 1422 recipes
+[20Oct2026 06:06:00.893] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 1498 advancements
+[20Oct2026 06:06:05.258] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[20Oct2026 06:06:05.259] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[20Oct2026 06:06:05.260] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: CREATIVE
+[20Oct2026 06:06:05.260] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[20Oct2026 06:06:05.586] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on 127.0.0.1:60780
+[20Oct2026 06:06:05.988] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
+[20Oct2026 06:06:06.391] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[20Oct2026 06:06:06.401] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[20Oct2026 06:06:06.408] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[20Oct2026 06:06:06.408] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[20Oct2026 06:06:06.500] [Server thread/INFO] [net.neoforged.fml.config.ConfigTracker/CONFIG]: Found config file override in path .\world\serverconfig\computercraft-server.toml
+[20Oct2026 06:06:06.811] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[20Oct2026 06:06:10.413] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[20Oct2026 06:06:10.610] [Worker-Main-2/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[20Oct2026 06:06:10.940] [Worker-Main-5/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[20Oct2026 06:06:11.439] [Worker-Main-5/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 53%
+[20Oct2026 06:06:11.594] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 1166 ms
+[20Oct2026 06:06:11.600] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (5.102s)! For help, type "help"
+[20Oct2026 06:06:11.607] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting remote control listener
+[20Oct2026 06:06:11.655] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener started
+[20Oct2026 06:06:11.666] [Server thread/INFO] [net.minecraft.server.rcon.thread.RconThread/]: RCON running on 127.0.0.1:60781
+[20Oct2026 06:06:11.964] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[20Oct2026 06:06:12.840] [Server thread/INFO] [turtlematic/]: Server started
+[20Oct2026 06:06:13.221] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 0 (0 turtles with ender modem)
+[20Oct2026 06:06:13.512] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:13.593] [RCON Client /127.0.0.1 #2/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:15.055] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:15.111] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded]
+[20Oct2026 06:06:15.138] [RCON Client /127.0.0.1 #3/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:16.532] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:16.686] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 121 block(s)]
+[20Oct2026 06:06:16.687] [RCON Client /127.0.0.1 #4/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:18.027] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:18.063] [RCON Client /127.0.0.1 #5/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:19.130] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:19.145] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 147 block(s)]
+[20Oct2026 06:06:19.192] [RCON Client /127.0.0.1 #6/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:20.021] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:20.030] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 14 block(s)]
+[20Oct2026 06:06:20.033] [RCON Client /127.0.0.1 #7/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:21.001] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:21.011] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 12 block(s)]
+[20Oct2026 06:06:21.013] [RCON Client /127.0.0.1 #8/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:22.138] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:22.183] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -1, 65, 0]
+[20Oct2026 06:06:22.185] [RCON Client /127.0.0.1 #9/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:23.585] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:23.713] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -4, 65, -4]
+[20Oct2026 06:06:23.720] [RCON Client /127.0.0.1 #10/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:25.057] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:25.095] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -4, 66, -4]
+[20Oct2026 06:06:25.098] [RCON Client /127.0.0.1 #11/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:26.195] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:26.294] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, -4]
+[20Oct2026 06:06:26.309] [RCON Client /127.0.0.1 #12/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:27.630] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:27.666] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 66, -4]
+[20Oct2026 06:06:27.675] [RCON Client /127.0.0.1 #13/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:29.079] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:29.155] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -2, 65, 0]
+[20Oct2026 06:06:29.158] [RCON Client /127.0.0.1 #14/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:29.335] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 1 (1 turtles with ender modem)
+[20Oct2026 06:06:30.885] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:30.925] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 0, 65, -2]
+[20Oct2026 06:06:30.928] [RCON Client /127.0.0.1 #15/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:31.069] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 2 (2 turtles with ender modem)
+[20Oct2026 06:06:32.429] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:32.449] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 2, 65, 0]
+[20Oct2026 06:06:32.457] [RCON Client /127.0.0.1 #16/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:32.582] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 3 (3 turtles with ender modem)
+[20Oct2026 06:06:33.712] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:33.755] [RCON Client /127.0.0.1 #17/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:35.242] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:35.278] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 65, -6]
+[20Oct2026 06:06:35.296] [RCON Client /127.0.0.1 #18/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:37.627] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:37.654] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 66, -6]
+[20Oct2026 06:06:37.660] [RCON Client /127.0.0.1 #19/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:40.033] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:40.131] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 6, 65, -6]
+[20Oct2026 06:06:40.133] [RCON Client /127.0.0.1 #20/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:41.520] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:41.547] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 6, 66, -6]
+[20Oct2026 06:06:41.558] [RCON Client /127.0.0.1 #21/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:42.991] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:43.051] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 65, 6]
+[20Oct2026 06:06:43.075] [RCON Client /127.0.0.1 #22/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:44.576] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:44.580] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 66, 6]
+[20Oct2026 06:06:44.592] [RCON Client /127.0.0.1 #23/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:45.713] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:45.718] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 71, -6]
+[20Oct2026 06:06:45.725] [RCON Client /127.0.0.1 #24/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:46.991] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:47.021] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 72, -6]
+[20Oct2026 06:06:47.035] [RCON Client /127.0.0.1 #25/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:47.844] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:47.853] [RCON Client /127.0.0.1 #26/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:06:50.525] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 06:06:50.546] [RCON Client /127.0.0.1 #27/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 06:07:08.066] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 2 (3 turtles with ender modem)
+[20Oct2026 06:07:17.069] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 3 (3 turtles with ender modem)
+[20Oct2026 06:07:24.075] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 2 (3 turtles with ender modem)
+[20Oct2026 06:07:31.077] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 3 (3 turtles with ender modem)
