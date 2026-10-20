@@ -35,6 +35,8 @@ if(Test-Path "$Computers\5\world.json") {
 }
 $state=[IO.Path]::GetFullPath("$Computers\0\ssot.state").Replace('\','/')
 $check="local h=assert(io.open([[$state]])); local s=assert(load('return '..h:read('*a'),'state','t',{}))().value; h:close(); assert(next(s.moves)==nil); assert(next(s.warehouse.locks)==nil); local n=0; for _,j in pairs(s.warehouse.orders) do n=n+1; assert(j.status=='partial'); assert(j.lines[1].wanted==12 and j.lines[1].delivered==11 and j.lines[2].delivered==1); end; assert(n==3); assert(s.mining and #s.mining.tasks==1 and s.mining.tasks[1].owner==3 and s.mining.tasks[1].status=='done' and s.mining.tasks[1].progress==2); print('Three partial orders, exact quantities, empty bays, empty moves and completed mining survived restart')"
-& 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\durable-state.txt"
+$lua52 = 'C:\Tools\lua52\lua52.exe'
+if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+& $lua52 -e $check | Set-Content "$Output\durable-state.txt"
 if($LASTEXITCODE -ne 0){throw 'Warehouse durable state mismatch.'}
 Write-Output 'Three exact deliveries, charging, physical-transfer restart and mining continuation passed.'

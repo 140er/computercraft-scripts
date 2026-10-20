@@ -3,7 +3,9 @@ $ErrorActionPreference = 'Stop'
 $controller = Get-Content "$Computers\4\sandbox-result.json" -Raw | ConvertFrom-Json
 $statePath = [IO.Path]::GetFullPath("$Computers\0\ssot.state").Replace('\','/')
 $check = "local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))().value; f:close(); assert(s.rev==$($controller.revision)); assert(next(s.moves)==nil); local c=assert(s.chunks['test:lab|-2|4|0']); assert(c.rev==s.rev and s.names[c.cells[1]]=='minecraft:stone'); print('Latest scan revision and empty reservation set survived restart')"
-$durable = & 'C:\Tools\lua52\lua52.exe' -e $check
+$lua52 = 'C:\Tools\lua52\lua52.exe'
+if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+$durable = & $lua52 -e $check
 if ($LASTEXITCODE -ne 0) { throw 'Latest durable map or reservation cleanup is incorrect.' }
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
 $durable | Set-Content "$Output\durable-state.txt"

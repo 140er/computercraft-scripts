@@ -3,8 +3,12 @@ $ErrorActionPreference='Stop'
 $source=(Resolve-Path "$PSScriptRoot\..\..").Path
 $sha=[Security.Cryptography.SHA256]::Create()
 $utf8=New-Object Text.UTF8Encoding($false)
+function ConvertTo-SandboxPath([string]$Path) {
+    if ($PSVersionTable.Platform -eq 'Unix') { return $Path.Replace('\','/') }
+    return $Path
+}
 function Hash-Text([string]$Path) {
-    $text=[IO.File]::ReadAllText($Path).Replace("`r`n","`n")
+    $text=[IO.File]::ReadAllText((ConvertTo-SandboxPath $Path)).Replace("`r`n","`n")
     ([BitConverter]::ToString($sha.ComputeHash($utf8.GetBytes($text)))).Replace('-','').ToLowerInvariant()
 }
 $rows=@()
