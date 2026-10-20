@@ -2,6 +2,7 @@ local M = { version = 1 }
 local A = dofile("atomic.lua")
 local Mining = dofile("mine-tasks.lua")
 local Warehouse = dofile("warehouse-tasks.lua")
+local Planner = dofile("planner-ops.lua")
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -83,6 +84,12 @@ function M.new(s, cfg, clock, epoch, save)
   s.chunks, s.names, s.poses = s.chunks or {}, s.names or {}, s.poses or {}
   s.moves, s.clients = s.moves or {}, s.clients or {}
   s.rev, s.seq = s.rev or 0, s.seq or 0
+  local origin = 0
+  if type(os) == "table" and type(os.getComputerID) == "function" then
+    local id = os.getComputerID()
+    if type(id) == "number" and id % 1 == 0 and id >= 0 then origin = id end
+  end
+  s.planner = Planner.normalize(s.planner, origin, clock())
   cfg = cfg or {}
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
@@ -94,10 +101,12 @@ function M.new(s, cfg, clock, epoch, save)
       if id ~= owner and (r.phase == "started" or (r.epoch == epoch and r.untilAt > clock()))
         and (equal(p, r.to) or equal(p, r.from)) then return id end
     end
+    if Planner.blocks(s.planner, p) then return true end
     return false
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
+    if op:sub(1,5)=="plan-" then return Planner.op(s, id, m, clock) end
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
     if op=="traffic" then
@@ -109,6 +118,7 @@ function M.new(s, cfg, clock, epoch, save)
       if not M.pose(m.to) or m.to.dim~=s.poses[id].dim
         or math.abs(m.to.x-s.poses[id].x)+math.abs(m.to.y-s.poses[id].y)+math.abs(m.to.z-s.poses[id].z)~=1 then return {ok=false,error="invalid traffic destination"} end
       local peer=occupied(m.to,id)
+      if peer == true then return {ok=false, error="occupied"} end
       return {ok=true,peer=peer or false,yield=peer and id>peer or false,pose=peer and clone(s.poses[peer])}
     end
     if op=="calibrate" then
@@ -220,13 +230,26 @@ function M.new(s, cfg, clock, epoch, save)
     end
     return { ok = false, error = "unknown operation" }
   end
-  return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
+  local function plan(event)
+    if failed or type(event) ~= "table" then return { ok = false, error = "invalid plan event" } end
+    local previous = s
+    s = A.copy(s)
+    local actor = type(os) == "table" and os.getComputerID and os.getComputerID() or 0
+    local effects, err = Planner.commit(s, event, clock, event.computerId or actor, "server")
+    if not effects then s = previous return { ok = false, error = err } end
+    local saved, saveErr = (save or function() return true end)(s)
+    if not saved then s, failed = previous, true return { ok = false, error = tostring(saveErr) } end
+    return { ok = err == nil, error = err or false, rev = s.planner.rev, effects = effects, state = A.copy(s.planner) }
+  end
+  return { epoch=epoch,state = function() return A.copy(s) end, plan = plan, handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
       or not integer(m.counter, 1, 2147483647) then return nil end
     local key = cfg.controllers and cfg.controllers[tostring(id)]
-    if not word(key, 128) or #key < 16 or m.secret ~= key then return nil end
+    local paired = word(key, 128) and #key >= 16 and m.secret == key
+    -- A fresh turtle has no pairing secret. The copy code is the credential for plan-claim.
+    if not paired and not (m.op == "plan-claim" and m.secret == nil) then return nil end
     local client = s.clients[id] or { counter = 0, cache = {} }
     local request = canonical(m)
     local cached = client.cache[m.rid]
@@ -244,7 +267,7 @@ function M.new(s, cfg, clock, epoch, save)
     client = s.clients[id] or { counter = 0, cache = {}, order = {} }
     local result = run(id, m)
     result.v, result.type, result.rid, result.server = 1, "ssot_reply", m.rid, os.getComputerID()
-    result.auth = key
+    result.auth = paired and key or false
     if m.op=="snapshot" and #textutils.serialize(result,{compact=true})>pageBytes then s=previous return nil end
     client.counter = m.counter
     client.order = client.order or {}
@@ -304,7 +327,7 @@ function M.open(cfg)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
     end
-    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
+    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and Planner.valid(s.planner)
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }
