@@ -1,4 +1,7 @@
-# Miner offline autonomy
+# Miner offline autonomy (PENDING APPROVAL)
+
+> PENDING APPROVAL. Jeffrey decides on this plan. Nothing here gets built
+> until he accepts it. These are notes.
 
 Part of the fleet PR. Miners on a normal wireless modem sometimes leave the
 range of the hub and the server. The server stays the source of truth whenever

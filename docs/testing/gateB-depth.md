@@ -63,7 +63,7 @@ where it involves the world, in gate B.
 
 - Attacker: replayed request, captured secret, faked sender id, a fake server
   answering `rednet.lookup`/`rednet.host`, a huge counter.
-- Disk: the real limits. Run once with a 1,000,000-byte server disk and
+- Disk (PENDING APPROVAL with H4): the real limits. Run once with a 1,000,000-byte server disk and
   realistic content (map chunks, journals, fleet records), and once with the
   limit read from `fs.getCapacity` on a larger disk. A failed save recovers.
   At the real 1 MB limit, lose cold-storage peers mid-run: data re-replicates,

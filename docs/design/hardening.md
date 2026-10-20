@@ -7,7 +7,8 @@ for it live in [the wh2 contract](wh2-contract.md).
 
 ## Merge order
 
-PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft.
+PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft. H4 is on hold
+pending approval, so H5 stacks on H1+H2 for now.
 
 Fleet and wizard develop alongside this track, then rebase onto it and use its
 auth and request queue. Layout and craft start after H3 and H4 are merged.
@@ -30,7 +31,11 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
   good version for rollback. No unauthenticated `rednet.lookup` fallback.
 - Extras: version and capability handshake between client and server.
 
-## H4: disk budget
+## H4: disk budget (PENDING APPROVAL)
+
+> PENDING APPROVAL. Jeffrey decides on the H4 plan (1 MB mode, peer cold
+> storage, storage policy). Nothing in this section gets built until he
+> accepts it. These are notes.
 
 The server never hardcodes its disk size. Live is 4,000,000 bytes today, with
 16,000,000 staged for the next restart.
