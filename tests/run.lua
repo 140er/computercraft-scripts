@@ -505,6 +505,7 @@ dofile("tests/t2-planner.lua")
 dofile("tests/b2-checks.lua")(test, equal)
 dofile("tests/h4d-unit.lua")
 dofile("tests/plug-checks.lua")(test, equal)
+dofile("tests/fleet-boot-checks.lua")(test, read, mocks)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

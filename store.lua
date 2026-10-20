@@ -6,8 +6,8 @@ local function unwrap(raw)
   return raw
 end
 local cfg=unwrap(A.read("warehouse.cfg")) or {enabled=false}
-local fleetBootstrap=unwrap(A.read("wh2.cfg")) or {enabled=false}
-local fleetEnabled=fleetBootstrap.enabled==true
+local fleetBootstrap=unwrap(A.read("wh2.cfg"))
+local fleetEnabled=type(fleetBootstrap)=="table" and fleetBootstrap.enabled==true
 if fleetEnabled then
   cfg.server,cfg.dimension=fleetBootstrap.server,fleetBootstrap.dimension
 end
@@ -90,6 +90,31 @@ elseif args[1]=="charger" then
   assert(type(args[2])=="string" and #args[2]>0 and #args[2]<=64,"charger site required")
   local target=tonumber(args[3]) or 2000 assert(target%1==0 and target>=1 and target<=100000,"invalid fuel target")
   cfg.charger=args[2] cfg.targetFuel=target save() return
+end
+if (fleetBootstrap==nil or (type(fleetBootstrap)=="table" and fleetBootstrap.enabled==nil)) and fs.exists("fleet-boot.lua") then
+  local plug = plugmod()
+  local ok, boot = pcall(dofile, "fleet-boot.lua")
+  if ok and type(boot)=="table" and type(boot.client)=="function" then
+    local filledOk, filled = pcall(boot.client, {
+      read=function() return unwrap(A.read("wh2.cfg")) end,
+      plug=plug,
+      ask=plug and function(spec) return plug.ask(plug.termio(), spec) end or nil,
+    })
+    if filledOk and type(filled)=="table" and filled.enabled==true then
+      fleetBootstrap, fleetEnabled = filled, true
+      cfg.server, cfg.dimension = filled.server, filled.dimension
+      if type(cfg.secret)~="string" then cfg.secret = filled.secret end
+    end
+  end
+end
+if type(fleetBootstrap)~="table" then fleetBootstrap={enabled=false} end
+if fleetEnabled and not cfg.pose then
+  local plug = plugmod()
+  local fix = plug and plug.gps({ peripheral = peripheral, rednet = rednet, gps = gps })
+  if fix and type(cfg.dimension)=="string" then
+    cfg.pose = { dim = cfg.dimension, x = fix.x, y = fix.y, z = fix.z, h = 0 }
+    save()
+  end
 end
 if not fleetEnabled then
   local plug = plugmod()
@@ -174,7 +199,7 @@ local function work()
     local r=request("wh-order",{key=args[2],drop=args[3],lines=lines}) print(textutils.serialize(r.job)) return
   end
   assert(turtle and cfg.pose and cfg.bounds,"a calibrated turtle and navigation bounds are required")
-  nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic==true,
+  nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic~=false,
     gpsFree=cfg.gpsFree==nil or cfg.gpsFree==true,
     beforeAction=fleet and boundary or nil,actionReady=fleet and function() return fleet.ready(),"Fresh fleet settings required" end or nil,
     observe=function()

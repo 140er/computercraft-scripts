@@ -251,11 +251,11 @@ return {
     ["lib/stubs/b1_h4c.lua"]="f5630bf0",
     ["lib/stubs/b1_h5.lua"]="675558a1",
     ["lib/stubs/b1_n1.lua"]="d6cc2691",
-    ["lib/stubs/b1_w1.lua"]="924a9eae",
+    ["lib/stubs/b1_w1.lua"]="241a1243",
     ["lib/stubs/h4d_dep.lua"]="d97600b8",
     ["lumber.lua"]="4eee182d",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="abd190eb",
+    ["miner.lua"]="b2c8b690",
     ["mining.lua"]="ddb8ce8b",
     ["nav.lua"]="6c824656",
     ["panel.lua"]="9d4d1c4d",
@@ -287,7 +287,7 @@ return {
     ["storage-peer.lua"]="c7dd4487",
     ["storage-view.lua"]="2cf48c17",
     ["store-role.lua"]="4fdbeb07",
-    ["store.lua"]="21a6b7bf",
+    ["store.lua"]="53760e7c",
     ["strata.lua"]="9cc1206b",
     ["update.lua"]="e300dcd0",
     ["view-role.lua"]="72a23f2b",
@@ -301,8 +301,8 @@ return {
     ["wh2-client.lua"]="b3db8469",
     ["wh2-dev.lua"]="83198de6",
     ["wh2-dispatch.lua"]="84cab815",
-    ["wh2-fleet.lua"]="1c63b2cd",
-    ["wh2-program.lua"]="f42f186f",
+    ["wh2-fleet.lua"]="14c22e85",
+    ["wh2-program.lua"]="9fe3b88e",
     ["wh2-recipes.lua"]="88ecd1ff",
     ["wh2-wizard-adapter.lua"]="695233e7",
     ["wh2-wizard-host.lua"]="df31a674",
@@ -1485,5 +1485,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="95c12234"
+  ["version"]="ad2ed060"
 }

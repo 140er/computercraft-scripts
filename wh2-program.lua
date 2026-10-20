@@ -11,7 +11,22 @@ function M.run(path,...)
   local command=...
   if (path=="roomsorter.lua" or path=="sorter.lua") and command=="ssot" then return false end
   local Atomic=dofile("atomic.lua")
-  local bootstrap=Atomic.read("wh2.cfg") or {}
+  local bootstrap=Atomic.read("wh2.cfg")
+  if bootstrap==nil or (type(bootstrap)=="table" and bootstrap.enabled==nil and bootstrap.value==nil) then
+    if fs and fs.exists and fs.exists("fleet-boot.lua") then
+      local ok, boot = pcall(dofile, "fleet-boot.lua")
+      if ok and type(boot)=="table" and type(boot.client)=="function" then
+        local plugOk, plug = pcall(dofile, "plug.lua")
+        local filledOk, filled = pcall(boot.client, {
+          read=function() return Atomic.read("wh2.cfg") end,
+          plug=plugOk and type(plug)=="table" and plug or nil,
+          ask=plugOk and type(plug)=="table" and function(spec) return plug.ask(plug.termio(), spec) end or nil,
+        })
+        if filledOk and type(filled)=="table" then bootstrap=filled end
+      end
+    end
+  end
+  bootstrap=bootstrap or {}
   if bootstrap.enabled~=true then return false end
   if type(bootstrap.server)~="number" or type(bootstrap.dimension)~="string" then
     print("Fleet unavailable. Configure wh2.cfg. Standalone mode.") return false

@@ -31,9 +31,12 @@ In `ssot.cfg`:
 
 On a miner, in `miner.cfg`:
 
-- `wh2` turns on fleet control. Without paired SSOT, navigation, and a mining home, the miner prints that and keeps its own route.
+- `wh2` turns on fleet control. `fleet-boot.lua` fills paired SSOT, navigation, bounds, and a mining home when one server answers and `install.cfg` has a pairing key. Without those, the miner prints once and keeps its own route. `ssot.enabled` false, `nav.enabled` false, or `wh2.enabled` false stays off.
 - `nav.gpsFree` stops that turtle calling GPS for moves.
-- `leaseV2` and `offlineAutonomy` together wrap mining in the lease. The server flag has to be on as well. Set either one to `false` to leave the wrap off.
+- `nav.traffic` is on when the key is missing. `false` stays off. The navigation open still requires that stored true.
+- `leaseV2` and `offlineAutonomy` together wrap mining in the lease. The server flag has to be on as well. Set either one to `false` to leave the wrap off. A lease issued with no settings override takes the local path, because `lib/stubs/b1_w1.lua` now defaults `offlineAutonomy` on. An override of false still refuses that path.
+
+Fleet behaviour defaults on. These registry keys are true when nobody stored a value. `enabled`, `navigation`, `mining`, `warehouse`, `sorting`, `smelting`, `crafting`, `forestry`, `farming`, `building`, `lavaCollection`, `following`, `autoCharge`, `autoDropoff`, `traffic`, `offlineAutonomy`, `avoidFluids`, `containFluids`, `fallingRetry`, `blockedRetry`, `rerouteBlocked`, `reanchor`, `stuckBackoff`, and `unbreakableDetour`. `compactInventory`, `filteredTrash`, and `stuckSkip` stay false. A stored false on the global row, a role, or one computer stays false.
 
 On a store turtle, `gpsFree` in its config does the same for warehouse navigation. `gpsFree = false` keeps the GPS calibrate path.
 
@@ -88,7 +91,7 @@ These stubs stay because the real module does not have the same functions.
 
 # Checks
 
-`lua5.2 tests/run.lua` printed `388 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
+`lua5.2 tests/run.lua` printed `396 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
 
 The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime.lua` line 388, 10000 cells.
 
@@ -102,11 +105,11 @@ Gate B is not required for this branch. `tests/ingame/run.ps1` on alpha includes
 
 A fleet secret comes from `install.cfg` `pairingKey`, or from the enrol copy code the server already prints. The client derives the key. The server copies a paired key into an empty `ssot.cfg` controller slot. A slot that already has a secret stays. Keys stay off the screen. A missing `ssot.cfg` stays missing.
 
-- Miner. GPS supplies home. The turtle turns until a chest, barrel, or shulker is behind it, to its right, or to its left. When `ssot.enabled` is already true, `rednet.lookup` supplies the fleet server id, and the pairing key or an enrol code supplies the secret. Asked once when GPS is absent, for coordinates and facing. Asked once when SSOT is on and the dimension is missing. The tunnel direction stays unset. `ssot.enabled` stays as it was.
-- Store and warehouse. Lookup supplies the server id. The pairing key or an enrol code supplies the secret. GPS supplies the pose with heading 0. Asked once when lookup finds several servers or none, when no pairing key is saved, when the dimension is missing, and when `store pose` has no GPS fix. Bounds stay on `store bounds`. A fleet bootstrap that already set the server skips this fill.
+- Miner. GPS supplies home. The turtle turns until a chest, barrel, or shulker is behind it, to its right, or to its left. When `ssot.enabled` is already true, `rednet.lookup` supplies the fleet server id, and the pairing key or an enrol code supplies the secret. Asked once when GPS is absent, for coordinates and facing. Asked once when SSOT is on and the dimension is missing. The tunnel direction stays unset. `ssot.enabled` stays as it was. When `fleet-boot.lua` is on the disk and those flags are not false, one server answer and a pairing key also set `ssot.enabled`, `nav.enabled`, bounds around home by the registry reach, and `mining.home`. `nav.traffic` becomes true only when it was missing. One question per boot, the first missing fact. A cancelled answer is kept, and the next boot asks the next fact. No pairing key means no question.
+- Store and warehouse. Lookup supplies the server id. The pairing key or an enrol code supplies the secret. GPS supplies the pose with heading 0. Asked once when lookup finds several servers or none, when no pairing key is saved, when the dimension is missing, and when `store pose` has no GPS fix. Bounds stay on `store bounds`. A fleet bootstrap that already set the server skips this fill. A missing `wh2.cfg`, or one with no `enabled` value, is filled when `fleet-boot.lua` is on the disk. The file is written with `enabled` true, the server, the dimension, and the secret. `enabled` false stays off. Warehouse traffic is on unless `warehouse.cfg` sets `traffic` to false.
 - Factory. GPS supplies the position. Front stays the pickup side and bottom stays the parts side when those sides are inventories. Asked once for coordinates when GPS fails, and for a side when that side is not an inventory.
 - Farmer. The turtle turns until a chest is next to it. Asked once for the row count, the row width, and left or right. `farmer drop` with no numbers asks once for forward, right, and up.
-- Lumber. The turtle turns until a chest is behind it, saves radius 48, and writes `startup.lua`. Nothing is asked. `lumber setup` still changes the radius.
+- Lumber. The turtle turns until a chest is behind it, saves radius 48, and writes `startup.lua`. Nothing is asked. `lumber setup` still changes the radius. A missing `wh2.cfg` is filled the same way as the store when `fleet-boot.lua` is on the disk and a pairing key is saved. Forestry defaults on, so that lumber turtle does not sit on fleet behavior disabled.
 - Lava. The turtle turns until a chest is behind it. GPS supplies home and facing. Asked once when GPS fails, for coordinates and facing. Drop chests stay on `lava add`. The lava pool stays on `lava pool`.
 - Builder. GPS supplies home. Asked once for facing, and for coordinates when GPS fails. Cancelling the coordinate prompt keeps the local frame at 0, 0, 0.
 - Buddy. Asked once for its own model address, or for an xAI key. The key is hidden while it is typed and is Buddy's own key. The program prints `Key saved in api.key.`

@@ -628,6 +628,15 @@ elseif args[1]=="nav" and args[2]=="survey" then
   C.navSurvey={dim=cfg.ssot.dimension,x=tonumber(args[3]),y=tonumber(args[4]),z=tonumber(args[5])}
   assert(dofile("ssot.lua").pose(C.navSurvey),"integer survey coordinates required")
 elseif args[1]=="nav" then error("Use miner nav bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> or miner nav calibrate <heading>",0) end
+if fs.exists("fleet-boot.lua") then
+  local loaded, boot = pcall(dofile, "fleet-boot.lua")
+  if loaded and type(boot)=="table" and type(boot.miner)=="function" then
+    local plug = plugmod()
+    pcall(boot.miner, cfg, plug, function(spec)
+      return plug and plug.ask(plug.termio(), spec)
+    end, function(nextCfg) saveTable(CFG_FILE, nextCfg) end)
+  end
+end
 local HOME = cfg.home
 -- The way its chest is (behind, left or right of the home spot; older setups: behind)
 cfg.chest = cfg.chest or OPP[cfg.facing]
