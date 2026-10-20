@@ -127,7 +127,7 @@ try {
         $probe=$probeResult.Value
         if (!$probe.ok) { throw 'Connected-client orbit measurement failed.' }
     } else {
-    $camera = if ($arView) {
+    $camera = if ($View -eq 'p0') { @('gamemode creative SSOTProof','tp SSOTProof 2 -59 8 180 0','time set day','weather clear') } elseif ($arView) {
         @('gamemode creative SSOTProof',
           'item replace entity SSOTProof armor.head with cc_ar:ar_goggles[cc_ar:ar_goggles_data={x:1.0d,y:66.0d,z:0.0d,turtleId:-1,version:0L,label:"PR 6"}]',
           'tp SSOTProof 6 70 6 180 35','time set day','weather clear')
@@ -404,6 +404,10 @@ public static class SSOTCapture {
         Start-Sleep -Seconds 5
         Capture-ClientScreenshot 'ar-geometry.png'
     }
+    }
+    if ($View -eq 'p0') {
+        . "$PSScriptRoot\..\bench\client-capture.ps1"
+        return
     }
     if($View -eq 'warehouse') {
         $encoder=$env:SSOT_FFMPEG

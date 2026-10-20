@@ -1,0 +1,5259 @@
+{
+  "complete": false,
+  "missing": [
+    "0/detector-anchor",
+    "0/detector-yaw-west-down",
+    "0/detector-yaw-east-up",
+    "0/detector-negative-fraction",
+    "0/detector-range-1024",
+    "0/detector-crossdim",
+    "0/ar-wall",
+    "0/ar-open",
+    "6/fuel-video"
+  ],
+  "crypto": {
+    "blake3-keyed-1024": {
+      "bytes": 1024,
+      "milliseconds": [
+        7,
+        1,
+        1,
+        1,
+        1
+      ],
+      "medianMs": 1,
+      "maxSliceMs": 7,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "blake3-keyed-8192": {
+      "bytes": 8192,
+      "milliseconds": [
+        53,
+        6,
+        7,
+        6,
+        6
+      ],
+      "medianMs": 6,
+      "maxSliceMs": 53,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "blake3-keyed-37888": {
+      "bytes": 37888,
+      "milliseconds": [
+        122,
+        26,
+        27,
+        28,
+        24
+      ],
+      "medianMs": 27,
+      "maxSliceMs": 122,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "sha256-section-963": {
+      "bytes": 963,
+      "milliseconds": [
+        16,
+        2,
+        2,
+        2,
+        2
+      ],
+      "medianMs": 2,
+      "maxSliceMs": 16,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "sha256-section-12288": {
+      "bytes": 12288,
+      "milliseconds": [
+        83,
+        24,
+        31,
+        26,
+        21
+      ],
+      "medianMs": 26,
+      "maxSliceMs": 83,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "sha256-section-37888": {
+      "bytes": 37888,
+      "milliseconds": [
+        99,
+        80,
+        77,
+        77,
+        69
+      ],
+      "medianMs": 77,
+      "maxSliceMs": 99,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "x25519-keygen": {
+      "bytes": 32,
+      "milliseconds": [
+        8,
+        6,
+        5,
+        5,
+        5
+      ],
+      "medianMs": 5,
+      "maxSliceMs": 8,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "x25519-exchange": {
+      "bytes": 64,
+      "milliseconds": [
+        27,
+        22,
+        19,
+        34,
+        24
+      ],
+      "medianMs": 24,
+      "maxSliceMs": 34,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "ed25519-sign": {
+      "bytes": 0,
+      "milliseconds": [
+        9,
+        10,
+        10,
+        6,
+        9
+      ],
+      "medianMs": 9,
+      "maxSliceMs": 10,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "ed25519-verify": {
+      "bytes": 0,
+      "milliseconds": [
+        39,
+        25,
+        42,
+        40,
+        34
+      ],
+      "medianMs": 39,
+      "maxSliceMs": 42,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "ed25519-reject": {
+      "bytes": 1,
+      "milliseconds": [
+        42,
+        34,
+        27,
+        24,
+        24
+      ],
+      "medianMs": 27,
+      "maxSliceMs": 42,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "ed25519-sign-8192": {
+      "bytes": 8192,
+      "milliseconds": [
+        43,
+        39,
+        52,
+        39,
+        39
+      ],
+      "medianMs": 39,
+      "maxSliceMs": 52,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    },
+    "ed25519-verify-8192": {
+      "bytes": 8192,
+      "milliseconds": [
+        62,
+        58,
+        67,
+        64,
+        56
+      ],
+      "medianMs": 62,
+      "maxSliceMs": 67,
+      "yields": 0,
+      "passed": 5,
+      "samples": 5
+    }
+  },
+  "cryptoRejections": 5,
+  "astar": {
+    "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+    "physicalMoves": 0,
+    "ok": true,
+    "samples": [
+      {
+        "ok": true,
+        "elapsedMs": 3101,
+        "batch": 32,
+        "longestSliceMs": 3,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 1,
+        "yields": 62,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 3099,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 2,
+        "yields": 62,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 3099,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 3,
+        "yields": 62,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 3100,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 4,
+        "yields": 62,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 3100,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 62,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 6352,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 1,
+        "yields": 127,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 6351,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 2,
+        "yields": 127,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 6351,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 3,
+        "yields": 127,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 6400,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 4,
+        "yields": 127,
+        "error": false
+      },
+      {
+        "ok": true,
+        "elapsedMs": 6350,
+        "batch": 32,
+        "longestSliceMs": 11,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 127,
+        "error": false
+      }
+    ],
+    "gpsCalls": 0,
+    "v": 1
+  },
+  "randomness": {
+    "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+    "sources": [
+      {
+        "ok": true,
+        "longestSliceMs": 4,
+        "name": "uninitialized",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "rejected": true
+        },
+        "elapsedMs": 4,
+        "yields": 0
+      },
+      {
+        "ok": true,
+        "longestSliceMs": 1,
+        "name": "supplied-seed",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "caller supplied; fixture has no secret entropy",
+          "generatedBytes": 32
+        },
+        "elapsedMs": 2,
+        "yields": 0
+      },
+      {
+        "ok": true,
+        "longestSliceMs": 573,
+        "name": "vm-timing",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "VM instruction timing; upstream warns this is riskier",
+          "generatedBytes": 32
+        },
+        "elapsedMs": 573,
+        "yields": 0
+      },
+      {
+        "ok": false,
+        "longestSliceMs": 52,
+        "name": "krist-http",
+        "error": "/randomness.lua:35: Domain not permitted",
+        "belowTimeout": true,
+        "value": false,
+        "elapsedMs": 57,
+        "yields": 1
+      },
+      {
+        "ok": true,
+        "longestSliceMs": 15,
+        "name": "crypto-peripheral",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "Classic Peripherals randomBytes",
+          "attached": 1,
+          "generatedBytes": 32
+        },
+        "elapsedMs": 15,
+        "yields": 0
+      }
+    ],
+    "ok": true,
+    "v": 1
+  },
+  "storage": {
+    "0": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 0,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "computer",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "1": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 1,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "2": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 2,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "3": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 3,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "4": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 4,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "5": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 5,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    },
+    "6": {
+      "ok": true,
+      "capacity": 1000000,
+      "v": 1,
+      "freeBefore": 802070,
+      "computer": 6,
+      "directoryCost": 500,
+      "files": [
+        {
+          "bytes": 0,
+          "allocated": 500,
+          "readSize": 0
+        },
+        {
+          "bytes": 1,
+          "allocated": 500,
+          "readSize": 1
+        },
+        {
+          "bytes": 499,
+          "allocated": 500,
+          "readSize": 499
+        },
+        {
+          "bytes": 500,
+          "allocated": 500,
+          "readSize": 500
+        },
+        {
+          "bytes": 501,
+          "allocated": 501,
+          "readSize": 501
+        },
+        {
+          "bytes": 1000,
+          "allocated": 1000,
+          "readSize": 1000
+        }
+      ],
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+      "freeAfter": 798069
+    }
+  },
+  "records": {
+    "0": {
+      "ar-preflight": {
+        "ok": true,
+        "id": "ar-preflight",
+        "elapsedMs": 7,
+        "at": 1792516002586,
+        "longestSliceMs": 6,
+        "error": false,
+        "value": {
+          "controller": "front",
+          "lines": 2,
+          "texts": 2
+        },
+        "computer": 0,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "astar-2048": {
+        "ok": true,
+        "elapsedMs": 3100,
+        "batch": 32,
+        "longestSliceMs": 2,
+        "value": {
+          "pathMoves": false,
+          "reason": "search budget"
+        },
+        "maxNodes": 2048,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 62,
+        "error": false
+      },
+      "astar-4096": {
+        "ok": true,
+        "elapsedMs": 6350,
+        "batch": 32,
+        "longestSliceMs": 11,
+        "value": {
+          "pathMoves": 126,
+          "reason": false
+        },
+        "maxNodes": 4096,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 127,
+        "error": false
+      },
+      "astar": {
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "physicalMoves": 0,
+        "ok": true,
+        "samples": [
+          {
+            "ok": true,
+            "elapsedMs": 3101,
+            "batch": 32,
+            "longestSliceMs": 3,
+            "value": {
+              "pathMoves": false,
+              "reason": "search budget"
+            },
+            "maxNodes": 2048,
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 62,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 3099,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": false,
+              "reason": "search budget"
+            },
+            "maxNodes": 2048,
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 62,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 3099,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": false,
+              "reason": "search budget"
+            },
+            "maxNodes": 2048,
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 62,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 3100,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": false,
+              "reason": "search budget"
+            },
+            "maxNodes": 2048,
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 62,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 3100,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": false,
+              "reason": "search budget"
+            },
+            "maxNodes": 2048,
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 62,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6352,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": 126,
+              "reason": false
+            },
+            "maxNodes": 4096,
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 127,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6351,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": 126,
+              "reason": false
+            },
+            "maxNodes": 4096,
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 127,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6351,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": 126,
+              "reason": false
+            },
+            "maxNodes": 4096,
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 127,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6400,
+            "batch": 32,
+            "longestSliceMs": 2,
+            "value": {
+              "pathMoves": 126,
+              "reason": false
+            },
+            "maxNodes": 4096,
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 127,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6350,
+            "batch": 32,
+            "longestSliceMs": 11,
+            "value": {
+              "pathMoves": 126,
+              "reason": false
+            },
+            "maxNodes": 4096,
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 127,
+            "error": false
+          }
+        ],
+        "gpsCalls": 0,
+        "v": 1
+      },
+      "blake3-keyed-1024": {
+        "ok": true,
+        "elapsedMs": 1,
+        "bytes": 1024,
+        "longestSliceMs": 1,
+        "name": "blake3-keyed-1024",
+        "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "blake3-keyed-37888": {
+        "ok": true,
+        "elapsedMs": 24,
+        "bytes": 37888,
+        "longestSliceMs": 24,
+        "name": "blake3-keyed-37888",
+        "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "blake3-keyed-8192": {
+        "ok": true,
+        "elapsedMs": 6,
+        "bytes": 8192,
+        "longestSliceMs": 6,
+        "name": "blake3-keyed-8192",
+        "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "boot": {
+        "ok": true,
+        "boots": 6,
+        "id": 0,
+        "at": 1792514632280
+      },
+      "clock-frozen-1000": {
+        "ok": true,
+        "id": "clock-frozen-1000",
+        "elapsedMs": 499,
+        "at": 1792513884128,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "samples": [
+            {
+              "time": 7,
+              "ingame": 111600000,
+              "utc": 1792513883629,
+              "day": 1
+            },
+            {
+              "time": 7,
+              "ingame": 111600000,
+              "utc": 1792513883728,
+              "day": 1
+            },
+            {
+              "time": 7,
+              "ingame": 111600000,
+              "utc": 1792513883829,
+              "day": 1
+            },
+            {
+              "time": 7,
+              "ingame": 111600000,
+              "utc": 1792513883928,
+              "day": 1
+            },
+            {
+              "time": 7,
+              "ingame": 111600000,
+              "utc": 1792513884029,
+              "day": 1
+            }
+          ]
+        },
+        "computer": 0,
+        "yields": 5,
+        "belowTimeout": true
+      },
+      "clock-jump-6000": {
+        "ok": true,
+        "id": "clock-jump-6000",
+        "elapsedMs": 500,
+        "at": 1792513889078,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "samples": [
+            {
+              "time": 12,
+              "ingame": 129600000,
+              "utc": 1792513888579,
+              "day": 1
+            },
+            {
+              "time": 12,
+              "ingame": 129600000,
+              "utc": 1792513888678,
+              "day": 1
+            },
+            {
+              "time": 12,
+              "ingame": 129600000,
+              "utc": 1792513888778,
+              "day": 1
+            },
+            {
+              "time": 12,
+              "ingame": 129600000,
+              "utc": 1792513888878,
+              "day": 1
+            },
+            {
+              "time": 12,
+              "ingame": 129600000,
+              "utc": 1792513888978,
+              "day": 1
+            }
+          ]
+        },
+        "computer": 0,
+        "yields": 5,
+        "belowTimeout": true
+      },
+      "clock-running-500": {
+        "ok": true,
+        "id": "clock-running-500",
+        "elapsedMs": 500,
+        "at": 1792513895829,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "samples": [
+            {
+              "time": 6.533,
+              "ingame": 109918800,
+              "utc": 1792513895329,
+              "day": 1
+            },
+            {
+              "time": 6.535,
+              "ingame": 109926000,
+              "utc": 1792513895429,
+              "day": 1
+            },
+            {
+              "time": 6.537,
+              "ingame": 109933200,
+              "utc": 1792513895529,
+              "day": 1
+            },
+            {
+              "time": 6.539,
+              "ingame": 109940400,
+              "utc": 1792513895629,
+              "day": 1
+            },
+            {
+              "time": 6.541,
+              "ingame": 109947600,
+              "utc": 1792513895728,
+              "day": 1
+            }
+          ]
+        },
+        "computer": 0,
+        "yields": 5,
+        "belowTimeout": true
+      },
+      "crypto-error": {
+        "ok": false,
+        "error": "/crypto.lua:2: attempt to index global 'package' (a nil value)"
+      },
+      "crypto-final": {
+        "ok": true,
+        "id": "crypto-final",
+        "elapsedMs": 14949,
+        "at": 1792514360128,
+        "longestSliceMs": 122,
+        "error": false,
+        "value": {
+          "ok": true,
+          "softwareOnly": true,
+          "samples": [
+            {
+              "ok": true,
+              "elapsedMs": 7,
+              "bytes": 1024,
+              "longestSliceMs": 7,
+              "name": "blake3-keyed-1024",
+              "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 53,
+              "bytes": 8192,
+              "longestSliceMs": 53,
+              "name": "blake3-keyed-8192",
+              "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 122,
+              "bytes": 37888,
+              "longestSliceMs": 122,
+              "name": "blake3-keyed-37888",
+              "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 16,
+              "bytes": 963,
+              "longestSliceMs": 16,
+              "name": "sha256-section-963",
+              "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 83,
+              "bytes": 12288,
+              "longestSliceMs": 83,
+              "name": "sha256-section-12288",
+              "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 99,
+              "bytes": 37888,
+              "longestSliceMs": 99,
+              "name": "sha256-section-37888",
+              "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 8,
+              "bytes": 32,
+              "longestSliceMs": 8,
+              "name": "x25519-keygen",
+              "value": "RFC 7748 public key matched",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 27,
+              "bytes": 64,
+              "longestSliceMs": 27,
+              "name": "x25519-exchange",
+              "value": "RFC 7748 exchange matched",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 9,
+              "error": false,
+              "bytes": 0,
+              "longestSliceMs": 9,
+              "name": "ed25519-sign",
+              "ok": true,
+              "value": "e0946852c0298a9be3c08642584ba2448da2483e98cde3881e028ea020e1406a794179cf148efa4206a44206019cd4f7fa32d41605305a76ba84a47ae16e7d0c",
+              "round": 1,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 39,
+              "bytes": 0,
+              "longestSliceMs": 39,
+              "name": "ed25519-verify",
+              "value": true,
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 42,
+              "bytes": 1,
+              "longestSliceMs": 42,
+              "name": "ed25519-reject",
+              "value": "modified message rejected",
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 43,
+              "error": false,
+              "bytes": 8192,
+              "longestSliceMs": 43,
+              "name": "ed25519-sign-8192",
+              "ok": true,
+              "value": "1ce4d1ae9d6fa072ed5a2368ec189b5374b19ddc35708c5e54682feb6902cb3a507b2c43056afbbae7dfb49f0131c5aa81b1437b88d896efbf36180bd0faf604",
+              "round": 1,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 62,
+              "bytes": 8192,
+              "longestSliceMs": 62,
+              "name": "ed25519-verify-8192",
+              "value": true,
+              "belowTimeout": true,
+              "round": 1,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 1,
+              "bytes": 1024,
+              "longestSliceMs": 1,
+              "name": "blake3-keyed-1024",
+              "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 6,
+              "bytes": 8192,
+              "longestSliceMs": 6,
+              "name": "blake3-keyed-8192",
+              "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 26,
+              "bytes": 37888,
+              "longestSliceMs": 26,
+              "name": "blake3-keyed-37888",
+              "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 2,
+              "bytes": 963,
+              "longestSliceMs": 2,
+              "name": "sha256-section-963",
+              "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 24,
+              "bytes": 12288,
+              "longestSliceMs": 24,
+              "name": "sha256-section-12288",
+              "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 80,
+              "bytes": 37888,
+              "longestSliceMs": 80,
+              "name": "sha256-section-37888",
+              "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 6,
+              "bytes": 32,
+              "longestSliceMs": 6,
+              "name": "x25519-keygen",
+              "value": "RFC 7748 public key matched",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 22,
+              "bytes": 64,
+              "longestSliceMs": 22,
+              "name": "x25519-exchange",
+              "value": "RFC 7748 exchange matched",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 10,
+              "error": false,
+              "bytes": 0,
+              "longestSliceMs": 10,
+              "name": "ed25519-sign",
+              "ok": true,
+              "value": "571b51f3fbd5be3a063f7b74dd6d2721f66d9ca98bbf69dd744b1b57ebc79a0a4dce6deeeb3e6efd66afee26a91373608e6c3645c6c79d3eb134e65496793f0f",
+              "round": 2,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 25,
+              "bytes": 0,
+              "longestSliceMs": 25,
+              "name": "ed25519-verify",
+              "value": true,
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 34,
+              "bytes": 1,
+              "longestSliceMs": 34,
+              "name": "ed25519-reject",
+              "value": "modified message rejected",
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 39,
+              "error": false,
+              "bytes": 8192,
+              "longestSliceMs": 39,
+              "name": "ed25519-sign-8192",
+              "ok": true,
+              "value": "c2bcc8148dc5aeb088d8c6d4db0f7f372722055296bcf8fa6aec2be9ffa389c9f80e3d797e31fdcf67403d28bb8a27b279349079c02531f819e9778cfd28e603",
+              "round": 2,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 58,
+              "bytes": 8192,
+              "longestSliceMs": 58,
+              "name": "ed25519-verify-8192",
+              "value": true,
+              "belowTimeout": true,
+              "round": 2,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 1,
+              "bytes": 1024,
+              "longestSliceMs": 1,
+              "name": "blake3-keyed-1024",
+              "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 7,
+              "bytes": 8192,
+              "longestSliceMs": 7,
+              "name": "blake3-keyed-8192",
+              "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 27,
+              "bytes": 37888,
+              "longestSliceMs": 27,
+              "name": "blake3-keyed-37888",
+              "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 2,
+              "bytes": 963,
+              "longestSliceMs": 2,
+              "name": "sha256-section-963",
+              "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 31,
+              "bytes": 12288,
+              "longestSliceMs": 31,
+              "name": "sha256-section-12288",
+              "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 77,
+              "bytes": 37888,
+              "longestSliceMs": 77,
+              "name": "sha256-section-37888",
+              "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 5,
+              "bytes": 32,
+              "longestSliceMs": 5,
+              "name": "x25519-keygen",
+              "value": "RFC 7748 public key matched",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 19,
+              "bytes": 64,
+              "longestSliceMs": 19,
+              "name": "x25519-exchange",
+              "value": "RFC 7748 exchange matched",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 10,
+              "error": false,
+              "bytes": 0,
+              "longestSliceMs": 10,
+              "name": "ed25519-sign",
+              "ok": true,
+              "value": "75279ca428bf92c508484c5dd22cf681d773ca82be93d6a89bb1f2709327de961e96aae5bb36d1f5949445b6956fd9385f786d881410e8c97dcf08c7b5b1d703",
+              "round": 3,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 42,
+              "bytes": 0,
+              "longestSliceMs": 42,
+              "name": "ed25519-verify",
+              "value": true,
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 27,
+              "bytes": 1,
+              "longestSliceMs": 27,
+              "name": "ed25519-reject",
+              "value": "modified message rejected",
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 52,
+              "error": false,
+              "bytes": 8192,
+              "longestSliceMs": 52,
+              "name": "ed25519-sign-8192",
+              "ok": true,
+              "value": "a5170af50c8724db499f2bed4167eb60ed4fa8695ffc775da13cb8151f944a7ceb5dadab0552e41685feeb3b609b1dad2570de98887da1299399de0b68f62106",
+              "round": 3,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 67,
+              "bytes": 8192,
+              "longestSliceMs": 67,
+              "name": "ed25519-verify-8192",
+              "value": true,
+              "belowTimeout": true,
+              "round": 3,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 1,
+              "bytes": 1024,
+              "longestSliceMs": 1,
+              "name": "blake3-keyed-1024",
+              "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 6,
+              "bytes": 8192,
+              "longestSliceMs": 6,
+              "name": "blake3-keyed-8192",
+              "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 28,
+              "bytes": 37888,
+              "longestSliceMs": 28,
+              "name": "blake3-keyed-37888",
+              "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 2,
+              "bytes": 963,
+              "longestSliceMs": 2,
+              "name": "sha256-section-963",
+              "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 26,
+              "bytes": 12288,
+              "longestSliceMs": 26,
+              "name": "sha256-section-12288",
+              "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 77,
+              "bytes": 37888,
+              "longestSliceMs": 77,
+              "name": "sha256-section-37888",
+              "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 5,
+              "bytes": 32,
+              "longestSliceMs": 5,
+              "name": "x25519-keygen",
+              "value": "RFC 7748 public key matched",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 34,
+              "bytes": 64,
+              "longestSliceMs": 34,
+              "name": "x25519-exchange",
+              "value": "RFC 7748 exchange matched",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 6,
+              "error": false,
+              "bytes": 0,
+              "longestSliceMs": 6,
+              "name": "ed25519-sign",
+              "ok": true,
+              "value": "23072e93d3ada80eddc3835eaa6ab7f7901fb28d175127e7a86c7c0fb54517210d6457ffad46a94aaf539d03fb1d2176a1c9429e06c71713c2dd8394f9006307",
+              "round": 4,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 40,
+              "bytes": 0,
+              "longestSliceMs": 40,
+              "name": "ed25519-verify",
+              "value": true,
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 24,
+              "bytes": 1,
+              "longestSliceMs": 24,
+              "name": "ed25519-reject",
+              "value": "modified message rejected",
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 39,
+              "error": false,
+              "bytes": 8192,
+              "longestSliceMs": 39,
+              "name": "ed25519-sign-8192",
+              "ok": true,
+              "value": "9f305e8be0d4cab895b84a03bc8d8bdc81c4e45c43de3c9c976e679efe82bdbbf9e245507eece4912fdae9f42514a38b889e9ccc7572e8fa278f1297a7e5c50f",
+              "round": 4,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 64,
+              "bytes": 8192,
+              "longestSliceMs": 64,
+              "name": "ed25519-verify-8192",
+              "value": true,
+              "belowTimeout": true,
+              "round": 4,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 1,
+              "bytes": 1024,
+              "longestSliceMs": 1,
+              "name": "blake3-keyed-1024",
+              "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 6,
+              "bytes": 8192,
+              "longestSliceMs": 6,
+              "name": "blake3-keyed-8192",
+              "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 24,
+              "bytes": 37888,
+              "longestSliceMs": 24,
+              "name": "blake3-keyed-37888",
+              "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 2,
+              "bytes": 963,
+              "longestSliceMs": 2,
+              "name": "sha256-section-963",
+              "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 21,
+              "bytes": 12288,
+              "longestSliceMs": 21,
+              "name": "sha256-section-12288",
+              "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 69,
+              "bytes": 37888,
+              "longestSliceMs": 69,
+              "name": "sha256-section-37888",
+              "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 5,
+              "bytes": 32,
+              "longestSliceMs": 5,
+              "name": "x25519-keygen",
+              "value": "RFC 7748 public key matched",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 24,
+              "bytes": 64,
+              "longestSliceMs": 24,
+              "name": "x25519-exchange",
+              "value": "RFC 7748 exchange matched",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 9,
+              "error": false,
+              "bytes": 0,
+              "longestSliceMs": 9,
+              "name": "ed25519-sign",
+              "ok": true,
+              "value": "a10303a9e9bb6f81a54df65ef1a9c492b88993bce6dcd0aec48ea029ef80b468ac59c9f496ec155bd1d3b1a40858d63c0861d98f4579fa5e9a7a0b98cb7c8904",
+              "round": 5,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 34,
+              "bytes": 0,
+              "longestSliceMs": 34,
+              "name": "ed25519-verify",
+              "value": true,
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "ok": true,
+              "elapsedMs": 24,
+              "bytes": 1,
+              "longestSliceMs": 24,
+              "name": "ed25519-reject",
+              "value": "modified message rejected",
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            },
+            {
+              "outputChecked": true,
+              "elapsedMs": 39,
+              "error": false,
+              "bytes": 8192,
+              "longestSliceMs": 39,
+              "name": "ed25519-sign-8192",
+              "ok": true,
+              "value": "79a399d450953a12880cf948810b63ae16c06e66920cccff51fcfd83f289787ecd185b45ccdcf5c4f26ee08f9f2a4a5d9b950a0e5ede0fa54c54e98bb00ac500",
+              "round": 5,
+              "yields": 0,
+              "belowTimeout": true
+            },
+            {
+              "ok": true,
+              "elapsedMs": 56,
+              "bytes": 8192,
+              "longestSliceMs": 56,
+              "name": "ed25519-verify-8192",
+              "value": true,
+              "belowTimeout": true,
+              "round": 5,
+              "yields": 0,
+              "error": false
+            }
+          ],
+          "v": 1,
+          "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+          "watchdogMs": 7000,
+          "seed": "public deterministic fixture, no entropy claim",
+          "rejections": 5,
+          "computer": 0,
+          "failed": 0,
+          "successful": 65
+        },
+        "computer": 0,
+        "yields": 276,
+        "belowTimeout": true
+      },
+      "crypto-progress": {
+        "next": "ed25519-verify-8192",
+        "round": 5
+      },
+      "crypto": {
+        "ok": true,
+        "softwareOnly": true,
+        "samples": [
+          {
+            "ok": true,
+            "elapsedMs": 7,
+            "bytes": 1024,
+            "longestSliceMs": 7,
+            "name": "blake3-keyed-1024",
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 53,
+            "bytes": 8192,
+            "longestSliceMs": 53,
+            "name": "blake3-keyed-8192",
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 122,
+            "bytes": 37888,
+            "longestSliceMs": 122,
+            "name": "blake3-keyed-37888",
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 16,
+            "bytes": 963,
+            "longestSliceMs": 16,
+            "name": "sha256-section-963",
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 83,
+            "bytes": 12288,
+            "longestSliceMs": 83,
+            "name": "sha256-section-12288",
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 99,
+            "bytes": 37888,
+            "longestSliceMs": 99,
+            "name": "sha256-section-37888",
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 8,
+            "bytes": 32,
+            "longestSliceMs": 8,
+            "name": "x25519-keygen",
+            "value": "RFC 7748 public key matched",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 27,
+            "bytes": 64,
+            "longestSliceMs": 27,
+            "name": "x25519-exchange",
+            "value": "RFC 7748 exchange matched",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 9,
+            "error": false,
+            "bytes": 0,
+            "longestSliceMs": 9,
+            "name": "ed25519-sign",
+            "ok": true,
+            "value": "e0946852c0298a9be3c08642584ba2448da2483e98cde3881e028ea020e1406a794179cf148efa4206a44206019cd4f7fa32d41605305a76ba84a47ae16e7d0c",
+            "round": 1,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 39,
+            "bytes": 0,
+            "longestSliceMs": 39,
+            "name": "ed25519-verify",
+            "value": true,
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 42,
+            "bytes": 1,
+            "longestSliceMs": 42,
+            "name": "ed25519-reject",
+            "value": "modified message rejected",
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 43,
+            "error": false,
+            "bytes": 8192,
+            "longestSliceMs": 43,
+            "name": "ed25519-sign-8192",
+            "ok": true,
+            "value": "1ce4d1ae9d6fa072ed5a2368ec189b5374b19ddc35708c5e54682feb6902cb3a507b2c43056afbbae7dfb49f0131c5aa81b1437b88d896efbf36180bd0faf604",
+            "round": 1,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 62,
+            "bytes": 8192,
+            "longestSliceMs": 62,
+            "name": "ed25519-verify-8192",
+            "value": true,
+            "belowTimeout": true,
+            "round": 1,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 1,
+            "bytes": 1024,
+            "longestSliceMs": 1,
+            "name": "blake3-keyed-1024",
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6,
+            "bytes": 8192,
+            "longestSliceMs": 6,
+            "name": "blake3-keyed-8192",
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 26,
+            "bytes": 37888,
+            "longestSliceMs": 26,
+            "name": "blake3-keyed-37888",
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 2,
+            "bytes": 963,
+            "longestSliceMs": 2,
+            "name": "sha256-section-963",
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 24,
+            "bytes": 12288,
+            "longestSliceMs": 24,
+            "name": "sha256-section-12288",
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 80,
+            "bytes": 37888,
+            "longestSliceMs": 80,
+            "name": "sha256-section-37888",
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6,
+            "bytes": 32,
+            "longestSliceMs": 6,
+            "name": "x25519-keygen",
+            "value": "RFC 7748 public key matched",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 22,
+            "bytes": 64,
+            "longestSliceMs": 22,
+            "name": "x25519-exchange",
+            "value": "RFC 7748 exchange matched",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 10,
+            "error": false,
+            "bytes": 0,
+            "longestSliceMs": 10,
+            "name": "ed25519-sign",
+            "ok": true,
+            "value": "571b51f3fbd5be3a063f7b74dd6d2721f66d9ca98bbf69dd744b1b57ebc79a0a4dce6deeeb3e6efd66afee26a91373608e6c3645c6c79d3eb134e65496793f0f",
+            "round": 2,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 25,
+            "bytes": 0,
+            "longestSliceMs": 25,
+            "name": "ed25519-verify",
+            "value": true,
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 34,
+            "bytes": 1,
+            "longestSliceMs": 34,
+            "name": "ed25519-reject",
+            "value": "modified message rejected",
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 39,
+            "error": false,
+            "bytes": 8192,
+            "longestSliceMs": 39,
+            "name": "ed25519-sign-8192",
+            "ok": true,
+            "value": "c2bcc8148dc5aeb088d8c6d4db0f7f372722055296bcf8fa6aec2be9ffa389c9f80e3d797e31fdcf67403d28bb8a27b279349079c02531f819e9778cfd28e603",
+            "round": 2,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 58,
+            "bytes": 8192,
+            "longestSliceMs": 58,
+            "name": "ed25519-verify-8192",
+            "value": true,
+            "belowTimeout": true,
+            "round": 2,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 1,
+            "bytes": 1024,
+            "longestSliceMs": 1,
+            "name": "blake3-keyed-1024",
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 7,
+            "bytes": 8192,
+            "longestSliceMs": 7,
+            "name": "blake3-keyed-8192",
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 27,
+            "bytes": 37888,
+            "longestSliceMs": 27,
+            "name": "blake3-keyed-37888",
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 2,
+            "bytes": 963,
+            "longestSliceMs": 2,
+            "name": "sha256-section-963",
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 31,
+            "bytes": 12288,
+            "longestSliceMs": 31,
+            "name": "sha256-section-12288",
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 77,
+            "bytes": 37888,
+            "longestSliceMs": 77,
+            "name": "sha256-section-37888",
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 5,
+            "bytes": 32,
+            "longestSliceMs": 5,
+            "name": "x25519-keygen",
+            "value": "RFC 7748 public key matched",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 19,
+            "bytes": 64,
+            "longestSliceMs": 19,
+            "name": "x25519-exchange",
+            "value": "RFC 7748 exchange matched",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 10,
+            "error": false,
+            "bytes": 0,
+            "longestSliceMs": 10,
+            "name": "ed25519-sign",
+            "ok": true,
+            "value": "75279ca428bf92c508484c5dd22cf681d773ca82be93d6a89bb1f2709327de961e96aae5bb36d1f5949445b6956fd9385f786d881410e8c97dcf08c7b5b1d703",
+            "round": 3,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 42,
+            "bytes": 0,
+            "longestSliceMs": 42,
+            "name": "ed25519-verify",
+            "value": true,
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 27,
+            "bytes": 1,
+            "longestSliceMs": 27,
+            "name": "ed25519-reject",
+            "value": "modified message rejected",
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 52,
+            "error": false,
+            "bytes": 8192,
+            "longestSliceMs": 52,
+            "name": "ed25519-sign-8192",
+            "ok": true,
+            "value": "a5170af50c8724db499f2bed4167eb60ed4fa8695ffc775da13cb8151f944a7ceb5dadab0552e41685feeb3b609b1dad2570de98887da1299399de0b68f62106",
+            "round": 3,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 67,
+            "bytes": 8192,
+            "longestSliceMs": 67,
+            "name": "ed25519-verify-8192",
+            "value": true,
+            "belowTimeout": true,
+            "round": 3,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 1,
+            "bytes": 1024,
+            "longestSliceMs": 1,
+            "name": "blake3-keyed-1024",
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6,
+            "bytes": 8192,
+            "longestSliceMs": 6,
+            "name": "blake3-keyed-8192",
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 28,
+            "bytes": 37888,
+            "longestSliceMs": 28,
+            "name": "blake3-keyed-37888",
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 2,
+            "bytes": 963,
+            "longestSliceMs": 2,
+            "name": "sha256-section-963",
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 26,
+            "bytes": 12288,
+            "longestSliceMs": 26,
+            "name": "sha256-section-12288",
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 77,
+            "bytes": 37888,
+            "longestSliceMs": 77,
+            "name": "sha256-section-37888",
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 5,
+            "bytes": 32,
+            "longestSliceMs": 5,
+            "name": "x25519-keygen",
+            "value": "RFC 7748 public key matched",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 34,
+            "bytes": 64,
+            "longestSliceMs": 34,
+            "name": "x25519-exchange",
+            "value": "RFC 7748 exchange matched",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 6,
+            "error": false,
+            "bytes": 0,
+            "longestSliceMs": 6,
+            "name": "ed25519-sign",
+            "ok": true,
+            "value": "23072e93d3ada80eddc3835eaa6ab7f7901fb28d175127e7a86c7c0fb54517210d6457ffad46a94aaf539d03fb1d2176a1c9429e06c71713c2dd8394f9006307",
+            "round": 4,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 40,
+            "bytes": 0,
+            "longestSliceMs": 40,
+            "name": "ed25519-verify",
+            "value": true,
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 24,
+            "bytes": 1,
+            "longestSliceMs": 24,
+            "name": "ed25519-reject",
+            "value": "modified message rejected",
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 39,
+            "error": false,
+            "bytes": 8192,
+            "longestSliceMs": 39,
+            "name": "ed25519-sign-8192",
+            "ok": true,
+            "value": "9f305e8be0d4cab895b84a03bc8d8bdc81c4e45c43de3c9c976e679efe82bdbbf9e245507eece4912fdae9f42514a38b889e9ccc7572e8fa278f1297a7e5c50f",
+            "round": 4,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 64,
+            "bytes": 8192,
+            "longestSliceMs": 64,
+            "name": "ed25519-verify-8192",
+            "value": true,
+            "belowTimeout": true,
+            "round": 4,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 1,
+            "bytes": 1024,
+            "longestSliceMs": 1,
+            "name": "blake3-keyed-1024",
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 6,
+            "bytes": 8192,
+            "longestSliceMs": 6,
+            "name": "blake3-keyed-8192",
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 24,
+            "bytes": 37888,
+            "longestSliceMs": 24,
+            "name": "blake3-keyed-37888",
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 2,
+            "bytes": 963,
+            "longestSliceMs": 2,
+            "name": "sha256-section-963",
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 21,
+            "bytes": 12288,
+            "longestSliceMs": 21,
+            "name": "sha256-section-12288",
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 69,
+            "bytes": 37888,
+            "longestSliceMs": 69,
+            "name": "sha256-section-37888",
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 5,
+            "bytes": 32,
+            "longestSliceMs": 5,
+            "name": "x25519-keygen",
+            "value": "RFC 7748 public key matched",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 24,
+            "bytes": 64,
+            "longestSliceMs": 24,
+            "name": "x25519-exchange",
+            "value": "RFC 7748 exchange matched",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 9,
+            "error": false,
+            "bytes": 0,
+            "longestSliceMs": 9,
+            "name": "ed25519-sign",
+            "ok": true,
+            "value": "a10303a9e9bb6f81a54df65ef1a9c492b88993bce6dcd0aec48ea029ef80b468ac59c9f496ec155bd1d3b1a40858d63c0861d98f4579fa5e9a7a0b98cb7c8904",
+            "round": 5,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 34,
+            "bytes": 0,
+            "longestSliceMs": 34,
+            "name": "ed25519-verify",
+            "value": true,
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "ok": true,
+            "elapsedMs": 24,
+            "bytes": 1,
+            "longestSliceMs": 24,
+            "name": "ed25519-reject",
+            "value": "modified message rejected",
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          },
+          {
+            "outputChecked": true,
+            "elapsedMs": 39,
+            "error": false,
+            "bytes": 8192,
+            "longestSliceMs": 39,
+            "name": "ed25519-sign-8192",
+            "ok": true,
+            "value": "79a399d450953a12880cf948810b63ae16c06e66920cccff51fcfd83f289787ecd185b45ccdcf5c4f26ee08f9f2a4a5d9b950a0e5ede0fa54c54e98bb00ac500",
+            "round": 5,
+            "yields": 0,
+            "belowTimeout": true
+          },
+          {
+            "ok": true,
+            "elapsedMs": 56,
+            "bytes": 8192,
+            "longestSliceMs": 56,
+            "name": "ed25519-verify-8192",
+            "value": true,
+            "belowTimeout": true,
+            "round": 5,
+            "yields": 0,
+            "error": false
+          }
+        ],
+        "v": 1,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "watchdogMs": 7000,
+        "seed": "public deterministic fixture, no entropy claim",
+        "rejections": 5,
+        "computer": 0,
+        "failed": 0,
+        "successful": 65
+      },
+      "detector-no-player": {
+        "ok": true,
+        "id": "detector-no-player",
+        "elapsedMs": 2052,
+        "at": 1792516006679,
+        "longestSliceMs": 9,
+        "error": false,
+        "value": {
+          "online": {},
+          "samples": [
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {},
+            {}
+          ]
+        },
+        "computer": 0,
+        "yields": 41,
+        "belowTimeout": true
+      },
+      "ed25519-reject": {
+        "ok": true,
+        "elapsedMs": 24,
+        "bytes": 1,
+        "longestSliceMs": 24,
+        "name": "ed25519-reject",
+        "value": "modified message rejected",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "ed25519-sign-8192": {
+        "outputChecked": true,
+        "elapsedMs": 39,
+        "error": false,
+        "bytes": 8192,
+        "longestSliceMs": 39,
+        "name": "ed25519-sign-8192",
+        "ok": true,
+        "value": "79a399d450953a12880cf948810b63ae16c06e66920cccff51fcfd83f289787ecd185b45ccdcf5c4f26ee08f9f2a4a5d9b950a0e5ede0fa54c54e98bb00ac500",
+        "round": 5,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "ed25519-sign": {
+        "outputChecked": true,
+        "elapsedMs": 9,
+        "error": false,
+        "bytes": 0,
+        "longestSliceMs": 9,
+        "name": "ed25519-sign",
+        "ok": true,
+        "value": "a10303a9e9bb6f81a54df65ef1a9c492b88993bce6dcd0aec48ea029ef80b468ac59c9f496ec155bd1d3b1a40858d63c0861d98f4579fa5e9a7a0b98cb7c8904",
+        "round": 5,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "ed25519-verify-8192": {
+        "ok": true,
+        "elapsedMs": 56,
+        "bytes": 8192,
+        "longestSliceMs": 56,
+        "name": "ed25519-verify-8192",
+        "value": true,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "ed25519-verify": {
+        "ok": true,
+        "elapsedMs": 34,
+        "bytes": 0,
+        "longestSliceMs": 34,
+        "name": "ed25519-verify",
+        "value": true,
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "ender-crossdim-send": {
+        "ok": true,
+        "id": "ender-crossdim-send",
+        "elapsedMs": 999,
+        "at": 1792513930828,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "packets": 10,
+          "tag": "ender-crossdim"
+        },
+        "computer": 0,
+        "yields": 10,
+        "belowTimeout": true
+      },
+      "ender-listen": {
+        "ok": true,
+        "id": "ender-listen",
+        "elapsedMs": 1,
+        "at": 1792513921081,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "open": true
+        },
+        "computer": 0,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "ender-send": {
+        "ok": true,
+        "id": "ender-send",
+        "elapsedMs": 999,
+        "at": 1792513899678,
+        "longestSliceMs": 3,
+        "error": false,
+        "value": {
+          "packets": 10,
+          "tag": "ender-512"
+        },
+        "computer": 0,
+        "yields": 10,
+        "belowTimeout": true
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 6,
+        "computer": 0,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "normal-listen": {
+        "ok": true,
+        "id": "normal-listen",
+        "elapsedMs": 1,
+        "at": 1792513906930,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "open": true
+        },
+        "computer": 0,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "normal-send": {
+        "ok": true,
+        "id": "normal-send",
+        "elapsedMs": 999,
+        "at": 1792513911578,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "packets": 10,
+          "tag": "normal-512"
+        },
+        "computer": 0,
+        "yields": 10,
+        "belowTimeout": true
+      },
+      "peripherals": {
+        "ok": true,
+        "id": "peripherals",
+        "elapsedMs": 0,
+        "at": 1792513777579,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "fuel": false,
+          "fuelLimit": false,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "top",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "drawLine3D",
+                "drawItemIcon3D",
+                "drawLine2D",
+                "drawItemIcon2D",
+                "clear",
+                "update",
+                "delete",
+                "getAllElements",
+                "drawRect2D",
+                "setAnchor",
+                "setLabel",
+                "drawText2D",
+                "drawText3D"
+              ],
+              "name": "front",
+              "types": [
+                "ar_controller"
+              ]
+            },
+            {
+              "methods": [
+                "getOnlinePlayers",
+                "getPlayersInCubic",
+                "isPlayersInCubic",
+                "getPlayer",
+                "getName",
+                "getPlayerPos",
+                "getPlayersInRange",
+                "isPlayersInCoords",
+                "isPlayerInCoords",
+                "isPlayerInCubic",
+                "getConfiguration",
+                "isPlayerInRange",
+                "isPlayersInRange",
+                "getPlayersInCoords"
+              ],
+              "name": "right",
+              "types": [
+                "player_detector"
+              ]
+            },
+            {
+              "methods": [
+                "encodeBase64",
+                "sha256",
+                "decryptAes",
+                "generatePrivateKey",
+                "sign",
+                "sha512",
+                "hmacSha1",
+                "hmacSha512",
+                "derivePublicKey",
+                "sha1",
+                "random",
+                "hmacSha256",
+                "deflate",
+                "decodeBase64",
+                "inflate",
+                "deriveEcdhPublicKey",
+                "blake3",
+                "verify",
+                "computeSharedSecret",
+                "hmacMd5",
+                "encryptAes",
+                "randomBytes",
+                "md5"
+              ],
+              "name": "left",
+              "types": [
+                "cryptographic_accelerator"
+              ]
+            }
+          ]
+        },
+        "computer": 0,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "randomness-crypto-peripheral": {
+        "ok": true,
+        "longestSliceMs": 15,
+        "name": "crypto-peripheral",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "Classic Peripherals randomBytes",
+          "attached": 1,
+          "generatedBytes": 32
+        },
+        "elapsedMs": 15,
+        "yields": 0
+      },
+      "randomness-error": {
+        "ok": false,
+        "error": "/randomness.lua:2: attempt to index global 'package' (a nil value)"
+      },
+      "randomness-final": {
+        "ok": true,
+        "id": "randomness-final",
+        "elapsedMs": 1599,
+        "at": 1792514365978,
+        "longestSliceMs": 574,
+        "error": false,
+        "value": {
+          "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+          "sources": [
+            {
+              "ok": true,
+              "longestSliceMs": 4,
+              "name": "uninitialized",
+              "error": false,
+              "belowTimeout": true,
+              "value": {
+                "rejected": true
+              },
+              "elapsedMs": 4,
+              "yields": 0
+            },
+            {
+              "ok": true,
+              "longestSliceMs": 1,
+              "name": "supplied-seed",
+              "error": false,
+              "belowTimeout": true,
+              "value": {
+                "entropy": "caller supplied; fixture has no secret entropy",
+                "generatedBytes": 32
+              },
+              "elapsedMs": 2,
+              "yields": 0
+            },
+            {
+              "ok": true,
+              "longestSliceMs": 573,
+              "name": "vm-timing",
+              "error": false,
+              "belowTimeout": true,
+              "value": {
+                "entropy": "VM instruction timing; upstream warns this is riskier",
+                "generatedBytes": 32
+              },
+              "elapsedMs": 573,
+              "yields": 0
+            },
+            {
+              "ok": false,
+              "longestSliceMs": 52,
+              "name": "krist-http",
+              "error": "/randomness.lua:35: Domain not permitted",
+              "belowTimeout": true,
+              "value": false,
+              "elapsedMs": 57,
+              "yields": 1
+            },
+            {
+              "ok": true,
+              "longestSliceMs": 15,
+              "name": "crypto-peripheral",
+              "error": false,
+              "belowTimeout": true,
+              "value": {
+                "entropy": "Classic Peripherals randomBytes",
+                "attached": 1,
+                "generatedBytes": 32
+              },
+              "elapsedMs": 15,
+              "yields": 0
+            }
+          ],
+          "ok": true,
+          "v": 1
+        },
+        "computer": 0,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "randomness-krist-http": {
+        "ok": false,
+        "longestSliceMs": 52,
+        "name": "krist-http",
+        "error": "/randomness.lua:35: Domain not permitted",
+        "belowTimeout": true,
+        "value": false,
+        "elapsedMs": 57,
+        "yields": 1
+      },
+      "randomness-progress": {
+        "next": "crypto-peripheral"
+      },
+      "randomness-supplied-seed": {
+        "ok": true,
+        "longestSliceMs": 1,
+        "name": "supplied-seed",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "caller supplied; fixture has no secret entropy",
+          "generatedBytes": 32
+        },
+        "elapsedMs": 2,
+        "yields": 0
+      },
+      "randomness-uninitialized": {
+        "ok": true,
+        "longestSliceMs": 4,
+        "name": "uninitialized",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "rejected": true
+        },
+        "elapsedMs": 4,
+        "yields": 0
+      },
+      "randomness-vm-timing": {
+        "ok": true,
+        "longestSliceMs": 573,
+        "name": "vm-timing",
+        "error": false,
+        "belowTimeout": true,
+        "value": {
+          "entropy": "VM instruction timing; upstream warns this is riskier",
+          "generatedBytes": 32
+        },
+        "elapsedMs": 573,
+        "yields": 0
+      },
+      "randomness": {
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "sources": [
+          {
+            "ok": true,
+            "longestSliceMs": 4,
+            "name": "uninitialized",
+            "error": false,
+            "belowTimeout": true,
+            "value": {
+              "rejected": true
+            },
+            "elapsedMs": 4,
+            "yields": 0
+          },
+          {
+            "ok": true,
+            "longestSliceMs": 1,
+            "name": "supplied-seed",
+            "error": false,
+            "belowTimeout": true,
+            "value": {
+              "entropy": "caller supplied; fixture has no secret entropy",
+              "generatedBytes": 32
+            },
+            "elapsedMs": 2,
+            "yields": 0
+          },
+          {
+            "ok": true,
+            "longestSliceMs": 573,
+            "name": "vm-timing",
+            "error": false,
+            "belowTimeout": true,
+            "value": {
+              "entropy": "VM instruction timing; upstream warns this is riskier",
+              "generatedBytes": 32
+            },
+            "elapsedMs": 573,
+            "yields": 0
+          },
+          {
+            "ok": false,
+            "longestSliceMs": 52,
+            "name": "krist-http",
+            "error": "/randomness.lua:35: Domain not permitted",
+            "belowTimeout": true,
+            "value": false,
+            "elapsedMs": 57,
+            "yields": 1
+          },
+          {
+            "ok": true,
+            "longestSliceMs": 15,
+            "name": "crypto-peripheral",
+            "error": false,
+            "belowTimeout": true,
+            "value": {
+              "entropy": "Classic Peripherals randomBytes",
+              "attached": 1,
+              "generatedBytes": 32
+            },
+            "elapsedMs": 15,
+            "yields": 0
+          }
+        ],
+        "ok": true,
+        "v": 1
+      },
+      "sha256-section-12288": {
+        "ok": true,
+        "elapsedMs": 21,
+        "bytes": 12288,
+        "longestSliceMs": 21,
+        "name": "sha256-section-12288",
+        "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "sha256-section-37888": {
+        "ok": true,
+        "elapsedMs": 69,
+        "bytes": 37888,
+        "longestSliceMs": 69,
+        "name": "sha256-section-37888",
+        "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "sha256-section-963": {
+        "ok": true,
+        "elapsedMs": 2,
+        "bytes": 963,
+        "longestSliceMs": 2,
+        "name": "sha256-section-963",
+        "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 0,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "computer",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      },
+      "world-error": {
+        "ok": false,
+        "error": "/world.lua:107: attempt to index local 'command' (a nil value)"
+      },
+      "x25519-exchange": {
+        "ok": true,
+        "elapsedMs": 24,
+        "bytes": 64,
+        "longestSliceMs": 24,
+        "name": "x25519-exchange",
+        "value": "RFC 7748 exchange matched",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      },
+      "x25519-keygen": {
+        "ok": true,
+        "elapsedMs": 5,
+        "bytes": 32,
+        "longestSliceMs": 5,
+        "name": "x25519-keygen",
+        "value": "RFC 7748 public key matched",
+        "belowTimeout": true,
+        "round": 5,
+        "yields": 0,
+        "error": false
+      }
+    },
+    "1": {
+      "analog-output-0": {
+        "ok": true,
+        "id": "analog-output-0",
+        "elapsedMs": 1,
+        "at": 1792513830031,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "side": "right",
+          "output": 0
+        },
+        "computer": 1,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-output-1": {
+        "ok": true,
+        "id": "analog-output-1",
+        "elapsedMs": 1,
+        "at": 1792513855880,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "side": "right",
+          "output": 1
+        },
+        "computer": 1,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-output-15": {
+        "ok": true,
+        "id": "analog-output-15",
+        "elapsedMs": 0,
+        "at": 1792513873031,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "side": "right",
+          "output": 15
+        },
+        "computer": 1,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-output-7": {
+        "ok": true,
+        "id": "analog-output-7",
+        "elapsedMs": 0,
+        "at": 1792513865929,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "side": "right",
+          "output": 7
+        },
+        "computer": 1,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "boot": {
+        "ok": true,
+        "boots": 4,
+        "id": 1,
+        "at": 1792513773358
+      },
+      "fuel-normal": {
+        "ok": true,
+        "id": "fuel-normal",
+        "elapsedMs": 6949,
+        "at": 1792513792028,
+        "longestSliceMs": 7,
+        "error": false,
+        "value": {
+          "beforeWait": 990,
+          "afterWait": 990,
+          "samples": [
+            {
+              "before": 1000,
+              "after": 999,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 999,
+              "after": 998,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 998,
+              "after": 997,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 997,
+              "after": 996,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 996,
+              "after": 995,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 995,
+              "after": 994,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 994,
+              "after": 993,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 993,
+              "after": 992,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 992,
+              "after": 991,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 991,
+              "after": 990,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 1,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 4,
+        "computer": 1,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 1,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      },
+      "turtle-peripherals": {
+        "ok": true,
+        "id": "turtle-peripherals",
+        "elapsedMs": 1,
+        "at": 1792513780830,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "fuel": 1000,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            }
+          ]
+        },
+        "computer": 1,
+        "yields": 0,
+        "belowTimeout": true
+      }
+    },
+    "2": {
+      "analog-input-0": {
+        "ok": true,
+        "id": "analog-input-0",
+        "elapsedMs": 0,
+        "at": 1792513845030,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "input": 0,
+          "side": "left"
+        },
+        "computer": 2,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-input-1": {
+        "ok": true,
+        "id": "analog-input-1",
+        "elapsedMs": 0,
+        "at": 1792513862879,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "input": 1,
+          "side": "left"
+        },
+        "computer": 2,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-input-15": {
+        "ok": true,
+        "id": "analog-input-15",
+        "elapsedMs": 0,
+        "at": 1792513880779,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "input": 15,
+          "side": "left"
+        },
+        "computer": 2,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "analog-input-7": {
+        "ok": true,
+        "id": "analog-input-7",
+        "elapsedMs": 0,
+        "at": 1792513870129,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "input": 7,
+          "side": "left"
+        },
+        "computer": 2,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "boot": {
+        "ok": true,
+        "boots": 4,
+        "id": 2,
+        "at": 1792513773390
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 4,
+        "computer": 2,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 2,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      }
+    },
+    "3": {
+      "boot": {
+        "ok": true,
+        "boots": 10,
+        "id": 3,
+        "at": 1792514683621
+      },
+      "fuel-automata": {
+        "ok": true,
+        "id": "fuel-automata",
+        "elapsedMs": 5749,
+        "at": 1792514380528,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "beforeWait": 990,
+          "afterWait": 990,
+          "samples": [
+            {
+              "before": 1000,
+              "after": 999,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 999,
+              "after": 998,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 998,
+              "after": 997,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 997,
+              "after": 996,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 996,
+              "after": 995,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 995,
+              "after": 994,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 994,
+              "after": 993,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 993,
+              "after": 992,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 992,
+              "after": 991,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 991,
+              "after": 990,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 3,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "fuel-chunk_vial": {
+        "ok": true,
+        "id": "fuel-chunk_vial",
+        "elapsedMs": 5750,
+        "at": 1792514694879,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "beforeWait": 990,
+          "afterWait": 990,
+          "samples": [
+            {
+              "before": 1000,
+              "after": 999,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 999,
+              "after": 998,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 998,
+              "after": 997,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 997,
+              "after": 996,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 996,
+              "after": 995,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 995,
+              "after": 994,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 994,
+              "after": 993,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 993,
+              "after": 992,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 992,
+              "after": 991,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 991,
+              "after": 990,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 3,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "fuel-creative_end_automata": {
+        "ok": true,
+        "id": "fuel-creative_end_automata",
+        "elapsedMs": 5750,
+        "at": 1792514680929,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "beforeWait": 990,
+          "afterWait": 990,
+          "samples": [
+            {
+              "before": 1000,
+              "after": 999,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 999,
+              "after": 998,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 998,
+              "after": 997,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 997,
+              "after": 996,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 996,
+              "after": 995,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 995,
+              "after": 994,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 994,
+              "after": 993,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 993,
+              "after": 992,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 992,
+              "after": 991,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 991,
+              "after": 990,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 3,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "fuel-netherite_end_automata": {
+        "ok": true,
+        "id": "fuel-netherite_end_automata",
+        "elapsedMs": 5750,
+        "at": 1792514645379,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "beforeWait": 990,
+          "afterWait": 990,
+          "samples": [
+            {
+              "before": 1000,
+              "after": 999,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 999,
+              "after": 998,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 998,
+              "after": 997,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 997,
+              "after": 996,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 996,
+              "after": 995,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 995,
+              "after": 994,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 994,
+              "after": 993,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 993,
+              "after": 992,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 992,
+              "after": 991,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 991,
+              "after": 990,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 3,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "fuel-starbound_end_automata": {
+        "ok": true,
+        "id": "fuel-starbound_end_automata",
+        "elapsedMs": 5749,
+        "at": 1792514664928,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "beforeWait": 1029,
+          "afterWait": 1033,
+          "samples": [
+            {
+              "before": 1025,
+              "after": 1024,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1025,
+              "after": 1024,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1024,
+              "after": 1025,
+              "delta": -1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1025,
+              "after": 1024,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1024,
+              "after": 1024,
+              "delta": 0,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1024,
+              "after": 1024,
+              "delta": 0,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1024,
+              "after": 1025,
+              "delta": -1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1025,
+              "after": 1024,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1024,
+              "after": 1027,
+              "delta": -3,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 1028,
+              "after": 1029,
+              "delta": -1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 3,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 10,
+        "computer": 3,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 3,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      },
+      "upgrade-automata": {
+        "ok": true,
+        "id": "upgrade-automata",
+        "elapsedMs": 1,
+        "at": 1792514372929,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "fuel": 1000,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "getFuelConsumptionRate",
+                "swing",
+                "getFuelLevel",
+                "getOperations",
+                "getConfiguration",
+                "use",
+                "setFuelConsumptionRate",
+                "scan",
+                "getMaxFuelLevel",
+                "suck",
+                "getCooldown",
+                "look"
+              ],
+              "name": "left",
+              "types": [
+                "automata"
+              ]
+            }
+          ]
+        },
+        "computer": 3,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "upgrade-chunk_vial": {
+        "ok": true,
+        "id": "upgrade-chunk_vial",
+        "elapsedMs": 1,
+        "at": 1792514687281,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "fuel": 1000,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "getConfiguration"
+              ],
+              "name": "left",
+              "types": [
+                "chunk_vial"
+              ]
+            }
+          ]
+        },
+        "computer": 3,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "upgrade-creative_end_automata": {
+        "ok": true,
+        "id": "upgrade-creative_end_automata",
+        "elapsedMs": 1,
+        "at": 1792514672929,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "fuel": 1000,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "getFuelConsumptionRate",
+                "getFuelLevel",
+                "getOperations",
+                "use",
+                "release",
+                "scan",
+                "deletePoint",
+                "capture",
+                "getMaxFuelLevel",
+                "getCooldown",
+                "look",
+                "points",
+                "swing",
+                "getConfiguration",
+                "savePoint",
+                "getCaptured",
+                "setFuelConsumptionRate",
+                "suck",
+                "distanceToPoint",
+                "warpToPoint",
+                "estimateWarpCost"
+              ],
+              "name": "left",
+              "types": [
+                "endAutomata"
+              ]
+            }
+          ]
+        },
+        "computer": 3,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "upgrade-netherite_end_automata": {
+        "ok": true,
+        "id": "upgrade-netherite_end_automata",
+        "elapsedMs": 0,
+        "at": 1792514637379,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "fuel": 1000,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "getFuelConsumptionRate",
+                "getFuelLevel",
+                "getOperations",
+                "use",
+                "release",
+                "scan",
+                "deletePoint",
+                "capture",
+                "getMaxFuelLevel",
+                "getCooldown",
+                "look",
+                "points",
+                "swing",
+                "getConfiguration",
+                "savePoint",
+                "getCaptured",
+                "setFuelConsumptionRate",
+                "suck",
+                "distanceToPoint",
+                "warpToPoint",
+                "estimateWarpCost"
+              ],
+              "name": "left",
+              "types": [
+                "endAutomata"
+              ]
+            }
+          ]
+        },
+        "computer": 3,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "upgrade-starbound_end_automata": {
+        "ok": true,
+        "id": "upgrade-starbound_end_automata",
+        "elapsedMs": 0,
+        "at": 1792514654329,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "fuel": 1013,
+          "fuelLimit": 100000,
+          "devices": [
+            {
+              "methods": [
+                "isOpen",
+                "isWireless",
+                "transmit",
+                "closeAll",
+                "close",
+                "open"
+              ],
+              "name": "right",
+              "types": [
+                "modem"
+              ]
+            },
+            {
+              "methods": [
+                "getFuelConsumptionRate",
+                "getFuelLevel",
+                "getOperations",
+                "use",
+                "release",
+                "scan",
+                "deletePoint",
+                "capture",
+                "getMaxFuelLevel",
+                "getCooldown",
+                "look",
+                "points",
+                "swing",
+                "getConfiguration",
+                "savePoint",
+                "getCaptured",
+                "setFuelConsumptionRate",
+                "suck",
+                "distanceToPoint",
+                "warpToPoint",
+                "estimateWarpCost"
+              ],
+              "name": "left",
+              "types": [
+                "endAutomata"
+              ]
+            }
+          ]
+        },
+        "computer": 3,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "world-error": {
+        "ok": false,
+        "error": "/world.lua:108: invalid probe id"
+      }
+    },
+    "4": {
+      "boot": {
+        "ok": true,
+        "boots": 5,
+        "id": 4,
+        "at": 1792513924496
+      },
+      "ender-crossdim-received": {
+        "ok": true,
+        "id": "ender-crossdim-received",
+        "elapsedMs": 0,
+        "at": 1792513938379,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "messages": [
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 1,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 2,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 3,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 4,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 5,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 6,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 7,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 8,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 9,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            },
+            {
+              "message": {
+                "probe": "ender-crossdim",
+                "seq": 10,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": false
+            }
+          ]
+        },
+        "computer": 4,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "ender-received": {
+        "ok": true,
+        "id": "ender-received",
+        "elapsedMs": 1,
+        "at": 1792513903230,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "messages": [
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 1,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 2,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 3,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 4,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 5,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 6,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 7,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 8,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 9,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 10,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            }
+          ]
+        },
+        "computer": 4,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 5,
+        "computer": 4,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "normal-received": {
+        "ok": true,
+        "id": "normal-received",
+        "elapsedMs": 0,
+        "at": 1792513917279,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "messages": [
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 1,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 2,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 3,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 4,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 5,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 6,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 7,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 8,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 9,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            },
+            {
+              "message": {
+                "probe": "ender-512",
+                "seq": 10,
+                "from": 0
+              },
+              "reply": 45890,
+              "side": "right",
+              "distance": 512
+            }
+          ]
+        },
+        "computer": 4,
+        "yields": 0,
+        "belowTimeout": true
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 4,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      }
+    },
+    "5": {
+      "boot": {
+        "ok": true,
+        "boots": 5,
+        "id": 5,
+        "at": 1792513950359
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 5,
+        "computer": 5,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 5,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      }
+    },
+    "6": {
+      "boot": {
+        "ok": true,
+        "boots": 4,
+        "id": 6,
+        "at": 1792513773361
+      },
+      "fuel-charging": {
+        "ok": true,
+        "id": "fuel-charging",
+        "elapsedMs": 7048,
+        "at": 1792513803128,
+        "longestSliceMs": 1,
+        "error": false,
+        "value": {
+          "beforeWait": 4652,
+          "afterWait": 4661,
+          "samples": [
+            {
+              "before": 4640,
+              "after": 4639,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4639,
+              "after": 4638,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4642,
+              "after": 4641,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4642,
+              "after": 4641,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4645,
+              "after": 4644,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4644,
+              "after": 4643,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4647,
+              "after": 4646,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4647,
+              "after": 4646,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4649,
+              "after": 4649,
+              "delta": 0,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4649,
+              "after": 4648,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 6,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "fuel-without-charger": {
+        "ok": true,
+        "id": "fuel-without-charger",
+        "elapsedMs": 7048,
+        "at": 1792513822478,
+        "longestSliceMs": 0,
+        "error": false,
+        "value": {
+          "beforeWait": 4696,
+          "afterWait": 4696,
+          "samples": [
+            {
+              "before": 4706,
+              "after": 4705,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4705,
+              "after": 4704,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4704,
+              "after": 4703,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4703,
+              "after": 4702,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4702,
+              "after": 4701,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4701,
+              "after": 4700,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4700,
+              "after": 4699,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4699,
+              "after": 4698,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4698,
+              "after": 4697,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            },
+            {
+              "before": 4697,
+              "after": 4696,
+              "delta": 1,
+              "error": false,
+              "ok": true
+            }
+          ],
+          "fuelLimit": 100000,
+          "moves": 10
+        },
+        "computer": 6,
+        "yields": 21,
+        "belowTimeout": true
+      },
+      "initial": {
+        "ok": true,
+        "results": {},
+        "turtleIsMock": false,
+        "boots": 4,
+        "computer": 6,
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "v": 1
+      },
+      "storage": {
+        "ok": true,
+        "capacity": 1000000,
+        "v": 1,
+        "freeBefore": 802070,
+        "computer": 6,
+        "directoryCost": 500,
+        "files": [
+          {
+            "bytes": 0,
+            "allocated": 500,
+            "readSize": 0
+          },
+          {
+            "bytes": 1,
+            "allocated": 500,
+            "readSize": 1
+          },
+          {
+            "bytes": 499,
+            "allocated": 500,
+            "readSize": 499
+          },
+          {
+            "bytes": 500,
+            "allocated": 500,
+            "readSize": 500
+          },
+          {
+            "bytes": 501,
+            "allocated": 501,
+            "readSize": 501
+          },
+          {
+            "bytes": 1000,
+            "allocated": 1000,
+            "readSize": 1000
+          }
+        ],
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.120.2 (Minecraft 1.21.1)",
+        "freeAfter": 798069
+      }
+    }
+  },
+  "runtime": "CC:Tweaked 1.120.2 / Cobalt / Minecraft 1.21.1",
+  "host": "box run h4-p0-b7ab5018 (disposable, not live)",
+  "computers": 1,
+  "turtles": 6,
+  "diskLimit": 1000000,
+  "gpsHosts": 0,
+  "visual": {
+    "complete": false,
+    "reason": "Real-client capture has not completed."
+  },
+  "screenshots": 0,
+  "video": false,
+  "unload": {
+    "before": "{\"at\":1792513940029,\"ingame\":110062800}",
+    "heartbeatStopped": true,
+    "quietQueries": 3,
+    "after": "{\"at\":1792513940029,\"ingame\":110062800}",
+    "bootsBefore": 4,
+    "bootsAfter": 5
+  },
+  "counts": {
+    "analog": [
+      0,
+      1,
+      7,
+      15
+    ],
+    "fuelMoves": {
+      "1/fuel-normal": 10,
+      "3/fuel-automata": 10,
+      "3/fuel-chunk_vial": 10,
+      "3/fuel-creative_end_automata": 10,
+      "3/fuel-netherite_end_automata": 10,
+      "3/fuel-starbound_end_automata": 10,
+      "6/fuel-charging": 10,
+      "6/fuel-without-charger": 10
+    },
+    "modem": {
+      "ender-received": 10,
+      "normal-received": 0,
+      "ender-crossdim-received": 10
+    }
+  },
+  "checks": {
+    "counts": true,
+    "storage": true,
+    "anchor": false,
+    "clock": true
+  },
+  "status": "FAIL"
+}

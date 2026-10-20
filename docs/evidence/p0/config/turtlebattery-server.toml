@@ -1,0 +1,20 @@
+#FE needed for one turtle fuel unit, from an item or a neighboring block.
+# Default: 575
+# Range: > 1
+feperfuel = 575
+#Superb Warfare charging stations also charge turtles inside their charging radius, not only adjacent ones.
+stationrange = true
+#Radius used only if the station's own charging radius cannot be read.
+# Default: 8
+# Range: 0 ~ 128
+stationradiusfallback = 8
+#Turtles with an ender modem equipped keep their own chunk force-loaded (ticking), so they keep running with nobody nearby.
+enderchunkloading = true
+#Extra chunks around the turtle to keep loaded: 0 = only its own chunk, 1 = 3x3, 2 = 5x5.
+# Default: 0
+# Range: 0 ~ 2
+enderchunkradius = 0
+#Maximum number of ender modem turtles that load chunks at the same time. Extra turtles are skipped with a warning in the log.
+# Default: 32
+# Range: 0 ~ 1024
+endermaxturtles = 32

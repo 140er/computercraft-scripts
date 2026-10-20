@@ -1,0 +1,36 @@
+2026-10-20T16:53:13.3179289Z > data get block 25 -59 0
+25, -59, 0 has the following block data: {Energy: 152, MaxFuelTick: 16000, x: 25, y: -59, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 0, id: "superbwarfare:charging_station", FuelTick: 941, ShowRange: 0b}
+
+2026-10-20T16:53:13.4732114Z > data get block 24 -59 0
+24, -59, 0 has the following block data: {Fuel: 8048, x: 24, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 6, On: 1b}
+
+2026-10-20T16:53:13.5215633Z > data get block 8 -59 0
+8, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 8, LeftUpgrade: {components: {"minecraft:custom_data": {uuid: [I; 77189782, -769832710, -1854789069, 52627353]}}, id: "turtlematic:chunk_vial"}, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T16:53:13.6283164Z > data get block 4 -59 0
+4, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 4, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T16:53:13.7451886Z > forceload query
+7 force loaded chunks were found in Overworld at: [1, -1], [-1, -1], [0, 0], [1, 0], [32, 0], [64, 0], [-1, 0]
+
+2026-10-20T16:53:13.9064676Z > list
+There are 0 of a max of 4 players online: 
+
+2026-10-20T16:54:39.2477079Z > data get block 25 -59 0
+25, -59, 0 has the following block data: {Energy: 603, MaxFuelTick: 16000, x: 25, y: -59, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 0, id: "superbwarfare:charging_station", FuelTick: 924, ShowRange: 0b}
+
+2026-10-20T16:54:39.2592340Z > data get block 24 -59 0
+24, -59, 0 has the following block data: {Fuel: 8051, x: 24, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 6, On: 1b}
+
+2026-10-20T16:54:39.2780299Z > data get block 8 -59 0
+8, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 8, LeftUpgrade: {components: {"minecraft:custom_data": {uuid: [I; 77189782, -769832710, -1854789069, 52627353]}}, id: "turtlematic:chunk_vial"}, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T16:54:39.2954010Z > data get block 4 -59 0
+4, -59, 0 has the following block data: {Fuel: 990, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_normal"}, x: 4, Slot: 0, y: -59, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T16:54:39.3162626Z > forceload query
+7 force loaded chunks were found in Overworld at: [1, -1], [-1, -1], [0, 0], [1, 0], [32, 0], [64, 0], [-1, 0]
+
+2026-10-20T16:54:39.3271991Z > list
+There are 0 of a max of 4 players online: 
+

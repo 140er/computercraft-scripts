@@ -2,9 +2,10 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench')][string]$Scenario = 'smoke',
     [string]$Output = '',
-    [string]$DataRoot = ''
+    [string]$DataRoot = '',
+    [ValidateRange(100000, 64000000)][int]$Disk = 4000000
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
@@ -38,6 +39,12 @@ function Start-SandboxProcess([string]$Stdout, [string]$Stderr) {
     $proc.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
     if ($Scenario -notin @('nav','mining','warehouse','ar','views')) { $proc.ProcessorAffinity = [IntPtr]1 }
     return $proc
+}
+if ($Scenario -eq 'bench') {
+    if (!$PSBoundParameters.ContainsKey('Disk')) { $Disk = 1000000 }
+    if (!$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+    & "$PSScriptRoot\..\bench\gateA.ps1" -Output $Output -CraftOS $CraftOS -Seconds $Seconds -Disk $Disk
+    exit $LASTEXITCODE
 }
 
 try {

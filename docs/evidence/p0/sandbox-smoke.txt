@@ -1,0 +1,10 @@
+Command: pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario smoke -Seconds 120 -Output /tmp/p0-smoke -Source /workspace
+Runner: origin/tools/gatea-linux (PR 59), used locally and not part of this branch.
+CraftOS-PC: v2.8.3 AppImage, sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+
+Sandbox: local source=/workspace seconds=120 scenario=smoke standardsMode=true disk=4000000
+Artifacts: /home/ubuntu/.cache/computercraft-sandbox/runs/adac20c5ec6b4919a97d9309fb3eb036
+server: PASS booted=True errors=0 disk_free=3002661 rx=110 http_ok=27/27
+hub: PASS booted=True errors=0 disk_free=3764172 rx=180 http_ok=1/1
+miner: PASS booted=True errors=0 disk_free=3864328 rx=69 http_ok=0/0
+Sandbox PASS
