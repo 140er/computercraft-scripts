@@ -80,7 +80,8 @@ local ok, err = pcall(function()
     result.httpAttempts = result.httpAttempts + 1
     local url=...
     local file=type(url)=="string" and url:match("/([^/?]+)%?t=")
-    if (file=="atomic.lua" or file=="ssot.lua" or file=="ssot-client.lua" or file=="nav.lua") and fs.exists(file) then
+    if (file=="atomic.lua" or file=="ssot.lua" or file=="ssot-client.lua" or file=="nav.lua"
+      or file=="mine-tasks.lua" or file=="mining.lua") and fs.exists(file) then
       local h=assert(fs.open(file,"r")) local bytes=h.readAll() h.close()
       result.httpOK=result.httpOK+1
       return {readAll=function() return bytes end,close=function() end}

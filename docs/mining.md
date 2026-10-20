@@ -26,3 +26,5 @@ An unstarted offer can expire after 30 seconds and change owners. Once a miner a
 Low fuel, fewer than two empty slots, recall, or a hazard interrupts work. The miner retains its stack and returns to its configured home pose and heading. It reports a blocked home or resume route and stops work. ESTOP stops movement immediately. A later go command resumes it. `miner mine disable` saves the disabled flag for the next boot.
 
 PR 4 owns unloading and proximity charging. This version never drops items to an unavailable chest. Clear inventory or provide fuel at home, then let the miner resume. It retains the unfinished task while service is unavailable. Warehouse and charging poses will have their own commands in PR 4. No far_beacons dependency or chat command was added.
+
+An update request returns this opt-in miner home. Apply updates from the turtle shell. Automatic completion of a hub update is not wired into the new mining loop.

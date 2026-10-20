@@ -22,3 +22,12 @@ $check="local h=assert(io.open([[$state]])); local s=assert(load('return '..h:re
 if($LASTEXITCODE -ne 0){throw 'Durable mining state mismatch.'}
 @{ok=$true;turtles=3;leases=3;fuelInterrupt=$true;inventoryInterrupt=$true;restart=$true} | ConvertTo-Json | Set-Content "$Output\mining-verdict.json"
 & "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output
+if(Test-Path "$Computers\5\world.json") {
+    $world=Get-Content "$Computers\5\world.json" -Raw | ConvertFrom-Json
+    $ores=@($world.blocks.PSObject.Properties | Where-Object {$_.Value -like '*_ore'})
+    if($world.collisions -ne 0 -or $ores.Count -ne 3){throw 'Unexpected emulator collisions or remaining ore.'}
+    foreach($key in @('3,65,6','7,65,6','11,65,6')) {
+        if($world.blocks.PSObject.Properties[$key].Value -ne 'minecraft:diamond_ore'){throw "Missing untouched gap ore at $key."}
+    }
+    @{ok=$true;mined=46;intentionallyUntouched=3;collisions=0;moves=$world.timeline.Count} | ConvertTo-Json | Set-Content "$Output\coverage.json"
+}

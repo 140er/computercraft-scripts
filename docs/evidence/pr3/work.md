@@ -10,11 +10,11 @@ Feature checklist
   Independent workstreams. Allocation, extraction and gate fixtures share contracts, so edits stay sequential.
   Shared mutable state. The SSOT server owns leases. Each miner owns its traversal file.
   Smallest safe decomposition. One owner extends the existing RPC, atomic store and navigation.
-- [ ] 4. Delegate code-writing to a subagent using your configured feature model.
+- [x] 4. Delegate code-writing to a subagent using your configured feature model.
   Skip delegation because the PR 1 rules require one agent. Keep a separate review pass.
 - [ ] 5. Verify on the matching surface.
 - [ ] 6. Rebase into small, ordered commits. Stack follow-ups.
-- [ ] 7. If the design is contested, `interrogate` before shipping.
+- [x] 7. If the design is contested, `interrogate` before shipping.
   Skip other models and agents under the PR 1 rules.
 - [ ] 8. Run **Opening a PR**.
 
@@ -29,3 +29,7 @@ Data shapes
 - Expired active tasks remain quarantined to their owner. Renewal resumes them. Unstarted offers can expire and change owners. A stale token cannot acknowledge or finish a task.
 
 Mining stays disabled unless `miner.cfg` explicitly enables it. Configuration uses a paired computer command. Warehouse delivery and charging remain PR 4 work. This PR returns to a configured home pose and reports unavailable service without dropping items into the world.
+
+Model the Domain put ownership in zone tasks and traversal in DFS frames. Make Operations Idempotent preserved tokens across renewals and made completion safe to retry. Laziness Protocol kept movement and atomic storage in the existing modules. Test Behavior, Not Implementation required ore counts, real positions, and failed-before recovery tests. Sequence Work into Verifiable Units separated allocation, extraction, and the queued-air fix into commits. Prove It Works required both actual runtimes and matching source hashes.
+
+The PR 1 rules require one agent and one model. Parallel design delegates and cross-model review were skipped under that instruction. The deslop skill is absent from the installed pstack skills. The code and prose received a manual review. The added code contains no explanatory comments.

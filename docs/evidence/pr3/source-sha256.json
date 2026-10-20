@@ -1,0 +1,134 @@
+[
+    {
+        "sha256":  "7a5d3fb9d2f7517bab5f3f1e3416ba63b9e2b1200b940d30b98df36c93a8ed96",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "atomic.lua"
+    },
+    {
+        "sha256":  "d21b824b30e2dfaf094b73420dad1ac25181544f4650dabae3eaa8e953c2fe73",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "ssot.lua"
+    },
+    {
+        "sha256":  "7664253709a337d061b4269b0edfd51e0e10a4375da93ab5260d9281f09830a9",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "ssot-client.lua"
+    },
+    {
+        "sha256":  "115b97727df7dcacfaf333e5f60f188f0ffa0e25c9dcf6568d6e39275df0ef19",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "mine-tasks.lua"
+    },
+    {
+        "sha256":  "2437f7c965c5c639854baea4654eef26220e83df39b85751116cd9bb48e2d014",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "nav.lua"
+    },
+    {
+        "sha256":  "510ebbb20c888db2d81e9cd440021d38f7d3989d7ec3b8c51f8a49df6524bb3f",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "mining.lua"
+    },
+    {
+        "sha256":  "b3c72f445e4ae5d2583a63356e99a974b27d1be25b0ec2da690190d711a8f331",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "miner.lua"
+    },
+    {
+        "sha256":  "ad4a1c889d8e448e8ecf7038ed5f149904be7acca1d75920545b775bd6744807",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "server.lua"
+    },
+    {
+        "sha256":  "3450a0a06bb84a2e045f8407c68226a2e269956c0029fd0971ebd503e2eb623f",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "hub.lua"
+    },
+    {
+        "sha256":  "43a0cadde2be84aec20d1a2941cedf41b22c111974eb4ec122c8dbf7d914fce8",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "install.lua"
+    },
+    {
+        "sha256":  "27ac847b88f79459420528af21e77e0490878771c2a1a613a55fa5e88e645d9f",
+        "computers":  [
+                          0,
+                          1,
+                          2,
+                          3,
+                          4,
+                          6
+                      ],
+        "file":  "update.lua"
+    }
+]
