@@ -410,6 +410,7 @@ test("Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP", functio
     getSize = function() return 8 * size * 2, 4 * size * 2 end, -- 2x1 monitors of 8x4 blocks... any size
     createWindow3D = function(x, y, w, h) assert(w > 0 and h > 0) return gl end,
     filledRectangle = function() end,
+    getTextLength = function(text, scale) return #text * 6 * (scale or 1) end,
     drawText = function(x, y, text) texts[#texts + 1] = text end,
     sync = function() calls[#calls + 1] = "gpu.sync" end,
   }
@@ -460,6 +461,13 @@ dofile("tests/auth-review-checks.lua")(test,read,mocks)
 dofile("tests/recharge-review-checks.lua")(test,read,mocks)
 dofile("tests/install-checks.lua")(test,read,mocks)
 dofile("tests/install-role-checks.lua")(test,read,mocks)
+dofile("tests/view-command-checks.lua")(test,read,mocks)
+dofile("tests/view-host-checks.lua")(test,read,mocks)
+dofile("tests/view-core-checks.lua")
+dofile("tests/view-report-checks.lua")(test,read)
+dofile("tests/test_view_tom.lua")
+dofile("tests/view-ui-checks.lua")
+dofile("tests/view-install-checks.lua")(test,equal,read,mocks)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

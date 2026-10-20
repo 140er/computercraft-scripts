@@ -1,0 +1,11 @@
+﻿{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-ea0841d8",
+    "failure":  "Second enabled view hub cannot claim legacy hostname hub",
+    "tomMonitor":  "pass",
+    "directgpu":  "not completed",
+    "client":  "not started",
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\tom-fixed",
+    "serverPid":  3776,
+    "cleanup":  "runner exited and released lock"
+}

@@ -1,0 +1,2 @@
+PASS enabled view hubs coexist with the canonical hub
+PASS view hostname fallback preserves legacy and unrelated errors

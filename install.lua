@@ -349,7 +349,7 @@ end
 
 local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "miner" },
+    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -391,7 +391,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
+    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -559,6 +559,21 @@ local BOTS = {
       { run = function() return { "panel", "install" } end },
       { say = "Tip: stand next to a bot and type 'pair' in the panel's console (>_) to unlock its developer commands." },
     } },
+  { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
+    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
+    start = { "ar-role" },
+    steps = {
+      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
+        check = modemCheck },
+      { run = function() return { "ar-role", "install" } end },
+      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
+    } },
+  { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
+    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
+  { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
+    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view." } } },
   { id = "smartmine", name = "Simple tunnel miner", hint = "the old standalone miner, no hub", on = "turtle",
     files = { "smartmine.lua" },
     steps = {
@@ -569,27 +584,34 @@ local BOTS = {
     },
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
-  { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
-    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
-    start = { "ar-role" },
-    steps = {
-      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
-        check = modemCheck },
-      { run = function() return { "ar-role", "install" } end },
-      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
-    } },
   { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
     files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"},
     start = { "store" },
     done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
     steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
-  { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
-    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
-  { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
-    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
-    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view." } } },
 }
+
+for _,role in ipairs({{id="view-pro",name="Pro fleet hub",mode="pro"},{id="view-warehouse",name="Warehouse monitor",mode="warehouse"},{id="view-map",name="DirectGPU world view",mode="map"}}) do
+  BOTS[#BOTS+1]={id=role.id,name=role.name,hint="Optional SSOT view",on="computer",
+    files={"hub.lua","miner.lua","fleetview.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","mining.lua","views.lua","view-source.lua","view-scene.lua","directview.lua"},
+    start={"hub",role.mode},steps={
+      {say="Pair this computer with the SSOT server before setup. Movement also requires viewsControl on the selected turtle.",check=modemCheck},
+      {ask="server",kind="number",q="Fleet server computer ID:",
+        validate=function(v) local n=tonumber(v) return n and n>=0 and n%1==0,"Enter a nonnegative integer server ID." end},
+      {ask="secret",secret=true,q="SSOT controller secret (at least 16 characters):",
+        validate=function(v) return #v>=16,"Enter a secret with at least 16 characters." end},
+      {ask="monitor",optional=true,q="Monitor peripheral name for DirectGPU (blank for text):"},
+      {ask="gpu",optional=true,q="DirectGPU peripheral name (blank for text):"},
+      {run=function(c)
+        assert(type(c.server)=="number" and c.server>=0 and c.server%1==0,"Invalid fleet server ID")
+        assert(type(c.secret)=="string" and #c.secret>=16,"Invalid SSOT secret")
+        local cfg={enabled=true,mode=role.mode,server=c.server,secret=c.secret,monitor=c.monitor,gpu=c.gpu,dim="minecraft:overworld"}
+        local h=fs.open("views.cfg","w") h.write(textutils.serialize(cfg)) h.close()
+        h=fs.open("startup.lua","w") h.write('shell.run("hub", "'..role.mode..'")\n') h.close()
+        return {"hub","view-installed"}
+      end},
+    }}
+end
 
 ---------------------------------------------------------------------------
 -- Walking through one bot's steps
@@ -649,7 +671,14 @@ local function guide(bot)
       elseif s.kind == "number" and not tonumber(v) then
         screen(title, sub, { { "That isn't a number: " .. v, colors.orange } }, { { "ok", "OK" } })
         result = "stay"
-      else ctx[s.ask] = s.kind == "number" and tonumber(v) or v result = "next" end
+      else
+        local valid,why=true
+        if s.validate then valid,why=s.validate(v) end
+        if not valid then
+          screen(title,sub,{{why,colors.orange}},{{"ok","OK"}})
+          result="stay"
+        else ctx[s.ask] = s.kind == "number" and tonumber(v) or v result = "next" end
+      end
     elseif s.run then
       result = runShown(title, sub, words(s.run(ctx)))
       if result == "repeat" then result = "stay" end

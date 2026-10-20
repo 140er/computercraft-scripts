@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = ''
 )
@@ -10,8 +10,12 @@ $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
 $OnLinux = $false
 if ($PSVersionTable.PSVersion.Major -ge 6) { $OnLinux = $IsLinux -eq $true }
+$previousVideo=$env:SDL_VIDEODRIVER
+$previousAudio=$env:SDL_AUDIODRIVER
+if ($OnLinux -or $Scenario -eq 'views') { $env:SDL_VIDEODRIVER='dummy'; $env:SDL_AUDIODRIVER='dummy' }
 if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
-if ($Scenario -in @('ssot','nav','mining','warehouse','ar') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -in @('ssot','nav','mining','warehouse','ar','views') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+$process = $null
 
 # PowerShell cmdlets accept '\' on Linux. System.IO and CraftOS do not.
 function ConvertTo-SandboxPath([string]$Path) {
@@ -22,15 +26,16 @@ function Write-SandboxText([string]$Path, [string]$Text, [Text.Encoding]$Encodin
     [IO.File]::WriteAllText((ConvertTo-SandboxPath $Path), $Text, $Encoding)
 }
 function Start-SandboxProcess([string]$Stdout, [string]$Stderr) {
+    $mode = if ($Scenario -eq 'views') { '--gui' } else { '--headless' }
     $directory = ConvertTo-SandboxPath $run
     $rom = ConvertTo-SandboxPath (Join-Path $run 'rom')
-    $arguments = "--headless --directory `"$directory`" --rom `"$rom`" --id 0"
+    $arguments = "$mode --directory `"$directory`" --rom `"$rom`" --id 0"
     if ($script:OnLinux) {
         return Start-Process -FilePath $CraftOS -ArgumentList $arguments -PassThru -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr
     }
     $proc = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr
     $proc.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
-    if ($Scenario -notin @('nav','mining','warehouse','ar')) { $proc.ProcessorAffinity = [IntPtr]1 }
+    if ($Scenario -notin @('nav','mining','warehouse','ar','views')) { $proc.ProcessorAffinity = [IntPtr]1 }
     return $proc
 }
 
@@ -106,7 +111,11 @@ try {
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
     if (!$DataRoot) { $DataRoot = Join-Path $cache 'runs' }
-    $run = Join-Path $DataRoot ([guid]::NewGuid().ToString('N'))
+    if ($Scenario -eq 'views' -and -not $OnLinux) {
+        $run = Join-Path 'C:\Work\gemini-input\p2\evidence\pr5\gateA\runs' ([guid]::NewGuid().ToString('N'))
+    } else {
+        $run = Join-Path $DataRoot ([guid]::NewGuid().ToString('N'))
+    }
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath (Join-Path $romSource 'bios.lua'), (Join-Path $romSource 'rom') -Destination "$run\rom" -Recurse
@@ -115,22 +124,34 @@ try {
         standardsMode = $true; computerSpaceLimit = 4000000
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
+        useHardwareRenderer = $false; useWebP = $false
     } | ConvertTo-Json
     Write-SandboxText "$run\config\global.json" $config $utf8
-    $roles = if ($Scenario -in @('ssot','nav','mining','warehouse')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
-    if ($Scenario -eq 'mining') { $roles += 'hub' }
+    $roles = if ($Scenario -in @('ssot','nav','mining','warehouse','views')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
+    if ($Scenario -in @('mining','views')) { $roles += 'hub' }
     if ($Scenario -eq 'ar') { $roles = @('server','turtle1','turtle2','turtle3','controller','hub') }
+    $sourceProof=@()
+    $viewsNetwork=Get-Random -Minimum 100000 -Maximum 2000000000
+    $bundleNames=@('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')
     for ($id = 0; $id -lt $roles.Count; $id++) {
-        $disk = "$run\computer\$id"
+        $disk = Join-Path (Join-Path $run 'computer') "$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
             # Match wget's LF text so a Windows checkout does not duplicate the HTTP cache.
             $code = [IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")
-            Write-SandboxText (Join-Path $disk $file.Name) $code $utf8
+            $dest = Join-Path $disk $file.Name
+            Write-SandboxText $dest $code $utf8
+            if ($Scenario -eq 'views') {
+                $sha=[Security.Cryptography.SHA256]::Create()
+                try { $expected=[BitConverter]::ToString($sha.ComputeHash($utf8.GetBytes($code))).Replace('-','') } finally { $sha.Dispose() }
+                $actual=(Get-FileHash -LiteralPath (ConvertTo-SandboxPath $dest) -Algorithm SHA256).Hash
+                if ($actual -ne $expected) { throw "Source copy differs for $($file.Name) on computer $id." }
+                $sourceProof += [pscustomobject]@{computer=$id;file=$file.Name;sha256=$actual;normalization='LF'}
+            }
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
         if ($Scenario -eq 'ar') {
@@ -145,19 +166,32 @@ try {
             New-Item -ItemType Directory -Force -Path "$disk\tests\fixtures" | Out-Null
             Copy-Item -LiteralPath "$Source\tests\fixtures\update-v1.lua" -Destination "$disk\tests\fixtures"
         }
-        if ($Scenario -in @('ssot','nav','mining','warehouse')) {
-            foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')) {
-                Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
+        if ($Scenario -in @('ssot','nav','mining','warehouse','views')) {
+            foreach ($testFile in $bundleNames) {
+                $from = Join-Path (Join-Path $Source 'tests') $testFile
+                if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $disk }
             }
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
-            Copy-Item "$Source\tests\mocks.lua", "$Source\tests\mining-checks.lua", "$Source\tests\warehouse-checks.lua" "$disk\tests"
+            $bundle = @('mocks.lua','mining-checks.lua','warehouse-checks.lua') | ForEach-Object {
+                $from = Join-Path (Join-Path $Source 'tests') $_
+                if (Test-Path -LiteralPath $from) { $from }
+            }
+            if ($bundle) { Copy-Item -LiteralPath $bundle -Destination "$disk\tests" }
             Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
             Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
         }
+        if ($Scenario -eq 'views') {
+            $runtime = Join-Path (Join-Path $Source 'tests') 'views-runtime.lua'
+            if (!(Test-Path -LiteralPath $runtime)) { throw 'views-runtime.lua is required for the views scenario.' }
+            Copy-Item -LiteralPath $runtime, "$PSScriptRoot\views-driver.lua" -Destination $disk
+            Write-SandboxText "$disk\views-network" ([string]$viewsNetwork) $utf8
+            Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456",["6"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
+        }
         Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')" $utf8
     }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    if ($Scenario -eq 'views') { $sourceProof | ConvertTo-Json | Set-Content "$run\source-sha256.json" }
     Write-Output "Artifacts: $run"
     $process = Start-SandboxProcess (ConvertTo-SandboxPath "$run\stdout.log") (ConvertTo-SandboxPath "$run\stderr.log")
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
@@ -227,6 +261,7 @@ try {
             }
             Write-SandboxText "$Output\coverage.json" ($coverage | ConvertTo-Json -Depth 8) $utf8
         }
+        if (Test-Path "$run\source-sha256.json") { Copy-Item "$run\source-sha256.json" $Output -Force }
     }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {
@@ -243,4 +278,8 @@ try {
 } catch {
     Write-Output "Sandbox FAIL: $($_.Exception.Message)"
     exit 1
+} finally {
+    $env:SDL_VIDEODRIVER=$previousVideo
+    $env:SDL_AUDIODRIVER=$previousAudio
+    if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force; $process.WaitForExit() }
 }

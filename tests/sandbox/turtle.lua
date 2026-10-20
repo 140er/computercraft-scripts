@@ -35,6 +35,10 @@ function M.world(saved,scenario)
     [3] = {x=2,y=65,z=0,h=3,fuel=10000} }
   local blocks, timeline, collisions, failures = { ["-1,65,0"]="minecraft:stone",["-2,65,-1"]="minecraft:stone",["3,66,0"]="minecraft:chest",["2,67,0"]="minecraft:water",["2,66,-1"]="minecraft:bedrock" }, {}, 0, {}
   if saved then blocks,timeline,collisions=saved.blocks,saved.timeline,saved.collisions end
+  if not saved and scenario=="views" then
+    blocks={}
+    for id=1,3 do poses[id]={x=-2,y=65,z=(id-2)*3,h=1,fuel=10000} end
+  end
   if not saved and scenario=="mining" then
     blocks={}
     for _,p in ipairs(dofile("mining-fixture.lua").blocks) do blocks[p.x..","..p.y..","..p.z]=p.name end

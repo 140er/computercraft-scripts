@@ -1,0 +1,234 @@
+{
+    "gate":  "A",
+    "ok":  true,
+    "productionBaseCommit":  "030fd39",
+    "productionChanges":  "Includes Tom button and opt-in hub hostname fixes; exact source files in gateA-source-sha256.json",
+    "diskLimitBytes":  4000000,
+    "command":  "tests\\sandbox\\run.ps1 -Scenario views -Seconds 900 -Output C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateA\\multi-view",
+    "sourceRun":  "8878baf5924741e9963a2cd930b502b7",
+    "reports":  [
+                    {
+                        "id":  0,
+                        "report":  {
+                                       "ok":  true,
+                                       "free":  2753309,
+                                       "checks":  {
+
+                                                  },
+                                       "errors":  {
+
+                                                  },
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "booted":  true
+                                   }
+                    },
+                    {
+                        "id":  1,
+                        "report":  {
+                                       "booted":  true,
+                                       "free":  2861322,
+                                       "errors":  {
+
+                                                  },
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "checks":  {
+
+                                                  },
+                                       "ok":  true
+                                   }
+                    },
+                    {
+                        "id":  2,
+                        "report":  {
+                                       "ok":  true,
+                                       "checks":  {
+
+                                                  },
+                                       "booted":  true,
+                                       "free":  2861097,
+                                       "errors":  {
+
+                                                  },
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ]
+                                   }
+                    },
+                    {
+                        "id":  3,
+                        "report":  {
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "booted":  true,
+                                       "errors":  {
+
+                                                  },
+                                       "ok":  true,
+                                       "checks":  {
+
+                                                  },
+                                       "free":  2861332
+                                   }
+                    },
+                    {
+                        "id":  4,
+                        "report":  {
+                                       "free":  2865243,
+                                       "ok":  true,
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "booted":  true,
+                                       "checks":  [
+                                                      {
+                                                          "ok":  true,
+                                                          "name":  "real authenticated scan and snapshot"
+                                                      },
+                                                      {
+                                                          "ok":  true,
+                                                          "name":  "three production miners reach authenticated view targets"
+                                                      }
+                                                  ],
+                                       "errors":  {
+
+                                                  }
+                                   }
+                    },
+                    {
+                        "id":  5,
+                        "report":  {
+                                       "booted":  true,
+                                       "moves":  9,
+                                       "lines":  [
+                                                     "three turtle shared physical world"
+                                                 ],
+                                       "errors":  {
+
+                                                  },
+                                       "ok":  true
+                                   }
+                    },
+                    {
+                        "id":  6,
+                        "report":  {
+                                       "booted":  true,
+                                       "free":  2869218,
+                                       "errors":  {
+
+                                                  },
+                                       "ok":  true,
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "checks":  {
+
+                                                  }
+                                   }
+                    }
+                ],
+    "world":  {
+                  "timeline":  [
+                                   {
+                                       "x":  -1,
+                                       "id":  1,
+                                       "at":  1792505242017,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  1,
+                                       "at":  1792505243936,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  1,
+                                       "at":  1792505245792,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  -1,
+                                       "id":  3,
+                                       "at":  1792505273971,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  3,
+                                       "at":  1792505275677,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  3,
+                                       "at":  1792505278421,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  -1,
+                                       "id":  2,
+                                       "at":  1792505286429,
+                                       "y":  65,
+                                       "z":  0
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  2,
+                                       "at":  1792505309084,
+                                       "y":  65,
+                                       "z":  0
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  2,
+                                       "at":  1792505321233,
+                                       "y":  65,
+                                       "z":  0
+                                   }
+                               ],
+                  "collisions":  0,
+                  "blocks":  {
+
+                             },
+                  "poses":  [
+                                {
+                                    "x":  1,
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  -3
+                                },
+                                {
+                                    "x":  1,
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  0
+                                },
+                                {
+                                    "x":  1,
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  3
+                                }
+                            ]
+              },
+    "recovery":  [
+
+                 ]
+}

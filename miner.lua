@@ -27,7 +27,10 @@ local VERSION = 2
 -- Version = hash of this file's contents (same calculation as in hub.lua)
 local function hashOf(text)
   local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  for i = 1, #text do
+    h = (h * 33 + text:byte(i)) % 4294967296
+    if i % 4096 == 0 then sleep(0) end
+  end
   return string.format("%08x", h)
 end
 local PROGRAM = (shell and shell.getRunningProgram()) or "miner.lua"
@@ -669,6 +672,7 @@ local function packet()
     label = os.getComputerLabel() or ("Turtle " .. os.getComputerID()),
     role = ROLE, status = status, phase = st.phase,
     facing = DIRNAME[st.h],
+    dim = C.ssot and cfg.ssot.dimension or nil,
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
     dim = not cfg.loc and cfg.ssot and cfg.ssot.dimension or nil,
     shaft = worldShaft(),
@@ -2733,6 +2737,63 @@ local function worker()
 end
 
 
+function C.queueViewMove(sender,m)
+  if cfg.viewsControl~=true or not C.nav or not C.viewReady then return false,"View control disabled" end
+  if sender~=cfg.ssot.server or m.target~=os.getComputerID() or type(cfg.ssot.secret)~="string"
+    or #cfg.ssot.secret<16 or m.commandAuth~=cfg.ssot.secret then return false,"invalid command" end
+  if C.viewBusy or C.viewPending or C.estop or recall or updateWanted or C.nav.stopped() then
+    return false,"View control busy or stopped"
+  end
+  local p,b=m.point,cfg.nav.bounds
+  if not dofile("ssot.lua").pose(p) or p.dim~=cfg.ssot.dimension or p.dim~=b.min.dim
+    or p.x<b.min.x or p.x>b.max.x or p.y<b.min.y or p.y>b.max.y or p.z<b.min.z or p.z>b.max.z then
+    return false,"Invalid view target"
+  end
+  local from=C.nav.pose()
+  if math.max(math.abs(p.x-from.x),math.abs(p.y-from.y),math.abs(p.z-from.z))>7 then
+    return false,"View target is more than 7 blocks away"
+  end
+  local ok,why=C.nav.control("view_move",type(m.commandEpoch)=="string" and tonumber(m.commandEpoch) or nil,m.cid)
+  if not ok then return false,why end
+  C.viewPending={dim=p.dim,x=p.x,y=p.y,z=p.z}
+  return true
+end
+
+function C.runViewControl()
+  assert(not (cfg.mining and cfg.mining.enabled),"Disable mining before enabling view control")
+  local source=dofile("view-source.lua").new(C.ssot,{warehouse=false,radius=7,maxCells=1024,maxChunks=8})
+  C.viewReady=true
+  st.phase="home"
+  setStatus("View control ready")
+  while true do
+    local point=C.viewPending
+    C.viewPending=nil
+    local returning=recall
+    if returning then point={dim=cfg.ssot.dimension,x=HOME.x,y=HOME.y,z=HOME.z} end
+    if point and not C.estop then
+      C.viewBusy,C.viewCancel=true,false
+      local ok,moved,why=pcall(function()
+        assert(source.refresh(C.nav.pose()))
+        local scene=source.scene()
+        assert(not scene.stale,scene.error or "View map unavailable")
+        C.nav.import(scene.cells,scene.dim)
+        if C.estop or updateWanted or recall and (point.x~=HOME.x or point.y~=HOME.y or point.z~=HOME.z) then
+          return false,"cancelled"
+        end
+        return C.nav.go(point,"walk")
+      end)
+      local p=C.nav.pose()
+      pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+      save()
+      C.viewBusy=false
+      setStatus(ok and moved and "View target reached" or "View move refused: "..tostring(ok and why or moved))
+      if returning then recall=false end
+      publish(true)
+    end
+    sleep(.1)
+  end
+end
+
 local function listener()
   -- Driving from the pocket: only at home (not on a trip), through its own moves so the
   -- position stays right. Map = world x/z, north up.
@@ -2791,13 +2852,22 @@ local function listener()
     local ev, a, b, c = os.pullEvent()
     if ev == C.netEvent and c == PROTOCOL and type(b) == "table" and (not C.nav or a==cfg.ssot.server) then
       local apply,valid=true,true
-      if b.type=="recharge" then valid,apply=false,false end
-      if valid and C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop" or b.type=="recharge")
+      if b.type=="view_move" then
+        local why
+        apply,why=C.queueViewMove(a,b)
+        if cfg.ssot and a==cfg.ssot.server and b.target==os.getComputerID() and b.commandAuth==cfg.ssot.secret then
+          pcall(rednet.send,a,{type="cmd_ack",cid=b.cid,commandEpoch=b.commandEpoch,ok=apply,error=why},PROTOCOL)
+        end
+        apply,valid=false,false
+      elseif b.type=="recharge" then valid,apply=false,false
+      elseif C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop" or b.type=="recharge")
         and (b.target==nil or b.target==os.getComputerID()) then
         local why
-        apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid)
+        if cfg.viewsControl and b.commandAuth~=cfg.ssot.secret then apply,why=false,"invalid command"
+        else apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid) end
         valid=why~="invalid command"
         C.estop=C.nav.stopped()
+        if apply then C.viewPending=nil C.viewCancel=b.type~="go" end
       end
       if valid and b.cid and (b.target == nil or b.target == os.getComputerID()) then
         pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid,commandEpoch=b.commandEpoch }, PROTOCOL)
@@ -2831,6 +2901,17 @@ local function heartbeat()
   end
 end
 
+function C.bootNavigation()
+  local ok, why
+  local deadline = os.clock() + 180
+  repeat
+    if C.navCalibration ~= nil then ok, why = C.nav.calibrate(C.navCalibration) else ok, why = C.nav.recover() end
+    if ok or why ~= "GPS unavailable or wrong dimension" then return ok, why end
+    sleep(0.5)
+  until os.clock() >= deadline
+  return ok, why
+end
+
 openModem()
 if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
@@ -2845,10 +2926,10 @@ if C.ssot then
           if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
         end,
         -- Recall walks home with nav.go. Treating recall as a cancel would stop that walk.
-        cancelled=function() return C.estop or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
+        cancelled=function() return C.estop or cfg.viewsControl and (C.viewCancel or updateWanted)
+          or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
-      local ok,why
-      if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
+      local ok,why=C.bootNavigation()
       assert(ok,why)
       recall=C.nav.controlState().kind=="recall" or C.nav.controlState().kind=="recharge"
       local p=C.nav.pose()
@@ -2867,6 +2948,7 @@ if C.ssot then
         local r,why=C.ssot.call("mine-config",{zone=C.mineZone})
         assert(r and r.ok,why) print("Mine zones saved: "..r.count) return
       end
+      if cfg.viewsControl==true then C.runViewControl() return end
       if cfg.mining and cfg.mining.enabled then C.runMining() return end
       worker()
       return

@@ -5,6 +5,28 @@ if scenario == "ar" then
   local h = assert(fs.open("sandbox-result.json","w"))
   h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "driver stopped")},lines={}})) h.close()
   while true do os.pullEvent() end
+elseif scenario=="views" then
+  local ok,err=pcall(function()
+    parallel.waitForAny(assert(loadfile("views-driver.lua","t",_ENV)),function()
+      local count=0
+      while true do
+        local e={os.pullEvent()}
+        local m,from,packet
+        if e[1]=="modem_message" and type(e[5])=="table" then
+          packet=e[5].nMessageID from=e[5].nSender m=e[5].message
+        elseif e[1]=="rednet_message" then from=e[2] m=e[3] end
+        if type(m)=="table" and m.rid and (m.type=="ssot" or m.type=="ssot_reply") and count<2000 then
+          count=count+1
+          local f=assert(fs.open("transport.jsonl","a"))
+          f.writeLine(textutils.serializeJSON({event=e[1],from=from,packet=packet,rid=m.rid,
+            op=m.op,type=m.type,ok=m.ok,at=os.epoch("utc")})) f.close()
+        end
+      end
+    end)
+  end)
+  local h=assert(fs.open("sandbox-result.json","w"))
+  h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "views driver stopped")},lines={}})) h.close()
+  while true do os.pullEvent() end
 end
 if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
   local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)

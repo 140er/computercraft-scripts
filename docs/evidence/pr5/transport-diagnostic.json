@@ -1,0 +1,599 @@
+﻿{
+    "run":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateA\\runs\\d052b3083fc941a7afe897cb98b318e6",
+    "network":  "unique random modem network ID",
+    "instrumentation":  "All world-RPC traces caused Too long without yielding on computer5; this run cannot establish production failure cause.",
+    "controller":  {
+                       "errors":  [
+                                      "/views-runtime.lua:16: real authenticated scan and snapshot: /views-runtime.lua:131: SSOT timeout (stopped)"
+                                  ],
+                       "checks":  [
+                                      {
+                                          "ok":  false,
+                                          "name":  "real authenticated scan and snapshot",
+                                          "error":  "/views-runtime.lua:131: SSOT timeout (stopped)"
+                                      }
+                                  ],
+                       "free":  2871741,
+                       "ok":  false,
+                       "booted":  true,
+                       "lines":  [
+                                     "views production runtime"
+                                 ]
+                   },
+    "trace":  [
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1638315062,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502321605
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "event":  "rednet_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502321746
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1638315062,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502327219
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1638315062,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502338390
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "event":  "rednet_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502338455
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1638315062,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502342680
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1638315062,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502344281
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  2933153,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502349899
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "event":  "rednet_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502350010
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "packet":  1708627712,
+                      "event":  "modem_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502352308
+                  },
+                  {
+                      "type":  "ssot_reply",
+                      "rid":  "1792502302947:4:1",
+                      "event":  "rednet_message",
+                      "from":  0,
+                      "ok":  true,
+                      "at":  1792502352368
+                  }
+              ],
+    "meshObservation":  "Repeated identical packet IDs separated by seconds; production server/miner/hub mesh rebroadcasts emulated physical-world RPCs.",
+    "nextRun":  "1ab3e8a6faa54a56bd1616e522515c4d uses fleet.mesh=false and SSOT-only trace",
+    "priorFailure":  {
+                         "run":  "9d8e858f6a694d70a1ea6109d367e018",
+                         "rid":  "1792501851699:4:3",
+                         "serverCachedOk":  true,
+                         "serverCachedRevision":  2,
+                         "controllerError":  "scan SSOT timeout (stopped)",
+                         "limitation":  "This earlier run has no raw transport trace."
+                     },
+    "after":  {
+                  "run":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateA\\runs\\1ab3e8a6faa54a56bd1616e522515c4d",
+                  "configuration":  "Unique modem network; fleet.mesh=false only in sandbox driver; SSOT-only raw/rednet trace",
+                  "result":  "PASS: all seven computers, three production miners physically reached x1",
+                  "rawReplies":  20,
+                  "rednetReplies":  20,
+                  "rawToRednetMs":  [
+                                        38,
+                                        38,
+                                        761,
+                                        17,
+                                        17,
+                                        21,
+                                        13,
+                                        47,
+                                        15,
+                                        14,
+                                        14,
+                                        17,
+                                        15,
+                                        18,
+                                        12,
+                                        14,
+                                        14,
+                                        14,
+                                        36,
+                                        7
+                                    ],
+                  "controllerTrace":  [
+                                          {
+                                              "at":  1792502527873,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:1",
+                                              "event":  "modem_message",
+                                              "packet":  456329887,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:1",
+                                              "at":  1792502527911,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502527935,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:2",
+                                              "event":  "modem_message",
+                                              "packet":  1652323221,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:2",
+                                              "at":  1792502527973,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502528100,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:3",
+                                              "event":  "modem_message",
+                                              "packet":  186618101,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:3",
+                                              "at":  1792502528861,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502528991,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:4",
+                                              "event":  "modem_message",
+                                              "packet":  304755135,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:4",
+                                              "at":  1792502529008,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502529140,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:5",
+                                              "event":  "modem_message",
+                                              "packet":  479489068,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:5",
+                                              "at":  1792502529157,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502541792,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:6",
+                                              "event":  "modem_message",
+                                              "packet":  110470594,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:6",
+                                              "at":  1792502541813,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502541969,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:7",
+                                              "event":  "modem_message",
+                                              "packet":  739977612,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:7",
+                                              "at":  1792502541982,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542108,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:8",
+                                              "event":  "modem_message",
+                                              "packet":  762443104,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:8",
+                                              "at":  1792502542155,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542258,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:9",
+                                              "event":  "modem_message",
+                                              "packet":  1166806974,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:9",
+                                              "at":  1792502542273,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542402,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:10",
+                                              "event":  "modem_message",
+                                              "packet":  695358761,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:10",
+                                              "at":  1792502542416,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542549,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:11",
+                                              "event":  "modem_message",
+                                              "packet":  225982334,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:11",
+                                              "at":  1792502542563,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542697,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:12",
+                                              "event":  "modem_message",
+                                              "packet":  275080409,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:12",
+                                              "at":  1792502542714,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542842,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:13",
+                                              "event":  "modem_message",
+                                              "packet":  857828710,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:13",
+                                              "at":  1792502542857,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502542990,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:14",
+                                              "event":  "modem_message",
+                                              "packet":  77137991,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:14",
+                                              "at":  1792502543008,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543136,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:15",
+                                              "event":  "modem_message",
+                                              "packet":  1211680292,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:15",
+                                              "at":  1792502543148,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543276,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:16",
+                                              "event":  "modem_message",
+                                              "packet":  1686302138,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:16",
+                                              "at":  1792502543290,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543420,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:17",
+                                              "event":  "modem_message",
+                                              "packet":  937445672,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:17",
+                                              "at":  1792502543434,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543589,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:18",
+                                              "event":  "modem_message",
+                                              "packet":  1827729207,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:18",
+                                              "at":  1792502543603,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543769,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:19",
+                                              "event":  "modem_message",
+                                              "packet":  1290845044,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:19",
+                                              "at":  1792502543805,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "at":  1792502543943,
+                                              "type":  "ssot_reply",
+                                              "rid":  "1792502522817:4:20",
+                                              "event":  "modem_message",
+                                              "packet":  681619595,
+                                              "from":  0,
+                                              "ok":  true
+                                          },
+                                          {
+                                              "type":  "ssot_reply",
+                                              "event":  "rednet_message",
+                                              "rid":  "1792502522817:4:20",
+                                              "at":  1792502543950,
+                                              "from":  0,
+                                              "ok":  true
+                                          }
+                                      ],
+                  "world":  {
+                                "collisions":  0,
+                                "blocks":  {
+
+                                           },
+                                "poses":  [
+                                              {
+                                                  "z":  -3,
+                                                  "selected":  1,
+                                                  "h":  1,
+                                                  "fuel":  9997,
+                                                  "x":  1,
+                                                  "y":  65
+                                              },
+                                              {
+                                                  "z":  0,
+                                                  "selected":  1,
+                                                  "h":  1,
+                                                  "fuel":  9997,
+                                                  "x":  1,
+                                                  "y":  65
+                                              },
+                                              {
+                                                  "z":  3,
+                                                  "selected":  1,
+                                                  "h":  1,
+                                                  "fuel":  9997,
+                                                  "x":  1,
+                                                  "y":  65
+                                              }
+                                          ],
+                                "timeline":  [
+                                                 {
+                                                     "z":  -3,
+                                                     "id":  1,
+                                                     "at":  1792502545839,
+                                                     "x":  -1,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  -3,
+                                                     "id":  1,
+                                                     "at":  1792502546685,
+                                                     "x":  0,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  -3,
+                                                     "id":  1,
+                                                     "at":  1792502547652,
+                                                     "x":  1,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  0,
+                                                     "id":  2,
+                                                     "at":  1792502576883,
+                                                     "x":  -1,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  0,
+                                                     "id":  2,
+                                                     "at":  1792502577797,
+                                                     "x":  0,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  0,
+                                                     "id":  2,
+                                                     "at":  1792502578683,
+                                                     "x":  1,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  3,
+                                                     "id":  3,
+                                                     "at":  1792502600070,
+                                                     "x":  -1,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  3,
+                                                     "id":  3,
+                                                     "at":  1792502600996,
+                                                     "x":  0,
+                                                     "y":  65
+                                                 },
+                                                 {
+                                                     "z":  3,
+                                                     "id":  3,
+                                                     "at":  1792502601876,
+                                                     "x":  1,
+                                                     "y":  65
+                                                 }
+                                             ]
+                            },
+                  "limitation":  "Before and after differ in trace scope and mesh setting. This supports an artificial emulation-traffic overload explanation but does not isolate mesh as the sole cause."
+              }
+}

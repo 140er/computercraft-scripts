@@ -1,0 +1,55 @@
+{
+    "experiment":  "Stagger initial computer startup compilation; no causal claim",
+    "root":  "C:\\Work\\mc-ssot-pr5-a78d657b",
+    "serverPidAbsentBeforeEdit":  true,
+    "productionUnchanged":  true,
+    "watchdogsUnchanged":  true,
+    "gpsHostDelaysSeconds":  0,
+    "computers":  [
+                      {
+                          "computer":  0,
+                          "delaySeconds":  0,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\0\\startup.lua"
+                      },
+                      {
+                          "computer":  1,
+                          "delaySeconds":  0,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\1\\startup.lua"
+                      },
+                      {
+                          "computer":  2,
+                          "delaySeconds":  10,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\2\\startup.lua"
+                      },
+                      {
+                          "computer":  3,
+                          "delaySeconds":  20,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\3\\startup.lua"
+                      },
+                      {
+                          "computer":  4,
+                          "delaySeconds":  30,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\4\\startup.lua"
+                      },
+                      {
+                          "computer":  6,
+                          "delaySeconds":  50,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\6\\startup.lua"
+                      },
+                      {
+                          "computer":  7,
+                          "delaySeconds":  60,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\7\\startup.lua"
+                      },
+                      {
+                          "computer":  8,
+                          "delaySeconds":  70,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\8\\startup.lua"
+                      },
+                      {
+                          "computer":  9,
+                          "delaySeconds":  80,
+                          "path":  "C:\\Work\\mc-ssot-pr5-a78d657b\\world\\computercraft\\computer\\9\\startup.lua"
+                      }
+                  ]
+}

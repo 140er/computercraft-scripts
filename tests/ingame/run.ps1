@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot','nav','mining','warehouse','ar')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav','mining','warehouse','ar','views')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -16,13 +16,18 @@ if ($Scenario -eq 'ar') {
     & "$PSScriptRoot\ar.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -HostKind $HostKind -SpaceLimit $SpaceLimit -PrepareOnly:$PrepareOnly -Client:$Client
     return
 }
+if ($Scenario -eq 'views' -and !$PrepareOnly) {
+    & "$PSScriptRoot\views-run.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -Client:$Client
+    return
+}
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
-if (!$TestRoot) { $TestRoot = 'C:\Work\mc-ssot-pr1-' + [guid]::NewGuid().ToString('N').Substring(0, 8) }
+$prefix = if ($Scenario -eq 'views') { 'C:\Work\mc-ssot-pr5-' } else { 'C:\Work\mc-ssot-pr1-' }
+if (!$TestRoot) { $TestRoot = $prefix + [guid]::NewGuid().ToString('N').Substring(0, 8) }
 $TestRoot = [IO.Path]::GetFullPath($TestRoot)
-if (!$TestRoot.StartsWith('C:\Work\mc-ssot-pr1-')) { throw 'TestRoot must be a dedicated C:\Work\mc-ssot-pr1-* directory.' }
+if (!$TestRoot.StartsWith($prefix)) { throw "TestRoot must be a dedicated $prefix directory." }
 if ($ResumeProbes -and ($Scenario -ne 'warehouse' -or !(Test-Path "$TestRoot\server.properties"))) { throw 'Probe resume requires an existing warehouse test world.' }
 if (!$ResumeProbes) {
 if (Test-Path "$TestRoot\server.properties") { throw 'Use a fresh test directory.' }
@@ -50,6 +55,7 @@ function Get-FreePort {
 }
 $port = Get-FreePort
 $rconPort = Get-FreePort
+while ($rconPort -eq $port) { $rconPort = Get-FreePort }
 $password = [guid]::NewGuid().ToString('N')
 $properties = @('level-name=world','online-mode=false',"server-port=$port",'server-ip=127.0.0.1',
     'spawn-protection=0','view-distance=3','simulation-distance=3','enable-rcon=true',"rcon.port=$rconPort",
@@ -89,7 +95,7 @@ for ($index = 0; $index -lt $hosts.Count; $index++) {
     $disk = "$TestRoot\world\computercraft\computer\$($index + 10)"
     New-Item -ItemType Directory -Force -Path $disk | Out-Null
     $point = $hosts[$index]
-    [IO.File]::WriteAllText("$disk\startup.lua", "while not peripheral.find('modem') do sleep(0.1) end; shell.run('gps', 'host', '$($point[0])', '$($point[1])', '$($point[2])')", $utf8)
+    [IO.File]::WriteAllText("$disk\startup.lua", "while not peripheral.find('modem') do sleep(0.1) end; sleep(0); local h=fs.open('gps-host-ready','w'); h.write('ready'); h.close(); shell.run('gps', 'host', '$($point[0])', '$($point[1])', '$($point[2])')", $utf8)
 }
 Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash) $([IO.Path]::GetFileName($_.Path))" } | Set-Content "$Output\jar-sha256.txt"
 [IO.File]::WriteAllText("$Output\test-location.txt", "$TestRoot`nlocalhost:$port`nRCON localhost:$rconPort`n", $utf8)

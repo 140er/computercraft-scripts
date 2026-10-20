@@ -1,0 +1,31 @@
+﻿{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-f213add6",
+    "outcome":  "DirectGPU display created; scene was not populated at the fixed-delay check",
+    "report":  {
+                   "ok":  false,
+                   "lines":  [
+                                 "views production runtime"
+                             ],
+                   "errors":  [
+                                  "/views-runtime.lua:16: real cached frames throttle and camera modes: /views-runtime.lua:298: no rendered world snapshot"
+                              ],
+                   "booted":  true,
+                   "free":  2966452,
+                   "checks":  [
+                                  {
+                                      "ok":  true,
+                                      "name":  "real DirectGPU display exists"
+                                  },
+                                  {
+                                      "ok":  false,
+                                      "name":  "real cached frames throttle and camera modes",
+                                      "error":  "/views-runtime.lua:298: no rendered world snapshot"
+                                  }
+                              ]
+               },
+    "cause":  "The fixture checked after 15 seconds before the controller had saved its scan seed. A bounded scene-readiness check with refresh diagnostics replaces that delay-only assumption.",
+    "productionChanged":  false,
+    "clientStarted":  false,
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\peripheral-binding"
+}

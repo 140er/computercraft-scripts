@@ -22,7 +22,9 @@ return {
     ["hub.lua"]={
       [1]="miner.lua",
       [2]="fleetview.lua",
-      [3]="ar-hud.lua"
+      [3]="ar-hud.lua",
+      [4]="views.lua",
+      [5]="directview.lua"
     },
     ["mine-tasks.lua"]={
       [1]="atomic.lua"
@@ -30,7 +32,8 @@ return {
     ["miner.lua"]={
       [1]="mining.lua",
       [2]="nav.lua",
-      [3]="ssot-client.lua"
+      [3]="ssot-client.lua",
+      [4]="view-source.lua"
     },
     ["mining.lua"]={
       [1]="atomic.lua",
@@ -87,23 +90,24 @@ return {
     ["buddy.lua"]="cba823b0",
     ["builder.lua"]="8d8875eb",
     ["chat-control.lua"]="7ca4de48",
+    ["directview.lua"]="7e5470c6",
     ["factory.lua"]="dc6bd071",
     ["farmer.lua"]="d8f8b56b",
-    ["fleetview.lua"]="9cf046df",
+    ["fleetview.lua"]="0f8e8c6d",
     ["gpshost.lua"]="35051764",
-    ["hub.lua"]="480dbe11",
-    ["install.lua"]="598879d5",
+    ["hub.lua"]="7471011c",
+    ["install.lua"]="2374573c",
     ["lava.lua"]="50b443c3",
     ["lumber.lua"]="19a17375",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="1e45c33a",
+    ["miner.lua"]="6bbfce77",
     ["mining.lua"]="e301f99e",
-    ["nav.lua"]="f2d6f768",
+    ["nav.lua"]="908d483f",
     ["panel.lua"]="fd6486b6",
     ["relay.lua"]="71bcc366",
     ["role-adapter.lua"]="708c90da",
     ["roomsorter.lua"]="a5bcd9a4",
-    ["server.lua"]="0cccd07a",
+    ["server.lua"]="22353007",
     ["smartmine.lua"]="22b42d7d",
     ["sorter.lua"]="7fee1560",
     ["ssot-client.lua"]="a74c139a",
@@ -112,11 +116,14 @@ return {
     ["store.lua"]="775e45a9",
     ["update.lua"]="e8b5cb85",
     ["view-role.lua"]="72a23f2b",
+    ["view-scene.lua"]="97baa2b4",
+    ["view-source.lua"]="942bbbac",
+    ["views.lua"]="e3966575",
     ["warehouse-tasks.lua"]="7f54f3f8",
     ["warehouse.lua"]="66f2aff4"
   },
   ["pending"]={
-    [1]="ssot-pr5"
+
   },
   ["preserve"]={
     ["configuredPaths"]={
@@ -185,18 +192,22 @@ return {
         [2]="ar-role.lua",
         [3]="atomic.lua",
         [4]="chat-control.lua",
-        [5]="fleetview.lua",
-        [6]="hub.lua",
-        [7]="install.lua",
-        [8]="mine-tasks.lua",
-        [9]="miner.lua",
-        [10]="mining.lua",
-        [11]="nav.lua",
-        [12]="ssot-client.lua",
-        [13]="ssot.lua",
-        [14]="update.lua",
-        [15]="warehouse-tasks.lua",
-        [16]="warehouse.lua"
+        [5]="directview.lua",
+        [6]="fleetview.lua",
+        [7]="hub.lua",
+        [8]="install.lua",
+        [9]="mine-tasks.lua",
+        [10]="miner.lua",
+        [11]="mining.lua",
+        [12]="nav.lua",
+        [13]="ssot-client.lua",
+        [14]="ssot.lua",
+        [15]="update.lua",
+        [16]="view-scene.lua",
+        [17]="view-source.lua",
+        [18]="views.lua",
+        [19]="warehouse-tasks.lua",
+        [20]="warehouse.lua"
       },
       ["startup"]={
         [1]="ar-role"
@@ -237,8 +248,9 @@ return {
         [8]="ssot-client.lua",
         [9]="ssot.lua",
         [10]="update.lua",
-        [11]="warehouse-tasks.lua",
-        [12]="warehouse.lua"
+        [11]="view-source.lua",
+        [12]="warehouse-tasks.lua",
+        [13]="warehouse.lua"
       },
       ["startup"]={
         [1]="factory"
@@ -272,18 +284,22 @@ return {
         [1]="ar-hud.lua",
         [2]="atomic.lua",
         [3]="chat-control.lua",
-        [4]="fleetview.lua",
-        [5]="hub.lua",
-        [6]="install.lua",
-        [7]="mine-tasks.lua",
-        [8]="miner.lua",
-        [9]="mining.lua",
-        [10]="nav.lua",
-        [11]="ssot-client.lua",
-        [12]="ssot.lua",
-        [13]="update.lua",
-        [14]="warehouse-tasks.lua",
-        [15]="warehouse.lua"
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
       },
       ["startup"]={
         [1]="hub"
@@ -323,8 +339,9 @@ return {
         [7]="ssot-client.lua",
         [8]="ssot.lua",
         [9]="update.lua",
-        [10]="warehouse-tasks.lua",
-        [11]="warehouse.lua"
+        [10]="view-source.lua",
+        [11]="warehouse-tasks.lua",
+        [12]="warehouse.lua"
       },
       ["startup"]={
         [1]="miner"
@@ -350,11 +367,31 @@ return {
     },
     ["pro"]={
       ["entry"]="hub.lua",
+      ["files"]={
+        [1]="ar-hud.lua",
+        [2]="atomic.lua",
+        [3]="chat-control.lua",
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
+      },
       ["startup"]={
         [1]="hub",
         [2]="pro"
-      },
-      ["unavailable"]="PR5 views are not integrated; this role cannot be installed yet."
+      }
     },
     ["relay"]={
       ["entry"]="relay.lua",
@@ -472,35 +509,115 @@ return {
     },
     ["view-map"]={
       ["entry"]="hub.lua",
+      ["files"]={
+        [1]="ar-hud.lua",
+        [2]="atomic.lua",
+        [3]="chat-control.lua",
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
+      },
       ["startup"]={
         [1]="hub",
         [2]="map"
-      },
-      ["unavailable"]="PR5 views are not integrated; this role cannot be installed yet."
+      }
     },
     ["view-pro"]={
       ["entry"]="hub.lua",
+      ["files"]={
+        [1]="ar-hud.lua",
+        [2]="atomic.lua",
+        [3]="chat-control.lua",
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
+      },
       ["startup"]={
         [1]="hub",
         [2]="pro"
-      },
-      ["unavailable"]="PR5 views are not integrated; this role cannot be installed yet."
+      }
     },
     ["view-warehouse"]={
       ["entry"]="hub.lua",
+      ["files"]={
+        [1]="ar-hud.lua",
+        [2]="atomic.lua",
+        [3]="chat-control.lua",
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
+      },
       ["startup"]={
         [1]="hub",
         [2]="warehouse"
-      },
-      ["unavailable"]="PR5 views are not integrated; this role cannot be installed yet."
+      }
     },
     ["vworld"]={
       ["entry"]="hub.lua",
+      ["files"]={
+        [1]="ar-hud.lua",
+        [2]="atomic.lua",
+        [3]="chat-control.lua",
+        [4]="directview.lua",
+        [5]="fleetview.lua",
+        [6]="hub.lua",
+        [7]="install.lua",
+        [8]="mine-tasks.lua",
+        [9]="miner.lua",
+        [10]="mining.lua",
+        [11]="nav.lua",
+        [12]="ssot-client.lua",
+        [13]="ssot.lua",
+        [14]="update.lua",
+        [15]="view-scene.lua",
+        [16]="view-source.lua",
+        [17]="views.lua",
+        [18]="warehouse-tasks.lua",
+        [19]="warehouse.lua"
+      },
       ["startup"]={
         [1]="hub",
         [2]="map"
-      },
-      ["unavailable"]="PR5 views are not integrated; this role cannot be installed yet."
+      }
     }
   },
   ["schema"]=1,
@@ -509,5 +626,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="4538c7db"
+  ["version"]="3df1a03b"
 }

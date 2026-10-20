@@ -33,7 +33,7 @@ function M.open(cfg)
     local j=v.action
     local c=v.control
     if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
-      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop" and c.kind~="recharge"
+      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop" and c.kind~="recharge" and c.kind~="view_move"
       or c.complete~=nil and type(c.complete)~="boolean"
       or c.rechargeId~=nil and (type(c.rechargeId)~="string" or #c.rechargeId>80)) then return false end
     if v.rechargeId~=nil and (type(v.rechargeId)~="string" or #v.rechargeId>80) then return false end
@@ -121,7 +121,7 @@ function M.open(cfg)
   function api.controlState() return A.copy(state.control or {}) end
   function api.rechargeReceipt() return state.rechargeId end
   function api.control(kind,epoch,cid,rechargeId)
-    if (kind~="go" and kind~="recall" and kind~="estop" and kind~="recharge") or not integer(epoch) or epoch<1 or epoch>2147483647
+    if (kind~="go" and kind~="recall" and kind~="estop" and kind~="recharge" and kind~="view_move") or not integer(epoch) or epoch<1 or epoch>2147483647
       or not integer(cid) or cid<1 or cid>2147483647 then return false,"invalid command" end
     if kind=="recharge" and (type(rechargeId)~="string" or #rechargeId<1 or #rechargeId>80) then return false,"invalid command" end
     if kind=="recharge" and state.rechargeId==rechargeId then return false,"duplicate recharge" end
@@ -152,6 +152,18 @@ function M.open(cfg)
   function api.record(p,name)
     assert(not busy and S.pose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
     remember(p,name) save()
+  end
+  function api.import(cells,dim)
+    assert(not busy and type(cells)=="table" and #cells<=1024 and dim==b.min.dim,"invalid map import")
+    local merged=A.copy(state.cells)
+    for _,cell in ipairs(cells) do
+      local p={dim=dim,x=cell.x,y=cell.y,z=cell.z}
+      assert(S.pose(p) and (cell.name==false or type(cell.name)=="string" and #cell.name<=128),"invalid map cell")
+      if inside(p,b) then merged[key(p)]=cell.name==false and "minecraft:air" or cell.name end
+    end
+    local count=0 for _ in pairs(merged) do count=count+1 end
+    assert(count<=maxCells,"navigation map full; export or recalibrate")
+    state.cells=merged save()
   end
   local function turn(h)
     while state.pose.h~=h do

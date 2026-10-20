@@ -18,7 +18,8 @@ local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lu
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
   "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
   "warehouse-tasks.lua", "warehouse.lua", "store.lua", "ar-hud.lua", "chat-control.lua", "ar-role.lua",
-  "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua" }
+  "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
+  "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -145,6 +146,7 @@ if args[1]=="ar" or args[1]=="chat" then
     if not ssotConfig or not ssotConfig.controllers[id] or not SSOT.chatAllowed(ssotConfig,name,uuid) then
       ok,message=false,"Enroll a paired computer ID and an allowed name with its verified UUID."
     else
+      ssotConfig.arControllers=ssotConfig.arControllers or {}
       local old=ssotConfig.arControllers[id]
       ssotConfig.arControllers[id]={name=name,uuid=uuid:lower()}
       ok=saveAuth()
@@ -233,12 +235,14 @@ for _, f in ipairs(FILES) do
   local path = CODE_DIR .. "/" .. f
   if not fs.exists(path) and fs.exists(path .. ".bak") then cacheOp(fs.move, path .. ".bak", path) end
   local code, root = read(path), read(f)
+  yieldWork()
   if root and root ~= "" and load(root, "=" .. f) and (not code or hashOf(root) == hashOf(code)) then
     code, path = root, f
     cacheOp(fs.delete, CODE_DIR .. "/" .. f)
   end
   local old = state.files[f]
   state.files[f] = nil
+  yieldWork()
   if code and code ~= "" and load(code, "=" .. f) then
     cacheOp(fs.delete, CODE_DIR .. "/" .. f .. ".bak")
     state.files[f] = { hash = hashOf(code), size = #code, fetched = old and old.fetched or 0, path = path }
@@ -312,7 +316,7 @@ end
 local ar = peripheral.find("ar_controller")
 if ar and not (arConfig and arConfig.enabled) then pcall(function() ar.clear() ar.update() end) end
 local arHub, arUntil, arDrawn = state.arHub, 0, false
-local enrolled=ssotConfig and ssotConfig.arControllers[tostring(arHub)]
+local enrolled=ssotConfig and ssotConfig.arControllers and ssotConfig.arControllers[tostring(arHub)]
 if not (enrolled and SSOT.arAllowed(ssotConfig,arHub,enrolled.name,enrolled.uuid)) then
   arHub,state.arHub=nil,nil
 end
@@ -376,9 +380,10 @@ end
 local outbox, cidSeq = {}, state.commandSeq or 0
 state.recharges=state.recharges or {}
 state.rechargeRequests=state.rechargeRequests or {}
-local SWAPS = { go = "move", recall = "move", estop = "move", recharge = "move" }
-local function deliver(target, proto, p)
+local SWAPS = { go = "move", recall = "move", estop = "move", recharge = "move", view_move = "move" }
+local function deliver(target, proto, p, viewAuthorized)
   local msg = copy(p)
+  msg.commandAuth=nil
   if msg.type=="recharge" then return false end
   if proto=="minearmy" and SWAPS[msg.type] and state.recharges[target] then
     local old=state.recharges[target]
@@ -396,6 +401,7 @@ local function deliver(target, proto, p)
     state.commandSeq=cidSeq
     msg.cid = cidSeq
     if ssot then msg.commandEpoch=ssot.epoch end
+    if viewAuthorized then msg.commandAuth=ssotConfig.controllers[tostring(target)] end
     outbox[cidSeq] = { target = target, protocol = proto, message = msg, tries = 1, next = now() + 3000 }
   end
   rednet.send(target, msg, proto)
@@ -557,7 +563,37 @@ local function request(id, m)
     reply(id, m, { type = "ack" })
   elseif m.type == "command" and BOTS[m.protocol] and type(m.message) == "table"
     and (m.target == nil or (type(m.target) == "number" and m.target % 1 == 0 and m.target >= 0)) then
-    local p = m.message
+    local p = copy(m.message)
+    p.commandAuth=nil
+    local viewAuthorized=false
+    if m.viewControl or p.type=="view_move" then
+      local secret=ssotConfig and ssotConfig.controllers[tostring(id)]
+      if not ssot or not secret or m.secret~=secret or m.viewControl~=true or m.protocol~="minearmy"
+        or m.direct or not ({view_move=true,go=true,recall=true,estop=true})[p.type]
+        or type(m.sequence)~="number" or m.sequence%1~=0 or m.sequence<1 or m.sequence>9007199254740991 then
+        reply(id,m,{type="ack",ok=false,error="Invalid view command"}) return
+      end
+      state.viewCounters=state.viewCounters or {}
+      if m.sequence<=(state.viewCounters[tostring(id)] or 0) then
+        reply(id,m,{type="ack",ok=false,error="Replayed view command"}) return
+      end
+      if p.type=="view_move" then
+        if not m.target or not ssotConfig.controllers[tostring(m.target)] or not SSOT.pose(p.point) then
+          reply(id,m,{type="ack",ok=false,error="Invalid view target"}) return
+        end
+        local point=p.point
+        local key=point.dim.."|"..math.floor(point.x/16).."|"..math.floor(point.y/16).."|"..math.floor(point.z/16)
+        local ch=ssot.state().chunks[key]
+        local index=point.x%16+16*(point.z%16)+256*(point.y%16)+1
+        if not ch or ch.cells[index]~=0 then
+          reply(id,m,{type="ack",ok=false,error="View target is not observed air"}) return
+        end
+      end
+      state.viewCounters[tostring(id)]=m.sequence
+      p.target=m.target
+      if not save() then reply(id,m,{type="ack",ok=false,error="Cannot save view command"}) return end
+      viewAuthorized=true
+    end
     -- Code and developer operations stay on their existing channels, including pairing checks.
     if p.type == "dev" or p.type=="recharge" or p.key or p.code then return end
     log("command", id, m.protocol .. " " .. tostring(p.cmd or p.type) .. " -> " .. tostring(m.target or "all"))
@@ -567,7 +603,7 @@ local function request(id, m)
     end
     save()
     if m.direct then -- an older hub that already reached the bots itself
-    elseif m.target then deliver(m.target, m.protocol, p)
+    elseif m.target then deliver(m.target, m.protocol, p, viewAuthorized)
     else
       -- Everyone: one broadcast for bots the server does not know (yet), and to each
       -- miner it knows its own copy, repeated until that miner confirms.
@@ -576,7 +612,7 @@ local function request(id, m)
         local forgotten = state.hub and state.hub.state and state.hub.state.forgotten or {}
         for bid, b in pairs(state.bots) do
           if b.kind == "miner" and not forgotten[bid] and now() - (b.lastSeen or 0) < 600000 then
-            deliver(bid, m.protocol, p)
+            deliver(bid, m.protocol, p, viewAuthorized)
           end
         end
       end

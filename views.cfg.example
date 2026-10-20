@@ -1,0 +1,15 @@
+{
+  enabled = false,
+  mode = "pro",
+  server = 0,
+  secret = "replace-with-your-paired-secret",
+  dim = "minecraft:overworld",
+  center = { x = 0, y = 65, z = 0 },
+  radius = 6,
+  camera = "iso",
+  gpu = "right",
+  monitor = "back",
+  width = 320,
+  height = 240,
+  interval = 0.2,
+}

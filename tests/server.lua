@@ -120,6 +120,52 @@ return function(test, equal, read, mocks)
     equal(m.state().bots[7],nil)
     equal(m.request({type="register",kind="miner",rid="valid"}).type,"ack")
   end)
+  test("view commands require pairing and fresh counters and only route observed air",function()
+    local function setup(files)
+      local m=new()
+      for path,value in pairs(files or {}) do m.files[path]=value end
+      m.files["ssot.lua"],m.files["atomic.lua"]=read("ssot.lua"),read("atomic.lua")
+      m.files["ssot.cfg"]='{controllers={["7"]="test-secret-123456",["5"]="turtle-secret-123456"}}'
+      m.env.dofile=function(path)
+        local lib=assert(loadfile(path,"t",m.env))()
+        if path=="ssot.lua" then
+          lib.open=function()
+            return {epoch="1",state=function() return {chunks={["minecraft:overworld|0|4|0"]={cells={[258]=0,[259]=1}}}} end}
+          end
+        end
+        return lib
+      end
+      m.start(serverCode)
+      return m
+    end
+    local m=setup()
+    local packet={type="command",target=5,protocol="minearmy",viewControl=true,sequence=1,
+      secret="wrong",message={type="view_move",point={dim="minecraft:overworld",x=1,y=65,z=0}}}
+    equal(m.request(packet).ok,false)
+    packet.secret="test-secret-123456"
+    packet.message.point.x=2 equal(m.request(packet).ok,false)
+    packet.message.point.x=3 equal(m.request(packet).ok,false)
+    packet.message.point.x=1
+    local r=m.request(packet)
+    equal(r.type,"ack")
+    local delivered
+    for _,p in ipairs(m.sent) do if p.proto=="minearmy" and p.msg.type=="view_move" then delivered=p end end
+    assert(delivered and delivered.id==5 and delivered.msg.target==5)
+    equal(delivered.msg.commandAuth,"turtle-secret-123456")
+    equal(delivered.msg.commandEpoch,"1")
+    equal(m.request(packet).error,"Replayed view command")
+    local restored=setup(m.files)
+    equal(restored.request(packet).error,"Replayed view command")
+    restored.request({type="command",target=5,protocol="minearmy",
+      message={type="go",commandAuth="turtle-secret-123456"}})
+    local legacy
+    for _,p in ipairs(restored.sent) do if p.proto=="minearmy" and p.msg.type=="go" then legacy=p.msg end end
+    assert(legacy and legacy.commandAuth==nil,"legacy request gained manual-control credentials")
+    packet.sequence=2 packet.message={type="estop"}
+    equal(restored.request(packet).type,"ack")
+    packet.sequence=1 packet.message={type="go"}
+    equal(restored.request(packet).error,"Replayed view command")
+  end)
 
   test("server saves GPS status and hub assignments across restart", function()
     local m = new()

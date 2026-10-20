@@ -632,32 +632,51 @@ function V.gpuDraw(g, list, opt)
   gl.sync()
   -- 2D: list on the right, buttons at the bottom
   local W3 = g.w - g.listW
+  local function textWidth(label, size)
+    size = size or 1
+    if type(gpu.getTextLength) == "function" then return gpu.getTextLength(label, size) end
+    return #label * 6 * size
+  end
+  local function text(x, y, label, color, background, size, width)
+    size = size or 1
+    if x < 1 or x > g.w then return end
+    width = math.min(width or g.w, g.w - x + 1)
+    while #label > 0 and textWidth(label, size) > width do label = label:sub(1, -2) end
+    if #label > 0 then gpu.drawText(x, y, label, color, background, size) end
+  end
   if g.listW > 0 then
     gpu.filledRectangle(W3 + 1, 1, g.listW, g.h, 0x101018)
-    gpu.drawText(W3 + 8, 6, opt.title or "Fleet", 0xFFFFFF, 0x101018, 2)
+    text(W3 + 8, 6, opt.title or "Fleet", 0xFFFFFF, 0x101018, 2)
     local y = 30
     for _, e in ipairs(list) do
       if y > g.h - g.barH - 12 then break end
       local tag = tagOf[e.id]
       gpu.filledRectangle(W3 + 8, y, 10, 10, rgbInt(tag))
       local c = e.stale and 0x999999 or (e.trouble and 0xFF5555 or 0xFFFFFF)
-      gpu.drawText(W3 + 24, y + 1, ((e.name or ("#" .. e.id)) .. ": " .. V.stateText(e)):sub(1, math.floor((g.listW - 30) / 6)),
+      text(W3 + 24, y + 1, (e.name or ("#" .. e.id)) .. ": " .. V.stateText(e),
         c, 0x101018)
       y = y + 16
     end
   end
   gpu.filledRectangle(1, g.h - g.barH + 1, g.w, g.barH, 0x303040)
   g.buttons = {}
-  local x = 4
-  for _, b in ipairs({ { "<", "left" }, { ">", "right" }, { "^", "up" }, { "v", "down" }, { "+", "in" }, { "-", "out" },
-    { "AUTO", "auto" }, { "RESET", "reset" }, { "FLIP", "flip" } }) do
-    local w = math.max(28, #b[1] * 12 + 12)
+  local controls = { { "<", "left" }, { ">", "right" }, { "^", "up" }, { "v", "down" }, { "+", "in" }, { "-", "out" },
+    { "AUTO", "auto" }, { "RESET", "reset" }, { "FLIP", "flip" } }
+  local required = 3
+  for i, b in ipairs(controls) do required = required + math.max(28, #b[1] * 12 + 12) + (i > 1 and 4 or 0) end
+  local compact = required > g.w
+  local slot = math.floor(g.w / #controls)
+  local x = compact and 1 or 4
+  for _, b in ipairs(controls) do
+    if x > g.w then break end
+    local w = compact and math.max(1, slot - 1) or math.max(28, #b[1] * 12 + 12)
+    local label, size = compact and b[1]:sub(1, 1) or b[1], compact and 1 or 2
     local on = (b[2] == "auto" and cam.auto) or (b[2] == "flip" and g.flip)
     local bc = on and 0x55AA55 or 0x8888AA
-    gpu.filledRectangle(x, g.h - g.barH + 4, w, g.barH - 7, bc)
-    gpu.drawText(x + 6, g.h - g.barH + 7, b[1], 0x000000, bc, 2)
-    g.buttons[#g.buttons + 1] = { x, x + w - 1, b[2] }
-    x = x + w + 4
+    gpu.filledRectangle(x, g.h - g.barH + 4, math.min(w, g.w - x + 1), g.barH - 7, bc)
+    text(x + (compact and 0 or 6), g.h - g.barH + 7, label, 0x000000, bc, size, w - (compact and 0 or 6))
+    g.buttons[#g.buttons + 1] = { x, math.min(g.w, x + w - 1), b[2] }
+    x = x + (compact and slot or w + 4)
   end
   gpu.sync()
 end

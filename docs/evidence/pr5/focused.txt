@@ -1,0 +1,10 @@
+Commit bc7164a. Focused checks after the final production edits.
+Commands: C:\Tools\lua52\lua52.exe tests\view-core-checks.lua; C:\Tools\lua52\lua52.exe tests\view-ui-checks.lua; C:\Tools\lua52\lua52.exe tests\view-commands-unit.lua
+Exit code: 0
+view-core checks passed
+DirectGPU signature and lifecycle checks passed
+snapshot paging, PR4 boundary and camera checks passed
+boundary validation, complete warehouse and moving fleet checks passed
+view UI checks passed
+PASS view movement is opt-in and rejects forged, distant and invalid commands
+PASS view movement rejects another command while its worker owns navigation
