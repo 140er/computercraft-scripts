@@ -6,15 +6,87 @@ local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
 local function word(s, n) return type(s) == "string" and #s > 0 and #s <= n end
+local function frameId(id)
+  if type(id) ~= "string" or #id > 64 then return nil end
+  local owner, stamp = id:match("^f:(%d+):(%d+)$")
+  if not owner or not stamp then return nil end
+  if #owner > 1 and owner:sub(1, 1) == "0" then return nil end
+  if #stamp > 1 and stamp:sub(1, 1) == "0" then return nil end
+  owner, stamp = tonumber(owner), tonumber(stamp)
+  if not integer(owner, 0, 2147483647) or not integer(stamp, 0, 9007199254740991) then return nil end
+  if id ~= "f:" .. owner .. ":" .. stamp then return nil end
+  return owner, stamp
+end
 function M.pose(p)
-  return type(p) == "table" and word(p.dim, 80) and p.dim:match("^[%w_]+:[%w_/.-]+$")
+  if not (type(p) == "table" and word(p.dim, 80) and p.dim:match("^[%w_]+:[%w_/.-]+$")
     and integer(p.x, -30000000, 30000000) and integer(p.y, -2048, 2048)
-    and integer(p.z, -30000000, 30000000)
+    and integer(p.z, -30000000, 30000000)) then return false end
+  if p.frame ~= nil and p.frame ~= "abs" and not frameId(p.frame) then return false end
+  if p.h ~= nil and not integer(p.h, 0, 3) then return false end
+  return true
+end
+function M.toAbs(t)
+  if type(t) ~= "table" then return false end
+  local n = 0
+  for k in pairs(t) do
+    n = n + 1
+    if k ~= "dx" and k ~= "dy" and k ~= "dz" and k ~= "rot" then return false end
+  end
+  return n == 4 and integer(t.dx, -60000000, 60000000) and integer(t.dy, -4096, 4096)
+    and integer(t.dz, -60000000, 60000000) and integer(t.rot, 0, 3)
+end
+function M.pos(p)
+  if type(p) ~= "table" or p.v ~= 1 then return false end
+  local n = 0
+  for k in pairs(p) do
+    n = n + 1
+    if k ~= "v" and k ~= "frame" and k ~= "yAbs" and k ~= "dim" and k ~= "x" and k ~= "y"
+      and k ~= "z" and k ~= "h" and k ~= "conf" and k ~= "src" and k ~= "anchoredAt" then return false end
+  end
+  if n ~= 11 or not M.pose(p) then return false end
+  if p.frame ~= "abs" and not frameId(p.frame) then return false end
+  if p.yAbs ~= true and p.yAbs ~= false then return false end
+  if p.frame == "abs" and p.yAbs ~= true then return false end
+  if (p.conf ~= "certain" and p.conf ~= "suspect" and p.conf ~= "lost")
+    or (p.src ~= "gps" and p.src ~= "neighbour" and p.src ~= "radio" and p.src ~= "typed"
+      and p.src ~= "reckoned" and p.src ~= "inherited") then return false end
+  return integer(p.anchoredAt, 0, 9007199254740991) and integer(p.h, 0, 3)
+end
+local function frameOf(p)
+  if type(p) ~= "table" or p.frame == nil or p.frame == "abs" then return "abs" end
+  return p.frame
 end
 local function equal(a, b)
-  return a and b and a.dim==b.dim and a.x==b.x and a.y==b.y and a.z==b.z
+  return a and b and frameOf(a)==frameOf(b) and a.dim==b.dim and a.x==b.x and a.y==b.y and a.z==b.z
 end
-local function clone(p) return { dim = p.dim, x = p.x, y = p.y, z = p.z } end
+local function clone(p)
+  local o = { dim = p.dim, x = p.x, y = p.y, z = p.z }
+  if p.h ~= nil then o.h = p.h end
+  if p.v ~= nil then o.v = p.v end
+  if p.frame ~= nil then o.frame = p.frame end
+  if p.yAbs ~= nil then o.yAbs = p.yAbs end
+  if p.conf ~= nil then o.conf = p.conf end
+  if p.src ~= nil then o.src = p.src end
+  if p.anchoredAt ~= nil then o.anchoredAt = p.anchoredAt end
+  return o
+end
+local function sameToAbs(a, b)
+  return type(a)=="table" and type(b)=="table" and a.dx==b.dx and a.dy==b.dy and a.dz==b.dz and a.rot==b.rot
+end
+local function rotateToAbs(x, y, z, h, yAbs, toAbs)
+  if yAbs and toAbs.dy ~= 0 then return nil end
+  local rot = toAbs.rot
+  local rx, rz
+  if rot == 0 then rx, rz = x, z
+  elseif rot == 1 then rx, rz = -z, x
+  elseif rot == 2 then rx, rz = -x, -z
+  else rx, rz = z, -x end
+  local x2, y2, z2 = rx + toAbs.dx, yAbs and y or y + toAbs.dy, rz + toAbs.dz
+  if not integer(x2, -30000000, 30000000) or not integer(y2, -2048, 2048) or not integer(z2, -30000000, 30000000) then
+    return nil
+  end
+  return x2, y2, z2, h ~= nil and (h + rot) % 4 or nil
+end
 local function chunk(p)
   return p.dim .. "|" .. math.floor(p.x / 16) .. "|" .. math.floor(p.y / 16) .. "|" .. math.floor(p.z / 16),
     p.x % 16 + 16 * (p.z % 16) + 256 * (p.y % 16) + 1
@@ -134,7 +206,8 @@ function M.new(s, cfg, clock, epoch, save)
       s.poses[id].boot = m.boot
       return { ok = true, pose = clone(p), epoch = epoch }
     elseif op == "reserve" then
-      if not M.pose(p) or not M.pose(m.to) or not equal(p, s.poses[id]) or s.poses[id].boot ~= m.boot or p.dim ~= m.to.dim
+      if not M.pose(p) or not M.pose(m.to) or not equal(p, s.poses[id]) or frameOf(p) ~= frameOf(m.to)
+        or s.poses[id].boot ~= m.boot or p.dim ~= m.to.dim
         or math.abs(p.x - m.to.x) + math.abs(p.y - m.to.y) + math.abs(p.z - m.to.z) ~= 1 then
         return { ok = false, error = "invalid adjacent source" }
       end
@@ -160,9 +233,142 @@ function M.new(s, cfg, clock, epoch, save)
         s.poses[id].boot = m.boot
       end
       return { ok = true, untilAt = r.untilAt }
+    elseif op == "anchor" then
+      if not M.pos(p) or p.conf ~= "certain" then return { ok = false, error = "invalid anchor" } end
+      local ev = m.evidence
+      if type(ev) ~= "table" or (ev.source ~= "typed" and ev.source ~= "neighbour" and ev.source ~= "gps" and ev.source ~= "radio")
+        or not word(ev.reference, 64) or type(ev.faces) ~= "table" then return { ok = false, error = "invalid anchor evidence" } end
+      local faces = 0
+      for dir, name in pairs(ev.faces) do
+        faces = faces + 1
+        if faces > 6 or not integer(dir, 0, 5) or not word(name, 128) or not name:match("^[%w_]+:[%w_/.-]+$") then
+          return { ok = false, error = "invalid anchor evidence" }
+        end
+      end
+      if faces < 1 then return { ok = false, error = "invalid anchor evidence" } end
+      if p.frame ~= "abs" then
+        local frames = s.frames or {}
+        local owner = frameId(p.frame)
+        local rec = frames[p.frame]
+        if rec then
+          if rec.dim ~= p.dim or rec.frame.yAbs ~= p.yAbs or rec.frame.owner ~= owner or rec.frame.toAbs ~= false then
+            return { ok = false, error = "frame mismatch" }
+          end
+        else
+          local n = 0
+          for _ in pairs(frames) do n = n + 1 end
+          if n >= 32 then return { ok = false, error = "frame limit" } end
+        end
+      end
+      if occupied(p, id) then return { ok = false, error = "occupied" } end
+      if p.frame ~= "abs" and not (s.frames and s.frames[p.frame]) then
+        s.frames = s.frames or {}
+        local owner = frameId(p.frame)
+        s.frames[p.frame] = { frame = { v = 1, id = p.frame, owner = owner, yAbs = p.yAbs, toAbs = false }, dim = p.dim, receipt = false }
+        s.rel = s.rel or {}
+        s.rel[p.frame] = s.rel[p.frame] or { dim = p.dim, cells = {} }
+      end
+      s.poses[id] = clone(p)
+      s.poses[id].boot = m.boot
+      s.moves[id] = nil
+      return { ok = true, pose = clone(p), epoch = epoch }
+    elseif op == "frame-merge" then
+      local idf = m.id
+      local rec = type(idf) == "string" and s.frames and s.frames[idf] or nil
+      if not rec or type(rec.frame) ~= "table" then return { ok = false, error = "unknown frame" } end
+      if not M.toAbs(m.toAbs) then return { ok = false, error = "invalid transform" } end
+      if rec.frame.yAbs and m.toAbs.dy ~= 0 then return { ok = false, error = "yAbs transform" } end
+      if rec.frame.toAbs ~= false then
+        if sameToAbs(rec.frame.toAbs, m.toAbs) then return { ok = true, id = idf, idempotent = true, state = "committed" } end
+        return { ok = false, error = "frame already merged" }
+      end
+      for _, mv in pairs(s.moves) do
+        if frameOf(mv.from) == idf or frameOf(mv.to) == idf then return { ok = false, error = "frame busy" } end
+      end
+      local bucket = (s.rel and s.rel[idf]) or { cells = {} }
+      local painted, additions, count, names = {}, {}, 0, {}
+      for _ in pairs(s.chunks) do count = count + 1 end
+      for _, name in ipairs(s.names) do names[name] = true end
+      for _, c in ipairs(bucket.cells or {}) do
+        if type(c) ~= "table" or not integer(c.x, -30000000, 30000000) or not integer(c.y, -2048, 2048)
+          or not integer(c.z, -30000000, 30000000) then return { ok = false, error = "invalid relative cell" } end
+        local x, y, z = rotateToAbs(c.x, c.y, c.z, nil, rec.frame.yAbs, m.toAbs)
+        if not x then return { ok = false, error = "transform out of bounds" } end
+        local world = { dim = rec.dim, x = x, y = y, z = z, name = c.name }
+        local key = chunk(world)
+        if not s.chunks[key] and not additions[key] then additions[key], count = true, count + 1 end
+        if world.name and world.name ~= false then names[world.name] = true end
+        painted[#painted + 1] = world
+      end
+      local poseUpdates = {}
+      for pid, pose in pairs(s.poses) do
+        if frameOf(pose) == idf then
+          local x, y, z, h = rotateToAbs(pose.x, pose.y, pose.z, pose.h, rec.frame.yAbs, m.toAbs)
+          if not x then return { ok = false, error = "transform out of bounds" } end
+          poseUpdates[pid] = { x = x, y = y, z = z, h = h }
+        end
+      end
+      if count > maxChunks then return { ok = false, error = "resident chunk limit" } end
+      local nameCount = 0
+      for _ in pairs(names) do nameCount = nameCount + 1 end
+      if nameCount > 256 then return { ok = false, error = "name limit" } end
+      for _, world in ipairs(painted) do
+        local key, index = chunk(world)
+        local ch = s.chunks[key] or { cells = {}, rev = 0 }
+        local name = 0
+        if world.name and world.name ~= false then
+          for i, n in ipairs(s.names) do if n == world.name then name = i break end end
+          if name == 0 then s.names[#s.names + 1], name = world.name, #s.names + 1 end
+        end
+        ch.cells[index], ch.rev, s.chunks[key] = name, s.rev + 1, ch
+      end
+      for pid, upd in pairs(poseUpdates) do
+        local pose = s.poses[pid]
+        local boot = pose.boot
+        local n = clone(pose)
+        n.x, n.y, n.z, n.frame, n.yAbs, n.src = upd.x, upd.y, upd.z, "abs", true, "inherited"
+        if upd.h ~= nil then n.h = upd.h end
+        s.poses[pid] = n
+        s.poses[pid].boot = boot
+      end
+      s.rev = s.rev + 1
+      rec.frame.toAbs = { dx = m.toAbs.dx, dy = m.toAbs.dy, dz = m.toAbs.dz, rot = m.toAbs.rot }
+      rec.receipt = { id = idf, dim = rec.dim, toAbs = rec.frame.toAbs, sourceHash = false, targetHash = false, state = "committed" }
+      return { ok = true, id = idf, idempotent = false, state = "committed" }
     elseif op == "scan" then
       if not M.pose(p) or not equal(p, s.poses[id]) or not integer(m.revision, 0, s.rev)
         or type(m.cells) ~= "table" or #m.cells > 64 or #m.cells == 0 then return { ok = false, error = "invalid scan" } end
+      if frameOf(p) ~= "abs" then
+        local rec = s.frames and s.frames[p.frame]
+        if not rec or rec.frame.toAbs ~= false or rec.dim ~= p.dim then return { ok = false, error = "unknown frame" } end
+        for k, c in pairs(m.cells) do
+          if not integer(k, 1, #m.cells) or type(c) ~= "table" or not M.pose(c) or c.dim ~= p.dim
+            or math.abs(c.x - p.x) > 32 or math.abs(c.y - p.y) > 32 or math.abs(c.z - p.z) > 32
+            or not (c.name == false or (word(c.name, 128) and c.name:match("^[%w_]+:[%w_/.-]+$"))) then
+            return { ok = false, error = "invalid observation" }
+          end
+        end
+        s.rel = s.rel or {}
+        local bucket = s.rel[p.frame] or { dim = p.dim, cells = {} }
+        local cells = {}
+        for _, old in ipairs(bucket.cells) do cells[#cells + 1] = { x = old.x, y = old.y, z = old.z, name = old.name } end
+        for _, c in ipairs(m.cells) do
+          local replaced = false
+          for i, old in ipairs(cells) do
+            if old.x == c.x and old.y == c.y and old.z == c.z then
+              cells[i] = { x = c.x, y = c.y, z = c.z, name = c.name }
+              replaced = true
+              break
+            end
+          end
+          if not replaced then
+            if #cells >= 1024 then return { ok = false, error = "relative map full" } end
+            cells[#cells + 1] = { x = c.x, y = c.y, z = c.z, name = c.name }
+          end
+        end
+        bucket.cells, bucket.dim, s.rel[p.frame] = cells, p.dim, bucket
+        return { ok = true, revision = s.rev }
+      end
       local count, additions, names = 0, {}, {}
       for _, name in ipairs(s.names) do names[name] = true end
       for _ in pairs(s.chunks) do count = count + 1 end
@@ -284,6 +490,33 @@ function M.open(cfg)
     for id,p in pairs(s.poses) do
       count=count+1
       if count>32 or not integer(id,0,2147483647) or not M.pose(p) or not word(p.boot,80) then return false end
+      if p.v ~= nil and p.v ~= 1 then return false end
+      if p.conf ~= nil and p.conf ~= "certain" and p.conf ~= "suspect" and p.conf ~= "lost" then return false end
+      if p.frame == "abs" and p.yAbs == false then return false end
+    end
+    if s.frames ~= nil then
+      if type(s.frames) ~= "table" then return false end
+      local n = 0
+      for id, rec in pairs(s.frames) do
+        n = n + 1
+        if n > 32 or type(id) ~= "string" or type(rec) ~= "table" or type(rec.frame) ~= "table"
+          or rec.frame.v ~= 1 or rec.frame.id ~= id or not word(rec.dim, 80) then return false end
+        if rec.frame.toAbs ~= false and not M.toAbs(rec.frame.toAbs) then return false end
+        if rec.receipt ~= false and (type(rec.receipt) ~= "table" or rec.receipt.state ~= "committed") then return false end
+      end
+    end
+    if s.rel ~= nil then
+      if type(s.rel) ~= "table" or s.frames == nil then return false end
+      for id, bucket in pairs(s.rel) do
+        if s.frames[id] == nil or type(bucket) ~= "table" or type(bucket.cells) ~= "table" then return false end
+        local n = 0
+        for _, c in ipairs(bucket.cells) do
+          n = n + 1
+          if n > 1024 or type(c) ~= "table" or not integer(c.x, -30000000, 30000000)
+            or not integer(c.y, -2048, 2048) or not integer(c.z, -30000000, 30000000) then return false end
+        end
+        if n ~= #bucket.cells then return false end
+      end
     end
     for id,r in pairs(s.moves) do
       if not s.poses[id] or type(r)~="table" or not M.pose(r.from) or not M.pose(r.to)

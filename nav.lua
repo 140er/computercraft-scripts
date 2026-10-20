@@ -22,9 +22,23 @@ function M.open(cfg)
   local maxCells,maxNodes,batch=cfg.maxCells or 2048,cfg.maxNodes or 2048,cfg.batch or 32
   assert(integer(maxCells) and maxCells>=1 and maxCells<=4096 and integer(maxNodes) and maxNodes>=1
     and maxNodes<=4096 and integer(batch) and batch>=1 and batch<=64,"invalid navigation budget")
+  local gpsFree=cfg.gpsFree==true
+  local Pos=gpsFree and dofile("position.lua") or nil
   local function valid(v)
     if type(v)~="table" or v.version~=1 or not S.pose(v.pose) or not heading(v.pose.h)
       or type(v.cells)~="table" then return false end
+    if v.pose.v~=nil and v.pose.v~=1 then return false end
+    if v.pose.conf~=nil and v.pose.conf~="certain" and v.pose.conf~="suspect" and v.pose.conf~="lost" then return false end
+    if v.bootSerial~=nil and (not integer(v.bootSerial) or v.bootSerial<0) then return false end
+    if v.boot~=nil and (type(v.boot)~="string" or #v.boot>80) then return false end
+    if v.journal~=nil then
+      local j=v.journal
+      if type(j)~="table" or j.v~=1 or type(j.lease)~="string" or #j.lease>80
+        or not integer(j.seq) or j.seq<0 or not integer(j.committed) or j.committed<0 or j.committed>j.seq then return false end
+      if j.acked~=nil and (not integer(j.acked) or j.acked<0 or j.acked>j.committed) then return false end
+      if j.open~=nil and type(j.open)~="table" then return false end
+      if j.probe~=nil and j.probe~=false and type(j.probe)~="table" then return false end
+    end
     local n=0
     for k,name in pairs(v.cells) do
       n=n+1
@@ -45,8 +59,20 @@ function M.open(cfg)
   local store=A.store(cfg.path or "nav.state",valid,400000)
   local state=store.value or {version=1,pose=A.copy(cfg.pose),cells={}}
   state.trail=state.trail or {}
+  if gpsFree then
+    state.journal=state.journal or {v=1,lease="local:"..os.getComputerID()..":1",seq=0,committed=0,acked=0,probe=false}
+    state.bootSerial=(state.bootSerial or 0)+1
+    state.boot="b:"..state.bootSerial
+    if state.pose.v~=1 then
+      local frame=state.pose.frame or "abs"
+      local yAbs=not (frame~="abs" and state.pose.yAbs==false)
+      state.pose={v=1,frame=frame,yAbs=yAbs,dim=state.pose.dim,x=state.pose.x,y=state.pose.y,z=state.pose.z,h=state.pose.h,
+        conf="suspect",src="inherited",anchoredAt=0}
+    end
+  end
   local api,busy,stopped,ready={},false,state.stopped==true,false
   local function save() assert(store.save(state)) end
+  if gpsFree then save() end
   local function checkpoint(name) if cfg.checkpoint then cfg.checkpoint(name) end end
   local function observe()
     local p=cfg.observe()
@@ -76,7 +102,100 @@ function M.open(cfg)
     state.action=nil remember(state.pose,"minecraft:air") save() ready=true
     return true
   end
+  local function proof(v)
+    if v=="none" or v=="possible" or v=="unknown" then return v end
+    return "unknown"
+  end
+  local function faceName(ok,info)
+    if ok and type(info)=="table" and type(info.name)=="string" then return info.name end
+    return "minecraft:air"
+  end
+  local function probe()
+    state.journal.probe={boot=state.boot,phase="intent"}
+    save() checkpoint("probe-intent")
+    local topOk,top=turtle.inspectUp()
+    local botOk,bot=turtle.inspectDown()
+    local side={}
+    for i=1,4 do
+      local ok,info=turtle.inspect()
+      side[i]=faceName(ok,info)
+      turtle.turnRight()
+    end
+    local faces={front=side[1],right=side[2],back=side[3],left=side[4],top=faceName(topOk,top),bottom=faceName(botOk,bot)}
+    state.journal.probe={boot=state.boot,phase="done",localFaces=A.copy(faces)}
+    save()
+    return faces
+  end
+  local function predict(cell,origin)
+    local faces={}
+    for d=0,5 do
+      local n=adjacent(cell,d)
+      if same(n,origin) then faces[d]="minecraft:air"
+      elseif state.cells[key(n)] then faces[d]=state.cells[key(n)] end
+    end
+    return faces
+  end
+  local function closeMove(succeeded,method,after)
+    local open=state.journal.open
+    if not open then return end
+    local done=A.copy(open)
+    done.phase,done.at="done",os.epoch("utc")
+    done.evidence=A.copy(open.evidence)
+    done.evidence.ok=succeeded and true or false
+    done.evidence.fuelAfter=turtle.getFuelLevel()
+    done.evidence.reason=succeeded and false or "failed"
+    done.evidence.after=after or {}
+    if method=="fuel" or method=="fingerprint" then done.evidence.recovery={boot=state.boot,method=method}
+    else done.evidence.recovery=false end
+    state.journal.last=done
+    state.journal.open=nil
+    state.journal.committed=done.seq
+    state.action=nil
+  end
+  local function recoverFree()
+    if busy then return false,"navigation busy" end
+    ready=false
+    if state.journal.probe and state.journal.probe.phase=="intent" then
+      state.pose.conf,state.pose.src="lost","reckoned"
+      save()
+      return false,"interrupted probe"
+    end
+    local faces=probe()
+    local decision
+    if state.journal.open then
+      local open=state.journal.open
+      decision=Pos.resolveMove({
+        fuelBefore=open.fuelBefore,fuelNow=turtle.getFuelLevel(),moveCost=open.evidence.moveCost,
+        charging=open.evidence.charging,regeneration=open.evidence.regeneration,
+        fromFaces=open.evidence.from,toFaces=open.evidence.to,localFaces=faces,heading=open.from.h,
+      })
+    else
+      decision=Pos.resolveBoot({faces=state.journal.faces,localFaces=faces,heading=state.pose.h})
+    end
+    state.journal.probe=false
+    if decision.conf=="certain" then
+      if state.journal.open then
+        local cell=decision.cell=="to" and state.journal.open.to or state.journal.open.from
+        state.pose=A.copy(cell)
+        state.pose.h=decision.heading
+        state.pose.conf,state.pose.src="certain","reckoned"
+        if decision.cell=="to" then remember(state.pose,"minecraft:air") end
+      else
+        state.pose.h=decision.heading
+        state.pose.conf,state.pose.src="certain","neighbour"
+      end
+      state.journal.faces=Pos.rotate(faces,state.pose.h)
+      closeMove(decision.cell=="to",decision.method,state.journal.faces)
+      save()
+      return sync()
+    end
+    state.pose.conf=decision.conf
+    if decision.conf=="lost" then state.pose.src="reckoned" end
+    save()
+    return false,decision.conf
+  end
   function api.recover()
+    if gpsFree then return recoverFree() end
     if busy then return false,"navigation busy" end
     ready=false
     local p,why=observe()
@@ -96,6 +215,14 @@ function M.open(cfg)
     return sync()
   end
   function api.calibrate(h)
+    if gpsFree then
+      if busy then return false,"navigation busy" end
+      if not heading(h) then return false,"invalid heading" end
+      if state.pose.conf~="certain" then return false,"pose not certain" end
+      if state.journal.open or (state.journal.probe and state.journal.probe.phase=="intent") then return false,"unresolved move" end
+      state.pose.h=h save()
+      return true
+    end
     if busy then return false,"navigation busy" end
     if not heading(h) then return false,"invalid heading" end
     ready=false
@@ -106,6 +233,93 @@ function M.open(cfg)
     if not same(p,state.pose) then state.cells={} state.trail={} end
     p.h=h state.pose=A.copy(p) state.action={kind="calibrate",from=previous,to=A.copy(p)} save()
     return sync(previous)
+  end
+  local function acceptAnchor(spec)
+    if busy then return false,"navigation busy" end
+    if type(spec)~="table" then return false,"invalid anchor" end
+    ready=false
+    local faces=probe()
+    local world=Pos.rotate(faces,state.pose.h)
+    local now=os.epoch("utc")
+    local pos=Pos.makePos({
+      frame=spec.frame or "abs",yAbs=spec.yAbs,dim=spec.dim or state.pose.dim,
+      x=spec.x,y=spec.y,z=spec.z,h=spec.h or state.pose.h,
+      conf="certain",src=spec.src or "typed",anchoredAt=now,
+    })
+    if not pos or not inside(pos,b) or pos.dim~=b.min.dim then
+      state.journal.probe=false
+      if pos and pos.dim~=state.pose.dim then
+        state.pose.conf,state.pose.frame,state.pose.yAbs="lost","abs",true
+      end
+      save()
+      return false,pos and "outside navigation bounds" or "invalid anchor"
+    end
+    if state.pose.dim and pos.dim~=state.pose.dim and spec.frame==state.pose.frame and spec.frame~="abs" then
+      state.journal.probe=false
+      state.pose.conf,state.pose.frame,state.pose.yAbs="lost","abs",true
+      save()
+      return false,"old frame"
+    end
+    if pos.src~="typed" and pos.src~="neighbour" and pos.src~="radio" and pos.src~="gps" then
+      state.journal.probe=false save() return false,"invalid anchor"
+    end
+    local evidence={source=pos.src,reference=spec.reference or ("local:"..now),faces=world}
+    if type(evidence.reference)~="string" or #evidence.reference>64 then
+      state.journal.probe=false save() return false,"invalid anchor"
+    end
+    if cfg.client and cfg.client.anchor then
+      local ok,why=cfg.client.anchor(pos,evidence)
+      if not ok then state.journal.probe=false save() return false,why or "anchor rejected" end
+    end
+    local previous=A.copy(state.pose)
+    state.journal.seq=state.journal.seq+1
+    state.journal.last={
+      v=1,seq=state.journal.seq,lease=state.journal.lease,at=now,frame=pos.frame,
+      kind="anchor",phase="done",from=previous,to=A.copy(pos),
+      fuelBefore=false,cell=false,name=false,count=0,
+      evidence={boot=state.boot,from={},to={},after=world,localFaces=faces,recovery=false,
+        fuelAfter=false,moveCost=false,charging="unknown",regeneration="unknown",
+        ok=true,reason=false,item=false,anchor=evidence},
+    }
+    state.journal.open=nil
+    state.journal.committed=state.journal.seq
+    state.journal.faces=world
+    state.journal.probe=false
+    state.pose=pos
+    state.cells,state.trail={},{}
+    state.action=nil
+    save()
+    return sync()
+  end
+  function api.anchor(spec)
+    if not gpsFree then return false,"offline positions are off" end
+    return acceptAnchor(spec)
+  end
+  function api.hear(text,player)
+    if not gpsFree then return false,"offline positions are off" end
+    local id=Pos.parseAnchor(text)
+    if id~=os.getComputerID() then return false,"not this turtle" end
+    local cell=Pos.playerCell(player)
+    if not cell then return false,"no player position" end
+    if cell.dim~=state.pose.dim then
+      state.pose.conf,state.pose.frame,state.pose.yAbs="lost","abs",true
+      save()
+    end
+    return acceptAnchor({x=cell.x,y=cell.y,z=cell.z,dim=cell.dim,src="typed",frame="abs",yAbs=true,
+      reference="player:"..id,h=state.pose.h})
+  end
+  function api.radio(points)
+    if not gpsFree then return false,"offline positions are off" end
+    if busy then return false,"navigation busy" end
+    local fix=Pos.triangulate(points)
+    if not fix then
+      state.pose.conf,state.pose.src="suspect","radio"
+      ready=false
+      save()
+      return false,"suspect"
+    end
+    return acceptAnchor({x=fix.x,y=fix.y,z=fix.z,dim=fix.dim or state.pose.dim,src="radio",frame="abs",yAbs=true,
+      reference="radio",h=state.pose.h})
   end
   function api.pose() return A.copy(state.pose) end
   function api.stopped() return stopped end
@@ -167,14 +381,22 @@ function M.open(cfg)
     return owned(turn,h)
   end
   local function step(d,policy)
-    local observed,err=observe()
-    if not observed or not same(observed,state.pose) then ready=false return false,err or "relocated turtle; calibrate pose" end
+    if gpsFree then
+      if state.pose.conf~="certain" then return false,"pose not certain" end
+      if state.journal.open or (state.journal.probe and state.journal.probe.phase=="intent") then return false,"unresolved move" end
+    else
+      local observed,err=observe()
+      if not observed or not same(observed,state.pose) then ready=false return false,err or "relocated turtle; calibrate pose" end
+    end
     local to=adjacent(state.pose,d)
     if not inside(to,b) then return false,"outside navigation bounds" end
     if policy=="walk" and state.cells[key(to)]~="minecraft:air" then return false,"unknown route" end
     if d<4 then local ok,why=turn(d) if not ok then return false,why end end
     if cancelled() then return false,"cancelled" end
     local from=A.copy(state.pose) to.h=from.h
+    if gpsFree then
+      to.v,to.frame,to.yAbs,to.conf,to.src,to.anchoredAt=from.v,from.frame,from.yAbs,from.conf,from.src,from.anchoredAt
+    end
     local inspect=d==4 and turtle.inspectUp or d==5 and turtle.inspectDown or turtle.inspect
     local dig=d==4 and turtle.digUp or d==5 and turtle.digDown or turtle.dig
     local move=d==4 and turtle.up or d==5 and turtle.down or turtle.forward
@@ -190,8 +412,28 @@ function M.open(cfg)
     local allowed,reason=permitted()
     if not allowed then save() return false,reason end
     if turtle.getFuelLevel()==0 then save() return false,"out of fuel" end
+    if gpsFree then
+      local fromFaces=probe()
+      state.journal.probe=false
+      local worldFrom=Pos.rotate(fromFaces,state.pose.h)
+      state.journal.faces=worldFrom
+      state.journal.seq=state.journal.seq+1
+      state.journal.open={
+        v=1,seq=state.journal.seq,lease=state.journal.lease,at=os.epoch("utc"),frame=state.pose.frame,
+        kind="move",phase="intent",from=A.copy(from),to=A.copy(to),
+        fuelBefore=turtle.getFuelLevel(),cell=false,name=false,count=0,
+        evidence={
+          boot=state.boot,from=worldFrom,to=predict(to,from),after={},localFaces={},
+          recovery=false,fuelAfter=false,moveCost=cfg.moveCost or false,
+          charging=proof(cfg.charging),regeneration=proof(cfg.regeneration),
+          ok=false,reason=false,item=false,anchor=false,
+        },
+      }
+    end
     state.action={kind="move",from=from,to=to} save() checkpoint("move-prepared")
+    local moved=false
     local ok,why=cfg.client.move(from,to,function()
+      if gpsFree and state.pose.conf~="certain" then return false,"pose not certain" end
       if cancelled() then return false,"cancelled" end
       local allowed,found=permitted()
       if not allowed then return false,found end
@@ -203,21 +445,43 @@ function M.open(cfg)
       end
       checkpoint("move-started")
       if cancelled() then return false,"cancelled" end
-      local moved,err=move()
+      local movedNow,err=move()
       checkpoint("move-physical")
-      if moved then
-        local observed=observe()
-        assert(observed and same(observed,to),"physical pose needs GPS reconciliation")
+      if movedNow then
+        moved=true
+        if not gpsFree then
+          local observed=observe()
+          assert(observed and same(observed,to),"physical pose needs GPS reconciliation")
+        end
         if cfg.traffic then
           if #state.trail>0 and same(state.trail[#state.trail],to) then table.remove(state.trail)
           else state.trail[#state.trail+1]=A.copy(from) end
           while #state.trail>64 do table.remove(state.trail,1) end
         end
         state.pose=A.copy(to) remember(to,"minecraft:air")
+        if gpsFree then state.pose.conf,state.pose.src="certain","reckoned" end
       end
       save() checkpoint("move-observed")
-      return moved,err
+      return movedNow,err
     end)
+    if gpsFree and state.journal.open then
+      local after=state.journal.faces
+      if ok and moved then
+        local seen=probe()
+        state.journal.probe=false
+        after=Pos.rotate(seen,state.pose.h)
+        state.journal.faces=after
+        if cfg.check then
+          local checked,fix=pcall(cfg.check)
+          if checked and type(fix)=="table" and type(fix.x)=="number" and type(fix.y)=="number" and type(fix.z)=="number"
+            and (fix.x~=state.pose.x or fix.y~=state.pose.y or fix.z~=state.pose.z or type(fix.dim)=="string" and fix.dim~=state.pose.dim) then
+            state.pose.conf,state.pose.src="suspect","gps"
+            ready=false
+          end
+        end
+      end
+      closeMove(ok and moved,nil,after)
+    end
     state.action=nil save() checkpoint("move-saved")
     return ok,why
   end
