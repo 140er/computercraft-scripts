@@ -6,7 +6,8 @@
 -- tells you what to build around it, checks what it can, asks the few numbers it
 -- needs (with GPS it fills in the coordinates) and runs the setup commands for you.
 --
---   install              the guided installer (it saves itself, so this works later too)
+--   install              the role installer (it saves itself, so this works later too)
+--   install classic      the old guided menu
 --   install <bot>        straight to that bot's guided setup
 --   install <bot> quick  only download the files, no questions
 -- Keys: arrows / Tab to move, Enter to press, Backspace = back. Or tap / click.
@@ -758,12 +759,19 @@ local function reset(ask)
   return true
 end
 
+local classic = args[1] == "classic"
+if classic then table.remove(args, 1) end
+
 local function roleRequested()
+  if classic then return false end
   if args[1] == "role" or args[1] == "roles" then return true end
-  local ok, on = pcall(function()
-    return settings ~= nil and settings.get ~= nil and settings.get("install.roles") == true
+  local ok, value = pcall(function()
+    if settings == nil or settings.get == nil then return nil end
+    return settings.get("install.roles")
   end)
-  return ok and on == true
+  if not ok or value == false then return false end
+  if args[1] == nil and (value == nil or value == true) then return true end
+  return value == true
 end
 
 if roleRequested() and args[1] ~= "reset" then
