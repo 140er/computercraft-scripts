@@ -12,6 +12,8 @@ store pose <x> <y> <z> <heading>
 store bounds <minX> <minY> <minZ> <maxX> <maxY> <maxZ>
 ```
 
+After an interrupted turn, use `store calibrate <heading>` with the turtle's observed heading. Calibration keeps the configured parking pose and reconciles its current GPS pose with the server.
+
 Survey each route before enabling orders. Survey permits movement through air and never digs. Normal warehouse work uses only surveyed cells. GPS must cover the warehouse.
 
 ```lua

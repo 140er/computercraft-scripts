@@ -52,6 +52,9 @@ local function work()
       local x,y,z=gps.locate(2)
       if x then return {dim=cfg.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
     end})
+  if args[1]=="calibrate" then
+    assert(nav.calibrate(assert(tonumber(args[2]),"heading required"))) print("Warehouse pose calibrated") return
+  end
   assert(nav.recover())
   if args[1]=="survey" then assert(nav.go(pose(2),"explore")) print("Route surveyed") return end
   if args[1]=="stock" then

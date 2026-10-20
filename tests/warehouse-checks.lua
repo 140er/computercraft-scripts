@@ -44,7 +44,7 @@ return function(test,mocks)
       clock=function() return time end,inventory=function() return {list=function() return chest() end} end,
       client={call=function(op,v)
         calls[#calls+1]={op=op,value=A.copy(v or {})}
-        if op=="wh-claim" then return {ok=true,job=A.copy(job)} end
+        if op=="wh-claim" then return {ok=true,job=not m.noOrders and A.copy(job) or nil} end
         if op=="wh-sites" then return {ok=true,site=A.copy(sites[v.name])} end
         if op=="wh-lock" then
           if m.busy then return {ok=false,error="bay occupied"} end
@@ -130,6 +130,12 @@ return function(test,mocks)
     local n=0 for _,v in ipairs(drop) do if v.name=="minecraft:iron_ingot" then n=n+v.count end end
     assert(n==11 and w.state().job.lines[2].delivered==1)
   end)
+  test("idle workers park away from shared access cells without touching stock",function()
+    local w,_,inv,source,_,m,_,_,cfg=fixture()
+    m.noOrders=true cfg.home={dim="minecraft:overworld",x=4,y=65,z=0,h=2}
+    local ok,why=w.tick() assert(not ok and why=="no orders" and m.moves==1)
+    assert(next(inv)==nil and source[1].count==7 and source[2].count==11)
+  end)
   test("charging needs measured fuel rise and has a durable timeout",function()
     local w,reopen,_,_,_,_,advance=fixture()
     assert(w.charge("charge",60,5000)) assert(w.tick())
@@ -169,12 +175,17 @@ return function(test,mocks)
     e.dofile=function(path)
       if path=="ssot-client.lua" then return {new=function(c)
         assert(c.server==0 and c.secret=="test-secret-123456")
-        return {call=function(op,fields)
+        local client={}
+        function client.call(op,fields)
           counter=counter+1 local packet=A.copy(fields or {})
           packet.type,packet.v,packet.op,packet.expect="ssot",1,op,"ssot_reply"
           packet.rid,packet.counter,packet.boot,packet.secret=tostring(counter),counter,"test",c.secret
           return server.handle(99,packet)
-        end}
+        end
+        function client.calibrate(p,previous)
+          local r,why=client.call("calibrate",{pose=p,previous=previous}) return r and r.ok,why,r and r.epoch
+        end
+        return client
       end} end
       return assert(loadfile(path,"t",e))()
     end
@@ -182,6 +193,9 @@ return function(test,mocks)
     command("site","output","drop","3","65","0","1","front")
     command("order","cli-order","output","minecraft:iron_ingot","5","input")
     assert(server.state().warehouse.orders["cli-order"].lines[1].wanted==5)
+    e.turtle={} e.gps={locate=function() return 1,65,0 end}
+    command("calibrate","3")
+    assert(A.read("store-nav.state").value.pose.h==3 and server.state().poses[99].x==1)
     local m=mocks.miner({home={x=1,y=65,z=0},facing=2,mining={enabled=true}})
     e=m.env e.dofile=function(path) return assert(loadfile(path,"t",e))() end
     for _,v in ipairs({{"drop","drop1"},{"charger","charge"},{"fuel","700"},{"enable"},{"disable"}}) do

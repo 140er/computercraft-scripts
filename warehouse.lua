@@ -173,7 +173,16 @@ function M.open(cfg)
     end
     if state.phase=="idle" then
       local r,why=call("wh-claim") if not r then return false,why end
-      if not r.job then return false,"no orders" end
+      if not r.job then
+        if cfg.home then
+          local cost,err=nav.homeCost(cfg.home) if cost==false then return false,err end
+          local fuel=turtle.getFuelLevel()
+          if fuel~="unlimited" and fuel<cost then return false,"insufficient fuel to park" end
+          local ok,why=nav.go(cfg.home,"walk") if not ok then return false,why end
+          ok,why=nav.face(cfg.home.h) if not ok then return false,why end
+        end
+        return false,"no orders"
+      end
       state.job=r.job state.home=A.copy(cfg.home or nav.pose()) state.phase="pickup" state.line=1 save("job-saved")
     end
     if state.phase=="done" then return false,state.reason or "done" end
