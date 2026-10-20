@@ -101,3 +101,5 @@ The Tom button overflow at `fleetview.lua:650-659` is the same failure recorded 
 `warehouse-tasks.lua` has no expiry, timeout, or lease check. `warehouse-tasks.lua:103-109` returns or assigns an active order with no age limit.
 
 `server.lua:17-19` caches the fleet Lua on the same disk as `server.state`. Gate B depth still asks for a real 1,000,000-byte run with that cache. This review did not boot that server.
+
+The secret on the wire, the update hostname, the sleep during validation, the counter ceiling, stuck occupancy, warehouse expiry, and the script cache are filed as issue 40. The Tom fix is PR 38. This note is PR 41. The ranked comment is on PR 29.
