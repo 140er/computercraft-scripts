@@ -403,4 +403,13 @@ local ok,err=pcall(function()
     end)
   end
 end)
-if not ok then result(false,err) forever() end
+if not ok then
+  pcall(function()
+    local f=assert(fs.open("views-error.txt","w"))
+    f.write(tostring(err):sub(1,2000))
+    if f.flush then f.flush() end
+    f.close()
+  end)
+  result(false,err)
+  forever()
+end

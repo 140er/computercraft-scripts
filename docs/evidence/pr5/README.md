@@ -1,6 +1,6 @@
 # PR 5 verification
 
-Gate A passes with the Tom monitor and opt-in hub hostname fixes. The first Gate B attempt failed on Tom button overflow. The next passed Tom but found a hostname collision between view computers. Both fixes have regression tests. A fresh native run is waiting for the shared lock.
+Gate A passes with the Tom monitor and opt-in hub hostname fixes. The first Gate B attempt failed on Tom button overflow. The next passed Tom but found a hostname collision between view computers. Both fixes have regression tests. A third native run reached computer startup, then recorded watchdog terminations and empty reports during a VM slowdown. The owned server was stopped and cleanup released the lock. An instrumented retry is queued.
 
 The mock suite passed 104 tests and the standalone core rendering, Tom monitor and UI checks. `mocks.txt` contains the complete UTF-8 transcript. `focused.txt` retains the earlier rendering, UI and manual-control checks.
 
@@ -15,3 +15,5 @@ The native harness uses a fresh test root, checked ports, the shared lock, a 3 G
 The warehouse fixture replaces only PR 4's `wh-sites` read boundary. Mine snapshots, command authentication and navigation use production code. See `../../ssot-pr5.md` for the interface and configuration.
 
 Full logs and failed attempts remain at `C:\Work\gemini-input\p2\evidence\pr5`. The two CraftOS PNGs are also in `C:\Work\gemini-input\shots`.
+
+The third attempt's log is native-watchdog.log. It records whole-server lag and watchdog stacks in scheduling and error cleanup. It does not establish a Lua loop, GC failure or memory exhaustion. The next probe keeps watchdog limits unchanged, adds GC/safepoint logs, staggers startup and rejects partial JSON verdicts.

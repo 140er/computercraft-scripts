@@ -48,13 +48,32 @@ function Rcon([string]$Command) {
     "$([DateTime]::UtcNow.ToString('o')) > $Command`n$answer" | Add-Content "$Output\rcon.txt"
     $answer
 }
+function Read-ViewsJson([string]$Path) {
+    try {
+        $text=[IO.File]::ReadAllText($Path)
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        return ($text | ConvertFrom-Json -ErrorAction Stop)
+    } catch { return $null }
+}
 function Wait-ViewsFile([string]$Path) {
     $end=[DateTime]::UtcNow.AddSeconds($Timeout)
     do {
-        if (Test-Path -LiteralPath $Path) { return }
+        if (Test-Path -LiteralPath $Path) {
+            if ([IO.Path]::GetExtension($Path) -ne '.json') { return }
+            $ready=Read-ViewsJson $Path
+            if ($null -ne $ready) {
+                if ([IO.Path]::GetFileName($Path) -eq 'sandbox-result.json') {
+                    if ($ready.ok -is [bool]) {
+                        if ($ready.ok) { return }
+                        throw "Failed report ${Path}: $($ready.errors -join '; ')"
+                    }
+                } else { return }
+            }
+        }
         if ($process.HasExited) { throw 'Views server exited.' }
         foreach ($request in Get-ChildItem "$TestRoot\world\computercraft\computer\0" -Filter 'restart-request-*.json') {
-            $restart=Get-Content $request.FullName -Raw | ConvertFrom-Json
+            $restart=Read-ViewsJson $request.FullName
+            if ($null -eq $restart) { continue }
             if ($restart.id -notin @(1,2,3)) { throw 'Invalid test turtle reboot request.' }
             $turtleDisk="$TestRoot\world\computercraft\computer\$($restart.id)"
             $saved="$Output\recovery-$($restart.id)-$([DateTime]::UtcNow.Ticks)"
@@ -66,7 +85,8 @@ function Wait-ViewsFile([string]$Path) {
             Rcon "computercraft turn-on $($restart.id)" | Out-Null
         }
         $fail=Get-ChildItem "$TestRoot\world\computercraft\computer" -Recurse -Filter sandbox-result.json |
-            ForEach-Object {Get-Content $_.FullName -Raw | ConvertFrom-Json} | Where-Object {!$_.ok}
+            ForEach-Object { Read-ViewsJson $_.FullName } |
+            Where-Object { $null -ne $_ -and $_.ok -is [bool] -and !$_.ok }
         if ($fail) { throw ($fail.errors -join '; ') }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $end)
@@ -77,7 +97,8 @@ function Start-ViewsServer([string]$Phase) {
         $listener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,$checkPort)
         try { $listener.Start() } finally { $listener.Stop() }
     }
-    $script:process=Start-Process 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe' -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx3G',"-Dssot.test.root=$TestRoot",'@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Phase.log" -RedirectStandardError "$TestRoot\stderr-$Phase.log"
+    $gcLog="-Xlog:gc*,safepoint:file=gc-$Phase.log:time,uptime,level,tags"
+    $script:process=Start-Process 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe' -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx3G',$gcLog,"-Dssot.test.root=$TestRoot",'@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Phase.log" -RedirectStandardError "$TestRoot\stderr-$Phase.log"
     [IO.File]::WriteAllText("$Output\server.pid",[string]$process.Id)
     $end=[DateTime]::UtcNow.AddSeconds($Timeout)
     do {
@@ -166,8 +187,11 @@ try {
     Rcon 'setblock 21 65 8 toms_peripherals:gpu' | Out-Null
     Rcon 'setblock 22 65 8 toms_peripherals:monitor' | Out-Null
     Rcon 'computercraft turn-on 10 11 12 13 0' | Out-Null
-    Start-Sleep -Seconds 3
-    Rcon 'computercraft turn-on 1 2 3 4 6 7 8 9' | Out-Null
+    Start-Sleep -Seconds 5
+    foreach ($group in @('1 2 3 4','6','7','8','9')) {
+        Rcon "computercraft turn-on $group" | Out-Null
+        Start-Sleep -Seconds 5
+    }
     Wait-ViewsFile "$TestRoot\world\computercraft\computer\4\views-ready.json"
     foreach ($id in @(1,2,3,6,7,8,9)) { Wait-ViewsFile "$TestRoot\world\computercraft\computer\$id\sandbox-result.json" }
     Rcon 'tick query' | Set-Content "$Output\tick-before-client.txt"
@@ -244,6 +268,7 @@ try {
         }
     }
     if ($locked) { Remove-Item -LiteralPath "$lock\owner.txt"; Remove-Item -LiteralPath $lock }
+    Get-ChildItem -LiteralPath $TestRoot -Filter 'gc-*.log' | Copy-Item -Destination $Output -Force
     if (Test-Path "$TestRoot\logs\latest.log") { Copy-Item "$TestRoot\logs\latest.log" "$Output\latest.log" -Force }
     Copy-Item "$TestRoot\world\computercraft\computer" "$Output\computers" -Recurse -Force
 }

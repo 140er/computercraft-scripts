@@ -1,0 +1,26 @@
+{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-614088b9",
+    "outcome":  "Interrupted during VM slowdown after ComputerCraft watchdog terminations",
+    "serverBooted":  true,
+    "computersTurnedOnUtc":  "2026-10-20T14:22:47.2988306Z",
+    "watchdogComputers":  [
+                              3,
+                              2
+                          ],
+    "watchdogLocalTimes":  [
+                               "16:24:04",
+                               "16:24:14"
+                           ],
+    "emptyReports":  [
+                         1,
+                         6,
+                         7,
+                         8
+                     ],
+    "clientStarted":  false,
+    "serverPid":  12432,
+    "cleanup":  "Owned server stopped; runner exited and released lock",
+    "cause":  "Whole-server scheduling delay is visible; no captured application loop or GC evidence establishes a narrower cause",
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\multi-view"
+}
