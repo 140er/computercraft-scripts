@@ -287,6 +287,11 @@ cfg.slots = cfg.slots or {}
 cfg.built = cfg.built or 0
 local function saveCfg() saveTable(CFG_FILE, cfg) end
 
+-- wh2 craft stays off unless factory.cfg sets wh2.enabled = true.
+if type(cfg.wh2) == "table" and cfg.wh2.enabled == true and (args[1] == nil or args[1] == "craft") then
+  return dofile("craft.lua").factory(args, cfg)
+end
+
 if args[1] == "setup" then
   if not turtle then print("The factory runs on a crafty turtle.") return end
   local x, y, z = tonumber(args[2]), tonumber(args[3]), tonumber(args[4])
