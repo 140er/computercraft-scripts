@@ -42,7 +42,7 @@ New-Item -ItemType Directory -Force -Path $client, "$client\mods", "$client\conf
 Copy-Item "$TestRoot\mods\*.jar" "$client\mods"
 Copy-Item "$TestRoot\config\classicperipherals.toml" "$client\config"
 Copy-Item "$PSScriptRoot\fml.toml" "$client\config\fml.toml"
-$arguments = Get-Content 'C:\mc-run1\args.txt' -Raw
+$arguments = Get-Content 'C:\mc-client\args.txt' -Raw
 function Set-ClientArgument([string]$Name, [string]$Value) {
     $option = [regex]::Escape($Name)
     $pattern = '(?m)(^|\s)(?:"' + $option + '"|' + $option + ')\s+(?:"[^"]*"|\S+)'
@@ -59,6 +59,7 @@ $arguments = [regex]::Replace($arguments, '"?-Xmx[^"\s]+"?', '"-Xmx2G"')
 $arguments = [regex]::Replace($arguments, '"?-Xms[^"\s]+"?', '"-Xms512M"')
 $arguments = [regex]::Replace($arguments, '(?m)(^|\s)--(?:server|port)\s+(?:"[^"]*"|\S+)', '$1')
 if ($arguments.Contains('100.91.208.60')) { throw 'Client arguments still contain a forbidden server address.' }
+if ($arguments -match '(?i)C:[/\\]mc-run1(?:[/\\]|")') { throw 'Client arguments reference a forbidden test directory.' }
 foreach ($name in @('--username','--uuid','--accessToken','--gameDir','--quickPlayMultiplayer')) {
     if ([regex]::Matches($arguments,[regex]::Escape($name)).Count -ne 1) { throw "Client has duplicate $name options." }
 }
@@ -103,7 +104,8 @@ try {
         @(@('directgpu-single.png','tp SSOTProof 0.5 63.9 11.35 180 1'),
           @('directgpu-wall.png','tp SSOTProof 7.5 64.38 13 180 0'),
           @('hub-pro-ingame.png','tp SSOTProof 0.5 65 6.5 0 36.7'),
-          @('warehouse-normal-ingame.png','tp SSOTProof 14.5 64.38 13 180 0'))
+          @('warehouse-normal-ingame.png','tp SSOTProof 14.5 64.38 13 180 0'),
+          @('toms-secondary.png','tp SSOTProof 22.5 63.9 6.65 0 1'))
     } else { @(@($ShotName,'')) }
     foreach ($planned in $shotPlan) {
     $ShotName=$planned[0]

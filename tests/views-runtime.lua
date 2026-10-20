@@ -339,8 +339,18 @@ local ok,err=pcall(function()
       local probed=false
       local timer=os.startTimer(1)
       while true do
-        if runtime=="minecraft" and id==7 and fs.exists("rebuild-request") and gpuRun.generations>1 then
-          json("views-rebuilt.json",{generations=gpuRun.generations,draws=gpuRun.draws})
+        if runtime=="minecraft" and id==7 and gpuRun.generations>0 and gpuRun.view and
+          fs.exists("rebuild-baseline-request") and not fs.exists("rebuild-baseline.json") then
+          json("rebuild-baseline.json",{generation=gpuRun.generations,at=os.epoch("utc")})
+          fs.delete("rebuild-baseline-request")
+        end
+        if runtime=="minecraft" and id==7 and fs.exists("rebuild-request") and fs.exists("rebuild-baseline.json") then
+          local f=assert(fs.open("rebuild-baseline.json","r"))
+          local baseline=assert(textutils.unserializeJSON(f.readAll())) f.close()
+          if gpuRun.generations>baseline.generation then
+            json("views-rebuilt.json",{baseline=baseline.generation,generations=gpuRun.generations,
+              baselineAt=baseline.at,at=os.epoch("utc"),draws=gpuRun.draws})
+          end
         end
         if runtime=="minecraft" and id==6 and fs.exists("client-probe-arm") and not probed then
           gpuRun.paused=true

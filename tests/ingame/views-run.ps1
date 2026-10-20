@@ -180,6 +180,13 @@ try {
         }
     } else { throw 'Views Gate B requires -Client and the four real framebuffer screenshots.' }
     Stop-ViewsServer
+    $singleDisk="$TestRoot\world\computercraft\computer\6"
+    Copy-Item -LiteralPath "$singleDisk\client-click-result.json" -Destination "$Output\client-click-before-restart.json"
+    Copy-Item -LiteralPath "$singleDisk\client-probe-result.json" -Destination "$Output\client-probe-before-restart.json"
+    foreach ($name in @('client-click-arm','client-probe-arm')) {
+        $marker=Join-Path $singleDisk $name
+        if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker }
+    }
     foreach ($id in @(0,1,2,3,4,6,7,8,9)) {
         $marker="$TestRoot\world\computercraft\computer\$id\sandbox-result.json"
         if (Test-Path $marker) { Move-Item -LiteralPath $marker -Destination ($marker+'.before-restart') }
@@ -187,11 +194,25 @@ try {
     Start-ViewsServer 'restart'
     Rcon 'computercraft turn-on 0 10 11 12 13 1 2 3 4 6 7 8 9' | Out-Null
     Wait-ViewsFile "$TestRoot\world\computercraft\computer\4\views-restarted.json"
+    $wallDisk="$TestRoot\world\computercraft\computer\7"
+    Wait-ViewsFile "$wallDisk\sandbox-result.json"
+    foreach ($name in @('rebuild-baseline.json','views-rebuilt.json','rebuild-request')) {
+        $marker=Join-Path $wallDisk $name
+        if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker }
+    }
+    [IO.File]::WriteAllText("$wallDisk\rebuild-baseline-request",'capture current production display generation')
+    Wait-ViewsFile "$wallDisk\rebuild-baseline.json"
+    $baseline=Get-Content "$wallDisk\rebuild-baseline.json" -Raw | ConvertFrom-Json
+    if ($baseline.generation -lt 1) { throw 'Rebuild baseline has no opened production display.' }
     Rcon 'setblock 8 66 9 minecraft:air' | Out-Null
     Start-Sleep -Seconds 2
     Rcon 'setblock 8 66 9 computercraft:monitor_advanced[facing=south]' | Out-Null
     [IO.File]::WriteAllText("$TestRoot\world\computercraft\computer\7\rebuild-request",'require a new production display')
     Wait-ViewsFile "$TestRoot\world\computercraft\computer\7\views-rebuilt.json"
+    $rebuilt=Get-Content "$wallDisk\views-rebuilt.json" -Raw | ConvertFrom-Json
+    if ($rebuilt.baseline -ne $baseline.generation -or $rebuilt.generations -le $baseline.generation) {
+        throw 'Rebuilt monitor did not create a production display after the captured baseline.'
+    }
     Rcon 'tick query' | Set-Content "$Output\tick-after-rebuild.txt"
     foreach ($id in @(0,1,2,3,4,6,7,8,9)) {
         Wait-ViewsFile "$TestRoot\world\computercraft\computer\$id\sandbox-result.json"
@@ -199,7 +220,7 @@ try {
     foreach ($name in @('directgpu-single.png','directgpu-wall.png','hub-pro-ingame.png','warehouse-normal-ingame.png')) {
         if (!(Test-Path "$Output\$name")) { throw "Missing real client screenshot $name." }
     }
-    $click=Get-Content "$TestRoot\world\computercraft\computer\6\client-click-result.json" -Raw | ConvertFrom-Json
+    $click=Get-Content "$Output\client-click-before-restart.json" -Raw | ConvertFrom-Json
     if (!$click.ok) { throw 'Real client target click did not move the production turtle.' }
     $network=Get-Content "$Output\network\views-network-summary.json" -Raw | ConvertFrom-Json
     if (!$network.measured) { throw 'JFR did not emit measurable network writes. Bandwidth gate is unverified.' }

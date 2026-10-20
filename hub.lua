@@ -195,7 +195,13 @@ for _, name in ipairs(peripheral.getNames()) do
   end
 end
 if not modemFound then error("Attach a wireless or ender modem to this computer.", 0) end
-rednet.host(PROTOCOL, "hub")
+local viewsCfg = loadTable("views.cfg") or {}
+local hosted,hostError=pcall(rednet.host,PROTOCOL,"hub")
+if not hosted then
+  if viewsCfg.enabled==true and tostring(hostError):find("Hostname in use",1,true) then
+    rednet.host(PROTOCOL,"view-"..os.getComputerID())
+  else error(hostError,0) end
+end
 
 local SERVER_PROTOCOL = "fleetserver"
 local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
@@ -242,7 +248,6 @@ end
 -- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
 -- turtle's own question (job, dir, files) go straight back.
 local ROUTED = { go = true, recall = true, update = true, rename = true, estop = true, view_move = true }
-local viewsCfg = loadTable("views.cfg") or {}
 local viewClient, viewSource, viewUI, directView, viewCounter
 local viewPending = {}
 local viewSequence = 0
