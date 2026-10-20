@@ -631,10 +631,16 @@ function V.gpuDraw(g, list, opt)
   gl.sync()
   -- 2D: list on the right, buttons at the bottom
   local W3 = g.w - g.listW
+  local function textWidth(label, size)
+    size = size or 1
+    if type(gpu.getTextLength) == "function" then return gpu.getTextLength(label, size) end
+    return #label * 6 * size
+  end
   local function text(x, y, label, color, background, size, width)
     size = size or 1
+    if x < 1 or x > g.w then return end
     width = math.min(width or g.w, g.w - x + 1)
-    while #label > 0 and gpu.getTextLength(label, size) > width do label = label:sub(1, -2) end
+    while #label > 0 and textWidth(label, size) > width do label = label:sub(1, -2) end
     if #label > 0 then gpu.drawText(x, y, label, color, background, size) end
   end
   if g.listW > 0 then
@@ -661,13 +667,14 @@ function V.gpuDraw(g, list, opt)
   local slot = math.floor(g.w / #controls)
   local x = compact and 1 or 4
   for _, b in ipairs(controls) do
+    if x > g.w then break end
     local w = compact and math.max(1, slot - 1) or math.max(28, #b[1] * 12 + 12)
     local label, size = compact and b[1]:sub(1, 1) or b[1], compact and 1 or 2
     local on = (b[2] == "auto" and cam.auto) or (b[2] == "flip" and g.flip)
     local bc = on and 0x55AA55 or 0x8888AA
-    gpu.filledRectangle(x, g.h - g.barH + 4, w, g.barH - 7, bc)
+    gpu.filledRectangle(x, g.h - g.barH + 4, math.min(w, g.w - x + 1), g.barH - 7, bc)
     text(x + (compact and 0 or 6), g.h - g.barH + 7, label, 0x000000, bc, size, w - (compact and 0 or 6))
-    g.buttons[#g.buttons + 1] = { x, x + w - 1, b[2] }
+    g.buttons[#g.buttons + 1] = { x, math.min(g.w, x + w - 1), b[2] }
     x = x + (compact and slot or w + 4)
   end
   gpu.sync()

@@ -3,7 +3,12 @@ local id=os.getComputerID()
 local secret="test-secret-123456"
 local dim="minecraft:overworld"
 local function json(path,v)
-  local f=assert(fs.open(path,"w")) f.write(textutils.serializeJSON(v)) f.close()
+  local tmp=path..".tmp"
+  local f=assert(fs.open(tmp,"w"))
+  f.write(textutils.serializeJSON(v))
+  f.close()
+  if fs.exists(path) then fs.delete(path) end
+  fs.move(tmp,path)
 end
 local function write(path,v)
   local f=assert(fs.open(path,"w")) f.write(textutils.serialize(v)) f.close()
@@ -334,16 +339,18 @@ local ok,err=pcall(function()
     parallel.waitForAny(function() assert(loadfile("hub.lua","t",_ENV))(id==8 and "warehouse" or "pro") end,function()
       sleep(15)
       if runtime=="minecraft" and id~=8 then
+        local Scene=dofile("view-scene.lua")
         check("real rendered world snapshot becomes ready",function()
           local deadline=os.epoch("utc")+180000
           repeat
-            if gpuRun.view and gpuRun.view.displayId and gpuRun.scene and gpuRun.scene.cells and
-              #gpuRun.scene.cells>0 and gpuRun.camera and gpuRun.draw then return end
+            if gpuRun.view and gpuRun.view.displayId and gpuRun.scene and
+              Scene.hasCell(gpuRun.scene, 0, 66, 4, "minecraft:iron_ore") and gpuRun.camera and gpuRun.draw then return end
             sleep(.5)
           until os.epoch("utc")>=deadline
           local scene=gpuRun.scene
           json("views-readiness.json",{ok=false,generations=gpuRun.generations,
             sceneCount=scene and scene.cells and #scene.cells or 0,
+            iron=scene and Scene.hasCell(scene, 0, 66, 4, "minecraft:iron_ore") or false,
             stale=scene and scene.stale,draws=gpuRun.draws,refresh=gpuRun.refresh})
           error("rendered world snapshot was not ready within 180 seconds; inspect views-readiness.json")
         end)

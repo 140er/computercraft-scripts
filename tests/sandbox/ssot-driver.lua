@@ -67,5 +67,5 @@ elseif id == 5 then
   end
 else
   rednet.send(0,true,"ssot_boot")
-  program(scenario=="mining" and "mining-runtime.lua" or "ssot-runtime.lua","sandbox",scenario)
+  program(scenario=="warehouse" and "warehouse-runtime.lua" or scenario=="mining" and "mining-runtime.lua" or "ssot-runtime.lua","sandbox",scenario)
 end

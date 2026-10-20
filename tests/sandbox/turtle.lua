@@ -44,6 +44,16 @@ function M.world(saved,scenario)
     for _,p in ipairs(dofile("mining-fixture.lua").blocks) do blocks[p.x..","..p.y..","..p.z]=p.name end
     for id=1,3 do poses[id]={x=id*4-3,y=65,z=0,h=2,fuel=id==2 and 42 or 10000,inventory={}} end
   end
+  local inventories=saved and saved.inventories or {}
+  if not saved and scenario=="warehouse" then
+    local F=dofile("warehouse-fixture.lua")
+    blocks={}
+    for x=-1,13 do for y=64,66 do for z=-5,10 do blocks[x..","..y..","..z]="minecraft:bedrock" end end end
+    for _,p in ipairs(F.air) do blocks[p.x..","..p.y..","..p.z]=nil end
+    for k,v in pairs(F.blocks) do blocks[k]=v end
+    inventories=F.inventories
+    for id=1,3 do poses[id]={x=id*4-3,y=65,z=0,h=0,fuel=id==2 and 35 or 500,inventory={}} end
+  end
   local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
   local function target(p, op)
     local q = {x=p.x,y=p.y,z=p.z}
@@ -57,11 +67,14 @@ function M.world(saved,scenario)
     return q
   end
   return {
-    state = function() return {poses=poses,blocks=blocks,timeline=timeline,collisions=collisions} end,
+    state = function() return {poses=poses,blocks=blocks,timeline=timeline,collisions=collisions,inventories=inventories} end,
     handle = function(id, op, args)
       if id == 4 and op == "fault" then failures[args[1]] = true return {true} end
       if id==3 and op=="clear-fluid" then blocks["2,67,0"]=nil return {true} end
       local p = assert(poses[id], "unknown turtle")
+      if scenario=="warehouse" and op=="mine-fixture" then
+        blocks["9,65,1"]="minecraft:diamond_ore" blocks["10,65,1"]="minecraft:diamond_ore" return {true}
+      end
       if scenario=="mining" then
         p.inventory=p.inventory or {}
         if op=="inventory-full" then
@@ -73,18 +86,49 @@ function M.world(saved,scenario)
         if op=="fuel-refill" then p.fuel=p.fuel+80 return {true} end
       end
       if op == "pose" then return {p.x,p.y,p.z,p.h} end
-      if op == "getFuelLevel" then return {p.fuel} end
+      if op == "getFuelLevel" then
+        if scenario=="warehouse" and p.x==6 and p.z==-3 then
+          local now=os.epoch("utc")
+          if now-(p.chargedAt or 0)>500 then p.fuel=math.min(100000,p.fuel+30) p.chargedAt=now end
+        end
+        return {p.fuel}
+      end
       if op == "getFuelLimit" then return {100000} end
       if op == "getSelectedSlot" then return {p.selected or 1} end
       if op == "select" then p.selected = args[1] return {true} end
       if op == "getItemCount" then return {p.inventory and p.inventory[args[1] or p.selected or 1] and p.inventory[args[1] or p.selected or 1].count or 0} end
       if op == "getItemDetail" then return {p.inventory and p.inventory[args[1] or p.selected or 1]} end
+      if scenario=="warehouse" and (op=="suck" or op=="drop" or op=="inventory") then
+        local q=target(p,"forward")
+        local chest=inventories[key(q)]
+        if not chest then return op=="inventory" and {} or {false} end
+        if op=="inventory" then return {chest} end
+        local slot=p.selected or 1
+        if op=="suck" then
+          if p.inventory[slot] then return {false} end
+          for _,item in ipairs(chest) do
+            if item.count>0 then
+              local n=math.min(args[1],item.count,item.name=="minecraft:diamond_pickaxe" and 1 or 64)
+              p.inventory[slot]={name=item.name,count=n} item.count=item.count-n return {true}
+            end
+          end
+          return {false}
+        end
+        local item=p.inventory[slot] if not item then return {false} end
+        local n=math.min(args[1],item.count)
+        chest[#chest+1]={name=item.name,count=n} item.count=item.count-n
+        if item.count==0 then p.inventory[slot]=nil end
+        return {true}
+      end
       if op == "refuel" or op == "suck" or op == "drop" then return {false} end
       if op == "turnLeft" or op == "turnRight" then
         p.h = (p.h + (op == "turnLeft" and 3 or 1)) % 4 return {true}
       end
       local q = target(p, op)
       local block = blocks[key(q)]
+      if op:find("inspect") then
+        for other,at in pairs(poses) do if other~=id and key(at)==key(q) then return {true,{name="computercraft:turtle_advanced"}} end end
+      end
       if op:find("inspect") then return block and {true,{name=block}} or {false,"No block to inspect"} end
       if op:find("detect") then return {block ~= nil} end
       if op:find("dig") then

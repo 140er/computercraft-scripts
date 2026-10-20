@@ -28,9 +28,16 @@ elseif id==5 then
   local done=false
   local function report()
     local s=world.state()
-    local f=assert(fs.open("sandbox-result.json","w"))
-    f.write(textutils.serializeJSON({ok=s.collisions==0,booted=true,errors={},lines={"three turtle shared physical world"},moves=#s.timeline})) f.close()
-    f=assert(fs.open("world.json","w")) f.write(textutils.serializeJSON(s)) f.close()
+    local function save(path,value)
+      local tmp=path..".tmp"
+      local f=assert(fs.open(tmp,"w"))
+      f.write(textutils.serializeJSON(value))
+      f.close()
+      if fs.exists(path) then fs.delete(path) end
+      fs.move(tmp,path)
+    end
+    save("sandbox-result.json",{ok=s.collisions==0,booted=true,errors={},lines={"three turtle shared physical world"},moves=#s.timeline})
+    save("world.json",s)
   end
   while true do
     local from,m,proto=rednet.receive()

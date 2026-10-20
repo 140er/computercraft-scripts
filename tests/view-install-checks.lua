@@ -11,7 +11,8 @@ return function(test,equal,read,mocks)
   end
   test("view installer roles preserve existing order and boot the selected mode",function()
     local m,byId,roles=fixture()
-    equal(roles[#roles-3].id,"smartmine")
+    equal(roles[#roles-4].id,"smartmine")
+    equal(roles[#roles-3].id,"store")
     for offset,mode in ipairs({"pro","warehouse","map"}) do
       local role=byId["view-"..mode]
       assert(role==roles[#roles-3+offset])

@@ -1,5 +1,5 @@
 return function(test,mocks)
-  local function fixture(crash)
+  local function fixture(crash,service)
     local m=mocks.miner({home={x=1,y=65,z=0},facing=2})
     local e=m.env
     e.dofile=function(path) return assert(loadfile(path,"t",e))() end
@@ -28,7 +28,7 @@ return function(test,mocks)
       end},
       observe=function() return p(m.pos.x,m.pos.y,m.pos.z) end,canExcavate=Mine.excavatable}
     local nav=e.dofile("nav.lua").open(nc) assert(nav.recover())
-    local cfg={nav=nav,client={call=call},home=home,checkpoint=function(point)
+    local cfg={nav=nav,client={call=call},home=home,service=service,checkpoint=function(point)
       if crash and point==crash then crash=nil error("test crash "..point) end
     end}
     local miner=Mine.open(cfg)
@@ -36,7 +36,7 @@ return function(test,mocks)
       nav=e.dofile("nav.lua").open(nc) assert(nav.recover()) cfg.nav=nav
       miner=Mine.open(cfg) return miner,nav
     end
-    return m,miner,reopen,home,nav,Mine,function(dt) time=time+dt end
+    return m,miner,reopen,home,nav,Mine,function(dt) time=time+dt end,call
   end
   local function complete(miner,limit)
     for _=1,limit or 500 do
@@ -46,6 +46,18 @@ return function(test,mocks)
     end
     error("unbounded mining")
   end
+  test("mining reserves fuel for the drop, charger and return before leaving home",function()
+    local m,mine,_,home,nav,_,_,call=fixture(nil,{enabled=true,drop="drop",charger="charge"})
+    assert(not mine.start() and not mine.state().task,"mined without configured service routes")
+    for x=2,4 do nav.record({dim=home.dim,x=x,y=65,z=0},"minecraft:air") end
+    for _,v in ipairs({{"drop","drop",3},{"charge","charge",4}}) do
+      assert(call("wh-site",{name=v[1],site={kind=v[2],pose={dim=home.dim,x=v[3],y=65,z=0,h=2},side="front"}}).ok)
+    end
+    m.fuel=35 m.world["1,65,1"]="minecraft:diamond_ore"
+    assert(mine.start()) assert(mine.tick())
+    local ok,why=mine.tick() assert(not ok and why=="low fuel")
+    assert(m.pos.x==home.x and m.pos.z==home.z and m.world["1,65,1"],"left home without service fuel")
+  end)
   test("six-face veins preserve loops, deepslate, tags, the spacing gap and exact home pose",function()
     local m,mine,_,home,nav,M=fixture()
     for z=1,5 do m.world["1,65,"..z]="minecraft:stone" end

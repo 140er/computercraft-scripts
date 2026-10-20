@@ -15,6 +15,14 @@ local scene=source.scene()
 assert(#scene.cells==2 and calls<=8,"bounded negative chunk snapshot")
 assert(scene.cells[1].x==-2 and scene.cells[2].name==false,"AIR and negative coordinates survive")
 assert(scene.warehouseError,"unavailable warehouse is explicit")
+local farCell={x=0,y=0,z=0,name="minecraft:stone"}
+local nearCell={x=0,y=0,z=10,name="minecraft:stone"}
+local kept=Scene.visible({dim="minecraft:overworld",cells={farCell,nearCell}},
+  {mode="iso",center={x=0,y=0,z=0},yaw=45,zoom=1},1)
+assert(#kept==1 and kept[1].z==10,"visible limit keeps the nearest cell")
+local partial={cells={{x=-4,y=65,z=-4,name="computercraft:computer_advanced"}}}
+assert(not Scene.hasCell(partial,0,66,4,"minecraft:iron_ore"),"computer blocks are not the scan seed")
+assert(Scene.hasCell({cells={partial.cells[1],{x=0,y=66,z=4,name="minecraft:iron_ore"}}},0,66,4,"minecraft:iron_ore"))
 for _,mode in ipairs({"top","side","iso"}) do
   local camera={mode=mode,center={x=-1,y=-1,z=-1},zoom=3}
   local x,y=Scene.project(scene.cells[2],camera,80,40)
@@ -54,6 +62,13 @@ assert(draws==1 and updates==1)
 assert(renderer.draw(world,camera))
 assert(updates==1,"unchanged frames do not redraw")
 assert(renderer.event({"directgpu_mouse",4,"mouse_click",320,180,1})==cell,"actual pixel size and event tuple")
+time=0.05
+world.fleet={{id=1,dim=world.dim,x=cell.x,y=cell.y,z=cell.z,label="T1"}}
+local held,heldReason=renderer.draw(world,camera)
+assert(held and heldReason=="throttled","movement inside the interval keeps the last frame")
+assert(renderer.event({"directgpu_mouse",4,"mouse_click",320,180,1})==cell,"throttled frame keeps the previous pick")
+world.fleet=nil
+time=0
 assert(not renderer.event({"directgpu_mouse",5,"mouse_click",320,180,1}))
 assert(not renderer.event({"directgpu_mouse",4,"mouse_hover",320,180,1}))
 world.stale=true

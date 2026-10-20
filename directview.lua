@@ -92,7 +92,7 @@ function M.new(gpu,cfg)
       assert(type(w)=="number" and type(h)=="number" and w>0 and h>0,"invalid DirectGPU resolution")
       local key=fingerprint(scene,camera,w,h)
       if key==lastKey and framePick then return "unchanged" end
-      if clock()-lastAt<(cfg.interval or 0.2) then framePick=nil return "throttled" end
+      if clock()-lastAt<(cfg.interval or 0.2) then return "throttled" end
       local nextFrame=Scene.camera(camera,w,h)
       gpu.clear(id,12,19,29)
       gpu.clearZBuffer(id)

@@ -113,6 +113,22 @@ function Start-ViewsServer([string]$Phase) {
     } while ([DateTime]::UtcNow -lt $end)
     throw 'Views server boot timeout.'
 }
+function Start-ViewsFleet {
+    foreach ($gpsId in 10..13) {
+        $ready="$TestRoot\world\computercraft\computer\$gpsId\gps-host-ready"
+        if (Test-Path -LiteralPath $ready) { Remove-Item -LiteralPath $ready }
+    }
+    Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
+    foreach ($gpsId in 10..13) {
+        Wait-ViewsFile "$TestRoot\world\computercraft\computer\$gpsId\gps-host-ready"
+    }
+    Rcon 'computercraft turn-on 0' | Out-Null
+    Start-Sleep -Seconds 2
+    foreach ($group in @('1 2 3 4','6','7','8','9')) {
+        Rcon "computercraft turn-on $group" | Out-Null
+        Start-Sleep -Seconds 5
+    }
+}
 function Stop-ViewsServer {
     if ($process -and !$process.HasExited) {
         try { Rcon 'stop' | Out-Null } catch {}
@@ -191,12 +207,7 @@ try {
     Rcon 'setblock 20 66 8 computercraft:wireless_modem_advanced[facing=down]' | Out-Null
     Rcon 'setblock 21 65 8 toms_peripherals:gpu' | Out-Null
     Rcon 'setblock 22 65 8 toms_peripherals:monitor' | Out-Null
-    Rcon 'computercraft turn-on 10 11 12 13 0' | Out-Null
-    Start-Sleep -Seconds 5
-    foreach ($group in @('1 2 3 4','6','7','8','9')) {
-        Rcon "computercraft turn-on $group" | Out-Null
-        Start-Sleep -Seconds 5
-    }
+    Start-ViewsFleet
     Wait-ViewsFile "$TestRoot\world\computercraft\computer\4\views-ready.json"
     foreach ($id in @(1,2,3,6,7,8,9)) { Wait-ViewsFile "$TestRoot\world\computercraft\computer\$id\sandbox-result.json" }
     Rcon 'tick query' | Set-Content "$Output\tick-before-client.txt"
@@ -221,7 +232,7 @@ try {
         if (Test-Path $marker) { Move-Item -LiteralPath $marker -Destination ($marker+'.before-restart') }
     }
     Start-ViewsServer 'restart'
-    Rcon 'computercraft turn-on 0 10 11 12 13 1 2 3 4 6 7 8 9' | Out-Null
+    Start-ViewsFleet
     Wait-ViewsFile "$TestRoot\world\computercraft\computer\4\views-restarted.json"
     $wallDisk="$TestRoot\world\computercraft\computer\7"
     Wait-ViewsFile "$wallDisk\sandbox-result.json"

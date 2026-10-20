@@ -1,10 +1,13 @@
 local M = {}
+local function colorTerm(t)
+  return t.isColor and t.isColor()
+end
 local function put(t,x,y,text,color)
   local w,h=t.getSize()
   if y<1 or y>h or x>w then return end
   text=tostring(text or '')
   if x<1 then text=text:sub(2-x) x=1 end
-  if color then t.setTextColor(color) end
+  if color and colorTerm(t) then t.setTextColor(color) end
   t.setCursorPos(x,y) t.write(text:sub(1,w-x+1))
 end
 function M.new(cfg,source)
@@ -19,7 +22,8 @@ function M.new(cfg,source)
   function api.draw(s,fleet,selected,notice)
     local t=s.t local w,h=t.getSize()
     s.buttons={} s.map=nil
-    t.setBackgroundColor(colors.black) t.setTextColor(colors.white) t.clear()
+    if colorTerm(t) then t.setBackgroundColor(colors.black) t.setTextColor(colors.white) end
+    t.clear()
     local scene=source and source.scene() or {stale=true,error='Pair SSOT in views.cfg',cells={},sites={}}
     put(t,1,1,api.mode=='warehouse' and 'WAREHOUSE | top view' or api.mode=='map' and ('WORLD | '..api.camera.mode) or 'MINE ARMY | PRO',colors.cyan)
     local status=scene.stale and ('STALE '..tostring(scene.error or 'no snapshot'))
@@ -28,7 +32,8 @@ function M.new(cfg,source)
       or ('SSOT revision '..tostring(scene.revision or 0))
     put(t,1,2,notice or status,(scene.stale or scene.warehouseError) and colors.orange or colors.lightGray)
     if api.mode=='pro' then
-      local count=math.max(1,h-6)
+      if h>=7 then
+      local count=h-6
       local pages=math.max(1,math.ceil(#fleet/count))
       api.page=math.max(1,math.min(api.page,pages))
       put(t,1,3,'Turtle          Fuel       Free  State',colors.lightGray)
@@ -40,6 +45,7 @@ function M.new(cfg,source)
         s.buttons[#s.buttons+1]={x1=1,x2=w,y=y,action={kind='select',id=f.id}}
       end
       put(t,1,h-2,'Page '..api.page..'/'..pages..'  [ prev   ] next',colors.lightGray)
+      end
     else
       local camera=api.camera
       if api.mode=='warehouse' then camera={mode='top',center=api.camera.center,zoom=api.camera.zoom} end
@@ -52,13 +58,17 @@ function M.new(cfg,source)
           s.map.targets[x..","..y]=c
         end
       end
+      local siteText={}
       for _,site in ipairs(scene.sites or {}) do
         local x,y=geometry().project(site.pose,camera,w,s.map.h)
         if x and y and y>=1 and y<=s.map.h then
           x,y=math.floor(x),math.floor(y)
           local label=(site.kind=='charge' and 'C' or 'S')..' '..site.name
           put(t,x,y+2,label,colors.white)
-          for at=math.max(1,x),math.min(w,x+#label-1) do s.map.targets[at..","..y]=nil end
+          for at=math.max(1,x),math.min(w,x+#label-1) do
+            s.map.targets[at..","..y]=nil
+            siteText[at..","..y]=true
+          end
         end
       end
       for _,f in ipairs(fleet) do
@@ -67,15 +77,19 @@ function M.new(cfg,source)
           if x and y and y>=1 and y<=s.map.h then
             x,y=math.floor(x),math.floor(y)
             local label='T'..f.id
-            put(t,x,y+2,label,colors.lime)
-            for at=math.max(1,x),math.min(w,x+#label-1) do s.map.selections[at..","..y]=f.id end
+            if not siteText[x..","..y] then put(t,x,y+2,label,colors.lime) end
+            for at=math.max(1,x),math.min(w,x+#label-1) do
+              if not siteText[at..","..y] then s.map.selections[at..","..y]=f.id end
+            end
           end
         end
       end
-      put(t,1,h-2,'T turtle  S store  C charge  . air',colors.lightGray)
+      if h>=7 then put(t,1,h-2,'T turtle  S store  C charge  . air',colors.lightGray) end
     end
-    button(s,1,h-1,'Resume',{kind='resume'}) button(s,9,h-1,'Recall',{kind='recall'}) button(s,17,h-1,'E-stop',{kind='estop'})
-    put(t,1,h,'p classic  m map  n warehouse',colors.lightGray)
+    if h>=7 then
+      button(s,1,h-1,'Resume',{kind='resume'}) button(s,9,h-1,'Recall',{kind='recall'}) button(s,17,h-1,'E-stop',{kind='estop'})
+      put(t,1,h,'p classic  m map  n warehouse',colors.lightGray)
+    end
   end
   function api.click(s,x,y)
     for _,b in ipairs(s.buttons or {}) do if y==b.y and x>=b.x1 and x<=b.x2 then return b.action end end

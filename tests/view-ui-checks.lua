@@ -3,7 +3,7 @@ colors={white=1,black=32768,gray=128,lightGray=256,cyan=512,lime=32,orange=2,red
 local V=dofile('views.lua')
 local function screen(w,h,color)
  local lines={} local x,y=1,1
- return {name='term',buttons={},t={getSize=function()return w,h end,isColor=function()return color end,setBackgroundColor=function()end,setTextColor=function()end,clear=function()lines={}end,setCursorPos=function(a,b)assert(a>=1 and a<=w and b>=1 and b<=h) x,y=a,b end,write=function(s)assert(x+#s-1<=w,'clipped output') lines[y]=(lines[y]or'')..s end},lines=function()return table.concat(lines,'\n')end}
+ return {name='term',buttons={},t={getSize=function()return w,h end,isColor=function()return color end,setBackgroundColor=function() if not color then error('colour not supported') end end,setTextColor=function() if not color then error('colour not supported') end end,clear=function()lines={}end,setCursorPos=function(a,b)assert(a>=1 and a<=w and b>=1 and b<=h) x,y=a,b end,write=function(s)assert(x+#s-1<=w,'clipped output') lines[y]=(lines[y]or'')..s end},lines=function()return table.concat(lines,'\n')end}
 end
 local scene={dim='minecraft:overworld',cells={},sites={},stale=false}
 local ui=V.new({mode='pro'}, {scene=function()return scene end})
@@ -16,6 +16,9 @@ assert(s.lines():find('1/3',1,true),'fleet paginates')
 ui.key(']') ui.draw(s,fleet,1)
 assert(s.lines():find('2/3',1,true),'page changes')
 for _,size in ipairs({{12,6},{1,1},{26,12},{80,24}}) do ui.draw(screen(size[1],size[2],false),fleet,1) end
+local short=screen(20,5,true)
+ui.draw(short,fleet,1)
+assert(not short.lines():find('E-stop',1,true),'short monitor hides the footer')
 ui.key('m')
 ui.key('t')
 scene.cells={{x=0,y=64,z=0,name=false}}

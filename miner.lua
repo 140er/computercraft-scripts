@@ -27,7 +27,10 @@ local VERSION = 2
 -- Version = hash of this file's contents (same calculation as in hub.lua)
 local function hashOf(text)
   local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
+  for i = 1, #text do
+    h = (h * 33 + text:byte(i)) % 4294967296
+    if i % 4096 == 0 then sleep(0) end
+  end
   return string.format("%08x", h)
 end
 local PROGRAM = (shell and shell.getRunningProgram()) or "miner.lua"
@@ -482,6 +485,22 @@ if not cfg then
   print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
+if args[1]=="service" then
+  cfg.warehouse=cfg.warehouse or {enabled=false}
+  if args[2]=="enable" or args[2]=="disable" then
+    assert(args[2]=="disable" or cfg.mining and cfg.mining.enabled==true and cfg.warehouse.drop and cfg.warehouse.charger,"configure mining, drop and charger first")
+    cfg.warehouse.enabled=args[2]=="enable"
+  elseif args[2]=="drop" or args[2]=="charger" then
+    assert(type(args[3])=="string" and #args[3]>0 and #args[3]<=64,"site name required") cfg.warehouse[args[2]]=args[3]
+  elseif args[2]=="fuel" then
+    local n=tonumber(args[3]) assert(n and n%1==0 and n>=1 and n<=100000,"fuel target must be 1 through 100000") cfg.warehouse.targetFuel=n
+  else error("Use miner service drop <site>, charger <site>, fuel <target>, enable or disable",0) end
+  saveTable(CFG_FILE,cfg) print("Mining service saved") return
+end
+if args[1]=="nav" and args[2]=="traffic" then
+  assert(args[3]=="on" or args[3]=="off","traffic on or off required")
+  cfg.nav=cfg.nav or {} cfg.nav.traffic=args[3]=="on" saveTable(CFG_FILE,cfg) return
+end
 if args[1]=="mine" then
   cfg.mining=cfg.mining or {}
   if args[2]=="enable" or args[2]=="disable" then
@@ -513,6 +532,10 @@ end
 if args[1]=="nav" and args[2]=="calibrate" then
   assert(cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true,"enable SSOT and navigation before calibration")
   C.navCalibration=assert(DIRS[args[3]],"heading required")
+elseif args[1]=="nav" and args[2]=="survey" then
+  assert(cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true,"enable SSOT and navigation before surveying")
+  C.navSurvey={dim=cfg.ssot.dimension,x=tonumber(args[3]),y=tonumber(args[4]),z=tonumber(args[5])}
+  assert(dofile("ssot.lua").pose(C.navSurvey),"integer survey coordinates required")
 elseif args[1]=="nav" then error("Use miner nav bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> or miner nav calibrate <heading>",0) end
 local HOME = cfg.home
 -- The way its chest is (behind, left or right of the home spot; older setups: behind)
@@ -2105,10 +2128,16 @@ end
 
 function C.runMining()
   local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
-    cancelled=function() return recall or updateWanted end})
+    service=cfg.warehouse,cancelled=function() return recall or updateWanted end})
   while true do
     local state=mining.state()
-    if state.phase=="home" and state.reason=="complete" then
+    if state.phase=="home" and cfg.warehouse and cfg.warehouse.enabled==true and not recall and not C.estop then
+      local ok,why=mining.service()
+      if ok then
+        if state.reason=="complete" then ok,why=mining.finish() else ok,why=mining.start() end
+      end
+      if not ok then setStatus(tostring(why)) sleep(5) end
+    elseif state.phase=="home" and state.reason=="complete" then
       local ok,why=mining.finish() if not ok then setStatus(tostring(why)) sleep(5) end
     elseif not recall and not C.estop then
       local ok,why=mining.start()
@@ -2819,6 +2848,17 @@ local function heartbeat()
   end
 end
 
+function C.bootNavigation()
+  local ok, why
+  local deadline = os.clock() + 180
+  repeat
+    if C.navCalibration ~= nil then ok, why = C.nav.calibrate(C.navCalibration) else ok, why = C.nav.recover() end
+    if ok or why ~= "GPS unavailable or wrong dimension" then return ok, why end
+    sleep(0.5)
+  until os.clock() >= deadline
+  return ok, why
+end
+
 openModem()
 if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
@@ -2827,7 +2867,7 @@ if C.ssot then
     if cfg.nav and cfg.nav.enabled==true then
       assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
       C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
-        bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,
+        bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,traffic=cfg.nav.traffic==true,
         observe=function()
           local x,y,z=gps.locate(2)
           if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
@@ -2835,8 +2875,7 @@ if C.ssot then
         cancelled=function() return C.estop or cfg.viewsControl and (C.viewCancel or updateWanted)
           or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
-      local ok,why
-      if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
+      local ok,why=C.bootNavigation()
       assert(ok,why)
       recall=C.nav.controlState().kind=="recall"
       local p=C.nav.pose()
@@ -2846,6 +2885,11 @@ if C.ssot then
       end
       pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h st.navPending=nil save()
       if C.navCalibration~=nil then print("Navigation pose calibrated") return end
+      if C.navSurvey then
+        assert(C.nav.go(C.navSurvey,"explore"))
+        local q=C.nav.pose() pos.x,pos.y,pos.z,st.h=q.x,q.y,q.z,q.h save()
+        print("Navigation route surveyed") return
+      end
       if C.mineZone then
         local r,why=C.ssot.call("mine-config",{zone=C.mineZone})
         assert(r and r.ok,why) print("Mine zones saved: "..r.count) return

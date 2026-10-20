@@ -75,8 +75,19 @@ function M.visible(scene,camera,limit)
     if a.z~=b.z then return a.z<b.z end
     return a.x<b.x
   end)
-  while #out>(limit or 1024) do out[#out]=nil end
+  local cap=limit or 1024
+  if #out>cap then
+    local kept={}
+    for i=#out-cap+1,#out do kept[#kept+1]=out[i] end
+    out=kept
+  end
   return out
+end
+function M.hasCell(scene,x,y,z,name)
+  for _,cell in ipairs(scene and scene.cells or {}) do
+    if cell.x==x and cell.y==y and cell.z==z and cell.name==name then return true end
+  end
+  return false
 end
 function M.hit(scene,camera,width,height,x,y)
   if x<1 or y<1 or x>width or y>height or scene.stale then return nil end

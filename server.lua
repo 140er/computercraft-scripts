@@ -16,7 +16,7 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua",
   "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
@@ -203,12 +203,14 @@ for _, f in ipairs(FILES) do
   local path = CODE_DIR .. "/" .. f
   if not fs.exists(path) and fs.exists(path .. ".bak") then cacheOp(fs.move, path .. ".bak", path) end
   local code, root = read(path), read(f)
+  yieldWork()
   if root and root ~= "" and load(root, "=" .. f) and (not code or hashOf(root) == hashOf(code)) then
     code, path = root, f
     cacheOp(fs.delete, CODE_DIR .. "/" .. f)
   end
   local old = state.files[f]
   state.files[f] = nil
+  yieldWork()
   if code and code ~= "" and load(code, "=" .. f) then
     cacheOp(fs.delete, CODE_DIR .. "/" .. f .. ".bak")
     state.files[f] = { hash = hashOf(code), size = #code, fetched = old and old.fetched or 0, path = path }

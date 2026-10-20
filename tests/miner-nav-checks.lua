@@ -47,4 +47,36 @@ return function(test,read,mocks)
     local cfg=m.env.textutils.unserialize(m.files["miner.cfg"])
     assert(cfg.nav.bounds.min.x==-8 and cfg.nav.bounds.max.z==9 and not cfg.nav.enabled)
   end)
+  test("a survey command requires navigation and preserves its world target",function()
+    local m=mocks.miner({home={x=0,y=65,z=0},facing=1,spine=2,
+      ssot={enabled=true,server=0,secret="test-secret-123456",dimension="minecraft:overworld"},nav={enabled=true}})
+    m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
+    local code=assert(source:match("^(.*)\nopenModem%(%)"))
+    local api=assert(load(code.."\nreturn C","=miner.lua","t",m.env))("nav","survey","3","65","-2")
+    assert(api.navSurvey.x==3 and api.navSurvey.z==-2 and api.navSurvey.dim=="minecraft:overworld")
+  end)
+  test("navigation boot retries only a missing GPS fix",function()
+    local m=mocks.miner({home={x=0,y=65,z=0},facing=1,spine=2})
+    local code=assert(source:match("^(.*)\nopenModem%(%)"))
+    local api=assert(load(code.."\nreturn C","=miner.lua","t",m.env))()
+    local calls,sleeps=0,0
+    m.env.sleep=function() sleeps=sleeps+1 end
+    local answers={
+      {nil,"GPS unavailable or wrong dimension"},
+      {nil,"GPS unavailable or wrong dimension"},
+      {true},
+    }
+    api.nav={recover=function()
+      calls=calls+1
+      local answer=answers[calls]
+      return answer[1],answer[2]
+    end}
+    local ok,why=api.bootNavigation()
+    assert(ok and why==nil and calls==3 and sleeps==2,"GPS boot did not retry the missing fix")
+    local slept=sleeps
+    calls=0
+    api.nav.recover=function() calls=calls+1 return nil,"relocated" end
+    ok,why=api.bootNavigation()
+    assert(not ok and why=="relocated" and calls==1 and sleeps==slept,"a non-GPS failure must return immediately")
+  end)
 end

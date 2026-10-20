@@ -23,7 +23,7 @@ if scenario=="views" then
   h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "views driver stopped")},lines={}})) h.close()
   while true do os.pullEvent() end
 end
-if scenario == "ssot" or scenario=="nav" or scenario=="mining" then
+if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
   local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)
   local h = assert(fs.open("sandbox-result.json","w"))
   h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "driver stopped")},lines={}})) h.close()
@@ -104,7 +104,7 @@ local ok, err = pcall(function()
     local url=...
     local file=type(url)=="string" and url:match("/([^/?]+)%?t=")
     if (file=="atomic.lua" or file=="ssot.lua" or file=="ssot-client.lua" or file=="nav.lua"
-      or file=="mine-tasks.lua" or file=="mining.lua") and fs.exists(file) then
+      or file=="mine-tasks.lua" or file=="mining.lua" or file=="warehouse-tasks.lua" or file=="warehouse.lua" or file=="store.lua") and fs.exists(file) then
       local h=assert(fs.open(file,"r")) local bytes=h.readAll() h.close()
       result.httpOK=result.httpOK+1
       return {readAll=function() return bytes end,close=function() end}

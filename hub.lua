@@ -247,7 +247,8 @@ end
 -- Orders that go through the fleet server (it passes them on, through other bots when a
 -- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
 -- turtle's own question (job, dir, files) go straight back.
-local ROUTED = { go = true, recall = true, update = true, rename = true, estop = true, view_move = true }
+local ROUTED = { go = true, recall = true, update = true, rename = true }
+if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter
 local viewPending = {}
 local viewSequence = 0

@@ -3,20 +3,26 @@ for i,name in ipairs({"white","orange","magenta","lightBlue","yellow","lime","pi
   "lightGray","cyan","purple","blue","brown","green","red","black"}) do palette[name]=2^(i-1) end
 local env=setmetatable({colors=palette},{__index=_G})
 local V=assert(loadfile("fleetview.lua","t",env))()
-local function check(width,height)
+local function check(width,height,measure)
   local gpu,synced,texts={},0,{}
   local gl=setmetatable({},{__index=function() return function() end end})
   function gpu.refreshSize() end
   function gpu.setSize(n) assert(n==64) end
   function gpu.getSize() return width,height end
   function gpu.createWindow3D() return gl end
-  function gpu.getTextLength(text,size,padding) return #text*(5+(padding or 1))*(size or 1) end
+  if measure~=false then
+    function gpu.getTextLength(text,size,padding) return #text*(5+(padding or 1))*(size or 1) end
+  end
   function gpu.filledRectangle(x,y,w,h)
     assert(x>=1 and y>=1 and x<=width and y<=height,"Tom rectangle origin outside canvas")
     assert(w>0 and h>0,"empty rectangle")
+    assert(x+w-1<=width and y+h-1<=height,"Tom rectangle extends past canvas")
   end
   function gpu.drawText(x,y,text,fg,bg,size,padding)
-    assert(x>=1 and x-1+gpu.getTextLength(text,size,padding)<=width,"Tom text outside canvas")
+    local length
+    if type(gpu.getTextLength)=="function" then length=gpu.getTextLength(text,size,padding)
+    else length=#text*6*(size or 1) end
+    assert(x>=1 and x-1+length<=width,"Tom text outside canvas")
     assert(y>=1 and y-1+8*(size or 1)<=height,"Tom text below canvas")
     texts[#texts+1]=text
   end
@@ -41,4 +47,6 @@ local function check(width,height)
 end
 check(64,64)
 check(640,192)
+check(64,64,false)
+check(640,192,false)
 print("Tom narrow and wide monitor controls passed")
