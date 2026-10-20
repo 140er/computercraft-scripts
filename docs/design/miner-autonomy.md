@@ -1,10 +1,12 @@
-# Miner offline autonomy (APPROVED)
+# Miner offline autonomy, approved (#48, #49)
 
 > APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam).
 > The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md) (N1, B1 and B2). Where the plan and
 > these notes differ, the plan wins.
 
-Part of the fleet PR. Miners on a normal wireless modem sometimes leave the
+B1 implements leases, offline movement, and journals after W1's settings
+registry. B2 then adds local problem handling. N1 supplies framed positions
+and confidence before either. Miners on a normal wireless modem sometimes leave the
 range of the hub and the server. The server stays the source of truth whenever
 it is reachable. Out of range, the miner runs on its own under these rules.
 This is a full feature for normal-modem miners, not a fallback. An ender modem
@@ -76,18 +78,20 @@ Outside it, observations apply only to unknown cells or sections no newer than
 the lease's issuedRev. Otherwise the cell becomes unknown. Ties use UTC
 milliseconds, turtle ID, and sequence. The miner accepts that result.
 
-## Check-in and expiry
+## Check-in and expiry (#49)
 
 The miner returns toward range to check in on a period, and at the lease
 deadline at the latest. If it does not come back, the server marks it overdue,
-expires the lease and frees its cells (the H5 dead-turtle recovery).
+expires the lease and releases scheduling claims under H5 recovery. Possible
+physical occupancy stays unknown until observation or reconciliation clears it.
 
-## Gate B
+## Gate B (#49)
 
 - A miner on a normal modem goes out of range mid-job, hits a full inventory,
   low fuel, lava and a blocked path, comes back, syncs, and the server's counts
   reconcile exactly with the items delivered.
-- A miner dies out of range. The lease expires and its cells are freed.
+- A miner dies out of range. The lease expires, scheduling claims are released,
+  and possible physical occupancy stays unknown.
 - A normal-modem miner's area unloads while it is out of range. It freezes,
-  reboots without GPS when the area loads again, and digs nothing until it has
-  re-anchored.
+  reboots when the area loads again, and digs nothing until N1 restores certain
+  position through journal and fingerprint reconciliation or an anchor.

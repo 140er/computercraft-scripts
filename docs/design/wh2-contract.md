@@ -2,7 +2,7 @@
 
 This is the shared reference for the hardening track, fleet, wizard, layout, and craft. It defines the interfaces those PRs use. Existing `mine-*`, `wh-*`, and navigation operations retain their domain meanings. The authentication upgrade is default-off through `ssot.cfg.requireMac`, as defined under Rednet protocol (#55). New wh2 operations always require v2 authentication.
 
-H4 and miner offline autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam). The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md), and its P0 PR freezes the implementable shapes in `docs/design/h4-offline-contract.md`. Where those shapes and the notes below differ, the plan wins. The H1+H2 MAC uses ccryptolib's keyed BLAKE3, and the update manifest is signed with Ed25519. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
+H4 and miner offline autonomy are approved. Jeffrey accepted the plan on 2026-10-20 at 17:09 Europe/Amsterdam. [The accepted plan](../plans/cc-h4-offline-plan.md) wins wherever this contract differs. P0 freezes its implementable shapes in `docs/design/h4-offline-contract.md`. The corrections below adopt the plan and name issues #46 through #56 in their sections. H1+H2 uses ccryptolib keyed BLAKE3 and Ed25519-signed manifests. Layout, wizard, and craft require H3 and H4a through H4c, without waiting for H4d (#48).
 
 ## Ownership and coordinates (#46, #49, #53, #56)
 
@@ -359,7 +359,32 @@ One plan can have 128 steps without requiring 128 simultaneous orders. Ready ste
 
 The supplied dump's `recipes_min.lua` contains 3878 recipes and is 1131311 bytes. `recipes.json` contains 3880 shaped and shapeless crafting recipes. `stats.txt` reports 3878 and records 2441 excluded non-crafting recipes. The dump cannot supply smelting or the complete runtime graph. The live Recipe Index is authoritative for the installed recipes and tags. An offline import is an explicit fallback pinned to its file hash. It converts dump `s`, `l`, `o`, `n`, and `#tag` fields to this schema and preserves result components as unresolved requirements when necessary.
 
-The hub queries `getRecipesFor`, `getUsesOf`, `getRecipe`, `list`, and `resolveTag` on demand. It never installs the complete dump, all namespace shards, or a serialized full graph. Its recipe cache occupies at most 131072 encoded bytes in RAM and is disposable. Persisted hub files, temporary generations, backups, scripts, and any optional offline shard together stay below 1000000 bytes with 8192 bytes free for writes. Insufficient space rejects the import or save; raising the disk limit does not satisfy this requirement.
+The hub queries `getRecipesFor`, `getUsesOf`, `getRecipe`, `list`, and `resolveTag` on demand. It never installs the complete dump, all namespace shards, or a serialized full graph. Its recipe cache occupies at most 131072 encoded bytes in RAM and is disposable. H4a removes miner code copies from the hub and provides the two-copy backend before W1 adds shared state. Persisted files, generations, scripts, and any optional shard obey the 1000000-byte profile below. Imports and updates reserve their full staging and rollback bytes before starting. Raising the disk limit does not satisfy this requirement.
+
+### Hub and authority byte budgets (#54)
+
+The plan reports 142143 bytes of hub code after H4a and 107532 bytes for all required ccryptolib modules. The remaining planner and new-module allowance is about 10325 bytes, giving an estimated 260000-byte role bundle. Those are plan figures and an allowance, not a measurement of the finished wh2 release. Installation measures the actual role bundle. A larger bundle reduces state admission through the ledger.
+
+| Hub allocation | Bytes | Rule |
+| --- | ---: | --- |
+| Hub role code after H4a | 142143 | Plan's measured sum after removing miner copies. |
+| ccryptolib | 107532 | Plan's measured module sum. |
+| Planner and additional role code allowance | 10325 | Estimate. These three code rows total 260000. |
+| Active state generation A | 300000 | All authoritative state and staged records together. |
+| Inactive state generation B | 300000 | Second copy, including replacement sections and root. No third full generation. |
+| Control reserve | 65536 | Map growth cannot consume it. A local client's two 20480-byte outbox copies leave 24576 for control recovery. |
+| Allocation overhead and other local files | 32768 | Includes file and directory minimums, private config, settings and wizard caches, and small journals. |
+| Write scratch | 8192 | Separate from the two state copies. |
+| Remaining headroom | 33504 | Available only after measuring all allocations. |
+| Total disk | 1000000 | 260000 + 600000 + 65536 + 32768 + 8192 + 33504. |
+
+Without overhead or scratch, the plan's rounded estimate allows `(1000000-260000-65536)/2 = 337232` bytes per state generation. This contract admits 300000 instead. The smaller allowance leaves the explicit overhead and scratch above. The full state allowance includes fleet records, settings, classes, drafts, locations, rooms, slot contents, warehouse reservations, craft jobs, query fragments, layouts and craft stages, plans, poses, moves, leases, replay results, and map metadata. It is one combined limit. The remaining allowance for a wh2 edit is 300000 minus all other encoded state and staged records in that generation.
+
+Collection count caps never bypass this byte limit. Layout caps one room's encoded record and one slot's contents at 65536 bytes each, and all layout records and uploads at 98304 bytes. Craft and warehouse byte caps are stated above. The dispatcher computes the resulting combined generation, replay result, and staged bytes before mutation. It reserves both copies and required control bytes against the actual mount's capacity and free space. A refusal retains the prior state and returns `capacity`. It does not poison the store. Turtles keep unacknowledged observations in their bounded journals.
+
+CC charges at least 500 bytes per file or directory. The ledger charges `max(500, encoded length)` for each file and also charges directories. If these charges exceed the 32768 allowance, or staging an update exceeds the free rows, admission reduces new state growth or refuses the operation. An update starts only when its complete temporary bundle and rollback generation fit. The table does not promise update staging while both state generations are full.
+
+The server profile also uses this ledger. The plan's server code plus crypto is 250006 bytes, leaving 84458 after two 300000-byte state copies and the 65536 control reserve. S1 runs the same SSOT module on the hub with the smaller profile, no peers, and no code mirror. Its authority handover freezes the hub, imports by stable IDs once, advances the integer authority epoch, and resumes as one server writer. None of these figures claims a runtime gate pass.
 
 Remote graph requests use a bounded queue in `s.wh2.craft.queries`. The server returns a ticket immediately. A hub worker claims the query, calls the peripheral outside the rednet receiver, and publishes one result fragment. Clients read that fragment by ticket. There are at most four active tickets, one unconsumed fragment per ticket, and a 30000 ms idle expiry. The query owner releases or advances its ticket after reading. Expiry discards recipe lookup state only, never production work.
 
@@ -382,7 +407,7 @@ recipeAdvance = {
 
 API pages keep their 1-based page number and maximum page size 100. Network fragments are at most 4096 bytes and pin a hub catalog generation. The receiver reassembles at most 65536 bytes for one result using `textutils.unserialize`, never `load`. Larger API pages retry with smaller page sizes. A single oversized recipe or tag returns `too_large`. Missing providers return `recipe_unavailable`. A hub restart or source change invalidates outstanding generations and cached plans. Recipe Index exposes no reload revision. The provider refreshes selected recipes and tag choices before execution and advances its generation when their definitions change. The generation identifies the provider's observed definitions, not an atomic upstream snapshot.
 
-Graph pages are disposable. Only selected production steps and bounded query fragments enter shared state. The current 900000-byte SSOT generation ceiling and replay-cache cost remain implementation limits, not disk-capacity measurements. A capacity refusal leaves the previous state intact. This hub budget does not claim that the coordinator's current save generations fit on a 1 MB disk.
+Graph pages are disposable. Only selected production steps and bounded query fragments enter shared state. The old 900000-byte generation ceiling and three-copy backend cannot satisfy this profile. H4a's two-copy saves and H4b1's per-section storage are prerequisites, followed by H4c's ledger before W1. The ledger includes replay-cache bytes and every module's staged data. A capacity refusal leaves the previous state intact. Gate A and Gate B must measure the actual allocated bytes at the 1 MB limit before implementation ships.
 
 ## Rednet protocol (#47, #53, #55, #56)
 
@@ -578,7 +603,7 @@ After an RPC timeout following a real move, the client freezes further physical 
 
 Craft adopts the same claim fencing and preserves observed progress on expiry. Miner offline leases are outside this approved H5 scope.
 
-## H4 disk and cold storage, approved (#49, #56)
+## H4 disk and cold storage, approved (#48, #49, #54, #56)
 
 Jeffrey approved H4 on 2026-10-20 at 17:09 Europe/Amsterdam. The shapes below adopt sections 2.2 through 2.4 and 2.7 of [the accepted plan](../plans/cc-h4-offline-plan.md). P0 writes `docs/design/h4-offline-contract.md` as the single source for the codec and these versioned records. That file does not exist at `8de2440`. Implementation waits for P0 to freeze it. The integer epoch and field-specific false rules above resolve the review's type gaps for that freeze.
 
@@ -639,7 +664,7 @@ One click enrolls a selected turtle after the server checks pairing, reachabilit
 
 The panel storage view pages the ledger and each peer's capacity, use, reachability history, and section and journal contents. It shows which server and peer copies a forgetting policy affects. A preview enumerates exact keys, revisions, hashes, age cutoff, replica locations, count, and bytes. A commit pins the immutable preview and policy revision. An expired preview or changed policy returns `stale_revision`. Under the accepted plan, a section changed since the preview is skipped by its revision and hash check. Other unchanged previewed sections may be removed. The result lists removed and skipped entries. No commit deletes an unlisted version.
 
-These proposed messages use authenticated envelopes and bounded pages. They remain unregistered until approval.
+These approved messages use authenticated v2 envelopes and bounded pages. H4c owns ledger, policy, prompts, and forgetting. H4d adds peer enrolment and cold-blob transfer after its named dependencies. Each registers only the operations it implements and verifies. Implementation still requires its gates, without another approval round.
 
 | Operation | Intended body and result |
 | --- | --- |
@@ -729,37 +754,53 @@ The request and reply bodies below use the approved v2 keyed BLAKE3 envelope. B1
 
 W1 adds the offline and problem-handling settings before B1 or B2 reads them. Defaults include `offlineAutonomy=false`, `checkInEveryMs=60000`, `leaseMs=900000`, `returnMarginMs=120000`, and `journalMaxEvents=1024`. The journal byte ceiling is an optional limit on the smaller runtime-derived budget, never a fixed disk allowance. Behavior settings cover inventory compaction and filtered trash, low-power return margin, unbreakable-block detours, fluid containment or avoidance, falling-block retries, blocked-path retry and reroute, re-anchor attempts, and stuck-cell backoff and skip. Each behavior has an enable flag and bounded thresholds. Defaults keep trash and fluid placement off. All settings appear in the registry and on the panel's dev-mode controls with the immutable invariants visible.
 
-## File boundaries and merge order
+## File boundaries and merge order (#48)
 
-The base owns only this contract. No LuaLS file duplicates these tables. The intended order is PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft. H4 is ON HOLD. The active stack skips it, so H5 stacks directly on H1+H2. Layout and craft require the approved predecessors, including H3, but have no H4 prerequisite. H4 can re-enter only after Jeffrey approves its plan and the orchestrator sets its place against the then-current stack.
+The base owns this documentation. No LuaLS file duplicates these tables. H4 and autonomy are approved. The program order is P0, H3, H1H2, N1, then I1 and I2 alongside H4a and H4b1, then H5, H4c, W1, then B1 and B2 alongside T1, A1 and T2, then S1, H4b2, H4d. PR 5 and PR 6 feed the installer and UI work. W1 is the fleet PR. Wizard follows W1, layout follows wizard and consumes planner fixtures, and craft follows layout. These four require H3 and H4a through H4c, not H4d. Layout may precede T1 if T1 writes verified fixtures through the installed layout module.
 
-Ownership is sequential. An earlier owner controls shared files until its change lands. Later owners extend that result after rebase. Each PR owns its named tests and evidence directory. H3 establishes queue-related runner hooks. Fleet later adds optional wh2 scenario dispatch to those hooks.
+The table gives one valid integration order and names the dependency edges. Independent work can develop alongside it. Shared-file writes integrate in that order. I1 precedes the H4a dispatcher and role changes, I2 precedes later installer edits, and H4b1 precedes H5. W1 uses all of those results. T1 and B1 have separate cores, but any edits to the common dispatcher follow the listed order. A1 follows T1 and PR 6 and precedes T2. S1 follows H4c and T1, after T2 in the program order. H4b2 requires H4b1 and stays flagged off. H4d follows B1, H5, H4c, and H4b2 in this integration order. New filenames below reserve ownership for the implementation PRs. They are not claims that the files already exist.
 
-| Merge | PR | Owned existing files | Owned new files and data |
+| Merge | PR and dependencies | Owned existing files | Owned new files and data |
 | --- | --- | --- | --- |
-| 1 | PR 5 | `hub.lua`, `fleetview.lua`, `server.lua`, `install.lua`, `update.lua` | View backends, snapshot adapter, Pro controls, view-role tests and evidence. See [the PR 5 scope](../gemini-review.md). |
-| 2 | PR 6 | `fleetview.lua`, `server.lua`, `hub.lua`, `install.lua`, `update.lua` | AR entrypoint and chat adapter, final role registration, AR tests and evidence. See [the PR 6 scope](../gemini-review.md). |
-| 3 | H3 | `server.lua`, `ssot.lua`, `atomic.lua`, `tests/run.lua`, `tests/sandbox/run.ps1`, `tests/review-capture.ps1` | Request queue, one worker, non-yielding transaction paths, timer recovery, `tests/h3-*`, `docs/evidence/h3/`. |
-| 4 | H1+H2 | `ssot.lua`, `ssot-client.lua`, `server.lua`, `relay.lua`, `miner.lua`, `store.lua`, `hub.lua`, `panel.lua`, `fleetview.lua`, `install.lua`, `update.lua`, `atomic.lua` for the activation journal | `sha2.lua`, `ssot-auth.lua`, manifest and generation launcher, pairing migration, handshake, `tests/h1-h2-*`, `docs/evidence/h1-h2/`. Owns all transport and update changes. |
-| 5, held | H4 | Planned only. `server.lua`, `ssot.lua`, `atomic.lua`, `panel.lua`, `hub.lua`, `fleetview.lua`, `install.lua`, `update.lua` | Proposed `ssot-storage.lua`, `chunk-store.lua`, `storage-peer.lua`, policy and capacity records, `tests/h4-*`, `docs/evidence/h4/`. No edits or implementation before approval. |
-| 6 | H5 | `ssot.lua`, `ssot-client.lua`, `server.lua`, `nav.lua`, `miner.lua`, `mining.lua`, `warehouse-tasks.lua`, `warehouse.lua`, `store.lua`, `hub.lua`, `panel.lua` for admin recovery | Expiry and fencing fields, live journal recovery, admin forget command, `tests/h5-*`, `docs/evidence/h5/`. Parent is H1+H2 while H4 is held. |
-| 7 | Fleet | `server.lua`, `ssot.lua`, `ssot-client.lua`, `miner.lua`, `mining.lua`, `nav.lua`, `fleetview.lua`, `install.lua`, `update.lua`, shared test runner dispatch | `wh2-fleet.lua`, `wh2-client.lua`, `tests/wh2-fleet-*`, `docs/evidence/wh2-fleet/`. Owns fleet, approved settings, wh2 handler registration, optional loading, and manifest entries. |
-| 8 | Wizard | `hub.lua`, `panel.lua` | `wh2-wizard.lua`, `tests/wh2-wizard-*`, `docs/evidence/wh2-wizard/`. Owns class answers, unknown questions, board answers, approved settings controls, and hub extension bindings. |
-| 9 | Layout | `roomsorter.lua`, `sorter.lua`, `store.lua`, `warehouse.lua`, `warehouse-tasks.lua` | `wh2-layout.lua`, `tests/wh2-layout-*`, `docs/evidence/wh2-layout/`. Owns locations, room conversion, scans, placement, slots, and site-lock aliasing. |
-| 10 | Craft | `factory.lua` | `wh2-craft.lua`, `wh2-recipes.lua`, `craft.lua`, `tests/wh2-craft-*`, `docs/evidence/wh2-craft/`. Owns recipe provider, production graph, workers, and factory compatibility adapter. |
+| External 1 | PR 5 | `hub.lua`, `fleetview.lua`, `server.lua`, `install.lua`, `update.lua` | View backends, snapshot adapter, Pro controls. See [the PR 5 scope](../gemini-review.md). |
+| External 2 | PR 6 after PR 5 | `fleetview.lua`, `server.lua`, `hub.lua`, `install.lua`, `update.lua` | `ar-hud.lua`, `chat-control.lua`, `bundle-manifest.lua`, role registration. See [the PR 6 scope](../gemini-review.md). |
+| 1 | P0, no program predecessor | Probe-only additions | `tests/bench/`, `docs/design/h4-offline-contract.md`, `docs/evidence/p0/`. Freezes section 2 shapes and platform limits. |
+| 2 | H3 after P0 | `server.lua`, `ssot.lua`, `atomic.lua`, `tests/run.lua`, `tests/sandbox/run.ps1`, `tests/review-capture.ps1` | Request queue, worker, non-yielding transactions, timer recovery. |
+| 3 | H1H2 after H3 and PR 6's bundle work | `ssot.lua`, `ssot-client.lua`, `server.lua`, `relay.lua`, `miner.lua`, `store.lua`, `hub.lua`, `panel.lua`, `fleetview.lua`, `install.lua`, `update.lua`, `bundle-manifest.lua`, `atomic.lua` | `ccryptolib/`, `ssot-auth.lua`, generation launcher, pairing migration, v2 handshake, durable outbox, upgrade marker. |
+| 4 | N1 after H1H2 | `nav.lua`, `ssot.lua`, `ssot-client.lua`, `miner.lua`, `store.lua`, `hub.lua` | Framed positions, frame registry, confidence and intent recovery, `anchor` and `frame-merge`. |
+| 5 | I1 after N1, PR 5, PR 6 | `install.lua`, `update.lua`, `ssot.lua`, `server.lua`, `bundle-manifest.lua` | `install-core.lua`, `install-keys.lua`, `enrol.lua`, copy codes, X25519 enrolment, per-role files. |
+| 6 | H4a after N1, integrating I1's shared-file edits | `atomic.lua`, `server.lua`, `ssot.lua`, `hub.lua`, `install.lua`, `update.lua`, `bundle-manifest.lua` | `ssot-storage.lua`, `mirror.lua`, two-copy saves, control reserve, role-cache removal on server and hub. |
+| 7 | I2 after I1 | `install.lua`, `bundle-manifest.lua` | `install-touch.lua`, shared install state and error steps. |
+| 8 | H4b1 after H4a and N1 | `ssot.lua`, `ssot-storage.lua`, `server.lua`, `tests/sandbox/run.ps1` | `chunk-store.lua`, palette and RLE sections, dirty saves, idempotent schema 1 migration. |
+| 9 | H5 after H4b1 | `ssot.lua`, `ssot-client.lua`, `server.lua`, `nav.lua`, `miner.lua`, `mining.lua`, `warehouse-tasks.lua`, `warehouse.lua`, `store.lua`, `hub.lua`, `panel.lua` | Expiry and fencing, live journal recovery, admin forget. |
+| 10 | H4c after H5 | `ssot.lua`, `ssot-storage.lua`, `chunk-store.lua`, `server.lua`, `hub.lua`, `panel.lua`, `ar-hud.lua` | `storage-ledger.lua`, policy, pause, exact preview and deletion receipts. |
+| 11 | W1 / Fleet after H4c | `server.lua`, `ssot.lua`, `ssot-client.lua`, `miner.lua`, `mining.lua`, `nav.lua`, `fleetview.lua`, `install.lua`, `update.lua`, shared test dispatch | `wh2-fleet.lua`, `wh2-client.lua`, fleet records, settings including B1, B2 and global storage policy, optional handlers and manifest entries. |
+| 12 | Wizard after W1 | `hub.lua`, `panel.lua` | `wh2-wizard.lua`, classes, persisted questions and drafts, boot redisplay, settings controls and hub bindings. |
+| 13 | B1 after W1 and H5 | `miner.lua`, `mining.lua`, `nav.lua`, `ssot.lua`, `ssot-client.lua`, `mine-tasks.lua` | Lease v2, bounded journal entry and head, offline moves, idempotent replay and conflict rule. |
+| 14 | T1 after W1, I1, H4b1 | `server.lua`, `ssot.lua`, `enrol.lua`, shared view adapters | `planner-core.lua`, `planner-server.lua`, plan and intent records, server MVP, code and claim ops. |
+| 15 | Layout after Wizard, H4c and T1 in this order | `roomsorter.lua`, `sorter.lua`, `store.lua`, `warehouse.lua`, `warehouse-tasks.lua` | `wh2-layout.lua`, locations, frame conversion, rooms, slots, locks, independent upload stages, warehouse caps and fingerprints. Verified planner fixtures enter this registry. |
+| 16 | Craft after Layout | `factory.lua` | `wh2-craft.lua`, `wh2-recipes.lua`, `craft.lua`, recipe provider, production plans, progress cursor, factory adapter. |
+| 17 | B2 after B1 | `miner.lua`, `mining.lua`, `nav.lua`, `wh2-fleet.lua` for the registered thresholds | Bounded problem handlers using W1 settings. The invariant rules are not toggles. |
+| 18 | A1 after T1 and PR 6 | `ar-hud.lua`, `chat-control.lua`, `server.lua`, `hub.lua`, `planner-core.lua` | `planner-ar.lua`, chat events, look cursor, ghost markers, code delivery. |
+| 19 | T2 after T1, following A1 | `planner-core.lua`, `planner-server.lua`, `hub.lua`, `panel.lua`, `server.lua` | `planner-hub.lua`, `planner-panel.lua`, full tools and all host adapters. The hub uses a server until S1. |
+| 20 | S1 after H4c and T1, following T2 | `ssot.lua`, `ssot-client.lua`, `hub.lua`, `server.lua`, `enrol.lua` | Shared hub profile, frozen authority record, paged idempotent handover and code migration. A1 and T2 do not require S1. |
+| 21 | H4b2 after H4b1, following S1 | `chunk-store.lua`, `ssot-storage.lua`, `mine-tasks.lua`, `nav.lua`, `miner.lua` | Region baselines, exceptions, segments, boxes, flagged off until real Gate B comparison. |
+| 22 | H4d after H1H2, H3, H4a through H4c, H5, B1, following H4b2 | `ssot.lua`, `ssot-storage.lua`, `storage-ledger.lua`, `server.lua`, `store.lua`, `warehouse.lua`, `miner.lua`, `hub.lua`, `panel.lua`, `fleetview.lua`, `install.lua`, `update.lua` | `storage-peer.lua`, placement and peer records, server-only blob MAC, floppy key export, two non-miner replicas and repair. |
+
+Each implementation row owns its tests and `docs/evidence/<id>/`. New tests use `tests/<id>-*` unless the row names another path. The four features keep the established `wh2-fleet`, `wh2-wizard`, `wh2-layout`, and `wh2-craft` names. H3 establishes the shared runner hooks. W1 adds optional wh2 scenario dispatch.
 
 Fleet reserves fixed optional modules `wh2-layout.lua`, `wh2-wizard.lua`, and `wh2-craft.lua` at the SSOT boundary. It also reserves later worker and hub dependencies in the role manifests and installer registry. Missing optional files do not fail a legacy install or erase saved state. Requests for an absent module return `unavailable`. Only enabled, installed modules receive v2 operations. Unvalidated saved data from an absent module remains opaque and cannot be replaced by another module.
 
 Wizard binds optional `wh2-recipes.lua.open(context)` on the hub. Context contains the shared RPC worker, Recipe Index peripheral, and board drawing helpers. The returned service exposes `tick`, `draw`, and `handle`; absent service means an unavailable craft panel. Craft implements this binding without editing `hub.lua` or `panel.lua`. `wh2-client.lua` supplies queued `call`, receiver `dispatch`, and settings refresh to all callers. These are fixed extension points, not arbitrary downloaded plugins.
 
-Fleet and wizard may develop alongside hardening. Fleet rebases onto H5 and retains H3's queue, H1+H2's authentication and updater, and H5's recovery fields. It adds wh2 handlers and manifest entries at those extension points. Wizard then rebases onto fleet, including hardened hub and panel changes. It uses `wh2-client` over the authenticated outbound worker and cannot restore legacy packet handling. Layout rebases onto wizard and keeps H5's warehouse expiry and quantity reconciliation. Craft follows layout. No feature PR may cherry-pick an old shared file over these owners' changes.
+Fleet and wizard may develop alongside hardening. W1 integrates after H4c and retains H3's queue, H1H2's auth and updater, N1's frames, H4a through H4c's storage, and H5's recovery fields. Wizard follows W1 and uses `wh2-client` over the authenticated outbound worker. Layout follows wizard and keeps H5's warehouse expiry and quantity reconciliation. Craft follows layout through the existing hub binding. Among those four feature owners, the existing-file lists and wh2 subtrees remain disjoint. Installer, planner, hardening, and autonomy owners share some of those files and therefore integrate in the table's order. No feature replaces a shared file with an older copy.
 
 A required shared-file change goes to its named owner before that owner's merge. After merge it is a narrow integration follow-up in merge order. No PR copies another owner's module or invents a second registry. The orchestrator merges. Authors do not merge their own PRs.
 
-## Source checks and implementation gates
+## Source checks and implementation gates (#48, #54)
 
 The existing boundaries are in [SSOT](../../ssot.lua), [its client](../../ssot-client.lua), [navigation](../../nav.lua), [mining](../../mining.lua), [warehouse tasks](../../warehouse-tasks.lua), [warehouse worker](../../warehouse.lua), and [room sorter](../../roomsorter.lua). Setup and recovery are described in [SSOT configuration](../ssot-pr1.md), [navigation](../navigation.md), [mining](../mining.md), and [warehouse](../warehouse.md). The [review](../review/judgment-2026-10-20.md) grounds the hardening scope. The [backlog](../backlog.md) remains later work.
 
 Recipe sources are `C:\Work\mudded-mods\mods\recipe_index\API.md` and `C:\Work\recipe-data\recipes\`, including `README.md`, `stats.txt`, `recipes.json`, and `recipes_lua/minecraft.lua`. The dump and API are different formats; an import always converts explicitly.
 
-This contract adds no executable behavior and claims no runtime gate result. Each implementation PR needs saved Gate A and Gate B evidence under [Gate B depth](../testing/gateB-depth.md). Relevant flows include attacker and replay cases, counter rollover, fake discovery, interrupted updates, event bursts during saves and HTTP, timer survival, lost movement commits, GPS loss, dead turtles, and the warehouse flows already defined here. Evidence records the actual disk capacity and free space. Craft also proves its hub runs within the separate 1 MB budget above. Pending H4 and autonomy scenarios become implementation gates only after their respective approvals. A skipped required runtime check is a failed gate, never a fabricated pass.
+This contract adds no executable behavior and claims no runtime gate result. Each implementation PR needs saved Gate A and Gate B evidence under [Gate B depth](../testing/gateB-depth.md). Relevant flows include attacker and replay cases, counter rollover, fake discovery, interrupted updates, event bursts during saves and HTTP, timer survival, lost movement commits, GPS loss, dead turtles, and the warehouse flows already defined here. Evidence records actual allocated bytes, capacity, and free space at 1000000 bytes, with no GPS from N1 onward. Craft proves the hub profile above. H4 and autonomy gates are approved requirements, including warning and decline, exact forget preview, peer loss, chunk unload mid-move, expired-lease replay, stale-map conflict, and journal return at 80%. A skipped required runtime check is a failed gate, never a fabricated pass.

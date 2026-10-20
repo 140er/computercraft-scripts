@@ -72,7 +72,7 @@ the result from real inventories.
   Neither the physical action nor its progress may count twice.
 - Power loss at the charger.
 
-## Hardening cases
+## Hardening cases (#49, #54, #55)
 
 These come from [the 2026-10-20 review](../review/judgment-2026-10-20.md).
 Each one runs in gate A (CraftOS-PC sandbox, added to `tests\sandbox`) and,
@@ -80,6 +80,9 @@ where it involves the world, in gate B.
 
 - Attacker: replayed request, captured secret, faked sender id, a fake server
   answering `rednet.lookup`/`rednet.host`, a huge counter.
+  Check `requireMac=false` preserves legacy operations. Upgrade locally to true,
+  then prove that v1 requests fail and config removal or rollback cannot
+  downgrade the saved upgrade marker.
 - Disk (H4, approved 2026-10-20): the real limits. Run once with a 1,000,000-byte server disk and
   realistic content (map chunks, journals, fleet records), and once with the
   limit read from `fs.getCapacity` on a larger disk. A failed save recovers.
@@ -87,7 +90,10 @@ where it involves the world, in gate B.
   and unreachable cells stay unknown, never free. Hit the storage warning at
   1 MB, decline forgetting, enroll a turtle on the panel and check the data
   moves to it. Then pick `forget-old` and check that exactly the previewed data
-  goes, and nothing else.
+  goes, and nothing else. A section changed after preview must survive and
+  appear in the skipped list. Run the hub profile at 1000000 bytes too. Record
+  the code bytes, both state copies, file allocation overhead, scratch, and
+  the 65536-byte control reserve against the contract's budget table.
 - Event loss: a rednet burst during a save and during an HTTP call. No request
   is dropped and the timer still fires.
 - Faults: a commit lost after a real move, the GPS host down, an ender modem
