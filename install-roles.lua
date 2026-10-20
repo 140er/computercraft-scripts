@@ -47,6 +47,24 @@ local ROLES = {
     files = { "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua", "plug.lua" } },
 }
 
+local MAP_FILES = { "mapstore.lua", "mapsection.lua" }
+local STUB_FILES = {
+  "lib/stubs/b1_n1.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua",
+  "lib/stubs/b1_h5.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4d_dep.lua",
+}
+local function addFiles(role, names)
+  local seen = {}
+  for _, name in ipairs(role.files) do seen[name] = true end
+  for _, name in ipairs(names) do
+    if not seen[name] then seen[name] = true role.files[#role.files + 1] = name end
+  end
+end
+for _, role in ipairs(ROLES) do
+  for _, name in ipairs(role.files) do
+    if name == "ssot.lua" then addFiles(role, MAP_FILES) addFiles(role, STUB_FILES) break end
+  end
+end
+
 M.kit = KIT
 
 function M.hash(text)
@@ -176,14 +194,20 @@ function M.apply(fsapi, root, id, bundle, free)
   end
   local names = listRoot()
   local disk = {}
+  local function readText(where)
+    if not fsapi.exists(where) or (fsapi.isDir and fsapi.isDir(where)) then return nil end
+    local h = fsapi.open(where, "r")
+    local text = h.readAll()
+    h.close()
+    return text
+  end
   for _, name in ipairs(names) do
-    local where = path(name)
-    if not fsapi.isDir(where) and fsapi.exists(where) then
-      local h = fsapi.open(where, "r")
-      local text = h.readAll()
-      h.close()
-      disk[name] = text
-    end
+    local text = readText(path(name))
+    if text then disk[name] = text end
+  end
+  for _, name in ipairs(role.files) do
+    local text = readText(path(name))
+    if text then disk[name] = text end
   end
   local incoming = {}
   for name, body in pairs(bundle) do
@@ -206,8 +230,15 @@ function M.apply(fsapi, root, id, bundle, free)
     end
   end
   if type(free) == "number" and need > free then return nil, "disk_full" end
+  local function ensureDir(dir)
+    if not dir or dir == "" or not fsapi.makeDir then return end
+    local parent = dir:match("^(.*)/[^/]+$")
+    if parent and parent ~= "" then ensureDir(parent) end
+    if not fsapi.exists(dir) then fsapi.makeDir(dir) end
+  end
   for _, name in ipairs(writes) do
     local where = path(name)
+    ensureDir(where:match("^(.*)/[^/]+$"))
     local tmp = where .. ".new"
     local h = assert(fsapi.open(tmp, "w"), "open failed")
     h.write(incoming[name].text)
