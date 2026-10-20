@@ -33,7 +33,7 @@ function M.open(cfg)
     local j=v.action
     local c=v.control
     if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
-      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop") then return false end
+      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop" and c.kind~="view_move") then return false end
     if v.stopped~=nil and type(v.stopped)~="boolean" or v.resume~=nil and type(v.resume)~="boolean" then return false end
     return j==nil or type(j)=="table" and (j.kind=="move" or j.kind=="turn" or j.kind=="calibrate")
       and S.pose(j.from) and S.pose(j.to) and heading(j.from.h) and heading(j.to.h)
@@ -111,7 +111,7 @@ function M.open(cfg)
   end
   function api.controlState() return A.copy(state.control or {}) end
   function api.control(kind,epoch,cid)
-    if (kind~="go" and kind~="recall" and kind~="estop") or not integer(epoch) or epoch<1 or epoch>2147483647
+    if (kind~="go" and kind~="recall" and kind~="estop" and kind~="view_move") or not integer(epoch) or epoch<1 or epoch>2147483647
       or not integer(cid) or cid<1 or cid>2147483647 then return false,"invalid command" end
     local c=state.control
     if c and (epoch<c.epoch or epoch==c.epoch and cid<=c.cid) then return false,"stale command" end
@@ -131,6 +131,18 @@ function M.open(cfg)
   function api.record(p,name)
     assert(not busy and S.pose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
     remember(p,name) save()
+  end
+  function api.import(cells,dim)
+    assert(not busy and type(cells)=="table" and #cells<=1024 and dim==b.min.dim,"invalid map import")
+    local merged=A.copy(state.cells)
+    for _,cell in ipairs(cells) do
+      local p={dim=dim,x=cell.x,y=cell.y,z=cell.z}
+      assert(S.pose(p) and (cell.name==false or type(cell.name)=="string" and #cell.name<=128),"invalid map cell")
+      if inside(p,b) then merged[key(p)]=cell.name==false and "minecraft:air" or cell.name end
+    end
+    local count=0 for _ in pairs(merged) do count=count+1 end
+    assert(count<=maxCells,"navigation map full; export or recalibrate")
+    state.cells=merged save()
   end
   local function turn(h)
     while state.pose.h~=h do

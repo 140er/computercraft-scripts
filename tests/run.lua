@@ -439,6 +439,10 @@ dofile("tests/nav-unit.lua")
 dofile("tests/mining-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
+dofile("tests/view-command-checks.lua")(test,read,mocks)
+dofile("tests/view-core-checks.lua")
+dofile("tests/view-ui-checks.lua")
+dofile("tests/view-install-checks.lua")(test,equal,read,mocks)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

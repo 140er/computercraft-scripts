@@ -21,6 +21,7 @@ local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
+if args[1] == "view-installed" then print("View configured.") return end
 if args[1] == "update" then
   -- latest version from GitHub (update.lua does the work, fetched here if missing)
   if not fs.exists("update.lua") then
@@ -240,12 +241,39 @@ end
 -- Orders that go through the fleet server (it passes them on, through other bots when a
 -- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
 -- turtle's own question (job, dir, files) go straight back.
-local ROUTED = { go = true, recall = true, update = true, rename = true }
+local ROUTED = { go = true, recall = true, update = true, rename = true, estop = true, view_move = true }
+local viewsCfg = loadTable("views.cfg") or {}
+local viewClient, viewSource, viewUI, directView, viewCounter
+local viewPending = {}
+local viewSequence = 0
+if viewsCfg.enabled == true then
+  if type(viewsCfg.server) == "number" and type(viewsCfg.secret) == "string" and #viewsCfg.secret >= 16 then
+    viewClient = dofile("ssot-client.lua").new(viewsCfg)
+    viewSource = dofile("view-source.lua").new(viewClient, viewsCfg)
+    viewCounter = dofile("atomic.lua").store("views.counter",function(v)
+      return type(v)=="table" and type(v.sequence)=="number" and v.sequence>=0 and v.sequence%1==0
+    end,8192)
+    viewSequence=viewCounter.value and viewCounter.value.sequence or 0
+  end
+  if args[1] == "pro" or args[1] == "warehouse" or args[1] == "map" then viewsCfg.mode = args[1] end
+  viewUI = dofile("views.lua").new(viewsCfg, viewSource)
+end
 local function sendDirect(id, msg)
   if id then rednet.send(id, msg, PROTOCOL) else rednet.broadcast(msg, PROTOCOL) end
 end
 local function send(id, msg)
   msg.from = os.getComputerID()
+  if msg.viewControl then
+    if not viewClient or not serverId or serverId ~= viewsCfg.server or os.clock() - serverSeen >= 15 then return false end
+    local sequence=math.max(viewSequence+1,os.epoch("utc"))
+    if not viewCounter.save({sequence=sequence}) then return false end
+    viewSequence=sequence
+    commandSeq = commandSeq + 1
+    viewPending[commandSeq]=os.clock()
+    rednet.send(serverId, { type = "command", rid = commandSeq, target = id, protocol = PROTOCOL,
+      message = msg, viewControl = true, secret = viewsCfg.secret,sequence=sequence }, SERVER_PROTOCOL)
+    return true
+  end
   if ROUTED[msg.type] and serverId and os.clock() - serverSeen < 15 then
     commandSeq = commandSeq + 1
     pending[commandSeq] = { id = id, msg = msg, at = os.clock() }
@@ -458,6 +486,18 @@ end
 -- Screen
 ---------------------------------------------------------------------------
 local screens = { { t = term.native(), name = "term", buttons = {} } }
+local function rebuildScreens()
+  screens = { { t = term.native(), name = "term", buttons = {} } }
+  local monitors = { peripheral.find("monitor") }
+  table.sort(monitors,function(a,b) local aw,ah=a.getSize() local bw,bh=b.getSize() return aw*ah>bw*bh end)
+  local dashboard = false
+  for _,m in ipairs(monitors) do
+    m.setTextScale(0.5)
+    local primary = m.isColor() and not dashboard
+    if primary then dashboard = true end
+    screens[#screens+1]={t=m,name=peripheral.getName(m),buttons={},info=not primary}
+  end
+end
 -- Monitors: the biggest advanced monitor gets the dashboard (touch buttons).
 -- Normal monitors can't be tapped, so they always get the info screen.
 local function monSize(m) local w, h = m.getSize() return w * h end
@@ -1101,6 +1141,32 @@ local function draw3D()
   end
 end
 
+local function viewFleet()
+  local list={}
+  for id,r in pairs(turtles) do
+    local f={id=id,age=os.clock()-r.seen}
+    for k,v in pairs(r.p) do f[k]=v end
+    f.id,f.age=id,os.clock()-r.seen
+    for _,axis in ipairs({"x","y","z"}) do
+      local n=f[axis]
+      if type(n)~="number" or n~=n or math.abs(n)==math.huge then f[axis]=nil end
+    end
+    list[#list+1]=f
+  end
+  table.sort(list,function(a,b)return a.id<b.id end)
+  return list
+end
+local function viewAction(action)
+  if not action then return end
+  if action.kind == "select" then selected=selected~=action.id and action.id or nil return end
+  if not selected then flash("Pick one turtle first") return end
+  local types={resume="go",recall="recall",estop="estop",move="view_move"}
+  local kind=types[action.kind]
+  if kind then
+    local ok=send(selected,{type=kind,target=selected,point=action.point,viewControl=true})
+    flash(ok and (action.kind.." requested for #"..selected) or "Paired fleet server unavailable")
+  end
+end
 local serverDirty = false
 local function redraw()
   if serverDirty then
@@ -1108,7 +1174,8 @@ local function redraw()
     serverDirty = false
   end
   for _, s in ipairs(screens) do
-    if s.info then drawInfo(s) else draw(s) end
+    if viewUI and viewUI.mode ~= "classic" then viewUI.draw(s,viewFleet(),selected,notice and os.clock()<noticeUntil and notice or nil)
+    elseif s.info then drawInfo(s) else draw(s) end
   end
   draw3D()
 end
@@ -1186,6 +1253,7 @@ end
 local function click(screenName, x, y)
   for _, s in ipairs(screens) do
     if s.name == screenName then
+      if viewUI and viewUI.mode ~= "classic" then viewAction(viewUI.click(s,x,y)) redraw() return end
       for _, b in ipairs(s.buttons) do
         if y == b.y and x >= b.x1 and x <= b.x2 then
           b.action()
@@ -1504,8 +1572,15 @@ local function serverLoop()
       serverAR = m.arOwner == true
       serverView, serverDirty = m.view3D, true
       if m.rid then pending[m.rid] = nil end
+      if m.rid and viewPending[m.rid] then
+        viewPending[m.rid]=nil
+        flash(m.ok==false and ("Command rejected: "..tostring(m.error)) or "Command accepted by server")
+      end
     elseif ev == "timer" and id == timer then
       tick = tick + 1
+      for rid,at in pairs(viewPending) do
+        if os.clock()-at>5 then viewPending[rid]=nil flash("Command acknowledgement timed out") end
+      end
       for rid, p in pairs(pending) do
         if os.clock() - p.at >= 2 then
           -- The server did not take it: send it ourselves, and do so until it answers again
@@ -1527,10 +1602,50 @@ end
 
 local function netLoop()
   while true do
-    local id, msg = rednet.receive(PROTOCOL)
-    if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg)
-    elseif type(msg) == "table" and msg.type == "dev" then devCommand(msg, nil, "hub", function(r) send(id, r) end)
-    else handle(id, msg) end
+    local _,id,msg,proto=os.pullEvent("rednet_message")
+    if viewClient then viewClient.dispatch(id,msg,proto) end
+    if proto == PROTOCOL then
+      if type(msg) == "table" and msg.type == "panel" then panelRequest(id, msg)
+      elseif type(msg) == "table" and msg.type == "dev" then devCommand(msg, nil, "hub", function(r) send(id, r) end)
+      else handle(id, msg) end
+    end
+  end
+end
+local function viewLoop()
+  if not viewUI then while true do os.pullEvent("views_disabled") end end
+  while true do
+    if viewSource then
+      local f=selected and turtles[selected] and turtles[selected].p
+      local center=f and type(f.x)=="number" and type(f.y)=="number" and type(f.z)=="number"
+        and type(f.dim)=="string" and {x=f.x,y=f.y,z=f.z,dim=f.dim} or viewsCfg.center or hub.pos or viewUI.camera.center
+      center.dim=center.dim or viewsCfg.dim or "minecraft:overworld"
+      viewUI.camera.center=center
+      viewSource.refresh(center)
+    end
+    sleep(2)
+  end
+end
+local function viewRenderLoop()
+  if not viewUI then while true do os.pullEvent("views_disabled") end end
+  local retryAt=0
+  while true do
+    if directView and (viewUI.mode=="warehouse" or viewUI.mode=="classic") then
+      pcall(directView.close)
+      directView=nil
+    end
+    if viewsCfg.gpu and viewsCfg.monitor and viewUI.mode ~= "warehouse" and viewUI.mode ~= "classic" then
+      if not directView and os.clock()>=retryAt and peripheral.isPresent(viewsCfg.gpu) then
+        retryAt=os.clock()+2
+        directView=dofile("directview.lua").new(peripheral.wrap(viewsCfg.gpu),viewsCfg)
+      end
+      if directView and viewSource then
+        local scene=viewSource.scene()
+        scene.fleet=viewFleet()
+        local ok,drawn=pcall(directView.draw,scene,viewUI.camera)
+        if not ok or drawn==false then pcall(directView.close) directView=nil retryAt=os.clock()+2 end
+      end
+    end
+    sleep(0.1)
   end
 end
 
@@ -1539,7 +1654,8 @@ local function uiLoop()
   local tick = 0
   redraw()
   while true do
-    local ev, a, b, c = os.pullEvent()
+    local event = {os.pullEvent()}
+    local ev, a, b, c = table.unpack(event)
     if ev == "timer" and a == timer then
       -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
@@ -1564,7 +1680,9 @@ local function uiLoop()
       click(a, b, c)
     elseif ev == "char" then
       local n = tonumber(a)
-      if n and ORDER[n] then setTarget(ORDER[n])
+      if viewUI and a == "p" then viewUI.mode=viewUI.mode=="classic" and "pro" or "classic"
+      elseif viewUI and viewUI.mode ~= "classic" and a ~= "q" and not n and a ~= "c" and a ~= "s" and a ~= "u" and a ~= "a" then viewAction(viewUI.key(a))
+      elseif n and ORDER[n] then setTarget(ORDER[n])
       elseif a == "s" then stopAll()
       elseif a == "r" then recallNow()
       elseif a == "h" then resumeAll()
@@ -1576,8 +1694,12 @@ local function uiLoop()
       elseif a == "q" then return end
       redraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
+      if viewUI then rebuildScreens() end
+      if directView and ev=="monitor_resize" then pcall(directView.close) directView=nil end
       redraw()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
+      if viewUI then rebuildScreens() end
+      if directView then pcall(directView.close) directView=nil end
       local prev = ar
       ar = peripheral.find("ar_controller")
       if prev and prev ~= ar and not arSuppressed then
@@ -1587,6 +1709,12 @@ local function uiLoop()
         arSuppressed, arMem.drawn = false, nil
       end
       if prev ~= ar then redraw() else draw3D() end
+    end
+    if directView then
+      local picked=directView.event(event)
+      if picked and picked.name==false and viewSource and not viewSource.scene().stale then
+        viewAction({kind="move",point={dim=viewSource.scene().dim,x=picked.x,y=picked.y,z=picked.z}})
+      end
     end
     if wantAsk then
       wantAsk = false
@@ -1612,13 +1740,14 @@ end
 
 -- A Tom's Peripherals GPU (tm_gpu) with bitmap monitors: the fleet in real 3D
 local function gpuLoop()
-  if not V then while true do os.pullEvent("gpu_never") end end
+  if not V or (viewUI and viewsCfg.mode=="warehouse") then while true do os.pullEvent("gpu_never") end end
   V.gpuLoop(fleetList, function()
     return { title = "Mine Army", places = hub.pos and { { x = hub.pos.x, y = hub.pos.y, z = hub.pos.z, name = "Hub" } } }
   end, flash)
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop)
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, viewLoop, viewRenderLoop)
+if directView then pcall(directView.close) end
 if ar and not arSuppressed then pcall(function() ar.clear() ar.update() end) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()

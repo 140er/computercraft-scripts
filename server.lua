@@ -16,7 +16,8 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
+  "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -338,9 +339,10 @@ end
 -- Orders on their way: [cid] = { target, protocol, message, tries, next }. Miners answer
 -- with { type = "cmd_ack", cid }; until then the order goes out again every 3 seconds.
 local outbox, cidSeq = {}, 0
-local SWAPS = { go = "move", recall = "move", estop = "move" }
-local function deliver(target, proto, p)
+local SWAPS = { go = "move", recall = "move", estop = "move", view_move = "move" }
+local function deliver(target, proto, p, viewAuthorized)
   local msg = copy(p)
+  msg.commandAuth=nil
   for cid, o in pairs(outbox) do
     local t = o.message.type
     if o.target == target and o.protocol == proto and (t == msg.type or (SWAPS[t] and SWAPS[t] == SWAPS[msg.type])) then
@@ -351,6 +353,7 @@ local function deliver(target, proto, p)
     cidSeq = cidSeq + 1
     msg.cid = cidSeq
     if ssot then msg.commandEpoch=ssot.epoch end
+    if viewAuthorized then msg.commandAuth=ssotConfig.controllers[tostring(target)] end
     outbox[cidSeq] = { target = target, protocol = proto, message = msg, tries = 1, next = now() + 3000 }
   end
   rednet.send(target, msg, proto)
@@ -450,7 +453,37 @@ local function request(id, m)
     reply(id, m, { type = "ack" })
   elseif m.type == "command" and BOTS[m.protocol] and type(m.message) == "table"
     and (m.target == nil or (type(m.target) == "number" and m.target % 1 == 0 and m.target >= 0)) then
-    local p = m.message
+    local p = copy(m.message)
+    p.commandAuth=nil
+    local viewAuthorized=false
+    if m.viewControl or p.type=="view_move" then
+      local secret=ssotConfig and ssotConfig.controllers[tostring(id)]
+      if not ssot or not secret or m.secret~=secret or m.viewControl~=true or m.protocol~="minearmy"
+        or m.direct or not ({view_move=true,go=true,recall=true,estop=true})[p.type]
+        or type(m.sequence)~="number" or m.sequence%1~=0 or m.sequence<1 or m.sequence>9007199254740991 then
+        reply(id,m,{type="ack",ok=false,error="Invalid view command"}) return
+      end
+      state.viewCounters=state.viewCounters or {}
+      if m.sequence<=(state.viewCounters[tostring(id)] or 0) then
+        reply(id,m,{type="ack",ok=false,error="Replayed view command"}) return
+      end
+      if p.type=="view_move" then
+        if not m.target or not ssotConfig.controllers[tostring(m.target)] or not SSOT.pose(p.point) then
+          reply(id,m,{type="ack",ok=false,error="Invalid view target"}) return
+        end
+        local point=p.point
+        local key=point.dim.."|"..math.floor(point.x/16).."|"..math.floor(point.y/16).."|"..math.floor(point.z/16)
+        local ch=ssot.state().chunks[key]
+        local index=point.x%16+16*(point.z%16)+256*(point.y%16)+1
+        if not ch or ch.cells[index]~=0 then
+          reply(id,m,{type="ack",ok=false,error="View target is not observed air"}) return
+        end
+      end
+      state.viewCounters[tostring(id)]=m.sequence
+      p.target=m.target
+      if not save() then reply(id,m,{type="ack",ok=false,error="Cannot save view command"}) return end
+      viewAuthorized=true
+    end
     -- Code and developer operations stay on their existing channels, including pairing checks.
     if p.type == "dev" or p.key or p.code then return end
     log("command", id, m.protocol .. " " .. tostring(p.cmd or p.type) .. " -> " .. tostring(m.target or "all"))
@@ -460,7 +493,7 @@ local function request(id, m)
     end
     save()
     if m.direct then -- an older hub that already reached the bots itself
-    elseif m.target then deliver(m.target, m.protocol, p)
+    elseif m.target then deliver(m.target, m.protocol, p, viewAuthorized)
     else
       -- Everyone: one broadcast for bots the server does not know (yet), and to each
       -- miner it knows its own copy, repeated until that miner confirms.
@@ -469,7 +502,7 @@ local function request(id, m)
         local forgotten = state.hub and state.hub.state and state.hub.state.forgotten or {}
         for bid, b in pairs(state.bots) do
           if b.kind == "miner" and not forgotten[bid] and now() - (b.lastSeen or 0) < 600000 then
-            deliver(bid, m.protocol, p)
+            deliver(bid, m.protocol, p, viewAuthorized)
           end
         end
       end
