@@ -11,7 +11,7 @@ C:\Tools\lua52\lua52.exe tests\run.lua
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox\run.ps1 -Scenario ar -Seconds 900 -DataRoot C:\Work\sbx-pr6 -Output C:\Work\gemini-input\p2\evidence\pr6\gateA\final-shared
 ```
 
-The sandbox uses strict cc_ar mocks and module-level chat and installation fault injection. Its owners have separate controller stores. `tests/ar-shared-owner.lua` separately proves stale element removal against one shared store. That regression failed before the ownership fix. A native shared-controller run is still needed.
+The sandbox uses strict cc_ar mocks and module-level chat and installation fault injection. Its owners have separate controller stores. `tests/ar-shared-owner.lua` separately proves stale element removal against one shared store. That regression failed before the ownership fix. The native shared-controller checks also passed in `native-priority`.
 
 ![CraftOS HUD](gateA/ar-hud-emulated.png)
 
@@ -27,7 +27,11 @@ That client's NeoForge loading window timed out before Minecraft joined. The own
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\run.ps1 -Scenario ar -Client -Timeout 1800 -Output C:\Work\gemini-input\p2\evidence\pr6\gateB\native-retry
 ```
 
-The native runner keeps renderer, client, and production ownership results separate. Rendering alone cannot pass the complete gate. Production recall and charging, all-role installation, and storage integration still need real-game verification.
+The `native-priority` run passed rendering, Minecraft restart recovery, and production ownership checks against one real controller. Server death, hub takeover, server reclaim, forwarded keys, detach, replacement, stale namespace cleanup, and preservation of a foreign namespace passed. See [owner-result.json](gateB/native-priority/owner-result.json).
+
+The real client joined with linked goggles and captured [ar-hud.png](gateB/native-priority/ar-hud.png) and [ar-xray.png](gateB/native-priority/ar-xray.png). The HUD is visible. The wall screenshot has no visible 3D geometry and does not prove x-ray rendering. The AP test sent `confirm pro` because its regex matched the prompt before the command token. The parser now requires `$confirm` or `!confirm`. Both issues need another real-client check.
+
+The native runner keeps renderer, client, and production ownership results separate. Screenshot files alone cannot pass the complete gate. Production recall and charging, all-role installation, and storage integration still need real-game verification.
 
 PR 4 supplies the charging and warehouse boundary. PR 5 supplies view roles and the separate hub's ore snapshot. Those adapters report unavailable in this independent branch. Configured AR bounds record intent; the miner's existing mine and navigation bounds enforce movement limits.
 

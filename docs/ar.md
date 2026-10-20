@@ -6,6 +6,8 @@ The AR role runs the existing hub. The server and hub keep their existing drawin
 
 The server renderer reads ore cells from its SSOT map. The hub fallback has fleet telemetry only. Ore rendering on a separate AR hub needs the PR 5 snapshot adapter.
 
+The installed cc_ar 0.2.1 build depth-tests its 3D lines and text. The `xray` commands select world geometry, but the current build does not prove visibility through walls. Gate B remains failing until the required through-wall rendering works.
+
 Run these commands on the computer that owns the controller, then restart its program.
 
 ```text

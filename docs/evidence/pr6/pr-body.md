@@ -21,7 +21,9 @@ AR and chat default to off. The existing owner protocol remains in use. Installe
 ## Verification
 
 - Gate A passed for bundle `8152c067`: 116 mock tests plus standalone checks; six CraftOS computers, three turtle emulators, 4 MB disks, ownership faults, and full process restart.
-- Gate B is incomplete. The native renderer fixture and Minecraft restart recovery passed with actual cc_ar, AP, and three real turtles. The client timed out creating its loading window. Ownership polling hit an empty-file race. Fixes to the isolated runner are queued for another run; real goggles and production ownership remain unverified.
-- Production recall/charging and all-role storage/view integration remain unverified. Saved results and the emulated screenshot are in [docs/evidence/pr6](docs/evidence/pr6). Full VM evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`.
+- Gate B is failing. Native element creation, three real turtles, Minecraft restart recovery, and production shared-controller ownership passed. This includes server death/reclaim, key forwarding, controller replacement, and scoped cleanup. Real linked goggles show the HUD.
+- Through-wall geometry is blocked by cc_ar 0.2.1's depth-tested renderer. Its Lua API exposes no see-through option. The captured wall image shows no outlines; it is retained as failure evidence. See [the bytecode findings](docs/evidence/pr6/cc-ar-depth.md).
+- A test regex selected `pro` instead of the confirmation token in the real AP check. That parser is fixed; its native retry and cached-role installation check are pending.
+- Production chat recall with physical turtle return remains unverified. PR 4 charging/storage and PR 5 views are deferred integration boundaries. Saved results and screenshots are in [docs/evidence/pr6](docs/evidence/pr6). Full VM evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`.
 
 The decision trail and full-doc6 AR findings are in [docs/evidence/pr6/decisions.tsv](docs/evidence/pr6/decisions.tsv) and [docs/gemini-review.md](docs/gemini-review.md).

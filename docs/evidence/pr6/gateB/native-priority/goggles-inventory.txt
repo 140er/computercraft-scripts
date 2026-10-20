@@ -1,0 +1,2 @@
+SSOTProof has the following entity data: [{count: 1, Slot: 103b, components: {"cc_ar:ar_goggles_data": {x: 1.0d, y: 66.0d, z: 0.0d, label: "", version: 1792507079760L}}, id: "cc_ar:ar_goggles"}]
+

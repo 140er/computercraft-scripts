@@ -151,7 +151,7 @@ public static class SSOTCapture {
         $sent=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         Send-ClientChat '$pro'
         $reply=Wait-ChatRecord "$disk\ar-chat-reply.json" { param($v) $v.time -ge $sent }
-        if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw "No confirmation token in AP reply. $($reply.text)" }
+        if ($reply.text -notmatch '[$!]confirm\s+([A-Za-z0-9-]+)') { throw "No confirmation token in AP reply. $($reply.text)" }
         $token = $Matches[1]
         Send-ClientChat ('$confirm '+$token)
         Send-ClientChat ('$confirm '+$token)
@@ -160,7 +160,7 @@ public static class SSOTCapture {
         $sent=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         Send-ClientChat '!pro'
         $reply=Wait-ChatRecord "$disk\ar-chat-reply.json" { param($v) $v.time -ge $sent }
-        if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw 'No public confirmation token.' }
+        if ($reply.text -notmatch '[$!]confirm\s+([A-Za-z0-9-]+)') { throw 'No public confirmation token.' }
         Send-ClientChat ('!confirm '+$Matches[1])
         $events=Wait-ChatRecord "$disk\ar-chat-events.json" { param($v) @($v.events).Count -ge 6 }
         if (@($events.actions).Count -ne 2) { throw 'Unauthorized or replayed chat action was accepted, or confirmation failed.' }
@@ -203,6 +203,21 @@ public static class SSOTCapture {
         } while ([DateTime]::UtcNow -lt $deadline)
         if (!$shot) { throw 'F2 did not produce the behind-wall goggles PNG.' }
         Copy-Item $shot.FullName "$Output\ar-xray.png" -Force
+        $command='fill 3 65 0 9 68 0 minecraft:air'
+        $reply=Invoke-TestRcon $RconPort $secret $command
+        "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt"
+        Start-Sleep -Seconds 5
+        $captureAt = [DateTime]::UtcNow
+        Send-ClientKey 0x71
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        do {
+            $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($shot) { break }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (!$shot) { throw 'F2 did not produce the unobstructed goggles PNG.' }
+        Copy-Item $shot.FullName "$Output\ar-geometry.png" -Force
     }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
     if ($chatFailure) { throw "Real AP chat validation failed. $chatFailure" }

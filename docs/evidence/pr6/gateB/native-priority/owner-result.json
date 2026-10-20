@@ -1,0 +1,12 @@
+{
+    "namespaceFixture":  "Explicit native drawLine3D fault injection before server shutdown",
+    "foreignNamespacePreserved":  true,
+    "detach":  true,
+    "serverRestart":  true,
+    "reattach":  true,
+    "sharedNativeController":  true,
+    "serverDeath":  true,
+    "ok":  true,
+    "forwardedKey":  true,
+    "staleNamespaceCleanup":  true
+}

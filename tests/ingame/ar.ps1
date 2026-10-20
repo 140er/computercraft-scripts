@@ -72,8 +72,11 @@ $ownedLock = $false
 $script:arProcess = $null
 $result = @{ ok=$false; scenario='ar'; native=$false; visual=$false; errors=@(); root=$TestRoot
     missing=@('Production server/hub ownership failover with actual shared controller',
-        'Production chat recall and charging routes on real turtles',
-        'All-role installation and storage regression with PR 4 and PR 5 integrations') }
+        'Production chat recall with real turtle return movement',
+        'Native cached installation of every role',
+        'Visible through-wall turtle and ore geometry')
+    deferred=@('PR 4 charging and warehouse routes use explicit unavailable adapters',
+        'PR 5 view roles and separate-hub ore snapshots use explicit unavailable adapters') }
 function Rcon([string]$Command) {
     $answer = Invoke-TestRcon $rconPort $secret $Command
     $entry="$([DateTime]::UtcNow.ToString('o')) > $Command`n$answer`n"
@@ -208,7 +211,8 @@ try {
     $result.owner = $true
     $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })
     if (!$result.visual) { $result.missing += 'Real linked-goggles HUD and x-ray screenshots' }
-    if ($result.missing.Count) { throw ('Native renderer fixture passed, but required gate coverage remains. ' + ($result.missing -join '; ')) }
+    if ($result.missing.Count) { throw ('Required gate coverage remains. ' + ($result.missing -join '; ')) }
+    if ($result.errors.Count) { throw 'One or more native checks failed.' }
     $result.ok = $true
 } catch {
     $result.errors += $_.Exception.Message

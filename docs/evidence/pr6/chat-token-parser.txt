@@ -1,0 +1,4 @@
+Reply: Confirm pro within 30s with $confirm 1792507079916-1035969124-1
+Before: pro
+After: 1792507079916-1035969124-1
+The before value matches the failed native events. The after value matches the issued token.
