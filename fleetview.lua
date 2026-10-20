@@ -44,10 +44,12 @@ function V.entry(id, kind, p, age, fallback)
   local e = { id = id, kind = kind or "bot", age = age or 0, name = p.label, role = p.role,
     phase = p.phase, status = p.status, facing = p.facing, ore = p.ore, level = p.level,
     reach = p.reach, branchLen = p.branchLen, err = p.lastError or p.err, fuel = p.fuel,
-    maxFuel = p.maxFuel, dim = p.dim or (type(p.gps)=="table" and p.gps.dim) }
-  local at = (num(p.x) and num(p.z) and p) or (type(p.gps) == "table" and num(p.gps.x) and p.gps)
-    or (type(fallback) == "table" and num(fallback.x) and fallback) or nil
-  if at then e.x, e.y, e.z = at.x, num(at.y) and at.y or nil, at.z end
+    maxFuel = p.maxFuel, dim = p.dim or (type(p.gps)=="table" and p.gps.dim)
+      or (type(p.pose)=="table" and p.pose.conf ~= "lost" and p.pose.dim) }
+  local pose = type(p.pose)=="table" and p.pose.conf ~= "lost" and num(p.pose.x) and num(p.pose.z) and p.pose or nil
+  local at = (num(p.x) and num(p.z) and p) or (type(p.gps) == "table" and num(p.gps.x) and num(p.gps.z) and p.gps)
+    or pose or (type(fallback) == "table" and num(fallback.x) and num(fallback.z) and fallback) or nil
+  if at then e.x, e.y, e.z = at.x, num(at.y) and at.y or (num(p.y) and p.y or nil), at.z end
   local s = p.shaft
   if type(s) == "table" and num(s.x) and num(s.y) and num(s.z) then
     e.shaft = { x = s.x, y = s.y, z = s.z, bottom = num(s.bottom) and s.bottom or nil }

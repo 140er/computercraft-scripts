@@ -367,6 +367,7 @@ test("hub opens the opt-in board through its actual event loop and keeps fleet k
       return f.board
     end }
   end
+  m.files["views.cfg"] = mocks.encode({ enabled = false })
   m.start(source("hub.lua"))
   assert(f.board and #f.board.state.queue==2,"Hub boot must read and show pending questions")
   local bootCalls=#f.calls

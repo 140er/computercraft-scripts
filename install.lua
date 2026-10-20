@@ -564,10 +564,10 @@ local BOTS = {
     files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
     start = { "ar-role" },
     steps = {
-      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
+      { say = "Attach an ar_controller and link cc_ar goggles. AR turns on when the controller is attached. Chat commands stay off.",
         check = modemCheck },
       { run = function() return { "ar-role", "install" } end },
-      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
+      { say = "The first player, or an enrol record for this computer, becomes the AR owner. No hand-edited ar.cfg or ssot.cfg is required. Use hub chat enable on only if you want chat commands." },
     } },
   { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
     files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },

@@ -42,15 +42,15 @@ Other files that default on:
 - Hub and panel wizard. An unset `wh2.enabled` is on. `settings set wh2.enabled false` turns it off. A computer with no settings API leaves the wizard off.
 - Factory craft. In `factory.cfg`, `wh2` is on unless `enabled` is false. A computer that is not a turtle, or has no modem, prints that and keeps running.
 - Planner tools on the panel, hub, and server. In `planner.cfg`, `enabled` is on unless it is false.
+- AR planner. On unless the host config sets `arPlanner` to false. It needs a player detector. Without one the screen says `No player detector. AR planner is not drawing.` and the computer keeps running.
+- AR goggles. On when an `ar_controller` is attached, unless `ar.cfg` sets `enabled` to false. `chatEnabled` stays off. The first player, or an enrol record, becomes the owner. The origin is the hub's own position, or the paired hub position, when `ar.cfg` has none. A turtle with no fix stays on the HUD as `no position`. Shift+P, Shift+T, Shift+O, and Shift+A work on the computer terminal. The same layers are the HUD, TRT, ORE, and AIR buttons on the computer and on monitors. The goggles list only the controls that work in the current mode.
+- Views. On unless `views.cfg` sets `enabled` to false. Without a GPU the screen says `No GPU. The text view stays on.`
+- Strata. The boot path turns it on unless `strata` is false. Missing files print `Strata did not start.`
+- Storage ledger. On unless `storageHost` is false. Without a wireless modem it says `No ender modem. Storage host keeps local books.` and still keeps the local ledger.
+- Peer cold storage. On unless `peerStorage` is false. Without a mac or a floppy key it says so and does not seal.
 
-These still default off. Set them to `true`, then reboot.
+This one still defaults off.
 
-- AR planner. `arPlanner = true` on the host config. It also needs a player detector.
-- AR goggles. `enabled = true` in `ar.cfg`. Chat stays off until `chatEnabled = true` in that same file. Names and UUIDs stay in `ssot.cfg` under `chatNames` and `chatUUIDs`.
-- Views. `enabled = true` in `views.cfg`.
-- Strata. Call `strata.new` with `strata = true`. Nothing in the boot path turns this on.
-- Storage ledger. `storage-host.lua` stays off until `enabled = true` is passed to `create`.
-- Peer cold storage. `storage-peer.lua` stays off until `peerStorage` is true and a mac and floppy key are present.
 - Code shelf. In `shelf.cfg`, `codeShelf = true`. The server then refuses code-cache downloads, and a hub fetches `miner.lua` from the shelf. A missing file or any other value leaves this off. `hub shelf` writes that file on the hub.
 
 The server event queue from H3 is always on. It is how the server keeps fleet messages while a download runs.
@@ -88,7 +88,7 @@ These stubs stay because the real module does not have the same functions.
 
 # Checks
 
-`lua5.2 tests/run.lua` printed `387 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
+`lua5.2 tests/run.lua` printed `388 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
 
 The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime.lua` line 388, 10000 cells.
 
@@ -113,7 +113,7 @@ A fleet secret comes from `install.cfg` `pairingKey`, or from the enrol copy cod
 - Roomsorter. One colour monitor is used as found. Asked once when several monitors are attached. The name is saved as `room.cfg` `monitor`. A name already in that file wins. The room scan still finds the chests.
 - Panel. One lookup hit is used and left unsaved. Asked once when several hosts answer. The pick is saved under `panel.cfg` `hosts`. Other keys in that file stay. An id already in `hosts` wins.
 - Planner. When the panel or hub program is running, `enabled` is already true, and `server` is missing, lookup supplies the server id and only that field is written. Asked once when lookup finds several servers or none. `enabled` stays as it was. Loading the file as a library skips the prompt.
-- Storage. `storage-peer.lua` already makes its own key. No server id, side, or chest name has to be typed into a cfg. `peerStorage` stays off.
+- Storage. `storage-peer.lua` already makes its own key. No server id, side, or chest name has to be typed into a cfg. `peerStorage` defaults on. Explicit false stays off.
 - Server. The existing screen pick still chooses the largest colour monitor. Pairing keys already in `enrol.store` fill empty controller slots. Nothing new is asked.
 - GPS host. Typed coordinates and a saved `gpshost.cfg` win. Asked once for the x, y, and z of this computer. The host is the GPS reference, so the fix is typed.
 
