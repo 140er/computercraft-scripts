@@ -265,24 +265,35 @@ end
 -- Download
 ---------------------------------------------------------------------------
 local function download(files)
-  local failed = {}
-  for _, f in ipairs(files) do
-    write(" " .. f .. " ... ")
-    local res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
-    local code = res and res.readAll()
-    if res then res.close() end
-    if code and code ~= "" and load(code, "=" .. f) then
-      if fs.exists(f) then fs.delete(f) end
-      local h = fs.open(f, "w")
-      h.write(code)
-      h.close()
-      print("ok")
-    else
-      print("failed")
-      failed[#failed + 1] = f .. " (" .. tostring(err or "broken download") .. ")"
-    end
+  local source
+  if fs.exists("update.lua") then
+    local h = fs.open("update.lua", "r")
+    source = h.readAll()
+    h.close()
   end
-  return failed
+  if not source or not source:find('args[1] == "--module"', 1, true) then
+    local ok, result = pcall(function()
+      local res = http and http.get(BASE .. "update.lua?t=" .. os.epoch("utc"))
+      if not res then return nil end
+      local code = res.readAll()
+      res.close()
+      return code
+    end)
+    source = ok and result or nil
+  end
+  if not source or not source:find('args[1] == "--module"', 1, true) then
+    return { "Bundle updater unavailable. Copy current install.lua and update.lua from the fleet cache." }
+  end
+  local chunk = load(source, "=update.lua", "t", _ENV)
+  if not chunk then return { "Bundle updater failed syntax validation." } end
+  local ok, updater = pcall(chunk, "--module")
+  if not ok or type(updater) ~= "table" or type(updater.apply) ~= "function" then
+    return { "Bundle updater failed to load." }
+  end
+  local success, err = updater.apply(files)
+  if not success then return { tostring(err) } end
+  print("Bundle installed.")
+  return {}
 end
 
 ---------------------------------------------------------------------------
@@ -546,6 +557,24 @@ local BOTS = {
     },
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
+  { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
+    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua", "role-adapter.lua" },
+    start = { "ar-role" },
+    steps = {
+      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
+        check = modemCheck },
+      { run = function() return { "ar-role", "install" } end },
+      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
+    } },
+  { id = "store", name = "Warehouse adapter", hint = "requires the PR 4 warehouse service", on = "computer",
+    files = { "role-adapter.lua", "store-role.lua" }, start = { "store-role" },
+    steps = { { say = "The warehouse service is not included in this branch. This entrypoint reports unavailable until the PR 4 integration." } } },
+  { id = "vworld", name = "World view adapter", hint = "requires the PR 5 view backend", on = "computer",
+    files = { "role-adapter.lua", "view-role.lua" }, start = { "view-role", "vworld" },
+    steps = { { say = "The world view backend is not included in this branch. This entrypoint reports unavailable until the PR 5 integration." } } },
+  { id = "pro", name = "Pro hub adapter", hint = "requires the PR 5 Pro hub", on = "computer",
+    files = { "role-adapter.lua", "view-role.lua" }, start = { "view-role", "pro" },
+    steps = { { say = "The Pro hub is not included in this branch. This entrypoint reports unavailable until the PR 5 integration." } } },
 }
 
 ---------------------------------------------------------------------------
@@ -692,10 +721,6 @@ if args[1] and not byId[args[1]] then
   local names = {}
   for _, b in ipairs(BOTS) do names[#names + 1] = b.id end
   print("Bots: " .. table.concat(names, ", "))
-  return
-end
-if not http then
-  print("http is disabled in the ComputerCraft config. Turn it on, or drag the .lua files onto this computer.")
   return
 end
 if args[1] and args[2] == "quick" then

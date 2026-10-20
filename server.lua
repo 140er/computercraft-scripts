@@ -16,7 +16,8 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
+  "ar-hud.lua", "chat-control.lua", "ar-role.lua", "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -128,6 +129,20 @@ if fs.exists("ssot.cfg") then
 end
 
 local args = { ... }
+local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
+local arConfig,saveAR
+if AH then arConfig,saveAR=AH.settings() end
+if args[1]=="ar" or args[1]=="chat" then
+  assert(AH,"ar-hud.lua missing")
+  local command=table.remove(args,1)
+  local ok,message
+  if command=="ar" then ok,message=AH.command(arConfig,args,saveAR)
+  else
+    ok,message=dofile("chat-control.lua").new(arConfig,{save=saveAR}):command(args)
+  end
+  print(message or tostring(ok))
+  return
+end
 if args[1] == "install" then
   if writeFile("startup.lua", 'shell.run("server")\n') then
     print("Server will now start automatically on boot.")
@@ -145,7 +160,7 @@ end
 local function trimStatus(p)
   local t = {}
   for _, k in ipairs({ "type", "label", "phase", "state", "status", "lastError", "lastErrorAt", "hash",
-    "x", "y", "z", "fuel", "free", "ore", "branch", "step", "level", "branchLen", "reach", "role", "facing" }) do
+    "x", "y", "z", "dim", "fuel", "maxFuel", "free", "ore", "branch", "step", "level", "branchLen", "reach", "role", "facing" }) do
     local v = p[k]
     if type(v) == "string" then t[k] = v:sub(1, 256)
     elseif type(v) == "number" or type(v) == "boolean" then t[k] = v end
@@ -279,7 +294,7 @@ local function meshLoop()
 end
 
 local ar = peripheral.find("ar_controller")
-if ar then pcall(function() ar.clear() ar.update() end) end
+if ar and not (arConfig and arConfig.enabled) then pcall(function() ar.clear() ar.update() end) end
 local arHub, arUntil, arDrawn = state.arHub, 0, false
 local arSeen, arDirty, arLastDraw = now(), true, 0
 
@@ -383,7 +398,7 @@ local function request(id, m)
     return
   end
   if ssotConfig and
-    (m.type == "hub_put" or m.type == "command" or m.type == "register" or m.type == "ar_toggle" or m.type == "ar_ready" or m.arClient)
+    (m.type == "hub_put" or m.type == "command" or m.type == "register" or m.type == "ar_toggle" or m.type == "ar_layer" or m.type == "ar_ready" or m.arClient)
     and not ssotConfig.controllers[tostring(id)] then return end
   if m.arClient == true and (m.type == "hub_get" or m.type == "hub_put") then
     arHub = id
@@ -417,6 +432,16 @@ local function request(id, m)
   elseif m.type == "ar_ready" and id == arHub then
     arDirty = true
     reply(id, m, { type = "ack" })
+  elseif m.type=="ar_layer" and id==arHub and AH and arConfig.enabled then
+    local before=copy(arConfig)
+    local changed=AH.toggle(arConfig,m.key)
+    local saved=changed and saveAR()
+    if changed and not saved then
+      for k in pairs(arConfig) do arConfig[k]=nil end
+      for k,v in pairs(before) do arConfig[k]=v end
+    end
+    arDirty=true
+    reply(id,m,{type="ack",ok=saved==true})
   elseif m.type == "ar_toggle" then
     if ar then toggle3D() end
     reply(id, m, { type = "ack" })
@@ -486,6 +511,20 @@ end
 local function forgottenList() return state.hub and state.hub.state and state.hub.state.forgotten end
 
 local arMem = {} -- what the goggles show now (fleetview keeps it, to delete what is gone)
+local hudMem=AH and AH.memory("server.ar-ids")
+local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+  if action=="hub" then
+    local count=0
+    for id,b in pairs(state.bots) do
+      if b.kind=="miner" then deliver(id,"minearmy",{type="recall"}) count=count+1 end
+    end
+    return count>0,"Recall queued for "..count.." turtles; awaiting command acknowledgments."
+  end
+  return dofile("role-adapter.lua").recharge()
+end,function(message) log("ar",nil,message) end)
+local function clearAR(device)
+  if AH and arConfig.enabled then AH.clear(device,hudMem) else V.arClear(device,arMem) end
+end
 local function draw3D()
   -- A saved hub gets the same bounded grace as a hub that stops talking.
   if arHub and now() - arSeen > 20000 then
@@ -495,18 +534,23 @@ local function draw3D()
   if not ar or not V then return end
   -- Stop before the hub's 15-second fallback, including when replies are lost.
   if arHub and now() >= arUntil then
-    if arDrawn then pcall(function() V.arClear(ar, arMem) end) end
+    if arDrawn then pcall(clearAR,ar) end
     arDrawn, arMem.drawn = false, nil
     return
   end
   if arDrawn and not arDirty and now() - arLastDraw < 5000 then return end
   local ok = pcall(function()
-    V.ar(ar, V.fromServer(state.bots, now(), forgottenList()), state.view3D ~= false, arMem, "Fleet")
+    local fleet=V.fromServer(state.bots, now(), forgottenList())
+    if AH and arConfig.enabled then
+      local cfg=copy(arConfig)
+      if state.view3D==false then cfg.enabled=false end
+      AH.render(ar,AH.snapshot(fleet,ssot and ssot.state(),cfg),hudMem,cfg)
+    else V.ar(ar,fleet,state.view3D~=false,arMem,"Fleet") end
     arDrawn = true
     arDirty, arLastDraw = false, now()
   end)
   if not ok then
-    pcall(function() ar.clear() ar.update() end)
+    pcall(clearAR,ar)
     ar = nil
     arDrawn, arMem.drawn = false, nil
   end
@@ -864,7 +908,7 @@ local function network()
   draw()
   draw3D()
   while true do
-    local ev, id, m, proto = os.pullEvent()
+    local ev, id, m, proto, hidden = os.pullEvent()
     if ev == "rednet_message" and type(m) == "table" and type(id)=="number" and id>=0 and id<=2147483647
       and id%1==0 and (not SSOT or SSOT.bounded(m,262144,true)) then
       if proto == PROTOCOL then request(id, m)
@@ -899,6 +943,13 @@ local function network()
     elseif ev == "mouse_scroll" then
       ui.scroll = ui.scroll + id
       draw()
+    elseif ev=="chat" and arControls and arControls.chat then
+      arControls.chat:event(ev,id,m,proto,hidden)
+      arDirty=true
+    elseif ev=="char" and arControls and arControls.key(id) then
+      arDirty=true
+      draw3D()
+      draw()
     elseif ev == "char" and id == "v" then
       toggle3D()
       draw()
@@ -906,8 +957,11 @@ local function network()
       local prev = ar
       ar = peripheral.find("ar_controller")
       if prev and (not ar or peripheral.getName(prev) ~= peripheral.getName(ar)) then
-        pcall(function() prev.clear() prev.update() end)
+        pcall(clearAR,prev)
         arDrawn, arMem.drawn = false, nil
+      end
+      if hudMem and (not prev or not ar or peripheral.getName(prev)~=peripheral.getName(ar)) then
+        for key in pairs(hudMem.elements) do hudMem.elements[key]={} end
       end
       arDirty = true
       screen, touchable = pickScreen()
@@ -938,5 +992,5 @@ local function gpuLoop()
 end
 
 local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop)
-if ar then pcall(function() ar.clear() ar.update() end) end
+if ar then pcall(clearAR,ar) end
 if not ok then error(err, 0) end

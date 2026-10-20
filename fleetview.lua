@@ -43,7 +43,8 @@ function V.entry(id, kind, p, age, fallback)
   if type(p) ~= "table" then return nil end
   local e = { id = id, kind = kind or "bot", age = age or 0, name = p.label, role = p.role,
     phase = p.phase, status = p.status, facing = p.facing, ore = p.ore, level = p.level,
-    reach = p.reach, branchLen = p.branchLen, err = p.lastError or p.err, fuel = p.fuel }
+    reach = p.reach, branchLen = p.branchLen, err = p.lastError or p.err, fuel = p.fuel,
+    maxFuel = p.maxFuel, dim = p.dim or (type(p.gps)=="table" and p.gps.dim) }
   local at = (num(p.x) and num(p.z) and p) or (type(p.gps) == "table" and num(p.gps.x) and p.gps)
     or (type(fallback) == "table" and num(fallback.x) and fallback) or nil
   if at then e.x, e.y, e.z = at.x, num(at.y) and at.y or nil, at.z end

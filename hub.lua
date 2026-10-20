@@ -21,6 +21,18 @@ local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
+local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
+local arConfig,saveAR
+if AH then arConfig,saveAR=AH.settings() end
+if args[1]=="ar" or args[1]=="chat" then
+  assert(AH,"ar-hud.lua missing")
+  local command=table.remove(args,1)
+  local ok,message
+  if command=="ar" then ok,message=AH.command(arConfig,args,saveAR)
+  else ok,message=dofile("chat-control.lua").new(arConfig,{save=saveAR}):command(args) end
+  print(message or tostring(ok))
+  return
+end
 if args[1] == "update" then
   -- latest version from GitHub (update.lua does the work, fetched here if missing)
   if not fs.exists("update.lua") then
@@ -1071,6 +1083,17 @@ local function drawInfo(s)
 end
 
 local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
+local hudMem=AH and AH.memory("hub.ar-ids")
+local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+  if action=="hub" then
+    recallNow()
+    return true,"Recall queued; awaiting turtle status."
+  end
+  return dofile("role-adapter.lua").recharge()
+end,flash)
+local function clearAR(device)
+  if AH and arConfig.enabled then AH.clear(device,hudMem) else V.arClear(device,arMem) end
+end
 
 -- The fleet as fleetview entries (see fleetview.lua)
 function fleetList()
@@ -1086,7 +1109,7 @@ end
 local function draw3D()
   if serverOwnsAR() then
     if not arSuppressed then
-      if ar then pcall(function() ar.clear() ar.update() end) end
+      if ar then pcall(clearAR,ar) end
       arSuppressed, arMem.drawn = true, nil
       rednet.send(serverId, { type = "ar_ready", arUntil = serverARUntil }, SERVER_PROTOCOL)
     end
@@ -1094,9 +1117,16 @@ local function draw3D()
   end
   arSuppressed = false
   if not ar or not V then return end
-  local ok = pcall(V.ar, ar, fleetList(), view3D, arMem, "Fleet")
+  local ok = pcall(function()
+    if AH and arConfig.enabled then
+      local cfg={}
+      for k,v in pairs(arConfig) do cfg[k]=v end
+      if not view3D then cfg.enabled=false end
+      AH.render(ar,AH.snapshot(fleetList(),nil,cfg),hudMem,cfg)
+    else V.ar(ar,fleetList(),view3D,arMem,"Fleet") end
+  end)
   if not ok then
-    pcall(function() ar.clear() ar.update() end)
+    pcall(clearAR,ar)
     ar, arMem.drawn = nil, nil -- A disappearing peripheral must not stop the dashboard.
   end
 end
@@ -1539,7 +1569,7 @@ local function uiLoop()
   local tick = 0
   redraw()
   while true do
-    local ev, a, b, c = os.pullEvent()
+    local ev, a, b, c, d = os.pullEvent()
     if ev == "timer" and a == timer then
       -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
@@ -1562,9 +1592,16 @@ local function uiLoop()
       click("term", b, c)
     elseif ev == "monitor_touch" then
       click(a, b, c)
+    elseif ev=="chat" and arControls and arControls.chat and not serverOwnsAR() then
+      arControls.chat:event(ev,a,b,c,d)
+      redraw()
     elseif ev == "char" then
       local n = tonumber(a)
-      if n and ORDER[n] then setTarget(ORDER[n])
+      if arConfig and arConfig.enabled and serverOwnsAR() and (a=="p" or a=="t" or a=="o" or a=="a") then
+        rednet.send(serverId,{type="ar_layer",key=a},SERVER_PROTOCOL)
+        flash("AR layer request sent to server")
+      elseif arControls and arControls.key(a) then
+      elseif n and ORDER[n] then setTarget(ORDER[n])
       elseif a == "s" then stopAll()
       elseif a == "r" then recallNow()
       elseif a == "h" then resumeAll()
@@ -1581,10 +1618,11 @@ local function uiLoop()
       local prev = ar
       ar = peripheral.find("ar_controller")
       if prev and prev ~= ar and not arSuppressed then
-        pcall(function() prev.clear() prev.update() end)
+        pcall(clearAR,prev)
       end
       if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then
         arSuppressed, arMem.drawn = false, nil
+        if hudMem then for key in pairs(hudMem.elements) do hudMem.elements[key]={} end end
       end
       if prev ~= ar then redraw() else draw3D() end
     end
@@ -1619,7 +1657,7 @@ local function gpuLoop()
 end
 
 parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop)
-if ar and not arSuppressed then pcall(function() ar.clear() ar.update() end) end
+if ar and not arSuppressed then pcall(clearAR,ar) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)

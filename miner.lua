@@ -634,9 +634,11 @@ local function packet()
     role = ROLE, status = status, phase = st.phase,
     facing = DIRNAME[st.h],
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
+    dim = not cfg.loc and cfg.ssot and cfg.ssot.dimension or nil,
     shaft = worldShaft(),
     reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
+    maxFuel = type(turtle.getFuelLimit)=="function" and turtle.getFuelLimit() or nil,
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
     items = items,
