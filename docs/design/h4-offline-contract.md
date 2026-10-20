@@ -252,7 +252,7 @@ lease = {
 
 SSOT issues a unique lease to its authenticated turtle, boot, and current epoch. `issuedAt < untilAt` and `issuedRev <= currentRev` are required. The epoch is an opaque generation string. Implementations mint it as `<authority.epoch>:<durable server boot counter>`. Old examples such as `7` are placeholders. Neither counter resets on code rollback.
 
-The holder owns the area and corridor exclusively. SSOT's occupancy check includes them and planner intents. Offline actions need certain position, journal space, adequate return fuel, and a valid grant. Excavation is limited to the area. Corridor movement cannot dig. Settings are an effective W1 snapshot, not arbitrary caller options. `fuelReserve` uses measured move costs and return policy. At expiry no move or dig occurs until renewal or a return grant.
+The holder owns the area and corridor exclusively. SSOT's occupancy check includes them and planner intents. Offline actions need certain position, journal space, adequate return fuel, and a valid grant. Excavation is limited to the area. Corridor movement cannot dig. Settings are an effective W1 snapshot, not arbitrary caller options. `fuelReserve` uses measured move costs and return policy. P0 measured a cost of one fuel per successful move only when charging and upgrade regeneration were both absent. The recorded bounds name that case. Any other fuel change disables fuel-only recovery. At expiry no move or dig occurs until renewal or a return grant.
 
 Lease MAC is `hex(blake3.digestKeyed(Kpair,B("cc-h4/lease/2",leaseWithoutMac),32))`. The complete record is authenticated, including settings and all positions. A valid MAC does not renew time or override fencing. A changed turtle boot requires reconciliation. A server restart cannot instantly stop an offline turtle. Old reservations stay unavailable to other owners until expiry or acknowledged surrender, even when the server has a newer epoch.
 
@@ -493,7 +493,7 @@ A paired machine can request a copy of its own enrolled role and allowed setting
 
 The alphabet, in numeric order 0 through 31, is `0123456789ABCDEFGHJKMNPQRSTVWXYZ`. It includes the plan's `9`. Input normalization removes ASCII spaces and hyphens and converts ASCII lowercase to uppercase. Every other character, including O, I, L, U, non-ASCII letters, and punctuation, is rejected. No letter aliases or Unicode normalization apply. Normalized length is exactly 10 for the X25519 profile or 16 for the fallback profile. Generate each character from five unbiased bits from ccryptolib random output. Never use `math.random` for codes.
 
-Profile `x25519-blake3/1` uses 10 characters and ephemeral X25519. Profile `code80-blake3/1` uses 16 characters and the accepted code-derived fallback. In that profile both public-key fields are false, while the 16-byte nonces remain mandatory. The code record's enclosing private issuance metadata stores its profile, source, and any confirmed neighbour challenge and does not infer it from a peer's request. The implementation selects an available profile from P0's measured bounds and qualified entropy sources. A network error, timeout, or peer suggestion cannot downgrade a code. If neither profile has qualified randomness and bounded library operations, issuance stays disabled.
+Profile `x25519-blake3/1` uses 10 characters and ephemeral X25519. Profile `code80-blake3/1` uses 16 characters and the accepted code-derived fallback. In that profile both public-key fields are false, while the 16-byte nonces remain mandatory. The code record's enclosing private issuance metadata stores its profile, source, and any confirmed neighbour challenge and does not infer it from a peer's request. The implementation selects an available profile from P0's measured bounds and qualified entropy sources. X25519 public-key generation and exchange finished on CraftOS-PC and on Cobalt with no explicit yield and under the 7,000 ms bound, so this measurement keeps the 10-character profile. It does not select the 16-character fallback. A network error, timeout, or peer suggestion cannot downgrade a code. If neither profile has qualified randomness and bounded library operations, issuance stays disabled.
 
 ### Cryptographic functions and framing
 
@@ -778,40 +778,26 @@ Other preserved clarifications are the repaired copy-code timestamp fields, inhe
 
 The specification review preserved 231 sampled direct and nested fields across all 19 accepted records, including the repaired copy-code timestamps. All 18 Lua reference blocks parsed. Canonical byte examples, RLE and sparse examples, all 4097 supported heights, the 32-character alphabet, and seven replay reference cases over ten arrival permutations passed their local checks. These checks used in-memory scripts and did not change runtime files.
 
-Vendor API signatures were checked against source, including the curried deriveKey and util.compare initialization dependency. A host-Lua vendor-call smoke check did not complete within its check timeout and is inconclusive. No derived cryptographic output or Cobalt timing is asserted. Effect correlation and handover crash points received a source-level consistency review, not runtime execution. These specification checks do not qualify an implementation.
+Vendor API signatures were checked against the pinned source, including the curried `deriveKey` and the `util.compare` initialization dependency. An earlier host-Lua vendor-call smoke check did not finish inside its timeout and stays inconclusive. Effect correlation and handover crash points were reviewed against this text, not executed. Those checks do not qualify an implementation. The numbers in the next section are the saved probe results.
 
-P0 requires both Gate A and Gate B. Gate A requires the CraftOS-PC probes and repository mock and sandbox checks with multiple computers and turtles under the disk limit. Gate B requires the disposable local Minecraft server, real mods, no GPS hosts, and the required client evidence. Evidence belongs under docs/evidence/p0, including gateA.json and gateB.json. No live server or RCON is a test target.
+P0 is qualified only when Gate A and Gate B both pass. Gate A is the CraftOS-PC probe set, with three computers and two mock turtles at a 1,000,000 byte disk, plus `lua5.2 tests/run.lua`. Gate B is a disposable local Minecraft server with the real mods, no GPS hosts, and the client evidence required by `docs/testing/gateB-depth.md`. Evidence stays under `docs/evidence/p0/`, including `gateA.json` and `gateB.json`. No live server is a target.
 
-P0 measurements cover cryptographic time and yielding, entropy sources, A* batches, fuel configuration and cost, charging, player coordinates and orientation, AR occlusion, clocks, modem reach, chunk reload, adjacent analog redstone, and actual disk accounting. Unreachable probes must be reported as unreachable. No result or gate pass is asserted by this contract. Runtime enablement remains blocked by missing qualification even though the storage and protocol choices are specified.
-
+The saved evidence records a Gate A pass for the emulator probes and a Gate B failure. The failure is the client work that did not run: detector position, rounding, yaw, pitch, eye height, dimension, range, AR line and text occlusion, F2 screenshots, and one video. Runtime enablement stays off. The shapes above are still the contract for later PRs.
 
 ## Recorded P0 bounds
 
-The Cobalt probes completed five trials per crypto operation without explicit
-yields. The maximum measured inputs were 37,888 bytes for keyed BLAKE3 and
-SHA-256, 8,192 bytes for Ed25519 signing and verification, and the fixed
-32-byte X25519 key inputs. The longest uninterrupted sample was 122 ms.
-These bounds apply to the exact vendor revision and runtime in the evidence.
-They do not qualify larger one-shot calls. Blob admission must reject an
-object whose hash or signature preimage exceeds its measured operation bound.
-Domain framing counts toward that bound.
+CraftOS-PC 2.8.3 sample arrays are in `docs/evidence/p0/gateA.json`. Cobalt sample arrays, from CC:Tweaked 1.120.2 on Minecraft 1.21.1, are in `docs/evidence/p0/gateB.json`. The vendor revision is commit `14489aa1ec408f8a07e1292be5ef91dfe8567c74`. A larger one-shot input, or another runtime, is outside this qualification. Blob admission rejects a hash or signature preimage bigger than the measured input for that operation. Domain framing counts toward the bound.
 
-The Classic crypto peripheral supplied randomness. A supplied seed and VM
-timing also initialized successfully. The public benchmark seed provides no
-secret entropy, and availability of VM timing does not prove its quality.
-Krist was blocked by the copied server HTTP policy. Provisioning must use a
-qualified source before either enrolment profile can issue secrets.
+Crypto. Both runtimes completed 65 samples, five per operation, with zero explicit yields and zero failed checks. Five samples are the deliberate modified-message rejections. The inputs are keyed BLAKE3 at 1,024, 8,192, and 37,888 bytes, SHA-256 at 963, 12,288, and 37,888 bytes, X25519 public-key generation and exchange on the RFC 7748 keys, and Ed25519 sign, verify, reject, plus an 8,192-byte manifest sign and verify. The longest uninterrupted Cobalt sample was 122 ms, on `blake3-keyed-37888`. The Linux CraftOS-PC rerun's longest uninterrupted crypto sample was 43 ms, on `sha256-section-37888`. Every saved sample was under 7,000 ms. These inputs do not need a yield inside the library call.
 
-The real disk capacity was 1,000,000 bytes, with a 500-byte minimum file and
-directory charge. CraftOS-PC did not apply that minimum. Storage admission
-must use the real-runtime accounting.
+Randomness. An uninitialized generator was rejected on both runtimes. A caller-supplied seed and VM instruction timing each returned 32 bytes. The public benchmark seed is not deployment entropy, and a successful timing source is not a quality proof. Krist stored no token. The Linux CraftOS-PC rerun reported no token URL after 150 ms. Cobalt reported that the domain was not permitted (`gateB.json`, 57 ms). The disposable server's `cryptographic_accelerator` returned 32 bytes after 15 ms. Provisioning uses that peripheral when it is attached, or a secret seed supplied outside the radio. A turtle with neither source cannot issue either enrolment profile.
 
-Charging and starbound regeneration both obscured fuel decreases during
-successful movement. The explicit regeneration evidence field above is a
-measurement-driven addition to F4. An unknown source of fuel gain disables
-fuel-only recovery.
+A*. `nav.lua` yields every `batch` nodes. The fixture uses batch 32, a 64 by 64 known-air plane, and no GPS. Each runtime ran five searches at 2,048 nodes, all refused with `search budget`, and five at 4,096 nodes, all returning 126 moves. Each 2,048-node search yielded 62 times and each 4,096-node search yielded 127 times. The longest uninterrupted slice was 11 ms on both the Linux CraftOS-PC rerun and Cobalt. CraftOS-PC search totals were 3,669 to 3,700 ms and 7,519 to 7,599 ms. Cobalt totals were 3,099 to 3,101 ms and 6,350 to 6,400 ms. No search moved a turtle. This fixture does not need a smaller batch to stay under the watchdog.
 
-Detector coordinates, yaw, pitch, eye height, dimension, range, random error,
-the turtle-top anchor, and AR terrain occlusion remain unqualified. The
-shared real client was occupied by a process P0 did not start. No successful
-peripheral call substitutes for those missing measurements.
+Storage. Every measured disk reported capacity 1,000,000. On Cobalt a directory cost 500 bytes, and files of 0, 1, 499, 500, 501, and 1,000 bytes allocated 500, 500, 500, 500, 501, and 1,000. Before the fixture each Cobalt disk reported 802,070 bytes free, and 798,069 after. On the Linux CraftOS-PC rerun each of the three disks fell from 807,679 bytes free to 805,178 bytes. The directory cost was 0 and each file cost its content size. Admission uses the real runtime's `fs.getCapacity` and `fs.getFreeSpace`.
+
+Fuel. The copied CC config sets `need_fuel` true, `normal_fuel_limit` 20,000, and `advanced_fuel_limit` 100,000. The six turtles were advanced and reported limit 100,000. Ten moves with no charger and no starbound upgrade consumed one fuel each, and two idle seconds changed nothing. The automata, netherite, creative, and chunk-vial upgrades did the same. Starbound per-move deltas were 1, 1, -1, 1, 0, 0, -1, 1, -3, -1, and idle fuel rose from 1,029 to 1,033. With charging, nine immediate decreases were 1 and one was 0, and idle fuel rose from 4,652 to 4,661. After the charger was removed, ten moves consumed ten fuel and idle fuel stayed at 4,696. There were 80 successful moves across those eight scenarios and zero digs. Fuel recovery applies only when the journal records that charging and regeneration were both absent. The measured cost of one belongs to that case only.
+
+Clocks, modems, and reload. With `doDaylightCycle` false, five `os.epoch("ingame")` readings stayed at 111,600,000 while UTC advanced. `/time set 6000` moved them to 129,600,000. With the cycle on, five readings increased by 7,200 about every 100 ms. `enderModemNerf` is false in `docs/evidence/p0/config/classicperipherals.toml`. An ender modem delivered 10 of 10 packets to a normal modem at 512 blocks, distance 512, and 10 of 10 into the Nether with no distance field. A normal modem delivered 0 of 10 new packets at 512 blocks. A normal-modem turtle's boot count rose from 4 to 5 after its chunk unloaded and loaded. Three queries during the unload saw no heartbeat change. Analog outputs 0, 1, 7, and 15 on one turtle read back as 0, 1, 7, and 15 on the neighbour.
+
+Unqualified, and the reason Gate B is still a failure. Detector rounding, yaw and pitch signs, eye height, dimension, measured range, repeatability, the turtle-top anchor, and whether AR lines and text hide behind terrain were not measured. `docs/evidence/p0/config/Advancedperipherals/peripherals.toml` sets `playerDetMaxRange` to -1 and `enablePlayerPosRandomError` to false. That is the copied config, not a player position. `gateB.json` lists the missing result names `detector-anchor`, `detector-yaw-west-down`, `detector-yaw-east-up`, `detector-negative-fraction`, `detector-range-1024`, `detector-crossdim`, `ar-wall`, `ar-open`, and `fuel-video`. No peripheral call stands in for those checks.

@@ -42,6 +42,18 @@ C:\Tools\lua52\lua52.exe tests\run.lua
 tests\sandbox\run.ps1 -Scenario bench -Disk 1000000 -Output <raw>\gateA
 ```
 
+On Linux the same bench scenario is:
+
+```text
+lua5.2 tests/run.lua
+pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario bench -Disk 1000000 -Output <raw>/gateA
+```
+
+`gateA.ps1` downloads CraftOS-PC 2.8.3 when `CRAFTOS_PC` is unset. The Linux
+archive is the v2.8.3 AppImage, sha256
+`f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c`.
+The Windows archive stays the portable zip.
+
 The runner starts three CraftOS-PC processes with private computer disks.
 Two identify as mock turtles for storage classification. They perform no
 physical movement. A* loads the real `nav.lua` and a 64 by 64 known-air fixture.

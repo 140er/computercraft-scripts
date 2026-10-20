@@ -5,13 +5,13 @@
     "blake3-keyed-1024": {
       "bytes": 1024,
       "milliseconds": [
-        0,
         1,
         0,
+        1,
         1,
         0
       ],
-      "medianMs": 0,
+      "medianMs": 1,
       "maxSliceMs": 1,
       "yields": 0,
       "passed": 5,
@@ -20,14 +20,14 @@
     "blake3-keyed-8192": {
       "bytes": 8192,
       "milliseconds": [
-        5,
         3,
         3,
-        3,
-        4
+        2,
+        2,
+        3
       ],
       "medianMs": 3,
-      "maxSliceMs": 5,
+      "maxSliceMs": 3,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -35,14 +35,14 @@
     "blake3-keyed-37888": {
       "bytes": 37888,
       "milliseconds": [
-        20,
-        22,
-        19,
-        22,
-        22
+        14,
+        13,
+        13,
+        13,
+        12
       ],
-      "medianMs": 22,
-      "maxSliceMs": 22,
+      "medianMs": 13,
+      "maxSliceMs": 14,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -50,14 +50,14 @@
     "sha256-section-963": {
       "bytes": 963,
       "milliseconds": [
-        2,
         1,
-        2,
         1,
-        2
+        1,
+        1,
+        1
       ],
-      "medianMs": 2,
-      "maxSliceMs": 2,
+      "medianMs": 1,
+      "maxSliceMs": 1,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -65,14 +65,14 @@
     "sha256-section-12288": {
       "bytes": 12288,
       "milliseconds": [
-        16,
-        14,
-        15,
-        21,
-        15
+        13,
+        12,
+        13,
+        12,
+        12
       ],
-      "medianMs": 15,
-      "maxSliceMs": 21,
+      "medianMs": 12,
+      "maxSliceMs": 13,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -80,14 +80,14 @@
     "sha256-section-37888": {
       "bytes": 37888,
       "milliseconds": [
-        47,
-        47,
-        49,
-        59,
-        52
+        38,
+        43,
+        37,
+        38,
+        36
       ],
-      "medianMs": 49,
-      "maxSliceMs": 59,
+      "medianMs": 38,
+      "maxSliceMs": 43,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -95,14 +95,14 @@
     "x25519-keygen": {
       "bytes": 32,
       "milliseconds": [
-        1,
-        5,
         2,
-        3,
-        3
+        1,
+        2,
+        1,
+        1
       ],
-      "medianMs": 3,
-      "maxSliceMs": 5,
+      "medianMs": 1,
+      "maxSliceMs": 2,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -110,14 +110,14 @@
     "x25519-exchange": {
       "bytes": 64,
       "milliseconds": [
-        15,
-        8,
-        7,
+        5,
         6,
-        7
+        6,
+        5,
+        6
       ],
-      "medianMs": 7,
-      "maxSliceMs": 15,
+      "medianMs": 6,
+      "maxSliceMs": 6,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -126,13 +126,13 @@
       "bytes": 0,
       "milliseconds": [
         3,
-        3,
-        3,
         2,
-        5
+        1,
+        2,
+        2
       ],
-      "medianMs": 3,
-      "maxSliceMs": 5,
+      "medianMs": 2,
+      "maxSliceMs": 3,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -140,14 +140,14 @@
     "ed25519-verify": {
       "bytes": 0,
       "milliseconds": [
-        10,
-        12,
-        9,
+        7,
+        7,
         8,
-        9
+        6,
+        6
       ],
-      "medianMs": 9,
-      "maxSliceMs": 12,
+      "medianMs": 7,
+      "maxSliceMs": 8,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -155,14 +155,14 @@
     "ed25519-reject": {
       "bytes": 1,
       "milliseconds": [
-        17,
-        10,
-        8,
-        8,
-        8
+        6,
+        6,
+        6,
+        6,
+        7
       ],
-      "medianMs": 8,
-      "maxSliceMs": 17,
+      "medianMs": 6,
+      "maxSliceMs": 7,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -170,14 +170,14 @@
     "ed25519-sign-8192": {
       "bytes": 8192,
       "milliseconds": [
-        26,
-        27,
-        24,
-        27,
-        20
+        17,
+        17,
+        17,
+        16,
+        16
       ],
-      "medianMs": 26,
-      "maxSliceMs": 27,
+      "medianMs": 17,
+      "maxSliceMs": 17,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -185,14 +185,14 @@
     "ed25519-verify-8192": {
       "bytes": 8192,
       "milliseconds": [
-        29,
-        33,
-        27,
-        36,
-        40
+        23,
+        21,
+        21,
+        21,
+        21
       ],
-      "medianMs": 33,
-      "maxSliceMs": 40,
+      "medianMs": 21,
+      "maxSliceMs": 23,
       "yields": 0,
       "passed": 5,
       "samples": 5
@@ -201,236 +201,328 @@
   "cryptoRejections": 5,
   "astar": {
     "physicalMoves": 0,
+    "gpsCalls": 0,
+    "v": 1,
     "ok": true,
     "samples": [
       {
-        "longestSliceMs": 7,
+        "batch": 32,
         "yields": 62,
+        "maxNodes": 2048,
         "value": {
-          "pathMoves": false,
-          "reason": "search budget"
+          "reason": "search budget",
+          "pathMoves": false
         },
+        "round": 1,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 2048,
-        "elapsedMs": 3470,
-        "belowTimeout": true,
-        "round": 1
+        "elapsedMs": 3689,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 8,
+        "batch": 32,
         "yields": 62,
+        "maxNodes": 2048,
         "value": {
-          "pathMoves": false,
-          "reason": "search budget"
+          "reason": "search budget",
+          "pathMoves": false
         },
+        "round": 2,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 2048,
-        "elapsedMs": 3513,
-        "belowTimeout": true,
-        "round": 2
+        "elapsedMs": 3698,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 7,
+        "batch": 32,
         "yields": 62,
+        "maxNodes": 2048,
         "value": {
-          "pathMoves": false,
-          "reason": "search budget"
+          "reason": "search budget",
+          "pathMoves": false
         },
+        "round": 3,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 2048,
-        "elapsedMs": 3463,
-        "belowTimeout": true,
-        "round": 3
+        "elapsedMs": 3670,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 8,
+        "batch": 32,
         "yields": 62,
+        "maxNodes": 2048,
         "value": {
-          "pathMoves": false,
-          "reason": "search budget"
+          "reason": "search budget",
+          "pathMoves": false
         },
+        "round": 4,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 2048,
-        "elapsedMs": 3468,
-        "belowTimeout": true,
-        "round": 4
+        "elapsedMs": 3669,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 9,
+        "batch": 32,
         "yields": 62,
-        "value": {
-          "pathMoves": false,
-          "reason": "search budget"
-        },
-        "error": false,
-        "ok": true,
-        "batch": 32,
         "maxNodes": 2048,
-        "elapsedMs": 3510,
-        "belowTimeout": true,
-        "round": 5
-      },
-      {
-        "longestSliceMs": 9,
-        "yields": 127,
         "value": {
-          "pathMoves": 126,
-          "reason": false
+          "reason": "search budget",
+          "pathMoves": false
         },
+        "round": 5,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 4096,
-        "elapsedMs": 7127,
-        "belowTimeout": true,
-        "round": 1
+        "elapsedMs": 3700,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 7,
+        "batch": 32,
         "yields": 127,
+        "maxNodes": 4096,
         "value": {
-          "pathMoves": 126,
-          "reason": false
+          "reason": false,
+          "pathMoves": 126
         },
+        "round": 1,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 4096,
-        "elapsedMs": 7066,
-        "belowTimeout": true,
-        "round": 2
+        "elapsedMs": 7564,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 8,
+        "batch": 32,
         "yields": 127,
+        "maxNodes": 4096,
         "value": {
-          "pathMoves": 126,
-          "reason": false
+          "reason": false,
+          "pathMoves": 126
         },
+        "round": 2,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 4096,
-        "elapsedMs": 7112,
-        "belowTimeout": true,
-        "round": 3
+        "elapsedMs": 7530,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 8,
+        "batch": 32,
         "yields": 127,
+        "maxNodes": 4096,
         "value": {
-          "pathMoves": 126,
-          "reason": false
+          "reason": false,
+          "pathMoves": 126
         },
+        "round": 3,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 4096,
-        "elapsedMs": 7103,
-        "belowTimeout": true,
-        "round": 4
+        "elapsedMs": 7599,
+        "longestSliceMs": 11
       },
       {
-        "longestSliceMs": 8,
+        "batch": 32,
         "yields": 127,
+        "maxNodes": 4096,
         "value": {
-          "pathMoves": 126,
-          "reason": false
+          "reason": false,
+          "pathMoves": 126
         },
+        "round": 4,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
+        "elapsedMs": 7567,
+        "longestSliceMs": 11
+      },
+      {
         "batch": 32,
+        "yields": 127,
         "maxNodes": 4096,
-        "elapsedMs": 7126,
+        "value": {
+          "reason": false,
+          "pathMoves": 126
+        },
+        "round": 5,
         "belowTimeout": true,
-        "round": 5
+        "error": false,
+        "ok": true,
+        "elapsedMs": 7519,
+        "longestSliceMs": 11
       }
     ],
-    "gpsCalls": 0,
-    "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-    "v": 1
+    "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
   },
   "randomness": {
+    "v": 1,
     "ok": true,
     "sources": [
       {
-        "longestSliceMs": 3,
-        "error": false,
-        "yields": 0,
+        "name": "uninitialized",
+        "belowTimeout": true,
+        "elapsedMs": 2,
         "value": {
           "rejected": true
         },
-        "name": "uninitialized",
-        "elapsedMs": 3,
-        "belowTimeout": true,
-        "ok": true
+        "error": false,
+        "ok": true,
+        "yields": 0,
+        "longestSliceMs": 2
       },
       {
-        "longestSliceMs": 1,
-        "error": false,
-        "yields": 0,
+        "name": "supplied-seed",
+        "belowTimeout": true,
+        "elapsedMs": 1,
         "value": {
           "entropy": "caller supplied; fixture has no secret entropy",
           "generatedBytes": 32
         },
-        "name": "supplied-seed",
-        "elapsedMs": 1,
-        "belowTimeout": true,
-        "ok": true
+        "error": false,
+        "ok": true,
+        "yields": 0,
+        "longestSliceMs": 1
       },
       {
-        "longestSliceMs": 589,
-        "error": false,
-        "yields": 0,
+        "name": "vm-timing",
+        "belowTimeout": true,
+        "elapsedMs": 534,
         "value": {
           "entropy": "VM instruction timing; upstream warns this is riskier",
           "generatedBytes": 32
         },
-        "name": "vm-timing",
-        "elapsedMs": 589,
-        "belowTimeout": true,
-        "ok": true
-      },
-      {
-        "longestSliceMs": 2,
-        "error": "/randomness.lua:38: Krist response has no token URL",
-        "yields": 1,
-        "value": false,
-        "name": "krist-http",
-        "elapsedMs": 600,
-        "belowTimeout": true,
-        "ok": false
-      },
-      {
-        "longestSliceMs": 0,
-        "error": "/randomness.lua:47: no cryptographic_accelerator attached",
+        "error": false,
+        "ok": true,
         "yields": 0,
-        "value": false,
-        "name": "crypto-peripheral",
-        "elapsedMs": 0,
+        "longestSliceMs": 534
+      },
+      {
+        "name": "krist-http",
         "belowTimeout": true,
-        "ok": false
+        "elapsedMs": 150,
+        "value": false,
+        "error": "/randomness.lua:38: Krist response has no token URL",
+        "ok": false,
+        "yields": 1,
+        "longestSliceMs": 1
+      },
+      {
+        "name": "crypto-peripheral",
+        "belowTimeout": true,
+        "elapsedMs": 0,
+        "value": false,
+        "error": "/randomness.lua:47: no cryptographic_accelerator attached",
+        "ok": false,
+        "yields": 0,
+        "longestSliceMs": 0
       }
     ],
-    "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-    "v": 1
+    "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
   },
   "storage": {
     "0": {
+      "files": [
+        {
+          "bytes": 0,
+          "readSize": 0,
+          "allocated": 0
+        },
+        {
+          "bytes": 1,
+          "readSize": 1,
+          "allocated": 1
+        },
+        {
+          "bytes": 499,
+          "readSize": 499,
+          "allocated": 499
+        },
+        {
+          "bytes": 500,
+          "readSize": 500,
+          "allocated": 500
+        },
+        {
+          "bytes": 501,
+          "readSize": 501,
+          "allocated": 501
+        },
+        {
+          "bytes": 1000,
+          "readSize": 1000,
+          "allocated": 1000
+        }
+      ],
       "capacity": 1000000,
-      "freeBefore": 802764,
-      "ok": true,
-      "freeAfter": 800263,
+      "computer": 0,
       "matchesMinimumFileCost": false,
+      "kind": "computer",
+      "freeAfter": 805178,
       "directoryCost": 0,
+      "v": 1,
+      "ok": true,
+      "freeBefore": 807679,
+      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
+    },
+    "1": {
+      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+      "matchesMinimumFileCost": false,
+      "v": 1,
+      "files": [
+        {
+          "allocated": 0,
+          "bytes": 0,
+          "readSize": 0
+        },
+        {
+          "allocated": 1,
+          "bytes": 1,
+          "readSize": 1
+        },
+        {
+          "allocated": 499,
+          "bytes": 499,
+          "readSize": 499
+        },
+        {
+          "allocated": 500,
+          "bytes": 500,
+          "readSize": 500
+        },
+        {
+          "allocated": 501,
+          "bytes": 501,
+          "readSize": 501
+        },
+        {
+          "allocated": 1000,
+          "bytes": 1000,
+          "readSize": 1000
+        }
+      ],
+      "ok": true,
+      "directoryCost": 0,
+      "freeBefore": 807679,
+      "capacity": 1000000,
+      "freeAfter": 805178,
+      "kind": "turtle",
+      "computer": 1
+    },
+    "2": {
+      "freeBefore": 807679,
+      "computer": 2,
+      "freeAfter": 805178,
+      "directoryCost": 0,
+      "capacity": 1000000,
+      "kind": "turtle",
+      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+      "ok": true,
+      "v": 1,
+      "matchesMinimumFileCost": false,
       "files": [
         {
           "readSize": 0,
@@ -462,1387 +554,1432 @@
           "bytes": 1000,
           "allocated": 1000
         }
-      ],
-      "kind": "computer",
-      "computer": 0,
-      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-      "v": 1
-    },
-    "1": {
-      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-      "capacity": 1000000,
-      "kind": "turtle",
-      "matchesMinimumFileCost": false,
-      "freeAfter": 800263,
-      "ok": true,
-      "freeBefore": 802764,
-      "directoryCost": 0,
-      "files": [
-        {
-          "allocated": 0,
-          "bytes": 0,
-          "readSize": 0
-        },
-        {
-          "allocated": 1,
-          "bytes": 1,
-          "readSize": 1
-        },
-        {
-          "allocated": 499,
-          "bytes": 499,
-          "readSize": 499
-        },
-        {
-          "allocated": 500,
-          "bytes": 500,
-          "readSize": 500
-        },
-        {
-          "allocated": 501,
-          "bytes": 501,
-          "readSize": 501
-        },
-        {
-          "allocated": 1000,
-          "bytes": 1000,
-          "readSize": 1000
-        }
-      ],
-      "computer": 1,
-      "v": 1
-    },
-    "2": {
-      "ok": true,
-      "capacity": 1000000,
-      "freeBefore": 802764,
-      "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-      "v": 1,
-      "freeAfter": 800263,
-      "directoryCost": 0,
-      "files": [
-        {
-          "bytes": 0,
-          "allocated": 0,
-          "readSize": 0
-        },
-        {
-          "bytes": 1,
-          "allocated": 1,
-          "readSize": 1
-        },
-        {
-          "bytes": 499,
-          "allocated": 499,
-          "readSize": 499
-        },
-        {
-          "bytes": 500,
-          "allocated": 500,
-          "readSize": 500
-        },
-        {
-          "bytes": 501,
-          "allocated": 501,
-          "readSize": 501
-        },
-        {
-          "bytes": 1000,
-          "allocated": 1000,
-          "readSize": 1000
-        }
-      ],
-      "kind": "turtle",
-      "matchesMinimumFileCost": false,
-      "computer": 2
+      ]
     }
   },
   "records": {
     "0": {
-      "astar-2048": {
-        "longestSliceMs": 9,
-        "yields": 62,
-        "value": {
-          "pathMoves": false,
-          "reason": "search budget"
-        },
-        "error": false,
+      "storage": {
+        "files": [
+          {
+            "bytes": 0,
+            "readSize": 0,
+            "allocated": 0
+          },
+          {
+            "bytes": 1,
+            "readSize": 1,
+            "allocated": 1
+          },
+          {
+            "bytes": 499,
+            "readSize": 499,
+            "allocated": 499
+          },
+          {
+            "bytes": 500,
+            "readSize": 500,
+            "allocated": 500
+          },
+          {
+            "bytes": 501,
+            "readSize": 501,
+            "allocated": 501
+          },
+          {
+            "bytes": 1000,
+            "readSize": 1000,
+            "allocated": 1000
+          }
+        ],
+        "capacity": 1000000,
+        "computer": 0,
+        "matchesMinimumFileCost": false,
+        "kind": "computer",
+        "freeAfter": 805178,
+        "directoryCost": 0,
+        "v": 1,
         "ok": true,
-        "batch": 32,
-        "maxNodes": 2048,
-        "elapsedMs": 3510,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "astar-4096": {
-        "longestSliceMs": 8,
-        "yields": 127,
-        "value": {
-          "pathMoves": 126,
-          "reason": false
-        },
-        "error": false,
-        "ok": true,
-        "batch": 32,
-        "maxNodes": 4096,
-        "elapsedMs": 7126,
-        "belowTimeout": true,
-        "round": 5
+        "freeBefore": 807679,
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
       },
       "astar": {
         "physicalMoves": 0,
+        "gpsCalls": 0,
+        "v": 1,
         "ok": true,
         "samples": [
           {
-            "longestSliceMs": 7,
+            "batch": 32,
             "yields": 62,
+            "maxNodes": 2048,
             "value": {
-              "pathMoves": false,
-              "reason": "search budget"
+              "reason": "search budget",
+              "pathMoves": false
             },
+            "round": 1,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 2048,
-            "elapsedMs": 3470,
-            "belowTimeout": true,
-            "round": 1
+            "elapsedMs": 3689,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 8,
+            "batch": 32,
             "yields": 62,
+            "maxNodes": 2048,
             "value": {
-              "pathMoves": false,
-              "reason": "search budget"
+              "reason": "search budget",
+              "pathMoves": false
             },
+            "round": 2,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 2048,
-            "elapsedMs": 3513,
-            "belowTimeout": true,
-            "round": 2
+            "elapsedMs": 3698,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 7,
+            "batch": 32,
             "yields": 62,
+            "maxNodes": 2048,
             "value": {
-              "pathMoves": false,
-              "reason": "search budget"
+              "reason": "search budget",
+              "pathMoves": false
             },
+            "round": 3,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 2048,
-            "elapsedMs": 3463,
-            "belowTimeout": true,
-            "round": 3
+            "elapsedMs": 3670,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 8,
+            "batch": 32,
             "yields": 62,
+            "maxNodes": 2048,
             "value": {
-              "pathMoves": false,
-              "reason": "search budget"
+              "reason": "search budget",
+              "pathMoves": false
             },
+            "round": 4,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 2048,
-            "elapsedMs": 3468,
-            "belowTimeout": true,
-            "round": 4
+            "elapsedMs": 3669,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 9,
+            "batch": 32,
             "yields": 62,
-            "value": {
-              "pathMoves": false,
-              "reason": "search budget"
-            },
-            "error": false,
-            "ok": true,
-            "batch": 32,
             "maxNodes": 2048,
-            "elapsedMs": 3510,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 9,
-            "yields": 127,
             "value": {
-              "pathMoves": 126,
-              "reason": false
+              "reason": "search budget",
+              "pathMoves": false
             },
+            "round": 5,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 4096,
-            "elapsedMs": 7127,
-            "belowTimeout": true,
-            "round": 1
+            "elapsedMs": 3700,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 7,
+            "batch": 32,
             "yields": 127,
+            "maxNodes": 4096,
             "value": {
-              "pathMoves": 126,
-              "reason": false
+              "reason": false,
+              "pathMoves": 126
             },
+            "round": 1,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 4096,
-            "elapsedMs": 7066,
-            "belowTimeout": true,
-            "round": 2
+            "elapsedMs": 7564,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 8,
+            "batch": 32,
             "yields": 127,
+            "maxNodes": 4096,
             "value": {
-              "pathMoves": 126,
-              "reason": false
+              "reason": false,
+              "pathMoves": 126
             },
+            "round": 2,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 4096,
-            "elapsedMs": 7112,
-            "belowTimeout": true,
-            "round": 3
+            "elapsedMs": 7530,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 8,
+            "batch": 32,
             "yields": 127,
+            "maxNodes": 4096,
             "value": {
-              "pathMoves": 126,
-              "reason": false
+              "reason": false,
+              "pathMoves": 126
             },
+            "round": 3,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
-            "batch": 32,
-            "maxNodes": 4096,
-            "elapsedMs": 7103,
-            "belowTimeout": true,
-            "round": 4
+            "elapsedMs": 7599,
+            "longestSliceMs": 11
           },
           {
-            "longestSliceMs": 8,
+            "batch": 32,
             "yields": 127,
+            "maxNodes": 4096,
             "value": {
-              "pathMoves": 126,
-              "reason": false
+              "reason": false,
+              "pathMoves": 126
             },
+            "round": 4,
+            "belowTimeout": true,
             "error": false,
             "ok": true,
+            "elapsedMs": 7567,
+            "longestSliceMs": 11
+          },
+          {
             "batch": 32,
+            "yields": 127,
             "maxNodes": 4096,
-            "elapsedMs": 7126,
+            "value": {
+              "reason": false,
+              "pathMoves": 126
+            },
+            "round": 5,
             "belowTimeout": true,
-            "round": 5
+            "error": false,
+            "ok": true,
+            "elapsedMs": 7519,
+            "longestSliceMs": 11
           }
         ],
-        "gpsCalls": 0,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
+      },
+      "randomness-crypto-peripheral": {
+        "name": "crypto-peripheral",
+        "belowTimeout": true,
+        "elapsedMs": 0,
+        "value": false,
+        "error": "/randomness.lua:47: no cryptographic_accelerator attached",
+        "ok": false,
+        "yields": 0,
+        "longestSliceMs": 0
+      },
+      "ed25519-verify-8192": {
+        "yields": 0,
+        "name": "ed25519-verify-8192",
+        "bytes": 8192,
+        "value": true,
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 21,
+        "longestSliceMs": 21
       },
       "blake3-keyed-1024": {
-        "longestSliceMs": 0,
         "yields": 0,
-        "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
         "name": "blake3-keyed-1024",
-        "error": false,
-        "ok": true,
         "bytes": 1024,
+        "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
         "elapsedMs": 0,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "blake3-keyed-37888": {
-        "longestSliceMs": 22,
-        "yields": 0,
-        "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-        "name": "blake3-keyed-37888",
-        "error": false,
-        "ok": true,
-        "bytes": 37888,
-        "elapsedMs": 22,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "blake3-keyed-8192": {
-        "longestSliceMs": 4,
-        "yields": 0,
-        "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-        "name": "blake3-keyed-8192",
-        "error": false,
-        "ok": true,
-        "bytes": 8192,
-        "elapsedMs": 4,
-        "belowTimeout": true,
-        "round": 5
+        "longestSliceMs": 0
       },
       "boot": {
         "id": 0,
-        "at": 1792515722135,
-        "boots": 1,
-        "ok": true
+        "ok": true,
+        "at": 1792521828649,
+        "boots": 1
       },
-      "crypto-progress": {
+      "x25519-keygen": {
+        "yields": 0,
+        "name": "x25519-keygen",
+        "bytes": 32,
+        "value": "RFC 7748 public key matched",
         "round": 5,
-        "next": "ed25519-verify-8192"
-      },
-      "crypto": {
-        "watchdogMs": 7000,
-        "seed": "public deterministic fixture, no entropy claim",
-        "successful": 65,
-        "softwareOnly": true,
-        "ok": true,
-        "rejections": 5,
-        "failed": 0,
-        "samples": [
-          {
-            "longestSliceMs": 0,
-            "yields": 0,
-            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
-            "name": "blake3-keyed-1024",
-            "error": false,
-            "ok": true,
-            "bytes": 1024,
-            "elapsedMs": 0,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 5,
-            "yields": 0,
-            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-            "name": "blake3-keyed-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 5,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 20,
-            "yields": 0,
-            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-            "name": "blake3-keyed-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 20,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 2,
-            "yields": 0,
-            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
-            "name": "sha256-section-963",
-            "error": false,
-            "ok": true,
-            "bytes": 963,
-            "elapsedMs": 2,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 16,
-            "yields": 0,
-            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-            "name": "sha256-section-12288",
-            "error": false,
-            "ok": true,
-            "bytes": 12288,
-            "elapsedMs": 16,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 47,
-            "yields": 0,
-            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-            "name": "sha256-section-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 47,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 1,
-            "yields": 0,
-            "value": "RFC 7748 public key matched",
-            "name": "x25519-keygen",
-            "error": false,
-            "ok": true,
-            "bytes": 32,
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 15,
-            "yields": 0,
-            "value": "RFC 7748 exchange matched",
-            "name": "x25519-exchange",
-            "error": false,
-            "ok": true,
-            "bytes": 64,
-            "elapsedMs": 15,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "7bce0b93df1ee4a4c4b8a83c7ed7d5d866c19b8fb8a217d4c1bb9ae160f0f168cce453f71fbe8f4f725285491324a9ab95a50b75bd5939b105b1efd749b7e10f",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign",
-            "bytes": 0,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 10,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify",
-            "error": false,
-            "ok": true,
-            "bytes": 0,
-            "elapsedMs": 10,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 17,
-            "yields": 0,
-            "value": "modified message rejected",
-            "name": "ed25519-reject",
-            "error": false,
-            "ok": true,
-            "bytes": 1,
-            "elapsedMs": 17,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 26,
-            "yields": 0,
-            "value": "ae883e2680c869069f6b23e8dad6a876d852ad40d776c81b317cf799b37679b8b6b8fcc1f3f9f1828efdb8ed3ceffcc3dbeee0161fecb4da652d1348b8246307",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign-8192",
-            "bytes": 8192,
-            "elapsedMs": 26,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 29,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 29,
-            "belowTimeout": true,
-            "round": 1
-          },
-          {
-            "longestSliceMs": 1,
-            "yields": 0,
-            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
-            "name": "blake3-keyed-1024",
-            "error": false,
-            "ok": true,
-            "bytes": 1024,
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-            "name": "blake3-keyed-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 22,
-            "yields": 0,
-            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-            "name": "blake3-keyed-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 22,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 1,
-            "yields": 0,
-            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
-            "name": "sha256-section-963",
-            "error": false,
-            "ok": true,
-            "bytes": 963,
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 14,
-            "yields": 0,
-            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-            "name": "sha256-section-12288",
-            "error": false,
-            "ok": true,
-            "bytes": 12288,
-            "elapsedMs": 14,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 47,
-            "yields": 0,
-            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-            "name": "sha256-section-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 47,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 5,
-            "yields": 0,
-            "value": "RFC 7748 public key matched",
-            "name": "x25519-keygen",
-            "error": false,
-            "ok": true,
-            "bytes": 32,
-            "elapsedMs": 5,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 8,
-            "yields": 0,
-            "value": "RFC 7748 exchange matched",
-            "name": "x25519-exchange",
-            "error": false,
-            "ok": true,
-            "bytes": 64,
-            "elapsedMs": 8,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "ffd12a7aa2cf8fb924a0b7552b39e4ae983300627646a0223879a94084ad02b217c710088dc62e8630caf6c6c6fecf1ebf44cc23ebb4b45d182712adb3bf4f03",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign",
-            "bytes": 0,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 12,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify",
-            "error": false,
-            "ok": true,
-            "bytes": 0,
-            "elapsedMs": 12,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 10,
-            "yields": 0,
-            "value": "modified message rejected",
-            "name": "ed25519-reject",
-            "error": false,
-            "ok": true,
-            "bytes": 1,
-            "elapsedMs": 10,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 27,
-            "yields": 0,
-            "value": "43dae62718d95c26322451fcc6dd8f3f23de5b8ed8eb4377c167cdadea098d1640f6edfbb44cdaea30b826a85f279675a8cb1884a92a9638c56ac1aee241150a",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign-8192",
-            "bytes": 8192,
-            "elapsedMs": 27,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 33,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 33,
-            "belowTimeout": true,
-            "round": 2
-          },
-          {
-            "longestSliceMs": 0,
-            "yields": 0,
-            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
-            "name": "blake3-keyed-1024",
-            "error": false,
-            "ok": true,
-            "bytes": 1024,
-            "elapsedMs": 0,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-            "name": "blake3-keyed-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 19,
-            "yields": 0,
-            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-            "name": "blake3-keyed-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 19,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 2,
-            "yields": 0,
-            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
-            "name": "sha256-section-963",
-            "error": false,
-            "ok": true,
-            "bytes": 963,
-            "elapsedMs": 2,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 15,
-            "yields": 0,
-            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-            "name": "sha256-section-12288",
-            "error": false,
-            "ok": true,
-            "bytes": 12288,
-            "elapsedMs": 15,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 49,
-            "yields": 0,
-            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-            "name": "sha256-section-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 49,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 2,
-            "yields": 0,
-            "value": "RFC 7748 public key matched",
-            "name": "x25519-keygen",
-            "error": false,
-            "ok": true,
-            "bytes": 32,
-            "elapsedMs": 2,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 7,
-            "yields": 0,
-            "value": "RFC 7748 exchange matched",
-            "name": "x25519-exchange",
-            "error": false,
-            "ok": true,
-            "bytes": 64,
-            "elapsedMs": 7,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "2ab26eb49f461b9d842dcfd9e323bf5c02937b8b440d733fefb23ecfe4c72950f5f1d2c04a6aeb4efdf240a4a6d8392014885aded3b2fc05208222ced00a5f0a",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign",
-            "bytes": 0,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 9,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify",
-            "error": false,
-            "ok": true,
-            "bytes": 0,
-            "elapsedMs": 9,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 8,
-            "yields": 0,
-            "value": "modified message rejected",
-            "name": "ed25519-reject",
-            "error": false,
-            "ok": true,
-            "bytes": 1,
-            "elapsedMs": 8,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 24,
-            "yields": 0,
-            "value": "8c5efbcd3160796a8ea0cc22548d318e4017ae2f622cc8851fa4dd18fec11b8c4251569253b5e8caf8d68bb3cfae3ceb8653cdf11c5ded9c40e8dac865e4d007",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign-8192",
-            "bytes": 8192,
-            "elapsedMs": 24,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 27,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 27,
-            "belowTimeout": true,
-            "round": 3
-          },
-          {
-            "longestSliceMs": 1,
-            "yields": 0,
-            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
-            "name": "blake3-keyed-1024",
-            "error": false,
-            "ok": true,
-            "bytes": 1024,
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-            "name": "blake3-keyed-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 22,
-            "yields": 0,
-            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-            "name": "blake3-keyed-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 22,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 1,
-            "yields": 0,
-            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
-            "name": "sha256-section-963",
-            "error": false,
-            "ok": true,
-            "bytes": 963,
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 21,
-            "yields": 0,
-            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-            "name": "sha256-section-12288",
-            "error": false,
-            "ok": true,
-            "bytes": 12288,
-            "elapsedMs": 21,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 59,
-            "yields": 0,
-            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-            "name": "sha256-section-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 59,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "RFC 7748 public key matched",
-            "name": "x25519-keygen",
-            "error": false,
-            "ok": true,
-            "bytes": 32,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 6,
-            "yields": 0,
-            "value": "RFC 7748 exchange matched",
-            "name": "x25519-exchange",
-            "error": false,
-            "ok": true,
-            "bytes": 64,
-            "elapsedMs": 6,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 2,
-            "yields": 0,
-            "value": "5d96407e73b7b122dd365bf52c71f0f0888f66eabf04b04ada55ca299ac317991f0b73d9032f372c2803dd2ebe67e2882c7cebb83f2e8183d0dc9459789d7e01",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign",
-            "bytes": 0,
-            "elapsedMs": 2,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 8,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify",
-            "error": false,
-            "ok": true,
-            "bytes": 0,
-            "elapsedMs": 8,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 8,
-            "yields": 0,
-            "value": "modified message rejected",
-            "name": "ed25519-reject",
-            "error": false,
-            "ok": true,
-            "bytes": 1,
-            "elapsedMs": 8,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 27,
-            "yields": 0,
-            "value": "1dd4163734b336b985511b3773f1dcbafe23a3d814fcc98afadd8133a0275fa1afcf317cba29282282995be9431068193e106a75b1849133d0773c5e69ec1403",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign-8192",
-            "bytes": 8192,
-            "elapsedMs": 27,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 36,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 36,
-            "belowTimeout": true,
-            "round": 4
-          },
-          {
-            "longestSliceMs": 0,
-            "yields": 0,
-            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
-            "name": "blake3-keyed-1024",
-            "error": false,
-            "ok": true,
-            "bytes": 1024,
-            "elapsedMs": 0,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 4,
-            "yields": 0,
-            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
-            "name": "blake3-keyed-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 4,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 22,
-            "yields": 0,
-            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
-            "name": "blake3-keyed-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 22,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 2,
-            "yields": 0,
-            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
-            "name": "sha256-section-963",
-            "error": false,
-            "ok": true,
-            "bytes": 963,
-            "elapsedMs": 2,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 15,
-            "yields": 0,
-            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-            "name": "sha256-section-12288",
-            "error": false,
-            "ok": true,
-            "bytes": 12288,
-            "elapsedMs": 15,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 52,
-            "yields": 0,
-            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-            "name": "sha256-section-37888",
-            "error": false,
-            "ok": true,
-            "bytes": 37888,
-            "elapsedMs": 52,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 3,
-            "yields": 0,
-            "value": "RFC 7748 public key matched",
-            "name": "x25519-keygen",
-            "error": false,
-            "ok": true,
-            "bytes": 32,
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 7,
-            "yields": 0,
-            "value": "RFC 7748 exchange matched",
-            "name": "x25519-exchange",
-            "error": false,
-            "ok": true,
-            "bytes": 64,
-            "elapsedMs": 7,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 5,
-            "yields": 0,
-            "value": "315c8e09cc589cdfe4e23fefae679d1f691998837ccc3f63859cfa29dae3ffd2e402de45a2b42af105453e79b5c331642aceddd3efeb4451d2745f86a74ec304",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign",
-            "bytes": 0,
-            "elapsedMs": 5,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 9,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify",
-            "error": false,
-            "ok": true,
-            "bytes": 0,
-            "elapsedMs": 9,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 8,
-            "yields": 0,
-            "value": "modified message rejected",
-            "name": "ed25519-reject",
-            "error": false,
-            "ok": true,
-            "bytes": 1,
-            "elapsedMs": 8,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 20,
-            "yields": 0,
-            "value": "9917d7921aba385d920c20452a1b444102d76087e4e67a2c562327e73ca339e068e1c01bcd1e9a5e85c6c60777308e8ac9ba683721650b359d9fea42b96d190c",
-            "outputChecked": true,
-            "error": false,
-            "ok": true,
-            "name": "ed25519-sign-8192",
-            "bytes": 8192,
-            "elapsedMs": 20,
-            "belowTimeout": true,
-            "round": 5
-          },
-          {
-            "longestSliceMs": 40,
-            "yields": 0,
-            "value": true,
-            "name": "ed25519-verify-8192",
-            "error": false,
-            "ok": true,
-            "bytes": 8192,
-            "elapsedMs": 40,
-            "belowTimeout": true,
-            "round": 5
-          }
-        ],
-        "computer": 0,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
-      },
-      "ed25519-reject": {
-        "longestSliceMs": 8,
-        "yields": 0,
-        "value": "modified message rejected",
-        "name": "ed25519-reject",
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "bytes": 1,
-        "elapsedMs": 8,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "ed25519-sign-8192": {
-        "longestSliceMs": 20,
-        "yields": 0,
-        "value": "9917d7921aba385d920c20452a1b444102d76087e4e67a2c562327e73ca339e068e1c01bcd1e9a5e85c6c60777308e8ac9ba683721650b359d9fea42b96d190c",
-        "outputChecked": true,
-        "error": false,
-        "ok": true,
-        "name": "ed25519-sign-8192",
-        "bytes": 8192,
-        "elapsedMs": 20,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "ed25519-sign": {
-        "longestSliceMs": 5,
-        "yields": 0,
-        "value": "315c8e09cc589cdfe4e23fefae679d1f691998837ccc3f63859cfa29dae3ffd2e402de45a2b42af105453e79b5c331642aceddd3efeb4451d2745f86a74ec304",
-        "outputChecked": true,
-        "error": false,
-        "ok": true,
-        "name": "ed25519-sign",
-        "bytes": 0,
-        "elapsedMs": 5,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "ed25519-verify-8192": {
-        "longestSliceMs": 40,
-        "yields": 0,
-        "value": true,
-        "name": "ed25519-verify-8192",
-        "error": false,
-        "ok": true,
-        "bytes": 8192,
-        "elapsedMs": 40,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "ed25519-verify": {
-        "longestSliceMs": 9,
-        "yields": 0,
-        "value": true,
-        "name": "ed25519-verify",
-        "error": false,
-        "ok": true,
-        "bytes": 0,
-        "elapsedMs": 9,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "initial": {
-        "computer": 0,
-        "turtleIsMock": false,
-        "boots": 1,
-        "results": {
-          "randomness": true,
-          "storage": true,
-          "astar": true,
-          "crypto": true
-        },
-        "ok": true,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
-      },
-      "randomness-crypto-peripheral": {
-        "longestSliceMs": 0,
-        "error": "/randomness.lua:47: no cryptographic_accelerator attached",
-        "yields": 0,
-        "value": false,
-        "name": "crypto-peripheral",
-        "elapsedMs": 0,
-        "belowTimeout": true,
-        "ok": false
-      },
-      "randomness-krist-http": {
-        "longestSliceMs": 2,
-        "error": "/randomness.lua:38: Krist response has no token URL",
-        "yields": 1,
-        "value": false,
-        "name": "krist-http",
-        "elapsedMs": 600,
-        "belowTimeout": true,
-        "ok": false
-      },
-      "randomness-progress": {
-        "next": "crypto-peripheral"
-      },
-      "randomness-supplied-seed": {
-        "longestSliceMs": 1,
-        "error": false,
-        "yields": 0,
-        "value": {
-          "entropy": "caller supplied; fixture has no secret entropy",
-          "generatedBytes": 32
-        },
-        "name": "supplied-seed",
         "elapsedMs": 1,
-        "belowTimeout": true,
-        "ok": true
+        "longestSliceMs": 1
       },
-      "randomness-uninitialized": {
-        "longestSliceMs": 3,
-        "error": false,
-        "yields": 0,
+      "astar-4096": {
+        "batch": 32,
+        "yields": 127,
+        "maxNodes": 4096,
         "value": {
-          "rejected": true
+          "reason": false,
+          "pathMoves": 126
         },
-        "name": "uninitialized",
-        "elapsedMs": 3,
+        "round": 5,
         "belowTimeout": true,
-        "ok": true
-      },
-      "randomness-vm-timing": {
-        "longestSliceMs": 589,
         "error": false,
-        "yields": 0,
-        "value": {
-          "entropy": "VM instruction timing; upstream warns this is riskier",
-          "generatedBytes": 32
-        },
-        "name": "vm-timing",
-        "elapsedMs": 589,
-        "belowTimeout": true,
-        "ok": true
+        "ok": true,
+        "elapsedMs": 7519,
+        "longestSliceMs": 11
       },
       "randomness": {
+        "v": 1,
         "ok": true,
         "sources": [
           {
-            "longestSliceMs": 3,
-            "error": false,
-            "yields": 0,
+            "name": "uninitialized",
+            "belowTimeout": true,
+            "elapsedMs": 2,
             "value": {
               "rejected": true
             },
-            "name": "uninitialized",
-            "elapsedMs": 3,
-            "belowTimeout": true,
-            "ok": true
+            "error": false,
+            "ok": true,
+            "yields": 0,
+            "longestSliceMs": 2
           },
           {
-            "longestSliceMs": 1,
-            "error": false,
-            "yields": 0,
+            "name": "supplied-seed",
+            "belowTimeout": true,
+            "elapsedMs": 1,
             "value": {
               "entropy": "caller supplied; fixture has no secret entropy",
               "generatedBytes": 32
             },
-            "name": "supplied-seed",
-            "elapsedMs": 1,
-            "belowTimeout": true,
-            "ok": true
+            "error": false,
+            "ok": true,
+            "yields": 0,
+            "longestSliceMs": 1
           },
           {
-            "longestSliceMs": 589,
-            "error": false,
-            "yields": 0,
+            "name": "vm-timing",
+            "belowTimeout": true,
+            "elapsedMs": 534,
             "value": {
               "entropy": "VM instruction timing; upstream warns this is riskier",
               "generatedBytes": 32
             },
-            "name": "vm-timing",
-            "elapsedMs": 589,
-            "belowTimeout": true,
-            "ok": true
-          },
-          {
-            "longestSliceMs": 2,
-            "error": "/randomness.lua:38: Krist response has no token URL",
-            "yields": 1,
-            "value": false,
-            "name": "krist-http",
-            "elapsedMs": 600,
-            "belowTimeout": true,
-            "ok": false
-          },
-          {
-            "longestSliceMs": 0,
-            "error": "/randomness.lua:47: no cryptographic_accelerator attached",
+            "error": false,
+            "ok": true,
             "yields": 0,
-            "value": false,
-            "name": "crypto-peripheral",
-            "elapsedMs": 0,
+            "longestSliceMs": 534
+          },
+          {
+            "name": "krist-http",
             "belowTimeout": true,
-            "ok": false
+            "elapsedMs": 150,
+            "value": false,
+            "error": "/randomness.lua:38: Krist response has no token URL",
+            "ok": false,
+            "yields": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "name": "crypto-peripheral",
+            "belowTimeout": true,
+            "elapsedMs": 0,
+            "value": false,
+            "error": "/randomness.lua:47: no cryptographic_accelerator attached",
+            "ok": false,
+            "yields": 0,
+            "longestSliceMs": 0
           }
         ],
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
       },
-      "sha256-section-12288": {
-        "longestSliceMs": 15,
+      "x25519-exchange": {
         "yields": 0,
-        "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
-        "name": "sha256-section-12288",
+        "name": "x25519-exchange",
+        "bytes": 64,
+        "value": "RFC 7748 exchange matched",
+        "round": 5,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "bytes": 12288,
-        "elapsedMs": 15,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "sha256-section-37888": {
-        "longestSliceMs": 52,
-        "yields": 0,
-        "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
-        "name": "sha256-section-37888",
-        "error": false,
-        "ok": true,
-        "bytes": 37888,
-        "elapsedMs": 52,
-        "belowTimeout": true,
-        "round": 5
+        "elapsedMs": 6,
+        "longestSliceMs": 6
       },
       "sha256-section-963": {
-        "longestSliceMs": 2,
         "yields": 0,
-        "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
         "name": "sha256-section-963",
+        "bytes": 963,
+        "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+        "round": 5,
+        "belowTimeout": true,
         "error": false,
         "ok": true,
-        "bytes": 963,
-        "elapsedMs": 2,
+        "elapsedMs": 1,
+        "longestSliceMs": 1
+      },
+      "randomness-progress": {
+        "next": "crypto-peripheral"
+      },
+      "ed25519-sign-8192": {
+        "outputChecked": true,
+        "yields": 0,
+        "name": "ed25519-sign-8192",
+        "bytes": 8192,
+        "value": "6bc7b692597f58641221fb5a8edef902d40746393f9d1cc43535452d15f5c95cd5e64bdb1da77f9fa4de84ca468de6ba2b8dc828e4eddffc19e4570cda57a50a",
+        "round": 5,
+        "elapsedMs": 16,
+        "error": false,
+        "ok": true,
         "belowTimeout": true,
+        "longestSliceMs": 16
+      },
+      "crypto": {
+        "samples": [
+          {
+            "yields": 0,
+            "name": "blake3-keyed-1024",
+            "bytes": 1024,
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-8192",
+            "bytes": 8192,
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 3,
+            "longestSliceMs": 3
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-37888",
+            "bytes": 37888,
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 14,
+            "longestSliceMs": 14
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-963",
+            "bytes": 963,
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-12288",
+            "bytes": 12288,
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 13,
+            "longestSliceMs": 13
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-37888",
+            "bytes": 37888,
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 38,
+            "longestSliceMs": 38
+          },
+          {
+            "yields": 0,
+            "name": "x25519-keygen",
+            "bytes": 32,
+            "value": "RFC 7748 public key matched",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 2,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "x25519-exchange",
+            "bytes": 64,
+            "value": "RFC 7748 exchange matched",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 5,
+            "longestSliceMs": 5
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign",
+            "bytes": 0,
+            "value": "9945606e39d2ccd3a0239d4f4cb0a40c761ef5bf965b7358230d04e4f484f8331cd0cfe521363ca47e92f00c3fd4188150ab6b8c8a70ed012103e919ac976106",
+            "round": 1,
+            "elapsedMs": 3,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 3
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify",
+            "bytes": 0,
+            "value": true,
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 7,
+            "longestSliceMs": 7
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-reject",
+            "bytes": 1,
+            "value": "modified message rejected",
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign-8192",
+            "bytes": 8192,
+            "value": "0399bf6cff5942a5a432f5fc7f6aee25804097499d7bf114761b94771644fdb7cf2d4cd45eb6e4eca05c8caf811b9a2260dc465033ccfa4f7d5616043c406f0e",
+            "round": 1,
+            "elapsedMs": 17,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 17
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify-8192",
+            "bytes": 8192,
+            "value": true,
+            "round": 1,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 23,
+            "longestSliceMs": 23
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-1024",
+            "bytes": 1024,
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 0,
+            "longestSliceMs": 0
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-8192",
+            "bytes": 8192,
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 3,
+            "longestSliceMs": 3
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-37888",
+            "bytes": 37888,
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 13,
+            "longestSliceMs": 13
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-963",
+            "bytes": 963,
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-12288",
+            "bytes": 12288,
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 12,
+            "longestSliceMs": 12
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-37888",
+            "bytes": 37888,
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 43,
+            "longestSliceMs": 43
+          },
+          {
+            "yields": 0,
+            "name": "x25519-keygen",
+            "bytes": 32,
+            "value": "RFC 7748 public key matched",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "x25519-exchange",
+            "bytes": 64,
+            "value": "RFC 7748 exchange matched",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign",
+            "bytes": 0,
+            "value": "af9ac63e30caf54020bbfceac51df1dae625f80dcdb2a76843a2dee1d51c76a80fe1cf16a6a803fb4de48026f24fe08869bed7e3247a161ff2d883f295c4f605",
+            "round": 2,
+            "elapsedMs": 2,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify",
+            "bytes": 0,
+            "value": true,
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 7,
+            "longestSliceMs": 7
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-reject",
+            "bytes": 1,
+            "value": "modified message rejected",
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign-8192",
+            "bytes": 8192,
+            "value": "cbc3b904492ed92a4e3ee8a7f3b185972285cd23759552928a2934bb757bab49f8798ab42ce1a32f508feb1e1bf9f4f9832261c5c6275ed95cd654c799653d07",
+            "round": 2,
+            "elapsedMs": 17,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 17
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify-8192",
+            "bytes": 8192,
+            "value": true,
+            "round": 2,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 21,
+            "longestSliceMs": 21
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-1024",
+            "bytes": 1024,
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-8192",
+            "bytes": 8192,
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 2,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-37888",
+            "bytes": 37888,
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 13,
+            "longestSliceMs": 13
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-963",
+            "bytes": 963,
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-12288",
+            "bytes": 12288,
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 13,
+            "longestSliceMs": 13
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-37888",
+            "bytes": 37888,
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 37,
+            "longestSliceMs": 37
+          },
+          {
+            "yields": 0,
+            "name": "x25519-keygen",
+            "bytes": 32,
+            "value": "RFC 7748 public key matched",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 2,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "x25519-exchange",
+            "bytes": 64,
+            "value": "RFC 7748 exchange matched",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign",
+            "bytes": 0,
+            "value": "10d2b9b469c0da2e81e712393316499ebb3974a44ae95b20b8a98932c5aa39d35709954d67310d5eff5fd6be0133099b6c37e4b598f2dfd1461bdc9ccfa97001",
+            "round": 3,
+            "elapsedMs": 1,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify",
+            "bytes": 0,
+            "value": true,
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 8,
+            "longestSliceMs": 8
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-reject",
+            "bytes": 1,
+            "value": "modified message rejected",
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign-8192",
+            "bytes": 8192,
+            "value": "4958bc68b0d732d3f41b613b5ae512116c01a3374fe42b7615843b1d68127c1cd1e0c40217428acb3ea0b5e8007cabae8a1a169629d79fd25ab9814fe98cac08",
+            "round": 3,
+            "elapsedMs": 17,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 17
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify-8192",
+            "bytes": 8192,
+            "value": true,
+            "round": 3,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 21,
+            "longestSliceMs": 21
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-1024",
+            "bytes": 1024,
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-8192",
+            "bytes": 8192,
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 2,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-37888",
+            "bytes": 37888,
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 13,
+            "longestSliceMs": 13
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-963",
+            "bytes": 963,
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-12288",
+            "bytes": 12288,
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 12,
+            "longestSliceMs": 12
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-37888",
+            "bytes": 37888,
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 38,
+            "longestSliceMs": 38
+          },
+          {
+            "yields": 0,
+            "name": "x25519-keygen",
+            "bytes": 32,
+            "value": "RFC 7748 public key matched",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "x25519-exchange",
+            "bytes": 64,
+            "value": "RFC 7748 exchange matched",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 5,
+            "longestSliceMs": 5
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign",
+            "bytes": 0,
+            "value": "6e15c6d2b22927c7df0b1124d9178a49b9eaf9a9e19fac0a31e453ee3049f8598065830d90208f213da1ccbc5babaafae68ed6ef9eb0ee2ece6cd6a6c45cc40a",
+            "round": 4,
+            "elapsedMs": 2,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify",
+            "bytes": 0,
+            "value": true,
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-reject",
+            "bytes": 1,
+            "value": "modified message rejected",
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign-8192",
+            "bytes": 8192,
+            "value": "8ac7560b26391de0ee49ca63ebf0318b8227690e8187c3d72c426be1a20fa8a603be999be3f87995671d024aead223d36ec8a9ed258737069df5fd8b92f2e009",
+            "round": 4,
+            "elapsedMs": 16,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 16
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify-8192",
+            "bytes": 8192,
+            "value": true,
+            "round": 4,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 21,
+            "longestSliceMs": 21
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-1024",
+            "bytes": 1024,
+            "value": "dd8273b8bd2046663d13c744e7fc21deecbfecedc7d61c26600d7c14a500e78d",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 0,
+            "longestSliceMs": 0
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-8192",
+            "bytes": 8192,
+            "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 3,
+            "longestSliceMs": 3
+          },
+          {
+            "yields": 0,
+            "name": "blake3-keyed-37888",
+            "bytes": 37888,
+            "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 12,
+            "longestSliceMs": 12
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-963",
+            "bytes": 963,
+            "value": "3aa9496b6abfb5d1dab68b5ce20a026aaa0f3c2a5019df4e1a62e8b56447c3c0",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-12288",
+            "bytes": 12288,
+            "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 12,
+            "longestSliceMs": 12
+          },
+          {
+            "yields": 0,
+            "name": "sha256-section-37888",
+            "bytes": 37888,
+            "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 36,
+            "longestSliceMs": 36
+          },
+          {
+            "yields": 0,
+            "name": "x25519-keygen",
+            "bytes": 32,
+            "value": "RFC 7748 public key matched",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 1,
+            "longestSliceMs": 1
+          },
+          {
+            "yields": 0,
+            "name": "x25519-exchange",
+            "bytes": 64,
+            "value": "RFC 7748 exchange matched",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign",
+            "bytes": 0,
+            "value": "8344cffc2f953abb23c2efc943ca99ba60195943fd7422b07c878fc8fae4f7e7ca8f3e673ebb2a69cefbb973ce21561e82dd0b72e064412b3b294f549cf4b702",
+            "round": 5,
+            "elapsedMs": 2,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 2
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify",
+            "bytes": 0,
+            "value": true,
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 6,
+            "longestSliceMs": 6
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-reject",
+            "bytes": 1,
+            "value": "modified message rejected",
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 7,
+            "longestSliceMs": 7
+          },
+          {
+            "outputChecked": true,
+            "yields": 0,
+            "name": "ed25519-sign-8192",
+            "bytes": 8192,
+            "value": "6bc7b692597f58641221fb5a8edef902d40746393f9d1cc43535452d15f5c95cd5e64bdb1da77f9fa4de84ca468de6ba2b8dc828e4eddffc19e4570cda57a50a",
+            "round": 5,
+            "elapsedMs": 16,
+            "error": false,
+            "ok": true,
+            "belowTimeout": true,
+            "longestSliceMs": 16
+          },
+          {
+            "yields": 0,
+            "name": "ed25519-verify-8192",
+            "bytes": 8192,
+            "value": true,
+            "round": 5,
+            "belowTimeout": true,
+            "error": false,
+            "ok": true,
+            "elapsedMs": 21,
+            "longestSliceMs": 21
+          }
+        ],
+        "successful": 65,
+        "computer": 0,
+        "failed": 0,
+        "rejections": 5,
+        "softwareOnly": true,
+        "watchdogMs": 7000,
+        "v": 1,
+        "ok": true,
+        "seed": "public deterministic fixture, no entropy claim",
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
+      },
+      "randomness-krist-http": {
+        "name": "krist-http",
+        "belowTimeout": true,
+        "elapsedMs": 150,
+        "value": false,
+        "error": "/randomness.lua:38: Krist response has no token URL",
+        "ok": false,
+        "yields": 1,
+        "longestSliceMs": 1
+      },
+      "astar-2048": {
+        "batch": 32,
+        "yields": 62,
+        "maxNodes": 2048,
+        "value": {
+          "reason": "search budget",
+          "pathMoves": false
+        },
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 3700,
+        "longestSliceMs": 11
+      },
+      "blake3-keyed-8192": {
+        "yields": 0,
+        "name": "blake3-keyed-8192",
+        "bytes": 8192,
+        "value": "7143329ab047e7c93affda6a3fad020a6ca4d8a12433d0a2c524c466286f7ed4",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 3,
+        "longestSliceMs": 3
+      },
+      "blake3-keyed-37888": {
+        "yields": 0,
+        "name": "blake3-keyed-37888",
+        "bytes": 37888,
+        "value": "4cf46a18cfdeeee55653e28c232c683fcc69b3438a10835b50e0620c2f37cba7",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 12,
+        "longestSliceMs": 12
+      },
+      "randomness-uninitialized": {
+        "name": "uninitialized",
+        "belowTimeout": true,
+        "elapsedMs": 2,
+        "value": {
+          "rejected": true
+        },
+        "error": false,
+        "ok": true,
+        "yields": 0,
+        "longestSliceMs": 2
+      },
+      "ed25519-sign": {
+        "outputChecked": true,
+        "yields": 0,
+        "name": "ed25519-sign",
+        "bytes": 0,
+        "value": "8344cffc2f953abb23c2efc943ca99ba60195943fd7422b07c878fc8fae4f7e7ca8f3e673ebb2a69cefbb973ce21561e82dd0b72e064412b3b294f549cf4b702",
+        "round": 5,
+        "elapsedMs": 2,
+        "error": false,
+        "ok": true,
+        "belowTimeout": true,
+        "longestSliceMs": 2
+      },
+      "randomness-vm-timing": {
+        "name": "vm-timing",
+        "belowTimeout": true,
+        "elapsedMs": 534,
+        "value": {
+          "entropy": "VM instruction timing; upstream warns this is riskier",
+          "generatedBytes": 32
+        },
+        "error": false,
+        "ok": true,
+        "yields": 0,
+        "longestSliceMs": 534
+      },
+      "sha256-section-12288": {
+        "yields": 0,
+        "name": "sha256-section-12288",
+        "bytes": 12288,
+        "value": "a93f53ad4e57d74234dc46b457259b7b6e07793aaad04a3042f4013b65777c95",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 12,
+        "longestSliceMs": 12
+      },
+      "crypto-progress": {
+        "next": "ed25519-verify-8192",
         "round": 5
       },
-      "storage": {
-        "capacity": 1000000,
-        "freeBefore": 802764,
+      "randomness-supplied-seed": {
+        "name": "supplied-seed",
+        "belowTimeout": true,
+        "elapsedMs": 1,
+        "value": {
+          "entropy": "caller supplied; fixture has no secret entropy",
+          "generatedBytes": 32
+        },
+        "error": false,
         "ok": true,
-        "freeAfter": 800263,
+        "yields": 0,
+        "longestSliceMs": 1
+      },
+      "ed25519-reject": {
+        "yields": 0,
+        "name": "ed25519-reject",
+        "bytes": 1,
+        "value": "modified message rejected",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 7,
+        "longestSliceMs": 7
+      },
+      "initial": {
+        "turtleIsMock": false,
+        "results": {
+          "crypto": true,
+          "storage": true,
+          "randomness": true,
+          "astar": true
+        },
+        "boots": 1,
+        "v": 1,
+        "ok": true,
+        "computer": 0,
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)"
+      },
+      "sha256-section-37888": {
+        "yields": 0,
+        "name": "sha256-section-37888",
+        "bytes": 37888,
+        "value": "47ff92efadddd98635ff5b576a5ea3f09c73c3c02e60b582af10a3e16d067ec0",
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 36,
+        "longestSliceMs": 36
+      },
+      "ed25519-verify": {
+        "yields": 0,
+        "name": "ed25519-verify",
+        "bytes": 0,
+        "value": true,
+        "round": 5,
+        "belowTimeout": true,
+        "error": false,
+        "ok": true,
+        "elapsedMs": 6,
+        "longestSliceMs": 6
+      }
+    },
+    "1": {
+      "storage": {
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
         "matchesMinimumFileCost": false,
+        "v": 1,
+        "files": [
+          {
+            "allocated": 0,
+            "bytes": 0,
+            "readSize": 0
+          },
+          {
+            "allocated": 1,
+            "bytes": 1,
+            "readSize": 1
+          },
+          {
+            "allocated": 499,
+            "bytes": 499,
+            "readSize": 499
+          },
+          {
+            "allocated": 500,
+            "bytes": 500,
+            "readSize": 500
+          },
+          {
+            "allocated": 501,
+            "bytes": 501,
+            "readSize": 501
+          },
+          {
+            "allocated": 1000,
+            "bytes": 1000,
+            "readSize": 1000
+          }
+        ],
+        "ok": true,
         "directoryCost": 0,
+        "freeBefore": 807679,
+        "capacity": 1000000,
+        "freeAfter": 805178,
+        "kind": "turtle",
+        "computer": 1
+      },
+      "boot": {
+        "ok": true,
+        "at": 1792521828649,
+        "boots": 1,
+        "id": 1
+      },
+      "initial": {
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+        "results": {
+          "storage": true
+        },
+        "v": 1,
+        "ok": true,
+        "turtleIsMock": true,
+        "boots": 1,
+        "computer": 1
+      }
+    },
+    "2": {
+      "storage": {
+        "freeBefore": 807679,
+        "computer": 2,
+        "freeAfter": 805178,
+        "directoryCost": 0,
+        "capacity": 1000000,
+        "kind": "turtle",
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+        "ok": true,
+        "v": 1,
+        "matchesMinimumFileCost": false,
         "files": [
           {
             "readSize": 0,
@@ -1874,161 +2011,24 @@
             "bytes": 1000,
             "allocated": 1000
           }
-        ],
-        "kind": "computer",
-        "computer": 0,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
+        ]
       },
-      "x25519-exchange": {
-        "longestSliceMs": 7,
-        "yields": 0,
-        "value": "RFC 7748 exchange matched",
-        "name": "x25519-exchange",
-        "error": false,
-        "ok": true,
-        "bytes": 64,
-        "elapsedMs": 7,
-        "belowTimeout": true,
-        "round": 5
-      },
-      "x25519-keygen": {
-        "longestSliceMs": 3,
-        "yields": 0,
-        "value": "RFC 7748 public key matched",
-        "name": "x25519-keygen",
-        "error": false,
-        "ok": true,
-        "bytes": 32,
-        "elapsedMs": 3,
-        "belowTimeout": true,
-        "round": 5
-      }
-    },
-    "1": {
-      "boot": {
-        "id": 1,
-        "boots": 1,
-        "ok": true,
-        "at": 1792515723854
-      },
-      "initial": {
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "results": {
-          "storage": true
-        },
-        "turtleIsMock": true,
-        "computer": 1,
-        "boots": 1,
-        "v": 1,
-        "ok": true
-      },
-      "storage": {
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "capacity": 1000000,
-        "kind": "turtle",
-        "matchesMinimumFileCost": false,
-        "freeAfter": 800263,
-        "ok": true,
-        "freeBefore": 802764,
-        "directoryCost": 0,
-        "files": [
-          {
-            "allocated": 0,
-            "bytes": 0,
-            "readSize": 0
-          },
-          {
-            "allocated": 1,
-            "bytes": 1,
-            "readSize": 1
-          },
-          {
-            "allocated": 499,
-            "bytes": 499,
-            "readSize": 499
-          },
-          {
-            "allocated": 500,
-            "bytes": 500,
-            "readSize": 500
-          },
-          {
-            "allocated": 501,
-            "bytes": 501,
-            "readSize": 501
-          },
-          {
-            "allocated": 1000,
-            "bytes": 1000,
-            "readSize": 1000
-          }
-        ],
-        "computer": 1,
-        "v": 1
-      }
-    },
-    "2": {
       "boot": {
         "ok": true,
         "boots": 1,
         "id": 2,
-        "at": 1792515723563
+        "at": 1792521828649
       },
       "initial": {
+        "v": 1,
+        "computer": 2,
+        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
         "ok": true,
+        "boots": 1,
         "results": {
           "storage": true
         },
-        "turtleIsMock": true,
-        "computer": 2,
-        "boots": 1,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1
-      },
-      "storage": {
-        "ok": true,
-        "capacity": 1000000,
-        "freeBefore": 802764,
-        "runtime": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
-        "v": 1,
-        "freeAfter": 800263,
-        "directoryCost": 0,
-        "files": [
-          {
-            "bytes": 0,
-            "allocated": 0,
-            "readSize": 0
-          },
-          {
-            "bytes": 1,
-            "allocated": 1,
-            "readSize": 1
-          },
-          {
-            "bytes": 499,
-            "allocated": 499,
-            "readSize": 499
-          },
-          {
-            "bytes": 500,
-            "allocated": 500,
-            "readSize": 500
-          },
-          {
-            "bytes": 501,
-            "allocated": 501,
-            "readSize": 501
-          },
-          {
-            "bytes": 1000,
-            "allocated": 1000,
-            "readSize": 1000
-          }
-        ],
-        "kind": "turtle",
-        "matchesMinimumFileCost": false,
-        "computer": 2
+        "turtleIsMock": true
       }
     }
   },
@@ -2037,7 +2037,7 @@
   "mockTurtles": 2,
   "diskLimit": 1000000,
   "gpsHosts": 0,
-  "sandbox": "sandbox-33f50ca0e17648c6ad55798bce715130",
-  "screenshots": 36,
+  "sandbox": "sandbox-abf2a478d2e54efe8719f220bf85e512",
+  "screenshots": 35,
   "status": "PASS"
 }

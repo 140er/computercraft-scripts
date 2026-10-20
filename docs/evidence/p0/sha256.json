@@ -1,5 +1,6 @@
 {
   ".gitattributes": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da",
+  "README.md": "432bd883025782cb7297a2ef73c071f0620f6c5381fe499c01b64879344c2761",
   "capture/client-blocked.json": "9e44bfa64b6f3579da92bee4560f31a340c06095b6378849a8da6a319aa5252e",
   "capture/scene-rcon.txt": "2cc07a17a28e8f2450e96af79f27d2380db80852cfd6830bd0523265347e0fea",
   "closed.json": "0c78c818fcfbfd02a8ceaef82bedccee55678c5088fdbaaefab90e745afd0461",
@@ -22,7 +23,7 @@
   "config/superbwarfare-server.toml": "f524037a79f4f9ea2cb5247757a4c44bf913e7f52564878adc7b27086bcb385a",
   "config/turtlebattery-server.toml": "ab0d0ae331fe4e21415dc124ee1f6cad11a0ad67c48a320dc994ec8c8f6f17ea",
   "config/turtlematic.toml": "222c5db11651460ddb2cb5e7c0d251f5bfd11a4bab88471f9f95cd6d9ed8d85c",
-  "craftos-run.zip": "2a7e152b0cdaf847436bd589c889282c53eced8a09cef007e6bf8f592a5ef6ba",
+  "craftos-run.zip": "fb034b23e71c947a57f34ee690dbeb65975e9f63933a2e8d52ae317de249ea4e",
   "failed-attempts/debug.zip": "f81fb2287a0eb675c9110c749ab6d850a2ba3590d22b9f0c2b153592ffc2c5e9",
   "failed-attempts/final-probes.zip": "49199f7ac4cd388037f8f28dcf2974e000fb78c6b75954c6bdab4ece1e5ac2a2",
   "failed-attempts/repair.zip": "c82eb063143acea6e8b1303d296575396c92a4c47b79e5555e6163e7415557d8",
@@ -32,7 +33,7 @@
   "failed-attempts/sandbox-e3b80251bc9e4985bfe60372fa0872eb.zip": "5153a23085235288ebaac113d9455f06d42a03f71b31b92e90a3d91e48b20191",
   "failed-attempts/sandbox-e6263dc68f034e86a609ee9b5fed180c.zip": "3c35c0694ea00518f89d4ea57a4fb11f624dca53671e11369cc4cb0214368d00",
   "failed-attempts/upgrade-retry.zip": "51237b7d71514ee31eebffd2a12204f0faee58f876484ed3fb84ae767ea357ba",
-  "gateA.json": "2e232f97444ebc1b9c15b1d9092e69c1603c7164526b25445cfba3c212a815a4",
+  "gateA.json": "fcf96690bd9ea6e93a415124534bfb0bf490ba2bd5d3298b464fa7afac08913f",
   "gateB.json": "d0fdaf0f306fa032b9f89bfd6620dd88c1d64e93c44e732784a580b1e780b4e5",
   "host-load.json": "b866baca470a0923ef97385f4479198222c5130973d55420f9376fc01561a48b",
   "inventory-rcon.txt": "b0ce64b4450146d42213dd0a46cdcbb559aa16a8355d84cc703120ec01c371f0",
@@ -40,7 +41,7 @@
   "logs/debug.log": "2be005f49c455ba632cf7c450631e45c2a8ba49b4e42f2d7df747ccfd8742e21",
   "logs/latest.log": "6fe120e3349b2011110e10f2b9444c0abcf627c81665a4ba22403e785c3b0b04",
   "rcon.txt": "b558520cde844b120cf68f26e02b592f220cdae739083607e7b2de4fd3c5f51a",
-  "README.md": "954d779083b057a8441650f89278b6fe1c2b3f0bc8e4d6e55556a2eaca993188",
+  "sandbox-smoke.txt": "36d0190584dd7a09e909619142b0cfe3acf9df6d94b7b0ba1a21240d70336911",
   "transport-retries.json": "c41594b90b81a224abf38295411aeb720598f0440dce2e51804f2140053791b2",
   "unit.log": "581e06426f770d317e8bc36d707e89101d6f9299d7184534c8f0b861cc806787"
 }
