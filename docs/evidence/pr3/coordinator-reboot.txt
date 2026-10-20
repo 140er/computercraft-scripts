@@ -1,0 +1,6 @@
+2026-10-20T08:41:49.0202686Z > computercraft shutdown 4
+Shutdown 1/1 computers
+
+2026-10-20T08:41:50.0676729Z > computercraft turn-on 4
+Turned on 1/1 computers
+

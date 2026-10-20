@@ -12,8 +12,8 @@ Feature checklist
   Smallest safe decomposition. One owner extends the existing RPC, atomic store and navigation.
 - [x] 4. Delegate code-writing to a subagent using your configured feature model.
   Skip delegation because the PR 1 rules require one agent. Keep a separate review pass.
-- [ ] 5. Verify on the matching surface.
-- [ ] 6. Rebase into small, ordered commits. Stack follow-ups.
+- [x] 5. Verify on the matching surface.
+- [x] 6. Rebase into small, ordered commits. Stack follow-ups.
 - [x] 7. If the design is contested, `interrogate` before shipping.
   Skip other models and agents under the PR 1 rules.
 - [ ] 8. Run **Opening a PR**.
@@ -33,3 +33,7 @@ Mining stays disabled unless `miner.cfg` explicitly enables it. Configuration us
 Model the Domain put ownership in zone tasks and traversal in DFS frames. Make Operations Idempotent preserved tokens across renewals and made completion safe to retry. Laziness Protocol kept movement and atomic storage in the existing modules. Test Behavior, Not Implementation required ore counts, real positions, and failed-before recovery tests. Sequence Work into Verifiable Units separated allocation, extraction, and the queued-air fix into commits. Prove It Works required both actual runtimes and matching source hashes.
 
 The PR 1 rules require one agent and one model. Parallel design delegates and cross-model review were skipped under that instruction. The deslop skill is absent from the installed pstack skills. The code and prose received a manual review. The added code contains no explanatory comments.
+
+The six-face visited traversal and service/resume behavior follow `smartmine.lua`. The new engine persists the stack and delegates physical movement to navigation. Speculative diagonal excavation and lava detours would cross the chosen zone and return policies, so they were excluded.
+
+No session transcript directory was supplied. The final trail audit used this conversation's tool outputs and the saved artifacts. Correction rows withdraw the early RCON unload claim and qualify the inferred client-config race. The authoritative final runs are named in README.md.

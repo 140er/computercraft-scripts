@@ -99,6 +99,9 @@ try {
     Start-Sleep -Seconds 2
     foreach ($id in 0..4) { Remove-Item -LiteralPath "$computers\$id\boot-hold" }
     Rcon 'computercraft turn-on 0 1 2 3 4 6' | Out-Null
+    foreach($id in 1..3) { Mining-Wait "$computers\$id\sandbox-result.json" }
+    Rcon 'computercraft shutdown 4' | Out-Null
+    Rcon 'computercraft turn-on 4' | Out-Null
     Mining-Wait "$computers\4\sandbox-result.json"
     foreach ($id in 0..4) { Mining-Wait "$computers\$id\sandbox-result.json" }
     $mined=0

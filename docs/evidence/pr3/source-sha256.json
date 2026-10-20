@@ -36,7 +36,7 @@
         "file":  "ssot-client.lua"
     },
     {
-        "sha256":  "115b97727df7dcacfaf333e5f60f188f0ffa0e25c9dcf6568d6e39275df0ef19",
+        "sha256":  "27f9ea497178f3f72f41b8717716ae3308138e8c085d37e644425e8da3b30f24",
         "computers":  [
                           0,
                           1,
@@ -60,7 +60,7 @@
         "file":  "nav.lua"
     },
     {
-        "sha256":  "510ebbb20c888db2d81e9cd440021d38f7d3989d7ec3b8c51f8a49df6524bb3f",
+        "sha256":  "ddf4b41bb1f11a54d352ec9efc23ee8efa5c903a1d9fade38f2aeec363ad7436",
         "computers":  [
                           0,
                           1,
