@@ -137,6 +137,40 @@ function M.config(raw)
   return { enabled = raw.enabled == nil or raw.enabled == true, server = server }
 end
 
+function M.discover(cfg)
+  cfg = cfg or M.config()
+  if not (cfg.enabled and cfg.server == false and fs and fs.exists and fs.exists("plug.lua")) then
+    return cfg
+  end
+  local ok, plug = pcall(dofile, "plug.lua")
+  if not (ok and type(plug) == "table") then return cfg end
+  local value, source = plug.fill(nil, nil, function()
+    return plug.lookup({ peripheral = peripheral, rednet = rednet }, "fleetserver", "server")
+  end, function(spec)
+    spec.title, spec.question = "Planner", "Fleet server id"
+    spec.kind = spec.kind or "number"
+    return plug.ask(plug.termio(), spec)
+  end)
+  if type(value) == "number" and (source == "discover" or source == "prompt") then
+    local raw = {}
+    if fs.exists("planner.cfg") then
+      local handle = fs.open("planner.cfg", "r")
+      local parsedOk, parsed = pcall(textutils.unserialize, handle.readAll())
+      handle.close()
+      if parsedOk and type(parsed) == "table" then raw = parsed end
+    end
+    if raw.server == nil then
+      raw.server = value
+      raw.enabled = raw.enabled == true
+      local handle = fs.open("planner.cfg", "w")
+      handle.write(textutils.serialize(raw))
+      handle.close()
+      cfg.server = value
+    end
+  end
+  return cfg
+end
+
 function M.clip(list, cap)
   if type(list) ~= "table" then return {} end
   if type(cap) ~= "number" or cap < 0 then cap = 128 end
@@ -173,11 +207,12 @@ end
 
 local function route(session, list)
   local to = session.server or false
+  local localApply = session.host == "server" or session.hubOnly == true
   for i = 1, #list do
     local e = list[i]
     e.to = to
-    e.localApply = session.host == "server"
-    if session.host ~= "server" and not to then e.discover = "fleetserver" end
+    e.localApply = localApply
+    if not localApply and not to then e.discover = "fleetserver" end
   end
   return list
 end
@@ -876,9 +911,9 @@ local function open(hostName, opts)
       data = { plan = { y = 64, rev = 0, areas = {} }, fixtures = {}, bots = {}, undo = {} },
     }
   end
-  if hostName == "hub" then
-    if opts.hubOnly then return nil, "hub_only_is_s1" end
-    if not integer(opts.server, 0, 2147483647) then return nil, "needs_server" end
+  local hubOnly = hostName == "hub" and opts.hubOnly == true
+  if hostName == "hub" and not hubOnly and not integer(opts.server, 0, 2147483647) then
+    return nil, "needs_server"
   end
   local frame = opts.frame or "abs"
   if frame ~= "abs" and not (type(frame) == "string" and frame:match("^f:[%w:.%-]+$") and #frame <= 64) then
@@ -902,9 +937,9 @@ local function open(hostName, opts)
   local id, nextCounter = core.mint(origin, counter)
   if not id then return nil, nextCounter end
   local server = false
-  if integer(opts.server, 0, 2147483647) then server = opts.server end
+  if not hubOnly and integer(opts.server, 0, 2147483647) then server = opts.server end
   return {
-    enabled = true, host = hostName, server = server, yAbs = opts.yAbs ~= false,
+    enabled = true, host = hostName, server = server, hubOnly = hubOnly, yAbs = opts.yAbs ~= false,
     settingsRevision = revision, world = type(opts.world) == "function" and opts.world or nil,
     screen = { w = screen.w, h = screen.h },
     ui = {
@@ -923,7 +958,7 @@ function M.host(name)
   if name ~= "panel" and name ~= "hub" and name ~= "server" then
     error("unknown planner host " .. tostring(name), 2)
   end
-  local api = { config = M.config, fromCC = M.fromCC }
+  local api = { config = M.config, discover = M.discover, fromCC = M.fromCC }
   function api.open(opts) return open(name, opts) end
   function api.records(session) return records(session) end
   function api.apply(session, step) return apply(session, step) end

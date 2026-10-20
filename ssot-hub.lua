@@ -1,5 +1,4 @@
 -- S1: SSOT hub profile, authority record, and handover.
--- One module, two profiles. hubProfile defaults off in ssot.lua, which loads this file only then.
 -- Pairing keys stay in cfg.keys (ssot.keys on disk). They ride the handover pages and are not map cells.
 local T1 = dofile("s1_t1.lua")
 local Ledger = dofile("s1_h4c.lua")
@@ -150,12 +149,42 @@ function M.prepare(s, cfg, clock)
   end
 end
 
-local function canIssue(s, cfg)
-  local a = s.authority
-  if not authorityOk(a) or a.frozen or a.holder ~= cfg.holder or a.epoch < 1 then return false end
+function M.issuing(s, holder)
+  local a = type(s) == "table" and s.authority or nil
+  if not authorityOk(a) or a.frozen or a.epoch < 1 then return false end
+  if holder ~= nil and a.holder ~= holder then return false end
   local phase = s.handover and s.handover.phase or "idle"
   if phase == "importing" or phase == "frozen" or phase == "client" then return false end
   return true
+end
+
+local function canIssue(s, cfg)
+  return M.issuing(s, cfg and cfg.holder)
+end
+
+function M.decide(here, there)
+  if type(here) ~= "table" then return "wait" end
+  if here.phase == "client" then
+    if there and there.phase == "taken" then return "reissue" end
+    return "client"
+  end
+  if here.phase == "frozen" then
+    if not there then return "wait" end
+    if there.phase == "taken" and there.kind == "server" and there.frozen ~= true
+      and there.epoch == here.epoch + 1 then
+      return "adopt"
+    end
+    if there.phase == "importing" then return "export" end
+    if there.phase == "idle" and there.epoch == 0 then return "export" end
+    return "wait"
+  end
+  if here.kind ~= "hub" or here.phase ~= "idle" then return "wait" end
+  if not there then return here.canIssue and "issue" or "wait" end
+  if there.phase == "importing" or there.phase == "taken" or (there.phase == "idle" and there.epoch == 0) then
+    return "freeze"
+  end
+  if there.canIssue and (here.records or 0) == 0 then return "follow" end
+  return here.canIssue and "issue" or "wait"
 end
 
 local function deny(s)
