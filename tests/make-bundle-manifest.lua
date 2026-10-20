@@ -70,6 +70,15 @@ for _, file in ipairs({ "hub.lua", "server.lua", "panel.lua", "factory.lua", "st
   dependencies[file] = listed
   listed[#listed + 1] = "wh2-program.lua"
 end
+for _, file in ipairs({
+  "miner.lua", "store.lua", "factory.lua", "farmer.lua", "lumber.lua", "lava.lua",
+  "builder.lua", "buddy.lua", "roomsorter.lua", "panel.lua", "server.lua", "gpshost.lua",
+  "planner-panel.lua", "planner-hub.lua",
+}) do
+  local listed = dependencies[file] or {}
+  dependencies[file] = listed
+  listed[#listed + 1] = "plug.lua"
+end
 dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-ar.lua"
 dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-dev.lua"
 dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-ar.lua"
