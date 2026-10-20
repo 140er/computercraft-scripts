@@ -119,6 +119,31 @@ public static class SSOTCapture {
         [SSOTCapture]::PostMessage($process.MainWindowHandle,0x100,[IntPtr]$Key,[IntPtr]$bits) | Out-Null
         [SSOTCapture]::PostMessage($process.MainWindowHandle,0x101,[IntPtr]$Key,[IntPtr]($bits -bor 3221225472)) | Out-Null
     }
+    function Capture-ClientScreenshot([string]$Name) {
+        $captureAt=[DateTime]::UtcNow
+        Send-ClientKey 0x71
+        $deadline=$captureAt.AddSeconds(90)
+        do {
+            $shot=Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTimeUtc -ge $captureAt } |
+                Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+            $bytes=$null
+            if ($shot) {
+                try { $bytes=[IO.File]::ReadAllBytes($shot.FullName) } catch {}
+            }
+            if ($bytes -and $bytes.Length -ge 20 -and
+                [BitConverter]::ToString($bytes,0,8) -eq '89-50-4E-47-0D-0A-1A-0A' -and
+                [BitConverter]::ToString($bytes,$bytes.Length-12,12) -eq '00-00-00-00-49-45-4E-44-AE-42-60-82') {
+                [IO.File]::WriteAllBytes("$Output\$Name",$bytes)
+                "$Name <- $($shot.FullName) ($($bytes.Length) bytes, PNG signature and IEND verified)" |
+                    Add-Content "$Output\screenshot-sources.txt"
+                return
+            }
+            if ($process.HasExited) { throw "Client exited before a complete PNG was saved for $Name." }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTime]::UtcNow -lt $deadline)
+        throw "F2 did not finish a PNG with a valid signature and IEND for $Name."
+    }
     function Send-ClientChat([string]$Text) {
         Send-ClientKey 0x54
         Start-Sleep -Milliseconds 500
@@ -176,48 +201,16 @@ public static class SSOTCapture {
         if ($inventory -notmatch 'cc_ar:ar_goggles_data') { throw 'Linked goggles component is missing from the test player.' }
         Start-Sleep -Seconds 5
     }
-    $scan = [SSOTCapture]::MapVirtualKey(0x71,0)
-    $keyData = [int64](1 -bor ($scan -shl 16))
-    $captureAt = [DateTime]::UtcNow
-    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x100, [IntPtr]0x71, [IntPtr]$keyData) | Out-Null
-    [SSOTCapture]::PostMessage($process.MainWindowHandle, 0x101, [IntPtr]0x71, [IntPtr]($keyData -bor 3221225472)) | Out-Null
-    $deadline = [DateTime]::UtcNow.AddSeconds(30)
-    do {
-        $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($shot) { break }
-        Start-Sleep -Milliseconds 500
-    } while ([DateTime]::UtcNow -lt $deadline)
-    if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
-    Copy-Item $shot.FullName "$Output\$ShotName" -Force
+    Capture-ClientScreenshot $ShotName
     if ($View -eq 'ar') {
         Invoke-TestRcon $RconPort $secret 'tp SSOTProof 6 65 5 180 0' | Out-Null
         Start-Sleep -Seconds 5
-        $captureAt = [DateTime]::UtcNow
-        Send-ClientKey 0x71
-        $deadline = [DateTime]::UtcNow.AddSeconds(30)
-        do {
-            $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($shot) { break }
-            Start-Sleep -Milliseconds 500
-        } while ([DateTime]::UtcNow -lt $deadline)
-        if (!$shot) { throw 'F2 did not produce the behind-wall goggles PNG.' }
-        Copy-Item $shot.FullName "$Output\ar-xray.png" -Force
+        Capture-ClientScreenshot 'ar-xray.png'
         $command='fill 3 65 0 9 68 0 minecraft:air'
         $reply=Invoke-TestRcon $RconPort $secret $command
         "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt"
         Start-Sleep -Seconds 5
-        $captureAt = [DateTime]::UtcNow
-        Send-ClientKey 0x71
-        $deadline = [DateTime]::UtcNow.AddSeconds(30)
-        do {
-            $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($shot) { break }
-            Start-Sleep -Milliseconds 500
-        } while ([DateTime]::UtcNow -lt $deadline)
-        if (!$shot) { throw 'F2 did not produce the unobstructed goggles PNG.' }
-        Copy-Item $shot.FullName "$Output\ar-geometry.png" -Force
+        Capture-ClientScreenshot 'ar-geometry.png'
     }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
     if ($chatFailure) { throw "Real AP chat validation failed. $chatFailure" }
