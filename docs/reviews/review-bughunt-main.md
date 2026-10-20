@@ -2,7 +2,7 @@
 
 Branch `review/bughunt-main`. The hunt is main only. `feat/wh2-base` and the open `feat/ssot-*` branches were read and not pushed.
 
-Checked areas are concurrency, restarts, protocol and auth, the 1000000 byte disk, and chunk loading. The mock suite is `lua5.2 tests/run.lua`. On this branch that command is the pre-fix suite. The fixes live on other branches and were run there.
+Checked areas are concurrency, restarts, protocol and auth, the 1000000 byte disk, and chunk loading. The mock suite is `lua5.2 tests/run.lua`. On this branch that command reports 98 tests passed. The fixes live on other branches and were run there.
 
 ## Ranked findings
 
