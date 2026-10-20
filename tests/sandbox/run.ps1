@@ -132,10 +132,15 @@ try {
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
         if ($Scenario -in @('ssot','nav','mining','warehouse')) {
             foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')) {
-                Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
+                $from = Join-Path (Join-Path $Source 'tests') $testFile
+                if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $disk }
             }
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
-            Copy-Item "$Source\tests\mocks.lua", "$Source\tests\mining-checks.lua", "$Source\tests\warehouse-checks.lua" "$disk\tests"
+            $bundle = @('mocks.lua','mining-checks.lua','warehouse-checks.lua') | ForEach-Object {
+                $from = Join-Path (Join-Path $Source 'tests') $_
+                if (Test-Path -LiteralPath $from) { $from }
+            }
+            if ($bundle) { Copy-Item -LiteralPath $bundle -Destination "$disk\tests" }
             Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
             Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
