@@ -209,6 +209,7 @@ function M.new(s, cfg, clock, epoch, save, map)
   assert(cfg.deadTurtles == nil or type(cfg.deadTurtles) == "boolean", "invalid deadTurtles")
   assert(cfg.deadAfterMs == nil or integer(cfg.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
   if deadOn and not Dead then error("dead.lua is missing", 0) end
+  local LeaseV2 = cfg.leaseV2 == true and dofile("lease.lua") or nil
   local failed = false
   -- A missing turtle does not occupy. dead.lua decides that.
   local function occupied(p, owner)
@@ -221,6 +222,10 @@ function M.new(s, cfg, clock, epoch, save, map)
         and (equal(p, r.to) or equal(p, r.from)) then return id end
     end
     if Planner.blocks(s.planner, p) then return true end
+    if LeaseV2 then
+      local holder = LeaseV2.occupies(s, p, owner, clock())
+      if holder then return holder end
+    end
     return false
   end
   local function scanMap(id, m, p)
@@ -319,6 +324,7 @@ function M.new(s, cfg, clock, epoch, save, map)
     end
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
+    if LeaseV2 and op:sub(1,6)=="lease-" then return LeaseV2.run(s,id,m,clock,epoch,cfg) end
     if op=="traffic" then
       if not s.poses[id] or s.poses[id].boot~=m.boot then return {ok=false,error="sync before traffic"} end
       if m.peer~=nil then
@@ -760,6 +766,9 @@ function M.open(cfg)
         if cached>8 or not word(rid,80) or type(entry)~="table" or not word(entry.request,32768)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
+    end
+    if s.leases ~= nil or s.leaseMap ~= nil or s.leaseAck ~= nil or s.leaseItems ~= nil then
+      if not dofile("lease.lua").validStored(s) then return false end
     end
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and Planner.valid(s.planner) and (not Dead or Dead.valid(s.live))
       and Wh2.open(cfg.wh2,M.pose).valid(s.wh2)
