@@ -1,3 +1,4 @@
+local scenario=...
 local id = os.getComputerID()
 assert(config.get("standardsMode") and fs.getCapacity("/") == 4000000)
 if not peripheral.isPresent("left") then assert(periphemu.create("left", "modem", 1)) end
@@ -60,5 +61,5 @@ elseif id == 5 then
   end
 else
   rednet.send(0,true,"ssot_boot")
-  program("ssot-runtime.lua","sandbox")
+  program("ssot-runtime.lua","sandbox",scenario)
 end

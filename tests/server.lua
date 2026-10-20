@@ -381,6 +381,18 @@ return function(test, equal, read, mocks)
     end
   end)
 
+  test("server ESTOP replaces queued movement commands",function()
+    local s=new() s.start(serverCode)
+    s.request({type="command",target=5,protocol="minearmy",message={type="go"}},99)
+    s.request({type="command",target=5,protocol="minearmy",message={type="estop"}},99)
+    s.advance(4)
+    local go,stop=0,0
+    for _,p in ipairs(s.sent) do
+      if p.id==5 and p.msg.type=="go" then go=go+1 end
+      if p.id==5 and p.msg.type=="estop" then stop=stop+1 end
+    end
+    assert(go==1 and stop>=2,"an older go command was retried after ESTOP")
+  end)
   test("server repeats an order until the miner confirms it, then gives up and logs", function()
     local s = new()
     s.start(serverCode)
@@ -599,9 +611,9 @@ return function(test, equal, read, mocks)
     end
   end)
 
-  test("one megabyte server mirrors the real repo once and serves matching root scripts", function()
+  test("four megabyte server mirrors the real repo once and serves matching root scripts", function()
     local m = new()
-    m.files, m.capacity = {}, 1000000
+    m.files, m.capacity = {}, 4000000
     for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
     downloads(m, repo)
     m.start(serverCode)

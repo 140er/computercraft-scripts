@@ -482,6 +482,21 @@ if not cfg then
   print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
+if args[1]=="nav" and args[2]=="bounds" then
+  local dim=assert(args[3],"dimension required")
+  local v={}
+  for i=1,6 do v[i]=assert(tonumber(args[i+3]),"six integer coordinates required") assert(v[i]%1==0) end
+  assert(v[1]<=v[4] and v[2]<=v[5] and v[3]<=v[6],"bounds are reversed")
+  cfg.nav=cfg.nav or {}
+  cfg.nav.bounds={min={dim=dim,x=v[1],y=v[2],z=v[3]},max={dim=dim,x=v[4],y=v[5],z=v[6]}}
+  saveTable(CFG_FILE,cfg)
+  print("Navigation bounds saved. Set nav.enabled=true in miner.cfg to enable.")
+  return
+end
+if args[1]=="nav" and args[2]=="calibrate" then
+  assert(cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true,"enable SSOT and navigation before calibration")
+  C.navCalibration=assert(DIRS[args[3]],"heading required")
+elseif args[1]=="nav" then error("Use miner nav bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> or miner nav calibrate <heading>",0) end
 local HOME = cfg.home
 -- The way its chest is (behind, left or right of the home spot; older setups: behind)
 cfg.chest = cfg.chest or OPP[cfg.facing]
@@ -535,7 +550,7 @@ if args[1] == "home" then
   return
 end
 
-local standaloneOre = args[1] and args[1]:lower()
+local standaloneOre = args[1]~="nav" and args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
   print("Unknown ore: " .. standaloneOre)
   return
@@ -829,6 +844,17 @@ end
 -- next move: after a reboot recover() checks which of the two is right.
 local function face(d)
   if d >= 4 then return end
+  if C.nav then
+    local ok,why=C.nav.face(d)
+    st.h=C.nav.pose().h save()
+    if not ok and why=="cancelled" and C.estop then
+      setStatus("ESTOP")
+      while C.estop do sleep(.1) end
+      return face(d)
+    end
+    if not ok then error("Turn refused: " .. tostring(why),0) end
+    return
+  end
   while st.h ~= d do
     st.turnFrom = st.h
     local ok, why
@@ -1083,8 +1109,19 @@ local function applyMove(d)
   known.put(nil, "minecraft:air") -- where it stands now is open
 end
 
--- One step, with the fuel trick so a reboot mid-move does not lose the position.
+function C.navMove(d,inVein,policy)
+  st.navPending={d=d,vein=inVein} save()
+  local ok,why=C.nav.step(d,policy)
+  local p=C.nav.pose()
+  if p.x~=pos.x or p.y~=pos.y or p.z~=pos.z then
+    if inVein=="pop" then st.vein[#st.vein]=nil elseif inVein then st.vein[#st.vein+1]=d end
+  end
+  pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+  st.navPending=nil save()
+  return ok,why
+end
 local function rawMove(d, inVein, backward)
+  if C.nav then return C.navMove(d,inVein,"explore") end
   if C.ssotMoving then return false, "SSOT movement busy" end
   local mv = turtle.forward
   if backward then mv = turtle.back
@@ -1142,6 +1179,7 @@ end
 
 -- Safe movement: never step into lava (seal it first), dig where needed.
 local function move(d, inVein, checkRoute)
+  if C.nav then return C.navMove(d,inVein,st.phase=="returning" and "walk" or "excavate") end
   local lavaTries = 0
   for attempt = 1, C.RETRY do
     local info = inspect(d)
@@ -1342,6 +1380,13 @@ local function goHome(reason)
   st.phase = "returning"
   save()
   setStatus("Going home: " .. (reason or ""))
+  if C.nav then
+    local ok,why=C.nav.go({dim=cfg.ssot.dimension,x=HOME.x,y=HOME.y,z=HOME.z},"walk")
+    local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h save()
+    if not ok then error("Safe return refused: " .. tostring(why),0) end
+    st.vein={} st.phase="home" save()
+    return
+  end
   unwindVein()
   if st.job and st.job.bore then B.back() end -- tunnel: back to the shaft along the tunnel
   if pos.y < HOME.y - 2 then dropJunk() end
@@ -2032,6 +2077,9 @@ local function groundBlock(info)
   for _, t in ipairs(GROUND_TAGS) do if hasTag(info, t) then return true end end
   return false
 end
+function C.navCanExcavate(info)
+  return not isLiquid(info) and not isUnbreakable(info) and groundBlock(info)
+end
 
 C.PILLAR = 8      -- marker pillar height
 C.SKY_AIR = 6     -- this many air blocks in a row above Y = home means open air
@@ -2137,6 +2185,11 @@ local function calibrateAtHome()
 end
 
 local function recover()
+  if C.nav then
+    if st.job then setTargets(st.job.targets,st.job) end
+    if pos.x~=HOME.x or pos.y~=HOME.y or pos.z~=HOME.z then goHome("reboot") end
+    return
+  end
   if st.phase == "home" then verifyHome() end
   local turnFrom = st.turnFrom -- before calibrateAtHome turns around
   if calibrateAtHome() then
@@ -2614,12 +2667,22 @@ local function listener()
   }
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == C.netEvent and c == PROTOCOL and type(b) == "table" then
-      -- An order passed on by the fleet server: confirm it, or it keeps sending it
-      if b.cid and (b.target == nil or b.target == os.getComputerID()) then
-        pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid }, PROTOCOL)
+    if ev == C.netEvent and c == PROTOCOL and type(b) == "table" and (not C.nav or a==cfg.ssot.server) then
+      local apply,valid=true,true
+      if C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop")
+        and (b.target==nil or b.target==os.getComputerID()) then
+        local why
+        apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid)
+        valid=why~="invalid command"
+        C.estop=C.nav.stopped()
       end
-      if (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
+      if valid and b.cid and (b.target == nil or b.target == os.getComputerID()) then
+        pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid,commandEpoch=b.commandEpoch }, PROTOCOL)
+      end
+      if apply then
+      if C.nav and b.type=="estop" and (b.target==nil or b.target==os.getComputerID()) then
+        C.estop=true
+      elseif (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
         if b.from then hubId = b.from end
         recall = (b.type == "recall")
         publish(true)
@@ -2632,6 +2695,7 @@ local function listener()
       elseif b.type == "dev" then -- the pocket panel's console
         devCommand(b, "miner.log", "miner", function(r) rednet.send(a, r, PROTOCOL) end, hooks)
       end
+      end
     end
   end
 end
@@ -2639,6 +2703,7 @@ end
 local function heartbeat()
   while true do
     sleep(3)
+    if C.nav and C.nav.resumePending() then C.estop=false end
     publish(true)
   end
 end
@@ -2648,6 +2713,30 @@ if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
 if C.ssot then
   C.ssotWorker = function()
+    if cfg.nav and cfg.nav.enabled==true then
+      assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
+      C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
+        bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,
+        observe=function()
+          local x,y,z=gps.locate(2)
+          if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
+        end,
+        cancelled=function() return C.estop or st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
+      C.estop=C.nav.stopped()
+      local ok,why
+      if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
+      assert(ok,why)
+      recall=C.nav.controlState().kind=="recall"
+      local p=C.nav.pose()
+      if st.navPending and (p.x~=pos.x or p.y~=pos.y or p.z~=pos.z) then
+        if st.navPending.vein=="pop" then st.vein[#st.vein]=nil
+        elseif st.navPending.vein then st.vein[#st.vein+1]=st.navPending.d end
+      end
+      pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h st.navPending=nil save()
+      if C.navCalibration~=nil then print("Navigation pose calibrated") return end
+      worker()
+      return
+    end
     assert(not st.pending and not st.turnFrom, "Resolve the miner movement journal before SSOT boot")
     local x, y, z = gps.locate(2)
     assert(x and x % 1 == 0 and y % 1 == 0 and z % 1 == 0, "SSOT boot needs an observed GPS pose")

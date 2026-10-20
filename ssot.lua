@@ -96,7 +96,21 @@ function M.new(s, cfg, clock, epoch, save)
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
-    if op == "sync" then
+    if op=="calibrate" then
+      local previous=s.poses[id]
+      if not M.pose(p) or not M.pose(m.previous) or p.dim~=m.previous.dim or occupied(p,id) then
+        return {ok=false,error="invalid calibration destination"}
+      end
+      if previous and not equal(previous,m.previous) and not equal(previous,p) then
+        return {ok=false,error="stale calibration source"}
+      end
+      if r and (m.token~=r.token or m.epoch~=r.epoch or not equal(m.previous,r.from)) then
+        return {ok=false,error="calibration needs pending token"}
+      end
+      s.poses[id],s.moves[id]=clone(p),nil
+      s.poses[id].boot=m.boot
+      return {ok=true,pose=clone(p),epoch=epoch}
+    elseif op == "sync" then
       if not M.pose(p) or occupied(p, id) then return { ok = false, error = "pose conflict" } end
       if r and not equal(p, r.from) and not equal(p, r.to) then return { ok = false, error = "reconcile source or destination" } end
       if r and r.phase == "granted" and not equal(p, r.from) then return { ok = false, error = "move never started" } end
@@ -191,7 +205,7 @@ function M.new(s, cfg, clock, epoch, save)
     end
     return { ok = false, error = "unknown operation" }
   end
-  return { state = function() return A.copy(s) end, handle = function(id, m)
+  return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"

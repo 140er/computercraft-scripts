@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -9,6 +9,7 @@ param(
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
+if ($Scenario -eq 'nav') { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
@@ -53,11 +54,12 @@ foreach ($id in 0..4) {
     foreach ($file in Get-ChildItem "$source\*.lua") {
         [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
     }
-    Copy-Item "$source\tests\ssot-runtime.lua" $disk
+    Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua" $disk
     [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
     $startup = if ($id -eq 0) { 'shell.run("test-server.lua")' } else {
-        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft")'
+        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '")'
     }
+    if ($Scenario -eq 'nav' -and $id -eq 3) { $startup = 'if fs.exists("nav-probe") then shell.run("nav-probe.lua") else ' + $startup + ' end' }
     $startup = 'while fs.exists("boot-hold") do sleep(0.1) end; while not peripheral.find("modem") do sleep(0.1) end; ' + $startup
     Copy-Item "$PSScriptRoot\server.lua" "$disk\test-server.lua"
     [IO.File]::WriteAllText("$disk\startup.lua", $startup, $utf8)
@@ -77,7 +79,7 @@ $java = 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe'
 $script:process = $null
 function Start-TestServer([string]$Label) {
     $script:process = Start-Process -FilePath $java -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @('-Xms1G','-Xmx4G','@libraries/net/neoforged/neoforge/21.1.259/win_args.txt','nogui') -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
-    $script:process.PriorityClass = 'AboveNormal'
+    $script:process.PriorityClass = if ($Scenario -eq 'nav') { 'High' } else { 'AboveNormal' }
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {
         if ($script:process.HasExited) { throw "Minecraft exited during $Label boot. See $TestRoot." }
@@ -100,10 +102,31 @@ function Stop-TestServer {
 function Wait-File([string]$Path) {
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {
+        $mazeDisk="$TestRoot\world\computercraft\computer\3"
+        if ($Scenario -eq 'nav' -and (Test-Path "$mazeDisk\nav-fixture-ready.json") -and !(Test-Path "$mazeDisk\nav-fixture-installed")) {
+            foreach ($command in @('setblock 1 67 0 minecraft:glass','setblock 3 67 0 minecraft:glass',
+                'setblock 2 67 -1 minecraft:glass','setblock 2 67 1 minecraft:glass','setblock 2 67 0 minecraft:water')) { Rcon $command | Out-Null }
+            [IO.File]::WriteAllText("$mazeDisk\nav-fixture-installed", 'ready', $utf8)
+        }
+        if ($Scenario -eq 'nav' -and (Test-Path "$mazeDisk\nav-fluid-ready.json") -and !(Test-Path "$mazeDisk\nav-fluid-cleared")) {
+            Rcon 'setblock 2 67 0 minecraft:air' | Out-Null
+            [IO.File]::WriteAllText("$mazeDisk\nav-fluid-cleared", 'ready', $utf8)
+        }
+        if ($Scenario -eq 'nav' -and (Test-Path "$mazeDisk\nav-gravel.json") -and !(Test-Path "$mazeDisk\nav-gravel.continue")) {
+            Rcon 'fill 4 67 1 4 68 1 minecraft:gravel' | Out-Null
+            [IO.File]::WriteAllText("$mazeDisk\nav-gravel.continue", 'ready', $utf8)
+        }
+        if ($Scenario -eq 'nav' -and (Test-Path "$mazeDisk\nav-gravel-clear.json") -and !(Test-Path "$mazeDisk\nav-gravel-clear.continue")) {
+            Rcon 'fill 4 67 1 4 68 1 minecraft:air' | Out-Null
+            [IO.File]::WriteAllText("$mazeDisk\nav-gravel-clear.continue", 'ready', $utf8)
+        }
         if (Test-Path -LiteralPath $Path) { return }
         if ($script:process.HasExited) { throw 'Minecraft exited during scenario.' }
         $failures = Get-ChildItem "$TestRoot\world\computercraft\computer" -Recurse -Filter sandbox-result.json | ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json } | Where-Object { !$_.ok }
         if ($failures) { throw ($failures.errors -join '; ') }
+        if (Test-Path "$TestRoot\world\computercraft\computer\3\nav-environment-failure.json") {
+            throw ([IO.File]::ReadAllText("$TestRoot\world\computercraft\computer\3\nav-environment-failure.json"))
+        }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Scenario timeout waiting for $Path."
@@ -112,14 +135,14 @@ try {
     Start-TestServer 'first'
     foreach ($command in @('forceload add -16 -16 16 16','fill -5 64 -5 5 64 5 minecraft:stone',
         'fill -5 65 -5 5 68 5 minecraft:air','fill -3 65 -3 3 67 3 minecraft:stone',
-        'fill -3 65 0 3 66 0 minecraft:air','fill 0 65 -3 0 66 3 minecraft:air',
-        'setblock -1 65 0 minecraft:stone','setblock -4 65 -4 computercraft:computer_advanced{ComputerId:0}',
+        'fill -3 65 0 3 66 0 minecraft:air','fill 0 65 -3 0 66 3 minecraft:air','fill 2 66 1 4 66 1 minecraft:air',
+        'setblock 3 66 0 minecraft:chest','setblock 2 66 -1 minecraft:bedrock','setblock -1 65 0 minecraft:stone','setblock -4 65 -4 computercraft:computer_advanced{ComputerId:0}',
         'setblock -4 66 -4 computercraft:wireless_modem_advanced[facing=down]',
         'setblock 4 65 -4 computercraft:computer_advanced{ComputerId:4}',
         'setblock 4 66 -4 computercraft:wireless_modem_advanced[facing=down]',
         'setblock -2 65 0 computercraft:turtle_advanced[facing=east]{ComputerId:1,Fuel:10000,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}',
         'setblock 0 65 -2 computercraft:turtle_advanced[facing=south]{ComputerId:2,Fuel:10000,RightUpgrade:"computercraft:wireless_modem_advanced"}',
-        'setblock 2 65 0 computercraft:turtle_advanced[facing=west]{ComputerId:3,Fuel:10000,RightUpgrade:"computercraft:wireless_modem_advanced"}',
+        'setblock 2 65 0 computercraft:turtle_advanced[facing=west]{ComputerId:3,Fuel:10000,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}',
         'computercraft turn-on 0')) { Rcon $command | Out-Null }
     for ($index = 0; $index -lt $hosts.Count; $index++) {
         $point = $hosts[$index]
@@ -198,6 +221,65 @@ try {
         'execute in minecraft:the_nether run setblock 512 66 0 computercraft:wireless_modem_advanced[facing=down]',
         'execute in minecraft:the_nether run computercraft turn-on 4')) { Rcon $command | Out-Null }
     Wait-File "$controller\sandbox-result.json"
+    if ($Scenario -eq 'nav') {
+        $probe="$TestRoot\world\computercraft\computer\3"
+        Rcon 'computercraft shutdown 3 10 11 12 13' | Out-Null
+        [IO.File]::WriteAllText("$probe\nav-probe", 'gps', $utf8)
+        Rcon 'computercraft turn-on 3' | Out-Null
+        Wait-File "$probe\nav-gps-failed.json"
+        Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
+        Start-Sleep -Seconds 2
+        [IO.File]::WriteAllText("$probe\nav-gps-failed.continue", 'ready', $utf8)
+        Wait-File "$probe\nav-gps-restored.json"
+        Rcon 'computercraft shutdown 1 2' | Out-Null
+        Rcon 'data remove block -2 66 0 RightUpgrade' | Out-Null
+        Rcon 'data remove block 0 66 -2 RightUpgrade' | Out-Null
+        Rcon 'forceload remove 0 -16 31 31' | Out-Null
+        Rcon 'computercraft shutdown 3' | Out-Null
+        Rcon 'clone 2 66 0 2 66 0 3 66 2 replace move' | Out-Null
+        Rcon 'item replace block 3 66 2 container.0 with computercraft:wireless_modem_normal 1' | Out-Null
+        [IO.File]::WriteAllText("$probe\nav-probe", 'relocate', $utf8)
+        Rcon 'computercraft turn-on 3' | Out-Null
+        Wait-File "$probe\nav-loader-disabled.json"
+        Rcon 'gamerule spawnChunkRadius 0' | Out-Null
+        Rcon 'setworldspawn -1000 64 -1000' | Out-Null
+        Rcon 'forceload remove 32 0 47 15' | Out-Null
+        $deadline=[DateTime]::UtcNow.AddSeconds(90)
+        do {
+            $loaded=Rcon 'execute if loaded 32 66 4 run data get block 31 66 4'
+            if ($loaded -notmatch 'ComputerId:') { break }
+            Start-Sleep -Seconds 2
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if ($loaded -match 'ComputerId:') { throw 'Loader-disabled target chunk stayed loaded.' }
+        [IO.File]::WriteAllText("$probe\nav-loader-disabled.continue", 'ready', $utf8)
+        Start-Sleep -Seconds 3
+        $boundary=Rcon 'data get block 31 66 4'
+        if ($boundary -notmatch 'ComputerId:\s*3(?=[,}\s])') { throw 'Disabled loader did not preserve the boundary pose.' }
+        $statePath="$TestRoot\world\computercraft\computer\0\ssot.state".Replace('\','/')
+        $check="local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))().value; f:close(); local p=assert(s.poses[3]); assert(p.x==31 and p.y==66 and p.z==4); print('Offline boundary occupancy retained')"
+        & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\disabled-occupancy.txt"
+        if ($LASTEXITCODE -ne 0) { throw 'Offline boundary occupancy was lost.' }
+        Copy-Item "$TestRoot\logs\latest.log" "$Output\before-loader-restart.log"
+        Stop-TestServer
+        [IO.File]::WriteAllText("$probe\nav-probe", 'resume', $utf8)
+        [IO.File]::WriteAllText("$probe\boot-hold", 'waiting for GPS', $utf8)
+        Start-TestServer 'loader-resume'
+        Rcon 'forceload add 16 0 31 15' | Out-Null
+        Rcon 'computercraft shutdown 10 11 12 13' | Out-Null
+        Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
+        Start-Sleep -Seconds 2
+        Remove-Item -LiteralPath "$probe\boot-hold"
+        Rcon 'computercraft turn-on 3' | Out-Null
+        Wait-File "$probe\nav-loader-enabled.json"
+        Rcon 'forceload remove 16 0 31 15' | Out-Null
+        Start-Sleep -Seconds 3
+        Rcon 'execute if loaded 32 66 4 run data get block 31 66 4' | Out-Null
+        [IO.File]::WriteAllText("$probe\nav-loader-enabled.continue", 'ready', $utf8)
+        Wait-File "$probe\nav-boundary-load.json"
+        Rcon 'forceload add 32 0 47 15' | Out-Null
+        [IO.File]::WriteAllText("$probe\nav-boundary-load.continue", 'ready', $utf8)
+        Wait-File "$probe\nav-environment-result.json"
+    }
     $expected = @{ '-2 66 0' = 1; '0 66 -2' = 2; '2 66 0' = 3 }
     foreach ($pos in $expected.Keys) {
         $block = Rcon "data get block $pos"
@@ -205,7 +287,7 @@ try {
     }
     $nether = Rcon 'execute in minecraft:the_nether run data get block 512 65 0'
     if ($nether -notmatch 'ComputerId:\s*4(?=[,}\s])') { throw 'Nether controller is missing.' }
-    & "$PSScriptRoot\verify-results.ps1" -Computers "$TestRoot\world\computercraft\computer" -Output $Output
+    & "$PSScriptRoot\verify-results.ps1" -Computers "$TestRoot\world\computercraft\computer" -Output $Output -Title $(if ($Scenario -eq 'nav') { 'Navigation PR 2' } else { 'SSOT PR 1' })
     if ($Client) {
         try { & "$PSScriptRoot\client.ps1" -TestRoot $TestRoot -Port $port -RconPort $rconPort -Output $Output } catch {
             "Visual evidence missing. Client attempt failed. $($_.Exception.Message)" | Set-Content "$Output\visual-missing.txt"

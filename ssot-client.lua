@@ -54,18 +54,26 @@ function M.new(cfg)
   for _, op in ipairs({ "sync", "reserve", "start", "commit", "release", "renew", "scan", "snapshot" }) do
     api[op] = function(fields) return api.call(op, fields) end
   end
-  local function resync(pose)
+  local function resync(pose,previous)
     synced = false
-    local r, err = api.sync({ pose = pose })
+    local fields={pose=pose,previous=previous}
+    if previous and journal.move then fields.token,fields.epoch=journal.move.token,journal.move.epoch end
+    local r, err = api.call(previous and "calibrate" or "sync",fields)
     if not r or not r.ok then return false, err end
     journal.move = nil
     local ok, why = store.save(journal)
     synced = ok
-    return ok, why
+    return ok, why, r.epoch
   end
   function api.resync(pose)
     if moving then return false,"SSOT movement busy" end
     return resync(pose)
+  end
+  function api.calibrate(pose,previous)
+    if moving then return false,"SSOT movement busy" end
+    local ok,why,epoch=resync(pose,previous)
+    if ok then stopped=false end
+    return ok,why,epoch
   end
   local function move(from, to, execute)
     from, to = A.copy(from), A.copy(to)
