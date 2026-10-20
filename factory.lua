@@ -294,8 +294,19 @@ cfg.slots = cfg.slots or {}
 cfg.built = cfg.built or 0
 local function saveCfg() saveTable(CFG_FILE, cfg) end
 
--- wh2 craft stays off unless factory.cfg sets wh2.enabled = true.
-if type(cfg.wh2) == "table" and cfg.wh2.enabled == true and (args[1] == nil or args[1] == "craft") then
+local function wh2CraftOn(wh2)
+  if wh2 == nil then return true end
+  if type(wh2) ~= "table" then return false end
+  return wh2.enabled == nil or wh2.enabled == true
+end
+if wh2CraftOn(cfg.wh2) and (args[1] == nil or args[1] == "craft") then
+  if not turtle then
+    print("wh2 craft needs a turtle. This computer keeps running.")
+    while true do sleep(5) end
+  end
+  if not (peripheral and peripheral.find and peripheral.find("modem")) then
+    print("wh2 craft needs a modem. Craft waits.")
+  end
   return dofile("craft.lua").factory(args, cfg)
 end
 

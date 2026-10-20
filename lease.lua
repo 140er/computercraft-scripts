@@ -142,10 +142,12 @@ function M.inside(lease, p, at)
 end
 
 local function live(lease, now)
-  return lease.grant ~= nil and now < lease.untilAt and not lease.fenced
+  return type(lease) == "table" and type(now) == "number" and lease.grant ~= nil
+    and type(lease.untilAt) == "number" and now < lease.untilAt and not lease.fenced
 end
 
 local function fence(lease, now)
+  if type(lease) ~= "table" or type(now) ~= "number" or type(lease.untilAt) ~= "number" then return end
   if lease.fenced or now < lease.untilAt then return end
   lease.fenced = true
   lease.recovery = H5.fence(lease, now)

@@ -236,8 +236,9 @@ local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = t
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
   farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, three = colors.lightBlue, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
+local wh2On = settings and settings.get and settings.get("wh2.enabled", true)
 local wh2 = {
-  enabled = settings and settings.get("wh2.enabled", false) == true,
+  enabled = settings and settings.get and (wh2On == nil or wh2On == true),
   active = nil, context = { enabled = true, role = "panel" },
 }
 if wh2.enabled then

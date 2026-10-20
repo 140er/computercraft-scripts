@@ -42,7 +42,8 @@ end
 
 function M.open(options)
   options = options or {}
-  local enabled = settings and settings.get("wh2.enabled", false) == true or false
+  local wh2Setting = settings and settings.get and settings.get("wh2.enabled", true)
+  local enabled = settings and settings.get and (wh2Setting == nil or wh2Setting == true) and true or false
   local client, failure
   if enabled then
     if options.client ~= nil then client = options.client else client, failure = fleetClient(options) end

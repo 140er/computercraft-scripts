@@ -95,7 +95,7 @@ local function work()
   end
   assert(turtle and cfg.pose and cfg.bounds,"a calibrated turtle and navigation bounds are required")
   nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic==true,
-    gpsFree=cfg.gpsFree==true,
+    gpsFree=cfg.gpsFree==nil or cfg.gpsFree==true,
     beforeAction=fleet and boundary or nil,actionReady=fleet and function() return fleet.ready(),"Fresh fleet settings required" end or nil,
     observe=function()
       local x,y,z=gps.locate(2)
@@ -104,7 +104,8 @@ local function work()
   if args[1]=="calibrate" then
     assert(nav.calibrate(assert(tonumber(args[2]),"heading required"))) print("Warehouse pose calibrated") return
   end
-  assert(nav.recover())
+  local recovered, why = nav.recover()
+  if not recovered then print("Navigation: " .. tostring(why) .. ". The warehouse keeps running.") end
   if args[1]=="survey" then assert(nav.go(pose(2),"explore")) print("Route surveyed") return end
   if args[1]=="stock" then
     local r=request("wh-lock",{name=args[2]})
