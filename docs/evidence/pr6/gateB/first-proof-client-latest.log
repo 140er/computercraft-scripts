@@ -1,0 +1,14 @@
+[20Oct2026 15:24:06.300] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--username, SSOTProof, --version, neoforge-21.1.259, --gameDir, C:/Work/mc-ssot-pr6-cff7c78d/client, --assetsDir, C:/mc-client/game/assets, --assetIndex, 17, --uuid, 6be1a840c0e83ed4bbdd8b3de8594333, --accessToken, ❄❄❄❄❄❄❄❄, --clientId, 00000000-0000-0000-0000-000000000000, --xuid, 0, --userType, legacy, --versionType, release, --width, 1280, --height, 720, --fml.neoForgeVersion, 21.1.259, --fml.fmlVersion, 4.0.45, --fml.mcVersion, 1.21.1, --fml.neoFormVersion, 20240808.144430, --launchTarget, forgeclient, --quickPlayMultiplayer, 127.0.0.1:51342]
+[20Oct2026 15:24:07.368] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12.1+1-LTS
+[20Oct2026 15:24:13.116] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12.1 by Eclipse Adoptium; OS Windows 10 arch amd64 version 10.0
+[20Oct2026 15:24:20.679] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: Loading ImmediateWindowProvider fmlearlywindow
+[20Oct2026 15:24:21.564] [main/INFO] [EARLYDISPLAY/]: Trying GL version 4.6
+[20Oct2026 15:24:51.581] [pool-2-thread-1/ERROR] [EARLYDISPLAY/]: ERROR DISPLAY
+Failed to initialize the mod loading system and display.
+
+
+Failure details:
+Timed out trying to setup the Game Window.
+
+If you click yes, we will try and open https://links.neoforged.net/early-display-errors in your default browser
+[20Oct2026 15:25:17.585] [main/INFO] [EARLYDISPLAY/]: Requested GL version 4.6 got version 4.6

@@ -33,7 +33,10 @@ function M.open(cfg)
     local j=v.action
     local c=v.control
     if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
-      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop") then return false end
+      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop" and c.kind~="recharge"
+      or c.complete~=nil and type(c.complete)~="boolean"
+      or c.rechargeId~=nil and (type(c.rechargeId)~="string" or #c.rechargeId>80)) then return false end
+    if v.rechargeId~=nil and (type(v.rechargeId)~="string" or #v.rechargeId>80) then return false end
     if v.stopped~=nil and type(v.stopped)~="boolean" or v.resume~=nil and type(v.resume)~="boolean" then return false end
     if v.trail~=nil then
       if type(v.trail)~="table" or #v.trail>64 then return false end
@@ -71,7 +74,8 @@ function M.open(cfg)
     epoch=tonumber(epoch)
     if announced~=nil and (not integer(epoch) or epoch<1 or epoch>2147483647) then return false,"invalid server epoch" end
     if epoch and (not state.control or epoch>state.control.epoch) then
-      state.control={epoch=epoch,cid=0,kind=state.control and state.control.kind}
+      state.control={epoch=epoch,cid=0,kind=state.control and state.control.kind,complete=state.control and state.control.complete,
+        rechargeId=state.control and state.control.rechargeId}
     end
     state.action=nil remember(state.pose,"minecraft:air") save() ready=true
     return true
@@ -115,17 +119,29 @@ function M.open(cfg)
     stopped=false state.stopped=false state.resume=nil save() return true
   end
   function api.controlState() return A.copy(state.control or {}) end
-  function api.control(kind,epoch,cid)
-    if (kind~="go" and kind~="recall" and kind~="estop") or not integer(epoch) or epoch<1 or epoch>2147483647
+  function api.rechargeReceipt() return state.rechargeId end
+  function api.control(kind,epoch,cid,rechargeId)
+    if (kind~="go" and kind~="recall" and kind~="estop" and kind~="recharge") or not integer(epoch) or epoch<1 or epoch>2147483647
       or not integer(cid) or cid<1 or cid>2147483647 then return false,"invalid command" end
+    if kind=="recharge" and (type(rechargeId)~="string" or #rechargeId<1 or #rechargeId>80) then return false,"invalid command" end
+    if kind=="recharge" and state.rechargeId==rechargeId then return false,"duplicate recharge" end
     local c=state.control
     if c and (epoch<c.epoch or epoch==c.epoch and cid<=c.cid) then return false,"stale command" end
-    state.control={kind=kind,epoch=epoch,cid=cid}
+    state.control={kind=kind,epoch=epoch,cid=cid,rechargeId=kind=="recharge" and rechargeId or nil}
+    if kind=="recharge" then state.rechargeId=rechargeId end
     state.resume=nil
     if kind=="estop" then stopped=true state.stopped=true
     elseif kind=="go" then
       if busy then state.resume=true else stopped=false state.stopped=false end
     end
+    save()
+    return true
+  end
+  function api.completeControl(epoch,cid,rechargeId)
+    local current=state.control
+    if not current or (rechargeId and (current.kind~="recharge" or current.rechargeId~=rechargeId))
+      or not rechargeId and (current.epoch~=epoch or current.cid~=cid) then return false end
+    current.complete=true
     save()
     return true
   end

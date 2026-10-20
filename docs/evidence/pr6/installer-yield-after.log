@@ -1,0 +1,2 @@
+PASS an abandoned updater coroutine is recovered by a fresh updater after promotion with yielding source reads
+1 passed, 0 failed; no source reads inside the interrupted process

@@ -1,0 +1,3 @@
+C:\Work\mc-ssot-pr6-f1b55da9
+localhost:53664
+RCON localhost:53665

@@ -1,0 +1,19 @@
+PASS chat ignores the retired AR allowlist without shared authorization
+PASS chat requires the actual username to match the shared UUID entry
+PASS chat rate limit spans different commands and isolates UUIDs
+PASS hub chat authorization saves raw configuration and preserves it when promotion fails
+PASS server without SSOT configuration refuses AR hub claims and layer commands
+PASS AR hub enrolment requires paired secret and the enrolled allowlisted identity
+PASS chat defaults deny and usernames never authorize
+PASS chat confirms once, binds UUID and expires requests
+PASS AP public and stripped hidden tuples preserve visibility
+PASS chat rejects confirmation replay after restart
+PASS chat settings validate UUIDs and configurable geometry
+PASS chat save failures keep authorization disabled
+PASS AR settings keep recovered backup after a failed promotion
+PASS AR settings preserve sole temp generation before a write failure
+PASS AR recovery retains more than 4096 IDs from interrupted frame unions
+PASS AR snapshot skips stone and hidden air before its ore budget
+PASS recharge command completion survives restart and rejects replay
+PASS confirmed recharge runs the real service and reports fuel rise
+PASS confirmed recharge runs the real service and reports no fuel rise

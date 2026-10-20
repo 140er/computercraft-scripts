@@ -1,0 +1,247 @@
+PASS no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+FAIL goggles: HUD lines, ore icons, and frames that delete instead of clearing
+  tests\run.lua:126: attempt to index field 'hud:bg' (a nil value)
+PASS fleetview draws teletext pixels with the right colours
+FAIL shaft labels are raised, centered and readable with smaller turtle markers
+  tests\run.lua:26: shaft and position markers per turtle
+expected: 8
+actual: 0
+FAIL attach, detach and reattach use peripheral events
+  tests\run.lua:26: values differ
+expected: 8
+actual: 0
+FAIL new frames replace old positions and clamp branch width to reach
+  tests\run.lua:26: values differ
+expected: 8
+actual: 0
+FAIL local coordinates, old miners and incomplete geometry are handled
+  tests\run.lua:26: values differ
+expected: 5
+actual: 0
+FAIL key and dashboard touch toggles persist both states across restart
+  tests\run.lua:26: values differ
+expected: {[1]="view",[2]=-11141291,[3]=4,[4]=4,[5]="3D: AAN",[6]=false}
+actual: {[1]="view",[2]=-6710887,[3]=4,[4]=4,[5]="3D: UIT",[6]=false}
+PASS turtles at the shaft top need no extra position marker or path
+FAIL LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+  tests\run.lua:304: attempt to index field '?' (a nil value)
+PASS controller failure stops 3D calls and leaves the dashboard running
+FAIL real miner telemetry supplies world shafts and omits local positions
+  tests\run.lua:26: values differ
+expected: 16
+actual: 0
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+PASS world progress belongs to one shaft, including bore jobs and replacement turtles
+PASS legacy role progress stays available only to miners without world shafts
+PASS old miners with world telemetry use their shaft for reports and jobs
+PASS miner sends shaft identity and rejects unscoped progress from an old hub
+PASS a local-coordinate miner still accepts progress from a legacy hub
+PASS dashboard flags duplicate shafts and clears the warning when a claim changes
+PASS startup refuses a moved home even beside a chest and preserves tunnel state
+PASS home verification rounds GPS and allows local setups or unavailable GPS
+PASS GPS resync also checks vertical routes before declaring LOST
+PASS an underground restart may return home with GPS away from home
+PASS a failed turn never advances the saved heading or permits a move
+PASS turnFrom recovers both sides of an interrupted turn from tunnel geometry
+PASS recorded natural seals can be reopened after a reboot without allowing other rock
+PASS seal permission is consumed after digging and does not match a different block
+PASS failed movement after digging does not advance position, including falling blocks
+PASS known routes reject new natural rock during movement and digging retries
+PASS lava sources and flows use seals, while water never goes in the fuel bucket
+PASS lava that cannot be sealed blocks the route without a false LOST
+PASS fuel checkpoint recovers moves interrupted before or after physical movement
+PASS unlimited fuel needs GPS to resolve an interrupted move
+PASS hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS server captures broadcasts, polls legacy bots and persists registry and log
+PASS serialize mock rejects shared tables and cycles
+PASS server refuses to overwrite corrupt generations without a recoverable state
+PASS server bounds legacy requests when the shared validator is installed
+PASS server saves GPS status and hub assignments across restart
+PASS server trims unused status fields and copies shared coordinates without changing packets
+PASS server recovers interrupted saves and keeps a bounded central log
+PASS server mirrors main, serves chunks and hashes, and keeps good code on failure
+PASS server refreshes its code mirror periodically
+PASS update fetch downloads server chunks and reuses current code without retransmission
+PASS update fetch uses http without a server and reports unavailable sources
+PASS update fetch takes GitHub over a server copy that may be behind main
+PASS update fetch rejects corrupted server content and accepts a valid http copy
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS the newer hub state wins between the hub's file and the server's copy
+PASS server ESTOP replaces queued movement commands
+PASS server repeats an order until the miner confirms it, then gives up and logs
+PASS touchscreen: tap a miner, give it an order through the hub, switch tabs
+PASS miner confirms an order the server passes on
+PASS server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+PASS hub uses direct commands if a discovered server never answers
+PASS server records directed assignments and leaves developer commands alone
+PASS server ignores malformed hub mirrors and invalid transfers
+PASS capacity mock raises Out of space at write or close and counts partial bytes
+PASS server install guards startup writes and logs failures without replacing existing startup
+PASS four megabyte server mirrors the real repo once and serves matching root scripts
+PASS 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+PASS state and cache backups survive failed promotion and recover on restart
+PASS root scripts changed outside the server are not served with a stale hash
+PASS cache write failures at open, write, close and move keep old code and leave state writable
+PASS failed state writes preserve the only good state and persist errors after space returns
+PASS large status packets and old log text stay bounded across saves and restart
+PASS server clears AR and re-raises Terminated through parallel
+PASS legacy AR world geometry requires the shared owner allowlist
+PASS raw AR ownership claims cannot acquire a lease or change the view
+PASS hub suppresses AR until its first authenticated reply or the owner timeout
+PASS hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors and authenticated leases without replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+PASS paired-controller configuration and UUID chat allowlist fail closed
+PASS six adjacent directions reserve and commit with independent dimension occupancy
+PASS contention, wrong owner, wrong source, teleport, expiry and lease renewal
+PASS explicit calibration checks the prior pose, destination occupancy and pending token
+PASS offline occupancy and restart preserve both cells of uncertain moves
+PASS duplicate requests return the durable result and changed or stale replays fail
+PASS missing fields, bad types, cyclic, oversized and unauthorized packets do not mutate
+PASS sparse tri-state scans, stale deltas, paged snapshots and resident bound
+PASS failed persistence never acknowledges a grant or admits another mutation
+PASS encoded snapshot limits include credentials and request metadata
+PASS explicit calibration carries the pending token across a client failure
+PASS client accepts bounded pages containing long block names
+PASS traffic retreats to known passing space and bounds an impossible dead end
+PASS walk finds the U route and never excavates a changed block
+PASS unknown exploration and authorized excavation have separate policies
+PASS all headings and six displacements keep the physical pose
+PASS search is bounded and ESTOP cancels at the next search batch
+PASS failed turns, fuel, entities and fluids never invent position or solid cells
+PASS GPS loss and relocation refuse recovery until explicit calibration
+PASS every move and turn checkpoint recovers or refuses ambiguous heading
+PASS manual movement cannot interleave and cancellation prevents the next move
+PASS no route, map limits and lost GPS stop without displacement
+PASS ESTOP survives reboot until an idle resume
+PASS a passing turtle does not become a permanent map obstacle
+PASS GPS loss after a physical move leaves a recoverable uncertain action
+PASS falling blocks and charging stations stop excavation without moving
+PASS an interrupted calibration retries its original prior pose after reboot
+PASS late and replayed movement commands cannot clear a newer ESTOP
+PASS a queued resume waits for the active move and a newer ESTOP cancels it
+PASS authenticated boot sync rejects commands from an older server epoch
+PASS mining allocation, ownership, expiry, replay and restart
+PASS mining reserves fuel for the drop, charger and return before leaving home
+PASS six-face veins preserve loops, deepslate, tags, the spacing gap and exact home pose
+PASS crashes before and after traversal moves retain the queue and resume exactly
+PASS inventory and fuel interrupts preserve work and never drop without a chest
+PASS a dig followed by a failed move retains the air cell leading to the rest of the vein
+PASS an active owner renews after a scan outlasts the lease without dropping queued ore
+PASS hazards, protection and blocked home routes report bounded refusal
+PASS in-game mining commands save bounds and home without enabling mining
+PASS the opted-in miner worker executes the lease engine through its real boot adapter
+PASS warehouse stock reservations, partial allocation, replay, bays and restart
+PASS mixed source, partial supply and nonstackable orders preserve exact inventories
+PASS physical pickup and delivery crashes reconcile without double delivery
+PASS full drop retains cargo and resumes after space is available
+PASS vertical interactions, partial drops and empty sources keep exact quantities
+PASS charging preserves an unfinished order and refuses a trip without return fuel
+PASS automatic low-fuel charging survives a crash and continues the same order
+PASS idle workers park away from shared access cells without touching stock
+PASS charging needs measured fuel rise and has a durable timeout
+PASS unavailable charging routes release the bay and competing bays time out
+PASS store commands and sorter aliases configure the opted-in worker without moving
+PASS miner reserves each displacement only when SSOT is enabled
+PASS miner navigation journals veins and recall cannot dig a changed tunnel
+PASS navigation bounds can be configured from the turtle command
+PASS a survey command requires navigation and preserves its world target
+PASS AR HUD defaults, layers, dimension, diff, cleanup, SSOT decode
+PASS AR owner authorization, preserved hub keys, config persistence and restart cleanup
+PASS AR shared controller takeover, reacquisition, restart, replacement and stable frame
+PASS AR radius64, nearest ore priority, bounded map cache and revocation
+PASS AR 64-chunk traversal yields and keeps at most 256 nearest cells
+PASS chat defaults deny and usernames never authorize
+PASS chat confirms once, binds UUID and expires requests
+PASS AP public and stripped hidden tuples preserve visibility
+PASS chat rejects confirmation replay after restart
+PASS chat settings validate UUIDs and configurable geometry
+PASS chat save failures keep authorization disabled
+PASS AR settings keep recovered backup after a failed promotion
+PASS AR settings preserve sole temp generation before a write failure
+PASS AR recovery retains more than 4096 IDs from interrupted frame unions
+PASS AR snapshot skips stone and hidden air before its ore budget
+PASS chat ignores the retired AR allowlist without shared authorization
+PASS chat requires the actual username to match the shared UUID entry
+PASS chat rate limit spans different commands and isolates UUIDs
+PASS hub chat authorization saves raw configuration and preserves it when promotion fails
+PASS server without SSOT configuration refuses AR hub claims and layer commands
+PASS AR hub enrolment requires paired secret and the enrolled allowlisted identity
+FAIL recharge command completion survives restart and rejects replay
+  tests/recharge-review-checks.lua:10: invalid command
+FAIL confirmed recharge runs the real service and reports fuel rise
+  tests/recharge-review-checks.lua:79: production listener ignored recharge
+FAIL confirmed recharge runs the real service and reports no fuel rise
+  tests/recharge-review-checks.lua:79: production listener ignored recharge
+FAIL update current bundle changes no scripts and does not reboot
+  tests/install-checks.lua:18: update:266: release hash mismatch: install.lua
+FAIL installer preserves old roles and clean-installs every named role
+  tests/install-checks.lua:43: miner did not install: {[1]="print",[2]="Failed: update.lua:266: release hash mismatch: install.lua"}
+PASS failed bundle downloads preserve all installed scripts
+PASS release manifest rejects a valid script from another revision
+PASS failed commit rolls back every script and fresh entrypoint
+PASS restart rolls back an interrupted bundle before fetching
+PASS disk recovery entrypoint works when update.lua is missing
+FAIL cached-only role deployment verifies server hashes
+  tests/install-checks.lua:139: update:266: release hash mismatch: hub.lua
+PASS disk exhaustion leaves installed scripts intact
+FAIL legacy data survives role update: buddy.memory
+  tests/install-role-checks.lua:107: update:266: release hash mismatch: install.lua
+FAIL legacy data survives role update: room.recipes
+  tests/install-role-checks.lua:107: update:266: release hash mismatch: install.lua
+FAIL legacy data survives role update: board.hist
+  tests/install-role-checks.lua:107: update:266: release hash mismatch: install.lua
+FAIL legacy data survives role update: board.last
+  tests/install-role-checks.lua:107: update:266: release hash mismatch: install.lua
+FAIL every role installs its exact manifest and removes stale files without touching data
+  tests/install-role-checks.lua:119: lumber install failed: {[1]="print",[2]="Failed: update.lua:266: release hash mismatch: install.lua"}
+FAIL legacy startup migration preserves client board delivery and calibrated arguments
+  tests/install-role-checks.lua:149: update:266: release hash mismatch: install.lua
+FAIL current installer bootstraps the actual v1 updater through its file transport
+  tests/install-role-checks.lua:162: assertion failed!
+FAIL actual v1 update CLI upgrades itself before role pruning without losing saved data
+  tests/install-role-checks.lua:179: assertion failed!
+PASS failed legacy updater bootstrap leaves all code and data unchanged
+FAIL an abandoned updater coroutine is recovered by a fresh updater after promotion
+  tests/install-role-checks.lua:200: update:266: release hash mismatch: hub.lua
+PASS miner and store role closures exclude unrelated entrypoints and rendering
+FAIL updates prune stale files and preserve the selected role and configured startup
+  tests/install-role-checks.lua:233: update:266: release hash mismatch: install.lua
+FAIL role changes atomically replace startup and remove the previous role
+  tests/install-role-checks.lua:258: update:266: release hash mismatch: hub.lua
+FAIL failed role downloads leave stale files and state untouched
+  tests/install-role-checks.lua:274: update:266: release hash mismatch: install.lua
+FAIL server cache survives server update and is pruned on a role change
+  tests/install-role-checks.lua:287: update:266: release hash mismatch: install.lua
+PASS interrupted stale removal restores nested files before fetching
+FAIL interrupted staging is cleaned before a new role transaction
+  tests/install-role-checks.lua:310: update:266: release hash mismatch: install.lua
+PASS an unclaimed backup stops cleanup without deleting the recovery copy
+PASS manifest declares deferred Ed25519 authentication separately from release checksums
+FAIL unavailable roles fail before changing installed code or data
+  tests/install-role-checks.lua:332: update:266: release hash mismatch: install.lua
+120 tests passed, 29 FAILED

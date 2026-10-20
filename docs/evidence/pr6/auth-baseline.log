@@ -1,0 +1,10 @@
+FAIL chat ignores the retired AR allowlist without shared authorization
+  tests/auth-review-checks.lua:19: assertion failed!
+FAIL chat requires the actual username to match the shared UUID entry
+  tests/auth-review-checks.lua:24: assertion failed!
+FAIL chat rate limit spans different commands and isolates UUIDs
+  tests/auth-review-checks.lua:38: different command bypassed UUID cooldown
+FAIL server without SSOT configuration refuses AR hub claims and layer commands
+  tests/auth-review-checks.lua:72: unconfigured modem became AR owner
+FAIL AR hub enrolment requires paired secret and the enrolled allowlisted identity
+  tests/auth-review-checks.lua:84: untrusted AR hub claim was accepted

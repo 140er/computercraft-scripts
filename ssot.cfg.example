@@ -5,4 +5,5 @@
   leaseMs = 30000,
   chatNames = { "Jeffreyy2", "njov10", "yolobeerman" },
   chatUUIDs = {},
+  arControllers = {},
 }

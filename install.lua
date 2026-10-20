@@ -264,25 +264,48 @@ end
 ---------------------------------------------------------------------------
 -- Download
 ---------------------------------------------------------------------------
-local function download(files)
-  local failed = {}
-  for _, f in ipairs(files) do
-    write(" " .. f .. " ... ")
-    local res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
-    local code = res and res.readAll()
-    if res then res.close() end
-    if code and code ~= "" and load(code, "=" .. f) then
-      if fs.exists(f) then fs.delete(f) end
-      local h = fs.open(f, "w")
-      h.write(code)
-      h.close()
-      print("ok")
-    else
-      print("failed")
-      failed[#failed + 1] = f .. " (" .. tostring(err or "broken download") .. ")"
-    end
+local function download(role)
+  local function module(code)
+    if type(code) ~= "string" or not code:find('args[1] == "--module"', 1, true) then return nil end
+    local chunk = load(code, "=update.lua", "t", _ENV)
+    if not chunk then return nil end
+    local ok, value = pcall(chunk, "--module")
+    return ok and type(value) == "table" and value or nil
   end
-  return failed
+  local source
+  if fs.exists("update.lua") then
+    local h = fs.open("update.lua", "r")
+    source = h.readAll()
+    h.close()
+  end
+  local updater = module(source)
+  if not updater or updater.roleSchema ~= 1 then
+    local fetched, code = false, nil
+    if updater and type(updater.fetch) == "function" then
+      fetched, code = pcall(updater.fetch, "update.lua")
+    end
+    source = fetched and code or nil
+    updater = module(source)
+  end
+  if not updater or updater.roleSchema ~= 1 then
+    local ok, result = pcall(function()
+      local res = http and http.get(BASE .. "update.lua?t=" .. os.epoch("utc"))
+      if not res then return nil end
+      local code = res.readAll()
+      res.close()
+      return code
+    end)
+    source = ok and result or nil
+    updater = module(source)
+  end
+  if not updater or updater.roleSchema ~= 1 or type(updater.apply) ~= "function" then
+    return { "Bundle updater unavailable. Copy current install.lua and update.lua from the fleet cache." }
+  end
+  local ok, success, err = pcall(updater.apply, role)
+  if not ok then return { tostring(success) } end
+  if not success then return { tostring(err) } end
+  print("Bundle installed.")
+  return {}
 end
 
 ---------------------------------------------------------------------------
@@ -546,11 +569,26 @@ local BOTS = {
     },
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
+  { id = "ar", name = "AR hub", hint = "linked cc_ar goggles with the existing hub owner", on = "computer",
+    files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
+    start = { "ar-role" },
+    steps = {
+      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
+        check = modemCheck },
+      { run = function() return { "ar-role", "install" } end },
+      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
+    } },
   { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
     files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"},
+    start = { "store" },
     done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
     steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
-
+  { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
+    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
+  { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
+    files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
+    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view." } } },
 }
 
 ---------------------------------------------------------------------------
@@ -565,9 +603,7 @@ local function guide(bot)
   local gx, gy, gz = gpsHere()
   ctx.gps = gx and { gx, gy, gz } or nil
   print(" Downloading...")
-  local files = { "update.lua", "install.lua" }
-  for k = #bot.files, 1, -1 do table.insert(files, 1, bot.files[k]) end
-  local failed = download(files)
+  local failed = download(bot.id)
   if #failed > 0 then
     local r = screen(title, "download", { { "Couldn't download:", colors.red }, { table.concat(failed, "\n") },
       { "\nIs http enabled in the ComputerCraft config, and can this server reach GitHub?", colors.lightGray } },
@@ -699,16 +735,10 @@ if args[1] and not byId[args[1]] then
   print("Bots: " .. table.concat(names, ", "))
   return
 end
-if not http then
-  print("http is disabled in the ComputerCraft config. Turn it on, or drag the .lua files onto this computer.")
-  return
-end
 if args[1] and args[2] == "quick" then
-  local files = { "update.lua", "install.lua" }
-  for k = #byId[args[1]].files, 1, -1 do table.insert(files, 1, byId[args[1]].files[k]) end
-  local failed = download(files)
+  local failed = download(args[1])
   print(#failed == 0 and ("Done. Guided setup: install " .. args[1]) or ("Failed: " .. table.concat(failed, ", ")))
-  return
+  return #failed == 0
 end
 
 -- "any" = a turtle or a computer (a pocket computer can't hold a wired modem)
@@ -725,9 +755,7 @@ local function elsewhere(bot)
   if r ~= "dl" then return false end
   header(bot.name, "download")
   print("")
-  local files = { "update.lua", "install.lua" }
-  for k = #bot.files, 1, -1 do table.insert(files, 1, bot.files[k]) end
-  local failed = download(files)
+  local failed = download(bot.id)
   screen(bot.name, "download", { #failed == 0 and { "Downloaded.", colors.lime }
     or { "Couldn't download: " .. table.concat(failed, ", "), colors.red } }, { { "ok", "OK" } })
   return false

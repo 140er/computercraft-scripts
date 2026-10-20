@@ -1,0 +1,17 @@
+{
+    "errors":  [
+                   "FAIL\r\nReal AP chat validation failed. Hidden confirmation or replay rejection failed.",
+                   "Native renderer fixture passed, but required gate coverage remains. Production chat recall and charging routes on real turtles; All-role installation and storage regression with PR 4 and PR 5 integrations"
+               ],
+    "owner":  true,
+    "native":  true,
+    "ok":  false,
+    "visual":  true,
+    "scenario":  "ar",
+    "missing":  [
+                    "Production chat recall and charging routes on real turtles",
+                    "All-role installation and storage regression with PR 4 and PR 5 integrations"
+                ],
+    "root":  "C:\\Work\\mc-ssot-pr6-4eedb010",
+    "nativeRendering":  true
+}

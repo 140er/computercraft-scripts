@@ -52,8 +52,9 @@ return function(test, equal, read, mocks)
       end
     end
     function m.request(msg, id)
+      local before = #m.sent
       m.push("rednet_message", id or 7, msg, "fleetserver")
-      return m.sent[#m.sent].msg
+      return #m.sent > before and m.sent[#m.sent].msg or nil
     end
     function m.state() return decode(assert(m.files["server.state"])) end
     return m
@@ -245,52 +246,86 @@ return function(test, equal, read, mocks)
       m.httpCalls = m.httpCalls + 1
       return { readAll = function() return httpCode end, close = function() end }
     end } end
-    assert(load(updateCode, "=update.lua", "t", m.env))("miner", "noreboot")
+    m.updater = assert(load(updateCode, "=update.lua", "t", m.env))("--module")
+    m.fetched = m.updater.fetch("miner.lua")
     m.requests = requests
+    m.requestCount = function() return requests end
+    return m
+  end
+  local AR_SECRET, AR_UUID = "paired-controller-secret", "12345678-1234-1234-1234-123456789abc"
+  local function arMachine()
+    local m = new()
+    m.files["ssot.cfg"] = mocks.encode({
+      controllers = { ["1"] = AR_SECRET, ["2"] = AR_SECRET, ["3"] = AR_SECRET,
+        ["4"] = AR_SECRET, ["7"] = AR_SECRET, ["99"] = AR_SECRET },
+      chatNames = { "Jeffreyy2" }, chatUUIDs = { Jeffreyy2 = AR_UUID },
+      arControllers = { ["7"] = { name = "Jeffreyy2", uuid = AR_UUID },
+        ["99"] = { name = "Jeffreyy2", uuid = AR_UUID } },
+    })
+    m.files["ar.cfg"] = mocks.encode({ enabled = false, ownerName = "Jeffreyy2", ownerUUID = AR_UUID })
+    for _, file in ipairs({ "ssot.lua", "atomic.lua", "ar-hud.lua", "chat-control.lua", "ssot-client.lua" }) do
+      m.files[file] = read(file)
+    end
+    m.env.dofile = function(path) return assert(load(read(path), "@" .. path, "t", m.env))() end
+    local counter = 1000000
+    function m.authorizeAR(fields)
+      local saved = m.files["server.state"] and m.state()
+      counter = math.max(counter, saved and saved.arCounters and saved.arCounters["7"] or 0) + 1
+      local packet = { type = "ssot", v = 1, op = "ar-control", boot = "ar-server-test",
+        rid = "ar-server-" .. counter, counter = counter, expect = "ssot_reply", secret = AR_SECRET,
+        name = "Jeffreyy2", uuid = AR_UUID, action = "lease", untilAt = m.env.os.epoch("utc") + 10000 }
+      for key, value in pairs(fields or {}) do packet[key] = value end
+      return m.request(packet), packet
+    end
     return m
   end
 
-  test("update downloads through the real server without http and skips current code", function()
+  test("update fetch downloads server chunks and reuses current code without retransmission", function()
     local s = new()
     local code = "--" .. string.rep("a", 25000) .. "\nreturn 'new'"
     s.files["server-code/miner.lua"] = code
     s.start(serverCode)
     local m = updater(s)
-    equal(m.files["miner.lua"], code)
+    equal(m.fetched, code)
     equal(m.httpCalls, 0)
     equal(m.requests, 3)
-    assert(load(updateCode, "=update.lua", "t", m.env))("miner", "noreboot")
-    assert(table.concat(m.output, "\n"):find("up to date", 1, true))
+    m.files["miner.lua"] = code
+    equal(m.updater.fetch("miner.lua"), code)
+    equal(m.requestCount(), 4, "current code should need one hash request")
+    local reply = s.sent[#s.sent].msg
+    equal(reply.current, true)
+    equal(reply.code, nil, "current code was retransmitted")
     equal(s.state().bots[7].versions["miner.lua"], hashOf(code))
   end)
 
-  test("update falls back to http with no server or a missing server copy", function()
+  test("update fetch uses http without a server and reports unavailable sources", function()
     local m = updater(nil, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
     local s = new()
     s.start(serverCode)
     m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
     m = updater(nil)
+    equal(m.fetched, nil)
     equal(m.files["miner.lua"], "return 'old'")
     s.env.rednet.send = function() end
     m = updater(s, "return 'timeout'")
-    equal(m.files["miner.lua"], "return 'timeout'")
+    equal(m.fetched, "return 'timeout'")
     equal(m.httpCalls, 1)
   end)
 
-  test("update takes GitHub over a server copy that may be behind main", function()
+  test("update fetch takes GitHub over a server copy that may be behind main", function()
     local s = new()
     s.files["server-code/miner.lua"] = "return 'cached'"
     s.start(serverCode)
     local m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.requests, 0)
   end)
 
-  test("update rejects corrupted server content and falls back to http", function()
+  test("update fetch rejects corrupted server content and accepts a valid http copy", function()
     local s = new()
     s.files["server-code/miner.lua"] = "return true"
     s.start(serverCode)
@@ -299,8 +334,12 @@ return function(test, equal, read, mocks)
       if msg.type == "file" then msg.code = "return false" end
       send(id, msg, proto)
     end
-    local m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    local m = updater(s)
+    equal(m.fetched, nil, "corrupt server content passed hash verification")
+    equal(m.requests, 1, "corrupt response was not exercised")
+    equal(m.files["miner.lua"], "return 'old'")
+    m = updater(s, "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
   end)
 
@@ -312,7 +351,10 @@ return function(test, equal, read, mocks)
     s.request({ type = "hub_put", hub = state, turtles = {
       [5] = { age = 20, p = { type = "status", phase = "home", role = "east", x = 10, y = 64, z = 20 } },
     } }, 99)
-    local m = new()
+    local m = arMachine()
+    local cfg = decode(m.files["ssot.cfg"])
+    cfg.controllers["99"], cfg.arControllers["99"] = nil, nil
+    m.files["ssot.cfg"] = mocks.encode(cfg)
     m.attached = true
     m.env.rednet.lookup = function() return 99 end
     local receive = m.env.rednet.receive
@@ -539,8 +581,9 @@ return function(test, equal, read, mocks)
       x = 110, y = -58, z = 24, facing = "east", level = -58, reach = 96, branchLen = 64,
       shaft = { x = 100, y = 64, z = 20, bottom = -58 }, fuel = 7000, free = 12 }
   end
-  local function connect(s, attached)
-    local m = new()
+  local function connect(s, attached, pending)
+    local m = arMachine()
+    m.env.os.getComputerID = function() return 7 end
     m.attached = attached
     m.env.rednet.lookup = function() return 99 end
     local receive = m.env.rednet.receive
@@ -550,16 +593,23 @@ return function(test, equal, read, mocks)
     end
     m.start(hubCode)
     local cursor = 0
-    function m.exchange()
+    function m.exchange(server)
+      server = server or s
       while cursor < #m.sent do
         cursor = cursor + 1
         local p = m.sent[cursor]
         if p.proto == "fleetserver" and p.msg.type ~= "hub_get" then
-          m.push("rednet_message", 99, s.request(p.msg), "fleetserver")
+          local reply = server.request(p.msg)
+          if reply then m.push("rednet_message", 99, reply, "fleetserver") end
         end
       end
     end
-    m.exchange()
+    if not pending then
+      m.exchange()
+      m.advance(5)
+      s.advance(5)
+      m.exchange()
+    end
     return m
   end
 
@@ -821,7 +871,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("server clears AR and re-raises Terminated through parallel", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
@@ -839,8 +889,59 @@ return function(test, equal, read, mocks)
     equal(s.arCalls[calls + 2].method, "update")
   end)
 
+  test("legacy AR world geometry requires the shared owner allowlist", function()
+    for _, code in ipairs({ serverCode, hubCode }) do
+      for _, configured in ipairs({ false, true }) do
+        local m = arMachine()
+        if configured then
+          local cfg = decode(m.files["ssot.cfg"])
+          cfg.chatUUIDs = {}
+          m.files["ssot.cfg"] = mocks.encode(cfg)
+        else m.files["ssot.cfg"], m.files["ar.cfg"] = nil, nil end
+        m.attached = true
+        m.start(code)
+        m.status(1, miner("mining", "Mining"))
+        m.advance(1)
+        for _, call in ipairs(m.arCalls) do
+          assert(not call.method:find("3D", 1, true), "unapproved legacy owner drew world geometry")
+        end
+      end
+    end
+  end)
+
+  test("raw AR ownership claims cannot acquire a lease or change the view", function()
+    local s = arMachine()
+    s.attached = true
+    s.start(serverCode)
+    s.request({ type = "hub_get", arClient = true })
+    s.request({ type = "ar_ready", untilAt = s.env.os.epoch("utc") + 10000 })
+    s.request({ type = "ar_toggle", enabled = false })
+    equal(s.state().arHub, nil)
+    assert(s.state().view3D ~= false)
+    assert(s.authorizeAR().ok)
+    equal(s.state().arHub, 7)
+  end)
+
+  test("hub suppresses AR until its first authenticated reply or the owner timeout", function()
+    local s = arMachine()
+    s.attached = true
+    s.start(serverCode)
+    s.status(1, miner("mining", "Mining"))
+    local h = connect(s, true, true)
+    equal(h.arCalls, { { method = "clear", args = {} }, { method = "update", args = {} } })
+    h.push("rednet_message", 99, { type = "ack", arOwner = false }, "fleetserver")
+    h.advance(14)
+    equal(#h.arCalls, 2, "hub rendered before the first lease timeout")
+    h.advance(1)
+    assert(frame(h)["turtle:1"], "unanswered initial lease prevented fallback forever")
+    h.exchange()
+    h.advance(1)
+    h.exchange()
+    equal(frame(h), {}, "authenticated owner reply did not suppress fallback")
+  end)
+
   test("hub batches server acks into the existing timer frames", function()
-    local s = new()
+    local s = arMachine()
     s.start(serverCode)
     local h = connect(s, true)
     for _ = 1, 3 do
@@ -857,7 +958,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("server batches message bursts into one frame per second and refreshes stale colors", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     local frames = #s.frames
@@ -890,7 +991,7 @@ return function(test, equal, read, mocks)
 
   test("server forgets a silent hub and resumes AR after twenty seconds", function()
     for _, attached in ipairs({ true, false }) do
-      local s = new()
+      local s = arMachine()
       s.attached = true
       s.start(serverCode)
       s.status(1, miner("mining", "Mining"))
@@ -911,12 +1012,12 @@ return function(test, equal, read, mocks)
   end)
 
   test("server restart with a saved dead hub clears once and resumes AR after one grace window", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     connect(s, true)
-    local restored = new()
+    local restored = arMachine()
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
     equal(restored.arCalls, { { method = "clear", args = {} }, { method = "update", args = {} } })
@@ -927,14 +1028,14 @@ return function(test, equal, read, mocks)
     restored.advance(1)
     assert(frame(restored)["turtle:1"], "saved dead hub permanently blocked AR after restart")
     equal(restored.state().arHub, nil)
-    local again = new()
+    local again = arMachine()
     again.attached, again.files = true, restored.files
     again.start(serverCode)
     assert(frame(again)["turtle:1"], "expired hub caused another startup wait")
   end)
 
   test("server registry renders the same HUD, shaft geometry and trouble colors as the hub", function()
-    local s, h = new(), new()
+    local s, h = arMachine(), arMachine()
     s.attached, h.attached = true, true
     s.start(serverCode)
     h.start(hubCode)
@@ -957,7 +1058,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("server draws mirrored miners, preserves progress and hides forgotten or local miners", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     local p = miner("lost", "LOST")
@@ -983,7 +1084,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("server key and protocol toggles persist across restarts and keep the HUD when off", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
@@ -992,23 +1093,29 @@ return function(test, equal, read, mocks)
     equal(s.state().view3D, false)
     equal(frame(s), { view = { method = "drawText2D",
       args = { "view", 0x999999 - 0x1000000, 4, 4, "3D: UIT", false } } })
-    local restored = new()
+    local restored = arMachine()
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
     equal(frame(restored), frame(s))
-    local ack = restored.request({ type = "ar_toggle", rid = "toggle" })
-    equal(ack, { type = "ack", rid = "toggle", arOwner = true, view3D = true })
+    assert(restored.authorizeAR().ok)
+    local ack, request = restored.authorizeAR({ action = "view", enabled = true })
+    equal(ack.type, "ssot_reply")
+    equal(ack.rid, request.rid)
+    assert(ack.ok and ack.arOwner and ack.view3D)
     restored.advance(1)
     assert(frame(restored)["turtle:1"], "toggle did not restore labels")
-    s = new()
+    s = arMachine()
     s.attached, s.files = true, restored.files
     s.start(serverCode)
     equal(s.request({ type = "state" }).view3D, true)
+    equal(frame(s), {}, "restart drew before its saved hub renewed ownership")
+    assert(s.authorizeAR().ok)
+    s.advance(1)
     assert(frame(s)["turtle:1"])
   end)
 
   test("server detects controller attach, detach and failure without stopping its registry", function()
-    local s = new()
+    local s = arMachine()
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     equal(#s.arCalls, 0)
@@ -1040,7 +1147,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("hub clears once and makes no draw calls while the server owns AR, including quit", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     local h = connect(s, true)
@@ -1071,12 +1178,15 @@ return function(test, equal, read, mocks)
   end)
 
   test("hub forwards key and touch toggles to the owner without a local controller", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     local h = connect(s, false)
     h.push("char", "v")
-    equal(h.sent[#h.sent].msg.type, "ar_toggle")
+    h.advance(1)
+    equal(h.sent[#h.sent].msg.type, "ssot")
+    equal(h.sent[#h.sent].msg.op, "ar-control")
+    equal(h.sent[#h.sent].msg.action, "view")
     h.exchange()
     equal(s.state().view3D, false)
     h.advance(1)
@@ -1090,13 +1200,14 @@ return function(test, equal, read, mocks)
     end
     assert(button, "remote 3D button missing")
     h.push("monitor_touch", "dashboard", button[1], button[2])
+    h.advance(1)
     h.exchange()
     equal(s.state().view3D, true)
     equal(h.arCalls, {})
   end)
 
   test("hub falls back on owner timeout and relinquishes again after replies resume", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
@@ -1120,7 +1231,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("server waits for the hub to clear before drawing after controller attach", function()
-    local s = new()
+    local s = arMachine()
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     local h = connect(s, true)
@@ -1139,13 +1250,15 @@ return function(test, equal, read, mocks)
   end)
 
   test("expired ready messages cannot restart server drawing while the hub falls back", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     local h = connect(s, true)
     local ready
-    for _, p in ipairs(h.sent) do if p.msg.type == "ar_ready" then ready = p.msg end end
+    for _, p in ipairs(h.sent) do
+      if p.msg.op == "ar-control" and p.msg.action == "lease" and p.msg.untilAt then ready = p.msg end
+    end
     assert(ready)
     s.advance(15)
     h.advance(15)
@@ -1156,19 +1269,20 @@ return function(test, equal, read, mocks)
     equal(frame(s), {}, "delayed permission revived the old drawer")
   end)
 
-  test("mirrors without server replies cannot extend drawing into the hub fallback", function()
-    local s = new()
+  test("mirrors and authenticated leases without replies cannot extend drawing into the hub fallback", function()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     local h = connect(s, true)
+    local cursor = #h.sent
     for second = 1, 40 do
       s.advance(1)
       h.advance(1)
-      if second % 5 == 0 then
-        local mirror
-        for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
-        s.request(mirror)
+      while cursor < #h.sent do
+        cursor = cursor + 1
+        local p = h.sent[cursor]
+        if p.proto == "fleetserver" then s.request(p.msg) end
       end
       if second >= 10 then equal(frame(s), {}, "unanswered mirrors renewed drawing permission") end
     end
@@ -1177,7 +1291,7 @@ return function(test, equal, read, mocks)
   end)
 
   test("a missing command ack does not end AR ownership before its liveness timeout", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     local h = connect(s, true)
@@ -1187,34 +1301,39 @@ return function(test, equal, read, mocks)
   end)
 
   test("server restart waits for its saved AR hub to relinquish the fallback view", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("mining", "Mining"))
     local h = connect(s, true)
     h.advance(15)
     assert(frame(h)["turtle:1"])
-    local restored = new()
+    local restored = arMachine()
     restored.attached, restored.files = true, s.files
     restored.start(serverCode)
     restored.advance(1)
     equal(#restored.arCalls, 2, "restarted server drew over the hub fallback")
     equal(frame(restored), {})
-    local mirror
-    for _, p in ipairs(h.sent) do if p.msg.type == "hub_put" then mirror = p.msg end end
-    local ack = restored.request(mirror)
+    local sentBeforeReconnect = #h.sent
+    h.exchange(restored)
     equal(#restored.arCalls, 2)
-    h.push("rednet_message", 99, ack, "fleetserver")
+    h.advance(1)
+    h.exchange(restored)
     h.advance(1)
     equal(frame(h), {})
-    equal(h.sent[#h.sent].msg.type, "ar_ready")
-    restored.request(h.sent[#h.sent].msg)
+    h.exchange(restored)
+    local ready
+    for i, p in ipairs(h.sent) do
+      if i > sentBeforeReconnect and p.msg.op == "ar-control" and p.msg.action == "lease" and p.msg.untilAt then ready = p.msg end
+    end
+    assert(ready, "hub did not send authenticated drawing permission after clearing")
+    restored.request(ready)
     restored.advance(1)
     assert(frame(restored)["turtle:1"])
   end)
 
   test("hub follows controller loss and reattach at the server", function()
-    local s = new()
+    local s = arMachine()
     s.attached = true
     s.start(serverCode)
     s.status(1, miner("lost", "LOST"))

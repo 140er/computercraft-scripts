@@ -1,0 +1,34 @@
+Testing the real pending manifest. Unavailable roles must refuse installation; the all-role gate remains incomplete.
+PASS legacy data survives role update: buddy.memory
+PASS legacy data survives role update: room.recipes
+PASS legacy data survives role update: board.hist
+PASS legacy data survives role update: board.last
+PASS every role installs its exact manifest and removes stale files without touching data
+PASS legacy startup migration preserves client board delivery and calibrated arguments
+PASS current installer bootstraps the actual v1 updater through its file transport
+PASS actual v1 update CLI upgrades itself before role pruning without losing saved data
+PASS failed legacy updater bootstrap leaves all code and data unchanged
+PASS configured extensionless counter and warehouse journals survive role changes
+FAIL configured state in every recoverable config survives cache pruning and role changes: tests/install-role-checks.lua:61: Changed retained data server-code/private-counter.tmp.bak
+PASS an abandoned updater coroutine is recovered by a fresh updater after promotion
+PASS miner and store role closures exclude unrelated entrypoints and rendering
+PASS updates prune stale files and preserve the selected role and configured startup
+PASS role changes atomically replace startup and remove the previous role
+PASS failed role downloads leave stale files and state untouched
+PASS server cache is cleared on install, update, and role change even with data-like names
+PASS a failed cache prune restores cached code and user data byte for byte
+PASS interrupted stale removal restores nested files before fetching
+PASS interrupted staging is cleaned before a new role transaction
+PASS an unclaimed backup stops cleanup without deleting the recovery copy
+PASS manifest declares deferred Ed25519 authentication separately from release checksums
+PASS unavailable roles fail before changing installed code or data
+PASS update current bundle changes no scripts and does not reboot
+PASS installer preserves old roles and clean-installs every named role
+PASS failed bundle downloads preserve all installed scripts
+PASS release manifest rejects a valid script from another revision
+PASS failed commit rolls back every script and fresh entrypoint
+PASS restart rolls back an interrupted bundle before fetching
+PASS disk recovery entrypoint works when update.lua is missing
+PASS cached-only role deployment verifies server hashes
+PASS disk exhaustion leaves installed scripts intact
+31 passed, 1 failed

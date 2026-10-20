@@ -21,6 +21,48 @@ local VIEW_FILE = "hub.3d"
 local STALE = 15 -- seconds without a message = "no signal"
 
 local args = { ... }
+local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
+local arConfig,saveAR
+if AH then arConfig,saveAR=AH.settings() end
+local arAuth={pending={}}
+if fs.exists("ssot.cfg") and fs.exists("ssot.lua") then
+  arAuth.lib=dofile("ssot.lua")
+  arAuth.cfg=arAuth.lib.config(assert(dofile("atomic.lua").read("ssot.cfg"),"invalid ssot.cfg"))
+end
+function arAuth.queue(action,key,enabled,target)
+  if not arAuth.cfg or not arConfig or not arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID) then
+    return false,"Configure the shared SSOT owner and pairing first."
+  end
+  if #arAuth.pending>=16 then return false,"AR command queue is full." end
+  arAuth.pending[#arAuth.pending+1]={action=action,key=key,enabled=enabled,target=target}
+  return true
+end
+if args[1]=="ar" or args[1]=="chat" then
+  assert(AH,"ar-hud.lua missing")
+  local command=table.remove(args,1)
+  local ok,message
+  if command=="ar" then ok,message=AH.command(arConfig,args,saveAR,arAuth.cfg)
+  else ok,message=dofile("chat-control.lua").new(arConfig,{save=saveAR,saveAuth=function()
+    local h
+    local saved,why=pcall(function()
+      local text=textutils.serialize(arAuth.lib.config(arAuth.cfg))
+      h=assert(fs.open("ssot.cfg.tmp","w"),"open failed")
+      h.write(text) h.close() h=nil
+      local _,bytes=dofile("atomic.lua").read("ssot.cfg.tmp")
+      assert(bytes==text,"configuration verification failed")
+      if fs.exists("ssot.cfg.bak") then fs.delete("ssot.cfg.bak") end
+      fs.move("ssot.cfg","ssot.cfg.bak")
+      fs.move("ssot.cfg.tmp","ssot.cfg")
+    end)
+    if h then pcall(h.close) end
+    if not saved and not fs.exists("ssot.cfg") and fs.exists("ssot.cfg.bak") then
+      pcall(fs.move,"ssot.cfg.bak","ssot.cfg")
+    end
+    return saved,why
+  end},arAuth.cfg):command(args) end
+  print(message or tostring(ok))
+  return
+end
 if args[1] == "update" then
   -- latest version from GitHub (update.lua does the work, fetched here if missing)
   if not fs.exists("update.lua") then
@@ -201,15 +243,13 @@ local serverId = rednet.lookup(SERVER_PROTOCOL, "server")
 local serverSeen, commandSeq, pending = -1e9, 0, {}
 local serverAR, serverView, serverARSeen, serverARUntil = false, nil, -1e9, 0
 if serverId then
-  rednet.send(serverId, { type = "hub_get", rid = "hub", arClient = true }, SERVER_PROTOCOL)
+  rednet.send(serverId, { type = "hub_get", rid = "hub" }, SERVER_PROTOCOL)
   local deadline = os.clock() + 2
   repeat
     local id, m = rednet.receive(SERVER_PROTOCOL, math.max(0, deadline - os.clock()))
     if id == serverId and type(m) == "table" and m.type == "state" and m.rid == "hub" then
       serverSeen = os.clock()
-      serverARSeen = serverSeen
-      serverARUntil = os.epoch("utc") + 10000
-      serverAR, serverView = m.arOwner == true, m.view3D
+      serverView = m.view3D
       -- The server keeps the fleet's state: its copy wins when it is newer than ours
       -- (e.g. a new hub computer, or this one lost its file). An older copy is ignored.
       if type(m.hub) == "table" and type(m.hub.state) == "table"
@@ -614,6 +654,10 @@ local ar = peripheral.find("ar_controller")
 local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
 if serverAR and type(serverView) == "boolean" then view3D = serverView end
 local arSuppressed = false
+if serverId and arConfig and arAuth.cfg and arAuth.cfg.controllers[tostring(os.getComputerID())]
+    and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID) then
+  arAuth.awaitUntil=os.clock()+15
+end
 
 local function serverOwnsAR()
   return serverAR and os.clock() - serverARSeen < 15
@@ -621,7 +665,7 @@ end
 
 local function toggle3D()
   if serverOwnsAR() then
-    rednet.send(serverId, { type = "ar_toggle" }, SERVER_PROTOCOL)
+    arAuth.queue("view",nil,not serverView)
     return
   end
   view3D = not view3D
@@ -1071,6 +1115,18 @@ local function drawInfo(s)
 end
 
 local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
+local hudMem=AH and AH.memory("hub.ar-ids")
+local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+  if action=="hub" then
+    recallNow()
+    return true,"Recall queued; awaiting turtle status."
+  end
+  local ok,why=arAuth.queue("recharge",nil,nil,selected)
+  return ok,ok and "Recharge request queued; awaiting server acceptance." or why
+end,flash,arAuth.cfg)
+local function clearAR(device)
+  if AH and arConfig.enabled then AH.clear(device,hudMem) else V.arClear(device,arMem) end
+end
 
 -- The fleet as fleetview entries (see fleetview.lua)
 function fleetList()
@@ -1084,19 +1140,27 @@ function fleetList()
 end
 
 local function draw3D()
-  if serverOwnsAR() then
+  if serverOwnsAR() or arAuth.awaitUntil and os.clock()<arAuth.awaitUntil then
     if not arSuppressed then
-      if ar then pcall(function() ar.clear() ar.update() end) end
+      if ar then pcall(clearAR,ar) end
       arSuppressed, arMem.drawn = true, nil
-      rednet.send(serverId, { type = "ar_ready", arUntil = serverARUntil }, SERVER_PROTOCOL)
+      arAuth.queue("lease")
     end
     return
   end
   arSuppressed = false
   if not ar or not V then return end
-  local ok = pcall(V.ar, ar, fleetList(), view3D, arMem, "Fleet")
+  local ok = pcall(function()
+    if AH and arConfig.enabled then
+      local cfg={}
+      for k,v in pairs(arConfig) do cfg[k]=v end
+      if not view3D then cfg.enabled=false end
+      AH.render(ar,AH.snapshot(fleetList(),nil,cfg,arAuth.cfg,hudMem),hudMem,cfg,arAuth.cfg)
+    else V.ar(ar,fleetList(),view3D and arConfig~=nil and arAuth.cfg~=nil
+      and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID),arMem,"Fleet") end
+  end)
   if not ok then
-    pcall(function() ar.clear() ar.update() end)
+    pcall(clearAR,ar)
     ar, arMem.drawn = nil, nil -- A disappearing peripheral must not stop the dashboard.
   end
 end
@@ -1486,6 +1550,38 @@ local function panelRequest(id, m)
     ores = ores, turtles = list, haul = { table.unpack(haul, 1, 6) }, note = note })
 end
 
+local function arControlLoop()
+  local renewed=-1e9
+  while true do
+    local secret=arAuth.cfg and arAuth.cfg.controllers[tostring(os.getComputerID())]
+    if serverId and secret and arConfig and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID) then
+      arAuth.client=arAuth.client or dofile("ssot-client.lua").new({server=serverId,secret=secret,counterFile="hub-ar.counter"})
+      local request=table.remove(arAuth.pending,1)
+      if not request and nowMs()-renewed>=5000 then request={action="lease"} end
+      if request then
+        request.name,request.uuid=arConfig.ownerName,arConfig.ownerUUID
+        if request.action=="lease" then
+          request.untilAt=arSuppressed and serverOwnsAR() and serverARUntil or nil
+          renewed=nowMs()
+        end
+        local recharge=request.action=="recharge"
+        local result,why=arAuth.client.call(recharge and "recharge" or "ar-control",request)
+        if result and not recharge then arAuth.awaitUntil=nil end
+        if recharge then
+          flash(result and result.ok and ("Recharge accepted for "..result.count.." turtles.")
+            or tostring(why or "Recharge request failed."))
+        elseif result and result.ok then
+          serverARSeen,serverARUntil=os.clock(),nowMs()+10000
+          serverAR,serverView,serverDirty=result.arOwner==true,result.view3D,true
+          for key,field in pairs({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"}) do
+            if result.layers and type(result.layers[key])=="boolean" then arConfig[field]=result.layers[key] end
+          end
+        elseif request.action~="lease" then flash(tostring(why or "AR command was rejected.")) end
+      end
+    end
+    sleep(.1)
+  end
+end
 local function serverLoop()
   -- No fleet server yet: look for one now and then (it may be started later)
   local waited = 0
@@ -1497,12 +1593,9 @@ local function serverLoop()
   local timer, tick = os.startTimer(1), 0
   while true do
     local ev, id, m, proto = os.pullEvent()
-    if ev == "rednet_message" and id == serverId and proto == SERVER_PROTOCOL and type(m) == "table" and m.type == "ack" then
+    if ev=="rednet_message" and arAuth.client and arAuth.client.dispatch(id,m,proto) then
+    elseif ev == "rednet_message" and id == serverId and proto == SERVER_PROTOCOL and type(m) == "table" and m.type == "ack" then
       serverSeen = os.clock()
-      serverARSeen = serverSeen
-      serverARUntil = nowMs() + 10000
-      serverAR = m.arOwner == true
-      serverView, serverDirty = m.view3D, true
       if m.rid then pending[m.rid] = nil end
     elseif ev == "timer" and id == timer then
       tick = tick + 1
@@ -1517,8 +1610,7 @@ local function serverLoop()
         pushSoon = false
         local fleet = {}
         for tid, t in pairs(turtles) do fleet[tid] = { p = t.p, age = os.clock() - t.seen } end
-        rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet,
-          arClient = true, arUntil = arSuppressed and serverOwnsAR() and serverARUntil or nil }, SERVER_PROTOCOL)
+        rednet.send(serverId, { type = "hub_put", rid = "mirror", hub = hub, turtles = fleet }, SERVER_PROTOCOL)
       end
       timer = os.startTimer(1)
     end
@@ -1539,7 +1631,7 @@ local function uiLoop()
   local tick = 0
   redraw()
   while true do
-    local ev, a, b, c = os.pullEvent()
+    local ev, a, b, c, d = os.pullEvent()
     if ev == "timer" and a == timer then
       -- Normal modems: turtles out of range miss the call, so keep repeating it
       tick = tick + 1
@@ -1562,9 +1654,17 @@ local function uiLoop()
       click("term", b, c)
     elseif ev == "monitor_touch" then
       click(a, b, c)
+    elseif ev=="chat" and arControls and arControls.chat and not serverOwnsAR() then
+      arControls.chat:event(ev,a,b,c,d)
+      redraw()
     elseif ev == "char" then
       local n = tonumber(a)
-      if n and ORDER[n] then setTarget(ORDER[n])
+      if arConfig and arConfig.enabled and serverOwnsAR() and ({P=true,T=true,O=true,A=true})[a] then
+        local field=({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"})[a]
+        local ok,why=arAuth.queue("layer",a,not arConfig[field])
+        flash(ok and "AR layer request queued." or why)
+      elseif arControls and arControls.key(a) then
+      elseif n and ORDER[n] then setTarget(ORDER[n])
       elseif a == "s" then stopAll()
       elseif a == "r" then recallNow()
       elseif a == "h" then resumeAll()
@@ -1581,10 +1681,14 @@ local function uiLoop()
       local prev = ar
       ar = peripheral.find("ar_controller")
       if prev and prev ~= ar and not arSuppressed then
-        pcall(function() prev.clear() prev.update() end)
+        pcall(clearAR,prev)
       end
       if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then
         arSuppressed, arMem.drawn = false, nil
+        if hudMem then
+          hudMem.reconciled=nil
+          for key in pairs(hudMem.elements) do hudMem.elements[key]={} end
+        end
       end
       if prev ~= ar then redraw() else draw3D() end
     end
@@ -1618,8 +1722,8 @@ local function gpuLoop()
   end, flash)
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop)
-if ar and not arSuppressed then pcall(function() ar.clear() ar.update() end) end
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop)
+if ar and not arSuppressed then pcall(clearAR,ar) end
 term.native().setBackgroundColor(colors.black)
 term.native().clear()
 term.native().setCursorPos(1, 1)

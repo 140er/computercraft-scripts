@@ -1,0 +1,317 @@
+{
+  "nativeTransport": "CraftOS virtual modem rednet",
+  "diskCapacity": 4000000,
+  "computers": [
+    "server",
+    "turtle1",
+    "turtle2",
+    "turtle3",
+    "controller",
+    "hub"
+  ],
+  "checks": [
+    {
+      "name": "AR feature assertions on CraftOS Lua",
+      "ok": true
+    },
+    {
+      "name": "Radius 64 keeps nearby ores and yields during bounded projection",
+      "ok": true
+    },
+    {
+      "name": "chat defaults deny and usernames never authorize",
+      "ok": true
+    },
+    {
+      "name": "chat confirms once, binds UUID and expires requests",
+      "ok": true
+    },
+    {
+      "name": "AP public and stripped hidden tuples preserve visibility",
+      "ok": true
+    },
+    {
+      "name": "AP confirmation text keeps the token instead of the action word",
+      "ok": true
+    },
+    {
+      "name": "chat rejects confirmation replay after restart",
+      "ok": true
+    },
+    {
+      "name": "chat settings validate UUIDs and configurable geometry",
+      "ok": true
+    },
+    {
+      "name": "chat save failures keep authorization disabled",
+      "ok": true
+    },
+    {
+      "name": "AR settings keep recovered backup after a failed promotion",
+      "ok": true
+    },
+    {
+      "name": "AR settings preserve sole temp generation before a write failure",
+      "ok": true
+    },
+    {
+      "name": "AR recovery retains more than 4096 IDs from interrupted frame unions",
+      "ok": true
+    },
+    {
+      "name": "AR snapshot skips stone and hidden air before its ore budget",
+      "ok": true
+    },
+    {
+      "name": "chat ignores the retired AR allowlist without shared authorization",
+      "ok": true
+    },
+    {
+      "name": "chat requires the actual username to match the shared UUID entry",
+      "ok": true
+    },
+    {
+      "name": "chat rate limit spans different commands and isolates UUIDs",
+      "ok": true
+    },
+    {
+      "name": "hub chat authorization saves raw configuration and preserves it when promotion fails",
+      "ok": true
+    },
+    {
+      "name": "server without SSOT configuration refuses AR hub claims and layer commands",
+      "ok": true
+    },
+    {
+      "name": "AR hub enrolment requires paired secret and the enrolled allowlisted identity",
+      "ok": true
+    },
+    {
+      "name": "recharge rejects legacy spoofed controllers and requires enrolled SSOT authorization",
+      "ok": true
+    },
+    {
+      "name": "recharge delivery survives server restart and clears only on an authenticated receipt",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after targeted go and restart",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after broadcast go and restart",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after targeted recall and restart",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after broadcast recall and restart",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after targeted estop and restart",
+      "ok": true
+    },
+    {
+      "name": "offline recharge stays cancelled after broadcast estop and restart",
+      "ok": true
+    },
+    {
+      "name": "recharge command completion survives restart and rejects replay",
+      "ok": true
+    },
+    {
+      "name": "confirmed recharge runs the real service and reports fuel rise",
+      "ok": true
+    },
+    {
+      "name": "confirmed recharge runs the real service and reports no fuel rise",
+      "ok": true
+    },
+    {
+      "name": "confirmed recharge runs the real service and reports cancellation by recall",
+      "ok": true
+    },
+    {
+      "name": "confirmed recharge runs the real service and reports cancellation by go",
+      "ok": true
+    },
+    {
+      "name": "recall from a saved mining pose walks home instead of pausing",
+      "ok": true
+    },
+    {
+      "name": "update current bundle changes no scripts and does not reboot",
+      "ok": true
+    },
+    {
+      "name": "installer preserves old roles and clean-installs every named role",
+      "ok": true
+    },
+    {
+      "name": "failed bundle downloads preserve all installed scripts",
+      "ok": true
+    },
+    {
+      "name": "release manifest rejects a valid script from another revision",
+      "ok": true
+    },
+    {
+      "name": "failed commit rolls back every script and fresh entrypoint",
+      "ok": true
+    },
+    {
+      "name": "restart rolls back an interrupted bundle before fetching",
+      "ok": true
+    },
+    {
+      "name": "disk recovery entrypoint works when update.lua is missing",
+      "ok": true
+    },
+    {
+      "name": "cached-only role deployment verifies server hashes",
+      "ok": true
+    },
+    {
+      "name": "disk exhaustion leaves installed scripts intact",
+      "ok": true
+    },
+    {
+      "name": "legacy data survives role update: buddy.memory",
+      "ok": true
+    },
+    {
+      "name": "legacy data survives role update: room.recipes",
+      "ok": true
+    },
+    {
+      "name": "legacy data survives role update: board.hist",
+      "ok": true
+    },
+    {
+      "name": "legacy data survives role update: board.last",
+      "ok": true
+    },
+    {
+      "name": "every role installs its exact manifest and removes stale files without touching data",
+      "ok": true
+    },
+    {
+      "name": "legacy startup migration preserves client board delivery and calibrated arguments",
+      "ok": true
+    },
+    {
+      "name": "current installer bootstraps the actual v1 updater through its file transport",
+      "ok": true
+    },
+    {
+      "name": "actual v1 update CLI upgrades itself before role pruning without losing saved data",
+      "ok": true
+    },
+    {
+      "name": "failed legacy updater bootstrap leaves all code and data unchanged",
+      "ok": true
+    },
+    {
+      "name": "configured extensionless counter and warehouse journals survive role changes",
+      "ok": true
+    },
+    {
+      "name": "configured state in every recoverable config survives cache pruning and role changes",
+      "ok": true
+    },
+    {
+      "name": "an abandoned updater coroutine is recovered by a fresh updater after promotion",
+      "ok": true
+    },
+    {
+      "name": "miner and store role closures exclude unrelated entrypoints and rendering",
+      "ok": true
+    },
+    {
+      "name": "updates prune stale files and preserve the selected role and configured startup",
+      "ok": true
+    },
+    {
+      "name": "role changes atomically replace startup and remove the previous role",
+      "ok": true
+    },
+    {
+      "name": "failed role downloads leave stale files and state untouched",
+      "ok": true
+    },
+    {
+      "name": "server cache is cleared on install, update, and role change even with data-like names",
+      "ok": true
+    },
+    {
+      "name": "a failed cache prune restores cached code and user data byte for byte",
+      "ok": true
+    },
+    {
+      "name": "interrupted stale removal restores nested files before fetching",
+      "ok": true
+    },
+    {
+      "name": "interrupted staging is cleaned before a new role transaction",
+      "ok": true
+    },
+    {
+      "name": "orphan cleanup preserves data and configured state with transaction-like names",
+      "ok": true
+    },
+    {
+      "name": "configured data overlapping updater paths refuses installation without changing disk",
+      "ok": true
+    },
+    {
+      "name": "an unclaimed backup stops cleanup without deleting the recovery copy",
+      "ok": true
+    },
+    {
+      "name": "manifest declares deferred Ed25519 authentication separately from release checksums",
+      "ok": true
+    },
+    {
+      "name": "unavailable roles fail before changing installed code or data",
+      "ok": true
+    },
+    {
+      "name": "Shifted HUD keys persist layers and preserve hub commands",
+      "ok": true
+    },
+    {
+      "name": "UUID authorization and one-use public confirmation",
+      "ok": true
+    },
+    {
+      "name": "server owns HUD while hub stays suppressed",
+      "ok": true
+    },
+    {
+      "name": "hub takes over after server controller detaches",
+      "ok": true
+    },
+    {
+      "name": "server reclaims HUD after controller reattaches",
+      "ok": true
+    },
+    {
+      "name": "server and hub recover ownership after process restart",
+      "ok": true
+    }
+  ],
+  "emulator": "CraftOS-PC 2.8.3",
+  "passed": true,
+  "limitations": [
+    "cc_ar 0.2.1 depth-tests 3D lines and text. This sandbox does not claim through-wall outlines.",
+    "cc_ar calls use a signature-checking mock; goggles projection requires Gate B.",
+    "AP chat tuples run through production parsing; real chat_box event emission requires Gate B.",
+    "Installer rollback and disk faults use mocks inside CraftOS.",
+    "The warehouse runtime comes from main. PR 5 view roles await the corrected branch.",
+    "Owner checks sample separate controller mocks; they do not render two computers into one real goggles scene.",
+    "Controller mock elements reset on process restart; persisted external AR element cleanup is covered by module checks only."
+  ]
+}

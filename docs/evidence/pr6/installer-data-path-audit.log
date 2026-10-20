@@ -1,0 +1,246 @@
+nav.lua:46:  local store=A.store(cfg.path or "nav.state",valid,400000)
+mining.lua:33:  local store=A.store(cfg.path or "mining.state",valid,250000)
+miner.lua:36:  local fh = fs.open(PROGRAM, "r")
+miner.lua:41:local CFG_FILE, STATE_FILE = "miner.cfg", "miner.state"
+miner.lua:120:    local h = fs.open("dev.key", "r")
+miner.lua:136:      local h = fs.open(logFile, "r")
+miner.lua:160:      local h = fs.open(path, "r")
+miner.lua:176:      local h = fs.open(path, "w")
+miner.lua:277:        local h = fs.open("dev.key", "w")
+miner.lua:294:      local h = fs.open(p, "r")
+miner.lua:305:  local h = fs.open(tmp, "w")
+miner.lua:457:  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc, chest = chest })
+miner.lua:458:  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
+miner.lua:459:  local h = fs.open("startup.lua", "w")
+miner.lua:480:local cfg = loadTable(CFG_FILE)
+miner.lua:495:  saveTable(CFG_FILE,cfg) print("Mining service saved") return
+miner.lua:499:  cfg.nav=cfg.nav or {} cfg.nav.traffic=args[3]=="on" saveTable(CFG_FILE,cfg) return
+miner.lua:506:    cfg.mining.enabled=args[2]=="enable" saveTable(CFG_FILE,cfg) print("Mining "..args[2].."d") return
+miner.lua:511:    cfg.mining.home=p saveTable(CFG_FILE,cfg) print("Mining home saved") return
+miner.lua:525:  saveTable(CFG_FILE,cfg)
+miner.lua:563:  saveTable(CFG_FILE, cfg)
+miner.lua:578:  local s0 = loadTable(STATE_FILE) or {}
+miner.lua:584:  saveTable(STATE_FILE, s0)
+miner.lua:599:local st = loadTable(STATE_FILE) or {}
+miner.lua:612:local function save() saveTable(STATE_FILE, st) end
+miner.lua:689:      local h = fs.open("miner.log", "r")
+miner.lua:695:    local h = fs.open("miner.log", "w")
+miner.lua:2049:  local h = fs.open(tmp, "w")
+miner.lua:2082:      saveTable(CFG_FILE, cfg)
+lumber.lua:34:local CFG_FILE, STATE_FILE, LOG_FILE = "lumber.cfg", "lumber.state", "lumber.log"
+lumber.lua:81:      local h = fs.open(p, "r")
+lumber.lua:92:  local h = fs.open(tmp, "w")
+lumber.lua:128:  saveTable(CFG_FILE, { radius = math.floor(radius) })
+lumber.lua:129:  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
+lumber.lua:130:  local h = fs.open("startup.lua", "w")
+lumber.lua:140:local cfg = loadTable(CFG_FILE)
+lumber.lua:148:  local s0 = loadTable(STATE_FILE) or {}
+lumber.lua:158:  saveTable(STATE_FILE, s0)
+lumber.lua:166:local st = loadTable(STATE_FILE) or {}
+lumber.lua:175:local function save() saveTable(STATE_FILE, st) end
+lumber.lua:205:    if fs.exists(LOG_FILE) then
+lumber.lua:206:      local h = fs.open(LOG_FILE, "r")
+lumber.lua:213:    local h = fs.open(LOG_FILE, "w")
+lumber.lua:1328:    local h = fs.open("dev.key", "r")
+lumber.lua:1344:      local h = fs.open(logFile, "r")
+lumber.lua:1368:      local h = fs.open(path, "r")
+lumber.lua:1384:      local h = fs.open(path, "w")
+lumber.lua:1491:        local h = fs.open("dev.key", "w")
+lumber.lua:1535:      devCommand(m, LOG_FILE, "lumber", function(r) rednet.send(id, r, "lumber") ui.draw() end, hooks)
+lava.lua:44:local CFG_FILE, STATE_FILE, LOG_FILE = "lava.cfg", "lava.state", "lava.log"
+lava.lua:92:      local h = fs.open(p, "r")
+lava.lua:103:  local h = fs.open(tmp, "w")
+lava.lua:196:  local old = loadTable(CFG_FILE) or {}
+lava.lua:197:  saveTable(CFG_FILE, { home = home, facing = facing, drops = old.drops or {}, pool = old.pool, exit = old.exit })
+lava.lua:198:  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
+lava.lua:199:  local h = fs.open("startup.lua", "w")
+lava.lua:208:local cfg = loadTable(CFG_FILE)
+lava.lua:218:local function saveCfg() saveTable(CFG_FILE, cfg) end
+lava.lua:268:    local s0 = loadTable(STATE_FILE)
+lava.lua:269:    if s0 then s0.poolCursor, s0.poolDry, s0.poolT = nil, nil, nil saveTable(STATE_FILE, s0) end
+lava.lua:286:local st = loadTable(STATE_FILE) or {}
+lava.lua:295:local function save() saveTable(STATE_FILE, st) end
+lava.lua:383:    if fs.exists(LOG_FILE) then
+lava.lua:384:      local h = fs.open(LOG_FILE, "r")
+lava.lua:391:    local h = fs.open(LOG_FILE, "w")
+lava.lua:1213:    local h = fs.open("dev.key", "r")
+lava.lua:1229:      local h = fs.open(logFile, "r")
+lava.lua:1253:      local h = fs.open(path, "r")
+lava.lua:1269:      local h = fs.open(path, "w")
+lava.lua:1366:        local h = fs.open("dev.key", "w")
+lava.lua:1407:      devCommand(m, LOG_FILE, "lava", function(r) rednet.send(id, r, PROTOCOL) end, NO_DRIVE)
+relay.lua:25:  local h = fs.open("startup.lua", "w")
+panel.lua:30:  local h = fs.open("startup.lua", "w")
+panel.lua:1355:  local h = fs.open("panel.key", "r")
+panel.lua:1597:    local h = fs.open(words[3], "r")
+panel.lua:1708:      local h = fs.open("panel.key", "w") h.write(con.key) h.close()
+panel.lua:1729:      local h = fs.open("panel.key", "w") h.write(k) h.close()
+panel.lua:1813:      local h = fs.open(p.save, "w") h.write(m.data) h.close()
+server.lua:16:local STATE_FILE, CODE_DIR = "server.state", "server-code"
+server.lua:17:local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
+server.lua:28:  local h = fs.open(path, "r")
+server.lua:36:for _, path in ipairs({ STATE_FILE, STATE_FILE .. ".bak", STATE_FILE .. ".tmp" }) do
+server.lua:72:    if stateSource and stateSource ~= STATE_FILE and path == STATE_FILE then
+server.lua:75:      stateSource = STATE_FILE
+server.lua:83:    h = assert(fs.open(tmp, "w"), "Cannot write " .. tmp)
+server.lua:88:    if path == STATE_FILE then
+server.lua:97:    if cache or path ~= STATE_FILE then cleaned, cleanupError = pcall(fs.delete, backup) end
+server.lua:116:  if ok then return writeFile(STATE_FILE, text) end
+server.lua:231:for _, f in ipairs(FILES) do
+server.lua:542:local hudMem=AH and AH.memory("server.ar-ids")
+server.lua:864:  text(x0 + 1, row, ("Disk: %s bytes free%s"):format(tostring(fs.getFreeSpace(STATE_FILE)),
+server.lua:867:  for _, f in ipairs(FILES) do
+server.lua:910:  local right = tostring(fs.getFreeSpace(STATE_FILE)) .. " bytes free" .. (diskFull and " | disk full" or "")
+server.lua:911:    .. " | code " .. nfiles .. "/" .. #FILES .. (hid and (" | hub #" .. hid) or " | no hub")
+server.lua:1029:    for _, f in ipairs(FILES) do mirror(f) sleep(1) end
+roomsorter.lua:28:local FILES = { map = "room.map", idx = "room.idx", pos = "room.pos", cfg = "room.cfg", stats = "room.stats",
+roomsorter.lua:47:  local h = fs.open("startup.lua", "w")
+roomsorter.lua:59:  local h = fs.open(path, "r")
+roomsorter.lua:66:  local h = fs.open(path, "w")
+roomsorter.lua:657:  local HIST_FILE = "board.hist"
+roomsorter.lua:658:  local hist = loadTable(HIST_FILE) or {} -- { { t = ms, v = { [item] = count } } }, 1 per minute
+roomsorter.lua:661:  local LAST_FILE = "board.last"
+roomsorter.lua:662:  local lastIn = loadTable(LAST_FILE) or {} -- [item] = { t = ms, d = how many came in }
+roomsorter.lua:680:    saveTable(HIST_FILE, hist)
+roomsorter.lua:891:        if changedIn then saveTable(LAST_FILE, lastIn) end
+roomsorter.lua:945:local cfg = loadTable(FILES.cfg) or {}
+roomsorter.lua:959:saveTable(FILES.cfg, cfg)
+roomsorter.lua:961:local stats = loadTable(FILES.stats) or {}
+roomsorter.lua:975:    local h = fs.open(FILES.log, "a")
+roomsorter.lua:1064:local map = loadTable(FILES.map)
+roomsorter.lua:1065:local idx = loadTable(FILES.idx) or {} -- [cell] = { kind=, acc=, dir=, size=, items= }
+roomsorter.lua:1066:local pos = loadTable(FILES.pos) or { x = 0, y = 0, z = 0, h = 0 }
+roomsorter.lua:1068:local function saveMap() mapVersion = mapVersion + 1 saveTable(FILES.map, map) end
+roomsorter.lua:1069:local function saveIdx() saveTable(FILES.idx, idx) end
+roomsorter.lua:1070:local function savePos() saveTable(FILES.pos, pos) end
+roomsorter.lua:2688:local RECIPES_FILE = "room.recipes"
+roomsorter.lua:2689:local learned = loadTable(RECIPES_FILE) or {}
+roomsorter.lua:3107:  saveTable(RECIPES_FILE, learned)
+roomsorter.lua:3396:  saveTable(FILES.stats, stats)
+roomsorter.lua:3553:saveTable(FILES.stats, stats)
+install.lua:277:    local h = fs.open("update.lua", "r")
+warehouse.lua:25:  local disk=A.store(cfg.path or "warehouse.state",valid,64000)
+update.lua:14:  local h = fs.open(path, "r")
+update.lua:97:  local h = assert(fs.open(path, "w"), "cannot open " .. path)
+ssot.lua:295:  local store = A.store("ssot.state", function(s)
+hub.lua:19:local STATE_FILE = "hub.state"
+hub.lua:20:local VIEW_FILE = "hub.3d"
+hub.lua:49:      h=assert(fs.open("ssot.cfg.tmp","w"),"open failed")
+hub.lua:72:  local h = fs.open("hub.release", "w") h.close()
+hub.lua:78:  local h = fs.open("startup.lua", "w")
+hub.lua:151:  local h = fs.open(path, "r")
+hub.lua:157:local hub = loadTable(STATE_FILE)
+hub.lua:198:  local h = fs.open(STATE_FILE, "w")
+hub.lua:331:local MINER_FILE = "miner.lua"
+hub.lua:339:  if not fs.exists(MINER_FILE) then return nil end
+hub.lua:340:  local attr = fs.attributes and fs.attributes(MINER_FILE)
+hub.lua:343:    local h = fs.open(MINER_FILE, "r")
+hub.lua:654:local view3D = (loadTable(VIEW_FILE) or {}).enabled ~= false
+hub.lua:672:  local h = fs.open(VIEW_FILE, "w")
+hub.lua:1118:local hudMem=AH and AH.memory("hub.ar-ids")
+hub.lua:1306:    local h = fs.open("dev.key", "r")
+hub.lua:1322:      local h = fs.open(logFile, "r")
+hub.lua:1346:      local h = fs.open(path, "r")
+hub.lua:1362:      local h = fs.open(path, "w")
+hub.lua:1464:        local h = fs.open("dev.key", "w")
+hub.lua:1514:    local h = fs.open("hub.release", "w") h.close()
+builder.lua:46:local CFG_FILE, STATE_FILE, LOG_FILE = "builder.cfg", "builder.state", "builder.log"
+builder.lua:89:      local h = fs.open(p, "r")
+builder.lua:100:  local h = fs.open(tmp, "w")
+builder.lua:180:  saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, world = world, dump = dump })
+builder.lua:181:  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
+builder.lua:182:  local h = fs.open("startup.lua", "w")
+builder.lua:195:local cfg = loadTable(CFG_FILE)
+builder.lua:211:local st = loadTable(STATE_FILE) or {}
+builder.lua:219:local function save() saveTable(STATE_FILE, st) end
+builder.lua:260:    if fs.exists(LOG_FILE) then
+builder.lua:261:      local h = fs.open(LOG_FILE, "r")
+builder.lua:268:    local h = fs.open(LOG_FILE, "w")
+builder.lua:1260:    local h = fs.open("dev.key", "r")
+builder.lua:1276:      local h = fs.open(logFile, "r")
+builder.lua:1300:      local h = fs.open(path, "r")
+builder.lua:1316:      local h = fs.open(path, "w")
+builder.lua:1413:        local h = fs.open("dev.key", "w")
+builder.lua:1435:      devCommand(m, LOG_FILE, "builder", function(r) rednet.send(id, r, PROTOCOL) end, NO_DRIVE)
+ssot-client.lua:9:  local store = A.store(path, function(v)
+buddy.lua:28:local CFG_FILE, STATE_FILE, KEY_FILE = "buddy.cfg", "buddy.state", "api.key"
+buddy.lua:29:local MEMORY_FILE = "buddy.memory"  -- remembered places and notes
+buddy.lua:44:  local fh = fs.open(path, "r")
+buddy.lua:51:  local fh = fs.open(path, "w")
+buddy.lua:65:  local saved = textutils.unserialize(readFile(CFG_FILE) or "")
+buddy.lua:68:local function saveCfg() writeFile(CFG_FILE, textutils.serialize(cfg)) end
+buddy.lua:79:  local saved = textutils.unserialize(readFile(STATE_FILE) or "")
+buddy.lua:82:local function saveState() writeFile(STATE_FILE, textutils.serialize(state)) end
+buddy.lua:87:  local saved = textutils.unserialize(readFile(MEMORY_FILE) or "")
+buddy.lua:93:local function saveMemory() writeFile(MEMORY_FILE, textutils.serialize(memory)) end
+buddy.lua:479:  local key = readFile(KEY_FILE)
+buddy.lua:704:  writeFile(KEY_FILE, args[2])
+buddy.lua:705:  print("Key saved in " .. KEY_FILE .. ". Keep that file to yourself.")
+buddy.lua:845:    local h = fs.open("dev.key", "r")
+buddy.lua:861:      local h = fs.open(logFile, "r")
+buddy.lua:885:      local h = fs.open(path, "r")
+buddy.lua:901:      local h = fs.open(path, "w")
+buddy.lua:1008:        local h = fs.open("dev.key", "w")
+sorter.lua:17:local CFG_FILE = "sorter.cfg"
+sorter.lua:18:local STATS_FILE = "sorter.stats"
+sorter.lua:19:local LOG_FILE = "sorter.log"
+sorter.lua:32:  local h = fs.open("startup.lua", "w")
+sorter.lua:44:  local h = fs.open(path, "r")
+sorter.lua:51:  local h = fs.open(path, "w")
+sorter.lua:56:local cfg = loadTable(CFG_FILE) or {}
+sorter.lua:74:local stats = loadTable(STATS_FILE) or {}
+sorter.lua:209:    local h = fs.open(LOG_FILE, "a")
+sorter.lua:481:  if statsDirty then saveTable(STATS_FILE, stats) statsDirty = false end
+sorter.lua:557:  saveTable(CFG_FILE, cfg)
+sorter.lua:807:saveTable(STATS_FILE, stats)
+atomic.lua:17:  local h = fs.open(path, "r")
+atomic.lua:55:        h = assert(fs.open(path .. ".tmp", "w"), "open failed")
+ar-role.lua:3:  local h = assert(fs.open("startup.lua", "w"))
+ar-hud.lua:57:      local f=fs.open(path,"r")
+ar-hud.lua:79:      h=assert(fs.open("ar.cfg.tmp","w"),"cannot write AR config")
+ar-hud.lua:81:      h=assert(fs.open("ar.cfg.tmp","r"))
+ar-hud.lua:166:      local f=fs.open(file,"r")
+ar-hud.lua:200:    local f=assert(fs.open(path..".tmp","w"),"cannot journal AR IDs")
+ar-hud.lua:202:    f=assert(fs.open(path..".tmp","r"))
+fleetview.lua:672:        if settings then settings.set("fleet.gpuflip", g.flip) pcall(settings.save) end
+factory.lua:27:local CFG_FILE, JOB_FILE = "factory.cfg", "deliver.job"
+factory.lua:50:      local h = fs.open(p, "r")
+factory.lua:61:  local h = fs.open(tmp, "w")
+factory.lua:70:  local h = fs.open(path, "r")
+factory.lua:77:  local h = fs.open(path, "w")
+factory.lua:108:  local job = loadTable(JOB_FILE)
+factory.lua:125:  local function save() saveTable(JOB_FILE, job) end
+factory.lua:227:      fs.delete(JOB_FILE)
+factory.lua:258:        local h = fs.open("/" .. name, "w") h.write(code) h.close()
+factory.lua:260:      local h = fs.open("/deliver.job", "w") h.write(textutils.serialize(msg.job)) h.close()
+factory.lua:261:      h = fs.open("/startup.lua", "w") h.write('shell.run("factory", "deliver")\n') h.close()
+factory.lua:285:local cfg = loadTable(CFG_FILE) or {}
+factory.lua:288:local function saveCfg() saveTable(CFG_FILE, cfg) end
+farmer.lua:33:local CFG_FILE, STATE_FILE, LOG_FILE = "farmer.cfg", "farmer.state", "farmer.log"
+farmer.lua:70:      local h = fs.open(p, "r")
+farmer.lua:81:  local h = fs.open(tmp, "w")
+farmer.lua:134:  local old = loadTable(CFG_FILE) or {}
+farmer.lua:135:  saveTable(CFG_FILE, { length = math.floor(len), width = math.floor(wid), left = args[4] == "left",
+farmer.lua:137:  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
+farmer.lua:138:  local h = fs.open("startup.lua", "w")
+farmer.lua:148:local cfg = loadTable(CFG_FILE)
+farmer.lua:170:  saveTable(CFG_FILE, cfg)
+farmer.lua:183:  saveTable(CFG_FILE, cfg)
+farmer.lua:188:  local s0 = loadTable(STATE_FILE) or {}
+farmer.lua:198:  saveTable(STATE_FILE, s0)
+farmer.lua:221:local st = loadTable(STATE_FILE) or {}
+farmer.lua:234:local function save() saveTable(STATE_FILE, st) end
+farmer.lua:264:    if fs.exists(LOG_FILE) then
+farmer.lua:265:      local h = fs.open(LOG_FILE, "r")
+farmer.lua:272:    local h = fs.open(LOG_FILE, "w")
+farmer.lua:1115:    local h = fs.open("dev.key", "r")
+farmer.lua:1131:      local h = fs.open(logFile, "r")
+farmer.lua:1155:      local h = fs.open(path, "r")
+farmer.lua:1171:      local h = fs.open(path, "w")
+farmer.lua:1278:        local h = fs.open("dev.key", "w")
+farmer.lua:1303:      devCommand(m, LOG_FILE, "farmer", function(r) rednet.send(id, r, "farmer") end, NO_DRIVE)
+store.lua:4:local function save() local f=assert(fs.open("warehouse.cfg","w")) f.write(textutils.serialize(cfg)) f.close() end
+store.lua:10:  local f=assert(fs.open("startup.lua","w")) f.write('shell.run("store")\n') f.close() print("Warehouse starts on boot") return
+gpshost.lua:25:  local h = fs.open(CFG, "w")
+gpshost.lua:28:  h = fs.open("startup.lua", "w")
+gpshost.lua:35:  local h = fs.open(CFG, "r")

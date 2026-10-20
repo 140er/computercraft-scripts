@@ -1,0 +1,21 @@
+Unit fixture covers the 20 current roles with four PR5 placeholder modules. Native and PR5 menu validation are pending.
+PASS every role installs its exact manifest and removes stale files without touching data
+PASS miner and store role closures exclude unrelated entrypoints and rendering
+PASS updates prune stale files and preserve the selected role and configured startup
+PASS role changes atomically replace startup and remove the previous role
+PASS failed role downloads leave stale files and state untouched
+PASS server cache survives server update and is pruned on a role change
+PASS interrupted stale removal restores nested files before fetching
+PASS interrupted staging is cleaned before a new role transaction
+PASS an unclaimed backup stops cleanup without deleting the recovery copy
+PASS manifest declares deferred Ed25519 authentication separately from release checksums
+PASS update current bundle changes no scripts and does not reboot
+PASS installer preserves old roles and clean-installs every named role
+PASS failed bundle downloads preserve all installed scripts
+PASS release manifest rejects a valid script from another revision
+PASS failed commit rolls back every script and fresh entrypoint
+PASS restart rolls back an interrupted bundle before fetching
+PASS disk recovery entrypoint works when update.lua is missing
+PASS cached-only role deployment verifies server hashes
+PASS disk exhaustion leaves installed scripts intact
+19 passed, 0 failed
