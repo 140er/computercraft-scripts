@@ -134,14 +134,15 @@ try {
     }
 }
 
-$gates = if ($problems.Count -eq 0) { 'PASS' } else { 'FAIL' }
 $loaded = @{}
 foreach ($file in Get-ChildItem $Output -Recurse -Filter 'jar-sha256.txt') {
     foreach ($line in Get-Content $file.FullName) { if ($line.Trim()) { $loaded[($line.Trim() -split '\s+', 2)[1]] = $true } }
 }
 $unloaded = @($live.Keys | Where-Object { !$loaded.ContainsKey($_) } | Sort-Object)
+if ($unloaded) { $problems.Add("Live jars missing from the test servers: $($unloaded -join ', ').") }
+$gates = if ($problems.Count -eq 0) { 'PASS' } else { 'FAIL' }
 $summary = @("GATES: $gates", '', "Ref $Ref at $sha.", "Host $env:COMPUTERNAME, VM-local disposable servers under C:\Work\mc-ssot-pr1-gb$stamp-*, never live.",
-    "Started $($started.ToString('s')), finished $([DateTime]::Now.ToString('s')).", "Live jars from gatebd not loaded by any scenario: $(if ($unloaded) { $unloaded -join ', ' } else { 'none' }).", '',
+    "Started $($started.ToString('s')), finished $([DateTime]::Now.ToString('s')).", '',
     '| Scenario | Verdict | Screenshots | Video |', '| --- | --- | --- | --- |') + $rows + @('', 'Problems:') +
     $(if ($problems.Count) { $problems | ForEach-Object { "- $_" } } else { '- none' }) + @('', "Evidence: $Output")
 [IO.File]::WriteAllLines("$Output\SUMMARY.md", $summary, $utf8)
