@@ -743,9 +743,16 @@ if cmd == "server" then
   print("Model: " .. cfg.model)
   return
 elseif cmd == "key" then
-  if not args[2] then print("Usage: buddy key <API key>") return end
-  writeFile(KEY_FILE, args[2])
-  print("Key saved in " .. KEY_FILE .. ". Keep that file to yourself.")
+  local key = args[2]
+  if not key and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      key = plug.ask(plug.termio(), { kind = "hidden", title = "Buddy", question = "xAI API key" })
+    end
+  end
+  if type(key) ~= "string" or key == "" then print("Key was not saved.") return end
+  writeFile(KEY_FILE, key)
+  print("Key saved in " .. KEY_FILE .. ".")
   return
 elseif cmd == "setup" then
   if args[2] then cfg.name = args[2] end
@@ -782,9 +789,36 @@ end
 
 if not http then print("http is disabled in the ComputerCraft config.") return end
 if usesGrok() and not apiKey() then
-  print("No model server set. Your own: buddy server http://<host>:<port>")
-  print("Or Grok: get a key at console.x.ai, then buddy key <key>")
-  return
+  local paired = false
+  if fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local which = plug.ask(plug.termio(), {
+        kind = "choice", title = "Buddy", question = "Which brain?",
+        choices = { { value = "own", label = "My own model server" }, { value = "grok", label = "xAI Grok" } },
+      })
+      if which == "own" then
+        local url = plug.ask(plug.termio(), { kind = "text", title = "Buddy", question = "Model server address" })
+        if type(url) == "string" and url ~= "" then
+          cfg.servers, cfg.model = { baseUrl(url) }, "auto"
+          saveCfg()
+          paired = true
+        end
+      elseif which == "grok" then
+        local key = plug.ask(plug.termio(), { kind = "hidden", title = "Buddy", question = "xAI API key" })
+        if type(key) == "string" and key ~= "" then
+          writeFile(KEY_FILE, key)
+          print("Key saved in " .. KEY_FILE .. ".")
+          paired = true
+        end
+      end
+    end
+  end
+  if not paired and usesGrok() and not apiKey() then
+    print("No model server set. Your own: buddy server http://<host>:<port>")
+    print("Or Grok: get a key at console.x.ai, then buddy key <key>")
+    return
+  end
 end
 
 if cmd == "models" then

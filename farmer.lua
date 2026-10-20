@@ -155,6 +155,32 @@ if args[1] == "setup" then
 end
 
 local cfg = loadTable(CFG_FILE)
+if not cfg and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local len = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "How many rows in front?" })
+    local wid = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "How wide is each row?" })
+    local side = plug.ask(plug.termio(), {
+      kind = "choice", title = "Farmer", question = "Which side is the field on?",
+      choices = { { value = false, label = "right" }, { value = true, label = "left" } },
+    })
+    if len and wid and len >= 1 and wid >= 1 and len * wid <= 4096 and side ~= nil then
+      if turtle then
+        local found = false
+        for _ = 1, 4 do
+          turtle.turnLeft() turtle.turnLeft()
+          local seen, info = turtle.inspect()
+          turtle.turnLeft() turtle.turnLeft()
+          if seen and isChest(info) then found = true break end
+          turtle.turnRight()
+        end
+        if not found then print("WARNING: no chest found next to the turtle!") end
+      end
+      saveTable(CFG_FILE, { length = math.floor(len), width = math.floor(wid), left = side == true })
+      cfg = loadTable(CFG_FILE)
+    end
+  end
+end
 if not cfg then
   print("Not set up yet. First: farmer setup <length> <width> [left]")
   return
@@ -166,6 +192,16 @@ if args[1] == "drop" then
     print("The harvest goes in the chest behind the turtle again.")
   else
     local f, s, y = tonumber(args[2] or ""), tonumber(args[3] or ""), tonumber(args[4] or "")
+    if not f or not s or not y then
+      if fs.exists("plug.lua") then
+        local ok, plug = pcall(dofile, "plug.lua")
+        if ok and type(plug) == "table" then
+          f = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks forward" })
+          s = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks right" })
+          y = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks up" })
+        end
+      end
+    end
     if not f or not s or not y then
       print("Usage: farmer drop <forward> <right> <up>   (or: farmer drop off)")
       print("Where the chest is, from the turtle's home spot looking at the field.")
