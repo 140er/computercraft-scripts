@@ -480,11 +480,58 @@ if args[1] == "setup" then
   return
 end
 
+local function plugmod()
+  if not (fs and fs.exists and fs.exists("plug.lua")) then return nil end
+  local ok, mod = pcall(dofile, "plug.lua")
+  if ok and type(mod) == "table" then return mod end
+end
+local function pairSecret(plug, env, explicit, serverId)
+  return plug.takeSecret(explicit, plug.savedPairing(), function()
+    local code = plug.ask(plug.termio(), {
+      title = "Pair", kind = "text",
+      question = "Type the id and the code from the server",
+      hint = "One line, the id and the code.",
+    })
+    if not code or not (fs.exists and fs.exists("enrol.lua")) then return nil end
+    local loaded, Enrol = pcall(dofile, "enrol.lua")
+    if not loaded then return nil end
+    return plug.claim(Enrol, plug.rpc(env, serverId), code, os.getComputerID())
+  end)
+end
 if not turtle then error("miner.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
 if not cfg then
-  print("Not set up yet. First: miner setup (see: miner setup help)")
-  return
+  local plug = plugmod()
+  local home, facing, chest
+  if plug then
+    local env = { peripheral = peripheral, rednet = rednet, gps = gps }
+    home = plug.place(env, function(spec)
+      spec.title = "Miner"
+      return plug.ask(plug.termio(), spec)
+    end, "Miner")
+    if home then
+      facing = plug.ask(plug.termio(), {
+        kind = "choice", title = "Miner", question = "Which way does it face?",
+        choices = plug.facings(),
+      })
+    end
+    if home and facing and turtle then
+      for _, turn in ipairs({ 2, 1, 3 }) do
+        for _ = 1, turn do turtle.turnRight() end
+        local found, info = turtle.inspect()
+        for _ = turn, 3 do turtle.turnRight() end
+        if found and info.name and (info.name:find("chest") or info.name:find("barrel") or info.name:find("shulker")) then
+          chest = chest or (facing + turn) % 4
+        end
+      end
+    end
+  end
+  if not (home and facing) then
+    print("Not set up yet. First: miner setup (see: miner setup help)")
+    return
+  end
+  saveTable(CFG_FILE, { home = home, facing = facing, spine = nil, chest = chest })
+  cfg = loadTable(CFG_FILE)
 end
 local function onByDefault(value)
   return value == nil or value == true
@@ -495,6 +542,40 @@ local function wh2On(wh2)
   return onByDefault(wh2.enabled)
 end
 C.fleetOptIn=wh2On(cfg.wh2)
+if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
+  local plug = plugmod()
+  if plug then
+    local dirty = false
+    local env = { peripheral = peripheral, rednet = rednet, gps = gps }
+    local server, source = plug.fill(cfg.ssot.server, nil, function()
+      return plug.lookup(env, "fleetserver", "server")
+    end, function(spec)
+      spec.title, spec.question = "Miner", "Fleet server id"
+      spec.kind = spec.kind or "number"
+      return plug.ask(plug.termio(), spec)
+    end)
+    if (source == "discover" or source == "prompt") and type(server) == "number" and server ~= cfg.ssot.server then
+      cfg.ssot.server = server
+      dirty = true
+    end
+    local secret, secretSource, enrolled = pairSecret(plug, env, cfg.ssot.secret, cfg.ssot.server)
+    if (secretSource == "saved" or secretSource == "enrol") and secret ~= cfg.ssot.secret then
+      cfg.ssot.secret = secret
+      dirty = true
+      if type(cfg.ssot.server) ~= "number" and type(enrolled) == "number" then cfg.ssot.server = enrolled end
+    end
+    if not plug.present(cfg.ssot.dimension) then
+      local dim = plug.ask(plug.termio(), {
+        title = "Miner", kind = "text", question = "Dimension", default = "minecraft:overworld",
+      })
+      if type(dim) == "string" and dim ~= "" then cfg.ssot.dimension = dim dirty = true end
+    end
+    if dirty then
+      saveTable(CFG_FILE, cfg)
+      print("Paired with the fleet server.")
+    end
+  end
+end
 if args[1]=="service" then
   cfg.warehouse=cfg.warehouse or {enabled=false}
   if args[2]=="enable" or args[2]=="disable" then
