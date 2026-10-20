@@ -10,36 +10,41 @@ it is reachable. Out of range, the miner runs on its own under these rules.
 This is a full feature for normal-modem miners, not a fallback. An ender modem
 stays an option, not the default answer.
 
-## Chunk loading
+## Chunk loading (#49)
 
 A normal-modem turtle only keeps working out of range while its area stays
 loaded, by a player nearby or a chunk loader. When the area unloads, the
-turtle freezes. When it loads again, the turtle reboots without GPS, and the
-no-dig-while-lost rule applies: it does not dig until it has re-anchored its
-position.
+turtle freezes. On reload it reboots. N1 restores certain position through
+journal and fingerprint reconciliation or an anchor. An unresolved move uses
+fuel only when the measured move cost is known and no charging occurred.
+Suspect or lost position forbids digging. GPS is optional.
 
-## Lease
+## Lease (#49)
 
-Before it leaves range, the miner caches a lease signed by the server (HMAC,
-per the hardening track). The lease covers:
+Before it leaves range, the miner caches the plan's v2 lease with a keyed
+BLAKE3 MAC using its pairing key. P0 freezes it in
+`docs/design/h4-offline-contract.md`. The lease covers:
 
 - the job area (the cells it may mine);
-- the drop-off box, charger and home locations;
-- the return route;
+- inline framed access poses for drop-off and charger, and the home pose;
+- a reserved return corridor of at most 256 cells;
 - the dev-mode toggles and thresholds in force;
-- a deadline.
+- UTC millisecond issue and expiry times, numeric epoch, and fuel reserve.
 
-The miner never claims a cell outside the lease.
+The miner never claims a cell outside the lease. A miner holding an offline
+lease holds no peer replicas. Miners never count toward the two required copies.
 
-## Safety invariants
+## Safety invariants (#49)
 
 These hold in every mode. No dev-mode toggle can disable them.
 
-- No digging while lost. The miner re-anchors its position first.
+- Digging requires certain position from N1 recovery or an anchor.
 - A reserved corridor: the return route stays reserved and clear.
-- For block state, the newest observation wins.
-- An expired lease means wait: no new digging until the server renews it.
-- A full journal means go home.
+- Block state follows B1's lease authority and section-revision rule, then
+  UTC milliseconds, turtle ID, and sequence as tie-breaks.
+- An expired lease forbids moving or digging until renewal or a return-only grant.
+- At 80% of the journal budget, stop new work and head home. Preserve room for
+  the return. If another action cannot be journaled, wait.
 
 ## Local problem handling
 
@@ -58,11 +63,18 @@ Defaults are conservative. Every behavior here is a dev-mode setting, on/off
 plus its thresholds, per turtle and global. Settings tune behavior; they never
 switch off the safety invariants above.
 
-## Store and forward
+## Store and forward (#49)
 
-The miner keeps a local, append-only, bounded event journal: mined cells, map
-deltas, items, problems. On reconnect it replays the journal idempotently. The
-server reconciles it with fixed merge rules and wins every conflict.
+The miner keeps the plan's versioned entry and journal head. Kinds are move,
+turn, dig, observe, item, problem, boot, and anchor. Physical intent precedes
+action, then done records the resolved outcome. Replay keys on turtle, lease,
+and sequence. The byte budget comes from actual free space after navigation,
+code, pending requests, update staging, and return reserves.
+
+The server applies the holder's valid observations inside its unexpired lease.
+Outside it, observations apply only to unknown cells or sections no newer than
+the lease's issuedRev. Otherwise the cell becomes unknown. Ties use UTC
+milliseconds, turtle ID, and sequence. The miner accepts that result.
 
 ## Check-in and expiry
 

@@ -54,7 +54,7 @@ Foundation, from the review:
   reported; it never silences the server until a restart.
 - b. Compact chunk format (binary or RLE) with a version header.
 
-Cold storage on peers, built on top of that foundation:
+Cold storage on peers follows the accepted plan's replica rules (#49).
 
 - The server offloads cold state, such as map chunks nobody touched recently
   and old journals, to peers it rates as reliable.
@@ -62,11 +62,12 @@ Cold storage on peers, built on top of that foundation:
   success over time, never leaving modem range or sitting in an unloaded chunk,
   uptime, and power headroom (fuel or battery). Movement and stationarity do
   not count.
-- Priority: store and warehouse robots first (they move a lot but stay in
-  range), then stationary computers, then miners. Miners qualify only while
-  their measured reachability stays high.
-- Each cold chunk lives on at least 2 peers. Content hashes plus HMAC protect
-  integrity.
+- Store and warehouse robots rank first, then stationary computers. At least
+  two eligible non-miner peers verify each cold section before local eviction.
+  Miners hold extra replicas only and hold none while holding an offline lease.
+  A changed boot removes a peer from the count until hash re-verification.
+- Content hashes and a server-only keyed BLAKE3 MAC protect integrity.
+  The storage key needs a floppy export before peer storage is enabled.
 - Fetch on demand into a local LRU cache.
 - Re-replicate early when a peer's reachability starts to drop or its power
   runs low. Rebalance by free space.

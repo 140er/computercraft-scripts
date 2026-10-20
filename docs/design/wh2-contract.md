@@ -4,41 +4,77 @@ This is the shared reference for the hardening track, fleet, wizard, layout, and
 
 H4 and miner offline autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam). The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md), and its P0 PR freezes the implementable shapes in `docs/design/h4-offline-contract.md`. Where those shapes and the notes below differ, the plan wins. The H1+H2 MAC uses ccryptolib's keyed BLAKE3, and the update manifest is signed with Ed25519. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
 
-## Ownership and coordinates
+## Ownership and coordinates (#46, #49, #56)
 
-The server's sole SSOT dispatcher owns durable shared state. New modules use its serialized validate, replay, mutate, save, and reply transaction. They do not write separate shared state files or send replies themselves. The transaction does not require the pending H4 storage design.
+The server's sole SSOT dispatcher owns durable shared state. New modules use its serialized validate, replay, mutate, save, and reply transaction. They do not write separate shared state files or send replies themselves. W1 requires H4a through H4c's storage backend before adding wh2 state.
 
 ```lua
 wh2 = {
 	schema = 1,
-	fleet = { revision = 0, records = {}, settings = {} },
-	layout = { revision = 0, locations = {}, rooms = {}, slots = {}, classDefaults = {} },
-	wizard = { revision = 0, classes = {}, questions = {} },
-	craft = { revision = 0, jobs = {}, queries = {} },
+	fleet = { v = 1, revision = 0, records = {}, settings = {} },
+	layout = { v = 1, revision = 0, locations = {}, rooms = {}, slots = {}, classDefaults = {} },
+	wizard = { v = 1, revision = 0, classes = {}, questions = {} },
+	craft = { v = 1, revision = 0, jobs = {}, queries = {} },
 }
 wh2Config = { enabled = false, operators = { ["4"] = true }, recipeHubId = 5 }
-pose = { dim = "minecraft:overworld", x = 10, y = 65, z = 20 }
+pos = {
+	v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+	x = 10, y = 65, z = 20, h = 0, conf = "certain", src = "neighbour",
+	anchoredAt = 1792500000000,
+}
+frame = { v = 1, id = "f:17:1792500000000", owner = 17, yAbs = true, toAbs = false }
 access = {
-	pose = { dim = "minecraft:overworld", x = 10, y = 65, z = 20, h = 0 },
+	pose = {
+		v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 65, z = 20, h = 0, conf = "certain", src = "neighbour",
+		anchoredAt = 1792500000000,
+	},
 	side = "front",
 }
 ```
 
-`s.wh2` is additive to schema 1 `ssot.state`. A missing subtree means that its feature has never written state. Existing state never disappears because its module is absent. Each module validates its own subtree through `valid(value, poseValidator)` and handles its operations through `run(s, senderId, message, context)`. The verified message contains `op` and `body`. Context contains UTC milliseconds in `now`, the server's string `epoch`, `pose`, validated configuration, and negotiated capabilities. A module writes only its own subtree. Only SSOT saves the resulting state and replay record. `wh2Config` is the private `ssot.cfg.wh2` shape. All listed IDs also require controller pairing.
+`s.wh2` is additive to schema 1 `ssot.state`. A missing subtree means that its feature has never written state. Existing state never disappears because its module is absent. Each module validates its own subtree through `valid(value, poseValidator)` and handles its operations through `run(s, senderId, message, context)`. The verified message contains `op` and `body`. Context contains UTC milliseconds in `now`, the server's integer `epoch`, the framed position validator, validated configuration, and negotiated capabilities. A module writes only its own subtree. Only SSOT saves the resulting state and replay record. `wh2Config` is the private `ssot.cfg.wh2` shape. All listed IDs also require controller pairing.
 
-Coordinates are integer world blocks with a dimension. Headings use `nav.lua` (lines 3 to 7) and `miner.lua` (lines 69 to 72): north 0 (-z), east 1 (+x), south 2 (+z), west 3 (-x), up 4, down 5. `access.pose` is the turtle's standing cell; it is not the inventory block. `side` is `front`, `top`, or `bottom`. Room-relative coordinates and the legacy room heading 0 need an explicit layout conversion before publication. GPS plus a calibrated heading establishes that conversion.
+Positions use the plan's section 2.1 `pos v=1` and `frame v=1`. Coordinates and distances are integer blocks in one dimension and frame. `frame` is `"abs"` or `"f:<id>"`. `yAbs=true` means y is world height even when x and z are relative. An absolute position requires `yAbs=true`. `conf` is `certain`, `suspect`, or `lost`. `src` is `gps`, `neighbour`, `radio`, `typed`, `reckoned`, or `inherited`. `anchoredAt` is the last anchor's UTC millisecond timestamp, or 0 if never anchored. Samples of cell bounds use the same position fields. A bound's `h` has no facing effect.
 
-Record, location, and job IDs are stable strings of at most 64 bytes. Item, block, recipe, and tag IDs retain their namespaced provider strings. Existing map and warehouse validators still apply at those boundaries. An unsupported long resource ID fails explicitly rather than being truncated. Unknown scalar values use `false`. Absent optional keys retain the source API's meaning. Arrays are dense. Tables contain no functions, metatables, cycles, or shared table references on the wire.
+Stored horizontal headings are integers 0 through 3, as in `nav.lua` lines 3 to 7 and `miner.lua` lines 69 to 72. North is 0 and -z, east is 1 and +x, south is 2 and +z, west is 3 and -x. Movement direction indexes 4 and 5 mean up and down. They are never stored in `pos.h` or a warehouse site heading. `access.pose` is the turtle's standing cell. `side` is `front`, `top`, or `bottom`. A front interaction targets the adjacent cell in `pos.h`'s direction. Top and bottom change y by +1 and -1.
 
-## Fleet and jobs
+A room scan starts at local x=0, z=0 with local heading 0 toward the input chest. It gets its own relative frame. Let `rot` be that initial facing in nav headings and let `toAbs={dx,dy,dz,rot}` contain the scan origin in world blocks. For local x,z, the rotated pair is x,z for rot 0, -z,x for rot 1, -x,-z for rot 2, and z,-x for rot 3. Absolute x,z add dx,dz to that pair. Absolute h is `(h+rot)%4`. Absolute y is the saved y when `yAbs=true`, otherwise `y+dy`. GPS plus a calibrated facing, a typed anchor, or a verified neighbour establishes the transform. N1 `frame-merge` re-keys it once by frame id. Unanchored data stays under its frame prefix and never enters the absolute map. Height-only miner setup uses x=0,z=0 in `f:<id>`, with `yAbs=true`, and does not claim world x or z.
+
+Record, location, and job IDs are stable strings of at most 64 bytes. Item, block, recipe, and tag IDs retain their namespaced provider strings. Existing map and warehouse validators still apply at those boundaries. An unsupported long resource ID fails explicitly rather than being truncated. Arrays are dense. Tables contain no functions, metatables, cycles, or shared table references on the wire. New durable records below have `v=1` unless the plan specifies `v=2`. Readers reject unknown versions. The enclosing SSOT `schema` and wh2 payload version are separate from record versions.
+
+All timestamps, including `lastSeen`, `observedAt`, deadlines, and `now`, are integer UTC milliseconds from `os.epoch("utc")`. Durations ending in `Ms` are milliseconds. Fields ending in `Seconds` are seconds. Byte budgets count encoded bytes and mount allocation overhead where stated. Counts and fuel units are not durations. Recipe time is ticks at 20 ticks per second, and fluid amounts are millibuckets. CC waits convert ticks to seconds by dividing by 20 and milliseconds by 1000. Legacy status numbers are not timestamps. The server stamps receipt time.
+
+`epoch` is an integer authority counter from 0 through 2147483647, persisted in `s.epoch` and sent as a Lua number, including inside canonical MAC bodies. It is never a timestamp or a decimal string. `sessionGeneration` is a separate integer authentication epoch counter with the same encoding. A migration parses a legacy decimal epoch string once at the boundary, validates its range, and stores only the integer. H1+H2 removes `tostring(s.epoch)` from the context passed to new handlers. Tokens and IDs may embed decimal epoch text, but their `epoch` fields stay numeric. Exhausting an epoch counter requires local re-enrolment, never wraparound.
+
+### Field absence and false values (#56)
+
+There is no general false-means-unknown rule. An omitted key is legal only where this contract or the source recipe API makes it optional. Required fields never acquire defaults from omission. The following meanings apply to the named fields.
+
+| Fields | Meaning of false |
+| --- | --- |
+| Behavior flags, capabilities, `scanComplete`, `localCopy`, `holdsOfflineLease`, `yAbs`, `pinned`, `renew` | Disabled, absent capability, incomplete scan, or the named negative boolean fact. `yAbs=false` means relative height. |
+| Non-turtle `turtleId`, `fuel`, `inventory` | Not applicable. A turtle requires its numeric `turtleId` and fuel and inventory tables. A turtle's unmeasured `fuel.level`, `fuel.limit`, or inventory measurement is false and means unknown, never zero. |
+| `pose`, `contents`, `frame.toAbs` | Unknown position, unobserved contents, or an unanchored frame. A known empty inventory uses `{}`. |
+| `currentJob`, `error`, peer `why`, `category`, `recipeId`, `nbt`, unallocated `orderKey` and `line`, job `owner`, `token`, `epoch`, `overdueAt`, optional site names and lock IDs | No job, no error, no ineligibility reason, no assigned category or recipe, no fingerprint requirement, no reservation or claim, no overdue time, or no site or lock. Claim fields are all present together or all false. An absent fingerprint requirement never proves component equality. |
+| `dropoffId`, `chargerId`, `parkingId` | Automatic location selection. It does not disable the behavior. |
+| `storagePolicy.forgetOlderThanMs` | No age cutoff. It grants no consent to forget in `ask` or `expand` mode. |
+| `leaseId` on issue, a renewed `lease` in a check-in reply | No previous lease, or no renewal granted. |
+
+Only the fields above accept false in place of another type. Other optional API values retain the API's documented omission, not a new false sentinel. Validators reject illegal state combinations before any save.
+
+## Fleet and jobs (#46, #49, #56)
 
 ```lua
 fleetRecord = {
-	id = "cc:17", computerId = 17, turtleId = 17,
+	v = 1, id = "cc:17", computerId = 17, turtleId = 17,
 	kind = "turtle", label = "Miner east", role = "miner",
 	boot = "1792500000000:17", ownerGeneration = 4, state = "mining", detail = "Zone 3",
-	pose = { dim = "minecraft:overworld", x = 10, y = 65, z = 20 },
-	heading = 0, poseConfirmed = true,
+	pose = {
+		v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 65, z = 20, h = 0, conf = "certain", src = "neighbour",
+		anchoredAt = 1792500000000,
+	},
 	fuel = { level = 1800, limit = 20000 },
 	inventory = { slots = 16, usedSlots = 14, fullness = 0.875 },
 	currentJob = { kind = "mine", id = "zone:3", step = "extract" },
@@ -48,15 +84,15 @@ fleetRecord = {
 }
 ```
 
-The authenticated original sender is the computer identity, including through a relay. A turtle's `turtleId` equals its CC computer ID. CC supplies no separate turtle UUID. Other computers use `turtleId=false`, `fuel=false`, and `inventory=false`. Labels can change without changing identity. Roles are `miner`, `store`, `crafter`, `factory`, `hub`, `server`, `panel`, or `other`.
+The authenticated original sender is the computer identity, including through a relay. A turtle's `turtleId` equals its numeric CC computer ID. CC supplies no separate turtle UUID. `kind` is `turtle` or `computer`. Other computers use `turtleId=false`, `fuel=false`, and `inventory=false`. `kind="turtle"` with `turtleId=false` is invalid. Labels can change without changing identity. Roles are `miner`, `store`, `crafter`, `factory`, `hub`, `server`, `panel`, or `other`.
 
 States are `idle`, `mining`, `returning`, `dropping`, `charging`, `sorting`, `crafting`, `blocked`, or `stopped`. Readers derive `offline` after 15000 ms without a report. `lastSeen` is server UTC milliseconds, never a sender timestamp. This display timeout does not release occupancy, site locks, or active work. H5 uses separate expiry and recovery rules below. Fuel uses `"unlimited"` for unlimited level and limit, never infinity.
 
-Fullness is occupied slots divided by total slots. It is not an item count divided by 1024. Complete inventory scans belong to the storage or worker inventory model, not the heartbeat's legacy loot summary. `currentJob=false` means idle. Otherwise `kind` is `mine`, `warehouse`, or `craft`; `id` references the owning allocator. Fleet does not duplicate allocator tokens or progress journals.
+Fullness is occupied slots divided by total slots. It is not an item count divided by 1024. Complete inventory scans belong to the storage or worker inventory model, not the heartbeat's legacy loot summary. `currentJob=false` means no assigned job. Otherwise its `kind` is `mine`, `warehouse`, or `craft`, and `id` references the owning allocator. `mining`, `sorting`, and `crafting` require a matching current job. Idle requires `currentJob=false`. Returning, dropping, charging, blocked, and stopped may retain unfinished work. Fleet does not duplicate allocator tokens or progress journals.
 
-For coordinated turtles, `pose` comes from confirmed `s.poses`; heading comes from the calibrated movement owner. A report cannot move SSOT occupancy. Legacy observations have `poseConfirmed=false` and cannot authorize a route. A changed boot or uncertain position requires existing navigation reconciliation.
+For coordinated turtles, `pose` comes from framed `s.poses`, including the movement owner's `h` and confidence. A report cannot move SSOT occupancy. Unanchored legacy observations use a relative frame and `conf="suspect"` or `"lost"`. They cannot authorize a route as absolute observations. A changed boot or uncertain position requires N1 journal and fingerprint reconciliation.
 
-## Settings and live changes
+## Settings and live changes (#46, #50, #56)
 
 Fleet owns one registry of behavior settings. Each registry entry supplies a type, bounds, and default. The board and turtles use that registry. New behavior toggles and thresholds enter the registry before callers use them.
 
@@ -105,42 +141,48 @@ Auto-charge starts at `fuelLow` or when the known service and return route plus 
 
 The server persists settings in `s.wh2.fleet.settings` before acknowledging them. It sends a change hint to online clients. The turtle's existing receiver queues a settings fetch through one outbound SSOT worker. A known newer revision pauses new autonomous actions until the fetch completes. Heartbeats also check the revision at least every 3000 ms. A turtle saves its effective settings and revision in `wh2-settings.cache` through `atomic.lua`, applies them before its next unstarted action, then reports `appliedSettingsRevision`. An in-progress native turtle call completes first. Offline turtles fetch before resuming work.
 
-Pairing keys, server identity, dimension, calibrated pose, and physical journals remain local setup. Both the server's `ssot.cfg.wh2.enabled` and the turtle's local `wh2.enabled` default off. A remote behavior setting cannot bypass those prerequisites or clear ESTOP. After bootstrap opt-in, reads and authorized management requests remain available while behavior flags are off. Existing configurations seed settings only through an explicit opt-in import. The adapter converts old seconds to milliseconds and preserves the different room and wired sorter defaults. `cook` maps to `smelting`. Normal startup does not overwrite shared settings with old `miner.cfg`, `room.cfg`, or `sorter.cfg` values.
+Pairing keys, server identity, dimension, calibrated pose, and physical journals remain local setup. Both the server's `ssot.cfg.wh2.enabled` and the turtle's local `wh2.enabled` default off. A remote behavior setting cannot bypass those prerequisites or clear ESTOP. After bootstrap opt-in, reads and authorized management requests remain available while behavior flags are off. Existing configurations seed settings only through an explicit opt-in import. The adapter maps `mineMinutes` to `tripSeconds` by multiplying by 60, so 15 becomes 900. `sessionLen` is already seconds and maps to `sessionSeconds` unchanged. Legacy room and wired intervals are seconds and multiply by 1000 for `roomIntervalMs` and `wiredIntervalMs`, preserving defaults 5000 and 3000. `chargeTimeoutMs` stays milliseconds. `roomFuelLow` is fuel units. `cook` maps to `smelting`. Normal startup does not overwrite shared settings with old `miner.cfg`, `room.cfg`, or `sorter.cfg` values.
 
-## Locations and rooms
+## Locations and rooms (#46, #49, #56)
 
 ```lua
 location = {
-	id = "mine-drop", kind = "dropoff", roomId = "room:main", enabled = true,
-	block = { dim = "minecraft:overworld", x = 11, y = 65, z = 20 },
+	v = 1, id = "mine-drop", kind = "dropoff", roomId = "room:main", enabled = true,
+	block = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 11, y = 65, z = 20, h = 0, conf = "certain", src = "neighbour", anchoredAt = 1792500000000 },
 	access = {
-		pose = { dim = "minecraft:overworld", x = 10, y = 65, z = 20, h = 0 },
+		pose = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 10, y = 65, z = 20, h = 1, conf = "certain", src = "neighbour", anchoredAt = 1792500000000 },
 		side = "front",
 	},
 	siteNames = { source = false, drop = "mine-drop", charge = false },
 	lockId = "inventory:mine-drop", revision = 3,
 }
 room = {
-	id = "room:main", revision = 3, scanComplete = false,
+	v = 1, id = "room:main", revision = 3, scanComplete = false,
 	bounds = {
-		min = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 },
-		max = { dim = "minecraft:overworld", x = 15, y = 70, z = 31 },
+		min = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 0, y = 64, z = 0, h = 0, conf = "certain", src = "typed", anchoredAt = 1792500000000 },
+		max = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 15, y = 70, z = 31, h = 0, conf = "certain", src = "typed", anchoredAt = 1792500000000 },
 	},
-	observedChunks = { ["minecraft:overworld|0|4|0"] = 8 },
-	blocked = { ["minecraft:overworld|5|65|5"] = "minecraft:stone" },
+	observedChunks = { ["abs|minecraft:overworld|0|4|0"] = 8 },
+	blocked = { ["abs|minecraft:overworld|5|65|5"] = "minecraft:stone" },
 	accessPaths = {
 		["mine-drop"] = {
-			{ dim = "minecraft:overworld", x = 9, y = 65, z = 20 },
-			{ dim = "minecraft:overworld", x = 10, y = 65, z = 20 },
+			{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+				x = 9, y = 65, z = 20, h = 1, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
+			{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+				x = 10, y = 65, z = 20, h = 1, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
 		},
 	},
 	reserved = {
-		["minecraft:overworld|10|65|20"] = { kind = "access", locationId = "mine-drop" },
+		["abs|minecraft:overworld|10|65|20"] = { kind = "access", locationId = "mine-drop" },
 	},
 }
 ```
 
-Location kinds are `dropoff`, `charge`, `parking`, `warehouse_input`, `warehouse_output`, `storage`, `furnace`, `blast`, `smoker`, and `room`. A room location references `roomId` and can omit `block` and `access`. Other locations have an access pose. Inventory locations also have a block pose. A parking spot has no inventory or site lock. Missing optional devices are absent locations, never guessed coordinates.
+Location kinds are `dropoff`, `charge`, `parking`, `warehouse_input`, `warehouse_output`, `storage`, `furnace`, `blast`, `smoker`, and `room`. A room location requires `roomId` and omits `block` and `access`. Parking requires `access` and omits `block`. Every other kind requires `block` and `access`, including a charger whose physical device occupies `block`. A drop-off without its block is invalid. Every position in a room, path, reservation, and location uses the same frame and dimension. A front, top, or bottom access must target its declared block exactly. The sample faces east with h=1 to reach x=11 from x=10. A parking spot has no inventory or site lock. Missing optional devices are absent locations, never guessed coordinates.
 
 `dropoffId`, `chargerId`, and `parkingId` select shared locations. When false, resolution selects an enabled, reachable location of that kind in the turtle's dimension, ordered by route cost then ID. No candidate means a visible blocked reason. Miners therefore need no local drop-off coordinate.
 
@@ -150,13 +192,13 @@ Room bounds are inclusive. SSOT chunk observations remain the source for observe
 
 Access paths contain adjacent, observed air cells and end at the location's standing cell. Layout validates paths against current observations before allocation or placement. `reserved` prevents building on access paths, entrances, parking cells, charger cells, and machine access cells. Reservation kinds are `access`, `entrance`, `parking`, `charge`, or `machine`. These are layout reservations. Transient movement reservations remain exclusively in `s.moves`, with their existing tokens and restart behavior.
 
-## Storage and item classes
+## Storage and item classes (#51, #56)
 
 One storage slot describes one physical inventory and its placement intent. `contents` uses the inventory's native numbered slots.
 
 ```lua
 storageSlot = {
-	id = "slot:main:12", roomId = "room:main", locationId = "chest-12",
+	v = 1, id = "slot:main:12", roomId = "room:main", locationId = "chest-12",
 	kind = "chest", category = "ingots", revision = 6,
 	size = 27, observedAt = 1792500000000,
 	contents = {
@@ -164,18 +206,18 @@ storageSlot = {
 	},
 }
 machineSlot = {
-	id = "slot:main:blast1", roomId = "room:main", locationId = "blast-1",
+	v = 1, id = "slot:main:blast1", roomId = "room:main", locationId = "blast-1",
 	kind = "blast", category = false, revision = 6,
 	size = 3, roles = { [1] = "input", [2] = "fuel", [3] = "output" },
 	contents = { [2] = { item = "minecraft:coal", count = 8, maxCount = 64, nbt = false } },
 }
 itemClass = {
-	item = "minecraft:raw_iron", class = "ores", route = "blast",
+	v = 1, item = "minecraft:raw_iron", class = "ores", route = "blast",
 	storeCategory = "ingots", recipeId = "minecraft:iron_ingot_from_blasting_raw_iron",
 	source = "layout", revision = 2, updatedBy = 17,
 }
 unknownQuestion = {
-	id = "item:example:raw_tin", item = "example:raw_tin", state = "open",
+	v = 1, id = "item:example:raw_tin", item = "example:raw_tin", state = "open",
 	firstSeen = 1792500000000, sampleLocationId = "warehouse-in",
 }
 ```
@@ -188,11 +230,13 @@ Categories are `any`, `ores`, `ingots`, `gems`, `fuel`, and `misc`. The effectiv
 
 Layout owns exact-ID defaults in `s.wh2.layout.classDefaults`, with `source="layout"`. Wizard owns answers in `s.wh2.wizard.classes`, with `source="wizard"`. Readers overlay answers on defaults. Defaults work before wizard is installed and cannot overwrite answers. The `classes` query returns this effective view with revision `"<layoutRevision>:<wizardRevision>"`, using 0 for an absent subtree. Repeated unknown reports coalesce into one question per item ID. An answer commits its class row and question resolution together. Unknown or unsupported routes retain the stack in the input or designated quarantine storage and report the question. They never discard it or infer a recipe from a name suffix.
 
+Question states are exactly `open`, `answering`, or `resolved`. Only a validated answer can move a question to resolved. A draft never enters the effective class table.
+
 `wh2-client.lookupClass(itemId)` returns the effective row and class revision through `wh2-get`, or a row with `route="unknown"` when no definition exists. `reportUnknown(itemId, locationId)` queues `wh2-unknown`. A class change hint or a changed revision invalidates cached rows. Before wizard is installed, defaults remain readable and unknown reporting returns `unavailable`; the worker retains the item for a later report. Layout callers use these methods and do not import the wizard module.
 
 Every transfer takes the existing physical site lock. Existing warehouse stock reservations remain the authority for pickup quantities. Craft reserves ingredients through those orders; it does not subtract stock in a second ledger. Layout refuses to move or remove locations used by an active lock or job.
 
-## Recipe graph and production
+## Recipe graph and production (#52, #53, #56)
 
 The hub owns recipe lookup through `wh2-recipes.lua` and a wired `recipe_index`. Recipe nodes retain the Recipe Index 0.1.0 schema. Item nodes are keyed by item ID; recipe nodes are keyed by recipe ID. Inputs are quantity-bearing edges into recipes and outputs are edges back to items.
 
@@ -207,7 +251,7 @@ recipeNode = {
 tagIngredient = { count = 8, tag = "minecraft:planks" }
 alternativeIngredient = { count = 1, items = { "minecraft:coal", "minecraft:charcoal" } }
 craftJob = {
-	id = "craft:17:9", key = "board:17:request9", requestedBy = 17, revision = 2,
+	v = 1, id = "craft:17:9", key = "board:17:request9", requestedBy = 17, revision = 2,
 	output = { item = "minecraft:red_stained_glass_pane", count = 32 },
 	outputLocationId = "warehouse-out", state = "blocked", owner = false,
 	token = false, epoch = false, currentStep = 1,
@@ -228,7 +272,7 @@ craftCreate = {
 	outputLocationId = "warehouse-out",
 }
 craftProgress = {
-	action = "progress", jobId = "craft:17:9", token = "claim:17:9", epoch = "3",
+	action = "progress", jobId = "craft:17:9", token = "claim:17:9", epoch = 3,
 	stepId = 1, state = "done",
 	observed = { locationId = "furnace-1", item = "minecraft:glass", count = 6, stockRevision = 8 },
 }
@@ -242,11 +286,13 @@ Optional `fluids`, `heat`, `time`, `steps`, `loops`, and `transitional` retain t
 
 Production steps use `ceil(required / guaranteedOutputCount)` batches, share surplus within the plan, and consume each dependency once. Outputs with chance below 1 cannot satisfy a guaranteed count. Cycles terminate with an explicit unresolved requirement. A step's `needs` references earlier step IDs. `ingredients` records chosen item fingerprints and per-batch counts. `orderKey` and `line` reference existing warehouse reservation lines, or are false before allocation. A component-sensitive ingredient needs verified matching stock; existing item-only totals cannot prove that match. States are `pending`, `running`, `done`, `blocked`, or `uncertain`. Job states are `planning`, `planned`, `running`, `blocked`, `done`, `cancelled`, or `uncertain`. A missing ingredient blocks execution and reports its exact count.
 
+Validators enforce job and step states together. A `planning` job has no executable or running step and no worker claim. A `planned` job has a complete graph with no running step. A `running` step requires a `running` job and a current claim. Blocked or uncertain work starts no new physical action. A `done` job has no missing or unresolved requirements, all required steps done, and the requested count observed in the output inventory. It cannot retain a running step. Claim `owner`, `token`, and `epoch` are all false before allocation, or all valid together. Completed and cancelled jobs fence their claim and preserve observed quantities.
+
 Create returns a `planning` job. Only the configured hub planner publishes its plan with `wh2-craft` action `plan`, carrying `jobId`, `baseRevision`, `generation`, `offset`, `steps`, `missing`, and `final`. Step offsets start at 0 and count accepted steps. The server stages one plan per job and commits only a complete validated graph. Plans have at most 128 steps and use the same byte limits as other uploads. A changed job revision or provider generation rejects the staged plan. Physical workers claim only a complete plan. Fuel and machine operating inputs are explicit requirements when an adapter knows them.
 
 Creating a craft uses a caller key that remains stable across retries. Jobs retain ownership across restarts. Workers journal physical actions through the existing navigation and warehouse boundaries. An uncertain transfer, smelt, or craft requires inventory reconciliation before retry. `produced` and `delivered` count observed output, not requested output or acknowledged commands. Completion requires the requested count in the output inventory. Batch surplus stays recorded stock.
 
-### Hub limits and recipe service
+### Hub limits and recipe service (#54, #56)
 
 The supplied dump's `recipes_min.lua` contains 3878 recipes and is 1131311 bytes. `recipes.json` contains 3880 shaped and shapeless crafting recipes. `stats.txt` reports 3878 and records 2441 excluded non-crafting recipes. The dump cannot supply smelting or the complete runtime graph. The live Recipe Index is authoritative for the installed recipes and tags. An offline import is an explicit fallback pinned to its file hash. It converts dump `s`, `l`, `o`, `n`, and `#tag` fields to this schema and preserves result components as unresolved requirements when necessary.
 
@@ -260,7 +306,7 @@ recipeQuery = {
 	method = "getRecipesFor", id = "minecraft:glass", page = 1, pageSize = 20,
 }
 recipeFragment = {
-	action = "publish", ticket = "recipe:17:9", token = "recipe-claim:9", epoch = "3",
+	action = "publish", ticket = "recipe:17:9", token = "recipe-claim:9", epoch = 3,
 	generation = "hub:5:boot7:catalog1",
 	offset = 0, totalBytes = 12000, nextOffset = 4096,
 	encoding = "lua", data = "serialized result fragment",
@@ -275,7 +321,7 @@ API pages keep their 1-based page number and maximum page size 100. Network frag
 
 Graph pages are disposable. Only selected production steps and bounded query fragments enter shared state. The current 900000-byte SSOT generation ceiling and replay-cache cost remain implementation limits, not disk-capacity measurements. A capacity refusal leaves the previous state intact. This hub budget does not claim that the coordinator's current save generations fit on a 1 MB disk.
 
-## Rednet protocol
+## Rednet protocol (#47, #53, #55, #56)
 
 All requests use rednet protocol `fleetserver`. H1+H2 owns transport `wire={major=2,minor=0}` and the authenticated version and capability handshake below. `wh2=1` is the payload schema, independent of transport and release versions. A bare `v=1` is not a handshake. Clients use one `ssot-client` instance and feed `dispatch` from the program's existing sole application receiver. Blocking calls run outside that receiver.
 
@@ -364,8 +410,10 @@ layoutUpload = {
 	op = "wh2-layout", kind = "room", id = "room:main", field = "accessPaths",
 	pathId = "mine-drop", baseRevision = 3, offset = 0, final = true,
 	records = {
-		{ dim = "minecraft:overworld", x = 9, y = 65, z = 20 },
-		{ dim = "minecraft:overworld", x = 10, y = 65, z = 20 },
+		{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 9, y = 65, z = 20, h = 1, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
+		{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 10, y = 65, z = 20, h = 1, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
 	},
 }
 layoutRead = {
@@ -376,7 +424,7 @@ layoutRead = {
 
 Room fields are `accessPaths`, `blocked`, and `reserved`. The slot field is `contents`. A path upload identifies one `pathId` and streams poses. Blocked and reserved records have named `key` and `value` fields. Contents records have named `slot` and `stack` fields. Offsets are zero-based counts of accepted records. Replies contain `nextOffset` and the unchanged base revision until `final` commits a new revision. Read cursors follow the ordinary `wh2-get` rule. The server stages one edit of at most 65536 encoded bytes per operator, rejects gaps or changed revisions, and publishes only a validated final record. Staging expires after 30000 ms idle without replacing the current record. These fragments count toward the shared state limit. No partially uploaded room becomes executable.
 
-## Versions and updates
+## Versions and updates (#47, #56)
 
 The authenticated `ssot-hello` exchange negotiates a transport version before domain operations. Its body has the following shape.
 
@@ -391,7 +439,7 @@ helloReply = {
 	challenge = "client:17:hello:8", serverChallenge = "server:0:hello:19",
 	release = "<immutable release id>", stateSchema = 1, wire = { major = 2, minor = 0 },
 	capabilities = { hmacSha256 = 1, atomicBundle = 1, traffic = 1, wh2 = 1 },
-	epoch = "3", compatible = true,
+	epoch = 3, compatible = true,
 }
 manifest = {
 	schema = 1, release = "<immutable release id>", server = 0,
@@ -435,70 +483,66 @@ After an RPC timeout following a real move, the client freezes further physical 
 
 Craft adopts the same claim fencing and preserves observed progress on expiry. Miner offline leases are outside this approved H5 scope.
 
-## APPROVED: H4 disk and cold storage notes
+## H4 disk and cold storage, approved (#49, #56)
 
-APPROVED on 2026-10-20 at 17:09 (Europe/Amsterdam). These notes predate the plan. The build order and final shapes come from [the H4 offline plan](../plans/cc-h4-offline-plan.md). The specification is [H4 and No silent forgetting](hardening.md#h4-disk-budget-approved).
+Jeffrey approved H4 on 2026-10-20 at 17:09 Europe/Amsterdam. The shapes below adopt sections 2.2 through 2.4 and 2.7 of [the accepted plan](../plans/cc-h4-offline-plan.md). P0 writes `docs/design/h4-offline-contract.md` as the single source for the codec and these versioned records. That file does not exist at `8de2440`. Implementation waits for P0 to freeze it. The integer epoch and field-specific false rules above resolve the review's type gaps for that freeze.
 
 The foundation follows a, c, e, then b in the spec. The state server stores no fleet code cache. It reads `fs.getCapacity` and `fs.getFreeSpace` for the actual state mount at runtime. The reported live capacity is 4,000,000 bytes today, with 16,000,000 staged. Neither number is a constant in code. Unknown or unlimited API results are explicit capacity states. The server budgets metadata, rollback, and pending writes before admission.
 
 Dirty chunks save in batches. Requests validate changed records without a full-state copy or full-state validation. Each chunk and the root generation use two alternating save slots, A and B, with generation, length, and checksum. The writer verifies inactive chunk slots before publishing the root that references them. It preserves the active generation throughout. Recovery selects the newest complete valid root and matching chunks. A partial inactive write leaves the old root usable. Failed writes report capacity or I/O failure and remain retryable. There is no third full temporary copy and no permanent silent-failure latch.
 
-The proposed compact codec is `whc-rle/1`. Its binary header contains magic `WHC`, format version 1, codec 1, dimension string, signed chunk coordinates, chunk revision, palette count, payload length, and SHA-256 payload hash. Integers use fixed-width big-endian fields. A length-prefixed palette contains full block names. Runs contain a positive uint16 length, uint16 palette index, and observation stamp. Index 0 is unknown. Air has an explicit palette entry. Expansion is exactly 4096 cells in `x + 16*z + 256*y` order. Observation stamps retain UTC milliseconds, observer ID, and observer sequence. The decoder bounds lengths and palette size before allocation. Unknown versions or corrupt runs remain unreadable and unknown. A migration keeps the source until the new generation verifies.
+H4b1 stores versioned sections with a palette and RLE cells in per-section files. Confidence is observed or unknown. H4b2 adds the plan's region baseline, sorted exceptions, segments, and boxes behind a default-off flag. P0 freezes their byte encoding. The pre-plan `whc-rle/1` header is rejected. Section keys start with `abs|` or `f:<id>|`. Predicted cells may affect estimates but never authorize walking or count as observed. Baselines stay versioned and frozen once referenced.
 
-The intended metadata records are below. Peer copies contain the encoded bytes, not authority to change shared state.
+The decoded plan index is `x + 16*z + 256*y`, from 0 through 4095 within a section. A missing observation is unknown. Index 0 denotes a cell, not unknown. Palette entries name air explicitly. In the schema 1 source, `ssot.lua` uses the same cell number plus 1, and a stored value of 0 means observed air. Migration subtracts 1 from the cell index, converts a stored 0 to `minecraft:air`, and keeps a missing source cell unknown. The decoder bounds lengths and palettes before allocation. Corrupt or unknown versions remain unreadable and unknown. Migration retains the source until the new generation verifies.
+
+The plan records are below. Times are UTC milliseconds, quotas and sizes are bytes, and fuel is in fuel units. The zero times mean no sample yet. Peer copies contain encoded bytes without authority to change shared state.
 
 ```lua
-coldChunk = {
-	schema = 1, server = 0, key = "minecraft:overworld|0|4|0", revision = 8,
-	codec = "whc-rle/1", bytes = 1200, hash = "<SHA-256 of encoded bytes>",
-	contentMac = "<HMAC of server, key, revision, codec, bytes, hash>",
-	peers = { ["17"] = { verifiedAt = 1792500000000 }, ["18"] = { verifiedAt = 1792500000000 } },
-	lastAccess = 1792500000000, observedAt = 1792500000000, pinned = false,
+section = {
+	v = 2, key = "abs|minecraft:overworld|3|4|-2", rev = 812, hash = "<sha256 hex>",
+	palette = { "=", "minecraft:air", "minecraft:diamond_ore" },
+	cells = "<P0 encoding; H4b2 sorted 2-byte cell index plus 1-byte palette index>",
+	observedAt = 1792500000000, lastRead = 1792500000000, tier = "hot",
 }
-storagePeer = {
-	computerId = 17, boot = "1792500000000:17", role = "store", enrolled = true,
-	capacityBytes = 4000000, usedBytes = 3400000, reserveBytes = 200000,
-	lastPingAt = 1792500000000, lastReplyAt = 1792500000000,
-	pingSuccess = 1, replySuccess = 1, uptimeRatio = 1, powerHeadroom = 0.9,
-	windowMs = 600000, samples = 120, inRange = true, loaded = true,
-	reachability = 0.99, eligible = true, contentsRevision = 8,
+placement = {
+	v = 1, key = "abs|minecraft:overworld|3|4|-2", rev = 812, hash = "<sha256 hex>", bytes = 1843,
+	holders = { [21] = { ackAt = 1792500000000, verifiedAt = 1792500000000, role = "store" } },
+	localCopy = true, state = "replicating",
 }
-storagePolicy = {
-	revision = 1, mode = "ask", warningRatio = 0.8, forgetAfterMs = false,
-	forgetScope = { map = true, completedJournals = false }, projectionMs = 3600000,
+peer = {
+	v = 1, id = 21, role = "store", enrolledAt = 1792500000000, enrolledBy = 4,
+	quota = 420000, used = 120000, freeReported = 610000, reportedAt = 1792500000000,
+	window = { sent = 240, ok = 236 }, lastReplyAt = 1792500000000,
+	boot = "1792500000000:21", bootChanges = 1,
+	power = { fuel = 18000, limit = 20000 }, holdsOfflineLease = false,
+	score = 0.98, eligible = true, why = false,
 }
-storageCapacity = {
-	revision = 4, measuredAt = 1792500000000,
-	server = { capacityBytes = 4000000, usedBytes = 3600000, freeBytes = 400000 },
-	peers = {
-		["17"] = { capacityBytes = 4000000, usedBytes = 3400000, reachable = true },
-		["18"] = { capacityBytes = 4000000, usedBytes = 3000000, reachable = true },
-	},
-	totalBytes = 12000000, usedBytes = 10000000, reachableFreeBytes = 2000000,
-	usableFreeBytes = 750000, uniqueDataBytes = 4800000, replicaBytes = 9600000,
-	reserveBytes = 500000, pendingBytes = 0, growthBytesPerHour = 3000000,
+storagePolicy = { v = 1, mode = "ask", warnAt = 0.8, forgetOlderThanMs = false, controlReserve = 65536 }
+ledger = {
+	v = 1, localTotal = 1000000, localUsed = 800000, peerTotal = 0, peerUsed = 0,
+	growthPerHour = 300000, state = "warn",
 }
-storagePrompt = {
-	id = "storage:0:4", capacityRevision = 4, policyRevision = 1,
-	growthBytesPerHour = 3000000, projectionMs = 3600000, candidateUsableBytes = 2000000,
-	suggestedTurtles = 3, forgetAfterMs = 604800000, previewId = "preview:0:8",
-	text = "Storage almost full: add 3 turtles as storage, or allow forgetting data older than 7 days?",
+forgetPreview = {
+	v = 1, id = "p:812:3", createdAt = 1792500000000, untilAt = 1792500030000,
+	olderThanMs = 604800000, rev = 812,
+	items = { { key = "abs|minecraft:overworld|3|4|-2", rev = 640, hash = "<sha256 hex>", bytes = 1200 } },
+	bytes = 1200,
 }
 ```
 
-All figures above are illustrative. Reachability uses ping and real storage-reply success EWMAs with alpha 0.1. Missed deadlines count as failures. The proposed score is `0.4*pingSuccess + 0.4*replySuccess + 0.1*uptimeRatio + 0.1*powerHeadroom`. Components are normalized from 0 to 1 over a ten-minute window. A peer also needs a fresh successful reply, no known out-of-range or unloaded interval in the qualifying window, and enough power for the repair horizon. Unknown power or loaded status fails eligibility. Stationarity adds no score and proves no reachability.
+All figures above are illustrative. Placement states are `hot`, `replicating`, `cold`, `degraded`, or `unknown`. Ledger states are `ok`, `warn`, or `paused`. The `=` palette entry means an observed cell equal to a referenced baseline and is unavailable before H4b2. Holder keys and peer IDs are numeric computer IDs. Reachability uses ping and real storage-reply success EWMAs with alpha 0.1. Missed deadlines count as failures. The score is `0.4*pingSuccess + 0.4*replySuccess + 0.1*uptimeRatio + 0.1*powerHeadroom`. Components are normalized from 0 to 1 over a ten-minute window. A peer also needs a fresh successful reply, no known out-of-range or unloaded interval in the qualifying window, and enough power for the repair horizon. Unknown power or reachability fails eligibility. A changed boot removes the holder from the verified count until it re-verifies the revision and hash. Stationarity adds no score and proves no reachability.
 
-Eligible store and warehouse robots rank first, stationary computers second, and miners last. The proposed minimum score is 0.95, with 0.98 and a full qualifying window for miners. A cold chunk needs verified durable copies on at least two distinct eligible peers before the server can evict its local copy. A server-only storage key signs chunk identity, revision, codec, size, and content hash. Per-peer HMAC envelopes protect transfer and acknowledgement. Peers never receive that storage key.
+Eligible store and warehouse robots rank first, stationary computers second, and miners last. The minimum score is 0.95. A cold section requires verified durable copies at the same revision and hash on at least two distinct eligible non-miner peers before `localCopy` may become false. Miners hold extra replicas only, never count toward the two, and never hold replicas while holding an offline lease. Their quotas leave room for code, two navigation saves, the runtime journal budget, and update staging. A server-only storage key authenticates section identity, revision, codec, size, and hash with keyed BLAKE3. Per-peer keyed BLAKE3 envelopes protect transfer and acknowledgement. Peers never receive that storage key. Exporting it to a floppy is mandatory before enabling peer storage, not before running the server.
 
 Reads fetch lazily by hash into an LRU cache and verify both hash and content MAC. The LRU only removes local copies whose required peer copies still exist. A reachability drop, failed reply, or low power triggers early re-replication from a verified copy. Rebalancing prefers eligible free space after reserves. Until repairs complete, local copies remain pinned. If all copies are unreachable, the directory retains the chunk record and its cells are unknown, never free. Loss of reachability never authorizes deletion.
 
-The per-server policy appears on the panel and in dev mode. `ask` is the default. `expand` uses peers and never forgets. `forget-old` permits oldest eligible data in the selected scope, with an optional age threshold. `hybrid` uses peers first and permits forgetting only when eligible peer capacity is exhausted. Selecting a forgetting policy is explicit player consent to its displayed scope and age rule. Every deletion batch records an exact preview. Active jobs, move journals, identities, replay records, and live reservations cannot enter that scope. Forgotten map cells become unknown and advance their revision.
+The per-server policy appears on the panel and in dev mode. `ask` is the default. `expand` uses peers and never forgets. `forget-old` permits oldest eligible data in the displayed scope, with `forgetOlderThanMs` as its optional age cutoff. `hybrid` uses peers first and permits forgetting only when eligible peer capacity is exhausted. Selecting a forgetting policy is explicit player consent to its displayed scope and age rule. Every deletion batch records an exact preview. Active jobs, move journals, identities, replay records, and live reservations cannot enter that scope. Forgotten map cells become unknown and advance their revision. Before H4d, expansion says it needs storage turtles. Pausing map growth preserves `controlReserve` for control writes.
 
 Capacity distinguishes raw physical bytes, bytes used by replicas, unique data, and usable space after replication and reserves. Unreachable peers remain visible with their last measured use and capacity, but contribute no usable free space. At 80% used by default, both the panel and AR glasses show `Storage almost full: add N turtles as storage, or allow forgetting data older than X?`. The estimate uses measured compressed growth over `projectionMs`, at least two replicas, reserves, current reachable free space, and each checked candidate's usable capacity. `N=ceil(max(0, projectedReplicaGrowth + reserveBytes - reachableFreeBytes) / candidateUsableBytes)`. The estimate states its horizon and refreshes when capacity changes. It never assumes a turtle disk size.
 
 One click enrolls a selected turtle after the server checks pairing, reachability history, power, and free space. A failed check reports its reason and stores nothing. Until the player answers, new map data stays compressed in a bounded pending buffer and miners retain unacknowledged events in their local journals. The server pauses map writes before the reserve is exhausted. It sends no durable acknowledgement for RAM-only data. Miners continue only within current authorization and journal capacity, then return or wait safely. Backpressure prevents loss and crashes. It does not promise unbounded storage or enable offline autonomy.
 
-The panel storage view pages each peer's capacity, use, reachability history, and chunk and journal contents. It also shows which server and peer copies a forgetting policy affects. A preview enumerates the exact keys, revisions, hashes, age cutoff, replica locations, record count, and bytes to remove. The commit references that preview's digest and policy and directory revisions. A changed input returns `stale_revision` and requires a new preview.
+The panel storage view pages the ledger and each peer's capacity, use, reachability history, and section and journal contents. It shows which server and peer copies a forgetting policy affects. A preview enumerates exact keys, revisions, hashes, age cutoff, replica locations, count, and bytes. A commit pins the immutable preview and policy revision. An expired preview or changed policy returns `stale_revision`. Under the accepted plan, a section changed since the preview is skipped by its revision and hash check. Other unchanged previewed sections may be removed. The result lists removed and skipped entries. No commit deletes an unlisted version.
 
 These proposed messages use authenticated envelopes and bounded pages. They remain unregistered until approval.
 
@@ -509,73 +553,86 @@ These proposed messages use authenticated envelopes and bounded pages. They rema
 | `cold-get` | Hash, offset, and limit. Reply supplies matching metadata and bytes or `unavailable`. |
 | `cold-has` | Bounded hashes. Reply supplies presence, verified size, and contents revision. |
 | `cold-drop` | Exact hash and directory revision. Only the server authorizes removal after replacement replication or approved forgetting. |
-| `storage-capacity` | Cursor and pinned revision. Reply supplies `storageCapacity` and per-peer contents pages. |
+| `storage-capacity` | Cursor and pinned revision. Reply supplies `ledger`, physical and replica byte totals, usable capacity after reserves, and per-peer contents pages. |
 | `storage-policy` | `baseRevision` and `storagePolicy`. Operator-only update. Reply supplies the accepted revision and scope. |
-| `storage-prompt` | Prompt ID and capacity revision. Reply supplies `storagePrompt` and candidate checks. AR actions use the same operator authorization. |
+| `storage-prompt` | Prompt ID and capacity revision. Reply supplies the displayed choices, growth horizon, candidate checks, and preview ID. AR actions use the same operator authorization. |
 | `storage-enroll` | Prompt ID, computer ID, candidate-check ID, and expected capacity revision. Reply supplies enrollment or a failed eligibility check. Retries are idempotent. |
 | `storage-preview` | Policy revision, scope, optional age threshold, cursor, and pinned directory revision. Reply supplies immutable preview ID, digest, exact records, and expiry. |
-| `storage-forget` | Preview ID, digest, policy revision, and directory revision. Operator consent or an explicitly saved forgetting policy authorizes only that recorded scope. Reply supplies exact removals and new revisions. |
+| `storage-forget` | Preview ID, digest, policy revision, and directory revision. Operator consent or an explicitly saved forgetting policy authorizes only that recorded scope. Reply supplies exact removals, skipped changed entries, and new revisions. |
 
-## APPROVED: miner offline autonomy notes
+## Miner offline autonomy, approved (#46, #49, #56)
 
-APPROVED on 2026-10-20 at 17:09 (Europe/Amsterdam). These notes predate the plan. The build order and final shapes come from [the H4 offline plan](../plans/cc-h4-offline-plan.md) (N1, B1, B2). The specification is [miner offline autonomy](miner-autonomy.md). Approved fleet settings and H5 recovery do not depend on this feature.
+Jeffrey approved miner offline autonomy on 2026-10-20 at 17:09 Europe/Amsterdam. These records adopt sections 2.5 and 2.6 of [the accepted plan](../plans/cc-h4-offline-plan.md). P0 freezes them in `docs/design/h4-offline-contract.md`. N1 supplies positions and confidence. B1 supplies leases and journals after W1. B2 adds local problem handling. [Miner offline autonomy](miner-autonomy.md) follows those rules. W1 settings and H5 recovery do not depend on B1 or B2.
 
-This would be a full feature for normal-modem miners. Ender modems remain optional. Out of range, a miner can work only while a player or chunk loader keeps its area loaded. An unloaded turtle freezes. On reload it reboots without GPS and cannot dig until its pose and heading are re-anchored. A saved lease alone cannot prove position.
+This is a full feature for normal-modem miners. Ender modems remain optional. Out of range, a miner works only while a player or chunk loader keeps its area loaded. An unloaded turtle freezes and reboots on reload. N1 restores `certain` only after journal and fingerprint reconciliation, or an anchor. An unresolved move may use the measured fuel delta only when fuel and move cost are known and no charging occurred. Otherwise it needs a distinctive fingerprint. Suspect or lost position forbids digging. GPS is optional. A saved lease alone cannot prove position.
 
 ```lua
-minerLease = {
-	schema = 1, id = "lease:17:9", revision = 1, server = 0, computerId = 17,
-	keyId = "pair:17:2", ownerGeneration = 4, epoch = "3", jobId = "zone:3",
-	area = { dim = "minecraft:overworld", min = { x = 0, y = 60, z = 0 }, max = { x = 15, y = 63, z = 31 } },
-	locationsRevision = 3, dropoffId = "mine-drop", chargerId = "charge-1", homeId = "parking-1",
-	locationsHash = "<hash of cached location records>",
-	returnRouteHash = "<hash of cached poses>", corridorId = "corridor:17:9",
-	settingsRevision = 4, settingsHash = "<hash of cached effective settings>",
-	issuedAt = 1792500000000, checkInEveryMs = 60000, checkInBy = 1792500060000,
-	deadline = 1792500900000, returnMarginMs = 120000,
-	journalMaxBytes = 262144, journalMaxEvents = 1024,
-	mac = "<HMAC-SHA256 of the lease without mac>",
+lease = {
+	v = 2, id = "7:mine:1234", turtle = 17, boot = "1792500000000:17", epoch = 7,
+	issuedAt = 1792500000000, untilAt = 1792500900000, issuedRev = 812, frame = "abs",
+	area = {
+		min = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 0, y = 60, z = 0, h = 0, conf = "certain", src = "typed", anchoredAt = 1792500000000 },
+		max = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 15, y = 63, z = 31, h = 0, conf = "certain", src = "typed", anchoredAt = 1792500000000 },
+	},
+	corridor = {
+		{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 10, y = 61, z = 20, h = 0, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
+		{ v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+			x = 10, y = 61, z = 19, h = 0, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
+	},
+	dropoff = { pose = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 61, z = 19, h = 1, conf = "certain", src = "neighbour", anchoredAt = 1792500000000 }, side = "front" },
+	charger = { pose = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 61, z = 19, h = 3, conf = "certain", src = "neighbour", anchoredAt = 1792500000000 }, side = "front" },
+	home = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 61, z = 19, h = 0, conf = "certain", src = "typed", anchoredAt = 1792500000000 },
+	settings = { revision = 4, values = { checkInEveryMs = 60000, returnMarginMs = 120000 } },
+	fuelReserve = 120, mac = "<keyed BLAKE3 hex with the turtle pairing key>",
 }
-journalEvent = {
-	schema = 1, eventId = "lease:17:9:23", leaseId = "lease:17:9", seq = 23,
-	boot = "1792500000000:17", jobId = "zone:3", kind = "block",
-	observedAt = 1792500001000, elapsedMs = 1000,
-	pose = { dim = "minecraft:overworld", x = 10, y = 61, z = 20 },
-	data = { before = "minecraft:stone", after = "minecraft:air", observationId = "lease:17:9:23" },
+entry = {
+	v = 1, seq = 42, lease = "7:mine:1234", at = 1792500001000, frame = "abs",
+	kind = "move", phase = "intent", fuelBefore = 1800,
+	from = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 61, z = 20, h = 0, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
+	to = { v = 1, frame = "abs", yAbs = true, dim = "minecraft:overworld",
+		x = 10, y = 61, z = 19, h = 0, conf = "certain", src = "reckoned", anchoredAt = 1792500000000 },
 }
+journalHead = { v = 1, lease = "7:mine:1234", committed = 41, acked = 30, bytes = 18000, budget = 90000 }
 ```
 
-The lease MAC uses a per-miner key derived from `Kpair` with label `cc-miner-lease/1`. It binds every field, including job area, server and owner generation, deadline, and hashes of complete cached location, return-route, and settings records. Bounded fragments carry those records, and the miner verifies all hashes before leaving range. The server reserves the mining cells and a clear return corridor through the lease deadline. Renewal is server-only. The miner never mines outside the leased area or corridor policy.
+The lease MAC uses ccryptolib keyed BLAKE3 with the turtle's pairing key over the canonical lease without `mac`, under a lease-specific domain label. It binds the complete `v=2` record, including numeric epoch, boot, frame, inline area, corridor, access poses, home, settings, and fuel reserve. Bounded transport fragments reassemble and verify the whole record before activation. The corridor has at most 256 adjacent observed-air positions in the same frame and dimension. The server reserves the area and corridor exclusively until `untilAt`. Renewal is server-only. Offline moves use dead reckoning within that authorization and need no per-step RPC. A lease holder cannot also hold peer replicas.
 
-Five invariants survive every dev-mode choice. Lost position forbids digging. The reserved return corridor stays clear. The newest accepted observation wins for block state. An expired lease means wait with no new digging. A full journal means go home. Expiry can allow a safe retreat along the already known corridor, without excavation. Disabling a local recovery behavior means wait safely, never bypass an invariant.
+Five invariants survive every dev-mode choice. Digging requires certain position. The reserved return corridor stays clear. Block observations follow the lease-authority and revision merge rule below. An expired lease means no move or dig until renewal or an explicit return-only grant. The miner stops new work and heads home at 80% of its journal budget, with space reserved for the return. If it cannot journal another action, it waits. Disabling a local recovery behavior never bypasses an invariant.
 
-The append-only local journal is bounded by both bytes and event count, including space reserved for return and reconciliation. Every event has the common identity and clock fields above. Its `data` uses the kind-specific shape below. Optional unknown scalar values are false.
+The append-only local journal uses the plan's entry and head. The `budget=90000` sample is illustrative bytes, not a fixed allowance. B1 computes the budget from actual free space after code, navigation generations, pending envelopes, update staging, and return and reconciliation reserves. Entries also obey the registry's event cap. Every entry carries `v`, `seq`, `lease`, UTC `at`, `frame`, `kind`, and `phase`. Its other fields follow its kind. P0 freezes their validators.
 
-| Event kind | Intended `data` fields |
+| Entry kind | Required action or observation fields |
 | --- | --- |
-| `block` | `before`, `after`, `observationId`. Namespaced block IDs or unknown false. A fresh observation gets a new ID. |
-| `mine` | `actionId`, `phase`, `target`, `block`, `result`, `observedAfter`. Phase is `intent` or `observed`. The pair shares an action ID. |
-| `items` | `actionId`, `locationId`, `direction`, `item`, `nbt`, `beforeCount`, `afterCount`, `delta`. Direction is `collect`, `dropoff`, `fuel`, or `trash`. Counts come from inventory observations. |
-| `problem` | `code`, `target`, `attempt`, `decision`, `detail`. Decisions are `wait`, `retry`, `reroute`, `return`, or `skip`. Text and retry counts are bounded. |
-| `move` | `actionId`, `phase`, `from`, `to`, `headingBefore`, `headingAfter`, `result`. Phase is `intent` or `observed`. It references the physical move journal. |
+| `move`, `turn` | `from`, `to`, and `fuelBefore` when measured. Positions include h and frame. Intent saves known source and destination fingerprints for N1 recovery. Done records the resolved outcome. |
+| `dig`, `observe` | `cell` and observed `name`. `dig` records intent before the native call and done after observation. `observe` is a done entry. Air is `minecraft:air`. An unknown observation omits `name` and explicitly carries `conf="unknown"`. |
+| `item` | `cell`, `name`, and observed `count`, with source and destination inventory observations for transfers. A fingerprint requirement is explicit where needed. |
+| `problem` | Bounded problem code, attempts, and decision `wait`, `retry`, `reroute`, `return`, or `skip`. |
+| `boot`, `anchor` | Boot identity or anchored position and source, with the previous unresolved sequence when present. |
 
-Events record observations and actual item changes, not a second stock ledger. Each event fits within 2048 canonical bytes. The miner records physical intent before action and its observation after action. A sequence never resets within a lease. Reboot preserves the journal and forces re-anchoring before new actions.
+Entries record observations and actual item changes, not a second stock ledger. Each entry fits within 2048 canonical bytes. Intent and done append under the same action sequence. Only a resolved done entry is replayed for that sequence. An unresolved intent remains local and blocks further physical work until N1 resolves it. Observation-only entries start as done. Sequences increase and never reset within a lease. The head's `committed` is the contiguous done prefix, and `acked` never exceeds it. Bytes include unresolved intents and return entries. Reboot preserves both the journal and head and requires confidence recovery before new actions.
 
-`miner-replay` sends `{leaseId, firstSeq, events}` in bounded batches. The server persists accepted contiguous sequence numbers and results before returning `{ackedThrough, conflicts, revision}`. Duplicate event IDs with identical bytes do nothing. Changed duplicates or gaps fail. The miner removes an acknowledged prefix only after saving the acknowledgement locally. Expired leases may replay observations made before their deadline, but cannot authorize later excavation. Event deduplication outlives ordinary RPC's eight-result cache.
+`miner-replay` sends `{leaseId, firstSeq, entries}` in bounded batches. Replay keys are `(turtle, lease, seq)`. The server persists contiguous accepted sequences and results before returning `{ackedThrough, conflicts, revision}`. Identical duplicates do nothing. Changed duplicates or gaps fail. The miner removes an acknowledged prefix only after saving the acknowledgement locally. Expired leases may replay observations made before `untilAt`, but cannot authorize later excavation. This deduplication outlives ordinary RPC's eight-result cache.
 
-The server is the final merge authority. Ownership, reservations, leases, job progress, delivered counts, and settings always use its current records. The server validates observation times against the lease's server-time anchor and elapsed clock. Newer valid observations replace older block state. Equal-time conflicts prefer the server's observation, then a fixed event-ID order. The server rejects stale or impossible events and returns the authoritative result. A miner replaces conflicting cached state with that result. Mining events cannot count as delivered stock without an inventory observation.
+The server is the final merge authority. Ownership, reservations, leases, job progress, delivered counts, and settings always use its current records. Inside its own unexpired lease the holder's valid observation wins. Outside it, an observation applies only when the cell is unknown or the section revision is not above `issuedRev`. Otherwise the cell becomes unknown. Ties order by UTC milliseconds, then numeric turtle ID, then sequence. The server rejects impossible times and observations and returns the authoritative result. The miner replaces conflicting cached state with that result. Item counts require inventory observations and cannot come from a dig command alone.
 
-The proposed default check-in period is 60000 ms and lease duration is 900000 ms. The miner heads toward modem range early enough for the route estimate plus `returnMarginMs`, and checks in by `checkInBy` and always before `deadline`. Failed check-ins do not extend permission. A reboot or uncertain elapsed clock requires server contact or re-anchoring and cannot extend a lease. At a missed check-in the server marks the miner overdue. At lease expiry it fences the lease and frees scheduling claims. Possible physical occupancy stays unknown until observation clears it.
+The default check-in period is 60000 ms and lease duration is 900000 ms. The effective settings set the next check-in relative to `issuedAt`. The miner returns toward range early enough for the route estimate plus `returnMarginMs`, and always before `untilAt`. Failed check-ins do not extend permission. Reboot and clock uncertainty cannot extend a lease. At a missed check-in the server marks the miner overdue. At expiry it fences the lease and frees scheduling claims. Possible physical occupancy stays unknown until observation clears it.
 
 The proposed request and reply bodies are below. Each uses the approved HMAC envelope, but remains absent from the operation registry until approval.
 
 | Operation | Intended request body | Intended successful reply body |
 | --- | --- | --- |
-| `miner-lease` | `action="issue"` or `"renew"`, `jobId`, `leaseId=false` for issue, `ownerGeneration`, `pose`, `heading`, `settingsRevision`, `ackedThrough` | Signed `lease`, `recordsHash`, `cursor` for cached records, or `wait` with reason. Renewal names the existing lease and changes its revision and deadline. |
-| `miner-checkin` | `leaseId`, `ownerGeneration`, `pose`, `heading`, `lastSeq`, `ackedThrough`, `settingsRevision`, `renew=true` or false | `serverNow`, `status`, `ackedThrough`, authoritative `revision`, accepted settings revision, and renewed `lease` or false. Missing journal events require replay before renewal. |
-| `miner-replay` | `leaseId`, `firstSeq`, `events`, optional pinned server revision | `ackedThrough`, authoritative `revision`, and bounded `conflicts` containing event ID, code, and authoritative result. Larger conflict sets use a cursor. |
+| `miner-lease` | `action="issue"` or `"renew"`, `jobId`, `leaseId=false` for issue, `ownerGeneration`, framed `pose`, `settingsRevision`, `ackedThrough` | Complete signed v2 `lease`, fragmented if needed, or `wait` with reason. Renewal names the existing lease and supplies a newly signed deadline and settings snapshot. |
+| `miner-checkin` | `leaseId`, `ownerGeneration`, framed `pose`, `lastSeq`, `ackedThrough`, `settingsRevision`, `renew=true` or false | UTC `serverNow`, `status`, `ackedThrough`, authoritative `revision`, accepted settings revision, and renewed `lease` or false. Missing journal entries require replay before renewal. |
+| `miner-replay` | `leaseId`, `firstSeq`, `entries`, optional pinned server revision | `ackedThrough`, authoritative `revision`, and bounded `conflicts` containing sequence, code, and authoritative result. Larger conflict sets use a cursor. |
 
-The proposed fleet registry additions are global defaults with per-turtle overrides. They include `offlineAutonomy=false`, `checkInEveryMs=60000`, `leaseMs=900000`, `returnMarginMs=120000`, `journalMaxBytes=262144`, and `journalMaxEvents=1024`. Behavior settings cover inventory compaction and filtered trash, low-power return margin, unbreakable-block detours, fluid containment or avoidance, falling-block retries, blocked-path retry and reroute, re-anchor attempts, and stuck-cell backoff and skip. Each behavior has an enable flag and bounded thresholds. Defaults keep trash and fluid placement off. All settings belong on the panel's dev-mode controls with the immutable invariants visible. They do not enter the approved settings example above.
+W1 adds the offline and problem-handling settings before B1 or B2 reads them. Defaults include `offlineAutonomy=false`, `checkInEveryMs=60000`, `leaseMs=900000`, `returnMarginMs=120000`, and `journalMaxEvents=1024`. The journal byte ceiling is an optional limit on the smaller runtime-derived budget, never a fixed disk allowance. Behavior settings cover inventory compaction and filtered trash, low-power return margin, unbreakable-block detours, fluid containment or avoidance, falling-block retries, blocked-path retry and reroute, re-anchor attempts, and stuck-cell backoff and skip. Each behavior has an enable flag and bounded thresholds. Defaults keep trash and fluid placement off. All settings appear in the registry and on the panel's dev-mode controls with the immutable invariants visible.
 
 ## File boundaries and merge order
 
