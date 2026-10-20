@@ -1,4 +1,5 @@
-local runtime,scenario = ...
+local runtime, scenario, diskText = ...
+local diskLimit = dofile("gate-disk.lua")(diskText)
 local navigation=scenario=="nav"
 local id = os.getComputerID()
 local A, S = dofile("atomic.lua"), dofile("ssot.lua")
@@ -390,7 +391,7 @@ local function controller()
         if last==999 or last==9999 then
           local sample=readMetrics()
           writeJSON("metrics-last.json",sample)
-          assert(sample.cells==last+1 and sample.capacity==4000000)
+          assert(sample.cells==last+1 and sample.capacity==diskLimit)
           sample.elapsedMs=os.epoch("utc")-startedAt
           metrics[#metrics+1]=sample
           writeJSON("metrics.json",metrics)
