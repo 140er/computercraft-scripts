@@ -236,8 +236,9 @@ local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = t
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
   farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, three = colors.lightBlue, console = colors.gray }
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
+local wh2On = settings and settings.get and settings.get("wh2.enabled", true)
 local wh2 = {
-  enabled = settings and settings.get("wh2.enabled", false) == true,
+  enabled = settings and settings.get and (wh2On == nil or wh2On == true),
   active = nil, context = { enabled = true, role = "panel" },
 }
 if wh2.enabled then
@@ -1699,6 +1700,44 @@ local function botList()
   end
 end
 
+local hostSaved
+local function hostId(key, proto, host)
+  if not hostSaved then
+    hostSaved = {}
+    if fs.exists("panel.cfg") then
+      local handle = fs.open("panel.cfg", "r")
+      local body = handle.readAll()
+      handle.close()
+      local ok, parsed = pcall(textutils.unserialize, body or "")
+      if ok and type(parsed) == "table" then hostSaved = parsed end
+    end
+    hostSaved.hosts = hostSaved.hosts or {}
+  end
+  if type(hostSaved.hosts[key]) == "number" then return hostSaved.hosts[key] end
+  local ids = { rednet.lookup(proto, host) }
+  local choices = {}
+  for i = 1, #ids do
+    if type(ids[i]) == "number" then choices[#choices + 1] = ids[i] end
+  end
+  if #choices == 1 then return choices[1] end
+  if #choices > 1 and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local picked = plug.ask(plug.termio(), {
+        kind = "choice", title = "Panel", question = "Which " .. key .. "?", choices = choices,
+      })
+      if type(picked) == "number" then
+        hostSaved.hosts[key] = picked
+        local handle = fs.open("panel.cfg", "w")
+        handle.write(textutils.serialize(hostSaved))
+        handle.close()
+        return picked
+      end
+    end
+  end
+  return choices[1]
+end
+
 local function run(line)
   say("> " .. line, colors.yellow)
   local words = {}
@@ -1709,7 +1748,7 @@ local function run(line)
   elseif c == "clear" or c == "cls" then con.lines, con.scroll = {}, 0
   elseif c == "factory" then
     -- the turtle factory (factory.lua): build [n] | status | slots | cancel | free <n> | update
-    local id = rednet.lookup("turtlefactory")
+    local id = hostId("factory", "turtlefactory")
     if not id then say("No turtle factory found. Is factory running with a modem?", colors.red) return end
     sendTo({ id = id, proto = "turtlefactory", name = "Factory" },
       { cmd = op ~= "" and op or "status", args = { table.unpack(words, 3) } }, { factory = true })
@@ -2127,7 +2166,7 @@ local function findLoop()
     for _, key in ipairs(DEV_ORDER) do
       local d = DEV[key]
       if not online(key) then
-        local id = rednet.lookup(d.proto, d.host)
+        local id = hostId(key, d.proto, d.host)
         if id then
           if d.id ~= id then d.id = id ask(key) end
         end
@@ -2156,7 +2195,7 @@ local function pollLoop()
         wmap.viewAsked = os.clock()
         if not wmap.server and os.clock() - wmap.lookAt > 20 then
           wmap.lookAt = os.clock()
-          wmap.server = rednet.lookup("fleetserver", "server")
+          wmap.server = hostId("server", "fleetserver", "server")
         end
         if wmap.server then rednet.send(wmap.server, { type = "view", rid = "panel3d" }, "fleetserver") end
       end

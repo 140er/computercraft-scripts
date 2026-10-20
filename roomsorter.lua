@@ -75,6 +75,39 @@ local function saveTable(path, t)
   return slot(path):save(t)
 end
 
+local function pickMonitor(colorOnly)
+  local cfg = loadTable(FILES.cfg) or {}
+  local found = { peripheral.find("monitor", function(_, device)
+    if not colorOnly then return true end
+    return device.isColor and device.isColor()
+  end) }
+  if found[1] == nil then return nil end
+  if type(cfg.monitor) == "string" and peripheral.getName then
+    for _, device in ipairs(found) do
+      if peripheral.getName(device) == cfg.monitor then return device end
+    end
+  end
+  if #found == 1 then return found[1] end
+  if fs.exists("plug.lua") and peripheral.getName then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local choices = {}
+      for _, device in ipairs(found) do
+        choices[#choices + 1] = { value = device, label = peripheral.getName(device) }
+      end
+      local picked = plug.ask(plug.termio(), {
+        kind = "choice", title = "Storage", question = "Which monitor?", choices = choices,
+      })
+      if type(picked) == "table" then
+        cfg.monitor = peripheral.getName(picked)
+        saveTable(FILES.cfg, cfg)
+        return picked
+      end
+    end
+  end
+  return found[1]
+end
+
 ---------------------------------------------------------------------------
 -- Client: ask the turtle from a computer outside the room
 ---------------------------------------------------------------------------
@@ -667,7 +700,7 @@ if args[1] == "client" then
     end
   end
 
-  local mon = peripheral.find("monitor", function(_, m) return m.isColor() end)
+  local mon = pickMonitor(true)
   if mon and args[2] ~= "text" then
     -- Advanced monitor: order screen there (tap it), commands typed here
     mon.setTextScale(0.5)
@@ -700,7 +733,7 @@ local function board()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then print("Needs a wireless (or ender) modem.") return end
   rednet.open(peripheral.getName(modem))
-  local mon = peripheral.find("monitor")
+  local mon = pickMonitor(false)
   local t = mon or term.current()
   if mon then
     mon.setTextScale(1)

@@ -1,7 +1,9 @@
 return function(test, read, mocks)
   local sources={}
   for _,path in ipairs({"server.lua","hub.lua","ssot.lua","atomic.lua","mine-tasks.lua","warehouse-tasks.lua",
-      "ar-hud.lua","chat-control.lua","planner-ops.lua","planner-core.lua","planner-enrol.lua","planner-settings.lua","wh2-dispatch.lua"}) do sources[path]=read(path) end
+      "ar-hud.lua","chat-control.lua","planner-ops.lua","planner-core.lua","planner-enrol.lua","planner-settings.lua","wh2-dispatch.lua",
+      "ssot-hub.lua","s1_t1.lua","s1_h4c.lua","s1_i1.lua","s1_b1.lua","mapstore.lua","mapsection.lua","dead.lua","lease.lua","journal.lua",
+      "lib/stubs/b1_n1.lua","lib/stubs/b1_h1.lua","lib/stubs/b1_h5.lua","lib/stubs/b1_w1.lua","lib/stubs/b1_h4c.lua"}) do sources[path]=read(path) end
   read=function(path) return assert(sources[path],"fixture source missing: "..path) end
   local UUID = "12345678-1234-1234-1234-123456789abc"
   local OTHER = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"

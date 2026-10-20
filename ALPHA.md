@@ -10,34 +10,41 @@ wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/head
 
 `install-shell.lua` takes a `base` argument. On this branch the default is the alpha URL.
 
+Plain `install` opens the role installer. `install classic`, or `settings set install.roles false`, keeps the old menu.
+
+`install.touch` is on when the setting is missing and the computer has a colour terminal or a colour monitor. `settings set install.touch false` turns it off. A basic computer stays off.
+
 The branch is https://github.com/140er/computercraft-scripts/tree/alpha. It is not merged into main.
 
 # Turn a feature on
 
-Every flag below defaults off. Set it to `true`, then reboot.
+These flags are on when the key is missing or `true`. A file that already sets the flag to `false` stays off. Reboot after you edit a config.
 
 In `ssot.cfg`:
 
-- `wh2 = { enabled = true }` turns on warehouse v2 dispatch and layout.
-- `deadTurtles = true` with `deadAfterMs = 120000` marks a silent turtle missing.
-- `compactSections = true` stores the map as schema 2 sections.
-- `leaseV2 = true` turns on lease v2 on the server.
-- `hubProfile = true` turns on the S1 hub profile.
-- `planner = true` turns on the server planner screen.
+- `wh2` turns on warehouse v2 dispatch and layout. `wh2 = { enabled = false }` turns it off.
+- `deadTurtles` marks a silent turtle missing. `deadAfterMs` still defaults to `120000`.
+- `compactSections` stores the map as schema 2 sections.
+- `leaseV2` turns on lease v2 on the server.
+- `hubProfile` turns on the S1 hub profile.
+- `planner` turns on the server planner screen.
 
 On a miner, in `miner.cfg`:
 
-- `wh2 = { enabled = true }` turns on fleet control.
-- `nav.gpsFree = true` stops that turtle calling GPS for moves.
-- `leaseV2 = true` and `offlineAutonomy = true` together wrap mining in the lease. The server flag has to be on as well.
+- `wh2` turns on fleet control. Without paired SSOT, navigation, and a mining home, the miner prints that and keeps its own route.
+- `nav.gpsFree` stops that turtle calling GPS for moves.
+- `leaseV2` and `offlineAutonomy` together wrap mining in the lease. The server flag has to be on as well. Set either one to `false` to leave the wrap off.
 
-On a store turtle, `gpsFree = true` in its config does the same for warehouse navigation.
+On a store turtle, `gpsFree` in its config does the same for warehouse navigation. `gpsFree = false` keeps the GPS calibrate path.
 
-Other files:
+Other files that default on:
 
-- Hub and panel wizard. `settings set wh2.enabled true`
-- Factory craft. In `factory.cfg`, `wh2 = { enabled = true }`
-- Planner tools on the panel, hub, and server. In `planner.cfg`, `enabled = true`
+- Hub and panel wizard. An unset `wh2.enabled` is on. `settings set wh2.enabled false` turns it off. A computer with no settings API leaves the wizard off.
+- Factory craft. In `factory.cfg`, `wh2` is on unless `enabled` is false. A computer that is not a turtle, or has no modem, prints that and keeps running.
+- Planner tools on the panel, hub, and server. In `planner.cfg`, `enabled` is on unless it is false.
+
+These still default off. Set them to `true`, then reboot.
+
 - AR planner. `arPlanner = true` on the host config. It also needs a player detector.
 - AR goggles. `enabled = true` in `ar.cfg`. Chat stays off until `chatEnabled = true` in that same file. Names and UUIDs stay in `ssot.cfg` under `chatNames` and `chatUUIDs`.
 - Views. `enabled = true` in `views.cfg`.
@@ -50,19 +57,7 @@ The server event queue from H3 is always on. It is how the server keeps fleet me
 
 # Files the installer does not copy
 
-The updater only accepts a flat `name.lua` role file. Anything under `lib/stubs/` has to be copied by hand before you turn on the feature that loads it.
-
-```
-mkdir lib/stubs
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/b1_n1.lua lib/stubs/b1_n1.lua
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/b1_h1.lua lib/stubs/b1_h1.lua
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/b1_h4c.lua lib/stubs/b1_h4c.lua
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/b1_h5.lua lib/stubs/b1_h5.lua
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/b1_w1.lua lib/stubs/b1_w1.lua
-wget https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/lib/stubs/h4d_dep.lua lib/stubs/h4d_dep.lua
-```
-
-Lease v2 needs the five `b1_` files. Peer storage needs `h4d_dep.lua`.
+`install` and `update` copy `lib/stubs/b1_n1.lua`, `b1_h1.lua`, `b1_h4c.lua`, `b1_h5.lua`, `b1_w1.lua`, and `h4d_dep.lua` with the roles that load them. Lease v2 needs the five `b1_` files. Peer storage needs `h4d_dep.lua`.
 
 The role manifest does not install the code shelf. Copy these before `codeShelf` is turned on. The mirror computer also needs `mirror.lua`.
 
@@ -93,13 +88,36 @@ These stubs stay because the real module does not have the same functions.
 
 # Checks
 
-`lua5.2 tests/run.lua` printed `377 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 29 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
+`lua5.2 tests/run.lua` printed `387 tests passed`. The same run also printed `13 h4d tests passed`, `21 wizard state tests passed`, `8 wizard contract3 tests passed`, `Wizard board 30 passed, 0 failed`, and `Wizard host 14 passed, 0 failed`. CraftOS-PC is not installed on the machine that built this branch, so the sandbox scenarios were not run here.
 
 The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime.lua` line 388, 10000 cells.
 
 `tests/sandbox/run.ps1` does not list the wizard or h3 scenarios. `tests/sandbox/driver.lua` can start `h3` and `h3-burst` when the scenario name is passed in. The Lua unit files cover those programs.
 
 Gate B is not required for this branch. `tests/ingame/run.ps1` on alpha includes the main fix that loads every live jar. That came in with pull request 60, merge `5140e2c`.
+
+# Setup without editing a cfg
+
+`plug.lua` fills a missing value. A value already in the cfg wins. A saved answer wins next. Discovery runs only when both are absent. The program writes the answer into that same cfg. Feature flags stay as they were.
+
+A fleet secret comes from `install.cfg` `pairingKey`, or from the enrol copy code the server already prints. The client derives the key. The server copies a paired key into an empty `ssot.cfg` controller slot. A slot that already has a secret stays. Keys stay off the screen. A missing `ssot.cfg` stays missing.
+
+- Miner. GPS supplies home. The turtle turns until a chest, barrel, or shulker is behind it, to its right, or to its left. When `ssot.enabled` is already true, `rednet.lookup` supplies the fleet server id, and the pairing key or an enrol code supplies the secret. Asked once when GPS is absent, for coordinates and facing. Asked once when SSOT is on and the dimension is missing. The tunnel direction stays unset. `ssot.enabled` stays as it was.
+- Store and warehouse. Lookup supplies the server id. The pairing key or an enrol code supplies the secret. GPS supplies the pose with heading 0. Asked once when lookup finds several servers or none, when no pairing key is saved, when the dimension is missing, and when `store pose` has no GPS fix. Bounds stay on `store bounds`. A fleet bootstrap that already set the server skips this fill.
+- Factory. GPS supplies the position. Front stays the pickup side and bottom stays the parts side when those sides are inventories. Asked once for coordinates when GPS fails, and for a side when that side is not an inventory.
+- Farmer. The turtle turns until a chest is next to it. Asked once for the row count, the row width, and left or right. `farmer drop` with no numbers asks once for forward, right, and up.
+- Lumber. The turtle turns until a chest is behind it, saves radius 48, and writes `startup.lua`. Nothing is asked. `lumber setup` still changes the radius.
+- Lava. The turtle turns until a chest is behind it. GPS supplies home and facing. Asked once when GPS fails, for coordinates and facing. Drop chests stay on `lava add`. The lava pool stays on `lava pool`.
+- Builder. GPS supplies home. Asked once for facing, and for coordinates when GPS fails. Cancelling the coordinate prompt keeps the local frame at 0, 0, 0.
+- Buddy. Asked once for its own model address, or for an xAI key. The key is hidden while it is typed and is Buddy's own key. The program prints `Key saved in api.key.`
+- Roomsorter. One colour monitor is used as found. Asked once when several monitors are attached. The name is saved as `room.cfg` `monitor`. A name already in that file wins. The room scan still finds the chests.
+- Panel. One lookup hit is used and left unsaved. Asked once when several hosts answer. The pick is saved under `panel.cfg` `hosts`. Other keys in that file stay. An id already in `hosts` wins.
+- Planner. When the panel or hub program is running, `enabled` is already true, and `server` is missing, lookup supplies the server id and only that field is written. Asked once when lookup finds several servers or none. `enabled` stays as it was. Loading the file as a library skips the prompt.
+- Storage. `storage-peer.lua` already makes its own key. No server id, side, or chest name has to be typed into a cfg. `peerStorage` stays off.
+- Server. The existing screen pick still chooses the largest colour monitor. Pairing keys already in `enrol.store` fill empty controller slots. Nothing new is asked.
+- GPS host. Typed coordinates and a saved `gpshost.cfg` win. Asked once for the x, y, and z of this computer. The host is the GPS reference, so the fix is typed.
+
+Views pairing, hub pairing, and the enrol protocol are unchanged.
 
 # Merges
 

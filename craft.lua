@@ -169,7 +169,9 @@ function M.worker(opts)
 end
 
 function M.factory(args, cfg)
-  if type(cfg) ~= "table" or type(cfg.wh2) ~= "table" or cfg.wh2.enabled ~= true then
+  local wh2 = type(cfg) == "table" and cfg.wh2 or nil
+  local craftOn = wh2 == nil or type(wh2) == "table" and (wh2.enabled == nil or wh2.enabled == true)
+  if type(cfg) ~= "table" or not craftOn then
     print("wh2 craft is off")
     return false
   end

@@ -135,6 +135,20 @@ if fs.exists("ssot.cfg") then
   ssot = SSOT.open(ssotConfig)
 end
 
+local function adoptPaired()
+  if not ssotConfig then return end
+  pcall(function()
+    if not fs.exists("plug.lua") or not fs.exists("enrol.lua") or not fs.exists("enrol.store") then return end
+    local plug = dofile("plug.lua")
+    local Enrol = dofile("enrol.lua")
+    local store = Enrol.load(fs)
+    if store and plug.adopt(ssotConfig.controllers, store.paired) then
+      writeFile("ssot.cfg", textutils.serialize(ssotConfig, { compact = true }))
+    end
+  end)
+end
+adoptPaired()
+
 local args = { ... }
 local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
 local arConfig,saveAR
@@ -469,6 +483,7 @@ local function request(id, m, fetched, receivedAt)
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
+      if r and r.ok and m.op == "enrol-claim" then adoptPaired() end
       if r and r.ok and m.op=="ar-control" then
         if not SSOT.arAllowed(ssotConfig,id,m.name,m.uuid) then
           r.ok,r.error=false,"AR authorization was revoked"
@@ -755,7 +770,7 @@ local function pickScreen()
 end
 local screen, touchable = pickScreen()
 local plannerHost
-if ssot and ssot.plan and ssotConfig and ssotConfig.planner == true and fs.exists("planner-host.lua") then
+if ssot and ssot.plan and ssotConfig and (ssotConfig.planner == nil or ssotConfig.planner == true) and fs.exists("planner-host.lua") then
   local loaded, Host = pcall(dofile, "planner-host.lua")
   if loaded and type(Host) == "table" and type(Host.attach) == "function" then
     local opened, host = pcall(Host.attach, { ssot = ssot, screen = screen, clock = now })

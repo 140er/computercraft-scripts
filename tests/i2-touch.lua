@@ -274,7 +274,9 @@ return function(test, equal)
     local ok, err = pcall(function()
     settings = { get = function() return nil end }
     term = { isColour = function() return true end }
-    assert(Touch.available() == false, "a colour screen turned touch on")
+    assert(Touch.available() == true, "a colour screen left touch off")
+    settings = { get = function(key) if key == "install.touch" then return false end end }
+    assert(Touch.available() == false, "explicit false left touch on")
     settings = { get = function(key) if key == "install.touch" then return "true" end end }
     assert(Touch.available() == false, "a string setting turned touch on")
     settings = { get = function(key) return key == "install.touch" and true or nil end }
@@ -307,7 +309,8 @@ return function(test, equal)
     local touch = assert(readFile("install-touch.lua"))
     assert(shell:find("loaded.available", 1, true), "shell skips the flag")
     assert(installer:find("install-touch.lua", 1, true), "installer never downloads the touch view")
-    assert(touch:find('settings.get("install.touch") == true', 1, true), "flag check")
+    assert(touch:find('settings.get("install.touch")', 1, true), "flag check")
+    assert(touch:find("value == false", 1, true), "explicit false ignored")
     assert(not touch:find("gps.locate", 1, true), "touch view calls gps")
     local kept = false
     for _, kitName in ipairs(Roles.kit) do
