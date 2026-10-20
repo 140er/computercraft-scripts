@@ -37,7 +37,7 @@ New-Item -ItemType Directory -Force -Path $TestRoot, $Output, "$TestRoot\mods", 
 New-Item -ItemType Junction -Path "$TestRoot\libraries" -Target "$Base\libraries" | Out-Null
 $patterns = @('cc-tweaked-1.21.1-forge-1.120.2.jar','classicperipherals-neoforge-1.21.1-0.6.5.jar',
     'AdvancedPeripherals-*.jar','turtlematic-*.jar','cc_ar-*.jar','directgpu-*.jar','kotlinforforge-*.jar',
-    'superbwarfare-*.jar','*tweakium*.jar','*broccolium*.jar','*peripheralium*.jar')
+    'superbwarfare-*.jar','turtlematicfix-*.jar','recipe_index-*.jar','*tweakium*.jar','*broccolium*.jar','*peripheralium*.jar')
 foreach ($pattern in $patterns) {
     Get-ChildItem "$Base\mods" -Filter $pattern | Copy-Item -Destination "$TestRoot\mods"
 }
