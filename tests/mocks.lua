@@ -144,7 +144,7 @@ function M.new(attached, state)
     end,
     open = function(path, mode)
       local pending
-      if mode == "w" then m.files[path] = "" end
+      if mode == "w" or mode == "wb" then m.files[path] = "" end
       local function write(text)
         local free = env.fs.getFreeSpace(path)
         if #text > free then

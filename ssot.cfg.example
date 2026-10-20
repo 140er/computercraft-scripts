@@ -5,6 +5,7 @@
   leaseMs = 30000,
   deadTurtles = false,
   deadAfterMs = 120000,
+  compactSections = false,
   chatNames = { "Jeffreyy2", "njov10", "yolobeerman" },
   chatUUIDs = {},
   arControllers = {},

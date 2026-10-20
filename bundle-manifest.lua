@@ -191,7 +191,7 @@ return {
     ["smartmine.lua"]="2bfddca3",
     ["sorter.lua"]="c1975121",
     ["ssot-client.lua"]="8b03473e",
-    ["ssot.lua"]="0aff30e3",
+    ["ssot.lua"]="03abb86a",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="f8ce7150",
     ["update.lua"]="e8b5cb85",
@@ -1010,5 +1010,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="8634fda5"
+  ["version"]="fd6009e4"
 }

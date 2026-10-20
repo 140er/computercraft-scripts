@@ -37,6 +37,9 @@ function M.config(raw)
   end
   assert(raw.deadTurtles == nil or type(raw.deadTurtles) == "boolean", "invalid deadTurtles")
   assert(raw.deadAfterMs == nil or integer(raw.deadAfterMs, 10000, 600000), "invalid deadAfterMs")
+  assert(raw.compactSections == nil or raw.compactSections == true or raw.compactSections == false,
+    "invalid compactSections")
+  raw.compactSections = raw.compactSections == true
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
@@ -105,9 +108,17 @@ local function canonical(v)
   for _,k in ipairs(keys) do parts[#parts+1]="[" .. canonical(k) .. "]=" .. canonical(v[k]) end
   return "{" .. table.concat(parts,",") .. "}"
 end
-function M.new(s, cfg, clock, epoch, save)
-  s.schema = 1
-  s.chunks, s.names, s.poses = s.chunks or {}, s.names or {}, s.poses or {}
+function M.new(s, cfg, clock, epoch, save, map)
+  cfg = cfg or {}
+  local compact = cfg.compactSections == true
+  if compact then
+    s.schema, s.map = 2, { v = 2 }
+    s.chunks, s.names = nil, nil
+  else
+    s.schema = 1
+    s.chunks, s.names = s.chunks or {}, s.names or {}
+  end
+  s.poses = s.poses or {}
   s.moves, s.clients = s.moves or {}, s.clients or {}
   s.rev, s.seq = s.rev or 0, s.seq or 0
   local origin = 0
@@ -139,6 +150,74 @@ function M.new(s, cfg, clock, epoch, save)
     end
     if Planner.blocks(s.planner, p) then return true end
     return false
+  end
+  local function scanMap(id, m, p)
+    if not map then return { ok = false, error = "compact map unavailable" } end
+    if not M.pose(p) or not equal(p, s.poses[id]) or not integer(m.revision, 0, s.rev)
+      or type(m.cells) ~= "table" or #m.cells > 64 or #m.cells == 0 then return { ok = false, error = "invalid scan" } end
+    local grouped, same = {}, true
+    for k, c in pairs(m.cells) do
+      if not integer(k, 1, #m.cells) or type(c) ~= "table" or not M.pose(c) or c.dim ~= p.dim
+        or math.abs(c.x - p.x) > 32 or math.abs(c.y - p.y) > 32 or math.abs(c.z - p.z) > 32
+        or not (c.name == false or (word(c.name, 128) and c.name:match("^[%w_]+:[%w_/.-]+$")))
+        or (c.frame ~= nil and c.frame ~= "abs" and not (type(c.frame) == "string" and c.frame:match("^f:[%w_.:%-]+$"))) then
+        return { ok = false, error = "invalid observation" }
+      end
+      local key = map:sectionKey(c)
+      if not key then return { ok = false, error = "invalid observation" } end
+      local index = map:cellIndex(c.x, c.y, c.z)
+      if m.revision < map:revision(key) then
+        local have = map:get(map:read(key), index)
+        local want = c.name == false and "minecraft:air" or c.name
+        if have ~= want then return { ok = false, error = "stale revision" } end
+      else
+        same = false
+        local bucket = grouped[key]
+        if not bucket then bucket = {} grouped[key] = bucket end
+        bucket[#bucket + 1] = { index = index, name = c.name }
+      end
+    end
+    if same then return { ok = true, revision = s.rev } end
+    map:checkpoint()
+    local rev, now = s.rev + 1, clock()
+    for key, edits in pairs(grouped) do
+      local section, why = map:observe(key, edits, rev, now)
+      if not section then map:rollback() return { ok = false, error = why or "invalid observation" } end
+    end
+    local wrote, err = map:flush()
+    if not wrote then map:rollback() return { ok = false, error = err or "capacity" } end
+    s.rev = rev
+    return { ok = true, revision = s.rev }
+  end
+  local function snapMap(id, m)
+    if not map then return { ok = false, error = "compact map unavailable" } end
+    if type(m.chunk) ~= "string" or #m.chunk == 0 or #m.chunk > 180 or not integer(m.cursor or 0, 0, 4096)
+      or (m.revision ~= nil and not integer(m.revision, 0, 2147483647)) then return { ok = false, error = "invalid query" } end
+    local key = map:normalizeKey(m.chunk)
+    if not key then return { ok = false, error = "invalid query" } end
+    local rev = map:revision(key)
+    if m.revision and m.revision ~= rev then return { ok = false, error = "stale cursor" } end
+    local section = map:read(key)
+    local out = { ok = true, revision = rev, cells = {}, cursor = 0,
+      v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID(), auth = cfg.controllers[tostring(id)] }
+    if section then
+      for index = (m.cursor or 0), 4095 do
+        local name = map:get(section, index)
+        if name ~= nil then
+          out.cells[#out.cells + 1] = { index + 1, map:wireName(name) }
+          if #textutils.serialize(out, { compact = true }) > pageBytes - 16 or #out.cells > 64 then
+            out.cells[#out.cells] = nil
+            if #out.cells == 0 then return { ok = false, error = "page budget too small" } end
+            out.cursor = index
+            break
+          end
+        end
+      end
+      map:touch(key, clock())
+      map:flush()
+    end
+    if #out.cells == 0 and out.cursor ~= 0 then return { ok = false, error = "page budget too small" } end
+    return out
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
@@ -235,6 +314,7 @@ function M.new(s, cfg, clock, epoch, save)
       end
       return { ok = true, untilAt = r.untilAt }
     elseif op == "scan" then
+      if compact then return scanMap(id, m, p) end
       if not M.pose(p) or not equal(p, s.poses[id]) or not integer(m.revision, 0, s.rev)
         or type(m.cells) ~= "table" or #m.cells > 64 or #m.cells == 0 then return { ok = false, error = "invalid scan" } end
       local count, additions, names = 0, {}, {}
@@ -270,6 +350,7 @@ function M.new(s, cfg, clock, epoch, save)
       s.rev = s.rev + 1
       return { ok = true, revision = s.rev }
     elseif op == "snapshot" then
+      if compact then return snapMap(id, m) end
       if not word(m.chunk, 120) or not integer(m.cursor or 0, 0, 4096)
         or (m.revision ~= nil and not integer(m.revision, 0, 2147483647)) then return { ok = false, error = "invalid query" } end
       local ch = s.chunks[m.chunk]
@@ -400,27 +481,31 @@ end
 function M.open(cfg)
   cfg = M.config(cfg)
   local store = A.store("ssot.state", function(s)
-    if not (type(s) == "table" and s.schema == 1 and type(s.chunks) == "table"
-      and type(s.poses) == "table" and type(s.moves) == "table" and type(s.clients) == "table"
-      and type(s.names) == "table" and integer(s.rev, 0, 2147483647)
+    if not (type(s) == "table" and type(s.poses) == "table" and type(s.moves) == "table"
+      and type(s.clients) == "table" and integer(s.rev, 0, 2147483647)
       and integer(s.seq, 0, 2147483647) and integer(s.epoch, 0, 2147483647)) then return false end
-    local names=0
-    for i,name in pairs(s.names) do
-      names=names+1
-      if not integer(i,1,256) or not word(name,128) or not name:match("^[%w_]+:[%w_/.-]+$") then return false end
-    end
-    if names~=#s.names then return false end
-    local count=0
-    for key,ch in pairs(s.chunks) do
-      count=count+1
-      if count>(cfg.maxChunks or 64) or not word(key,120) or not key:match("^[%w_]+:[%w_/.-]+|%-?%d+|%-?%d+|%-?%d+$")
-        or type(ch)~="table" or not integer(ch.rev,0,s.rev) or type(ch.cells)~="table" then return false end
-      for i,name in pairs(ch.cells) do
-        if not integer(i,1,4096) or not integer(name,0,#s.names) then return false end
+    if s.schema == 1 then
+      if type(s.chunks) ~= "table" or type(s.names) ~= "table" then return false end
+      local names=0
+      for i,name in pairs(s.names) do
+        names=names+1
+        if not integer(i,1,256) or not word(name,128) or not name:match("^[%w_]+:[%w_/.-]+$") then return false end
       end
-      if count%4==0 then sleep(0) end
-    end
-    count=0
+      if names~=#s.names then return false end
+      local count=0
+      for key,ch in pairs(s.chunks) do
+        count=count+1
+        if count>(cfg.maxChunks or 64) or not word(key,120) or not key:match("^[%w_]+:[%w_/.-]+|%-?%d+|%-?%d+|%-?%d+$")
+          or type(ch)~="table" or not integer(ch.rev,0,s.rev) or type(ch.cells)~="table" then return false end
+        for i,name in pairs(ch.cells) do
+          if not integer(i,1,4096) or not integer(name,0,#s.names) then return false end
+        end
+        if count%4==0 then sleep(0) end
+      end
+    elseif cfg.compactSections and s.schema == 2 then
+      if s.chunks ~= nil or s.names ~= nil or type(s.map) ~= "table" or s.map.v ~= 2 then return false end
+    else return false end
+    local count=0
     for id,p in pairs(s.poses) do
       count=count+1
       if count>32 or not integer(id,0,2147483647) or not M.pose(p) or not word(p.boot,80) then return false end
@@ -447,10 +532,26 @@ function M.open(cfg)
     return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose) and Planner.valid(s.planner) and (not Dead or Dead.valid(s.live))
       and Wh2.open(cfg.wh2,M.pose).valid(s.wh2)
   end, 900000)
+  local map
+  if cfg.compactSections then
+    local opened, why = dofile("mapstore.lua").open(fs, { reserve = 65536 })
+    assert(opened, why)
+    map = opened
+  end
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }
+  if map and s.schema ~= 2 then
+    local ok, err = map:stageSchema1(s.names or {}, s.chunks or {})
+    assert(ok, err)
+    s.chunks, s.names, s.schema, s.map = nil, nil, 2, { v = 2 }
+  end
+  if map then s.rev = math.max(s.rev or 0, map:maxRevision()) end
   s.epoch = s.epoch + 1
   assert(store.save(s))
-  return M.new(s, cfg, function() return os.epoch("utc") end, tostring(s.epoch), store.save)
+  if map and map:hasLegacy() then
+    local ok, err = map:dropLegacy()
+    assert(ok, err)
+  end
+  return M.new(s, cfg, function() return os.epoch("utc") end, tostring(s.epoch), store.save, map)
 end
 return M
