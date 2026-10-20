@@ -210,6 +210,11 @@ try {
     . "$PSScriptRoot\ar-owner.ps1"
     $result.owner = $true
     $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })
+    try {
+        . "$PSScriptRoot\ar-install.ps1"
+        $result.installation = $true
+        $result.missing = @($result.missing | Where-Object { $_ -ne 'Native cached installation of every role' })
+    } catch { $result.errors += $_.Exception.Message }
     if (!$result.visual) { $result.missing += 'Real linked-goggles HUD and x-ray screenshots' }
     if ($result.missing.Count) { throw ('Required gate coverage remains. ' + ($result.missing -join '; ')) }
     if ($result.errors.Count) { throw 'One or more native checks failed.' }
