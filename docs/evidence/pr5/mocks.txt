@@ -137,11 +137,14 @@ PASS miner navigation journals veins and recall cannot dig a changed tunnel
 PASS navigation bounds can be configured from the turtle command
 PASS view movement is opt-in and rejects forged, distant and invalid commands
 PASS view movement rejects another command while its worker owns navigation
+PASS enabled view hubs coexist with the canonical hub
+PASS view hostname fallback preserves legacy and unrelated errors
 view-core checks passed
 DirectGPU signature and lifecycle checks passed
 snapshot paging, PR4 boundary and camera checks passed
 boundary validation, complete warehouse and moving fleet checks passed
+Tom narrow and wide monitor controls passed
 view UI checks passed
 PASS view installer roles preserve existing order and boot the selected mode
 PASS view installer rejects bad pairing before writing config or startup
-102 tests passed
+104 tests passed

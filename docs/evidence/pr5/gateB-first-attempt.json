@@ -1,0 +1,11 @@
+﻿{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-5ab3378d",
+    "failure":  "Tom button origin exceeds a 64-pixel canvas at fleetview.lua:656",
+    "normalMonitor":  "pass",
+    "directgpu":  "not reached",
+    "client":  "not started",
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\run",
+    "serverPid":  19504,
+    "cleanup":  "runner exited and released lock"
+}

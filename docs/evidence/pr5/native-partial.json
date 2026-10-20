@@ -1,0 +1,41 @@
+{
+    "scope":  "Partial native evidence from failed attempts; not a Gate B pass",
+    "normalMonitor":  {
+                          "ok":  true,
+                          "lines":  [
+                                        "views production runtime"
+                                    ],
+                          "errors":  {
+
+                                     },
+                          "booted":  true,
+                          "free":  2974929,
+                          "checks":  {
+
+                                     }
+                      },
+    "tom":  {
+                "ok":  true,
+                "millis":  2717,
+                "height":  64,
+                "frames":  1,
+                "width":  64
+            },
+    "tomReport":  {
+                      "ok":  true,
+                      "lines":  [
+                                    "views production runtime"
+                                ],
+                      "errors":  {
+
+                                 },
+                      "booted":  true,
+                      "free":  2974758,
+                      "checks":  [
+                                     {
+                                         "ok":  true,
+                                         "name":  "real Tom secondary backend"
+                                     }
+                                 ]
+                  }
+}

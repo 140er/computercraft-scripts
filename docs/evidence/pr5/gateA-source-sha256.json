@@ -38,7 +38,7 @@
     {
         "computer":  0,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -50,7 +50,7 @@
     {
         "computer":  0,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -206,7 +206,7 @@
     {
         "computer":  1,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -218,7 +218,7 @@
     {
         "computer":  1,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -374,7 +374,7 @@
     {
         "computer":  2,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -386,7 +386,7 @@
     {
         "computer":  2,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -542,7 +542,7 @@
     {
         "computer":  3,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -554,7 +554,7 @@
     {
         "computer":  3,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -710,7 +710,7 @@
     {
         "computer":  4,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -722,7 +722,7 @@
     {
         "computer":  4,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -878,7 +878,7 @@
     {
         "computer":  5,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -890,7 +890,7 @@
     {
         "computer":  5,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {
@@ -1046,7 +1046,7 @@
     {
         "computer":  6,
         "file":  "fleetview.lua",
-        "sha256":  "15CA83A4D7692F6113E88DE286782951AA6E118E9A2DD207A8FBD7CBC82BBFC0",
+        "sha256":  "BA5DAF4F26F6790EA9DF9EC3AEDD86AAB42974BDB10F47CC1883A25D6FED1AE6",
         "normalization":  "LF"
     },
     {
@@ -1058,7 +1058,7 @@
     {
         "computer":  6,
         "file":  "hub.lua",
-        "sha256":  "2722C7114B878D26865AB781A0C895B1619E22BC51F92B0F25A24DA1932F7907",
+        "sha256":  "88808CD173147F5AD5BEB2ACA0A7E617B89DA330378633C576046FBE142CB950",
         "normalization":  "LF"
     },
     {

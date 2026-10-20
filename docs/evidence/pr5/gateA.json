@@ -1,25 +1,26 @@
 {
     "gate":  "A",
     "ok":  true,
-    "productionCommit":  "bc7164a",
+    "productionBaseCommit":  "030fd39",
+    "productionChanges":  "Includes Tom button and opt-in hub hostname fixes; exact source files in gateA-source-sha256.json",
     "diskLimitBytes":  4000000,
-    "command":  "tests\\sandbox\\run.ps1 -Scenario views -Seconds 900 -Output C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateA\\mesh-isolated",
-    "sourceRun":  "1ab3e8a6faa54a56bd1616e522515c4d",
+    "command":  "tests\\sandbox\\run.ps1 -Scenario views -Seconds 900 -Output C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateA\\multi-view",
+    "sourceRun":  "8878baf5924741e9963a2cd930b502b7",
     "reports":  [
                     {
                         "id":  0,
                         "report":  {
-                                       "free":  2754638,
                                        "ok":  true,
+                                       "free":  2753309,
                                        "checks":  {
+
+                                                  },
+                                       "errors":  {
 
                                                   },
                                        "lines":  [
                                                      "views production runtime"
                                                  ],
-                                       "errors":  {
-
-                                                  },
                                        "booted":  true
                                    }
                     },
@@ -27,13 +28,13 @@
                         "id":  1,
                         "report":  {
                                        "booted":  true,
-                                       "free":  2862726,
-                                       "lines":  [
-                                                     "views production runtime"
-                                                 ],
+                                       "free":  2861322,
                                        "errors":  {
 
                                                   },
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
                                        "checks":  {
 
                                                   },
@@ -43,23 +44,27 @@
                     {
                         "id":  2,
                         "report":  {
-                                       "booted":  true,
+                                       "ok":  true,
                                        "checks":  {
 
                                                   },
-                                       "ok":  true,
-                                       "lines":  [
-                                                     "views production runtime"
-                                                 ],
-                                       "free":  2862736,
+                                       "booted":  true,
+                                       "free":  2861097,
                                        "errors":  {
 
-                                                  }
+                                                  },
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ]
                                    }
                     },
                     {
                         "id":  3,
                         "report":  {
+                                       "lines":  [
+                                                     "views production runtime"
+                                                 ],
+                                       "booted":  true,
                                        "errors":  {
 
                                                   },
@@ -67,164 +72,163 @@
                                        "checks":  {
 
                                                   },
-                                       "free":  2862731,
-                                       "lines":  [
-                                                     "views production runtime"
-                                                 ],
-                                       "booted":  true
+                                       "free":  2861332
                                    }
                     },
                     {
                         "id":  4,
                         "report":  {
-                                       "checks":  [
-                                                      {
-                                                          "name":  "real authenticated scan and snapshot",
-                                                          "ok":  true
-                                                      },
-                                                      {
-                                                          "name":  "three production miners reach authenticated view targets",
-                                                          "ok":  true
-                                                      }
-                                                  ],
+                                       "free":  2865243,
+                                       "ok":  true,
                                        "lines":  [
                                                      "views production runtime"
                                                  ],
-                                       "free":  2866817,
+                                       "booted":  true,
+                                       "checks":  [
+                                                      {
+                                                          "ok":  true,
+                                                          "name":  "real authenticated scan and snapshot"
+                                                      },
+                                                      {
+                                                          "ok":  true,
+                                                          "name":  "three production miners reach authenticated view targets"
+                                                      }
+                                                  ],
                                        "errors":  {
 
-                                                  },
-                                       "booted":  true,
-                                       "ok":  true
+                                                  }
                                    }
                     },
                     {
                         "id":  5,
                         "report":  {
                                        "booted":  true,
+                                       "moves":  9,
                                        "lines":  [
                                                      "three turtle shared physical world"
                                                  ],
-                                       "ok":  true,
-                                       "moves":  9,
                                        "errors":  {
 
-                                                  }
+                                                  },
+                                       "ok":  true
                                    }
                     },
                     {
                         "id":  6,
                         "report":  {
                                        "booted":  true,
+                                       "free":  2869218,
+                                       "errors":  {
+
+                                                  },
+                                       "ok":  true,
                                        "lines":  [
                                                      "views production runtime"
                                                  ],
                                        "checks":  {
-
-                                                  },
-                                       "free":  2867389,
-                                       "ok":  true,
-                                       "errors":  {
 
                                                   }
                                    }
                     }
                 ],
     "world":  {
+                  "timeline":  [
+                                   {
+                                       "x":  -1,
+                                       "id":  1,
+                                       "at":  1792505242017,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  1,
+                                       "at":  1792505243936,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  1,
+                                       "at":  1792505245792,
+                                       "y":  65,
+                                       "z":  -3
+                                   },
+                                   {
+                                       "x":  -1,
+                                       "id":  3,
+                                       "at":  1792505273971,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  3,
+                                       "at":  1792505275677,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  3,
+                                       "at":  1792505278421,
+                                       "y":  65,
+                                       "z":  3
+                                   },
+                                   {
+                                       "x":  -1,
+                                       "id":  2,
+                                       "at":  1792505286429,
+                                       "y":  65,
+                                       "z":  0
+                                   },
+                                   {
+                                       "x":  0,
+                                       "id":  2,
+                                       "at":  1792505309084,
+                                       "y":  65,
+                                       "z":  0
+                                   },
+                                   {
+                                       "x":  1,
+                                       "id":  2,
+                                       "at":  1792505321233,
+                                       "y":  65,
+                                       "z":  0
+                                   }
+                               ],
                   "collisions":  0,
                   "blocks":  {
 
                              },
                   "poses":  [
                                 {
-                                    "z":  -3,
-                                    "selected":  1,
-                                    "h":  1,
-                                    "fuel":  9997,
                                     "x":  1,
-                                    "y":  65
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  -3
                                 },
                                 {
-                                    "z":  0,
-                                    "selected":  1,
-                                    "h":  1,
-                                    "fuel":  9997,
                                     "x":  1,
-                                    "y":  65
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  0
                                 },
                                 {
-                                    "z":  3,
-                                    "selected":  1,
-                                    "h":  1,
-                                    "fuel":  9997,
                                     "x":  1,
-                                    "y":  65
+                                    "selected":  1,
+                                    "fuel":  9997,
+                                    "h":  1,
+                                    "y":  65,
+                                    "z":  3
                                 }
-                            ],
-                  "timeline":  [
-                                   {
-                                       "z":  -3,
-                                       "id":  1,
-                                       "at":  1792502545839,
-                                       "x":  -1,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  -3,
-                                       "id":  1,
-                                       "at":  1792502546685,
-                                       "x":  0,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  -3,
-                                       "id":  1,
-                                       "at":  1792502547652,
-                                       "x":  1,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  0,
-                                       "id":  2,
-                                       "at":  1792502576883,
-                                       "x":  -1,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  0,
-                                       "id":  2,
-                                       "at":  1792502577797,
-                                       "x":  0,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  0,
-                                       "id":  2,
-                                       "at":  1792502578683,
-                                       "x":  1,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  3,
-                                       "id":  3,
-                                       "at":  1792502600070,
-                                       "x":  -1,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  3,
-                                       "id":  3,
-                                       "at":  1792502600996,
-                                       "x":  0,
-                                       "y":  65
-                                   },
-                                   {
-                                       "z":  3,
-                                       "id":  3,
-                                       "at":  1792502601876,
-                                       "x":  1,
-                                       "y":  65
-                                   }
-                               ]
-              }
+                            ]
+              },
+    "recovery":  [
+
+                 ]
 }
