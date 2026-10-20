@@ -1,4 +1,28 @@
 return function(test,Nav,fixture)
+  test("traffic retreats to known passing space and bounds an impossible dead end",function()
+    local f,polls
+    local function call(op,v)
+      assert(op=="traffic")
+      if v.peer then
+        polls=polls+1
+        if polls==2 then f.block(-1,65,0,nil) end
+        return {ok=true,pose={dim="minecraft:overworld",x=polls>=2 and -5 or -1,y=65,z=0}}
+      end
+      return {ok=true,yield=true,peer=1,pose={dim="minecraft:overworld",x=-1,y=65,z=0}}
+    end
+    polls=0 f=fixture({traffic=true,call=call}) assert(f.nav.recover())
+    for _,p in ipairs({{-2,65,0},{-1,65,0},{-3,65,0},{-3,65,1}}) do f.air(p) end
+    assert(f.nav.step(3,"walk")) assert(f.nav.step(1,"walk"))
+    f.block(-1,65,0,"computercraft:turtle_advanced")
+    assert(f.nav.go({dim="minecraft:overworld",x=-1,y=65,z=0},"walk"))
+    assert(polls==2) f.equalPose()
+    f=fixture({traffic=true,call=call}) assert(f.nav.recover()) f.air({-1,65,0})
+    f.air({-2,66,0}) f.block(-2,66,0,"minecraft:bedrock")
+    f.air({-2,65,1}) f.block(-2,65,1,"minecraft:bedrock")
+    f.block(-1,65,0,"computercraft:turtle_advanced")
+    local ok,why=f.nav.go({dim="minecraft:overworld",x=-1,y=65,z=0},"walk")
+    assert(not ok and why=="traffic dead end" and f.digs()==0) f.equalPose()
+  end)
   test("walk finds the U route and never excavates a changed block",function()
     local f=fixture()
     for _,p in ipairs({{-2,65,0},{-1,65,0},{-2,65,1},{-1,65,1},{0,65,1},{0,65,0}}) do f.air(p) end

@@ -337,7 +337,7 @@ end
 
 local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }, start = { "miner" },
+    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -379,7 +379,7 @@ local BOTS = {
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
   { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }, start = { "hub" },
+    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -397,7 +397,7 @@ local BOTS = {
       { run = function() return { "relay", "install" } end },
     } },
   { id = "roomsorter", name = "Storage Room turtle", hint = "sorts, smelts and fetches in a closed room", on = "turtle",
-    files = { "roomsorter.lua" }, start = { "roomsorter" },
+    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "roomsorter" },
     steps = {
       { say = "Build a closed room with a flat floor and ceiling (any size and shape), at least 3 high for furnaces. Build an INPUT chest and an OUTPUT chest into its walls, so you can reach them from outside. Best: both at floor height." },
       { say = "Put this turtle on the floor of the room, FACING THE INPUT CHEST, with some coal in it. A wireless modem is optional (for the pocket panel and the order computer).",
@@ -419,7 +419,7 @@ local BOTS = {
     },
     start = function(c) return { "roomsorter", c.mode } end },
   { id = "sorter", name = "Sorter & Smelter", hint = "wired network of chests and furnaces", on = "any",
-    files = { "sorter.lua" }, start = { "sorter" },
+    files = { "sorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "sorter" },
     steps = {
       { say = "Put a WIRED modem against this turtle/computer and connect your chests, furnaces and blast furnaces with cables and wired modems (right-click each modem so it turns red)." },
       { say = "Next, setup walks past every chest on the network and asks its role. Tip: put a marker item in a chest to recognise it." },
@@ -533,7 +533,7 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" }, start = { "server" },
+    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
@@ -566,9 +566,11 @@ local BOTS = {
       { run = function() return { "ar-role", "install" } end },
       { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
     } },
-  { id = "store", name = "Warehouse adapter", hint = "requires the PR 4 warehouse service", on = "computer",
-    files = { "role-adapter.lua", "store-role.lua" }, start = { "store-role" },
-    steps = { { say = "The warehouse service is not included in this branch. This entrypoint reports unavailable until the PR 4 integration." } } },
+  { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
+    files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"},
+    start = { "store" },
+    done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
+    steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
   { id = "vworld", name = "World view adapter", hint = "requires the PR 5 view backend", on = "computer",
     files = { "role-adapter.lua", "view-role.lua" }, start = { "view-role", "vworld" },
     steps = { { say = "The world view backend is not included in this branch. This entrypoint reports unavailable until the PR 5 integration." } } },

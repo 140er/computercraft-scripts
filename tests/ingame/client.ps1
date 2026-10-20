@@ -97,7 +97,7 @@ try {
         @('gamemode creative SSOTProof',
           'item replace entity SSOTProof armor.head with cc_ar:ar_goggles[cc_ar:ar_goggles_data={x:1.0d,y:66.0d,z:0.0d,turtleId:-1,version:0L,label:"PR 6"}]',
           'tp SSOTProof 6 70 6 180 35','time set day','weather clear')
-    } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
     foreach ($command in $camera) {
         $reply = Invoke-TestRcon $RconPort $secret $command
         if ($View -eq 'ar') { "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt" }
@@ -211,6 +211,52 @@ public static class SSOTCapture {
         "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt"
         Start-Sleep -Seconds 5
         Capture-ClientScreenshot 'ar-geometry.png'
+    }
+    if($View -eq 'warehouse') {
+        $encoder=$env:SSOT_FFMPEG
+        if(!$encoder){$encoder='C:\Work\gemini-input\p2\test-tools\ffmpeg-8.1.2\verified\ffmpeg-8.1.2-essentials_build\bin\ffmpeg.exe'}
+        if(!$encoder -or !(Test-Path $encoder)){throw 'Set SSOT_FFMPEG to a local FFmpeg executable for the recharge clip.'}
+        $frames="$Output\recharge-frames"
+        New-Item -ItemType Directory -Force -Path $frames | Out-Null
+        function Capture-Rcon([string]$Command) {
+            $r=Invoke-TestRcon $RconPort $secret $Command
+            [IO.File]::AppendAllText("$Output\capture-rcon.txt","$([DateTime]::UtcNow.ToString('o')) > $Command`n$r`n")
+            $r
+        }
+        Capture-Rcon 'computercraft shutdown 20' | Out-Null
+        foreach($position in @('39 65 32','48 65 32')){Capture-Rcon "setblock $position minecraft:air" | Out-Null}
+        $probe="$TestRoot\world\computercraft\computer\20"
+        [IO.File]::WriteAllText("$probe\probe-mode",'capture',$utf8)
+        if(Test-Path "$probe\capture-go"){Remove-Item -LiteralPath "$probe\capture-go"}
+        foreach($command in @('forceload add 32 32 63 47','fill 39 64 31 49 64 34 minecraft:stone_bricks','setblock 40 65 32 superbwarfare:charging_station',
+            'item replace block 40 65 32 container.0 with minecraft:coal_block 64',
+            'setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}',
+            'tp SSOTProof 44 71 42 180 35','computercraft turn-on 20')){Capture-Rcon $command | Out-Null}
+        Start-Sleep -Seconds 3
+        $times=@()
+        for($index=0;$index -lt 20;$index++) {
+            $times += [DateTime]::UtcNow
+            Capture-ClientScreenshot ('recharge-frames/{0:d4}.png' -f $index)
+            if($index -eq 0){[IO.File]::WriteAllText("$probe\capture-go",'ready',$utf8)}
+            Start-Sleep -Milliseconds 250
+        }
+        if(!(Test-Path "$probe\charge-capture.json")){throw 'The recorded recharge probe did not finish.'}
+        $record=Get-Content "$probe\charge-capture.json" -Raw | ConvertFrom-Json
+        if($record.after -le $record.before){throw 'The recorded turtle did not recharge.'}
+        Copy-Item "$probe\charge-capture.json" "$Output\charge-capture.json"
+        Capture-Rcon 'data get block 48 65 32' | Out-Null
+        $list=@()
+        for($index=0;$index -lt $times.Count;$index++) {
+            $path=(Join-Path $frames ('{0:d4}.png' -f $index)).Replace('\','/')
+            $duration=if($index -lt $times.Count-1){($times[$index+1]-$times[$index]).TotalSeconds}else{1}
+            $list+="file '$path'"
+            $list+='duration '+$duration.ToString('0.000',[Globalization.CultureInfo]::InvariantCulture)
+        }
+        $list+= "file '$path'"
+        [IO.File]::WriteAllLines("$frames\frames.txt",$list,$utf8)
+        & $encoder -y -loglevel error -f concat -safe 0 -i "$frames\frames.txt" -fps_mode vfr -c:v libx264 -preset ultrafast -crf 22 -pix_fmt yuv420p "$Output\recharge.mp4" 2> "$Output\encoder.log"
+        if($LASTEXITCODE -ne 0){throw 'Recharge video encoding failed.'}
+        & $encoder -version | Select-Object -First 1 | Set-Content "$Output\encoder-version.txt"
     }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
     if ($chatFailure) { throw "Real AP chat validation failed. $chatFailure" }

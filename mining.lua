@@ -72,9 +72,62 @@ function M.open(cfg)
   function api.interrupt(reason)
     if state.phase~="done" then state.phase="return" state.reason=reason or "recall" save("return-saved") end
   end
+  function api.service()
+    if not cfg.service or cfg.service.enabled~=true then return false,"mining service disabled" end
+    if state.phase~="home" then return false,"return home before service" end
+    local w=dofile("warehouse.lua").open({nav=nav,client=client,path=cfg.service.path or "mining-warehouse.state"})
+    if not state.service then state.service="drop" save() end
+    if state.service=="drop" then
+      if not cfg.service.drop then return false,"configure a drop pose" end
+      if w.state().phase~="unload" then local ok,why=w.unload(cfg.service.drop,cfg.service.keep) if not ok then return false,why end end
+      repeat
+        local ok,why=w.tick() if not ok and w.state().phase~="done" then return false,why end
+        (cfg.yield or sleep)(.1)
+      until w.state().phase=="done"
+      state.service="charge" save()
+    end
+    if state.service=="charge" then
+      local target=cfg.service.targetFuel or 2000
+      if turtle.getFuelLevel()~="unlimited" and turtle.getFuelLevel()<target or w.state().phase=="charge" then
+        if not cfg.service.charger then return false,"configure a charging pose" end
+        local ok,why=w.charge(cfg.service.charger,target,cfg.service.chargeTimeout or 60000) if not ok then return false,why end
+        repeat
+          local moved,err=w.tick()
+          if not moved then
+            if w.state().phase=="done" then
+              local home,why=nav.go(cfg.home,"walk") if not home then return false,why end
+              home,why=nav.face(cfg.home.h) if not home then return false,why end
+            end
+            return false,err
+          end
+          (cfg.yield or sleep)(.25)
+        until w.state().phase=="done"
+        if w.state().reason~="charged" and w.state().reason~="unlimited fuel" then return false,w.state().reason end
+      end
+      state.service="home" save()
+    end
+    local ok,why=nav.go(cfg.home,"walk") if not ok then return false,why end
+    ok,why=nav.face(cfg.home.h) if not ok then return false,why end
+    state.service=nil save("service-saved") return true
+  end
   function api.start()
     reconcile()
     if state.phase=="home" and state.reason=="complete" then return api.finish() end
+    state.serviceReserve=0
+    if cfg.service and cfg.service.enabled then
+      local d,why=request("wh-sites",{name=cfg.service.drop}) if not d then return false,why end
+      if d.site.kind~="drop" then return false,"configure a drop pose" end
+      local legs={{cfg.home,d.site.pose},{d.site.pose,cfg.home}}
+      if turtle.getFuelLevel()~="unlimited" then
+        local c,why=request("wh-sites",{name=cfg.service.charger}) if not c then return false,why end
+        if c.site.kind~="charge" then return false,"configure a charging pose" end
+        legs[#legs+1]={d.site.pose,c.site.pose} legs[#legs+1]={c.site.pose,d.site.pose}
+      end
+      for _,leg in ipairs(legs) do
+        local cost,why=nav.homeCost(leg[2],leg[1]) if cost==false then return false,why end
+        state.serviceReserve=state.serviceReserve+cost
+      end
+    end
     local r,why=request("mine-lease")
     if not r then return false,why end
     if not r.task then return false,"mine exhausted" end
@@ -99,7 +152,7 @@ function M.open(cfg)
     local fuel=turtle.getFuelLevel()
     local distance,why=nav.homeCost(cfg.home)
     if distance==false then return "no home route: "..tostring(why) end
-    if fuel~="unlimited" and fuel<=distance+(cfg.fuelMargin or 32) then return "low fuel" end
+    if fuel~="unlimited" and fuel<=distance+(state.serviceReserve or 0)+(cfg.fuelMargin or 32) then return "low fuel" end
   end
   function api.tick()
     reconcile()

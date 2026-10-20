@@ -45,10 +45,11 @@ return function(Nav,mocks)
     m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
     local cfg={pose={dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h},bounds={min={dim=p.dim,x=-5,y=63,z=-5},max={dim=p.dim,x=5,y=68,z=5}},
       canExcavate=function(info) return info.name=="minecraft:stone" end,maxNodes=options.maxNodes,maxCells=options.maxCells,batch=options.batch,
+      traffic=options.traffic,trafficWaits=3,
       observe=function() if gps then return {dim=p.dim,x=p.x,y=p.y,z=p.z} end end,
       yield=function() if options.onYield then options.onYield(nav) end end,
       checkpoint=function(name) if options.crash==name then error("crash " .. name) end end,
-      client={resync=function() return true,nil,options.epoch end,calibrate=function()
+      client={call=options.call,resync=function() return true,nil,options.epoch end,calibrate=function()
         if faults.calibration then faults.calibration=nil return false,"offline" end
         return true
       end,move=function(from,to,execute)

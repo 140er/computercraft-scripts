@@ -15,7 +15,8 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
   "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
-  "ar-hud.lua", "chat-control.lua", "role-adapter.lua", "ar-role.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua" }
+  "ar-hud.lua", "chat-control.lua", "role-adapter.lua", "ar-role.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
+  "store.lua", "warehouse.lua", "warehouse-tasks.lua" }
 -- The hub hands miner.lua out to the mining turtles, so it keeps a copy too.
 -- fleetview.lua draws the 3D view and the AR goggles for the hub, server and panel.
 local ALSO = { ["hub.lua"] = { "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua" },
@@ -27,6 +28,10 @@ for _, owner in ipairs({ "hub.lua", "server.lua" }) do
   ALSO[owner][#ALSO[owner] + 1] = "chat-control.lua"
   ALSO[owner][#ALSO[owner] + 1] = "role-adapter.lua"
 end
+ALSO["store.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }
+ALSO["roomsorter.lua"], ALSO["sorter.lua"] = { "store.lua" }, { "store.lua" }
+ALSO["ssot.lua"] = { "warehouse-tasks.lua" }
+ALSO["mining.lua"] = { "warehouse.lua" }
 
 local args = { ... }
 local reboot = true

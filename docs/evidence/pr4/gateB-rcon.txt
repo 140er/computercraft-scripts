@@ -1,0 +1,1655 @@
+2026-10-20T10:49:12.6265771Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T10:49:13.2026259Z > gamerule spawnChunkRadius 0
+Gamerule spawnChunkRadius is now set to: 0
+
+2026-10-20T10:49:13.7913313Z > fill -1 64 -5 13 66 10 minecraft:bedrock
+Successfully filled 720 block(s)
+
+2026-10-20T10:49:14.6526305Z > fill 0 65 -4 12 65 4 minecraft:air
+Successfully filled 117 block(s)
+
+2026-10-20T10:49:15.0530179Z > fill 0 65 8 10 65 8 minecraft:air
+Successfully filled 11 block(s)
+
+2026-10-20T10:49:15.3097197Z > fill 0 65 5 0 65 7 minecraft:air
+Successfully filled 3 block(s)
+
+2026-10-20T10:49:15.5997268Z > fill 10 65 5 10 65 7 minecraft:air
+Successfully filled 3 block(s)
+
+2026-10-20T10:49:16.0392689Z > setblock 7 65 9 minecraft:air
+Changed the block at 7, 65, 9
+
+2026-10-20T10:49:16.4643425Z > setblock -4 65 -4 computercraft:computer_advanced{ComputerId:0}
+Changed the block at -4, 65, -4
+
+2026-10-20T10:49:16.8779322Z > setblock -4 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at -4, 66, -4
+
+2026-10-20T10:49:17.3862157Z > setblock -3 65 -4 computercraft:turtle_advanced{ComputerId:21,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at -3, 65, -4
+
+2026-10-20T10:49:18.0894320Z > setblock 14 65 -4 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 14, 65, -4
+
+2026-10-20T10:49:18.6918303Z > setblock 14 66 -4 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 14, 66, -4
+
+2026-10-20T10:49:19.1733344Z > setblock 6 65 -11 superbwarfare:charging_station
+Changed the block at 6, 65, -11
+
+2026-10-20T10:49:19.5207022Z > item replace block 6 65 -11 container.0 with minecraft:coal_block 64
+Replaced a slot at 6, 65, -11 with [Block of Coal]
+
+2026-10-20T10:49:19.8808516Z > data get block 6 65 -11
+6, 65, -11 has the following block data: {Energy: 768, MaxFuelTick: 16000, x: 6, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: -11, id: "superbwarfare:charging_station", FuelTick: 15994, ShowRange: 0b}
+
+2026-10-20T10:49:20.3490987Z > setblock 1 65 -1 minecraft:barrel
+Changed the block at 1, 65, -1
+
+2026-10-20T10:49:20.6882352Z > setblock 1 65 5 minecraft:chest
+Changed the block at 1, 65, 5
+
+2026-10-20T10:49:21.1279878Z > item replace block 1 65 -1 container.0 with minecraft:dirt 7
+Replaced a slot at 1, 65, -1 with [Dirt]
+
+2026-10-20T10:49:21.5351864Z > item replace block 1 65 -1 container.1 with minecraft:iron_ingot 11
+Replaced a slot at 1, 65, -1 with [Iron Ingot]
+
+2026-10-20T10:49:21.9382084Z > item replace block 1 65 -1 container.2 with minecraft:diamond_pickaxe
+Replaced a slot at 1, 65, -1 with [Diamond Pickaxe]
+
+2026-10-20T10:49:22.3330274Z > setblock 1 65 0 computercraft:turtle_advanced[facing=north]{ComputerId:1,Fuel:500,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 1, 65, 0
+
+2026-10-20T10:49:22.8868175Z > setblock 5 65 -1 minecraft:barrel
+Changed the block at 5, 65, -1
+
+2026-10-20T10:49:23.4426099Z > setblock 5 65 5 minecraft:chest
+Changed the block at 5, 65, 5
+
+2026-10-20T10:49:23.9208162Z > item replace block 5 65 -1 container.0 with minecraft:dirt 7
+Replaced a slot at 5, 65, -1 with [Dirt]
+
+2026-10-20T10:49:24.4679532Z > item replace block 5 65 -1 container.1 with minecraft:iron_ingot 11
+Replaced a slot at 5, 65, -1 with [Iron Ingot]
+
+2026-10-20T10:49:24.8741106Z > item replace block 5 65 -1 container.2 with minecraft:diamond_pickaxe
+Replaced a slot at 5, 65, -1 with [Diamond Pickaxe]
+
+2026-10-20T10:49:25.3067001Z > setblock 5 65 0 computercraft:turtle_advanced[facing=north]{ComputerId:2,Fuel:35,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 5, 65, 0
+
+2026-10-20T10:49:26.0331641Z > setblock 9 65 -1 minecraft:barrel
+Changed the block at 9, 65, -1
+
+2026-10-20T10:49:27.3508293Z > setblock 9 65 5 minecraft:chest
+Changed the block at 9, 65, 5
+
+2026-10-20T10:49:28.0635228Z > item replace block 9 65 -1 container.0 with minecraft:dirt 7
+Replaced a slot at 9, 65, -1 with [Dirt]
+
+2026-10-20T10:49:29.0741485Z > item replace block 9 65 -1 container.1 with minecraft:iron_ingot 11
+Replaced a slot at 9, 65, -1 with [Iron Ingot]
+
+2026-10-20T10:49:29.8890106Z > item replace block 9 65 -1 container.2 with minecraft:diamond_pickaxe
+Replaced a slot at 9, 65, -1 with [Diamond Pickaxe]
+
+2026-10-20T10:49:30.5089531Z > setblock 9 65 0 computercraft:turtle_advanced[facing=north]{ComputerId:3,Fuel:500,LeftUpgrade:"minecraft:diamond_pickaxe",RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 9, 65, 0
+
+2026-10-20T10:49:31.0020925Z > setblock -6 65 -6 computercraft:computer_advanced{ComputerId:10}
+Changed the block at -6, 65, -6
+
+2026-10-20T10:49:31.4924374Z > setblock -6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, -6
+
+2026-10-20T10:49:32.2087237Z > setblock 6 65 -6 computercraft:computer_advanced{ComputerId:11}
+Changed the block at 6, 65, -6
+
+2026-10-20T10:49:32.7446885Z > setblock 6 66 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at 6, 66, -6
+
+2026-10-20T10:49:33.2066152Z > setblock -6 65 6 computercraft:computer_advanced{ComputerId:12}
+Changed the block at -6, 65, 6
+
+2026-10-20T10:49:33.6302861Z > setblock -6 66 6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 66, 6
+
+2026-10-20T10:49:33.9721055Z > setblock -6 71 -6 computercraft:computer_advanced{ComputerId:13}
+Changed the block at -6, 71, -6
+
+2026-10-20T10:49:34.4448090Z > setblock -6 72 -6 computercraft:wireless_modem_normal[facing=down]
+Changed the block at -6, 72, -6
+
+2026-10-20T10:49:34.8640264Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T10:49:37.3753086Z > computercraft turn-on 0 1 2 3 4 21
+Turned on 6/6 computers
+
+2026-10-20T10:50:15.5955117Z > data get block 1 65 0
+1, 65, 0 has the following block data: {Fuel: 500, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 7, Slot: 0b, id: "minecraft:dirt"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T10:50:17.2459086Z > data get block 1 65 4
+1, 65, 4 has the following block data: {Fuel: 218, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 1, y: 65, Items: [], z: 4, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T10:50:20.4066237Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 500, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 0, y: 65, Items: [{count: 11, Slot: 1b, id: "minecraft:iron_ingot"}], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T10:50:24.1625979Z > stop
+Stopping the server
+
+2026-10-20T10:50:53.5065989Z > computercraft shutdown 10 11 12 13
+Shutdown 4/4 computers
+
+2026-10-20T10:50:55.6802378Z > computercraft turn-on 10 11 12 13
+Turned on 4/4 computers
+
+2026-10-20T10:51:00.8693772Z > computercraft turn-on 0 1 2 3 4
+Turned on 0/5 computers
+
+2026-10-20T10:53:03.0127142Z > setblock 9 65 1 minecraft:diamond_ore
+Changed the block at 9, 65, 1
+
+2026-10-20T10:53:03.6537167Z > setblock 10 65 1 minecraft:diamond_ore
+Changed the block at 10, 65, 1
+
+2026-10-20T10:54:32.7454588Z > data get block 1 65 -1 Items
+1, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T10:54:33.8220387Z > data get block 1 65 5 Items
+1, 65, 5 has the following block data: [{count: 33, Slot: 0b, id: "minecraft:iron_ingot"}, {count: 1, Slot: 1b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 2b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 3b, id: "minecraft:diamond_pickaxe"}]
+
+2026-10-20T10:54:34.8194865Z > data get block 1 65 -1 Items[{id:"minecraft:dirt"}].count
+1, 65, -1 has the following block data: 7
+
+2026-10-20T10:54:35.8271812Z > data get block 9 65 8
+9, 65, 8 has the following block data: {Fuel: 516, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T10:54:36.7519390Z > data get block 5 65 -1 Items
+5, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T10:54:37.4589738Z > data get block 5 65 5 Items
+5, 65, 5 has the following block data: []
+
+2026-10-20T10:54:38.9476229Z > data get block 5 65 -1 Items[{id:"minecraft:dirt"}].count
+5, 65, -1 has the following block data: 7
+
+2026-10-20T10:54:40.0386789Z > data get block 1 65 8
+1, 65, 8 has the following block data: {Fuel: 666, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T10:54:40.9364580Z > data get block 9 65 -1 Items
+9, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T10:54:41.8121478Z > data get block 9 65 5 Items
+9, 65, 5 has the following block data: [{count: 2, Slot: 0b, id: "minecraft:diamond"}]
+
+2026-10-20T10:54:42.8107519Z > data get block 9 65 -1 Items[{id:"minecraft:dirt"}].count
+9, 65, -1 has the following block data: 7
+
+2026-10-20T10:54:44.0301574Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 695, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T10:54:45.4087390Z > data get block 1 65 5 Items[{id:"minecraft:iron_ingot"}].count
+1, 65, 5 has the following block data: 33
+
+2026-10-20T10:54:46.6675220Z > execute if items block 1 65 5 container.* minecraft:diamond_pickaxe
+Test passed, count: 3
+
+2026-10-20T10:54:47.7280738Z > data get block 9 65 5 Items[{id:"minecraft:diamond"}].count
+9, 65, 5 has the following block data: 2
+
+2026-10-20T10:54:48.9017399Z > forceload add 32 16 63 63
+Marked 6 chunks in Overworld from [2, 1] to [3, 3] to be force loaded
+
+2026-10-20T10:54:49.9371024Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T10:54:50.9690468Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T10:54:51.9111090Z > data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 2432, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15981, ShowRange: 0b}
+
+2026-10-20T10:54:52.8085114Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T10:54:53.6585653Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:55:00.7000562Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:55:01.8462124Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 146, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:55:02.6311701Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T10:55:03.3458693Z > setblock 40 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 41
+
+2026-10-20T10:55:04.5225652Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:55:11.8477604Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:55:13.0890328Z > data get block 40 65 41
+40, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:55:14.5024266Z > setblock 40 65 41 minecraft:air
+Changed the block at 40, 65, 41
+
+2026-10-20T10:55:15.2691980Z > setblock 48 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 40
+
+2026-10-20T10:55:16.0340565Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:55:24.0005871Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:55:25.6636454Z > data get block 48 65 40
+48, 65, 40 has the following block data: {Fuel: 202, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:55:27.0509190Z > setblock 48 65 40 minecraft:air
+Changed the block at 48, 65, 40
+
+2026-10-20T10:55:28.4814573Z > setblock 48 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 41
+
+2026-10-20T10:55:30.0831026Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:55:37.0125463Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:55:37.9579385Z > data get block 48 65 41
+48, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:55:38.3143061Z > setblock 48 65 41 minecraft:air
+Changed the block at 48, 65, 41
+
+2026-10-20T10:55:38.9343271Z > setblock 48 73 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 73, 40
+
+2026-10-20T10:55:39.4818129Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:55:48.5265799Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:55:49.9090185Z > data get block 48 73 40
+48, 73, 40 has the following block data: {Fuel: 202, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 73, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:55:51.5066127Z > setblock 48 73 40 minecraft:air
+Changed the block at 48, 73, 40
+
+2026-10-20T10:55:52.5789938Z > setblock 40 73 32 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 73, 32
+
+2026-10-20T10:55:53.5626360Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:56:00.9128828Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:56:02.0873889Z > data get block 40 73 32
+40, 73, 32 has the following block data: {Fuel: 149, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 73, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:56:03.0373170Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T10:56:04.0998862Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T10:56:05.1148896Z > item replace block 40 65 32 container.0 with minecraft:air
+Replaced a slot at 40, 65, 32 with [Air]
+
+2026-10-20T10:56:06.1761315Z > data merge block 40 65 32 {Energy:0}
+Nothing changed. The specified properties already have these values
+
+2026-10-20T10:56:07.2344197Z > setblock 40 73 32 minecraft:air
+Changed the block at 40, 73, 32
+
+2026-10-20T10:56:08.5466859Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T10:56:09.6029464Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:56:16.8797223Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:56:18.0018765Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:56:18.8829318Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T10:56:20.0780433Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T10:56:21.3794267Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T10:56:22.4230312Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:56:30.3517499Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:56:31.2283789Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T10:56:32.4299636Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T10:56:32.9756510Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T10:56:33.4992490Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T10:56:33.9970817Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T10:56:34.8386815Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:56:36.0935117Z > setworldspawn -1000 64 -1000
+Set the world spawn point to -1000, 64, -1000 [0.0]
+
+2026-10-20T10:56:36.7039447Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T10:56:37.3705884Z > list
+There are 0 of a max of 20 players online:
+
+2026-10-20T10:56:53.1189817Z > execute if loaded 40 65 32 run data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 2006, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15598, ShowRange: 0b}
+
+2026-10-20T10:56:53.8015930Z > execute if loaded 47 65 32 run data get block 47 65 32
+47, 65, 32 has the following block data: {Fuel: 189, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 47, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T10:56:54.4222436Z > execute if loaded -4 65 -4 run data get block -4 65 -4
+-4, 65, -4 has the following block data: {x: -4, y: 65, z: -4, id: "computercraft:computer_advanced", ComputerId: 0, On: 1b}
+
+2026-10-20T10:57:01.7558291Z > execute if loaded 48 65 32 run data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 224, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T10:57:02.1928077Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:57:02.5923906Z > setblock 48 65 32 minecraft:air
+Changed the block at 48, 65, 32
+
+2026-10-20T10:57:03.0041948Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T10:57:03.8430817Z > forceload add 480 512 511 527
+Marked 2 chunks in Overworld from [30, 32] to [31, 32] to be force loaded
+
+2026-10-20T10:57:04.6251044Z > setblock 495 65 512 superbwarfare:charging_station
+Changed the block at 495, 65, 512
+
+2026-10-20T10:57:05.1570191Z > item replace block 495 65 512 container.0 with minecraft:coal_block 64
+Replaced a slot at 495, 65, 512 with [Block of Coal]
+
+2026-10-20T10:57:05.5965485Z > setblock 503 65 512 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 503, 65, 512
+
+2026-10-20T10:57:05.9577273Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T10:57:09.7506838Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T10:57:10.3102768Z > data remove block 503 65 512 RightUpgrade
+Modified block data of 503, 65, 512
+
+2026-10-20T10:57:11.2834714Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T10:57:11.6557194Z > stop
+Stopping the server
+
+2026-10-20T10:57:43.2303351Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:57:44.3418422Z > execute if loaded 503 65 512 run time query gametime
+The time is 9193
+
+2026-10-20T10:57:47.0763608Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:57:47.7606794Z > execute if loaded 503 65 512 run time query gametime
+The time is 9262
+
+2026-10-20T10:57:50.5254282Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:57:51.1629937Z > execute if loaded 503 65 512 run time query gametime
+The time is 9330
+
+2026-10-20T10:57:53.9105729Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:57:54.6183708Z > execute if loaded 503 65 512 run time query gametime
+The time is 9400
+
+2026-10-20T10:57:57.4746806Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:57:58.0624653Z > execute if loaded 503 65 512 run time query gametime
+The time is 9469
+
+2026-10-20T10:58:00.9842291Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:01.6962355Z > execute if loaded 503 65 512 run time query gametime
+The time is 9541
+
+2026-10-20T10:58:04.4624330Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:05.1123955Z > execute if loaded 503 65 512 run time query gametime
+The time is 9610
+
+2026-10-20T10:58:08.0063926Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:08.6765959Z > execute if loaded 503 65 512 run time query gametime
+The time is 9680
+
+2026-10-20T10:58:11.0816415Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:11.6362316Z > execute if loaded 503 65 512 run time query gametime
+The time is 9740
+
+2026-10-20T10:58:14.1354608Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:15.7985636Z > execute if loaded 503 65 512 run time query gametime
+The time is 9823
+
+2026-10-20T10:58:18.4788876Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:19.0089374Z > execute if loaded 503 65 512 run time query gametime
+The time is 9888
+
+2026-10-20T10:58:21.6682459Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:22.1508541Z > execute if loaded 503 65 512 run time query gametime
+The time is 9950
+
+2026-10-20T10:58:24.8823380Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:25.8423426Z > execute if loaded 503 65 512 run time query gametime
+The time is 10024
+
+2026-10-20T10:58:28.2467859Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:28.7886649Z > execute if loaded 503 65 512 run time query gametime
+The time is 10083
+
+2026-10-20T10:58:31.2374236Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:31.6927147Z > execute if loaded 503 65 512 run time query gametime
+The time is 10141
+
+2026-10-20T10:58:34.2487589Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:34.7611795Z > execute if loaded 503 65 512 run time query gametime
+The time is 10202
+
+2026-10-20T10:58:37.7778886Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:38.6811733Z > execute if loaded 503 65 512 run time query gametime
+The time is 10281
+
+2026-10-20T10:58:41.1987092Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:41.5455084Z > execute if loaded 503 65 512 run time query gametime
+The time is 10339
+
+2026-10-20T10:58:43.8953035Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:44.3464941Z > execute if loaded 503 65 512 run time query gametime
+The time is 10395
+
+2026-10-20T10:58:47.3801178Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:48.3662722Z > execute if loaded 503 65 512 run time query gametime
+The time is 10473
+
+2026-10-20T10:58:51.0230476Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:51.8028394Z > execute if loaded 503 65 512 run time query gametime
+The time is 10543
+
+2026-10-20T10:58:54.5345548Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:55.0504852Z > execute if loaded 503 65 512 run time query gametime
+The time is 10608
+
+2026-10-20T10:58:57.9092456Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:58:58.4092896Z > execute if loaded 503 65 512 run time query gametime
+The time is 10675
+
+2026-10-20T10:59:00.9006695Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:01.5929044Z > execute if loaded 503 65 512 run time query gametime
+The time is 10738
+
+2026-10-20T10:59:04.1547446Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:04.8146544Z > execute if loaded 503 65 512 run time query gametime
+The time is 10804
+
+2026-10-20T10:59:07.5212133Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:07.9691092Z > execute if loaded 503 65 512 run time query gametime
+The time is 10866
+
+2026-10-20T10:59:10.4467813Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:10.7582249Z > execute if loaded 503 65 512 run time query gametime
+The time is 10923
+
+2026-10-20T10:59:13.2341215Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:13.7761343Z > execute if loaded 503 65 512 run time query gametime
+The time is 10983
+
+2026-10-20T10:59:16.4797688Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:17.0148273Z > execute if loaded 503 65 512 run time query gametime
+The time is 11047
+
+2026-10-20T10:59:19.3871330Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:19.8538096Z > execute if loaded 503 65 512 run time query gametime
+The time is 11104
+
+2026-10-20T10:59:22.1739626Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:22.9368392Z > execute if loaded 503 65 512 run time query gametime
+The time is 11164
+
+2026-10-20T10:59:26.3915797Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:27.7021319Z > execute if loaded 503 65 512 run time query gametime
+The time is 11260
+
+2026-10-20T10:59:30.5458532Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:31.0186934Z > execute if loaded 503 65 512 run time query gametime
+The time is 11328
+
+2026-10-20T10:59:33.8455624Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:34.2926589Z > execute if loaded 503 65 512 run time query gametime
+The time is 11393
+
+2026-10-20T10:59:36.9466781Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:37.3058986Z > execute if loaded 503 65 512 run time query gametime
+The time is 11453
+
+2026-10-20T10:59:39.7932505Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T10:59:40.1996984Z > execute if loaded 503 65 512 run time query gametime
+The time is 11510
+
+2026-10-20T10:59:42.8965940Z > stop
+Stopping the server
+
+2026-10-20T11:11:01.2622357Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T11:11:02.2255647Z > setblock 40 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:02.6867234Z > setblock 40 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:03.3517622Z > setblock 48 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:03.9229506Z > setblock 48 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:04.3213193Z > setblock 48 73 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:04.7601255Z > setblock 40 73 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:05.0994542Z > setblock 47 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:05.5184708Z > setblock 48 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:11:05.8141560Z > setblock 503 65 512 minecraft:air
+Changed the block at 503, 65, 512
+
+2026-10-20T11:11:06.2040549Z > setblock 495 65 512 minecraft:air
+Changed the block at 495, 65, 512
+
+2026-10-20T11:11:06.6456146Z > data get block 1 65 -1 Items
+1, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:11:07.0029356Z > data get block 1 65 5 Items
+1, 65, 5 has the following block data: [{count: 33, Slot: 0b, id: "minecraft:iron_ingot"}, {count: 1, Slot: 1b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 2b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 3b, id: "minecraft:diamond_pickaxe"}]
+
+2026-10-20T11:11:07.7746551Z > data get block 1 65 -1 Items[{id:"minecraft:dirt"}].count
+1, 65, -1 has the following block data: 7
+
+2026-10-20T11:11:08.6727761Z > data get block 9 65 8
+9, 65, 8 has the following block data: {Fuel: 516, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T11:11:09.1571318Z > data get block 5 65 -1 Items
+5, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:11:09.8456296Z > data get block 5 65 5 Items
+5, 65, 5 has the following block data: []
+
+2026-10-20T11:11:10.2354701Z > data get block 5 65 -1 Items[{id:"minecraft:dirt"}].count
+5, 65, -1 has the following block data: 7
+
+2026-10-20T11:11:10.8112129Z > data get block 1 65 8
+1, 65, 8 has the following block data: {Fuel: 666, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T11:11:11.1548537Z > data get block 9 65 -1 Items
+9, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:11:11.5828000Z > data get block 9 65 5 Items
+9, 65, 5 has the following block data: [{count: 2, Slot: 0b, id: "minecraft:diamond"}]
+
+2026-10-20T11:11:11.9810094Z > data get block 9 65 -1 Items[{id:"minecraft:dirt"}].count
+9, 65, -1 has the following block data: 7
+
+2026-10-20T11:11:12.3958709Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 695, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T11:11:12.9623148Z > data get block 1 65 5 Items[{id:"minecraft:iron_ingot"}].count
+1, 65, 5 has the following block data: 33
+
+2026-10-20T11:11:13.3606861Z > execute if items block 1 65 5 container.* minecraft:diamond_pickaxe
+Test passed, count: 3
+
+2026-10-20T11:11:13.8537866Z > data get block 9 65 5 Items[{id:"minecraft:diamond"}].count
+9, 65, 5 has the following block data: 2
+
+2026-10-20T11:11:14.3247664Z > forceload add 32 16 63 63
+Marked 6 chunks in Overworld from [2, 1] to [3, 3] to be force loaded
+
+2026-10-20T11:11:14.7025747Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:11:15.2322044Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:11:15.9643681Z > data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 1920, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15985, ShowRange: 0b}
+
+2026-10-20T11:11:16.8810330Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:11:17.6379330Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:11:25.0661678Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:11:26.6204721Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 147, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:11:28.2449972Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:11:29.5808128Z > setblock 40 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 41
+
+2026-10-20T11:11:30.8406471Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:11:37.7733506Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:11:38.0294525Z > data get block 40 65 41
+40, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:11:38.8582102Z > setblock 40 65 41 minecraft:air
+Changed the block at 40, 65, 41
+
+2026-10-20T11:11:40.3496295Z > setblock 48 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 40
+
+2026-10-20T11:11:40.8674735Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:11:47.3779523Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:11:48.4528865Z > data get block 48 65 40
+48, 65, 40 has the following block data: {Fuel: 189, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:11:49.2952348Z > setblock 48 65 40 minecraft:air
+Changed the block at 48, 65, 40
+
+2026-10-20T11:11:49.7178272Z > setblock 48 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 41
+
+2026-10-20T11:11:50.1457836Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:11:56.8436980Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:11:57.1742024Z > data get block 48 65 41
+48, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:11:57.7403237Z > setblock 48 65 41 minecraft:air
+Changed the block at 48, 65, 41
+
+2026-10-20T11:11:58.0958034Z > setblock 48 73 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 73, 40
+
+2026-10-20T11:11:58.4519532Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:12:05.6995927Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:12:06.3875891Z > data get block 48 73 40
+48, 73, 40 has the following block data: {Fuel: 176, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 73, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:12:06.8874436Z > setblock 48 73 40 minecraft:air
+Changed the block at 48, 73, 40
+
+2026-10-20T11:12:07.4842904Z > setblock 40 73 32 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 73, 32
+
+2026-10-20T11:12:07.7863243Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:12:14.8920826Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:12:16.2112486Z > data get block 40 73 32
+40, 73, 32 has the following block data: {Fuel: 140, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 73, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:12:17.0899774Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:12:18.0054461Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:12:18.9048446Z > item replace block 40 65 32 container.0 with minecraft:air
+Replaced a slot at 40, 65, 32 with [Air]
+
+2026-10-20T11:12:19.4677314Z > data merge block 40 65 32 {Energy:0}
+Nothing changed. The specified properties already have these values
+
+2026-10-20T11:12:19.8193373Z > setblock 40 73 32 minecraft:air
+Changed the block at 40, 73, 32
+
+2026-10-20T11:12:20.2080150Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:12:20.6989690Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:12:27.4421023Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:12:27.7225843Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:12:28.0814997Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:12:28.5359574Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:12:29.1259149Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:12:30.3873488Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:12:37.0256833Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:12:37.2912249Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:12:38.0227224Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:12:38.9084035Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:12:39.5972187Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:12:40.3644463Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T11:12:40.9923133Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:12:41.5924949Z > setworldspawn -1000 64 -1000
+Set the world spawn point to -1000, 64, -1000 [0.0]
+
+2026-10-20T11:12:42.0076886Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:12:42.6400073Z > list
+There are 0 of a max of 20 players online:
+
+2026-10-20T11:12:58.1043611Z > execute if loaded 40 65 32 run data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 1299, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15617, ShowRange: 0b}
+
+2026-10-20T11:12:58.6393969Z > execute if loaded 47 65 32 run data get block 47 65 32
+47, 65, 32 has the following block data: {Fuel: 183, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 47, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:12:58.9205980Z > execute if loaded -4 65 -4 run data get block -4 65 -4
+-4, 65, -4 has the following block data: {x: -4, y: 65, z: -4, id: "computercraft:computer_advanced", ComputerId: 0, On: 1b}
+
+2026-10-20T11:13:05.5911027Z > execute if loaded 48 65 32 run data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 214, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:13:05.9271398Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:13:06.6963270Z > setblock 48 65 32 minecraft:air
+Changed the block at 48, 65, 32
+
+2026-10-20T11:13:06.9904616Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:13:07.2862023Z > forceload add 480 512 511 527
+Marked 2 chunks in Overworld from [30, 32] to [31, 32] to be force loaded
+
+2026-10-20T11:13:07.7311118Z > setblock 495 65 512 superbwarfare:charging_station
+Changed the block at 495, 65, 512
+
+2026-10-20T11:13:08.1351328Z > item replace block 495 65 512 container.0 with minecraft:coal_block 64
+Replaced a slot at 495, 65, 512 with [Block of Coal]
+
+2026-10-20T11:13:08.4879409Z > setblock 503 65 512 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 503, 65, 512
+
+2026-10-20T11:13:08.8948224Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:13:12.2883644Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:13:12.8199784Z > data remove block 503 65 512 RightUpgrade
+Modified block data of 503, 65, 512
+
+2026-10-20T11:13:13.0050466Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:13:13.4122375Z > stop
+Stopping the server
+
+2026-10-20T11:13:35.6464234Z > forceload remove 503 512
+No chunks were removed from force loading
+
+2026-10-20T11:13:36.7134299Z > forceload remove 495 512
+Unmarked chunk [30, 32] in Overworld for force loading
+
+2026-10-20T11:13:38.2595996Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:40.6362058Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:13:43.7712901Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:44.8465055Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:13:47.5331216Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:48.1492756Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:13:51.1635806Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:51.6011337Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:13:54.0387119Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:54.3768017Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:13:58.0449519Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:13:58.9832112Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:14:02.9500758Z > forceload add 480 512 511 527
+Marked 2 chunks in Overworld from [30, 32] to [31, 32] to be force loaded
+
+2026-10-20T11:14:03.5502190Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:14:14.1068321Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:14:15.3546118Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:14:18.9787850Z > setblock 495 65 512 minecraft:air
+Changed the block at 495, 65, 512
+
+2026-10-20T11:14:26.3344483Z > setblock 503 65 512 minecraft:air
+Changed the block at 503, 65, 512
+
+2026-10-20T11:14:27.2118517Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T11:14:28.5001699Z > fill -1 66 -5 13 66 10 minecraft:air
+Successfully filled 240 block(s)
+
+2026-10-20T11:16:55.9957049Z > stop
+Stopping the server
+
+2026-10-20T11:17:54.8711896Z > forceload add -16 -16 16 16
+No chunks were marked for force loading
+
+2026-10-20T11:17:55.6078538Z > setblock 40 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:56.2021298Z > setblock 40 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:56.8174730Z > setblock 48 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:57.4986646Z > setblock 48 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:58.0937357Z > setblock 48 73 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:58.4888926Z > setblock 40 73 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:58.9810442Z > setblock 47 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:17:59.3743309Z > setblock 48 65 32 minecraft:air
+Changed the block at 48, 65, 32
+
+2026-10-20T11:17:59.7897827Z > setblock 503 65 512 minecraft:air
+Could not set the block
+
+2026-10-20T11:18:00.7433252Z > setblock 495 65 512 minecraft:air
+Could not set the block
+
+2026-10-20T11:18:02.1590396Z > data get block 1 65 -1 Items
+1, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:18:03.6275055Z > data get block 1 65 5 Items
+1, 65, 5 has the following block data: [{count: 33, Slot: 0b, id: "minecraft:iron_ingot"}, {count: 1, Slot: 1b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 2b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 3b, id: "minecraft:diamond_pickaxe"}]
+
+2026-10-20T11:18:04.5099791Z > data get block 1 65 -1 Items[{id:"minecraft:dirt"}].count
+1, 65, -1 has the following block data: 7
+
+2026-10-20T11:18:06.1459518Z > data get block 9 65 8
+9, 65, 8 has the following block data: {Fuel: 516, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T11:18:06.8604460Z > data get block 5 65 -1 Items
+5, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:18:07.6408627Z > data get block 5 65 5 Items
+5, 65, 5 has the following block data: []
+
+2026-10-20T11:18:08.0903108Z > data get block 5 65 -1 Items[{id:"minecraft:dirt"}].count
+5, 65, -1 has the following block data: 7
+
+2026-10-20T11:18:08.4597307Z > data get block 1 65 8
+1, 65, 8 has the following block data: {Fuel: 666, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T11:18:08.9014249Z > data get block 9 65 -1 Items
+9, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:18:09.2523898Z > data get block 9 65 5 Items
+9, 65, 5 has the following block data: [{count: 2, Slot: 0b, id: "minecraft:diamond"}]
+
+2026-10-20T11:18:09.6557045Z > data get block 9 65 -1 Items[{id:"minecraft:dirt"}].count
+9, 65, -1 has the following block data: 7
+
+2026-10-20T11:18:10.0023197Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 695, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T11:18:10.4136785Z > data get block 1 65 5 Items[{id:"minecraft:iron_ingot"}].count
+1, 65, 5 has the following block data: 33
+
+2026-10-20T11:18:11.0290087Z > execute if items block 1 65 5 container.* minecraft:diamond_pickaxe
+Test passed, count: 3
+
+2026-10-20T11:18:11.3195836Z > data get block 9 65 5 Items[{id:"minecraft:diamond"}].count
+9, 65, 5 has the following block data: 2
+
+2026-10-20T11:18:11.5470742Z > forceload add 32 16 63 63
+Marked 4 chunks in Overworld from [2, 1] to [3, 3] to be force loaded
+
+2026-10-20T11:18:11.8184761Z > setblock 40 65 32 superbwarfare:charging_station
+Could not set the block
+
+2026-10-20T11:18:12.0735187Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:18:12.4245266Z > data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 35207, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 64, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 14831, ShowRange: 0b}
+
+2026-10-20T11:18:12.9154776Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:18:13.6260085Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:18:20.2790722Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:18:20.6485611Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 193, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:18:21.1990484Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:18:21.5538314Z > setblock 40 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 41
+
+2026-10-20T11:18:21.7711918Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:18:28.6313021Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:18:28.9928295Z > data get block 40 65 41
+40, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:18:29.4276485Z > setblock 40 65 41 minecraft:air
+Changed the block at 40, 65, 41
+
+2026-10-20T11:18:29.8836068Z > setblock 48 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 40
+
+2026-10-20T11:18:30.3388062Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:18:36.8732760Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:18:37.7296225Z > data get block 48 65 40
+48, 65, 40 has the following block data: {Fuel: 176, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:18:38.4030694Z > setblock 48 65 40 minecraft:air
+Changed the block at 48, 65, 40
+
+2026-10-20T11:18:38.7516957Z > setblock 48 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 41
+
+2026-10-20T11:18:39.2400773Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:18:45.7556633Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:18:46.5633588Z > data get block 48 65 41
+48, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:18:47.0388194Z > setblock 48 65 41 minecraft:air
+Changed the block at 48, 65, 41
+
+2026-10-20T11:18:47.9971729Z > setblock 48 73 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 73, 40
+
+2026-10-20T11:18:48.7975906Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:18:55.6380743Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:18:56.0748052Z > data get block 48 73 40
+48, 73, 40 has the following block data: {Fuel: 180, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 73, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:18:56.7944014Z > setblock 48 73 40 minecraft:air
+Changed the block at 48, 73, 40
+
+2026-10-20T11:18:57.1323751Z > setblock 40 73 32 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 73, 32
+
+2026-10-20T11:18:57.5216806Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:19:04.2685480Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:19:04.4551529Z > data get block 40 73 32
+40, 73, 32 has the following block data: {Fuel: 136, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 73, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:19:05.6703854Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:19:06.0041324Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:19:06.3069531Z > item replace block 40 65 32 container.0 with minecraft:air
+Replaced a slot at 40, 65, 32 with [Air]
+
+2026-10-20T11:19:06.7851411Z > data merge block 40 65 32 {Energy:0}
+Nothing changed. The specified properties already have these values
+
+2026-10-20T11:19:07.4249652Z > setblock 40 73 32 minecraft:air
+Changed the block at 40, 73, 32
+
+2026-10-20T11:19:07.7664219Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:19:08.1973259Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:19:14.7593447Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:19:15.1765305Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:19:15.4929619Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:19:15.9411357Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:19:16.5553435Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:19:17.1493883Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:19:24.0762312Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:19:24.6962685Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:19:25.6321591Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:19:27.7711372Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:19:29.3935886Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:19:30.5662827Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T11:19:31.4682001Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:19:32.4179173Z > setworldspawn -1000 64 -1000
+Set the world spawn point to -1000, 64, -1000 [0.0]
+
+2026-10-20T11:19:33.4230494Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:19:34.3896826Z > list
+There are 0 of a max of 20 players online:
+
+2026-10-20T11:19:49.8576650Z > execute if loaded 40 65 32 run data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 801, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15558, ShowRange: 0b}
+
+2026-10-20T11:19:50.7838793Z > execute if loaded 47 65 32 run data get block 47 65 32
+47, 65, 32 has the following block data: {Fuel: 197, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 47, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:19:51.3659596Z > execute if loaded -4 65 -4 run data get block -4 65 -4
+-4, 65, -4 has the following block data: {x: -4, y: 65, z: -4, id: "computercraft:computer_advanced", ComputerId: 0, On: 1b}
+
+2026-10-20T11:19:58.9631513Z > execute if loaded 48 65 32 run data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 232, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:19:59.5583729Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:19:59.9084102Z > setblock 48 65 32 minecraft:air
+Changed the block at 48, 65, 32
+
+2026-10-20T11:20:00.7222169Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:20:01.6576197Z > forceload add 480 512 511 527
+Marked chunk [30, 32] in Overworld to be force loaded
+
+2026-10-20T11:20:02.3616524Z > setblock 495 65 512 superbwarfare:charging_station
+Changed the block at 495, 65, 512
+
+2026-10-20T11:20:02.9524547Z > item replace block 495 65 512 container.0 with minecraft:coal_block 64
+Replaced a slot at 495, 65, 512 with [Block of Coal]
+
+2026-10-20T11:20:03.4229901Z > setblock 503 65 512 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 503, 65, 512
+
+2026-10-20T11:20:04.0805425Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:20:07.7070107Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:20:08.8225630Z > data remove block 503 65 512 RightUpgrade
+Modified block data of 503, 65, 512
+
+2026-10-20T11:20:09.4737131Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:20:10.4290528Z > stop
+Stopping the server
+
+2026-10-20T11:20:32.5997894Z > forceload remove 503 512
+No chunks were removed from force loading
+
+2026-10-20T11:20:35.2073257Z > forceload remove 495 512
+Unmarked chunk [30, 32] in Overworld for force loading
+
+2026-10-20T11:20:38.0355827Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:38.1126755Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:40.9645276Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:41.6157564Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:44.1958548Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:44.7653771Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:47.2654271Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:47.8783247Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:50.6205165Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:51.6214627Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:54.1703568Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:20:54.7248217Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:20:58.2982552Z > forceload add 480 512 511 527
+Marked 2 chunks in Overworld from [30, 32] to [31, 32] to be force loaded
+
+2026-10-20T11:20:58.9502181Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:21:08.8978683Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:21:09.5564301Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:21:13.2301612Z > setblock 495 65 512 minecraft:air
+Changed the block at 495, 65, 512
+
+2026-10-20T11:21:20.3766788Z > setblock 503 65 512 minecraft:air
+Changed the block at 503, 65, 512
+
+2026-10-20T11:21:20.8417341Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T11:21:21.6419439Z > fill -1 66 -5 13 66 10 minecraft:air
+No blocks were filled
+
+2026-10-20T11:22:01.5193925Z > stop
+Stopping the server
+
+2026-10-20T11:23:54.8318338Z > forceload add -16 -16 16 16
+No chunks were marked for force loading
+
+2026-10-20T11:23:56.8009453Z > setblock 40 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:23:57.9880669Z > setblock 40 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:23:59.2170668Z > setblock 48 65 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:00.6970009Z > setblock 48 65 41 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:01.9150110Z > setblock 48 73 40 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:02.6845992Z > setblock 40 73 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:03.2593565Z > setblock 47 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:03.9350860Z > setblock 48 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:04.6476014Z > setblock 503 65 512 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:05.4175173Z > setblock 495 65 512 minecraft:air
+Could not set the block
+
+2026-10-20T11:24:06.1865171Z > data get block 1 65 -1 Items
+1, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:24:06.8783259Z > data get block 1 65 5 Items
+1, 65, 5 has the following block data: [{count: 33, Slot: 0b, id: "minecraft:iron_ingot"}, {count: 1, Slot: 1b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 2b, id: "minecraft:diamond_pickaxe"}, {count: 1, Slot: 3b, id: "minecraft:diamond_pickaxe"}]
+
+2026-10-20T11:24:07.5894025Z > data get block 1 65 -1 Items[{id:"minecraft:dirt"}].count
+1, 65, -1 has the following block data: 7
+
+2026-10-20T11:24:08.8320116Z > data get block 9 65 8
+9, 65, 8 has the following block data: {Fuel: 516, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 1, On: 1b}
+
+2026-10-20T11:24:09.4872593Z > data get block 5 65 -1 Items
+5, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:24:10.1967901Z > data get block 5 65 5 Items
+5, 65, 5 has the following block data: []
+
+2026-10-20T11:24:11.4051284Z > data get block 5 65 -1 Items[{id:"minecraft:dirt"}].count
+5, 65, -1 has the following block data: 7
+
+2026-10-20T11:24:12.7265424Z > data get block 1 65 8
+1, 65, 8 has the following block data: {Fuel: 666, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 1, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 8, id: "computercraft:turtle_advanced", ComputerId: 2, On: 1b}
+
+2026-10-20T11:24:14.0144710Z > data get block 9 65 -1 Items
+9, 65, -1 has the following block data: [{count: 7, Slot: 0b, id: "minecraft:dirt"}]
+
+2026-10-20T11:24:15.3144865Z > data get block 9 65 5 Items
+9, 65, 5 has the following block data: [{count: 2, Slot: 0b, id: "minecraft:diamond"}]
+
+2026-10-20T11:24:16.2274538Z > data get block 9 65 -1 Items[{id:"minecraft:dirt"}].count
+9, 65, -1 has the following block data: 7
+
+2026-10-20T11:24:17.2043451Z > data get block 9 65 0
+9, 65, 0 has the following block data: {Fuel: 695, RightUpgrade: {components: {"computercraft:on": 1b}, id: "computercraft:wireless_modem_advanced"}, x: 9, LeftUpgrade: {id: "minecraft:diamond_pickaxe"}, Slot: 7, y: 65, Items: [], z: 0, id: "computercraft:turtle_advanced", ComputerId: 3, On: 1b}
+
+2026-10-20T11:24:18.5897701Z > data get block 1 65 5 Items[{id:"minecraft:iron_ingot"}].count
+1, 65, 5 has the following block data: 33
+
+2026-10-20T11:24:19.4418745Z > execute if items block 1 65 5 container.* minecraft:diamond_pickaxe
+Test passed, count: 3
+
+2026-10-20T11:24:20.3598818Z > data get block 9 65 5 Items[{id:"minecraft:diamond"}].count
+9, 65, 5 has the following block data: 2
+
+2026-10-20T11:24:21.2525381Z > forceload add 32 16 63 63
+Marked 6 chunks in Overworld from [2, 1] to [3, 3] to be force loaded
+
+2026-10-20T11:24:21.8747275Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:24:22.7535056Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:24:23.5478158Z > data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 2048, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15984, ShowRange: 0b}
+
+2026-10-20T11:24:23.9511635Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:24:24.4904858Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:24:31.8113786Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:24:32.7899112Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 143, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:24:33.4444696Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:24:34.2041616Z > setblock 40 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 41
+
+2026-10-20T11:24:34.9676756Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:24:42.4333259Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:24:43.5209678Z > data get block 40 65 41
+40, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:24:44.7403240Z > setblock 40 65 41 minecraft:air
+Changed the block at 40, 65, 41
+
+2026-10-20T11:24:45.7818448Z > setblock 48 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 40
+
+2026-10-20T11:24:47.0632416Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:24:53.5538763Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:24:54.2448862Z > data get block 48 65 40
+48, 65, 40 has the following block data: {Fuel: 194, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:24:55.0035773Z > setblock 48 65 40 minecraft:air
+Changed the block at 48, 65, 40
+
+2026-10-20T11:24:55.7946951Z > setblock 48 65 41 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 65, 41
+
+2026-10-20T11:24:56.6563800Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:25:04.2622504Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:25:05.8126631Z > data get block 48 65 41
+48, 65, 41 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 41, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:25:07.0360954Z > setblock 48 65 41 minecraft:air
+Changed the block at 48, 65, 41
+
+2026-10-20T11:25:08.8359182Z > setblock 48 73 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 48, 73, 40
+
+2026-10-20T11:25:09.7980443Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:25:16.6043894Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:25:17.5682454Z > data get block 48 73 40
+48, 73, 40 has the following block data: {Fuel: 198, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 73, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:25:18.8623927Z > setblock 48 73 40 minecraft:air
+Changed the block at 48, 73, 40
+
+2026-10-20T11:25:20.1719240Z > setblock 40 73 32 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 73, 32
+
+2026-10-20T11:25:21.5016095Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:25:28.2967468Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:25:29.1129905Z > data get block 40 73 32
+40, 73, 32 has the following block data: {Fuel: 145, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 73, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:25:29.8213126Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:25:30.2201943Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:25:31.2947906Z > item replace block 40 65 32 container.0 with minecraft:air
+Replaced a slot at 40, 65, 32 with [Air]
+
+2026-10-20T11:25:32.1888765Z > data merge block 40 65 32 {Energy:0}
+Nothing changed. The specified properties already have these values
+
+2026-10-20T11:25:33.0652798Z > setblock 40 73 32 minecraft:air
+Changed the block at 40, 73, 32
+
+2026-10-20T11:25:33.7916995Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:25:34.3310551Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:25:43.2481169Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:25:44.5757171Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:25:45.1428419Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:25:45.8584898Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:25:47.2300634Z > setblock 40 65 40 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 40, 65, 40
+
+2026-10-20T11:25:48.3863024Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:25:55.6102070Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:25:56.9541863Z > data get block 40 65 40
+40, 65, 40 has the following block data: {Fuel: 100, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 40, Slot: 0, y: 65, Items: [], z: 40, id: "computercraft:turtle_advanced", ComputerId: 20, On: 0b}
+
+2026-10-20T11:25:57.9371617Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:25:59.0765552Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:25:59.9809820Z > setblock 40 65 40 minecraft:air
+Changed the block at 40, 65, 40
+
+2026-10-20T11:26:01.1622581Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T11:26:02.2155806Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:26:02.8303990Z > setworldspawn -1000 64 -1000
+Set the world spawn point to -1000, 64, -1000 [0.0]
+
+2026-10-20T11:26:03.7137750Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:26:04.7300957Z > list
+There are 0 of a max of 20 players online:
+
+2026-10-20T11:26:20.5168462Z > execute if loaded 40 65 32 run data get block 40 65 32
+40, 65, 32 has the following block data: {Energy: 2459, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15572, ShowRange: 0b}
+
+2026-10-20T11:26:20.9725880Z > execute if loaded 47 65 32 run data get block 47 65 32
+47, 65, 32 has the following block data: {Fuel: 193, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 47, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:26:21.5334990Z > execute if loaded -4 65 -4 run data get block -4 65 -4
+-4, 65, -4 has the following block data: {x: -4, y: 65, z: -4, id: "computercraft:computer_advanced", ComputerId: 0, On: 1b}
+
+2026-10-20T11:26:28.8056384Z > execute if loaded 48 65 32 run data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 228, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:26:29.5274325Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:26:30.1182591Z > setblock 48 65 32 minecraft:air
+Changed the block at 48, 65, 32
+
+2026-10-20T11:26:30.7209307Z > setblock 40 65 32 minecraft:air
+Changed the block at 40, 65, 32
+
+2026-10-20T11:26:32.6263834Z > forceload add 480 512 511 527
+Marked chunk [30, 32] in Overworld to be force loaded
+
+2026-10-20T11:26:33.4388665Z > setblock 495 65 512 superbwarfare:charging_station
+Changed the block at 495, 65, 512
+
+2026-10-20T11:26:34.0970169Z > item replace block 495 65 512 container.0 with minecraft:coal_block 64
+Replaced a slot at 495, 65, 512 with [Block of Coal]
+
+2026-10-20T11:26:35.0569277Z > setblock 503 65 512 computercraft:turtle_advanced{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_normal"}
+Changed the block at 503, 65, 512
+
+2026-10-20T11:26:35.8645413Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:26:39.9570170Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:26:40.5966367Z > data remove block 503 65 512 RightUpgrade
+Modified block data of 503, 65, 512
+
+2026-10-20T11:26:41.4997472Z > forceload remove all
+Unmarked all force loaded chunks in Overworld
+
+2026-10-20T11:26:42.2023345Z > stop
+Stopping the server
+
+2026-10-20T11:27:09.1364340Z > forceload remove 503 512
+No chunks were removed from force loading
+
+2026-10-20T11:27:11.2786255Z > forceload remove 495 512
+Unmarked chunk [30, 32] in Overworld for force loading
+
+2026-10-20T11:27:12.7076297Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:14.0831681Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:20.9648080Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:23.1859358Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:27.8980807Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:29.3379790Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:33.5628236Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:35.4184579Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:38.8920721Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:40.2428662Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:43.3458969Z > execute if loaded 495 65 512 run time query gametime
+
+2026-10-20T11:27:44.5027859Z > execute if loaded 503 65 512 run time query gametime
+
+2026-10-20T11:27:49.3577938Z > forceload add 480 512 511 527
+Marked 2 chunks in Overworld from [30, 32] to [31, 32] to be force loaded
+
+2026-10-20T11:27:51.1110507Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:28:01.7181458Z > computercraft shutdown 20
+Shutdown 1/1 computers
+
+2026-10-20T11:28:03.5266896Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:28:08.2070905Z > setblock 495 65 512 minecraft:air
+Changed the block at 495, 65, 512
+
+2026-10-20T11:28:15.7983621Z > setblock 503 65 512 minecraft:air
+Changed the block at 503, 65, 512
+
+2026-10-20T11:28:16.8020067Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T11:28:17.6692674Z > fill -1 66 -5 13 66 10 minecraft:air
+No blocks were filled
+
+2026-10-20T11:30:04.5881817Z > stop
+Stopping the server
