@@ -1,0 +1,282 @@
+local M = {}
+local A, S = dofile("atomic.lua"), dofile("ssot.lua")
+local vectors = { [0]={0,0,-1}, {1,0,0}, {0,0,1}, {-1,0,0}, {0,1,0}, {0,-1,0} }
+local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
+local function same(a,b) return a.dim==b.dim and key(a)==key(b) end
+local function adjacent(p,d)
+  local v=vectors[d]
+  return {dim=p.dim,x=p.x+v[1],y=p.y+v[2],z=p.z+v[3]}
+end
+local function distance(a,b) return math.abs(a.x-b.x)+math.abs(a.y-b.y)+math.abs(a.z-b.z) end
+local function integer(n) return type(n)=="number" and n==n and n%1==0 end
+local function heading(h) return integer(h) and h>=0 and h<4 end
+local function inside(p,b)
+  return p.dim==b.min.dim and p.x>=b.min.x and p.x<=b.max.x
+    and p.y>=b.min.y and p.y<=b.max.y and p.z>=b.min.z and p.z<=b.max.z
+end
+function M.open(cfg)
+  assert(S.pose(cfg.pose) and heading(cfg.pose.h),"calibrated pose required")
+  local b=cfg.bounds
+  assert(type(b)=="table" and S.pose(b.min) and S.pose(b.max) and b.min.dim==b.max.dim
+    and b.min.x<=b.max.x and b.min.y<=b.max.y and b.min.z<=b.max.z and inside(cfg.pose,b),"navigation bounds required")
+  local maxCells,maxNodes,batch=cfg.maxCells or 2048,cfg.maxNodes or 2048,cfg.batch or 32
+  assert(integer(maxCells) and maxCells>=1 and maxCells<=4096 and integer(maxNodes) and maxNodes>=1
+    and maxNodes<=4096 and integer(batch) and batch>=1 and batch<=64,"invalid navigation budget")
+  local function valid(v)
+    if type(v)~="table" or v.version~=1 or not S.pose(v.pose) or not heading(v.pose.h)
+      or type(v.cells)~="table" then return false end
+    local n=0
+    for k,name in pairs(v.cells) do
+      n=n+1
+      if n>maxCells or type(k)~="string" or #k>96 or type(name)~="string" or #name>128 then return false end
+    end
+    local j=v.action
+    local c=v.control
+    if c~=nil and (type(c)~="table" or not integer(c.epoch) or c.epoch<1 or not integer(c.cid) or c.cid<0
+      or c.kind~=nil and c.kind~="go" and c.kind~="recall" and c.kind~="estop") then return false end
+    if v.stopped~=nil and type(v.stopped)~="boolean" or v.resume~=nil and type(v.resume)~="boolean" then return false end
+    return j==nil or type(j)=="table" and (j.kind=="move" or j.kind=="turn" or j.kind=="calibrate")
+      and S.pose(j.from) and S.pose(j.to) and heading(j.from.h) and heading(j.to.h)
+  end
+  local store=A.store(cfg.path or "nav.state",valid,400000)
+  local state=store.value or {version=1,pose=A.copy(cfg.pose),cells={}}
+  local api,busy,stopped,ready={},false,state.stopped==true,false
+  local function save() assert(store.save(state)) end
+  local function checkpoint(name) if cfg.checkpoint then cfg.checkpoint(name) end end
+  local function observe()
+    local p=cfg.observe()
+    if not S.pose(p) or p.dim~=state.pose.dim then return nil,"GPS unavailable or wrong dimension" end
+    return p
+  end
+  local function cancelled() return stopped or cfg.cancelled and cfg.cancelled() end
+  local function remember(p,name)
+    local k=key(p)
+    if not state.cells[k] then
+      local n=0 for _ in pairs(state.cells) do n=n+1 end
+      assert(n<maxCells,"navigation map full; export or recalibrate")
+    end
+    state.cells[k]=name
+  end
+  local function sync(previous)
+    local ok,why,epoch
+    if previous then ok,why,epoch=cfg.client.calibrate(state.pose,previous)
+    else ok,why,epoch=cfg.client.resync(state.pose) end
+    if not ok then return false,why end
+    local announced=epoch
+    epoch=tonumber(epoch)
+    if announced~=nil and (not integer(epoch) or epoch<1 or epoch>2147483647) then return false,"invalid server epoch" end
+    if epoch and (not state.control or epoch>state.control.epoch) then
+      state.control={epoch=epoch,cid=0,kind=state.control and state.control.kind}
+    end
+    state.action=nil remember(state.pose,"minecraft:air") save() ready=true
+    return true
+  end
+  function api.recover()
+    if busy then return false,"navigation busy" end
+    ready=false
+    local p,why=observe()
+    if not p then return false,why end
+    local j=state.action
+    if j and j.kind=="turn" then return false,"ambiguous turn; calibrate heading" end
+    if j and j.kind=="calibrate" then
+      if not same(p,j.to) then return false,"relocated during calibration" end
+      state.pose=A.copy(j.to)
+      return sync(j.from)
+    end
+    if j then
+      if same(p,j.to) then state.pose=A.copy(j.to)
+      elseif same(p,j.from) then state.pose=A.copy(j.from)
+      else return false,"relocated during move; calibrate pose" end
+    elseif not same(p,state.pose) then return false,"relocated turtle; calibrate pose" end
+    return sync()
+  end
+  function api.calibrate(h)
+    if busy then return false,"navigation busy" end
+    if not heading(h) then return false,"invalid heading" end
+    ready=false
+    local p,why=observe()
+    if not p then return false,why end
+    if not inside(p,b) then return false,"outside navigation bounds" end
+    local previous=A.copy(state.action and state.action.from or state.pose)
+    if not same(p,state.pose) then state.cells={} end
+    p.h=h state.pose=A.copy(p) state.action={kind="calibrate",from=previous,to=A.copy(p)} save()
+    return sync(previous)
+  end
+  function api.pose() return A.copy(state.pose) end
+  function api.stopped() return stopped end
+  function api.stop() stopped=true state.stopped=true state.resume=nil save() end
+  function api.resume()
+    if busy then return false end
+    stopped=false state.stopped=false state.resume=nil save() return true
+  end
+  function api.controlState() return A.copy(state.control or {}) end
+  function api.control(kind,epoch,cid)
+    if (kind~="go" and kind~="recall" and kind~="estop") or not integer(epoch) or epoch<1 or epoch>2147483647
+      or not integer(cid) or cid<1 or cid>2147483647 then return false,"invalid command" end
+    local c=state.control
+    if c and (epoch<c.epoch or epoch==c.epoch and cid<=c.cid) then return false,"stale command" end
+    state.control={kind=kind,epoch=epoch,cid=cid}
+    state.resume=nil
+    if kind=="estop" then stopped=true state.stopped=true
+    elseif kind=="go" then
+      if busy then state.resume=true else stopped=false state.stopped=false end
+    end
+    save()
+    return true
+  end
+  function api.resumePending()
+    if not state.resume or busy or not ready then return false end
+    return api.resume()
+  end
+  function api.record(p,name)
+    assert(not busy and S.pose(p) and inside(p,b) and type(name)=="string" and #name<=128,"invalid observation")
+    remember(p,name) save()
+  end
+  local function turn(h)
+    while state.pose.h~=h do
+      if cancelled() then return false,"cancelled" end
+      local from=A.copy(state.pose)
+      local delta=(h-from.h)%4==3 and 3 or 1
+      local to=A.copy(from) to.h=(from.h+delta)%4
+      state.action={kind="turn",from=from,to=to} save() checkpoint("turn-prepared")
+      if cancelled() then state.action=nil save() return false,"cancelled" end
+      local ok,why=(delta==3 and turtle.turnLeft or turtle.turnRight)()
+      checkpoint("turn-physical")
+      state.pose=ok and to or from state.action=nil save() checkpoint("turn-saved")
+      if not ok then return false,why end
+    end
+    return true
+  end
+  local function owned(fn,...)
+    if busy then return false,"navigation busy" end
+    if not ready then return false,"navigation needs recovery" end
+    if cancelled() then return false,"cancelled" end
+    busy=true
+    local ok,a,c=pcall(fn,...)
+    busy=false
+    if not ok then ready=false error(a,0) end
+    return a,c
+  end
+  function api.face(h)
+    if not heading(h) then return false,"invalid heading" end
+    return owned(turn,h)
+  end
+  local function step(d,policy)
+    local observed,err=observe()
+    if not observed or not same(observed,state.pose) then ready=false return false,err or "relocated turtle; calibrate pose" end
+    local to=adjacent(state.pose,d)
+    if not inside(to,b) then return false,"outside navigation bounds" end
+    if policy=="walk" and state.cells[key(to)]~="minecraft:air" then return false,"unknown route" end
+    if d<4 then local ok,why=turn(d) if not ok then return false,why end end
+    if cancelled() then return false,"cancelled" end
+    local from=A.copy(state.pose) to.h=from.h
+    local inspect=d==4 and turtle.inspectUp or d==5 and turtle.inspectDown or turtle.inspect
+    local dig=d==4 and turtle.digUp or d==5 and turtle.digDown or turtle.dig
+    local move=d==4 and turtle.up or d==5 and turtle.down or turtle.forward
+    local function permitted()
+      local found,info=inspect()
+      local name=found and info.name or "minecraft:air"
+      if name:find("turtle",1,true) then return false,"occupied" end
+      remember(to,name)
+      if found and (name=="minecraft:water" or name=="minecraft:lava" or policy~="excavate"
+        or not cfg.canExcavate or not cfg.canExcavate(info,to)) then return false,"blocked" end
+      return true,found
+    end
+    local allowed,reason=permitted()
+    if not allowed then save() return false,reason end
+    if turtle.getFuelLevel()==0 then save() return false,"out of fuel" end
+    state.action={kind="move",from=from,to=to} save() checkpoint("move-prepared")
+    local ok,why=cfg.client.move(from,to,function()
+      if cancelled() then return false,"cancelled" end
+      local allowed,found=permitted()
+      if not allowed then return false,found end
+      if found then
+        local dug,err=dig()
+        if not dug then return false,err end
+        if cancelled() then return false,"cancelled" end
+        if inspect() then return false,"falling block" end
+      end
+      checkpoint("move-started")
+      if cancelled() then return false,"cancelled" end
+      local moved,err=move()
+      checkpoint("move-physical")
+      if moved then
+        local observed=observe()
+        assert(observed and same(observed,to),"physical pose needs GPS reconciliation")
+        state.pose=A.copy(to) remember(to,"minecraft:air")
+      end
+      save() checkpoint("move-observed")
+      return moved,err
+    end)
+    state.action=nil save() checkpoint("move-saved")
+    return ok,why
+  end
+  function api.step(d,policy)
+    if not integer(d) or not vectors[d] or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid movement policy" end
+    return owned(step,d,policy)
+  end
+  local function search(goal,policy,avoid)
+    local start=A.copy(state.pose)
+    local open,cost,parent,nodes={{p=start,g=0,f=distance(start,goal)}},{},{},1
+    cost[key(start)]=0
+    local expanded=0
+    while #open>0 do
+      if cancelled() then return nil,"cancelled" end
+      local best=1
+      for i=2,#open do if open[i].f<open[best].f then best=i end end
+      local current=table.remove(open,best)
+      local p,k=current.p,key(current.p)
+      if same(p,goal) then
+        local route={}
+        while parent[k] do table.insert(route,1,parent[k].d) k=parent[k].previous end
+        return route
+      end
+      if current.g==cost[k] then
+        expanded=expanded+1
+        if expanded%batch==0 then (cfg.yield or sleep)(0) end
+        if cancelled() then return nil,"cancelled" end
+        for d=0,5 do
+          local q=adjacent(p,d) local qk=key(q)
+          local name=state.cells[qk]
+          local pass=name=="minecraft:air" or policy=="explore" and name==nil
+            or policy=="excavate" and (name==nil or cfg.canExcavate and cfg.canExcavate({name=name},q))
+          if inside(q,b) and not avoid[qk] and pass then
+            local g=current.g+(name=="minecraft:air" and 1 or 3)
+            if not cost[qk] or g<cost[qk] then
+              if not cost[qk] then nodes=nodes+1 end
+              if nodes>maxNodes then return nil,"search budget" end
+              cost[qk]=g parent[qk]={previous=k,d=d}
+              open[#open+1]={p=q,g=g,f=g+distance(q,goal)}
+            end
+          end
+        end
+      end
+    end
+    return nil,"no route"
+  end
+  function api.go(goal,policy)
+    if not S.pose(goal) or not inside(goal,b) or policy~="walk" and policy~="explore" and policy~="excavate" then return false,"invalid route" end
+    return owned(function()
+      local avoid={}
+      for _=1,5 do
+        local route,why=search(goal,policy,avoid)
+        if not route then return false,why end
+        local complete=true
+        for _,d in ipairs(route) do
+          local target=adjacent(state.pose,d)
+          local ok,err=step(d,policy)
+          if not ok then
+            if not ready then return false,err end
+            if err=="cancelled" or err=="out of fuel" then return false,err end
+            if err=="occupied" or err=="already reserved" then return false,err end
+            avoid[key(target)]=true complete=false break
+          end
+        end
+        if complete then return true end
+      end
+      return false,"replan budget"
+    end)
+  end
+  return api
+end
+return M

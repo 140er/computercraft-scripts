@@ -1,4 +1,27 @@
 return function(test,Client)
+  test("explicit calibration carries the pending token across a client failure",function()
+    local secret="test-secret-123456"
+    local client=Client.new({server=0,secret=secret,counterFile="client-calibration.counter"})
+    local send,seen=rednet.send,false
+    rednet.send=function(_,m,protocol)
+      if m.op=="calibrate" then
+        assert(m.previous.x==0 and m.pose.x==10 and m.token=="pending" and m.epoch=="epoch")
+        seen=true
+      end
+      assert(client.dispatch(0,{v=1,type="ssot_reply",server=0,rid=m.rid,auth=secret,ok=true,
+        token="pending",epoch="epoch",untilAt=os.epoch("utc")+10000},protocol))
+    end
+    local ok,err=pcall(function()
+      local p={dim="minecraft:overworld",x=0,y=64,z=0}
+      local to={dim=p.dim,x=1,y=64,z=0}
+      assert(not pcall(client.move,p,to,function() error("client fault") end))
+      local observed={dim=p.dim,x=10,y=64,z=0}
+      assert(client.calibrate(observed,p) and seen)
+      assert(client.move(observed,{dim=p.dim,x=11,y=64,z=0},function() return true end))
+    end)
+    rednet.send=send
+    assert(ok,err)
+  end)
   test("client accepts bounded pages containing long block names",function()
     local secret="test-secret-123456"
     local client=Client.new({server=0,secret=secret,counterFile="client-boundary.counter"})

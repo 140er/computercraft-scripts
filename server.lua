@@ -16,7 +16,7 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -338,7 +338,7 @@ end
 -- Orders on their way: [cid] = { target, protocol, message, tries, next }. Miners answer
 -- with { type = "cmd_ack", cid }; until then the order goes out again every 3 seconds.
 local outbox, cidSeq = {}, 0
-local SWAPS = { go = "move", recall = "move" } -- a newer one of these replaces an older one
+local SWAPS = { go = "move", recall = "move", estop = "move" }
 local function deliver(target, proto, p)
   local msg = copy(p)
   for cid, o in pairs(outbox) do
@@ -350,6 +350,7 @@ local function deliver(target, proto, p)
   if proto == "minearmy" then -- only the miners confirm orders
     cidSeq = cidSeq + 1
     msg.cid = cidSeq
+    if ssot then msg.commandEpoch=ssot.epoch end
     outbox[cidSeq] = { target = target, protocol = proto, message = msg, tries = 1, next = now() + 3000 }
   end
   rednet.send(target, msg, proto)
@@ -869,7 +870,7 @@ local function network()
       if proto == PROTOCOL then request(id, m)
       elseif proto == "minearmy" and m.type == "cmd_ack" then
         local o = outbox[m.cid]
-        if o and o.target == id then outbox[m.cid] = nil end
+        if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
       elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
         and (m.type == "status" or tostring(m.type):match("_state$")
         or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
