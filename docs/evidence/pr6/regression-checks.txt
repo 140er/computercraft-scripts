@@ -1,0 +1,23 @@
+FAIL update downloads through the real server without http and skips current code
+tests\update-regression-checks.lua:9: values differ
+expected: "--aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+actual: "return 'old'"
+FAIL update falls back to http with no server or a missing server copy
+tests\update-regression-checks.lua:9: values differ
+expected: "return 'http'"
+actual: "return 'old'"
+FAIL update takes GitHub over a server copy that may be behind main
+tests\update-regression-checks.lua:9: values differ
+expected: "return 'http'"
+actual: "return 'old'"
+FAIL update rejects corrupted server content and falls back to http
+tests\update-regression-checks.lua:9: values differ
+expected: "return 'http'"
+actual: "return 'old'"
+0 passed, 4 failed
+PASS update fetch downloads server chunks and reuses current code without retransmission
+PASS update fetch uses http without a server and reports unavailable sources
+PASS update fetch takes GitHub over a server copy that may be behind main
+PASS update fetch rejects corrupted server content and accepts a valid http copy
+PASS update current bundle changes no scripts and does not reboot
+5 passed, 0 failed

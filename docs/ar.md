@@ -4,6 +4,8 @@ Install the named **AR hub** role on a computer with a modem and a cc_ar `ar_con
 
 The AR role runs the existing hub. The server and hub keep their existing drawing ownership protocol. AR and chat start disabled.
 
+The server renderer reads ore cells from its SSOT map. The hub fallback has fleet telemetry only. Ore rendering on a separate AR hub needs the PR 5 snapshot adapter.
+
 Run these commands on the computer that owns the controller, then restart its program.
 
 ```text
@@ -47,6 +49,13 @@ server chat spot charging north minecraft:overworld 14 64 12
 These commands persist AR configuration in `ar.cfg`. Spots become dimensioned anchor beams. They do not create warehouse routes or charging behavior in this independent branch.
 
 The bounds entry records the requested mine bounds for integration. Existing PR 3 miner configuration still controls mining and navigation limits. Do not treat the AR bounds entry as enforcement.
+
+Configure enforced bounds on each miner with the existing commands.
+
+```text
+miner mine bounds minecraft:overworld 0 -60 0 100 80 100
+miner nav bounds minecraft:overworld 0 -60 0 100 80 100
+```
 
 ## Install and repair a bundle
 

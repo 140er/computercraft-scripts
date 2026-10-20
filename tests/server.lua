@@ -245,52 +245,59 @@ return function(test, equal, read, mocks)
       m.httpCalls = m.httpCalls + 1
       return { readAll = function() return httpCode end, close = function() end }
     end } end
-    assert(load(updateCode, "=update.lua", "t", m.env))("miner", "noreboot")
+    m.updater = assert(load(updateCode, "=update.lua", "t", m.env))("--module")
+    m.fetched = m.updater.fetch("miner.lua")
     m.requests = requests
+    m.requestCount = function() return requests end
     return m
   end
 
-  test("update downloads through the real server without http and skips current code", function()
+  test("update fetch downloads server chunks and reuses current code without retransmission", function()
     local s = new()
     local code = "--" .. string.rep("a", 25000) .. "\nreturn 'new'"
     s.files["server-code/miner.lua"] = code
     s.start(serverCode)
     local m = updater(s)
-    equal(m.files["miner.lua"], code)
+    equal(m.fetched, code)
     equal(m.httpCalls, 0)
     equal(m.requests, 3)
-    assert(load(updateCode, "=update.lua", "t", m.env))("miner", "noreboot")
-    assert(table.concat(m.output, "\n"):find("up to date", 1, true))
+    m.files["miner.lua"] = code
+    equal(m.updater.fetch("miner.lua"), code)
+    equal(m.requestCount(), 4, "current code should need one hash request")
+    local reply = s.sent[#s.sent].msg
+    equal(reply.current, true)
+    equal(reply.code, nil, "current code was retransmitted")
     equal(s.state().bots[7].versions["miner.lua"], hashOf(code))
   end)
 
-  test("update falls back to http with no server or a missing server copy", function()
+  test("update fetch uses http without a server and reports unavailable sources", function()
     local m = updater(nil, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
     local s = new()
     s.start(serverCode)
     m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
     m = updater(nil)
+    equal(m.fetched, nil)
     equal(m.files["miner.lua"], "return 'old'")
     s.env.rednet.send = function() end
     m = updater(s, "return 'timeout'")
-    equal(m.files["miner.lua"], "return 'timeout'")
+    equal(m.fetched, "return 'timeout'")
     equal(m.httpCalls, 1)
   end)
 
-  test("update takes GitHub over a server copy that may be behind main", function()
+  test("update fetch takes GitHub over a server copy that may be behind main", function()
     local s = new()
     s.files["server-code/miner.lua"] = "return 'cached'"
     s.start(serverCode)
     local m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.requests, 0)
   end)
 
-  test("update rejects corrupted server content and falls back to http", function()
+  test("update fetch rejects corrupted server content and accepts a valid http copy", function()
     local s = new()
     s.files["server-code/miner.lua"] = "return true"
     s.start(serverCode)
@@ -299,8 +306,12 @@ return function(test, equal, read, mocks)
       if msg.type == "file" then msg.code = "return false" end
       send(id, msg, proto)
     end
-    local m = updater(s, "return 'http'")
-    equal(m.files["miner.lua"], "return 'http'")
+    local m = updater(s)
+    equal(m.fetched, nil, "corrupt server content passed hash verification")
+    equal(m.requests, 1, "corrupt response was not exercised")
+    equal(m.files["miner.lua"], "return 'old'")
+    m = updater(s, "return 'http'")
+    equal(m.fetched, "return 'http'")
     equal(m.httpCalls, 1)
   end)
 

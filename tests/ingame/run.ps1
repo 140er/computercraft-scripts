@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot','nav','mining')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav','mining','ar')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -9,6 +9,10 @@ param(
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
+if ($Scenario -eq 'ar') {
+    & "$PSScriptRoot\ar.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -PrepareOnly:$PrepareOnly -Client:$Client
+    return
+}
 if ($Scenario -in @('nav','mining')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path

@@ -2,12 +2,13 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining')][string]$Scenario = 'smoke',
-    [string]$Output = ''
+    [ValidateSet('smoke','ssot','nav','mining','ar')][string]$Scenario = 'smoke',
+    [string]$Output = '',
+    [string]$DataRoot = ''
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -in @('nav','mining')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
-if ($Scenario -in @('ssot','nav','mining') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -in @('ssot','nav','mining','ar') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 
 try {
     $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
@@ -32,7 +33,8 @@ try {
         throw 'Use CraftOS-PC v2.8.3 portable (CraftOS-PC_console.exe).'
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
-    $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
+    if (!$DataRoot) { $DataRoot = Join-Path $cache 'runs' }
+    $run = Join-Path $DataRoot ([guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
@@ -45,11 +47,12 @@ try {
     [IO.File]::WriteAllText("$run\config\global.json", $config, $utf8)
     $roles = if ($Scenario -in @('ssot','nav','mining')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
     if ($Scenario -eq 'mining') { $roles += 'hub' }
+    if ($Scenario -eq 'ar') { $roles = @('server','turtle1','turtle2','turtle3','controller','hub') }
     for ($id = 0; $id -lt $roles.Count; $id++) {
         $disk = "$run\computer\$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','ar')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -58,6 +61,15 @@ try {
             [IO.File]::WriteAllText("$disk\$($file.Name)", $code, $utf8)
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        if ($Scenario -eq 'ar') {
+            New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
+            Copy-Item -LiteralPath "$PSScriptRoot\ar-driver.lua" -Destination $disk
+            foreach ($testFile in @('ar-fixture.lua','ar-runtime.lua','mocks.lua','ar-hud-unit.lua','chat-checks.lua','install-checks.lua')) {
+                if (Test-Path "$Source\tests\$testFile") {
+                    Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination "$disk\tests"
+                }
+            }
+        }
         if ($Scenario -in @('ssot','nav','mining')) {
             foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua')) {
                 Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
@@ -79,7 +91,7 @@ try {
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
     $restarted = $false
     do {
-        if ($Scenario -in @('ssot','nav','mining') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
+        if ($Scenario -in @('ssot','nav','mining','ar') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
             Stop-Process -Id $process.Id -Force
             $process.WaitForExit()
             foreach ($id in 1..4) { [IO.File]::WriteAllText("$run\computer\$id\boot-hold", 'restart barrier', $utf8) }
@@ -124,6 +136,26 @@ try {
         New-Item -ItemType Directory -Force -Path $Output | Out-Null
         Copy-Item -LiteralPath "$run\computer", "$run\stdout.log", "$run\stderr.log", "$run\config" -Destination $Output -Recurse -Force
         Get-ChildItem -LiteralPath $run -Filter '*.log' | Copy-Item -Destination $Output -Force
+        if ($Scenario -eq 'ar') {
+            $checks = if (Test-Path "$run\computer\4\checks.json") { Get-Content "$run\computer\4\checks.json" -Raw | ConvertFrom-Json } else { @() }
+            $coverage = @{
+                passed = !$failed
+                emulator = 'CraftOS-PC 2.8.3'
+                computers = $roles
+                diskCapacity = 4000000
+                nativeTransport = 'CraftOS virtual modem rednet'
+                checks = $checks
+                limitations = @(
+                    'cc_ar calls use a signature-checking mock; goggles projection requires Gate B.'
+                    'AP chat tuples run through production parsing; real chat_box event emission requires Gate B.'
+                    'Installer rollback and disk faults use mocks inside CraftOS.'
+                    'Warehouse and view roles stop at the PR 4 and PR 5 adapter boundary.'
+                    'Owner checks sample separate controller mocks; they do not render two computers into one real goggles scene.'
+                    'Controller mock elements reset on process restart; persisted external AR element cleanup is covered by module checks only.'
+                )
+            }
+            [IO.File]::WriteAllText("$Output\coverage.json", ($coverage | ConvertTo-Json -Depth 8), $utf8)
+        }
     }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {

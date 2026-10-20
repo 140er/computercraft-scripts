@@ -87,9 +87,14 @@ try {
         Start-Sleep -Seconds 2
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($players -notmatch 'SSOTProof') { throw 'Offline client did not join within the timeout.' }
-    $camera = if ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    $camera = if ($View -eq 'ar') {
+        @('gamemode creative SSOTProof',
+          'item replace entity SSOTProof armor.head with cc_ar:ar_goggles[cc_ar:ar_goggles_data={x:1.0d,y:66.0d,z:0.0d,turtleId:-1,version:0L,label:"PR 6"}]',
+          'tp SSOTProof 6 70 6 180 35','time set day','weather clear')
+    } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
     foreach ($command in $camera) {
-        Invoke-TestRcon $RconPort $secret $command | Out-Null
+        $reply = Invoke-TestRcon $RconPort $secret $command
+        if ($View -eq 'ar') { "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt" }
     }
     Start-Sleep -Seconds 5
     Add-Type @'
@@ -102,6 +107,45 @@ public static class SSOTCapture {
 '@
     $process.Refresh()
     if (!$process.MainWindowHandle) { throw 'Offline client has no screenshot window.' }
+    function Send-ClientKey([int]$Key) {
+        $scanCode = [SSOTCapture]::MapVirtualKey($Key,0)
+        $bits = [int64](1 -bor ($scanCode -shl 16))
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x100,[IntPtr]$Key,[IntPtr]$bits) | Out-Null
+        [SSOTCapture]::PostMessage($process.MainWindowHandle,0x101,[IntPtr]$Key,[IntPtr]($bits -bor 3221225472)) | Out-Null
+    }
+    function Send-ClientChat([string]$Text) {
+        Send-ClientKey 0x54
+        Start-Sleep -Milliseconds 500
+        foreach ($character in $Text.ToCharArray()) {
+            [SSOTCapture]::PostMessage($process.MainWindowHandle,0x102,[IntPtr][int]$character,[IntPtr]1) | Out-Null
+        }
+        Start-Sleep -Milliseconds 300
+        Send-ClientKey 0x0D
+        Start-Sleep -Seconds 2
+    }
+    if ($View -eq 'ar') {
+        $disk = "$TestRoot\world\computercraft\computer\0"
+        Send-ClientChat '!pro'
+        [IO.File]::WriteAllText("$disk\ar-enroll-test-player",'Explicit enrollment for disposable offline test player only.')
+        Send-ClientChat '$pro'
+        if (!(Test-Path "$disk\ar-chat-reply.json")) { throw 'Real client chat did not reach AP chat_box.' }
+        $reply = Get-Content "$disk\ar-chat-reply.json" -Raw | ConvertFrom-Json
+        if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw "No confirmation token in AP reply. $($reply.text)" }
+        $token = $Matches[1]
+        Send-ClientChat ('$confirm '+$token)
+        Send-ClientChat ('$confirm '+$token)
+        Send-ClientChat '!pro'
+        $reply = Get-Content "$disk\ar-chat-reply.json" -Raw | ConvertFrom-Json
+        if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw 'No public confirmation token.' }
+        Send-ClientChat ('!confirm '+$Matches[1])
+        $events = Get-Content "$disk\ar-chat-events.json" -Raw | ConvertFrom-Json
+        if (@($events.actions).Count -ne 2) { throw 'Unauthorized or replayed chat action was accepted, or confirmation failed.' }
+        if (!(@($events.events | Where-Object { $_.hidden -eq $true }).Count) -or
+            !(@($events.events | Where-Object { $_.hidden -eq $false }).Count)) { throw 'Missing actual AP hidden/public events.' }
+        Copy-Item "$disk\ar-chat-events.json" "$Output\real-ap-chat.json" -Force
+        Invoke-TestRcon $RconPort $secret 'data get entity SSOTProof Inventory' | Set-Content "$Output\goggles-inventory.txt"
+        Start-Sleep -Seconds 5
+    }
     $scan = [SSOTCapture]::MapVirtualKey(0x71,0)
     $keyData = [int64](1 -bor ($scan -shl 16))
     $captureAt = [DateTime]::UtcNow
@@ -115,6 +159,21 @@ public static class SSOTCapture {
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
     Copy-Item $shot.FullName "$Output\$ShotName" -Force
+    if ($View -eq 'ar') {
+        Invoke-TestRcon $RconPort $secret 'tp SSOTProof 6 65 5 180 0' | Out-Null
+        Start-Sleep -Seconds 5
+        $captureAt = [DateTime]::UtcNow
+        Send-ClientKey 0x71
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        do {
+            $shot = Get-ChildItem "$client\screenshots" -Filter '*.png' -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTimeUtc -ge $captureAt } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($shot) { break }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (!$shot) { throw 'F2 did not produce the behind-wall goggles PNG.' }
+        Copy-Item $shot.FullName "$Output\ar-xray.png" -Force
+    }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
 } finally {
     $env:GALLIUM_DRIVER = $previousDriver

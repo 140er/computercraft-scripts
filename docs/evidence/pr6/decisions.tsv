@@ -1,0 +1,11 @@
+ts	phase	decision	why	evidence	result
+2026-10-20T11:38:31.1458687Z	start	Keep PR 6 independent on feat/ssot-pr6.	The user runs PR 4 and PR 5 in parallel.	docs/evidence/pr6/plan.md	open
+2026-10-20T14:00:00Z	design	Extend the existing server and hub AR owner.	A separate daemon would compete for the controller.	ar-hud.lua;server.lua;hub.lua	implemented
+2026-10-20T14:01:00Z	chat	Authorize configured UUIDs and require expiring single-use confirmations.	A username can change and the full Gemini listener accepts every sender.	chat-control.lua;tests/chat-checks.lua	focused tests passed
+2026-10-20T14:02:00Z	integration	Append named installer roles with explicit unavailable adapters.	The installer filters roles by hardware and PR 4 and PR 5 are independent.	install.lua;role-adapter.lua	implemented
+2026-10-20T14:03:00Z	verification	Keep native renderer evidence separate from production ownership and charging proof.	The actual-mod fixture does not run those production paths.	tests/ingame/ar.ps1	full Gate B remains incomplete
+2026-10-20T14:04:00Z	update	Add staged bundles and offline manual repair.	An interruption between file moves can leave the updater absent.	update.lua;tests/install-checks.lua	manual reboot repair required
+2026-10-20T12:10:10.5004664Z	audit	Supersede the five placeholder timestamps above.	Those rows record real decisions but their 14:00 through 14:04 timestamps were placeholders, not event times. This row records the audit time.	docs/evidence/pr6/decisions.tsv	corrected timestamp claim
+2026-10-20T13:04:15.5563538Z	fix	Reconcile namespaced controller IDs once after acquisition.	Separate mocks missed stale ore after server death.	tests/ar-shared-owner.lua;t?ests/ar-hud-unit.lua	Failed before fix; both focused checks pass.
+2026-10-20T13:04:15.5563538Z	verification	Freeze bundle 8152c067 and rerun Gate A.	Production cleanup changed after the earlier sandbox run.	docs/evidence/pr6/gateA/coverage.json;docs/evidence/pr6/mocks-final.log	Sandbox PASS; full mock suite exit 0.
+2026-10-20T13:05:11.3039955Z	verification	Reference the focused authorization and installer results.	The earlier trail row named only source files.	docs/evidence/pr6/chat-install-checks.txt;tests/ar-hud-unit.lua	Focused checks passed.

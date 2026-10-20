@@ -13,6 +13,18 @@ return function(test, read, mocks)
     end }
     return m, env, assert(load(read("update.lua"), "=update", "t", env))("--module")
   end
+  test("update current bundle changes no scripts and does not reboot", function()
+    local m, env, updater = setup()
+    assert(updater.apply({ "miner.lua" }))
+    local before = mocks.encode(m.files)
+    local ok, err, changed = updater.apply({ "miner.lua" })
+    assert(ok, err)
+    assert(changed == 0, "current bundle reported changed scripts")
+    assert(mocks.encode(m.files) == before, "current bundle changed installed files")
+    env.os.reboot = function() error("current bundle rebooted") end
+    assert(load(read("update.lua"), "=update", "t", env))("miner")
+    assert(mocks.encode(m.files) == before, "current CLI update changed installed files")
+  end)
   test("installer preserves old roles and clean-installs every named role", function()
     local source = read("install.lua")
     local roles = {}

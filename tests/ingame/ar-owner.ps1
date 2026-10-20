@@ -1,0 +1,60 @@
+function Read-Owner([int]$Id) {
+    $path="$TestRoot\world\computercraft\computer\$Id\ar-owner.json"
+    if (!(Test-Path $path)) { return $null }
+    try { $state=Get-Content $path -Raw | ConvertFrom-Json } catch { return $null }
+    if (!$state.ok) { throw "Owner $Id failed. $($state.failure)" }
+    return $state
+}
+function Wait-Owners([scriptblock]$Check,[string]$Description) {
+    $until=[DateTime]::UtcNow.AddSeconds(120)
+    do {
+        $server=Read-Owner 0
+        $hub=Read-Owner 4
+        if ($server -and $hub -and (& $Check $server $hub)) { return @($server,$hub) }
+        Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $until)
+    throw "Production owner check timed out. $Description"
+}
+Stop-ArServer
+foreach ($id in @(0,4)) {
+    $disk="$TestRoot\world\computercraft\computer\$id"
+    Copy-Item "$PSScriptRoot\ar-owner-probe.lua" $disk
+    [IO.File]::WriteAllText("$disk\startup.lua",'shell.run("ar-owner-probe.lua")',$utf8)
+}
+Start-ArServer 'production-owner'
+Rcon 'computercraft turn-on 0 1 2 3 4' | Out-Null
+$first=Wait-Owners { param($s,$h) $s.programRunning -and $h.programRunning -and $s.attached -and $h.attached -and $s.updates -gt 0 -and $s.elementCount -gt 10 } 'both production programs started'
+Start-Sleep -Seconds 40
+$settled=Wait-Owners { param($s,$h) @($h.journal | Where-Object { $_.kind -eq 'lease' -and $_.direction -eq 'received' -and $_.arOwner -eq $true }).Count -gt 0 } 'hub received server ownership lease'
+$hubMutations=$settled[1].mutations
+Start-Sleep -Seconds 6
+$hub=Read-Owner 4
+if ($hub.mutations -ne $hubMutations) { throw 'Hub mutated the shared controller during server ownership.' }
+$oldHubUpdates=$hub.updates
+$off=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+Rcon 'computercraft shutdown 0' | Out-Null
+$takeover=Wait-Owners { param($s,$h) $h.updates -gt $oldHubUpdates -and $h.lastUpdate -gt $off } 'hub took over after server shutdown'
+$takeover[1] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-hub-takeover.json"
+$oldBoot=$settled[0].boot
+Rcon 'computercraft turn-on 0' | Out-Null
+$reclaimed=Wait-Owners { param($s,$h) $s.boot -gt $oldBoot -and $s.updates -gt 0 -and $s.lastUpdate -gt $off } 'server reclaimed after computer restart'
+Start-Sleep -Seconds 35
+$hub=Read-Owner 4
+$hubMutations=$hub.mutations
+$server=Read-Owner 0
+$serverUpdates=$server.updates
+$request=@{id=[guid]::NewGuid().ToString('N');key='p'} | ConvertTo-Json -Compress
+[IO.File]::WriteAllText("$TestRoot\world\computercraft\computer\4\ar-owner-request.json",$request,$utf8)
+$toggled=Wait-Owners { param($s,$h) $s.updates -gt $serverUpdates } 'hub key reached server-owned HUD'
+Start-Sleep -Seconds 6
+$hub=Read-Owner 4
+if ($hub.mutations -ne $hubMutations) { throw 'Hub drew while forwarding a layer key to the server.' }
+Rcon 'setblock 1 66 0 minecraft:air' | Out-Null
+Wait-Owners { param($s,$h) !$s.attached -and !$h.attached } 'both owners observed physical detach' | Out-Null
+$serverUpdates=(Read-Owner 0).updates
+Rcon 'setblock 1 66 0 cc_ar:ar_controller' | Out-Null
+$restored=Wait-Owners { param($s,$h) $s.attached -and $h.attached -and $s.updates -gt $serverUpdates -and $s.elementCount -gt 5 } 'replacement controller redrew'
+$restored[0] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-server-restored.json"
+$restored[1] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-hub-restored.json"
+@{ok=$true;sharedNativeController=$true;serverDeath=$true;serverRestart=$true;forwardedKey=$true;detach=$true;reattach=$true} |
+    ConvertTo-Json | Set-Content "$Output\owner-result.json"
