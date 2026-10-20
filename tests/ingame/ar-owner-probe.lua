@@ -17,7 +17,7 @@ end
 local previous=read("ar-owner.json")
 local state={ok=true,id=id,role=role,boot=previous and previous.boot+1 or 1,
   started=started,calls={},mutations=0,updates=0,removals=0,errors={},
-  journal={},lastMutation=0,lastUpdate=0,programRunning=false}
+  journal={},lastMutation=0,lastUpdate=0,programRunning=false,request=previous and previous.request}
 local function record(event)
   event.time=os.epoch("utc")
   state.journal[#state.journal+1]=event
@@ -48,7 +48,8 @@ local function observe(device)
           if method=="update" then state.updates=state.updates+1 state.lastUpdate=state.lastMutation end
           if method=="delete" or method:match("^remove") or method:match("^clear") then state.removals=state.removals+1 end
           local first=select(1,...)
-          record({kind="mutation",method=method,element=type(first)=="string" and first or nil})
+          record({kind="mutation",method=method,element=type(first)=="string" and first or nil,
+            source=state.injecting and "fault-injection" or "production"})
         end
         return table.unpack(returns,2,returns.n)
       end
@@ -124,8 +125,20 @@ local function monitor()
             "Only real AR layer keys are accepted")
           os.queueEvent("char",request.key)
         end
+        if request.fault then
+          assert(id==0 and request.fault=="stale-namespace","Only server stale namespace injection is supported")
+          local device=assert(peripheral.find("ar_controller"),"Real controller missing during injection")
+          state.injecting=true
+          device.drawLine3D("ssot-ar:ore:test-stale",-1,0,0,0,1,0,0)
+          device.drawLine3D("pr6-owner:foreign",-1,0,1,0,1,1,0)
+          device.update()
+          state.injecting=nil
+          state.faultInjection={id=request.id,kind=request.fault,time=os.epoch("utc"),
+            stale="ssot-ar:ore:test-stale",foreign="pr6-owner:foreign"}
+          record({kind="fault-injection",id=request.id,fault=request.fault})
+        end
         state.request=request.id
-        record({kind="request",id=request.id,key=request.key})
+        record({kind="request",id=request.id,key=request.key,fault=request.fault})
       end
       save()
       timer=os.startTimer(1)

@@ -30,10 +30,26 @@ $hubMutations=$settled[1].mutations
 Start-Sleep -Seconds 6
 $hub=Read-Owner 4
 if ($hub.mutations -ne $hubMutations) { throw 'Hub mutated the shared controller during server ownership.' }
+$injectionId=[guid]::NewGuid().ToString('N')
+$injection=@{id=$injectionId;fault='stale-namespace'} | ConvertTo-Json -Compress
+$injectionPath="$TestRoot\world\computercraft\computer\0\ar-owner-request.json"
+[IO.File]::WriteAllText($injectionPath,$injection,$utf8)
+$seeded=Wait-Owners { param($s,$h) $s.request -eq $injectionId -and
+    $s.elementIds -contains 'ssot-ar:ore:test-stale' -and $s.elementIds -contains 'pr6-owner:foreign' -and
+    $h.elementIds -contains 'ssot-ar:ore:test-stale' -and $h.elementIds -contains 'pr6-owner:foreign'
+} 'explicit stale namespace fault reached the real shared controller'
+$seeded[0] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-fault-injection.json"
+$seeded[1] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-hub-before-takeover.json"
 $oldHubUpdates=$hub.updates
 $off=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 Rcon 'computercraft shutdown 0' | Out-Null
 $takeover=Wait-Owners { param($s,$h) $h.updates -gt $oldHubUpdates -and $h.lastUpdate -gt $off } 'hub took over after server shutdown'
+if ($takeover[1].elementIds -contains 'ssot-ar:ore:test-stale') {
+    throw 'Hub takeover left the explicitly injected stale SSOT ore edge on the shared controller.'
+}
+if ($takeover[1].elementIds -notcontains 'pr6-owner:foreign') {
+    throw 'Hub takeover deleted the foreign namespace edge.'
+}
 $takeover[1] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-hub-takeover.json"
 $oldBoot=$settled[0].boot
 Rcon 'computercraft turn-on 0' | Out-Null
@@ -56,5 +72,6 @@ Rcon 'setblock 1 66 0 cc_ar:ar_controller' | Out-Null
 $restored=Wait-Owners { param($s,$h) $s.attached -and $h.attached -and $s.updates -gt $serverUpdates -and $s.elementCount -gt 5 } 'replacement controller redrew'
 $restored[0] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-server-restored.json"
 $restored[1] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-hub-restored.json"
-@{ok=$true;sharedNativeController=$true;serverDeath=$true;serverRestart=$true;forwardedKey=$true;detach=$true;reattach=$true} |
+@{ok=$true;sharedNativeController=$true;serverDeath=$true;serverRestart=$true;forwardedKey=$true;detach=$true;reattach=$true;
+    staleNamespaceCleanup=$true;foreignNamespacePreserved=$true;namespaceFixture='Explicit native drawLine3D fault injection before server shutdown'} |
     ConvertTo-Json | Set-Content "$Output\owner-result.json"

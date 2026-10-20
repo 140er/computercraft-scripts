@@ -75,7 +75,16 @@ $result = @{ ok=$false; scenario='ar'; native=$false; visual=$false; errors=@();
         'All-role installation and storage regression with PR 4 and PR 5 integrations') }
 function Rcon([string]$Command) {
     $answer = Invoke-TestRcon $rconPort $secret $Command
-    "$([DateTime]::UtcNow.ToString('o')) > $Command`n$answer" | Add-Content "$Output\rcon.txt"
+    $entry="$([DateTime]::UtcNow.ToString('o')) > $Command`n$answer`n"
+    for ($attempt=0; $attempt -lt 50; $attempt++) {
+        try {
+            [IO.File]::AppendAllText("$Output\rcon.txt",$entry,$utf8)
+            break
+        } catch [IO.IOException] {
+            if ($attempt -eq 49) { throw }
+            Start-Sleep -Milliseconds 100
+        }
+    }
     return $answer
 }
 function Wait-ArResources {
