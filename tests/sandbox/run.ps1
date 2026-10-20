@@ -1,7 +1,9 @@
 param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
-    [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path
+    [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
+    [ValidateSet('smoke','ssot')][string]$Scenario = 'smoke',
+    [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -30,19 +32,21 @@ try {
     $Source = (Resolve-Path -LiteralPath $Source).Path
     $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
+    Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 1000000
+        standardsMode = $true; computerSpaceLimit = 4000000
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
     [IO.File]::WriteAllText("$run\config\global.json", $config, $utf8)
-    $roles = @('server', 'hub', 'miner')
+    $roles = if ($Scenario -eq 'ssot') { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
     for ($id = 0; $id -lt $roles.Count; $id++) {
         $disk = "$run\computer\$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -eq 'ssot') { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -51,15 +55,35 @@ try {
             [IO.File]::WriteAllText("$disk\$($file.Name)", $code, $utf8)
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
-        [IO.File]::WriteAllText("$disk\startup.lua", "shell.run('driver.lua', '$Seconds')", $utf8)
+        if ($Scenario -eq 'ssot') {
+            foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua')) {
+                Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
+            }
+            Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
+            Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
+            [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=5000,maxChunks=8}', $utf8)
+        }
+        [IO.File]::WriteAllText("$disk\startup.lua", "shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds standardsMode=true disk=1000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
     Write-Output "Artifacts: $run"
-    $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, $app
+    $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
+    $process.PriorityClass = 'AboveNormal'
+    $process.ProcessorAffinity = [IntPtr]1
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
+    $restarted = $false
     do {
-        $complete = @(0..2 | Where-Object { Test-Path -LiteralPath "$run\computer\$_\sandbox-result.json" }).Count -eq 3
+        if ($Scenario -eq 'ssot' -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
+            Stop-Process -Id $process.Id -Force
+            $process.WaitForExit()
+            $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
+            $process.PriorityClass = 'AboveNormal'
+            $process.ProcessorAffinity = [IntPtr]1
+            $restarted = $true
+            Write-Output 'Restarted the complete CraftOS process at the durable checkpoint.'
+        }
+        $complete = @(0..($roles.Count - 1) | Where-Object { Test-Path -LiteralPath "$run\computer\$_\sandbox-result.json" }).Count -eq $roles.Count
         if ($complete -or $process.HasExited) { break }
         Start-Sleep -Milliseconds 200
     } while ([DateTime]::UtcNow -lt $deadline)
@@ -68,7 +92,7 @@ try {
     # Keep computers alive until all reports exist: shutdown can strand sibling timers.
     if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
     $failed = $timedOut -or $crashed
-    foreach ($id in 0..2) {
+    foreach ($id in 0..($roles.Count - 1)) {
         $path = "$run\computer\$id\sandbox-result.json"
         if (!(Test-Path -LiteralPath $path)) {
             Write-Output "$($roles[$id]): FAIL booted=unknown errors=missing result (crash or timeout)"
@@ -76,16 +100,22 @@ try {
             continue
         }
         $result = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        $errors = @($result.errors | Where-Object { $_ -is [string] -and $_ })
         $status = if ($result.ok) { 'PASS' } else { 'FAIL' }
-        Write-Output "$($roles[$id]): $status booted=$($result.booted) errors=$(@($result.errors).Count) disk_free=$($result.free) rx=$($result.rx) http_ok=$($result.httpOK)/$($result.httpAttempts)"
+        Write-Output "$($roles[$id]): $status booted=$($result.booted) errors=$($errors.Count) disk_free=$($result.free) rx=$($result.rx) http_ok=$($result.httpOK)/$($result.httpAttempts)"
         foreach ($line in $result.lines) { Write-Output "  last: $line" }
-        foreach ($errorText in $result.errors) { Write-Output "  error: $errorText" }
+        foreach ($errorText in $errors) { Write-Output "  error: $errorText" }
         if (!$result.ok) { $failed = $true }
     }
     $stderr = Get-Content -LiteralPath "$run\stderr.log" -Raw
     if ($stderr) { Write-Output "Emulator stderr: $stderr"; $failed = $true }
     if ($timedOut) { Write-Output 'Emulator timed out.' }
     if ($crashed) { Write-Output "Emulator exited early: $($process.ExitCode)" }
+    if ($Output) {
+        New-Item -ItemType Directory -Force -Path $Output | Out-Null
+        Copy-Item -LiteralPath "$run\computer", "$run\stdout.log", "$run\stderr.log", "$run\config" -Destination $Output -Recurse -Force
+        Get-ChildItem -LiteralPath $run -Filter '*.log' | Copy-Item -Destination $Output -Force
+    }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     Write-Output 'Sandbox PASS'
     exit 0
