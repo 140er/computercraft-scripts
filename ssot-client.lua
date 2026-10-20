@@ -95,8 +95,16 @@ function M.new(cfg)
     if moved then
       local committed = api.commit(fields)
       if not committed or not committed.ok then
-        synced = false
-        error("Physical move completed; SSOT reconciliation required: " .. tostring(committed and committed.error or "timeout"), 0)
+        if cfg.deadTurtles == true then
+          local recovered, why = resync(to)
+          if not recovered then
+            synced = false
+            error("Physical move completed; SSOT reconciliation required: " .. tostring(why or (committed and committed.error) or "timeout"), 0)
+          end
+        else
+          synced = false
+          error("Physical move completed; SSOT reconciliation required: " .. tostring(committed and committed.error or "timeout"), 0)
+        end
       end
     else
       local ok = resync(from)

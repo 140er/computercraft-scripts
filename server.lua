@@ -778,6 +778,7 @@ local function botName(id, b)
 end
 
 local function botState(id, b)
+  if ssot and ssot.missing and ssot.missing(id) then return "missing", colors.orange end
   local p = b.status or {}
   local age = (now() - (b.lastSeen or 0)) / 1000
   if tostring(p.phase or p.state):lower() == "lost" or tostring(p.status):find("^LOST") then
@@ -788,12 +789,15 @@ local function botState(id, b)
 end
 
 local function counts()
-  local online, stale, lost = 0, 0, 0
+  local online, stale, lost, missing = 0, 0, 0, 0
   for id, b in pairs(state.bots) do
     local s = botState(id, b)
-    if s == "LOST" then lost = lost + 1 elseif s == "stale" then stale = stale + 1 else online = online + 1 end
+    if s == "missing" then missing = missing + 1
+    elseif s == "LOST" then lost = lost + 1
+    elseif s == "stale" then stale = stale + 1
+    else online = online + 1 end
   end
-  return online, stale, lost
+  return online, stale, lost, missing
 end
 
 local function sortedBots()
@@ -930,6 +934,20 @@ local function orders(y, w)
   if ui.sel then
     x = button(x, y + 1, "ALL", colors.black, colors.yellow, function() ui.sel = nil end)
   end
+  if ui.sel and ssot and ssot.missing and ssot.missing(ui.sel) then
+    local id = ui.sel
+    x = button(x, y + 1, "forget turtle", colors.white, colors.red, function()
+      local result = ssot.forget(id)
+      if not result or not result.ok then note(result and result.error or "Forget failed") return end
+      state.bots[id] = nil
+      if ui.sel == id then ui.sel = nil end
+      save()
+      local tail = ""
+      if result.mine then tail = tail .. " Mine work stays with that owner." end
+      if result.cargo then tail = tail .. " Warehouse cargo is still outstanding." end
+      note("Forgot turtle #" .. id .. "." .. tail)
+    end)
+  end
   local sel = ui.sel and state.bots[ui.sel]
   local who = sel and sel.kind == "miner" and ("orders: " .. botName(ui.sel, sel)) or "orders: whole fleet"
   if x + #who < w then text(w - #who, y + 1, who, colors.white, colors.gray) end
@@ -981,7 +999,7 @@ local function draw()
   screen.setTextColor(colors.white)
   screen.clear()
   -- Top: name, counts and tabs
-  local online, stale, lost = counts()
+  local online, stale, lost, missing = counts()
   fill(1, 1, w, colors.blue)
   text(1, 1, "Fleet server #" .. os.getComputerID(), colors.white, colors.blue)
   local x = w + 1
@@ -997,14 +1015,20 @@ local function draw()
   local nfiles = 0
   for _ in pairs(state.files) do nfiles = nfiles + 1 end
   fill(1, 2, w, colors.black)
-  text(1, 2, online .. " online / " .. stale .. " stale / ", colors.lightGray, colors.black)
-  text(#(online .. " online / " .. stale .. " stale / ") + 1, 2, lost .. " LOST", lost > 0 and colors.red or colors.lightGray,
-    colors.black)
+  local head = online .. " online / " .. stale .. " stale / "
+  text(1, 2, head, colors.lightGray, colors.black)
+  text(#head + 1, 2, lost .. " LOST", lost > 0 and colors.red or colors.lightGray, colors.black)
+  local left = #head + #(lost .. " LOST")
+  if missing > 0 then
+    local extra = " / " .. missing .. " missing"
+    text(left + 1, 2, extra, colors.orange, colors.black)
+    left = left + #extra
+  end
   local hid = hubId()
   local right = tostring(fs.getFreeSpace(STATE_FILE)) .. " bytes free" .. (diskFull and " | disk full" or "")
     .. " | code " .. nfiles .. "/" .. #FILES .. (hid and (" | hub #" .. hid) or " | no hub")
     .. (ar and (" | AR " .. (state.view3D ~= false and "on" or "off")) or "")
-  local left = #(online .. " online / " .. stale .. " stale / " .. lost .. " LOST") + 2
+  left = left + 2
   right = right:sub(1, math.max(0, w - left))
   text(w - #right + 1, 2, right, diskFull and colors.red or colors.lightGray, colors.black)
   local top, bottom = 3, h - 2 -- rows for the tab's content
@@ -1070,6 +1094,7 @@ local function network()
       end
     elseif ev == "timer" and id == timer then
       ticks = ticks + 1
+      if ssot and ssot.sweep then ssot.sweep() end
       if ticks % 15 == 5 then
         rednet.broadcast({ type = "panel" }, "minearmy")
         for _, p in ipairs({ "lumber", "farmer", "lava", "builder", "buddy", "turtlefactory" }) do
