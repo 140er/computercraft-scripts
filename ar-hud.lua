@@ -272,6 +272,7 @@ local function same(a,b)
   return true
 end
 function H.clear(ar,mem)
+  mem.reconciled=nil
   local changed=false
   for id in pairs(mem.elements or {}) do ar.delete(id) changed=true end
   if changed then ar.update() end
@@ -279,6 +280,16 @@ function H.clear(ar,mem)
   if mem.persist then mem.persist(mem.elements) end
 end
 function H.render(ar,snap,mem,cfg)
+  if not mem.reconciled then
+    local inspect=rawget(ar,"getAllElements")
+    if inspect then
+      mem.elements=mem.elements or {}
+      for id in pairs(inspect()) do
+        if type(id)=="string" and id:sub(1,#PREFIX)==PREFIX then mem.elements[id]={} end
+      end
+    end
+    mem.reconciled=true
+  end
   if cfg.enabled~=true then
     if next(mem.elements or {}) then H.clear(ar,mem) end
     return

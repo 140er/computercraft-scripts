@@ -1622,7 +1622,10 @@ local function uiLoop()
       end
       if not prev or not ar or peripheral.getName(prev) ~= peripheral.getName(ar) then
         arSuppressed, arMem.drawn = false, nil
-        if hudMem then for key in pairs(hudMem.elements) do hudMem.elements[key]={} end end
+        if hudMem then
+          hudMem.reconciled=nil
+          for key in pairs(hudMem.elements) do hudMem.elements[key]={} end
+        end
       end
       if prev ~= ar then redraw() else draw3D() end
     end

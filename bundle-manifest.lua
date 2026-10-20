@@ -1,8 +1,8 @@
 return {
   schema = 1,
-  version = "f7b11936",
+  version = "8152c067",
   files = {
-    ["ar-hud.lua"] = "92ef9529",
+    ["ar-hud.lua"] = "f38dc475",
     ["ar-role.lua"] = "9260ce8d",
     ["atomic.lua"] = "d7da82a6",
     ["buddy.lua"] = "cba823b0",
@@ -12,7 +12,7 @@ return {
     ["farmer.lua"] = "d8f8b56b",
     ["fleetview.lua"] = "052a0b86",
     ["gpshost.lua"] = "35051764",
-    ["hub.lua"] = "7ce70e9b",
+    ["hub.lua"] = "a696d19f",
     ["install.lua"] = "2809578b",
     ["lava.lua"] = "50b443c3",
     ["lumber.lua"] = "19a17375",
@@ -24,7 +24,7 @@ return {
     ["relay.lua"] = "71bcc366",
     ["role-adapter.lua"] = "c3cb315a",
     ["roomsorter.lua"] = "48d805eb",
-    ["server.lua"] = "fe9da073",
+    ["server.lua"] = "fa3e04a3",
     ["smartmine.lua"] = "22b42d7d",
     ["sorter.lua"] = "cef04b47",
     ["ssot-client.lua"] = "a74c139a",

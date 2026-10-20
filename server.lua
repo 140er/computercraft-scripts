@@ -961,6 +961,7 @@ local function network()
         arDrawn, arMem.drawn = false, nil
       end
       if hudMem and (not prev or not ar or peripheral.getName(prev)~=peripheral.getName(ar)) then
+        hudMem.reconciled=nil
         for key in pairs(hudMem.elements) do hudMem.elements[key]={} end
       end
       arDirty = true

@@ -440,6 +440,7 @@ dofile("tests/mining-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 dofile("tests/ar-hud-unit.lua")
+dofile("tests/ar-shared-owner.lua")
 dofile("tests/chat-checks.lua")(test,read,mocks)
 dofile("tests/install-checks.lua")(test,read,mocks)
 
