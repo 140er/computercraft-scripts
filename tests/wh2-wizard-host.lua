@@ -74,9 +74,18 @@ local function fixture(enabled, width, height, monitor)
   }
   local modules = {}
   env.require = function(name)
+    if name=="ssot-auth" then
+      if m.missingAuth then error("Missing authentication dependency") end
+      return {}
+    end
+    if name=="ssot-client" then return {new=function(config)
+      assert(config.secret==nil and config.token==nil,"Legacy pairing material reached the constructor")
+      m.rpcConfig=config
+      return m.client
+    end} end
     if name == "wh2-client" then
       if m.missing then error("Missing fleet dependency") end
-      return { open = function(config)
+      return { new = function(config)
         m.factories, m.config = m.factories + 1, config
         return m.client
       end }
@@ -149,7 +158,8 @@ test("private pinned config constructs one fleet client shared with board", func
   local m = fixture(true)
   local host = m.host.open({ role = "panel" })
   assert(not host.error and host.context.client == m.client and host.context.role == "panel")
-  assert(m.factories == 1 and m.config.server == 0 and m.config.pairingFile == "controller.pair")
+  assert(m.factories == 1 and m.rpcConfig.server == 0 and m.rpcConfig.pairingFile == "controller.pair")
+  assert(m.config.rpc==m.client and m.config.enabled and m.config.role=="panel")
   local board = m.env.require("wh2-board").open(host.context)
   board.tick()
   assert(#m.calls == 2 and m.factories == 1)
@@ -261,12 +271,32 @@ test("factory failures stay unavailable and do not expose private config", funct
   local m = fixture(true)
   local requireModule = m.env.require
   m.env.require = function(name)
-    if name == "wh2-client" then return { open = function() error("private-pairing-key") end } end
+    if name == "wh2-client" then return { new = function() error("private-pairing-key") end } end
     return requireModule(name)
   end
   local host = m.host.open()
   assert(host.error == "Authenticated wh2-client unavailable")
   assert(not host.context.client.call("wh2-get", {}))
+end)
+
+test("missing authentication fails before constructing or transmitting a legacy client",function()
+  local m=fixture(true)
+  m.missingAuth=true
+  local original=m.env.require
+  m.env.require=function(name)
+    assert(name~="ssot-client","Legacy transport loaded before authentication prerequisite")
+    return original(name)
+  end
+  local host=m.host.open()
+  assert(host.error=="Authenticated wh2-client unavailable" and m.factories==0 and m.rpcConfig==nil)
+end)
+
+test("an injected RPC uses the fleet constructor and preserves the pinned server",function()
+  local m=fixture(true)
+  m.missingAuth=true
+  local host=m.host.open({rpc=m.client,role="hub"})
+  assert(not host.error and m.config.rpc==m.client and m.config.role=="hub" and m.factories==1)
+  assert(m.rpcConfig==nil)
 end)
 
 test("terminal and pocket order screens open wizard by key and touch and return", function()

@@ -467,7 +467,7 @@ if wh2.enabled then
   if ok then wh2.host = host.open({ role = "hub" }) wh2.context = wh2.host.context end
 end
 local function openWh2(module)
-  if not wh2.enabled then return end
+  if not wh2.enabled or wh2.booting then return end
   local ok, extension = pcall(require, module)
   if ok and type(extension) == "table" and type(extension.open) == "function" then
     ok, extension = pcall(extension.open, wh2.context)
@@ -1669,6 +1669,17 @@ end
 
 local function wh2Loop()
   if not wh2.enabled then while true do os.pullEvent("wh2_disabled") end end
+  wh2.booting=true
+  local loaded,module=pcall(require,"wh2-board")
+  if loaded and type(module)=="table" and type(module.open)=="function" then
+    local opened,board=pcall(module.open,wh2.context)
+    if opened and type(board)=="table" and type(board.state)=="table" and type(board.state.queue)=="table" then
+      local read=pcall(board.tick)
+      if read and (#board.state.queue>0 or board.state.draft) then wh2.active=board
+      elseif board.close then pcall(board.close) end
+    end
+  end
+  wh2.booting=false
   while true do
     if wh2.active then
       local ok, err = pcall(wh2.active.tick)

@@ -22,11 +22,19 @@ local function test(name, fn)
   print("PASS "..name)
 end
 local function context()
-  return { now=1792500000000, epoch="test:1", config={enabled=true,operators={["4"]=true}},
+  return { now=1792500000000, epoch=1, config={enabled=true,operators={["4"]=true}},
     save=forbidden, send=forbidden, recipes={getUsesOf=forbidden} }
 end
 local function run(s, op, body, sender, ctx)
-  return M.run(s,sender or 4,{op=op,body=body},ctx or context())
+  ctx=ctx or context()
+  if ctx.epoch==nil then ctx.epoch=1 end
+  if op=="wh2-class" and body.action==nil then
+    body=copy(body)
+    local q=s.wh2 and s.wh2.wizard and s.wh2.wizard.questions and s.wh2.wizard.questions[body.item]
+    body.action=q and q.state~="resolved" and "resolve" or "set"
+    if body.action=="resolve" then body.questionId,body.draftRevision=q.id,q.draft and q.draft.revision or 0 end
+  end
+  return M.run(s,sender or 4,{op=op,body=body},ctx)
 end
 local function query(s, topic, cursor, revision, id)
   if cursor==nil then cursor=0 end
@@ -40,11 +48,11 @@ local function answer(s, item, revision, value, sender, ctx)
     class="ores",route="blast",storeCategory="ingots",recipeId="example:tin_from_blasting"}},sender,ctx)
 end
 local function row(item, source, revision)
-  return {item=item,class="misc",route="store",storeCategory="misc",recipeId=false,
+  return {v=1,item=item,class="misc",route="store",storeCategory="misc",recipeId=false,
     source=source or "wizard",revision=revision or 1,updatedBy=4}
 end
 local function state()
-  return {wh2={schema=1,wizard={revision=0,classes={},questions={}}}}
+  return {wh2={schema=1,wizard={v=1,revision=0,classes={},questions={}}}}
 end
 local function reject(s, code, op, body, sender, ctx)
   local before = mocks.encode(s)
@@ -68,8 +76,8 @@ test("Unknown reports coalesce across workers and preserve the first observation
   local first = report(s,"example:raw_tin","warehouse-in",17)
   assert(first.ok)
   equal(first.revision,1)
-  equal(first.question,{id="item:example:raw_tin",item="example:raw_tin",state="open",
-    firstSeen=1792500000000,sampleLocationId="warehouse-in"})
+  equal(first.question,{v=1,id="item:example:raw_tin",item="example:raw_tin",state="open",
+    revision=1,firstSeen=1792500000000,sampleLocationId="warehouse-in",draft=false})
   local ctx = context()
   ctx.now=ctx.now+10000
   local again = report(s,"example:raw_tin","another-input",18,ctx)
@@ -87,7 +95,7 @@ test("An answer atomically resolves its question and stamps the operator",functi
     recipeId="example:tin_from_blasting",updatedBy=999,source="layout",revision=999})
   assert(result.ok)
   equal(result.revision,2)
-  equal(result.class,{item="example:raw_tin",class="ores",route="blast",storeCategory="ingots",
+  equal(result.class,{v=1,item="example:raw_tin",class="ores",route="blast",storeCategory="ingots",
     recipeId="example:tin_from_blasting",updatedBy=4,source="wizard",revision=2})
   equal(result.question.state,"resolved")
   equal(result.question.firstSeen,1792500000000)
@@ -230,6 +238,8 @@ test("Queries select one stable ID and reject invalid cursors and revisions",fun
   equal(query(s,"questions",0,false).code,"invalid")
   equal(query(s,"classes",0,1).code,"invalid")
   equal(query(s,"classes",0,"bad").code,"invalid")
+  equal(query(s,"classes",0,"9999999999:0").code,"invalid")
+  equal(query(s,"classes",0,"00:0").code,"invalid")
   equal(query(s,"unowned").code,"invalid")
 end)
 
@@ -303,7 +313,7 @@ test("Resource and derived question IDs are bounded without truncation",function
   equal(#s.wh2.wizard.questions[longest].id,64)
   reject(s,"too_large","wh2-unknown",{item=longest.."a",sampleLocationId=false})
   local item="x:"..string.rep("a",126)
-  assert(answer(s,item,1,{class="misc",route="store",storeCategory="misc",recipeId=item}).ok)
+  assert(answer(s,item,1,{class="misc",route="furnace",storeCategory="misc",recipeId=item}).ok)
   equal(query(s,"classes",0,nil,item).records[1].item,item)
 end)
 
@@ -333,15 +343,15 @@ test("Saved state rejects malformed shapes and impossible resolved questions",fu
   local variants={false,{}, {revision=-1,classes={},questions={}},
     {revision=1,classes=false,questions={}}, {revision=1,classes={},questions=false}}
   for _, value in ipairs(variants) do assert(not M.valid(value)) end
-  local base={revision=1,classes={["example:a"]=row("example:a")},questions={}}
+  local base={v=1,revision=1,classes={["example:a"]=row("example:a")},questions={}}
   for _, patch in ipairs({{item="example:b"},{source="layout"},{revision=2},
     {updatedBy="4"},{route="delete"},{class="unknown"},{extra=true}}) do
     local value=copy(base)
     for k,v in pairs(patch) do value.classes["example:a"][k]=v end
     assert(not M.valid(value))
   end
-  local q={id="item:example:a",item="example:a",state="resolved",firstSeen=1,sampleLocationId=false}
-  assert(not M.valid({revision=1,classes={},questions={["example:a"]=q}}))
+  local q={v=1,id="item:example:a",item="example:a",state="resolved",revision=1,firstSeen=1,sampleLocationId=false,draft=false}
+  assert(not M.valid({v=1,revision=1,classes={},questions={["example:a"]=q}}))
   for _, patch in ipairs({{id="wrong"},{state="skipped"},{firstSeen=math.huge},
     {sampleLocationId={}},{extra=true}}) do
     local value=copy(base)

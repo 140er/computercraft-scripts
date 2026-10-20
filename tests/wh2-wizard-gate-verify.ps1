@@ -36,7 +36,13 @@ try {
     if ((ConvertFrom-WizardInventory 'Block data: []').Count -ne 0) { throw 'Empty native inventory did not parse.' }
     foreach ($bad in @('No block entity was found', '[{Slot:0b,id:"minecraft:stone"}]',
         '[{Slot:0b,id:"minecraft:stone",count:64,components:{test:1}}]',
-        '[{Slot:0b,id:"minecraft:stone",count:1},{Slot:0b,id:"minecraft:stone",count:1}]')) {
+        '[{Slot:0b,id:"minecraft:stone",count:1},{Slot:0b,id:"minecraft:stone",count:1}]',
+        '[{Slot:0b,id:"minecraft:stone",count:64.5}]',
+        '[{Slot:0.5,id:"minecraft:stone",count:64}]',
+        '[{Slot:0b,id:"minecraft:stone",Discount:64}]',
+        '[{OtherSlot:0b,id:"minecraft:stone",count:64}]',
+        '[{Slot:27b,id:"minecraft:stone",count:64}]',
+        '[{Slot:0b,id:"minecraft:stone",count:64bX}]')) {
         $rejected = $false
         try { ConvertFrom-WizardInventory $bad | Out-Null } catch { $rejected = $true }
         if (!$rejected) { throw 'Malformed native inventory response was accepted.' }

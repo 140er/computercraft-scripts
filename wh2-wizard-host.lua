@@ -1,11 +1,8 @@
 local M = {}
 
--- Provisional fleet boundary. Reconcile this function when wh2-client is committed.
--- wh2-client.open(private wh2.cfg) returns dot-call call(op, body), dispatch(sender, msg, proto), worker().
--- call queues and waits; dispatch never yields; worker owns authenticated outbound work.
-local function fleetClient()
+local function fleetClient(options)
   local ok, fleet = pcall(require, "wh2-client")
-  if not ok or type(fleet) ~= "table" or type(fleet.open) ~= "function" then
+  if not ok or type(fleet) ~= "table" or type(fleet.new) ~= "function" then
     return nil, "Authenticated wh2-client unavailable"
   end
   local config
@@ -20,8 +17,25 @@ local function fleetClient()
     or config.server < 0 or config.server > 2147483647 or config.server % 1 ~= 0 then
     return nil, "Wizard unavailable. Pin server in wh2.cfg"
   end
+  local rpc=options.rpc
+  if not rpc then
+    local authenticated=pcall(require,"ssot-auth")
+    if not authenticated then return nil,"Authenticated wh2-client unavailable" end
+    local loaded,transport=pcall(require,"ssot-client")
+    if not loaded or type(transport)~="table" or type(transport.new)~="function" then
+      return nil,"Authenticated wh2-client unavailable"
+    end
+    if type(config.pairingFile)~="string" or #config.pairingFile==0 or #config.pairingFile>128
+      or config.pairingFile:find("[%c]") then return nil,"Wizard unavailable. Set pairingFile in wh2.cfg" end
+    loaded,rpc=pcall(transport.new,{server=config.server,pairingFile=config.pairingFile,
+      counterFile="wh2-ssot.outbox"})
+    if not loaded then return nil,"Authenticated wh2-client unavailable" end
+  end
+  if type(rpc)~="table" or type(rpc.call)~="function" or type(rpc.dispatch)~="function" then
+    return nil,"Authenticated wh2-client unavailable"
+  end
   local client
-  ok, client = pcall(fleet.open, config)
+  ok, client = pcall(fleet.new, {enabled=true,rpc=rpc,role=options.role=="hub" and "hub" or "panel"})
   if not ok or not client then return nil, "Authenticated wh2-client unavailable" end
   return client
 end
@@ -31,7 +45,7 @@ function M.open(options)
   local enabled = settings and settings.get("wh2.enabled", false) == true or false
   local client, failure
   if enabled then
-    if options.client ~= nil then client = options.client else client, failure = fleetClient() end
+    if options.client ~= nil then client = options.client else client, failure = fleetClient(options) end
     if type(client) ~= "table" or type(client.call) ~= "function"
       or type(client.dispatch) ~= "function" or type(client.worker) ~= "function" then
       client, failure = nil, failure or "Authenticated wh2-client unavailable"

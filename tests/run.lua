@@ -441,5 +441,15 @@ dofile("tests/warehouse-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 
+for _, path in ipairs({"tests/wh2-wizard-state.lua", "tests/wh2-wizard-contract3.lua",
+  "tests/wh2-wizard-board.lua", "tests/wh2-wizard-host.lua", "tests/wh2-wizard-gate-selfcheck.lua"}) do
+  test(path, function()
+    local env = setmetatable({}, {__index=_G})
+    env._G = env
+    env.dofile = function(file) return assert(loadfile(file, "t", env))() end
+    assert(loadfile(path, "t", env))()
+  end)
+end
+
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

@@ -1,12 +1,12 @@
 param(
-    [ValidateSet('Prepare','Run')][string]$Mode = 'Prepare',
+    [ValidateSet('Prepare','Run','Probe')][string]$Mode = 'Prepare',
     [ValidateSet('Box','Local')][string]$HostKind = 'Box',
     [string]$RunId = '',
     [string]$TestRoot = '',
     [string]$Bindings = '',
     [scriptblock]$Rcon,
     [scriptblock]$Restart,
-    [string]$Output = 'C:\Work\gemini-input\p3\evidence\wizard',
+    [string]$Output = 'C:\Work\gemini-input\p3\evidence\wizard\gateB',
     [ValidateRange(7200,86400)][int]$SoakSeconds = 7200,
     [ValidateRange(10,60)][int]$SampleSeconds = 30,
     [ValidateRange(30,900)][int]$TimeoutSeconds = 120,
@@ -15,6 +15,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 . "$source\tests\wh2-wizard-gate-host.ps1"
+if (!$Bindings) { $Bindings = Join-Path $source 'tests\wh2-wizard-gate-bindings.lua' }
 $plan = Get-Content -LiteralPath "$source\tests\wh2-wizard-gate-plan.json" -Raw | ConvertFrom-Json
 $utf8 = New-Object Text.UTF8Encoding($false)
 $attempt = Join-Path $Output ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
@@ -67,7 +68,7 @@ function Get-WizardScene {
         $x = $id * 2
         $cmds.Add("setblock $x 64 2 minecraft:chest")
         $cmds.Add("setblock $x 66 2 minecraft:barrel")
-        $cmds.Add("setblock $x 65 2 computercraft:turtle_advanced{ComputerId:$id,Fuel:2000,RightUpgrade:`"computercraft:wireless_modem_advanced`"}")
+        $cmds.Add("setblock $x 65 2 computercraft:turtle_advanced[facing=north]{ComputerId:$id,Fuel:2000,RightUpgrade:`"computercraft:wireless_modem_advanced`"}")
         $slot = 0
         foreach ($row in $plan.inventories[0].contents) {
             $cmds.Add("item replace block $x 66 2 container.$slot with $($row.item) $($row.count)")
@@ -78,10 +79,11 @@ function Get-WizardScene {
 }
 
 $missing = [Collections.Generic.List[string]]::new()
-foreach ($file in @('sha2.lua','ssot-auth.lua','wh2-client.lua','wh2-wizard.lua','wh2-board.lua','wh2-wizard-adapter.lua')) {
-    if (!(Test-Path -LiteralPath "$source\$file")) { $missing.Add($file) }
+foreach ($role in @('server','client')) {
+    foreach ($file in @(Get-WizardGateMissing $source $role $Bindings)) {
+        if (!$missing.Contains($file)) { $missing.Add($file) }
+    }
 }
-if (!$Bindings -or !(Test-Path -LiteralPath $Bindings -PathType Leaf)) { $missing.Add('authenticated wh2-wizard-gate-bindings.lua supplied through -Bindings') }
 $provenance = [Collections.Generic.List[object]]::new()
 if (Test-Path -LiteralPath $ModJar) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -100,27 +102,28 @@ $scene = @(Get-WizardScene)
 [IO.File]::WriteAllLines("$attempt\scene.rcon.txt", $scene, $utf8)
 Copy-Item -LiteralPath "$source\tests\wh2-wizard-gate-plan.json" -Destination "$attempt\requirements.json"
 $diskInventory = [Collections.Generic.List[object]]::new()
-$commonFiles = @('atomic.lua','ssot.lua','ssot-client.lua','sha2.lua','ssot-auth.lua','wh2-client.lua',
-    'wh2-fleet.lua','wh2-wizard.lua','wh2-board.lua','wh2-wizard-adapter.lua','wh2-layout.lua','wh2-craft.lua','wh2-recipes.lua')
 foreach ($id in 0..6) {
     $disk = Join-Path $computers $id
     New-Item -ItemType Directory -Path $disk -Force | Out-Null
-    $names = $commonFiles
-    if ($id -eq 0) { $names += @('server.lua','mine-tasks.lua','warehouse-tasks.lua') }
+    $manifestRole = if ($id -eq 0) { 'server' } else { 'client' }
+    $names = @(Get-WizardGateFiles $source $manifestRole)
     foreach ($name in $names) {
         if (!(Test-Path -LiteralPath "$source\$name")) { continue }
+        New-Item -ItemType Directory -Path (Split-Path -Parent "$disk\$name") -Force | Out-Null
         [IO.File]::WriteAllText("$disk\$name", [IO.File]::ReadAllText("$source\$name").Replace("`r`n", "`n"), $utf8)
     }
-    foreach ($name in @('wh2-wizard-gate-runtime.lua','wh2-wizard-gate-checks.lua')) {
+    foreach ($name in @('wh2-wizard-gate-runtime.lua','wh2-wizard-gate-checks.lua','wh2-wizard-gate-inventory.lua','wh2-wizard-gate-prerequisites.json')) {
         Copy-Item -LiteralPath "$source\tests\$name" -Destination $disk
     }
     Copy-Item -LiteralPath "$source\tests\sandbox\wh2-wizard-driver.lua" -Destination "$disk\startup.lua"
     if ($Bindings -and (Test-Path -LiteralPath $Bindings)) { Copy-Item -LiteralPath $Bindings -Destination "$disk\wh2-wizard-gate-bindings.lua" }
     $role = if ($id -eq 0) { 'server' } elseif ($id -in @(5,6)) { 'board' } else { 'turtle' }
-    Write-WizardJson "$disk\wizard-config.json" @{schema=1; enabled=$true; role=$role; computerId=$id; serverId=0; operators=@{'5'=$true;'6'=$true}; diskLimit=$plan.diskLimit; unknowns=$plan.unknowns; sampleSeconds=$SampleSeconds}
-    $bytes = (Get-ChildItem -LiteralPath $disk -File | Measure-Object -Property Length -Sum).Sum
-    $diskInventory.Add(@{computerId=$id; stagedBytes=$bytes; capacity=$plan.diskLimit; headroom=$plan.diskLimit-$bytes; files=@(Get-ChildItem -LiteralPath $disk -File | Select-Object Name,Length)})
-    if ($bytes -ge $plan.diskLimit) { $missing.Add("computer $id source already exceeds the disk limit") }
+    Write-WizardJson "$disk\wizard-config.json" @{schema=1; enabled=$true; requireMac=$true; role=$role; computerId=$id; serverId=0; operators=@{'5'=$true;'6'=$true}; diskLimit=$plan.diskLimit; unknowns=$plan.unknowns; sampleSeconds=$SampleSeconds}
+    $files = @(Get-ChildItem -LiteralPath $disk -File -Recurse)
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    $allocated = (($files | ForEach-Object { [math]::Max(500,$_.Length) }) | Measure-Object -Sum).Sum + 500 * @(Get-ChildItem -LiteralPath $disk -Directory -Recurse).Count
+    $diskInventory.Add(@{computerId=$id; stagedBytes=$bytes; allocatedBytes=$allocated; controlReserve=65536; capacity=$plan.diskLimit; headroom=$plan.diskLimit-$allocated-65536; files=@($files | ForEach-Object { @{name=$_.FullName.Substring($disk.Length+1);bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash} })})
+    if ($allocated + 65536 -ge $plan.diskLimit) { $missing.Add("computer $id source leaves no control reserve under the disk limit") }
 }
 Write-WizardJson "$attempt\staged-disk-sizes.json" $diskInventory.ToArray()
 Write-WizardJson "$attempt\preparation.json" @{status='prepared'; runtimeExecuted=$false; missing=@($missing.ToArray()); computers=$computers; sceneCommands=$scene.Count; diskLimit=$plan.diskLimit; soakSeconds=$SoakSeconds}
@@ -129,13 +132,18 @@ if ($Mode -eq 'Prepare') {
     if ($missing.Count) { Write-Output ('Missing prerequisites: ' + ($missing -join ', ')) }
     return
 }
-if ($missing.Count) { throw ('Wizard runtime blocked: ' + ($missing -join ', ')) }
+if ($missing.Count -and $Mode -ne 'Probe') {
+    Write-WizardJson "$attempt\runtime.json" @{status='blocked';hostKind=$HostKind;runId=$RunId;missing=@($missing.ToArray());runtimeExecuted=$false}
+    Write-WizardJson "$attempt\requirement-status.json" @($plan.requirements | ForEach-Object { @{id=$_.id;applies=$_.applies;status=$(if ($_.applies) { 'blocked' } else { 'outside-scope' });reason=$(if ($_.applies) { 'Production prerequisites are missing.' } else { $_.reason })} })
+    throw ('Wizard runtime blocked: ' + ($missing -join ', '))
+}
 if ($HostKind -eq 'Box') {
     if (!$RunId) { throw 'Run requires an existing disposable box RunId.' }
     . C:\Work\gemini-input\gateb\gateb.ps1
     $run = Get-GatebRun $RunId
     if ($run.space_limit -and $run.space_limit -ne $plan.diskLimit) { throw 'Use a disposable run with SpaceLimit 1000000.' }
     Send-GatebDir $RunId "$prepared\world\computercraft" 'world'
+    Write-WizardJson "$attempt\host.json" @{kind='box';runId=$RunId;host='100.78.96.94';port=$run.game_port;description="box run $RunId at 100.78.96.94:$($run.game_port) (disposable, not live)"}
 } else {
     if (!$Rcon -or !$Restart) { throw 'Local Run requires loopback-only Rcon and process Restart scriptblocks from the owning runner.' }
     $resolved = [IO.Path]::GetFullPath($TestRoot)
@@ -165,9 +173,9 @@ function Get-WizardFile([int]$Id, [string]$Name) {
     $local = Join-Path $resolved $path
     if (Test-Path -LiteralPath $local) { [IO.File]::ReadAllText($local) }
 }
-function Start-WizardCommand([int[]]$Ids, [string]$Action, [string]$Case = '') {
+function Start-WizardCommand([int[]]$Ids, [string]$Action, [string]$Case = '', [string]$Barrier = '') {
     $nonce = [guid]::NewGuid().ToString('N')
-    foreach ($id in $Ids) { Set-WizardFile $id 'wizard-command.json' (@{nonce=$nonce;action=$Action;case=$Case} | ConvertTo-Json -Compress) }
+    foreach ($id in $Ids) { Set-WizardFile $id 'wizard-command.json' (@{nonce=$nonce;action=$Action;case=$Case;barrier=$Barrier} | ConvertTo-Json -Compress) }
     return $nonce
 }
 function Wait-WizardCommand([int[]]$Ids, [string]$Nonce) {
@@ -189,8 +197,8 @@ function Wait-WizardCommand([int[]]$Ids, [string]$Nonce) {
         } while ($true)
     }
 }
-function Invoke-WizardCommand([int[]]$Ids, [string]$Action, [string]$Case = '') {
-    Wait-WizardCommand $Ids (Start-WizardCommand $Ids $Action $Case)
+function Invoke-WizardCommand([int[]]$Ids, [string]$Action, [string]$Case = '', [string]$Barrier = '') {
+    Wait-WizardCommand $Ids (Start-WizardCommand $Ids $Action $Case $Barrier)
 }
 $archives = [Collections.Generic.List[object]]::new()
 function Get-WizardChest([int[]]$Pose) {
@@ -253,14 +261,62 @@ try {
     Invoke-WizardRcon $scene | Out-Null
     foreach ($room in $plan.rooms) {
         $pose = @(($room.min[0]+2),65,($room.min[2]+5))
-        Write-WizardJson "$attempt\room-$($room.id)-inventory.json" (Get-WizardChest $pose)
+        $a = $room.min; $b = $room.max
+        $condition = "execute if block $($a -join ' ') minecraft:stone if block $($b -join ' ') minecraft:stone"
+        if ($room.pillar) { $condition += " if block $($room.pillar -join ' ') minecraft:stone" }
+        if ($room.notch) { $condition += " if block $($room.notch[0] -join ' ') minecraft:stone" }
+        $reply = Invoke-WizardRcon @("$condition run data get block $($pose -join ' ') Items")
+        $counts = ConvertFrom-WizardInventory ($reply -join "`n")
+        if ($counts.Count -ne 1 -or $counts['minecraft:stone'] -ne 37) { throw "Room $($room.id) lost its physical fixture count or geometry." }
+        Write-WizardJson "$attempt\room-$($room.id)-inventory.json" $counts
     }
     Invoke-WizardRcon @('computercraft turn-on 0 1 2 3 4 5 6') | Out-Null
+    if ($Mode -eq 'Probe') {
+        $boots = [Collections.Generic.List[object]]::new()
+        foreach ($id in 0..6) {
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            do {
+                $boot = Get-WizardFile $id 'wizard-boot.json'
+                $failure = Get-WizardFile $id 'sandbox-result.json'
+                if ($boot -and $failure) { break }
+                if ($boot -and ($boot | ConvertFrom-Json).authenticated) { break }
+                if ([DateTime]::UtcNow -gt $deadline) { throw "Computer $id did not finish its startup probe." }
+                Start-Sleep -Milliseconds 500
+            } while ($true)
+            $boots.Add(@{computerId=$id;boot=($boot | ConvertFrom-Json);failure=$(if ($failure) { $failure | ConvertFrom-Json } else { $null })})
+        }
+        Write-WizardJson "$attempt\startup-probe.json" $boots.ToArray()
+        $rows = [Collections.Generic.List[object]]::new()
+        foreach ($id in 1..4) {
+            foreach ($y in @(64,65,66)) {
+                $counts = Get-WizardChest @(($id*2),$y,2)
+                foreach ($item in $counts.Keys) { $rows.Add([pscustomobject]@{location="block:$($id*2):${y}:2";item=$item;count=$counts[$item]}) }
+            }
+        }
+        Write-WizardJson "$attempt\counts-startup-probe.json" $rows.ToArray()
+        foreach ($load in $plan.inventories[0].contents) {
+            $actual = ($rows | Where-Object { $_.item -eq $load.item } | Measure-Object -Property count -Sum).Sum
+            if ($actual -ne 4 * $load.count) { throw "Startup probe changed the exact mixed load for $($load.item)." }
+        }
+        Write-WizardJson "$attempt\requirement-status.json" @($plan.requirements | ForEach-Object { @{id=$_.id;applies=$_.applies;status=$(if ($_.applies) { 'blocked' } else { 'outside-scope' });reason=$(if ($_.applies) { 'Startup probe is partial evidence. The authenticated scenario has not run.' } else { $_.reason })} })
+        if (@($boots | Where-Object { !$_.boot.authenticated -or $_.failure }).Count) {
+            throw 'Real-computer startup probe failed. Read startup-probe.json and each computer prerequisite report.'
+        }
+        Write-WizardJson "$attempt\runtime.json" @{status='probe-complete-no-gate-verdict';runId=$RunId;hostKind=$HostKind;runtimeExecuted=$true}
+        return
+    }
     Save-WizardCounts 'initial' 1 $false
     Invoke-WizardCommand @(1,2,3,4) 'report'
     Invoke-WizardCommand @(1,2,3,4) 'report'
     Invoke-WizardCommand @(1,2,3,4) 'route'
     Save-WizardCounts 'unknown-retained' 1 $false
+    Invoke-WizardCommand @(5) 'draft'
+    Invoke-WizardCommand @(1,2,3,4) 'report'
+    Invoke-WizardRcon @('computercraft reboot 5') | Out-Null
+    Invoke-WizardCommand @(5) 'draft-retained' '' 'computer-reboot'
+    Invoke-WizardCommand @(6) 'draft-owner'
+    Invoke-WizardCommand @(5) 'draft-owner'
+    Invoke-WizardCommand @(5) 'draft-discard'
     Invoke-WizardCommand @(5) 'answer'
     Invoke-WizardCommand @(1,2,3,4) 'route'
     Save-WizardCounts 'answered' 1 $true
@@ -279,11 +335,13 @@ try {
     $loser = @($race | Where-Object { $_.result.nonce -eq $raceNonce -and $_.result.reply.code -eq 'stale_revision' })
     if ($winner.Count -ne 1 -or $loser.Count -ne 1) { throw 'Concurrent operator answers did not produce exactly one accepted answer and one stale rejection.' }
     Invoke-WizardCommand @($loser[0].id) 'stale'
+    Invoke-WizardCommand @(5) 'checkpoint'
     Invoke-WizardRcon @('computercraft reboot 1 2 3 4 5') | Out-Null
-    Invoke-WizardCommand @(5) 'retained'
+    Invoke-WizardCommand @(5) 'retained' '' 'computer-reboot'
+    Invoke-WizardCommand @(5) 'checkpoint'
     if ($HostKind -eq 'Box') { Stop-GatebRun $RunId | Out-Null; Start-GatebRun $RunId | Out-Null }
     else { & $Restart }
-    Invoke-WizardCommand @(5) 'retained'
+    Invoke-WizardCommand @(5) 'retained' '' 'server-restart'
     Add-WizardUnknownLoad
     Invoke-WizardCommand @(1,2,3,4) 'route'
     Save-WizardCounts 'after-restart' 2 $true
@@ -311,8 +369,8 @@ try {
     Invoke-WizardRcon @('setblock -4 66 -4 minecraft:air') | Out-Null
     Invoke-WizardCommand @(5) 'boundary' 'modem-removal'
     Invoke-WizardRcon @('setblock -4 66 -4 computercraft:wireless_modem_advanced[facing=down]') | Out-Null
-    Invoke-WizardCommand @(5) 'retained'
-    foreach ($case in @('authentication','event-bursts','unload','updates')) {
+    Invoke-WizardCommand @(5) 'retained' '' 'modem-restored'
+    foreach ($case in @('authentication','event-bursts','unload','updates','durable-outbox','h4')) {
         Invoke-WizardCommand @(5) 'boundary' $case
     }
     Invoke-WizardRcon @('computercraft shutdown 1','data merge block 2 65 2 {Fuel:2000}','computercraft turn-on 1') | Out-Null
@@ -330,7 +388,7 @@ try {
     } while (([DateTime]::UtcNow - $soakStart).TotalSeconds -lt $SoakSeconds)
     Write-WizardJson "$attempt\runtime.json" @{status='awaiting-evidence-review';runId=$RunId;hostKind=$HostKind;soakSeconds=([DateTime]::UtcNow-$soakStart).TotalSeconds;capture='missing-lead-owned-F2-and-video'}
 } catch {
-    Write-WizardJson "$attempt\runtime.json" @{status='failed';error=$_.Exception.Message;runId=$RunId;hostKind=$HostKind}
+    Write-WizardJson "$attempt\runtime.json" @{status='failed';error=$_.Exception.Message;runId=$RunId;hostKind=$HostKind;mode=$Mode}
     throw
 } finally {
     if ($HostKind -eq 'Box') {
@@ -338,7 +396,8 @@ try {
         Save-GatebDir $RunId 'logs' $attempt
         foreach ($name in @('jar-sha256.txt','rcon.txt')) {
             $text = Get-GatebText $RunId $name
-            if ($text) { [IO.File]::WriteAllText("$attempt\box-$name", $text, $utf8) }
+            $savedName = if ($name -eq 'rcon.txt') { 'box-rcon.txt' } else { $name }
+            if ($text) { [IO.File]::WriteAllText("$attempt\$savedName", $text, $utf8) }
         }
     } else {
         Copy-Item -LiteralPath "$resolved\world\computercraft\computer" -Destination "$attempt\computers" -Recurse

@@ -3,3 +3,4 @@ ts	phase	decision	why	evidence	result
 2026-10-20T15:10:00Z	state	Keep answers and questions in the SSOT wizard subtree.	Every board and worker needs the same durable answers.	docs/design/wh2-contract.md:153	shape fixed
 2026-10-20T15:20:00Z	recipes	Use Recipe Index for cooking suggestions.	The static dump excludes cooking recipes.	docs/design/wh2-contract.md:249	provider required
 2026-10-20T15:25:00Z	verification	Add explicit sandbox disk and data-directory options.	The default 4 MB sandbox does not prove the required 1 MB limit.	tests/sandbox/run.ps1	verification pending
+2026-10-20T17:29:38.4673105Z	start	Resume wizard repair after the prior WIP session.	The supplied summary and PR do not exist. Read the pushed code and saved attempts.	/root; 987232d; C:\Work\gemini-input\p3\evidence\wizard	Gate A and Gate B remain open.
