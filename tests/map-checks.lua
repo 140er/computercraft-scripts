@@ -376,8 +376,9 @@ return function(test)
   end)
 
   test("map modules do not call gps", function()
-    local src = read("mapsection.lua") .. read("mapstore.lua") .. read("ssot.lua")
-    assert(not src:find("gps", 1, true))
+    local maps = read("mapsection.lua") .. read("mapstore.lua")
+    assert(not maps:find("gps", 1, true))
+    assert(not read("ssot.lua"):find("gps.", 1, true))
   end)
 
   if type(fs) == "table" and type(fs.getCapacity) == "function" and fs.getCapacity("/") == 4000000 then

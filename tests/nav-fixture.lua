@@ -45,17 +45,24 @@ return function(Nav,mocks)
     m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
     local cfg={pose={dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h},bounds={min={dim=p.dim,x=-5,y=63,z=-5},max={dim=p.dim,x=5,y=68,z=5}},
       canExcavate=function(info) return info.name=="minecraft:stone" end,maxNodes=options.maxNodes,maxCells=options.maxCells,batch=options.batch,
-      traffic=options.traffic,trafficWaits=3,
-      observe=function() if gps then return {dim=p.dim,x=p.x,y=p.y,z=p.z} end end,
+      traffic=options.traffic,trafficWaits=3,gpsFree=options.gpsFree,moveCost=options.moveCost,
+      charging=options.charging,regeneration=options.regeneration,check=options.check,
+      observe=options.observe or function() if gps then return {dim=p.dim,x=p.x,y=p.y,z=p.z} end end,
       yield=function() if options.onYield then options.onYield(nav) end end,
       checkpoint=function(name) if options.crash==name then error("crash " .. name) end end,
       client={call=options.call,resync=function() return true,nil,options.epoch end,calibrate=function()
         if faults.calibration then faults.calibration=nil return false,"offline" end
         return true
-      end,move=function(from,to,execute)
+      end,anchor=options.anchor,move=function(from,to,execute)
         assert(math.abs(to.x-from.x)+math.abs(to.y-from.y)+math.abs(to.z-from.z)==1)
         reservations=reservations+1 return execute()
       end}}
+    if options.trapGps then
+      setmetatable(m.env,{__index=function(_,k)
+        if k=="gps" then error("N1 read GPS",0) end
+        return _G[k]
+      end})
+    end
     local function open() nav=m.env.dofile("nav.lua").open(cfg) return nav end
     open()
     return {nav=nav,reopen=open,air=function(v) nav.record({dim=p.dim,x=v[1],y=v[2],z=v[3]},"minecraft:air") end,
