@@ -34,7 +34,7 @@ Build order (each starts after its dependencies):
 | 1 | P0 platform measurements and frozen contract | none |
 | 2 | H3 server request queue (hardening track) | P0 |
 | 3 | H1H2 keyed BLAKE3 MAC and Ed25519 manifest (hardening track) | H3 |
-| 4 | N1 positions without GPS, frames, dead-reckoning confidence | H1H2 (built early, rebased) |
+| 4 | N1 positions without GPS, frames, dead-reckoning confidence | H1H2 (built early; H1H2 gets merged in later, never rebased) |
 | 5 | I1 install core, keyboard installer, enrolment, per-role files | N1, PR 5, PR 6 |
 | 5 | H4a code cache off the server, 2-copy save, control reserve | N1 |
 | 6 | I2 touch installer | I1 |
