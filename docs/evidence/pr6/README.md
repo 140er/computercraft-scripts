@@ -1,38 +1,32 @@
 # PR 6 evidence
 
-Gate A passed for bundle `8152c067`. Gate B is incomplete.
+Gate A passed for production bundle `8152c067`. Gate B is failing. The installed cc_ar 0.2.1 renderer depth-tests 3D lines and text and exposes no see-through API. The required through-wall view remains blocked. See [the bytecode findings](cc-ar-depth.md).
 
-The final mock run passed 116 registered tests and the standalone SSOT, navigation, mining, and AR checks. See [mocks-final.log](mocks-final.log). The updater transport regressions include a failing run before the fixture correction in [regression-checks.txt](regression-checks.txt).
-
-The final CraftOS run used six computers, three turtle emulators, virtual modems, and a 4,000,000-byte disk limit. It exercised the production server and hub, detach and reattach, server ownership recovery, and a complete CraftOS process restart. See [coverage.json](gateA/coverage.json) and [sandbox.log](gateA/sandbox.log). The run directory is `C:\Work\sbx-pr6\b6898016b8e54c0daa799219bc172ded`.
+Gate A passed 116 registered mock tests plus the standalone SSOT, navigation, mining, and AR checks. The CraftOS scenario used six computers, three turtle emulators, virtual modems, and 4,000,000-byte disks. It covered controller detach and replacement, ownership recovery, and full process restart. Results are in [mocks-final.log](mocks-final.log), [coverage.json](gateA/coverage.json), and [sandbox.log](gateA/sandbox.log).
 
 ```powershell
 C:\Tools\lua52\lua52.exe tests\run.lua
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox\run.ps1 -Scenario ar -Seconds 900 -DataRoot C:\Work\sbx-pr6 -Output C:\Work\gemini-input\p2\evidence\pr6\gateA\final-shared
 ```
 
-The sandbox uses strict cc_ar mocks and module-level chat and installation fault injection. Its owners have separate controller stores. `tests/ar-shared-owner.lua` separately proves stale element removal against one shared store. That regression failed before the ownership fix. The native shared-controller checks also passed in `native-priority`.
+The sandbox controllers have separate stores. `tests/ar-shared-owner.lua` separately verifies one shared store. Its stale-element regression failed before the production fix. The native shared-controller checks passed in [native-priority](gateB/native-priority/owner-result.json), including server death/reclaim, forwarded keys, detach/replacement, stale cleanup, and foreign namespace preservation.
 
 ![CraftOS HUD](gateA/ar-hud-emulated.png)
 
-This is a CraftOS screenshot of the emulated HUD, not a Minecraft goggles screenshot. It was captured before the final ownership cleanup change, which does not change the layout.
+This is the emulated HUD. Its layout predates the final ownership cleanup fix; the layout did not change.
 
-The first native attempt used `C:\Work\mc-ssot-pr6-8a9ce730`, ports 50882 and 50883, and the pinned installed mods. The server timed out during world startup before RCON became ready. No Lua probes or client screenshots ran. Its logs are in `C:\Work\gemini-input\p2\evidence\pr6\gateB\native-final`.
+Real AP chat passed in [native-acceptance](gateB/native-acceptance/real-ap-chat.json). An unenrolled UUID caused no action. Authorized hidden and public commands each executed once. Replaying the hidden confirmation token caused no extra action. Only the disposable player's actual UUID was enrolled.
 
-The next attempt booted, but a shared transcript file blocked fixture setup. The runner now retries transcript writes. The fresh retry in `C:\Work\mc-ssot-pr6-cff7c78d`, ports 51342 and 51343, passed native rendering and Minecraft restart recovery. Its actual controller held 95 elements, unchanged frames made zero drawing calls, scoped cleanup preserved a foreign element, and all three real turtles moved. These results use a renderer fixture. They do not yet prove the production owner or chat paths.
+Both native runs passed element creation, three real turtles moving, zero drawing calls for unchanged frames, scoped cleanup, and Minecraft restart recovery. The renderer fixture uses real turtle telemetry and controlled ore positions matching placed blocks. It does not prove production ore ingestion or physical recall.
 
-That client's NeoForge loading window timed out before Minecraft joined. The ownership phase then stopped when a temporary empty status file parsed as null. Both saved owner records still report `ok=true`. The runner now retries empty records and allows the server to finish its startup hashes. The next attempt disables the early loading window only in the isolated AR client configuration.
+The linked-goggles [HUD](gateB/native-acceptance/ar-hud.png) is visible. The [wall image](gateB/native-acceptance/ar-xray.png) shows no through-wall geometry and is retained as failure evidence. The unobstructed image was empty because client shutdown raced F2 encoding. The capture helper now waits for a complete PNG and records its source path.
+
+The later ownership assertion was inconclusive. Its [hub journal](gateB/native-acceptance/4-ar-owner.json) contains no drawing after the forwarded key, but the host test could compare a transient empty read against a counter. Every comparison now waits for fresh valid samples, and saves the key baseline and final state. The zero-mutation assertion is unchanged. The corrected run and native cached-role installation are pending under `gateB\native-verified`.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\run.ps1 -Scenario ar -Client -Timeout 1800 -Output C:\Work\gemini-input\p2\evidence\pr6\gateB\native-retry
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\run.ps1 -Scenario ar -Client -Timeout 1800 -Output C:\Work\gemini-input\p2\evidence\pr6\gateB\native-verified
 ```
 
-The `native-priority` run passed rendering, Minecraft restart recovery, and production ownership checks against one real controller. Server death, hub takeover, server reclaim, forwarded keys, detach, replacement, stale namespace cleanup, and preservation of a foreign namespace passed. See [owner-result.json](gateB/native-priority/owner-result.json).
+Full raw evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`. The [decision trail](decisions.tsv) records earlier startup, transcript, scheduling, and polling failures. Failed runs remain preserved. A result's `visual` field means the requested image paths existed; human inspection is still required.
 
-The real client joined with linked goggles and captured [ar-hud.png](gateB/native-priority/ar-hud.png) and [ar-xray.png](gateB/native-priority/ar-xray.png). The HUD is visible. The wall screenshot has no visible 3D geometry and does not prove x-ray rendering. The AP test sent `confirm pro` because its regex matched the prompt before the command token. The parser now requires `$confirm` or `!confirm`. Both issues need another real-client check.
-
-The native runner keeps renderer, client, and production ownership results separate. Screenshot files alone cannot pass the complete gate. Production recall and charging, all-role installation, and storage integration still need real-game verification.
-
-PR 4 supplies the charging and warehouse boundary. PR 5 supplies view roles and the separate hub's ore snapshot. Those adapters report unavailable in this independent branch. Configured AR bounds record intent; the miner's existing mine and navigation bounds enforce movement limits.
-
-The allowlist starts empty. Verified UUIDs must be enrolled locally. The updater has manual offline repair after interrupted file promotion; automatic reboot recovery is not claimed.
+Production chat recall with physical turtle return remains unverified. PR 4 charging/warehouse and PR 5 views are accepted integration boundaries; their adapters report unavailable. A separate hub has no ore snapshot until PR 5. AR bounds record intent; existing miner bounds enforce movement. UUID authorization starts empty. Interrupted bundle promotion requires manual offline repair.
