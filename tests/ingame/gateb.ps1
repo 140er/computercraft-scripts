@@ -135,7 +135,11 @@ try {
 }
 
 $gates = if ($problems.Count -eq 0) { 'PASS' } else { 'FAIL' }
-$unloaded = @($live.Keys | Where-Object { $name = $_; !(Get-ChildItem $Output -Recurse -Filter 'jar-sha256.txt' | Select-String -SimpleMatch $name -Quiet) })
+$loaded = @{}
+foreach ($file in Get-ChildItem $Output -Recurse -Filter 'jar-sha256.txt') {
+    foreach ($line in Get-Content $file.FullName) { if ($line.Trim()) { $loaded[($line.Trim() -split '\s+', 2)[1]] = $true } }
+}
+$unloaded = @($live.Keys | Where-Object { !$loaded.ContainsKey($_) } | Sort-Object)
 $summary = @("GATES: $gates", '', "Ref $Ref at $sha.", "Host $env:COMPUTERNAME, VM-local disposable servers under C:\Work\mc-ssot-pr1-gb$stamp-*, never live.",
     "Started $($started.ToString('s')), finished $([DateTime]::Now.ToString('s')).", "Live jars from gatebd not loaded by any scenario: $(if ($unloaded) { $unloaded -join ', ' } else { 'none' }).", '',
     '| Scenario | Verdict | Screenshots | Video |', '| --- | --- | --- | --- |') + $rows + @('', 'Problems:') +
