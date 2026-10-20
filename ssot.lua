@@ -123,6 +123,8 @@ function M.config(raw)
   assert(raw.compactSections == nil or raw.compactSections == true or raw.compactSections == false,
     "invalid compactSections")
   raw.compactSections = onByDefault(raw.compactSections)
+  -- Compact maps need mapstore.lua; without it the server keeps the plain map instead of stopping.
+  if raw.compactSections and type(fs)=="table" and fs.exists and not fs.exists("mapstore.lua") then raw.compactSections = false end
   assert(raw.leaseV2 == nil or type(raw.leaseV2) == "boolean", "invalid leaseV2")
   assert(raw.hubProfile == nil or type(raw.hubProfile) == "boolean", "invalid hubProfile")
   assert(raw.planner == nil or type(raw.planner) == "boolean", "invalid planner")

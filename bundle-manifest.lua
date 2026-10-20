@@ -265,7 +265,7 @@ return {
     ["sorter.lua"]="1140c8fa",
     ["ssot-client.lua"]="5c914046",
     ["ssot-hub.lua"]="edc5ee05",
-    ["ssot.lua"]="618552a8",
+    ["ssot.lua"]="640773d8",
     ["storage-peer.lua"]="9a124036",
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="21a6b7bf",
@@ -1395,5 +1395,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="ab53f5cc"
+  ["version"]="17f1260f"
 }
