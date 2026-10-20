@@ -43,11 +43,12 @@ foreach ($pattern in $patterns) {
 }
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
+$diskLimit = 8000000
 foreach ($file in @('computercraft-server.toml')) {
-    $config = [regex]::Replace([IO.File]::ReadAllText("$Base\config\$file"), 'computer_space_limit\s*=\s*\d+', 'computer_space_limit = 8000000')
+    $config = [regex]::Replace([IO.File]::ReadAllText("$Base\config\$file"), 'computer_space_limit\s*=\s*\d+', "computer_space_limit = $diskLimit")
     $limits = @([regex]::Matches($config, 'computer_space_limit\s*=\s*(\d+)') | ForEach-Object { $_.Groups[1].Value })
-    if ($limits.Count -lt 1 -or @($limits | Where-Object { $_ -ne '8000000' }).Count -gt 0) {
-        throw "computer_space_limit in $file did not become 8000000."
+    if ($limits.Count -lt 1 -or @($limits | Where-Object { $_ -ne "$diskLimit" }).Count -gt 0) {
+        throw "computer_space_limit in $file did not become $diskLimit."
     }
     [IO.File]::WriteAllText("$TestRoot\config\$file", $config, $utf8)
     [IO.File]::WriteAllText("$TestRoot\world\serverconfig\$file", $config, $utf8)
@@ -83,12 +84,12 @@ foreach ($id in $computerIds) {
         foreach ($file in (Get-ChildItem "$source\*.lua" | Where-Object { -not $Fleet -or $_.Name -in $fleetFiles -or $_.Name -like 'wh2-*.lua' })) {
             [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
         }
-        Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua", "$source\tests\warehouse-runtime.lua", "$source\tests\warehouse-fixture.lua" $disk
+        Copy-Item "$source\tests\ssot-runtime.lua", "$source\tests\gate-disk.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua", "$source\tests\warehouse-runtime.lua", "$source\tests\warehouse-fixture.lua" $disk
         Copy-Item "$PSScriptRoot\server.lua" "$disk\test-server.lua"
     }
     [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
     $startup = if ($id -eq 0) { 'shell.run("test-server.lua")' } else {
-        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '")'
+        'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '", "' + $diskLimit + '")'
     }
     if ($Scenario -eq 'warehouse') { $startup = $startup.Replace('ssot-runtime.lua','warehouse-runtime.lua') }
     if ($Scenario -eq 'warehouse' -and $id -eq 21) {

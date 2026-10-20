@@ -113,7 +113,8 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
         (Join-Path $sourceFull 'tests\ingame\server.lua'),
         (Join-Path $sourceFull 'tests\ingame\nav-probe.lua'),
         (Join-Path $sourceFull 'tests\ingame\loader-guardian.lua'),
-        (Join-Path $sourceFull 'tests\ingame\charge-probe.lua')
+        (Join-Path $sourceFull 'tests\ingame\charge-probe.lua'),
+        (Join-Path $sourceFull 'tests\gate-disk.lua')
     )
     $seen = @{}
     $queue = New-Object System.Collections.Generic.Queue[string]

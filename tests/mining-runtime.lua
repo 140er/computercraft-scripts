@@ -1,6 +1,6 @@
-local runtime=...
+local runtime, _, diskText = ...
 local id=os.getComputerID()
-assert(fs.getCapacity("/")==4000000,"mining requires a four-megabyte test disk")
+dofile("gate-disk.lua")(diskText)
 local A=dofile("atomic.lua")
 local client=dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=5})
 local messages,pending,serial={}, {},0
