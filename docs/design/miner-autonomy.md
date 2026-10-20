@@ -3,6 +3,16 @@
 Part of the fleet PR. Miners on a normal wireless modem sometimes leave the
 range of the hub and the server. The server stays the source of truth whenever
 it is reachable. Out of range, the miner runs on its own under these rules.
+This is a full feature for normal-modem miners, not a fallback. An ender modem
+stays an option, not the default answer.
+
+## Chunk loading
+
+A normal-modem turtle only keeps working out of range while its area stays
+loaded, by a player nearby or a chunk loader. When the area unloads, the
+turtle freezes. When it loads again, the turtle reboots without GPS, and the
+no-dig-while-lost rule applies: it does not dig until it has re-anchored its
+position.
 
 ## Lease
 
@@ -51,3 +61,6 @@ expires the lease and frees its cells (the H5 dead-turtle recovery).
   low fuel, lava and a blocked path, comes back, syncs, and the server's counts
   reconcile exactly with the items delivered.
 - A miner dies out of range. The lease expires and its cells are freed.
+- A normal-modem miner's area unloads while it is out of range. It freezes,
+  reboots without GPS when the area loads again, and digs nothing until it has
+  re-anchored.

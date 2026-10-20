@@ -36,33 +36,22 @@ The server reads its disk size at runtime through `fs.getCapacity` and
 `fs.getFreeSpace` and never hardcodes it. Live is 4,000,000 bytes today, with
 16,000,000 staged for the next restart.
 
-Large-disk profile (default):
+Steps, in this order:
 
-- No fleet code cache on the state server's disk.
-- Compact chunk format (binary or RLE), saved per chunk when dirty, with
-  batched writes.
-- No full-state copy and validation per request.
-- Alert when the disk is nearly full. A failed save is recovered and reported;
-  it never silences the server until a restart.
+- a. No fleet code cache on the state server's disk.
+- c. Per-chunk dirty saves with batched writes. No full-state copy and
+  validation per request.
+- e. A failed save is recovered and reported. It never silences the server
+  until a restart.
+- b. Compact chunk format (binary or RLE) with a version header.
+- d. Optional: alert when the disk is nearly full.
 
-1 MB profile (small servers), on top of the above:
+### Optional add-on, on hold
 
-- The server offloads cold state, such as map chunks nobody touched recently
-  and old journals, to cold-storage peers.
-- Peers are turtles and computers the server rates as reliable. The score
-  measures how consistently a peer stays reachable: ping and reply success over
-  time, never leaving modem range or sitting in an unloaded chunk, uptime, and
-  power headroom (fuel or battery). Movement does not count against a peer.
-- Preference: store and warehouse robots first (they move a lot but stay in
-  range), then stationary computers, then miners. Long-range miners qualify
-  only while their measured reachability stays high.
-- Each cold chunk lives on at least 2 peers. Content hashes plus HMAC protect
-  integrity.
-- Fetch on demand into a local LRU cache.
-- Re-replicate when a peer's reachability starts to drop, when it is about to
-  run out of power, or when it goes offline. Rebalance by free space.
-- When cold data is unreachable, turtles route conservatively and treat its
-  cells as unknown, never as free.
+Not built until Jeffrey chooses it. Store-robot cold storage: only store and
+warehouse robots inside the base's loaded chunks hold data, and only
+non-rebuildable overflow (archived journals, order history), never the map.
+Two replicas, each checked by hash. No rebalancing and no reachability score.
 
 ## H5: dead turtles
 

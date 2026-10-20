@@ -65,9 +65,7 @@ where it involves the world, in gate B.
   answering `rednet.lookup`/`rednet.host`, a huge counter.
 - Disk: the real limits. Run once with a 1,000,000-byte server disk and
   realistic content (map chunks, journals, fleet records), and once with the
-  large-disk profile read from `fs.getCapacity`. In 1 MB mode, lose cold-storage
-  peers mid-run and check re-replication, and that unreachable cells stay
-  unknown.
+  limit read from `fs.getCapacity` on a larger disk. A failed save recovers.
 - Event loss: a rednet burst during a save and during an HTTP call. No request
   is dropped and the timer still fires.
 - Faults: a commit lost after a real move, the GPS host down, an ender modem
