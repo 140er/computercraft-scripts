@@ -27,6 +27,16 @@ elseif scenario=="views" then
   local h=assert(fs.open("sandbox-result.json","w"))
   h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "views driver stopped")},lines={}})) h.close()
   while true do os.pullEvent() end
+elseif scenario == "planner" then
+  local ok, err = pcall(function() assert(loadfile("planner-driver.lua", "t", _ENV))() end)
+  if not ok and not fs.exists("sandbox-result.json") then
+    local handle = fs.open("sandbox-result.json", "w")
+    if handle then
+      handle.write(textutils.serializeJSON({ ok = false, booted = false, errors = { tostring(err) }, lines = {} }))
+      handle.close()
+    end
+  end
+  while true do os.pullEvent() end
 end
 if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
   local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)

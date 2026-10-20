@@ -1,7 +1,8 @@
 return function(test,read,mocks)
   local sources={}
   for _,path in ipairs({"miner.lua","mining.lua","warehouse.lua","atomic.lua","ssot.lua",
-      "mine-tasks.lua","warehouse-tasks.lua","ssot-client.lua"}) do sources[path]=read(path) end
+      "mine-tasks.lua","warehouse-tasks.lua","ssot-client.lua","planner-ops.lua","planner-core.lua",
+      "planner-enrol.lua","planner-settings.lua"}) do sources[path]=read(path) end
   read=function(path) return assert(sources[path],"fixture source missing: "..path) end
   test("recharge command completion survives restart and rejects replay",function()
     local fixture=dofile("tests/nav-fixture.lua")(nil,mocks)

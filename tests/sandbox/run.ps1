@@ -2,7 +2,7 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = '',
     [ValidateRange(100000, 64000000)][int]$Disk = 4000000
@@ -20,6 +20,7 @@ if ($Scenario -eq 'install' -and !$PSBoundParameters.ContainsKey('Seconds')) { $
 $process = $null
 
 # PowerShell cmdlets accept '\' on Linux. System.IO and CraftOS do not.
+if ($Scenario -eq 'planner' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 60 }
 function ConvertTo-SandboxPath([string]$Path) {
     if ($script:OnLinux) { return $Path.Replace('\', '/') }
     return $Path
@@ -137,7 +138,9 @@ try {
         useHardwareRenderer = $false; useWebP = $false
     } | ConvertTo-Json
     Write-SandboxText "$run\config\global.json" $config $utf8
-    if ($Scenario -eq 'install') {
+    if ($Scenario -eq 'planner') {
+        $roles = @('server','turtle1','turtle2')
+    } elseif ($Scenario -eq 'install') {
         # Payloads live in the ROM so they do not count against the 1000000 byte disk.
         $payload = Join-Path (Join-Path (Join-Path $run 'rom') 'rom') 'bundle'
         New-Item -ItemType Directory -Force -Path $payload | Out-Null
@@ -175,7 +178,7 @@ try {
             continue
         }
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse','ar','views','planner')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -192,6 +195,9 @@ try {
             }
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        if ($Scenario -eq 'planner') {
+            Copy-Item -LiteralPath "$PSScriptRoot\planner-driver.lua" -Destination $disk
+        }
         if ($Scenario -eq 'ar') {
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
             Copy-Item -LiteralPath "$PSScriptRoot\ar-driver.lua" -Destination $disk

@@ -721,6 +721,17 @@ local function pickScreen()
   return best or term.native(), best ~= nil
 end
 local screen, touchable = pickScreen()
+local plannerHost
+if ssot and ssot.plan and ssotConfig and ssotConfig.planner == true and fs.exists("planner-host.lua") then
+  local loaded, Host = pcall(dofile, "planner-host.lua")
+  if loaded and type(Host) == "table" and type(Host.attach) == "function" then
+    local opened, host = pcall(Host.attach, { ssot = ssot, screen = screen, clock = now })
+    if opened then plannerHost = host
+    else log("error", os.getComputerID(), "planner: " .. tostring(host)) end
+  elseif not loaded then
+    log("error", os.getComputerID(), "planner: " .. tostring(Host))
+  end
+end
 
 local function note(text)
   ui.note, ui.noteUntil = text, now() + 6000
@@ -963,6 +974,7 @@ end
 
 local TABS = { { "fleet", "Fleet" }, { "3d", "3D" }, { "log", "Log" }, { "code", "Code" } }
 local function draw()
+  if plannerHost then plannerHost.draw() return end
   local w, h = screen.getSize()
   ui.buttons, ui.ctl, ui.hits = {}, {}, {}
   screen.setBackgroundColor(colors.black)
@@ -1072,7 +1084,12 @@ local function network()
       end
       timer = os.startTimer(1)
     elseif ev == "monitor_touch" or ev == "mouse_click" then
-      if touch(m, proto) then draw() end
+      if plannerHost then plannerHost.touch(m, proto) draw()
+      elseif touch(m, proto) then draw() end
+    elseif ev == "char" and plannerHost then
+      plannerHost.char(id) draw()
+    elseif ev == "key" and plannerHost then
+      plannerHost.key(id) draw()
     elseif ev == "mouse_scroll" then
       ui.scroll = ui.scroll + id
       draw()
@@ -1098,9 +1115,11 @@ local function network()
       end
       arDirty = true
       screen, touchable = pickScreen()
+      if plannerHost then plannerHost.setScreen(screen) end
       draw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       screen, touchable = pickScreen()
+      if plannerHost then plannerHost.setScreen(screen) end
       draw()
     end
   end

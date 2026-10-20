@@ -1,7 +1,7 @@
 return function(test, read, mocks)
   local sources={}
   for _,path in ipairs({"server.lua","hub.lua","ssot.lua","atomic.lua","mine-tasks.lua","warehouse-tasks.lua",
-      "ar-hud.lua","chat-control.lua"}) do sources[path]=read(path) end
+      "ar-hud.lua","chat-control.lua","planner-ops.lua","planner-core.lua","planner-enrol.lua","planner-settings.lua"}) do sources[path]=read(path) end
   read=function(path) return assert(sources[path],"fixture source missing: "..path) end
   local UUID = "12345678-1234-1234-1234-123456789abc"
   local OTHER = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -88,7 +88,7 @@ return function(test, read, mocks)
     m.env.fs.move=function(from,to) assert(m.files[from]) m.files[to],m.files[from]=m.files[from],nil end
     m.env.fs.makeDir=function() end
     m.env.dofile=function(path) return assert(load(read(path),"@"..path,"t",m.env))() end
-    for _,path in ipairs({"ssot.lua","atomic.lua","ar-hud.lua","chat-control.lua"}) do m.files[path]=read(path) end
+    for _,path in ipairs({"ssot.lua","atomic.lua","ar-hud.lua","chat-control.lua","planner-ops.lua","planner-core.lua","planner-enrol.lua","planner-settings.lua"}) do m.files[path]=read(path) end
     if cfg then m.files["ssot.cfg"]=mocks.encode(cfg) end
     m.files["ar.cfg"]=mocks.encode({enabled=true,ownerName="Jeffreyy2",ownerUUID=UUID,xrayOres=false})
     m.start(read("server.lua"))
