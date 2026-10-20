@@ -40,7 +40,7 @@ elseif id==6 then
 elseif id == 5 then
   rednet.send(0,true,"ssot_boot")
   local A=dofile("atomic.lua")
-  local store=A.store("world.state",function(v) return type(v)=="table" and type(v.poses)=="table" end)
+  local store=A.mount("/"):open("world.state",function(v) return type(v)=="table" and type(v.poses)=="table" end,{class="bulk",limit=900000})
   local world = dofile("turtle.lua").world(store.value,scenario)
   local results,order={},{}
   while true do
@@ -56,7 +56,7 @@ elseif id == 5 then
         if not values then
           values=world.handle(from,m.op,m.args)
           if m.op~="pose" and not m.op:match("^get") and not m.op:match("^inspect") and not m.op:match("^detect") then
-            assert(store.save(world.state()))
+            assert(store:save(world.state()))
           end
           results[key]=values order[#order+1]=key
           while #order>128 do results[table.remove(order,1)]=nil end

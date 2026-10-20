@@ -65,7 +65,7 @@ local function receive()
 end
 local function request(op,v) local r,why=client.call(op,v) assert(r and r.ok,why or r and r.error or op) return r end
 local function controller()
-  local disk=A.store("warehouse-controller.state",function(v) return type(v)=="table" end)
+  local disk=A.mount("/"):open("warehouse-controller.state",function(v) return type(v)=="table" end,{class="bulk",limit=900000})
   if not disk.value then
     if runtime=="sandbox" then
       dofile("warehouse-unit.lua")
@@ -86,7 +86,7 @@ local function controller()
       wait("claimed",peer)
     end
     for peer=1,3 do wait("paused",peer) end
-    assert(disk.save({restart=true})) json("restart-ready.json",{ok=true})
+    assert(disk:save({restart=true})) json("restart-ready.json",{ok=true})
     while true do sleep(1) end
   end
   for peer=1,3 do wait("resumed-ready",peer) publish(peer,"resume") end
@@ -131,11 +131,11 @@ local function worker()
   assert(ok,why)
   for _,p in ipairs(F.air) do if not F.blocks[p.x..","..p.y..","..p.z] then nav.record(p,"minecraft:air") end end
   for k,name in pairs(F.blocks) do local x,y,z=k:match("([^,]+),([^,]+),([^,]+)") nav.record({dim=home.dim,x=tonumber(x),y=tonumber(y),z=tonumber(z)},name) end
-  local disk=A.store("warehouse-gate.state",function(v) return type(v)=="table" end)
+  local disk=A.mount("/"):open("warehouse-gate.state",function(v) return type(v)=="table" end,{class="bulk",limit=900000})
   local g=disk.value or {}
   local function checkpoint(point)
     if not g.paused and point==({[1]="pickup-physical",[2]="deliver-physical",[3]="restore-physical"})[id] then
-      g.paused=true assert(disk.save(g))
+      g.paused=true assert(disk:save(g))
       json("warehouse-paused.json",{pose=nav.pose(),point=point}) publish(4,"paused")
       while true do sleep(1) end
     end

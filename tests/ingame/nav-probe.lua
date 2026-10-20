@@ -21,7 +21,7 @@ local function worker()
   local h=assert(fs.open("sandbox-result.json","r"))
   local result=textutils.unserializeJSON(h.readAll()) h.close()
   local mode=assert(fs.open("nav-probe","r")) local phase=mode.readAll() mode.close()
-  local progress=A.store("nav-probe-progress",function(v) return type(v)=="table" and type(v.result)=="table" end,200000)
+  local progress=A.mount("/"):open("nav-probe-progress",function(v) return type(v)=="table" and type(v.result)=="table" end,{class="bulk",limit=200000})
   if phase=="resume" then result=assert(progress.value,"missing probe checkpoint").result end
   local nav,last
   local function observed()
@@ -63,7 +63,7 @@ local function worker()
     assert(nav.go({dim=dim,x=4,y=66,z=4},"explore"))
     for x=5,31 do assert(nav.go({dim=dim,x=x,y=66,z=4},"explore")) end
     last=nav.pose()
-    assert(progress.save({result=result}))
+    assert(progress:save({result=result}))
     turtle.select(1) assert(turtle.equipRight())
     peripheral.find("modem",rednet.open)
     signal("nav-loader-disabled")

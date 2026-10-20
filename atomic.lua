@@ -297,19 +297,6 @@ function record:save(value)
   return true
 end
 
-function M.store(path, valid, limit)
-  local disk = M.mount("/")
-  disk.records[path] = nil
-  local rec = disk:open(path, valid, { class = "bulk", limit = limit or 900000 })
-  local api = { value = rec.value }
-  function api.save(value)
-    local ok, err = rec:save(value)
-    if ok then api.value = rec.value end
-    return ok, err
-  end
-  return api
-end
-
 function M.replaceBytes(path, text, valid)
   if type(text) ~= "string" or type(valid) ~= "function" or not valid(text) then
     note(path, "bulk", "invalid")
