@@ -16,15 +16,90 @@ local function nearby(p,cfg)
   return position(p) and position(o) and p.dim==cfg.dimension and o.dim==cfg.dimension
     and (p.x-o.x)^2+(p.y-o.y)^2+(p.z-o.z)^2<=limit(cfg.radius,64,256)^2
 end
+local function coords(p)
+  return type(p)=="table" and finite(p.x) and finite(p.y) and finite(p.z) and p.conf~="lost" and p or nil
+end
+local function configuredDim(explicit, cfg)
+  if type(explicit)=="string" and explicit~="" then return explicit end
+  if type(cfg)=="table" and type(cfg.dimension)=="string" and cfg.dimension~="" then return cfg.dimension end
+end
+-- A fix is a known x y z, or a dead-reckoned pose that is not lost.
+-- A missing dimension uses the configured one. No fix stays unplaced.
+function H.place(t, cfg)
+  if type(t)~="table" then return nil end
+  local at, dim = coords(t), type(t.dim)=="string" and t.dim or nil
+  if not at and type(t.pose)=="table" then at, dim = coords(t.pose), t.pose.dim end
+  if not at and type(t.gps)=="table" then at, dim = coords(t.gps), t.gps.dim or t.dim end
+  if not at and type(t.pos)=="table" and (t.pos.dim or t.pos.conf or t.pos.src or t.pos.v) then
+    at, dim = coords(t.pos), t.pos.dim or t.dim
+  end
+  if not at then return nil end
+  dim = configuredDim(dim, cfg)
+  if not dim then return nil end
+  return { x=at.x, y=at.y, z=at.z, dim=dim, conf=at.conf, src=at.src }
+end
+function H.ensureOrigin(cfg, spot)
+  if type(cfg)~="table" or cfg.enabled==false or position(cfg.origin) then return false end
+  local at
+  if type(spot)=="table" then
+    at = coords(spot)
+      or (type(spot.pos)=="table" and coords(spot.pos))
+      or (type(spot.origin)=="table" and coords(spot.origin))
+  end
+  if not at then return false end
+  local dim = configuredDim(type(at.dim)=="string" and at.dim or (type(spot.dim)=="string" and spot.dim or nil), cfg)
+  if not dim then return false end
+  cfg.dimension = dim
+  cfg.origin = { dim=dim, x=at.x, y=at.y, z=at.z }
+  return true
+end
+local keyNames = { p="P", t="T", o="O", a="A" }
+function H.layerKey(ev, key, shifted)
+  if ev=="char" and layers[key] then return key end
+  if ev=="key" and shifted==true and type(key)=="string" then return keyNames[key:lower()] end
+end
+function H.hints(cfg, authCfg, input)
+  if type(cfg)~="table" or cfg.enabled~=true then return nil end
+  input = type(input)=="table" and input or {}
+  if input.keys~=true and input.touch~=true then return nil end
+  local function works(layer)
+    if input.server==true then return authorized(cfg, authCfg) end
+    if layer~="proHud" and not authorized(cfg, authCfg) then return false end
+    return true
+  end
+  local names = {
+    { key="P", layer="proHud", word="HUD" },
+    { key="T", layer="xrayTurtles", word="turtles" },
+    { key="O", layer="xrayOres", word="ore" },
+    { key="A", layer="xrayTunnels", word="air" },
+  }
+  local parts = {}
+  for _, item in ipairs(names) do
+    if works(item.layer) then
+      parts[#parts+1] = input.keys==true and ("Shift+"..item.key.." "..item.word) or ("Tap "..item.word)
+    end
+  end
+  if #parts==0 then return nil end
+  local line = table.concat(parts, " | ")
+  if #line>64 then
+    parts = {}
+    for _, item in ipairs(names) do
+      if works(item.layer) then parts[#parts+1] = input.keys==true and ("Shift+"..item.key) or item.word end
+    end
+    line = table.concat(parts, " ")
+  end
+  return #line<=64 and line or line:sub(1, 64)
+end
 local function context(turtles,cfg)
   if not cfg.followTarget then return cfg end
   local out={}
   for k,v in pairs(cfg) do out[k]=v end
   out.origin=nil
   for _,t in ipairs(turtles or {}) do
-    if tostring(t.id)==tostring(cfg.followTarget) and not t.stale and position(t) then
-      out.origin={x=t.x,y=t.y,z=t.z,dim=t.dim}
-      out.dimension=t.dim
+    local placed = H.place(t, cfg)
+    if tostring(t.id)==tostring(cfg.followTarget) and not t.stale and placed then
+      out.origin={x=placed.x,y=placed.y,z=placed.z,dim=placed.dim}
+      out.dimension=placed.dim
       break
     end
   end
@@ -45,8 +120,66 @@ local function yieldWork()
   elseif type(sleep)=="function" then sleep(0) end
 end
 function H.defaults()
-  return {enabled=false,proHud=true,xrayTurtles=true,xrayOres=true,xrayTunnels=false,
+  return {enabled=true,proHud=true,xrayTurtles=true,xrayOres=true,xrayTunnels=false,
     dimension="minecraft:overworld",radius=64,maxTurtles=32,maxCells=128,anchors={}}
+end
+local function uuidOk(value)
+  return type(value)=="string" and value:lower():match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$")
+end
+function H.identity(name, uuid)
+  if type(name)~="string" or #name<1 or #name>16 or not name:match("^[%w_]+$") then return nil end
+  if not uuidOk(uuid) then return nil end
+  return name, uuid:lower()
+end
+function H.adopt(cfg, auth, name, uuid)
+  if type(cfg)~="table" or cfg.enabled==false or type(auth)~="table" then return false end
+  name, uuid = H.identity(name, uuid)
+  if not name then return false end
+  if type(cfg.ownerName)=="string" and cfg.ownerName~="" and type(cfg.ownerUUID)=="string" and cfg.ownerUUID~="" then
+    return false
+  end
+  auth.controllers = type(auth.controllers)=="table" and auth.controllers or {}
+  auth.chatNames = type(auth.chatNames)=="table" and auth.chatNames or {}
+  auth.chatUUIDs = type(auth.chatUUIDs)=="table" and auth.chatUUIDs or {}
+  local existing = auth.chatUUIDs[name]
+  if type(existing)=="string" and existing:lower()~=uuid then return false end
+  local seen = false
+  for _, allowed in ipairs(auth.chatNames) do if allowed==name then seen=true break end end
+  if not seen and #auth.chatNames>=32 then return false end
+  cfg.ownerName, cfg.ownerUUID = name, uuid
+  if not seen then auth.chatNames[#auth.chatNames+1] = name end
+  auth.chatUUIDs[name] = uuid
+  return true
+end
+function H.player(detector)
+  if type(detector)~="table" or type(detector.getPlayers)~="function" then return nil end
+  local ok, list = pcall(detector.getPlayers, detector)
+  if not ok or type(list)~="table" then return nil end
+  local first = list[1]
+  if type(first)~="string" and type(first)~="table" then
+    for _, item in pairs(list) do
+      if type(item)=="string" or type(item)=="table" then first=item break end
+    end
+  end
+  local name, id
+  if type(first)=="table" then name, id = first.name or first.username, first.uuid or first.UUID
+  elseif type(first)=="string" then name = first end
+  if type(name)=="string" and type(id)~="string" and type(detector.getPlayer)=="function" then
+    local fine, info = pcall(detector.getPlayer, detector, name)
+    if fine and type(info)=="table" then id = info.uuid or info.UUID end
+  end
+  return H.identity(name, id)
+end
+function H.claim(cfg, auth, computerId, detector)
+  if type(cfg)~="table" or cfg.enabled==false then return false end
+  if type(cfg.ownerName)=="string" and cfg.ownerName~="" and type(cfg.ownerUUID)=="string" and cfg.ownerUUID~="" then
+    return false
+  end
+  local enrolled = type(auth)=="table" and type(auth.arControllers)=="table" and auth.arControllers[tostring(computerId or "")]
+  if type(enrolled)=="table" and H.adopt(cfg, auth, enrolled.name, enrolled.uuid) then return true end
+  local name, id = H.player(detector)
+  if not name then return false end
+  return H.adopt(cfg, auth, name, id)
 end
 function H.settings()
   local cfg=H.defaults()
@@ -234,7 +367,14 @@ function H.snapshot(fleet,state,cfg,authCfg,cache)
     local t={}
     for k,v in pairs(e) do t[k]=v end
     local pose=(state.poses or {})[e.id]
-    if pose then t.x,t.y,t.z,t.dim=pose.x,pose.y,pose.z,pose.dim end
+    if type(pose)=="table" and finite(pose.x) and finite(pose.y) and finite(pose.z) then
+      t.x,t.y,t.z=pose.x,pose.y,pose.z
+      if type(pose.dim)=="string" then t.dim=pose.dim end
+      t.conf=pose.conf
+    end
+    local placed=H.place(t,cfg)
+    if placed then t.x,t.y,t.z,t.dim,t.conf=placed.x,placed.y,placed.z,placed.dim,placed.conf t.unplaced=nil
+    else t.unplaced=true end
     snap.turtles[#snap.turtles+1]=t
   end
   cfg=context(snap.turtles,cfg)
@@ -361,8 +501,18 @@ function H.render(ar,snap,mem,cfg,authCfg)
     end
   end
   local turtles={}
-  for _,t in ipairs(snap.turtles or {}) do
+  for _,raw in ipairs(snap.turtles or {}) do
     if #turtles>=limit(cfg.maxTurtles,32,32) then break end
+    local t={}
+    for k,v in pairs(raw) do t[k]=v end
+    local placed=H.place(t,cfg)
+    if placed then
+      t.x,t.y,t.z,t.dim,t.conf=placed.x,placed.y,placed.z,placed.dim,placed.conf
+      t.unplaced=nil
+      if placed.conf=="suspect" and not tostring(t.status or ""):find("suspect",1,true) then
+        t.status=tostring(t.status or t.phase or "Unknown").." [suspect]"
+      end
+    else t.unplaced=true end
     turtles[#turtles+1]=t
   end
   local low,stopped=0,0
@@ -373,7 +523,8 @@ function H.render(ar,snap,mem,cfg,authCfg)
   rect("header:bg",8,8,210,30,C.bg)
   text("header:title",12,12,"FLEET / AR",C.cyan)
   text("header:counts",12,24,#turtles.." units | revision "..tostring(snap.revision or 0),C.white)
-  text("footer",8,250,"Shift+P HUD | Shift+T turtles | Shift+O ore | Shift+A air",C.muted)
+  local hint=H.hints(cfg,authCfg,cfg.input)
+  if hint then text("footer",8,250,hint,C.muted) end
   text("footer:depth",8,262,"Outlines stop at blocks",C.muted)
   if stopped>0 or low>0 then
     rect("alert:bg",228,8,240,24,stopped>0 and C.red or C.gold)
@@ -385,7 +536,9 @@ function H.render(ar,snap,mem,cfg,authCfg)
       local id,y="card:"..tostring(t.id),42+(i-1)*32
       rect(id..":bg",8,y,210,29,C.bg)
       text(id..":name",12,y+3,"#"..tostring(t.id).." "..tostring(t.name or t.role or "Turtle"),C.white)
-      text(id..":state",12,y+15,t.stale and "No signal" or t.status or t.phase or t.state or "Unknown",C.muted)
+      local stateText=t.stale and "No signal" or t.status or t.phase or t.state or "Unknown"
+      if t.unplaced then stateText=tostring(stateText).." | no position" end
+      text(id..":state",12,y+15,stateText,C.muted)
       rect(id..":fuelbg",164,y+18,48,5,C.border)
       local pct=t.fuel=="unlimited" and 1 or (finite(t.fuel) and math.max(0,math.min(1,t.fuel/(finite(t.maxFuel) and math.max(1,t.maxFuel) or 20000))) or 0)
       if pct>0 then rect(id..":fuel",164,y+18,math.max(1,math.floor(pct*48)),5,finite(t.fuel) and t.fuel<250 and C.red or C.green) end
@@ -394,6 +547,9 @@ function H.render(ar,snap,mem,cfg,authCfg)
     text("radar:title",380,46,"RADAR",C.purple)
     if position(cfg.origin) and cfg.origin.dim==cfg.dimension then
       rect("radar:origin",420,86,3,3,C.gold)
+      local missing=0
+      for _,t in ipairs(turtles) do if t.unplaced and not t.stale then missing=missing+1 end end
+      if missing>0 then text("radar:missing",380,58,missing.." no position",C.gold) end
       for i,cell in ipairs(snap.world_map or {}) do
         if i>limit(cfg.maxCells,128,256) then break end
         if nearby(cell,cfg) then

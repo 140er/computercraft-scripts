@@ -7,12 +7,16 @@ return function(test, equal, read, mocks)
 return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
 ]], "=miner.lua", "t", m.env))()
   end
+  local function boot(m)
+    m.files["views.cfg"] = mocks.encode({ enabled = false })
+    m.start(hub)
+  end
   local function last(m) return m.messages[#m.messages] end
   local function saved(m) return m.env.textutils.unserialize(m.files["hub.state"]) end
 
   test("hub hands each new miner the direction the fewest others have and keeps it", function()
     local m = mocks.new(false, { target = "iron" })
-    m.start(hub)
+    boot(m)
     m.status(1, { type = "status", phase = "home", role = "east" })
     m.status(5, { type = "dir?", id = 5 })
     equal(last(m), { type = "dir", dir = "south", from = 99 })
@@ -30,7 +34,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
 
   test("pocket panel renames a miner and changes its direction through the hub", function()
     local m = mocks.new(false, { target = "iron" })
-    m.start(hub)
+    boot(m)
     m.status(5, { type = "status", phase = "home", role = "east", label = "Miner-east" })
     m.status(7, { type = "panel", cmd = "name", turtle = 5, text = "  Digger Bob " })
     local rename
@@ -180,7 +184,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
 
     local m = mocks.new(false, { target = "iron", overrides = { [5] = "gold" }, bores = { [5] = { x = 1, z = 2, n = 1 } },
       dirs = { [5] = "west" } })
-    m.start(hub)
+    boot(m)
     m.status(5, { type = "status", phase = "home", role = "west" })
     m.status(5, { type = "reset", id = 5 })
     local state = saved(m)

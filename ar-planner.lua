@@ -1,7 +1,7 @@
 -- AR planner adapter (plan item A1).
 -- Turns chat commands and player-detector samples into the typed events
--- planner-core.lua accepts. The host calls open only when cfg.arPlanner
--- is true. A missing or false flag refuses, so merging this file draws nothing.
+-- planner-core.lua accepts. The host calls open unless cfg.arPlanner
+-- is false. A false flag refuses, so an old config still draws nothing.
 --
 -- Without a player detector, open refuses and the panel stays the front end.
 -- A block controller only plans in its own dimension.
@@ -486,16 +486,20 @@ end
 
 function M.open(host)
   host = host or {}
-  if type(host.cfg) ~= "table" or host.cfg.arPlanner ~= true then return nil, "off" end
+  if type(host.cfg) ~= "table" then host.cfg = {} end
+  if host.cfg.arPlanner ~= nil and host.cfg.arPlanner ~= true then return nil, "off" end
   if host.detector == nil then return nil, "no-detector" end
   if type(host.dimension) ~= "string" then return nil, "no-dimension" end
   local core = host.core
   if not core then
-    local loaded, err = loadModule("planner-core.lua")
-    if loaded then core = loaded
+    local loaded = loadModule("planner-core.lua")
+    if type(loaded) == "table" and type(loaded.blank) == "function"
+      and type(loaded.transition) == "function" and type(loaded.view) == "function" then
+      core = loaded
     else
-      core, err = loadModule("lib/stubs/a1_planner_core.lua")
-      if not core then return nil, err end
+      local stub, err = loadModule("lib/stubs/a1_planner_core.lua")
+      if not stub then return nil, err end
+      core = stub
     end
   end
   if type(core.blank) ~= "function" or type(core.transition) ~= "function" or type(core.view) ~= "function" then

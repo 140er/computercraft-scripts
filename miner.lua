@@ -682,6 +682,14 @@ local function packet()
     dim = C.ssot and cfg.ssot.dimension or nil,
     x = not cfg.loc and pos.x or nil, y = pos.y, z = not cfg.loc and pos.z or nil, -- no GPS: not world x/z
     dim = not cfg.loc and cfg.ssot and cfg.ssot.dimension or nil,
+    pose = (function()
+      if not C.nav or type(C.nav.pose) ~= "function" then return nil end
+      local ok, p = pcall(C.nav.pose)
+      if not ok or type(p) ~= "table" or p.conf == "lost" then return nil end
+      if type(p.x) ~= "number" or type(p.y) ~= "number" or type(p.z) ~= "number" then return nil end
+      if type(p.dim) ~= "string" and cfg.loc then return nil end
+      return { x = p.x, y = p.y, z = p.z, dim = p.dim, conf = p.conf, src = p.src }
+    end)(),
     shaft = worldShaft(),
     reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),

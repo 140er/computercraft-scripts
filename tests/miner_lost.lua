@@ -14,6 +14,10 @@ return { st = st, rawMove = rawMove, move = move, moveOrFail = moveOrFail, seal 
   local function claim(x, z)
     return { x = x, y = 64, z = z, bottom = -58 }
   end
+  local function boot(m)
+    m.files["views.cfg"] = mocks.encode({ enabled = false })
+    m.start(hub)
+  end
   local function job(m, shaft, role)
     m.status(1, { type = "job?", role = role or "west", shaft = shaft })
     return m.messages[#m.messages]
@@ -21,7 +25,7 @@ return { st = st, rawMove = rawMove, move = move, moveOrFail = moveOrFail, seal 
 
   test("world progress belongs to one shaft, including bore jobs and replacement turtles", function()
     local m = mocks.new(false, { target = "iron", bores = { [2] = { x = 110, z = 20, n = 1 } } })
-    m.start(hub)
+    boot(m)
     m.status(1, { type = "report", role = "west", shaft = claim(100, 21), progress = progress(16) })
     equal(job(m, claim(104, 21)).progress, nil, "fresh west shaft inherited another shaft")
     equal(job(m, claim(100, 21)).progress.levels[16].spine, 16)
@@ -36,21 +40,21 @@ return { st = st, rawMove = rawMove, move = move, moveOrFail = moveOrFail, seal 
   test("legacy role progress stays available only to miners without world shafts", function()
     local legacy = progress(48)
     local m = mocks.new(false, { target = "iron", progress = { west = legacy } })
-    m.start(hub)
+    boot(m)
     equal(job(m, claim(104, 21)).progress, nil, "ambiguous legacy progress assigned to fresh shaft")
     equal(job(m).progress, legacy, "local coordinate fallback lost progress")
     m.status(1, { type = "report", role = "west", shaft = claim(104, 21), progress = progress(2) })
     local saved = m.env.textutils.unserialize(m.files["hub.state"])
     equal(saved.progress.west, legacy, "migration destroyed legacy progress")
     local restarted = mocks.new(false, saved)
-    restarted.start(hub)
+    boot(restarted)
     equal(job(restarted, claim(104, 21)).progress.levels[16].spine, 2)
     equal(job(restarted, claim(100, 21)).progress, nil)
   end)
 
   test("old miners with world telemetry use their shaft for reports and jobs", function()
     local m = mocks.new(false, { target = "iron", progress = { west = progress(48) } })
-    m.start(hub)
+    boot(m)
     m.status(1, { type = "status", role = "west", shaft = claim(100, 21) })
     m.status(1, { type = "report", role = "west", progress = progress(3) })
     equal(job(m, claim(104, 21)).progress, nil)
@@ -90,7 +94,7 @@ return { st = st, rawMove = rawMove, move = move, moveOrFail = moveOrFail, seal 
 
   test("dashboard flags duplicate shafts and clears the warning when a claim changes", function()
     local m = mocks.new(false)
-    m.start(hub)
+    boot(m)
     local p = { type = "status", phase = "home", status = "Waiting", role = "west", shaft = claim(100, 21) }
     m.status(1, p)
     m.status(2, p)

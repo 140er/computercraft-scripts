@@ -1,5 +1,5 @@
 {
-  enabled = false,
+  enabled = true,
   mode = "pro",
   server = 0,
   secret = "replace-with-your-paired-secret",

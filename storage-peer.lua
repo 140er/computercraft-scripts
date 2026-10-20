@@ -1,9 +1,9 @@
--- Peer cold storage (H4d). peerStorage defaults off.
+-- Peer cold storage (H4d). peerStorage defaults on. Explicit false stays off.
 -- Hosts start M.service beside the SSOT client. This file does not call ssot-client
 -- (one call in flight). Store, warehouse, and miner programs own their loops and
 -- call M.service once those edits are free to land.
 
-local M = { version = 1, flag = "peerStorage", flagDefault = false, protocol = "fleetpeer" }
+local M = { version = 1, flag = "peerStorage", flagDefault = true, protocol = "fleetpeer" }
 
 local WINDOW_MS = 600000
 local FRESH_MS = 30000
@@ -571,7 +571,7 @@ function M.server(cfg)
     return true
   end
   function api.enable()
-    if cfg.peerStorage ~= true then return false, "peer storage disabled" end
+    if cfg.peerStorage ~= nil and cfg.peerStorage ~= true then return false, "peer storage disabled" end
     if not keyExported or type(key) ~= "string" then return false, "storage key not exported" end
     if type(cfg.mac) ~= "function" then return false, "storage mac unavailable" end
     if cfg.macKind ~= "blake3" and cfg.allowTestMac ~= true then

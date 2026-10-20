@@ -8,6 +8,7 @@ return function(test, equal, read, mocks)
   end
   local function new()
     local m = mocks.new(false)
+    m.files["views.cfg"] = mocks.encode({ enabled = false })
     local env, timers = m.env, {}
     env.fs.delete = function(path) m.files[path] = nil end
     env.fs.move = function(a, b) assert(m.files[a]) m.files[b], m.files[a] = m.files[a], nil end

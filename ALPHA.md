@@ -14,7 +14,7 @@ The branch is https://github.com/140er/computercraft-scripts/tree/alpha. It is n
 
 # Turn a feature on
 
-Every flag below defaults off. Set it to `true`, then reboot.
+The AR planner, AR goggles, views, strata, the storage ledger, and peer storage default on. Explicit `false` still turns each of those off. Every other flag below stays off until you set it.
 
 In `ssot.cfg`:
 
@@ -38,12 +38,12 @@ Other files:
 - Hub and panel wizard. `settings set wh2.enabled true`
 - Factory craft. In `factory.cfg`, `wh2 = { enabled = true }`
 - Planner tools on the panel, hub, and server. In `planner.cfg`, `enabled = true`
-- AR planner. `arPlanner = true` on the host config. It also needs a player detector.
-- AR goggles. `enabled = true` in `ar.cfg`. Chat stays off until `chatEnabled = true` in that same file. Names and UUIDs stay in `ssot.cfg` under `chatNames` and `chatUUIDs`.
-- Views. `enabled = true` in `views.cfg`.
-- Strata. Call `strata.new` with `strata = true`. Nothing in the boot path turns this on.
-- Storage ledger. `storage-host.lua` stays off until `enabled = true` is passed to `create`.
-- Peer cold storage. `storage-peer.lua` stays off until `peerStorage` is true and a mac and floppy key are present.
+- AR planner. On unless the host config sets `arPlanner` to false. It needs a player detector. Without one the screen says `No player detector. AR planner is not drawing.` and the computer keeps running.
+- AR goggles. On when an `ar_controller` is attached, unless `ar.cfg` sets `enabled` to false. `chatEnabled` stays off. The first player, or an enrol record, becomes the owner. The origin is the hub's own position, or the paired hub position, when `ar.cfg` has none. A turtle with no fix stays on the HUD as `no position`. Shift+P, Shift+T, Shift+O, and Shift+A work on the computer terminal. The same layers are the HUD, TRT, ORE, and AIR buttons on the computer and on monitors. The goggles list only the controls that work in the current mode.
+- Views. On unless `views.cfg` sets `enabled` to false. Without a GPU the screen says `No GPU. The text view stays on.`
+- Strata. The boot path turns it on unless `strata` is false. Missing files print `Strata did not start.`
+- Storage ledger. On unless `storageHost` is false. Without a wireless modem it says `No ender modem. Storage host keeps local books.` and still keeps the local ledger.
+- Peer cold storage. On unless `peerStorage` is false. Without a mac or a floppy key it says so and does not seal.
 
 The server event queue from H3 is always on. It is how the server keeps fleet messages while a download runs.
 
