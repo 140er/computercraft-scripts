@@ -278,7 +278,6 @@ function M.open(cfg)
       for i,name in pairs(ch.cells) do
         if not integer(i,1,4096) or not integer(name,0,#s.names) then return false end
       end
-      if count%4==0 then sleep(0) end
     end
     count=0
     for id,p in pairs(s.poses) do

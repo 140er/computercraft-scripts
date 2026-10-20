@@ -43,7 +43,7 @@ return function(test, equal, read, mocks)
     end
     function m.request(message, id) m.push("rednet_message", id or 1, message, "fleetserver") end
     function m.reply(rid)
-      for _, sent in ipairs(m.sent) do if sent.message.rid == rid then return sent.message end end
+      for i = #m.sent, 1, -1 do if m.sent[i].message.rid == rid then return m.sent[i].message end end
     end
     function m.state() return env.textutils.unserialize(m.files["server.state"]) end
     return m
@@ -130,6 +130,21 @@ return function(test, equal, read, mocks)
     equal(m.env.textutils.unserialize(m.files["ssot.state"]).value.poses[1].x, 0)
   end)
 
+  test("H3 watchdog wakes maintenance after its primary timer disappears during HTTP", function()
+    local m = fixture()
+    m.env.http = { get = function() m.env.os.pullEvent("h3_http") end }
+    m.start(source)
+    m.request({ type = "command", protocol = "minearmy", target = 2,
+      message = { type = "go" }, rid = "command" })
+    local dropped = false
+    m.advance(4, function()
+      if not dropped then dropped = true return true end
+    end)
+    local deliveries = 0
+    for _, sent in ipairs(m.sent) do if sent.message.cid == 1 then deliveries = deliveries + 1 end end
+    equal(deliveries, 2, "maintenance needed an unrelated application event to recover")
+  end)
+
   test("H3 FIFO grants once and replays the durable result after restart", function()
     local m = fixture()
     installSSOT(m)
@@ -153,5 +168,186 @@ return function(test, equal, read, mocks)
     restored.request(reserve)
     equal(restored.reply("h3-2"), grant)
     equal(restored.env.textutils.unserialize(restored.files["ssot.state"]).value.seq, 1)
+  end)
+
+  test("H3 collector stays listening while a view yields and overflow retries safely", function()
+    local m = fixture()
+    installSSOT(m)
+    m.start(source)
+    local originalFind, paused = m.env.peripheral.find, false
+    m.env.peripheral.find = function(kind, filter)
+      if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+      return originalFind(kind, filter)
+    end
+    paused = true
+    m.push("peripheral", "view")
+    local events = {}
+    for i = 1, 140 do
+      events[i] = { "rednet_message", 1, packet("snapshot", i, { chunk = "minecraft:overworld|0|4|0" }), "fleetserver" }
+    end
+    m.burst(events)
+    assert(not m.reply("h3-1"), "worker did not pause in the view")
+    paused = false
+    m.push("h3_view_ready")
+    local last = 0
+    for _, sent in ipairs(m.sent) do
+      if sent.message.type == "ssot_reply" then
+        local counter = tonumber(sent.message.rid:match("h3%-(%d+)"))
+        equal(counter, last + 1, "accepted request order changed")
+        last = counter
+      end
+    end
+    assert(last > 8 and last < 140, "queue did not bound admission")
+    equal(m.reply("h3-140").type, "busy", "queue overflow was silent")
+    local saved = m.env.textutils.unserialize(m.files["ssot.state"]).value
+    equal(saved.clients[1].counter, last, "overflow advanced the durable counter")
+    m.request(events[last + 1][3])
+    assert(m.reply("h3-" .. (last + 1)), "overflow request could not retry unchanged")
+    local restored = fixture()
+    for path, text in pairs(m.files) do restored.files[path] = text end
+    restored.start(source)
+    restored.request(events[last + 1][3])
+    equal(restored.reply("h3-" .. (last + 1)), m.reply("h3-" .. (last + 1)))
+  end)
+
+  test("H3 worker batches leave time for maintenance during a sustained backlog", function()
+    local m = fixture()
+    m.start(source)
+    m.request({ type = "command", protocol = "minearmy", target = 2,
+      message = { type = "go" }, rid = "command" })
+    local originalFind, paused = m.env.peripheral.find, true
+    m.env.peripheral.find = function(kind, filter)
+      if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+      return originalFind(kind, filter)
+    end
+    m.push("peripheral", "view")
+    local events = {}
+    for i = 1, 64 do events[i] = { "rednet_message", 1, { type = "register", kind = "miner", rid = i }, "fleetserver" } end
+    m.burst(events)
+    local serialize = m.env.textutils.serialize
+    m.env.textutils.serialize = function(value, options)
+      if value.bots then m.time = m.time + 0.25 end
+      return serialize(value, options)
+    end
+    local startTimer, progressed = m.env.os.startTimer, false
+    m.env.os.startTimer = function(delay)
+      if m.time >= 1 then
+        local replies = 0
+        for _, sent in ipairs(m.sent) do
+          if sent.message.type == "ack" and type(sent.message.rid) == "number" then replies = replies + 1 end
+        end
+        if replies > 0 and replies < 64 then progressed = true end
+      end
+      return startTimer(delay)
+    end
+    paused = false
+    m.push("h3_view_ready")
+    local delivered, replied = 0, 0
+    for _, sent in ipairs(m.sent) do
+      if sent.message.cid == 1 then delivered = delivered + 1 end
+      if sent.message.type == "ack" and type(sent.message.rid) == "number" then replied = replied + 1 end
+    end
+    equal(replied, 64, "backlog lost requests")
+    assert(progressed, "worker did not let another coroutine run before draining the backlog")
+    assert(delivered >= 2, "worker starved the maintenance coroutine")
+  end)
+
+  test("H3 failed HTTP completion releases callers and permits the same cache miss to retry", function()
+    local m = fixture()
+    local failed, closed = true, 0
+    m.env.http = { get = function(url)
+      if url:find("builder.lua", 1, true) then
+        m.env.os.pullEvent("h3_http")
+        if failed then return nil, "offline" end
+      end
+      return { readAll = function() return "return true" end, close = function() closed = closed + 1 end }
+    end }
+    m.start(source)
+    m.request({ type = "get", file = "builder.lua", rid = "miss-1" })
+    m.request({ type = "get", file = "builder.lua", rid = "miss-2" }, 2)
+    m.request({ type = "state", rid = "during-http" })
+    assert(m.reply("during-http"), "HTTP blocked available reads")
+    m.push("h3_http")
+    equal(m.reply("miss-1").error, "not cached")
+    equal(m.reply("miss-2").error, "not cached")
+    failed = false
+    m.request({ type = "get", file = "builder.lua", rid = "retry" })
+    m.push("h3_http")
+    equal(m.reply("retry").code, "return true")
+    assert(closed >= 2, "HTTP handles were not closed")
+  end)
+
+  test("H3 a full queue retains the HTTP completion until the worker makes space", function()
+    local m = fixture()
+    m.env.http = { get = function()
+      m.env.os.pullEvent("h3_http")
+      return { readAll = function() return "return true" end, close = function() end }
+    end }
+    m.start(source)
+    m.request({ type = "get", file = "builder.lua", rid = "download" })
+    local find, paused = m.env.peripheral.find, true
+    m.env.peripheral.find = function(kind, filter)
+      if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+      return find(kind, filter)
+    end
+    m.push("peripheral", "view")
+    local events = {}
+    for i = 1, 128 do events[i] = { "rednet_message", 1, { type = "register", kind = "miner", rid = i }, "fleetserver" } end
+    m.burst(events)
+    m.push("h3_http")
+    paused = false
+    m.push("h3_view_ready")
+    m.push("h3_http")
+    for i = 1, 128 do assert(m.reply(i), "HTTP completion displaced an accepted request") end
+    equal(m.reply("download").code, "return true")
+  end)
+
+  test("H3 serving and saving a large cached file never pulls an event inside a request", function()
+    local m = fixture()
+    local code = "--" .. string.rep("f", 25000) .. "\nreturn true"
+    m.files["server-code/miner.lua"] = code
+    m.start(source)
+    local pull, waits = m.env.os.pullEvent, {}
+    m.env.os.pullEvent = function(...)
+      local level = 2
+      while true do
+        local info = debug.getinfo(level, "n")
+        if not info then break end
+        if info.name == "request" or info.name == "save" or info.name == "handle" then
+          waits[#waits + 1] = info.name
+        end
+        level = level + 1
+      end
+      return pull(...)
+    end
+    m.burst({
+      { "rednet_message", 1, { type = "get", file = "miner.lua", rid = "file" }, "fleetserver" },
+      { "rednet_message", 1, { type = "register", kind = "miner", rid = "after-file" }, "fleetserver" },
+    })
+    equal(m.reply("file").code, code:sub(1, 12000))
+    assert(m.reply("after-file"), "request behind a large file was lost")
+    equal(waits, {}, "a request or save pulled an event")
+  end)
+
+  test("H3 queue and HTTP progress survive lost private wake notifications", function()
+    local m = fixture()
+    m.env.http = { get = function()
+      return { readAll = function() return "return true" end, close = function() end }
+    end }
+    m.start(source)
+    local queueEvent = m.env.os.queueEvent
+    m.env.os.queueEvent = function(name, ...)
+      if not name:match("^server_") then queueEvent(name, ...) end
+    end
+    m.request({ type = "get", file = "builder.lua", rid = "lost-wake-download" })
+    m.request({ type = "register", kind = "miner", rid = "lost-wake-register" })
+    m.advance(4)
+    assert(m.reply("lost-wake-register"), "lost private notification stranded an accepted request")
+    assert(m.reply("lost-wake-download") and m.reply("lost-wake-download").code == "return true",
+      "lost private notification stranded HTTP or its completion")
+    local before = m.state().files["relay.lua"]
+    m.advance(5)
+    assert(m.state().files["relay.lua"] and (not before or m.state().files["relay.lua"].fetched >= before.fetched),
+      "refresh stopped after a lost completion notification")
   end)
 end

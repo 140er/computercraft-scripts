@@ -175,13 +175,12 @@ for _, b in pairs(state.bots) do if b.status then b.status = trimStatus(b.status
 
 local function yieldWork()
   os.queueEvent("server_work")
-  os.pullEvent("server_work")
+  os.pullEvent()
 end
 local function hashOf(text)
   local h = 5381
   for i = 1, #text do
     h = (h * 33 + text:byte(i)) % 4294967296
-    if i%16384==0 then yieldWork() end
   end
   return string.format("%08x", h)
 end
@@ -215,11 +214,20 @@ for _, f in ipairs(FILES) do
   yieldWork()
 end
 
-local function mirror(f)
-  if not http then return end
-  local res, err = http.get(BASE .. f .. "?t=" .. now())
-  local code = res and res.readAll()
-  if res then res.close() end
+local queue, queueHead, queueTail, queueBytes = {}, 1, 0, 0
+local QUEUE_LIMIT, QUEUE_BYTES, FILE_BYTES = 128, 1048576, 262144
+local function enqueue(event, bytes, receivedAt)
+  bytes = bytes or 64
+  if queueTail - queueHead + 1 >= QUEUE_LIMIT or queueBytes + bytes > QUEUE_BYTES then return false end
+  queueTail = queueTail + 1
+  queue[queueTail] = { event = event, bytes = bytes, receivedAt = receivedAt or now() }
+  queueBytes = queueBytes + bytes
+  if queueHead == queueTail then os.queueEvent("server_queue") end
+  return true
+end
+local waiting, waitingCount, waitingBytes = {}, 0, 0
+
+local function applyMirror(f, code, err)
   if not code or code == "" or not load(code, "=" .. f) then
     log("code_error", nil, f .. ": " .. tostring(err or "broken download"))
   else
@@ -334,6 +342,11 @@ local function reply(id, m, r)
   r.arOwner, r.view3D = ar ~= nil, state.view3D ~= false
   rednet.send(id, r, PROTOCOL)
 end
+local function busy(id, m)
+  if m.rid == nil or type(m.rid) == "number" or (type(m.rid) == "string" and #m.rid <= 80) then
+    reply(id, m, { type = "busy", error = "busy" })
+  end
+end
 
 -- Orders on their way: [cid] = { target, protocol, message, tries, next }. Miners answer
 -- with { type = "cmd_ack", cid }; until then the order goes out again every 3 seconds.
@@ -371,9 +384,7 @@ local function retryOrders()
   end
 end
 
-local function request(id, m)
-  if SSOT and (not SSOT.bounded(m,262144,true)
-    or #textutils.serialize(copy(m),{compact=true})>262144) then return end
+local function request(id, m, fetched)
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
@@ -400,8 +411,18 @@ local function request(id, m)
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
     local info = state.files[m.file]
-    if offset == 0 and not info then mirror(m.file) end
-    info = state.files[m.file]
+    if offset == 0 and not info and http and not fetched then
+      local bytes = #textutils.serialize(m, { compact = true }) + 64
+      local pending = waiting[m.file] or {}
+      for _, entry in ipairs(pending) do
+        if entry.id == id and entry.message.rid == m.rid then return end
+      end
+      if waitingCount >= QUEUE_LIMIT or waitingBytes + bytes > QUEUE_BYTES then busy(id, m) return end
+      pending[#pending + 1] = { id = id, message = m, bytes = bytes }
+      waiting[m.file], waitingCount, waitingBytes = pending, waitingCount + 1, waitingBytes + bytes
+      os.queueEvent("server_fetch")
+      return
+    end
     local code = info and (read(info.path) or read(info.path .. ".bak"))
     if code and hashOf(code) ~= info.hash then code = nil end
     local b = state.bots[id] or bot(id, "client", PROTOCOL)
@@ -859,70 +880,158 @@ local function touch(x, y)
 end
 
 local function network()
-  local timer = os.startTimer(1)
-  local ticks = 0
-  draw()
-  draw3D()
+  local applicationEvents = { monitor_touch = true, mouse_click = true, mouse_scroll = true,
+    char = true, peripheral = true, peripheral_detach = true, monitor_resize = true, term_resize = true }
   while true do
-    local ev, id, m, proto = os.pullEvent()
-    if ev == "rednet_message" and type(m) == "table" and type(id)=="number" and id>=0 and id<=2147483647
-      and id%1==0 and (not SSOT or SSOT.bounded(m,262144,true)) then
-      if proto == PROTOCOL then request(id, m)
-      elseif proto == "minearmy" and m.type == "cmd_ack" then
-        local o = outbox[m.cid]
-        if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
-      elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
-        and (m.type == "status" or tostring(m.type):match("_state$")
-        or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
-        if proto == "minearmy" and m.type == "panel_state" then hubPanel = m end
-        status(id, m, proto)
-        save()
-      end
-    elseif ev == "timer" and id == timer then
-      ticks = ticks + 1
-      if ticks % 15 == 5 then
-        rednet.broadcast({ type = "panel" }, "minearmy")
-        for _, p in ipairs({ "lumber", "farmer", "lava", "builder", "buddy", "turtlefactory" }) do
-          rednet.broadcast({ cmd = "status" }, p)
-        end
-      end
-      retryOrders()
-      if V and ui.cam and (ui.tab == "3d" or ui.tab == "fleet") then V.tick(ui.cam) end
-      -- The 3D view turns: redraw every second while it shows, else every 5 seconds
-      if ticks % 5 == 0 or (ui.cam and ui.cam.auto and (ui.tab == "3d" or ui.tab == "fleet")) then
-        draw()
-      end
-      draw3D()
-      timer = os.startTimer(1)
-    elseif ev == "monitor_touch" or ev == "mouse_click" then
-      if touch(m, proto) then draw() end
-    elseif ev == "mouse_scroll" then
-      ui.scroll = ui.scroll + id
-      draw()
-    elseif ev == "char" and id == "v" then
-      toggle3D()
-      draw()
-    elseif ev == "peripheral" or ev == "peripheral_detach" then
-      local prev = ar
-      ar = peripheral.find("ar_controller")
-      if prev and (not ar or peripheral.getName(prev) ~= peripheral.getName(ar)) then
-        pcall(function() prev.clear() prev.update() end)
-        arDrawn, arMem.drawn = false, nil
-      end
-      arDirty = true
-      screen, touchable = pickScreen()
-      draw()
-    elseif ev == "monitor_resize" or ev == "term_resize" then
-      screen, touchable = pickScreen()
-      draw()
+    local event = { os.pullEvent() }
+    local ev, id, m, proto = table.unpack(event)
+    if ev == "rednet_message" and type(m) == "table" and type(id) == "number" and id >= 0
+      and id <= 2147483647 and id % 1 == 0 and (proto == PROTOCOL or BOTS[proto])
+      and (not SSOT or SSOT.bounded(m, FILE_BYTES, true)) then
+      local ok, bytes = pcall(function() return #textutils.serialize(copy(m), { compact = true }) end)
+      local limit = SSOT and FILE_BYTES or QUEUE_BYTES - 64
+      if ok and bytes <= limit and not enqueue(event, bytes + 64) and proto == PROTOCOL then busy(id, m) end
+    elseif applicationEvents[ev] then
+      enqueue(event)
     end
   end
 end
 
-local function refresh()
+local maintenancePending = false
+local function maintenanceLoop()
+  local timer, deadline = os.startTimer(1), now() + 1000
+  local watchdog, watchdogAt = os.startTimer(2), now() + 2000
   while true do
-    for _, f in ipairs(FILES) do mirror(f) sleep(1) end
-    sleep(300)
+    local ev, id = os.pullEvent()
+    if (ev == "timer" and id == watchdog) or now() >= watchdogAt then
+      os.cancelTimer(watchdog)
+      watchdog, watchdogAt = os.startTimer(2), now() + 2000
+    end
+    if (ev == "timer" and id == timer) or now() >= deadline then
+      os.cancelTimer(timer)
+      timer, deadline = os.startTimer(1), now() + 1000
+      if not maintenancePending then maintenancePending = enqueue({ "server_maintenance" }) end
+    end
+  end
+end
+
+local function worker()
+  local ticks = 0
+  draw()
+  draw3D()
+  while true do
+    local processed = 0
+    for _ = 1, 8 do
+      local entry = queue[queueHead]
+      if not entry then break end
+      processed = processed + 1
+      queue[queueHead], queueHead, queueBytes = nil, queueHead + 1, queueBytes - entry.bytes
+      if queueHead > queueTail then queueHead, queueTail = 1, 0 end
+      local ev, id, m, proto = table.unpack(entry.event)
+      if ev == "rednet_message" then
+        if proto == PROTOCOL then request(id, m)
+        elseif proto == "minearmy" and m.type == "cmd_ack" then
+          local o = outbox[m.cid]
+          if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
+        elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
+          and (m.type == "status" or tostring(m.type):match("_state$")
+          or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
+          if proto == "minearmy" and m.type == "panel_state" then hubPanel = m end
+          status(id, m, proto, entry.receivedAt)
+          save()
+        end
+      elseif ev == "server_mirror" then
+        applyMirror(id, m, proto)
+        local pending = waiting[id] or {}
+        waiting[id] = nil
+        for index, caller in ipairs(pending) do
+          waitingCount, waitingBytes = waitingCount - 1, waitingBytes - caller.bytes
+          request(caller.id, caller.message, true)
+          if index % 8 == 0 then yieldWork() end
+        end
+        entry.event.done = true
+        os.queueEvent("server_mirror_done")
+      elseif ev == "server_error" then
+        log("error", os.getComputerID(), id)
+        save()
+      elseif ev == "server_maintenance" then
+        maintenancePending = false
+        ticks = ticks + 1
+        if ticks % 15 == 5 then
+          rednet.broadcast({ type = "panel" }, "minearmy")
+          for _, p in ipairs({ "lumber", "farmer", "lava", "builder", "buddy", "turtlefactory" }) do
+            rednet.broadcast({ cmd = "status" }, p)
+          end
+        end
+        retryOrders()
+        if V and ui.cam and (ui.tab == "3d" or ui.tab == "fleet") then V.tick(ui.cam) end
+        -- The 3D view turns: redraw every second while it shows, else every 5 seconds
+        if ticks % 5 == 0 or (ui.cam and ui.cam.auto and (ui.tab == "3d" or ui.tab == "fleet")) then
+          draw()
+        end
+        draw3D()
+      elseif ev == "monitor_touch" or ev == "mouse_click" then
+        if touch(m, proto) then draw() end
+      elseif ev == "mouse_scroll" then
+        ui.scroll = ui.scroll + id
+        draw()
+      elseif ev == "char" and id == "v" then
+        toggle3D()
+        draw()
+      elseif ev == "peripheral" or ev == "peripheral_detach" then
+        local prev = ar
+        ar = peripheral.find("ar_controller")
+        if prev and (not ar or peripheral.getName(prev) ~= peripheral.getName(ar)) then
+          pcall(function() prev.clear() prev.update() end)
+          arDrawn, arMem.drawn = false, nil
+        end
+        arDirty = true
+        screen, touchable = pickScreen()
+        draw()
+      elseif ev == "monitor_resize" or ev == "term_resize" then
+        screen, touchable = pickScreen()
+        draw()
+      end
+    end
+    if processed > 0 then os.queueEvent("server_space") end
+    if queueHead <= queueTail then yieldWork() else os.pullEvent() end
+  end
+end
+
+local function refresh()
+  local index, nextAt = 1, 0
+  while true do
+    local urgent
+    for _, f in ipairs(FILES) do if waiting[f] then urgent = f break end end
+    if urgent or now() >= nextAt then
+      local f = urgent or FILES[index]
+      if http then
+        local res
+        local ok, code, err = pcall(function()
+          local failure
+          res, failure = http.get(BASE .. f .. "?t=" .. now())
+          if not res then return nil, failure end
+          local bytes = res.readAll()
+          if bytes and #bytes > FILE_BYTES then return nil, "download too large" end
+          return bytes
+        end)
+        if res then pcall(res.close) end
+        if not ok then code, err = nil, code end
+        if err then err = tostring(err):sub(1, 256) end
+        local completion = { "server_mirror", f, code, err }
+        while not enqueue(completion, (code and #code or 0) + 384) do os.pullEvent() end
+        while not completion.done do os.pullEvent() end
+      end
+      if not urgent then
+        index = index % #FILES + 1
+        nextAt = now() + (index == 1 and 301000 or 1000)
+      end
+    end
+    if not next(waiting) then
+      local timer = os.startTimer(math.max(0, (nextAt - now()) / 1000))
+      repeat os.pullEvent() until next(waiting) or now() >= nextAt
+      os.cancelTimer(timer)
+    end
   end
 end
 
@@ -934,9 +1043,9 @@ local function gpuLoop()
   V.gpuLoop(function() return V.fromServer(state.bots, now(), forgottenList()) end, function()
     local pos = state.hub and state.hub.state and state.hub.state.pos
     return { title = "Fleet", places = pos and { { x = pos.x, y = pos.y, z = pos.z, name = "Hub" } } or nil }
-  end, function(text) log("error", os.getComputerID(), text) save() end)
+  end, function(text) enqueue({ "server_error", tostring(text):sub(1, 256) }) end)
 end
 
-local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop)
+local ok, err = pcall(parallel.waitForAny, network, worker, maintenanceLoop, refresh, meshLoop, gpuLoop)
 if ar then pcall(function() ar.clear() ar.update() end) end
 if not ok then error(err, 0) end
