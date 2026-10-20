@@ -270,7 +270,7 @@ return {
     ["position.lua"]="5b8a22aa",
     ["relay.lua"]="a00d373b",
     ["role-adapter.lua"]="708c90da",
-    ["roomsorter.lua"]="46807f3d",
+    ["roomsorter.lua"]="b5b48374",
     ["s1_b1.lua"]="63b01e7c",
     ["s1_h4c.lua"]="113dc0db",
     ["s1_i1.lua"]="225f23f7",
@@ -1485,5 +1485,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="95c12234"
+  ["version"]="d3bf9151"
 }

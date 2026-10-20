@@ -162,10 +162,20 @@ if args[1] == "client" then
   if not modem then print("Needs a wireless modem, or a wired modem + cable to the board computer.") return end
   rednet.open(peripheral.getName(modem))
   local id, proto
-  if modem.isWireless() then
-    print("Looking for the storage turtle...")
-    id = rednet.lookup(PROTOCOL)
-    if not id then
+  -- Keep looking until the turtle (or board) answers: after a server restart its chunk can
+  -- load later than this computer's, and startup.lua runs this only once.
+  local wireless = modem.isWireless()
+  proto = wireless and PROTOCOL or PROTOCOL .. "_relay"
+  local screen = peripheral.find("monitor", function(_, m) return m.isColor() end)
+  local function say(s)
+    print(s)
+    if screen then screen.clear() screen.setCursorPos(1, 1) screen.write(s) end
+  end
+  say(wireless and "Looking for the storage turtle..." or "Looking for the board computer on the cable...")
+  local warned = false
+  while not id do
+    id = rednet.lookup(proto)
+    if not id and wireless then
       -- The turtle also sends its stock every 10 s: wait for that
       local timer = os.startTimer(15)
       while not id do
@@ -173,26 +183,19 @@ if args[1] == "client" then
         if ev == "rednet_message" and c == PROTOCOL .. "_stock" then id = a
         elseif ev == "timer" and a == timer then break end
       end
+    elseif not id then
+      sleep(5)
     end
-    if not id then
-      print("No storage turtle found. Is it running roomsorter, with a wireless modem, within ~64 blocks?")
-      return
+    if not id and not warned then
+      warned = true
+      if wireless then
+        say("No storage turtle yet, still looking. Is it running roomsorter, with a wireless modem, within ~64 blocks?")
+      else
+        say("No board computer on the cable yet, still looking. It must run the NEW roomsorter.lua board, with a wired modem and a cable to this computer.")
+      end
     end
-    proto = PROTOCOL
-    print("Connected to the storage turtle.")
-  else
-    -- Wired: the board computer on the other end of the cable passes requests on
-    print("Looking for the board computer on the cable...")
-    id = rednet.lookup(PROTOCOL .. "_relay")
-    if not id then
-      print("Board computer not found on the cable. Check:")
-      print("- the board computer runs the NEW roomsorter.lua and was rebooted (its own screen says 'Passing requests')")
-      print("- a wired modem sits on the board computer itself, one on this computer, cable between them")
-      return
-    end
-    proto = PROTOCOL .. "_relay"
-    print("Connected through the board computer (#" .. id .. ").")
   end
+  print(wireless and "Connected to the storage turtle." or ("Connected through the board computer (#" .. id .. ")."))
   -- Ask the turtle. Each question gets a number, so two screens asking at once don't mix
   -- up the answers. Events in 'keep' that come in meanwhile are handed back afterwards.
   local function ask(msg, keep)
