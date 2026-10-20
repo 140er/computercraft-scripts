@@ -1,0 +1,30 @@
+T2 Gate A
+
+lua5.2 5.2.4
+command: lua5.2 tests/run.lua
+exit: 0
+result: 98 tests passed
+The runner dofiles tests/t2-planner.lua. Those cases passed:
+- T1 stub mints ids, builds poses, and defers every event
+- full planner stays off until enabled
+- hub planning needs a server
+- scripted plan matches on the pocket, the hub, and the server
+- map touches differ by screen while the plan stays the same
+- Y slider, undo, and the pocket tool row
+- rejects bad tools, occupied cells, and huge areas
+- server applies locally and the hub addresses the server
+- a relative plan asks for frame merge and keeps its frame
+- ghost markers stay on this level and clip at the AR cap
+- keys and monitor touches reach the server adapter
+
+CraftOS-PC v2.8.3
+AppImage sha256: f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+command: AppRun --headless --directory <sandbox> --rom <craftos rom> --id 0
+startup: dofile("tests/t2-planner.lua")
+sandbox-result.json: {"err":false,"ok":true}
+stdout ended with: SANDBOX PASS
+
+Screens used for the replay: panel 26x20, hub 51x19, server monitor 164x81.
+The three hosts produced the same plan, fixture, and bot records.
+
+Gate B: NOT RUN
