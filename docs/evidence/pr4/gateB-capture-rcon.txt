@@ -1,0 +1,66 @@
+2026-10-20T11:16:13.3892668Z > computercraft shutdown 20
+Shutdown 0/0 computers
+
+2026-10-20T11:16:14.2195181Z > setblock 39 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:16:15.1145030Z > setblock 48 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:16:16.1482686Z > forceload add 32 32 63 47
+Marked 2 chunks in Overworld from [2, 2] to [3, 2] to be force loaded
+
+2026-10-20T11:16:16.7751929Z > fill 39 64 31 49 64 34 minecraft:stone_bricks
+Successfully filled 44 block(s)
+
+2026-10-20T11:16:17.8601514Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:16:18.5827680Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:16:19.1497292Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T11:16:20.0220876Z > tp SSOTProof 44 71 42 180 35
+Teleported SSOTProof to 44.500000, 71.000000, 42.500000
+
+2026-10-20T11:16:21.1970163Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:16:36.8535531Z > data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 179, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
+2026-10-20T11:29:18.6443084Z > computercraft shutdown 20
+Shutdown 0/0 computers
+
+2026-10-20T11:29:20.6036273Z > setblock 39 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:29:21.9337729Z > setblock 48 65 32 minecraft:air
+Could not set the block
+
+2026-10-20T11:29:23.2449630Z > forceload add 32 32 63 47
+Marked 2 chunks in Overworld from [2, 2] to [3, 2] to be force loaded
+
+2026-10-20T11:29:24.0176668Z > fill 39 64 31 49 64 34 minecraft:stone_bricks
+No blocks were filled
+
+2026-10-20T11:29:24.6884164Z > setblock 40 65 32 superbwarfare:charging_station
+Changed the block at 40, 65, 32
+
+2026-10-20T11:29:26.5195973Z > item replace block 40 65 32 container.0 with minecraft:coal_block 64
+Replaced a slot at 40, 65, 32 with [Block of Coal]
+
+2026-10-20T11:29:27.6538551Z > setblock 47 65 32 computercraft:turtle_advanced[facing=east]{ComputerId:20,Fuel:100,RightUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 47, 65, 32
+
+2026-10-20T11:29:29.1950106Z > tp SSOTProof 44 71 42 180 35
+Teleported SSOTProof to 44.500000, 71.000000, 42.500000
+
+2026-10-20T11:29:30.4236969Z > computercraft turn-on 20
+Turned on 1/1 computers
+
+2026-10-20T11:29:48.6575860Z > data get block 48 65 32
+48, 65, 32 has the following block data: {Fuel: 197, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
+
