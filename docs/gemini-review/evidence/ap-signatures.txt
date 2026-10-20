@@ -1,0 +1,11 @@
+public de.srendi.advancedperipherals.common.addons.computercraft.peripheral.ChatBoxPeripheral(de.srendi.advancedperipherals.common.blocks.base.PeripheralBlockEntity<?>);
+public de.srendi.advancedperipherals.common.addons.computercraft.peripheral.ChatBoxPeripheral(dan200.computercraft.api.turtle.ITurtleAccess, dan200.computercraft.api.turtle.TurtleSide);
+public de.srendi.advancedperipherals.common.addons.computercraft.peripheral.ChatBoxPeripheral(dan200.computercraft.api.pocket.IPocketAccess);
+public boolean isEnabled();
+public final dan200.computercraft.api.lua.MethodResult sendFormattedMessage(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public final dan200.computercraft.api.lua.MethodResult sendMessage(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public final dan200.computercraft.api.lua.MethodResult sendFormattedMessageToPlayer(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public final dan200.computercraft.api.lua.MethodResult sendFormattedToastToPlayer(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public final dan200.computercraft.api.lua.MethodResult sendMessageToPlayer(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public final dan200.computercraft.api.lua.MethodResult sendToastToPlayer(dan200.computercraft.api.lua.IArguments) throws dan200.computercraft.api.lua.LuaException;
+public void update();
