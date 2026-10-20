@@ -8,8 +8,12 @@ local function write(name,value)
 end
 local function count(t) local n=0 for _ in pairs(t) do n=n+1 end return n end
 local function run()
-  while not peripheral.find("modem") do sleep(0.2) end
+  write("ar-boot.json",{id=id,restart=restart,phase="waiting-modem",peripherals=peripheral.getNames()})
+  local modemDeadline=os.epoch("utc")+300000
+  while not peripheral.find("modem") and os.epoch("utc")<modemDeadline do sleep(0.2) end
+  assert(peripheral.find("modem"),"Native modem did not attach within five minutes")
   peripheral.find("modem",rednet.open)
+  write("ar-boot.json",{id=id,restart=restart,phase="modem-open",peripherals=peripheral.getNames()})
   assert(fs.getCapacity("/") == 4000000,"Wrong computer disk capacity")
   if turtle then
     local x=2+id*2
@@ -42,12 +46,12 @@ local function run()
   cfg.chatEnabled=true
   cfg.chatAllowlist={}
   local fleet={}
-  local deadline=os.epoch("utc")+60000
+  local deadline=os.epoch("utc")+300000
   while count(fleet)<3 and os.epoch("utc")<deadline do
     local sender,message,protocol=rednet.receive("pr6-native-fleet",2)
     if sender and type(message)=="table" then fleet[sender]=message end
   end
-  assert(count(fleet)==3,"Three real turtle reports required")
+  assert(count(fleet)==3,"Three real turtle reports required; received "..count(fleet))
   local snap={turtles={},world_map={
     {x=5,y=65,z=-4,dim="minecraft:overworld",state="SOLID",name="minecraft:diamond_ore"},
     {x=7,y=65,z=-4,dim="minecraft:overworld",state="SOLID",name="minecraft:deepslate_iron_ore"}

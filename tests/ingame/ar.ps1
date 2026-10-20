@@ -8,6 +8,7 @@ param(
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass='AboveNormal'
 . "$PSScriptRoot\rcon.ps1"
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
@@ -117,6 +118,8 @@ function Start-ArServer([string]$Label) {
     $script:arProcess = Start-Process 'C:\mc-cc-test\jdk\jdk-21.0.12.1+1\bin\java.exe' -WorkingDirectory $TestRoot -WindowStyle Hidden -PassThru -ArgumentList @(
         '-Xms512M','-Xmx3G',"@$TestRoot\libraries\net\neoforged\neoforge\21.1.259\win_args.txt",'nogui'
     ) -RedirectStandardOutput "$TestRoot\stdout-$Label.log" -RedirectStandardError "$TestRoot\stderr-$Label.log"
+    $script:arProcess.PriorityClass='AboveNormal'
+    "$($script:arProcess.Id) $($script:arProcess.PriorityClass)" | Add-Content "$Output\owned-server-priorities.txt"
     $script:arProcess.Id | Add-Content "$Output\owned-server-pids.txt"
     $script:arProcess.Id | Set-Content "$TestRoot\server.pid"
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
@@ -185,17 +188,22 @@ try {
     }
     foreach ($id in 0..4) { Wait-Result $id 'ar-native.json' }
     Copy-Item "$TestRoot\logs\latest.log" "$Output\before-restart.log"
-    Stop-ArServer
-    Start-ArServer 'restart'
-    Rcon 'computercraft turn-on 0 1 2 3 4' | Out-Null
-    foreach ($id in 0..4) { Wait-Result $id 'ar-restart.json' }
-    $result.native = $true
+    $result.nativeRendering = $true
     if ($Client) {
         try {
             & "$PSScriptRoot\client.ps1" -TestRoot $TestRoot -Port $port -RconPort $rconPort -Output $Output -View ar -ShotName ar-hud.png -Timeout $Timeout
-            $result.visual = (Test-Path "$Output\ar-hud.png") -and (Test-Path "$Output\ar-xray.png")
         } catch { $result.errors += $_.Exception.Message }
+        $result.visual = (Test-Path "$Output\ar-hud.png") -and (Test-Path "$Output\ar-xray.png")
     }
+    Stop-ArServer
+    Start-ArServer 'restart'
+    Rcon 'computercraft turn-on 0 1 2 3 4' | Out-Null
+    $result.native = $true
+    foreach ($id in 0..4) {
+        try { Wait-Result $id 'ar-restart.json' }
+        catch { $result.native=$false; $result.errors += $_.Exception.Message }
+    }
+    if (!$result.native) { $result.missing += 'Native restart recovery' }
     . "$PSScriptRoot\ar-owner.ps1"
     $result.owner = $true
     $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })

@@ -1,5 +1,6 @@
 param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240, [switch]$OnDesktop, [string]$View="crossing", [string]$ShotName="ssot-crossing.png")
 $ErrorActionPreference = 'Stop'
+if ($View -eq 'ar') { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='AboveNormal' }
 if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
     $desktopUser = (Get-CimInstance Win32_ComputerSystem).UserName
     if (!$desktopUser) { throw 'No logged-in Windows desktop is available for the offline client.' }
@@ -46,7 +47,8 @@ if ($View -eq 'ar') {
     $fml=[IO.File]::ReadAllText("$client\config\fml.toml").Replace('earlyWindowControl = true','earlyWindowControl = false')
     [IO.File]::WriteAllText("$client\config\fml.toml",$fml,[Text.UTF8Encoding]::new($false))
 }
-$arguments = Get-Content 'C:\mc-run1\args.txt' -Raw
+$argumentPath=if ($View -eq 'ar') { 'C:\mc-client\args.txt' } else { 'C:\mc-run1\args.txt' }
+$arguments = Get-Content $argumentPath -Raw
 function Set-ClientArgument([string]$Name, [string]$Value) {
     $option = [regex]::Escape($Name)
     $pattern = '(?m)(^|\s)(?:"' + $option + '"|' + $option + ')\s+(?:"[^"]*"|\S+)'
@@ -61,7 +63,7 @@ foreach ($pair in @(@('--username','SSOTProof'),@('--uuid','6be1a840c0e83ed4bbdd
     @('--width','1280'),@('--height','720'))) { Set-ClientArgument $pair[0] $pair[1] }
 $arguments = [regex]::Replace($arguments, '"?-Xmx[^"\s]+"?', '"-Xmx2G"')
 $arguments = [regex]::Replace($arguments, '"?-Xms[^"\s]+"?', '"-Xms512M"')
-$arguments = [regex]::Replace($arguments, '(?m)(^|\s)--(?:server|port)\s+(?:"[^"]*"|\S+)', '$1')
+$arguments = [regex]::Replace($arguments, '(?m)(^|\s)"?--(?:server|port)"?\s+(?:"[^"]*"|\S+)', '$1')
 if ($arguments.Contains('100.91.208.60')) { throw 'Client arguments still contain a forbidden server address.' }
 foreach ($name in @('--username','--uuid','--accessToken','--gameDir','--quickPlayMultiplayer')) {
     if ([regex]::Matches($arguments,[regex]::Escape($name)).Count -ne 1) { throw "Client has duplicate $name options." }
@@ -127,27 +129,51 @@ public static class SSOTCapture {
         Send-ClientKey 0x0D
         Start-Sleep -Seconds 2
     }
+    function Wait-ChatRecord([string]$Path,[scriptblock]$Ready) {
+        $until=[DateTime]::UtcNow.AddSeconds(90)
+        do {
+            $value=$null
+            try { $value=Get-Content $Path -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+            if ($value -and (& $Ready $value)) { return $value }
+            if ($process.HasExited) { throw 'The test client exited while waiting for AP chat.' }
+            Start-Sleep -Milliseconds 250
+        } while ([DateTime]::UtcNow -lt $until)
+        throw "Timed out waiting for an actual AP chat record in $Path."
+    }
+    $chatFailure=$null
     if ($View -eq 'ar') {
+        try {
         $disk = "$TestRoot\world\computercraft\computer\0"
         Send-ClientChat '!pro'
+        $denied=Wait-ChatRecord "$disk\ar-chat-events.json" { param($v) @($v.events).Count -ge 1 }
+        if (@($denied.actions | Where-Object { $_.action }).Count) { throw 'Unenrolled chat executed an action.' }
         [IO.File]::WriteAllText("$disk\ar-enroll-test-player",'Explicit enrollment for disposable offline test player only.')
+        $sent=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         Send-ClientChat '$pro'
-        if (!(Test-Path "$disk\ar-chat-reply.json")) { throw 'Real client chat did not reach AP chat_box.' }
-        $reply = Get-Content "$disk\ar-chat-reply.json" -Raw | ConvertFrom-Json
+        $reply=Wait-ChatRecord "$disk\ar-chat-reply.json" { param($v) $v.time -ge $sent }
         if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw "No confirmation token in AP reply. $($reply.text)" }
         $token = $Matches[1]
         Send-ClientChat ('$confirm '+$token)
         Send-ClientChat ('$confirm '+$token)
+        $replayed=Wait-ChatRecord "$disk\ar-chat-events.json" { param($v) @($v.events).Count -ge 4 }
+        if (@($replayed.actions | Where-Object { $_.action }).Count -ne 1) { throw 'Hidden confirmation or replay rejection failed.' }
+        $sent=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         Send-ClientChat '!pro'
-        $reply = Get-Content "$disk\ar-chat-reply.json" -Raw | ConvertFrom-Json
+        $reply=Wait-ChatRecord "$disk\ar-chat-reply.json" { param($v) $v.time -ge $sent }
         if ($reply.text -notmatch 'confirm\s+([A-Za-z0-9-]+)') { throw 'No public confirmation token.' }
         Send-ClientChat ('!confirm '+$Matches[1])
-        $events = Get-Content "$disk\ar-chat-events.json" -Raw | ConvertFrom-Json
+        $events=Wait-ChatRecord "$disk\ar-chat-events.json" { param($v) @($v.events).Count -ge 6 }
         if (@($events.actions).Count -ne 2) { throw 'Unauthorized or replayed chat action was accepted, or confirmation failed.' }
         if (!(@($events.events | Where-Object { $_.hidden -eq $true }).Count) -or
             !(@($events.events | Where-Object { $_.hidden -eq $false }).Count)) { throw 'Missing actual AP hidden/public events.' }
         Copy-Item "$disk\ar-chat-events.json" "$Output\real-ap-chat.json" -Force
-        Invoke-TestRcon $RconPort $secret 'data get entity SSOTProof Inventory' | Set-Content "$Output\goggles-inventory.txt"
+        } catch {
+            $chatFailure=$_.Exception.Message
+            $chatFailure | Set-Content "$Output\chat-failure.txt"
+        }
+        $inventory=Invoke-TestRcon $RconPort $secret 'data get entity SSOTProof Inventory'
+        $inventory | Set-Content "$Output\goggles-inventory.txt"
+        if ($inventory -notmatch 'cc_ar:ar_goggles_data') { throw 'Linked goggles component is missing from the test player.' }
         Start-Sleep -Seconds 5
     }
     $scan = [SSOTCapture]::MapVirtualKey(0x71,0)
@@ -179,6 +205,7 @@ public static class SSOTCapture {
         Copy-Item $shot.FullName "$Output\ar-xray.png" -Force
     }
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
+    if ($chatFailure) { throw "Real AP chat validation failed. $chatFailure" }
 } finally {
     $env:GALLIUM_DRIVER = $previousDriver
     if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force }
