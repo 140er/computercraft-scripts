@@ -129,3 +129,4 @@ Each line is the merge commit on alpha.
 - `9f114ebc1a2bee0f93ffa1c1c3770594fe335b94` feat/s1-swarm, pull request 79
 - `8835b369a789f9defbdb6e168b3a14f85b2a49bb` feat/h4d-swarm, pull request 80
 - `04b5ec31cee4cfc6bac82fd09f8f10c434d65664` main, including pull request 60 at `5140e2c`
+- `78fccde90ce38d84e547069a7bc77345474bc257` feat/h4-h4a-cloud, pull request 82
