@@ -1,13 +1,19 @@
-local runtime = ...
+local runtime,scenario = ...
+local navigation=scenario=="nav"
 local id = os.getComputerID()
 local A, S = dofile("atomic.lua"), dofile("ssot.lua")
 local client = dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=5})
 local received, pending, serial, checks, timeline = {}, {}, 0, {}, {}
+local controls={}
 local drop, duplicate, delayed = false, false, {}
 local previousReply
+local readyDropped=false
 local worldBoot=tostring(os.epoch("utc"))
 local send = rednet.send
 rednet.send = function(to,m,proto)
+  if navigation and runtime=="sandbox" and proto=="ssot_test" and type(m)=="table" and m.kind=="ready" and not readyDropped then
+    readyDropped=true return true
+  end
   if proto == "fleetserver" and type(m) == "table" and m.type == "ssot" then
     assert(not client.dispatch(999,{v=1,type="ssot_reply",server=0,rid=m.rid,ok=true},proto))
     assert(not client.dispatch(0,{v=1,type="ssot_reply",server=0,rid=m.rid,ok=true},proto))
@@ -25,15 +31,23 @@ local function test(name,run)
   sleep(0)
   assert(ok, name .. ": " .. tostring(err))
 end
-local function waitMessage(kind,from,timeout)
-  local untilAt = os.clock() + (timeout or 120)
+local function waitMessage(kind,from,timeout,retry,rid)
+  local untilAt = os.clock() + (timeout or (navigation and 600 or 120))
+  local nextRetry=0
   repeat
     for i,m in ipairs(received) do
-      if m.packet.kind == kind and (not from or from == m.from) then table.remove(received,i) return m.packet end
+      if m.packet.kind == kind and (not from or from == m.from) and (not rid or m.packet.rid==rid) then table.remove(received,i) return m.packet end
     end
+    if retry and os.clock()>=nextRetry then retry() nextRetry=os.clock()+.5 end
     sleep(.05)
   until os.clock() >= untilAt
   error("timeout waiting for " .. kind .. " from " .. tostring(from))
+end
+local function readMetrics()
+  serial=serial+1
+  local rid=worldBoot .. ":metrics:" .. serial
+  send(0,{action="metrics",rid=rid},"ssot_test")
+  return waitMessage("metrics",0,nil,nil,rid)
 end
 local function world(op,args)
   serial = serial + 1
@@ -61,6 +75,11 @@ local function receive()
           else client.dispatch(from,m,proto) end
         end
       elseif proto == "ssot_world_reply" and from == 5 then pending[m.rid] = m.values
+      elseif navigation and proto=="minearmy" and from==0 and type(m)=="table" then
+        controls[m.type]=(controls[m.type] or 0)+1
+        if m.type=="estop" then
+          send(0,{type="cmd_ack",cid=m.cid,commandEpoch=controls.estop>=2 and m.commandEpoch or "stale"},"minearmy")
+        end
       elseif proto == "ssot_test" and type(m) == "table" then
         if m.action == "reboot" and from == 4 then os.reboot() end
         received[#received+1] = {from=from,packet=m}
@@ -77,7 +96,7 @@ end
 local starts = { [1]={dim="minecraft:overworld",x=-2,y=65,z=0,h=1},
   [2]={dim="minecraft:overworld",x=0,y=65,z=-2,h=2}, [3]={dim="minecraft:overworld",x=2,y=65,z=0,h=3} }
 local function worker()
-  if runtime == "sandbox" then turtle = dofile("turtle.lua").new(world) end
+  if runtime == "sandbox" then turtle = dofile("turtle.lua").new(world) _G.turtle=turtle end
   local store = A.store("test.pose",function(v) return type(v) == "table" and S.pose(v.pose) end)
   local state = store.value or {pose=starts[id],stage="new"}
   local p = state.pose
@@ -130,8 +149,7 @@ local function worker()
       state.preflight=true assert(store.save(state))
     end
     if not state.go then
-      send(4,{kind="ready"},"ssot_test")
-      waitMessage("go",4)
+      waitMessage("go",4,nil,function() rednet.send(4,{kind="ready"},"ssot_test") end)
       state.go=true assert(store.save(state))
     end
     local function move(to)
@@ -169,6 +187,51 @@ local function worker()
         sleep(.03+id*.02)
       end
     end
+    local navRuntime
+    if navigation then
+      local nav
+      nav=dofile("nav.lua").open({path="nav.state",pose=p,
+        bounds={min={dim=p.dim,x=-32,y=64,z=-32},max={dim=p.dim,x=32,y=69,z=32}},client=client,
+        observe=function()
+          if runtime=="sandbox" then
+            local v=world("pose") return {dim=p.dim,x=v[1],y=v[2],z=v[3]}
+          end
+          local x,y,z=gps.locate(2)
+          if x then return {dim=p.dim,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
+        end,
+        checkpoint=function(point)
+          if point=="move-observed" then
+            local q=nav.pose()
+            if q.x~=p.x or q.y~=p.y or q.z~=p.z then
+              p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
+              timeline[#timeline+1]={x=p.x,y=p.y,z=p.z,at=os.epoch("utc"),method="nav"}
+              state.timeline=timeline assert(store.save(state))
+            end
+          end
+          if id==1 and point=="move-started" and not state.navBefore then
+            state.navBefore=true assert(store.save(state)) os.reboot()
+          end
+          if id==1 and point=="move-physical" and not state.navAfter then
+            state.navAfter=true assert(store.save(state)) os.reboot()
+          end
+        end})
+      navRuntime=nav
+      assert(nav.recover())
+      local observed=nav.pose() p.x,p.y,p.z,p.h=observed.x,observed.y,observed.z,observed.h
+      move=function(to)
+        for _=1,100 do
+                    local ok,why=nav.go(to,"explore")
+          local q=nav.pose() p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
+          if ok then
+            state.timeline=timeline assert(store.save(state)) return
+          end
+
+          assert(why=="search budget" or why=="no route" or why=="replan budget" or why=="occupied" or why=="already reserved",tostring(why))
+          sleep(.1+id*.03)
+        end
+        error("bounded navigation contention exhausted")
+      end
+    end
     local initial=starts[id]
     local dx,dz = -initial.x/2,-initial.z/2
     local route={{x=initial.x+dx,y=65,z=initial.z+dz},{x=0,y=65,z=0},{x=0,y=66,z=0},
@@ -181,6 +244,31 @@ local function worker()
       local to=route[i] to.dim=p.dim
       if p.x~=to.x or p.y~=to.y or p.z~=to.z then move(to) end
       state.nextStep=i+1 assert(store.save(state))
+    end
+    if navigation and id==3 and not state.maze then
+      if runtime=="minecraft" then
+        writeJSON("nav-fixture-ready.json",{ok=true})
+        while not fs.exists("nav-fixture-installed") do sleep(.1) end
+      end
+      test("known-air U maze replans around a chest and returns through three dimensions",function()
+        for _,v in ipairs({{2,66,0},{3,66,0},{2,66,1},{3,66,1},{4,66,1},{4,66,0},{4,67,0}}) do
+          navRuntime.record({dim=p.dim,x=v[1],y=v[2],z=v[3]},"minecraft:air")
+        end
+        assert(not navRuntime.step(1,"excavate"))
+        assert(not navRuntime.step(4,"explore"))
+        assert(not navRuntime.step(0,"excavate"))
+        if runtime=="minecraft" then
+          writeJSON("nav-fluid-ready.json",{ok=true})
+          while not fs.exists("nav-fluid-cleared") do sleep(.1) end
+        else world("clear-fluid") end
+        assert(navRuntime.go({dim=p.dim,x=4,y=67,z=0},"walk"))
+        assert(navRuntime.go({dim=p.dim,x=2,y=66,z=0},"walk"))
+        assert(navRuntime.face(1))
+        local found,info=turtle.inspect() assert(found and info.name=="minecraft:chest")
+        assert(not turtle.inspectUp())
+        local q=navRuntime.pose() p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
+      end)
+      state.maze=true assert(store.save(state))
     end
     state.stage = "crossed" assert(store.save(state))
   end
@@ -197,13 +285,13 @@ local function worker()
       assert(client.start({pose=p,to=to,token=second.token,epoch=second.epoch}).ok)
       state.stage="full" assert(store.save(state))
       send(4,{kind="full-held"},"ssot_test")
-      waitMessage("never",4,600)
+      waitMessage("never",4,navigation and 1800 or 600)
     else assert(state.stage == "full") assert(client.resync(p)) end
   end
   writeJSON("sandbox-result.json",{ok=true,booted=true,errors={},lines={"crossing and reboot pose verified"},pose=p,timeline=timeline})
   send(4,{kind="finished",pose=p},"ssot_test")
   while true do
-    local m = waitMessage("poll",4,600)
+    local m = waitMessage("poll",4,navigation and 1800 or 600)
     if m then send(4,{kind="finished",pose=p},"ssot_test") end
   end
 end
@@ -219,12 +307,35 @@ local function controller()
   end
   if current.stage == "new" then
     if runtime == "sandbox" then
+      if navigation then
+        dofile("nav-checks.lua")(test,nil,dofile("nav-fixture.lua")(nil,dofile("mocks.lua")))
+        dofile("miner-nav-checks.lua")(test,function(path)
+          local h=assert(fs.open(path,"r")) local text=h.readAll() h.close() return text
+        end,dofile("mocks.lua"))
+      end
       dofile("ssot-checks.lua")(S,A,test)
       dofile("ssot-client-checks.lua")(test,dofile("ssot-client.lua"))
       dofile("ssot-storage.lua")(A,test)
       dofile("miner-ssot-checks.lua")(test,function(path)
         local h=assert(fs.open(path,"r")) local text=h.readAll() h.close() return text
       end,dofile("mocks.lua"))
+    end
+    if navigation then
+      local available
+      for _=1,30 do
+        available=client.snapshot({chunk="minecraft:overworld|0|4|0"})
+        if available and available.ok then break end
+        sleep(.1)
+      end
+      assert(available and available.ok,"server did not finish startup")
+      test("server ESTOP cancels an older queued go command over the real modem",function()
+        send(0,{type="command",target=id,protocol="minearmy",message={type="go"}},"fleetserver")
+        sleep(.2)
+        send(0,{type="command",target=id,protocol="minearmy",message={type="estop"}},"fleetserver")
+        local deadline=os.clock()+10
+        repeat sleep(.05) until (controls.estop or 0)>=2 or os.clock()>=deadline
+        assert(controls.go==1 and (controls.estop or 0)>=2,"queued go survived ESTOP")
+      end)
     end
     for peer=1,3 do waitMessage("ready",peer) end
     duplicate=true
@@ -277,22 +388,23 @@ local function controller()
         local r,err=client.scan({pose=p,revision=revision,cells=cells}) assert(r and r.ok,tostring(err))
         revision=r.revision
         if last==999 or last==9999 then
-          send(0,{action="metrics"},"ssot_test")
-          local sample=waitMessage("metrics",0)
+          local sample=readMetrics()
+          writeJSON("metrics-last.json",sample)
           assert(sample.cells==last+1 and sample.capacity==4000000)
           sample.elapsedMs=os.epoch("utc")-startedAt
           metrics[#metrics+1]=sample
           writeJSON("metrics.json",metrics)
         end
         first=last+1
-        sleep(0)
+        sleep(.05)
       end
       local cursor,n=0,0
       repeat
-        local r=client.snapshot({chunk="test:lab|0|4|0",cursor=cursor}) assert(r and r.ok)
+        local r,err=client.snapshot({chunk="test:lab|0|4|0",cursor=cursor}) assert(r and r.ok,tostring(err or (r and r.error)))
         chunkRevision=r.revision
         assert(#textutils.serialize(r,{compact=true})<=8192)
         cursor,n=r.cursor,n+#r.cells
+        sleep(.05)
       until cursor==0
       assert(n==2560,"missing snapshot cells: " .. n)
     end)
@@ -303,8 +415,7 @@ local function controller()
       end
       local r=client.scan({pose=p,revision=revision,cells={{dim=p.dim,x=-32,y=64,z=-1,name=false}}})
       assert(r and not r.ok and r.error=="resident chunk limit")
-      send(0,{action="metrics"},"ssot_test")
-      local sample=waitMessage("metrics",0)
+      local sample=readMetrics()
       assert(sample.chunks==8 and sample.cells==10004)
       local solid=client.scan({pose=p,revision=revision,cells={{dim=p.dim,x=-32,y=64,z=0,name="minecraft:stone"}}})
       assert(solid and solid.ok) revision=solid.revision

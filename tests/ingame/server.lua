@@ -20,7 +20,7 @@ end,function()
           for _ in pairs(ch.cells) do cells=cells+1 end
         end
         local available,heap=pcall(function() return collectgarbage("count") end)
-        rednet.send(4,{kind="metrics",cells=cells,chunks=chunks,bytes=fs.getSize("ssot.state"),
+        rednet.send(4,{kind="metrics",rid=m.rid,cells=cells,chunks=chunks,bytes=fs.getSize("ssot.state"),
           free=fs.getFreeSpace("/"),capacity=fs.getCapacity("/"),luaHeapAvailable=available,luaHeapKiB=available and heap or false},"ssot_test")
       end
       if m.action == "fill" then

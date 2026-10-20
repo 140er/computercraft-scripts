@@ -1,4 +1,4 @@
-param([string]$Computers, [string]$Output)
+param([string]$Computers, [string]$Output, [string]$Title="SSOT PR 1")
 $ErrorActionPreference = 'Stop'
 $controller = Get-Content "$Computers\4\sandbox-result.json" -Raw | ConvertFrom-Json
 $statePath = [IO.Path]::GetFullPath("$Computers\0\ssot.state").Replace('\','/')
@@ -20,8 +20,8 @@ $axes = @{}
 foreach ($point in $events | Sort-Object at,id) {
     $from = @($positions[$point.id].Split(',') | ForEach-Object { [int]$_ })
     $delta = @(($point.x - $from[0]), ($point.y - $from[1]), ($point.z - $from[2]))
-    if (([Math]::Abs($delta[0]) + [Math]::Abs($delta[1]) + [Math]::Abs($delta[2])) -ne 1) { throw 'A recorded move was not adjacent.' }
-    $axes[$delta -join ','] = $true
+    if ($point.method -ne 'physical relocation' -and ([Math]::Abs($delta[0]) + [Math]::Abs($delta[1]) + [Math]::Abs($delta[2])) -ne 1) { throw 'A recorded move was not adjacent.' }
+    if ($point.method -ne 'physical relocation') { $axes[$delta -join ','] = $true }
     $to = "$($point.x),$($point.y),$($point.z)"
     foreach ($other in 1..3) {
         if ($other -ne $point.id -and $positions[$other] -eq $to) { throw 'The recorded trajectories overlap in an occupied cell.' }
@@ -32,7 +32,7 @@ if ($axes.Count -ne 6) { throw 'The trajectories did not exercise all six displa
 if ($positions[1] -ne '-2,66,0' -or $positions[2] -ne '0,66,-2' -or $positions[3] -ne '2,66,0') { throw 'Unexpected final turtle positions.' }
 New-Item -ItemType Directory -Force -Path $Output | Out-Null
 $events | Sort-Object at,id | Export-Csv "$Output\positions.csv" -NoTypeInformation
-@{ ok = $true; turtles = 3; moves = $events.Count; directions = $axes.Count; collisions = 0 } | ConvertTo-Json | Set-Content "$Output\trajectory-verdict.json"
+@{ ok = $true; turtles = 3; moves = @($events | Where-Object { $_.method -ne 'physical relocation' }).Count; relocations = @($events | Where-Object { $_.method -eq 'physical relocation' }).Count; directions = $axes.Count; collisions = 0 } | ConvertTo-Json | Set-Content "$Output\trajectory-verdict.json"
 Add-Type -AssemblyName System.Drawing
 $bitmap = New-Object Drawing.Bitmap 1200,720
 $graphics = [Drawing.Graphics]::FromImage($bitmap)
@@ -40,7 +40,7 @@ $graphics.Clear([Drawing.Color]::White)
 $font = New-Object Drawing.Font 'Consolas',14
 $heading = New-Object Drawing.Font 'Consolas',19
 $black = [Drawing.Brushes]::Black
-$graphics.DrawString('SSOT PR 1 | Server-recorded turtle positions', $heading, $black, 24, 20)
+$graphics.DrawString("$Title | Server-recorded turtle positions", $heading, $black, 24, 20)
 $graphics.DrawString('This diagram is not a Minecraft client screenshot.', $font, $black, 24, 58)
 $colors = @([Drawing.Color]::RoyalBlue,[Drawing.Color]::ForestGreen,[Drawing.Color]::DarkOrange)
 for ($id = 1; $id -le 3; $id++) {
@@ -61,7 +61,7 @@ for ($id = 1; $id -le 3; $id++) {
     $pen.Dispose()
     $brush.Dispose()
 }
-$graphics.DrawString('All steps are adjacent. All six directions ran. No occupied cells overlapped.', $font, $black, 24, 680)
+$graphics.DrawString('All motor steps are adjacent. Relocations are labeled. No occupied cells overlapped.', $font, $black, 24, 680)
 $bitmap.Save("$Output\position-timeline.png",[Drawing.Imaging.ImageFormat]::Png)
 $heading.Dispose()
 $font.Dispose()

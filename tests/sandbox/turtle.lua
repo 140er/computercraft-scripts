@@ -33,7 +33,7 @@ end
 function M.world(saved)
   local poses = saved and saved.poses or { [1] = {x=-2,y=65,z=0,h=1,fuel=10000}, [2] = {x=0,y=65,z=-2,h=2,fuel=10000},
     [3] = {x=2,y=65,z=0,h=3,fuel=10000} }
-  local blocks, timeline, collisions, failures = { ["-1,65,0"]="minecraft:stone",["-2,65,-1"]="minecraft:stone" }, {}, 0, {}
+  local blocks, timeline, collisions, failures = { ["-1,65,0"]="minecraft:stone",["-2,65,-1"]="minecraft:stone",["3,66,0"]="minecraft:chest",["2,67,0"]="minecraft:water",["2,66,-1"]="minecraft:bedrock" }, {}, 0, {}
   if saved then blocks,timeline,collisions=saved.blocks,saved.timeline,saved.collisions end
   local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
   local function target(p, op)
@@ -51,6 +51,7 @@ function M.world(saved)
     state = function() return {poses=poses,blocks=blocks,timeline=timeline,collisions=collisions} end,
     handle = function(id, op, args)
       if id == 4 and op == "fault" then failures[args[1]] = true return {true} end
+      if id==3 and op=="clear-fluid" then blocks["2,67,0"]=nil return {true} end
       local p = assert(poses[id], "unknown turtle")
       if op == "pose" then return {p.x,p.y,p.z,p.h} end
       if op == "getFuelLevel" then return {p.fuel} end
