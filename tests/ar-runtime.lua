@@ -8,6 +8,8 @@ local function check(name,fn)
   checks[#checks+1]={name=name,ok=ok,error=not ok and tostring(err) or nil}
   local h=assert(fs.open("checks.json","w")) h.write(textutils.serializeJSON(checks)) h.close()
   assert(ok,name..": "..tostring(err))
+  -- Mock coroutine yields return here; yield the CraftOS computer between cases.
+  sleep(0)
 end
 local function request(peer,op)
   serial=serial+1
@@ -37,42 +39,47 @@ local function untilOwner(owner,other)
 end
 if not fs.exists("restart-ready.json") then
 check("AR feature assertions on CraftOS Lua",function() dofile("tests/ar-hud-unit.lua") end)
+check("Radius 64 keeps nearby ores and yields during bounded projection",function() dofile("tests/ar-snapshot-checks.lua") end)
 local function read(path)
   local h=assert(fs.open(path,"r")) local text=h.readAll() h.close() sleep(0) return text
 end
-for _,path in ipairs({"tests/chat-checks.lua","tests/install-checks.lua"}) do
+for _,path in ipairs({"tests/chat-checks.lua","tests/auth-review-checks.lua","tests/recharge-review-checks.lua",
+  "tests/install-checks.lua","tests/install-role-checks.lua"}) do
   assert(loadfile(path,"t",_ENV))()(check,read,dofile("tests/mocks.lua"))
 end
-check("HUD keys persist layers and require confirmation for travel",function()
+check("Shifted HUD keys persist layers and preserve hub commands",function()
   local H=dofile("ar-hud.lua")
   local cfg=H.defaults() cfg.enabled=true
+  cfg.ownerName,cfg.ownerUUID="Jeffreyy2","00000000-0000-4000-8000-000000000001"
+  local auth={chatNames={cfg.ownerName},chatUUIDs={[cfg.ownerName]=cfg.ownerUUID}}
   local actions,saves={},0
   local controls=H.controls(cfg,function() saves=saves+1 return true end,
-    function(action) actions[#actions+1]=action return true end,function() end)
-  for key,field in pairs({p="proHud",t="xrayTurtles",o="xrayOres",a="xrayTunnels"}) do
+    function(action) actions[#actions+1]=action return true end,function() end,auth)
+  for key,field in pairs({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"}) do
     local before=cfg[field]
     assert(controls.key(key))
     assert(cfg[field]~=before,"layer did not toggle")
   end
   assert(saves==4)
-  controls.key("h") assert(#actions==0)
-  controls.key("h") assert(actions[1]=="hub")
-  controls.key("r") assert(#actions==1)
-  controls.key("r") assert(actions[2]=="recharge")
-  local failed=H.controls(cfg,function() return false,"disk full" end,function() end,function() end)
+  for _,key in ipairs({"h","r","p","a","t","o","s","u","c","v","w","q"}) do
+    assert(not controls.key(key),"AR consumed hub key "..key)
+  end
+  assert(#actions==0)
+  local failed=H.controls(cfg,function() return false,"disk full" end,function() end,function() end,auth)
   local before=cfg.proHud
-  failed.key("p") assert(cfg.proHud==before,"failed save changed layer")
+  failed.key("P") assert(cfg.proHud==before,"failed save changed layer")
 end)
 check("UUID authorization and one-use public confirmation",function()
   local uuid="00000000-0000-4000-8000-000000000001"
-  local cfg={chatEnabled=true,chatAllowlist={[uuid]="Jeffreyy2"}}
+  local cfg={chatEnabled=true}
+  local auth={chatNames={"Jeffreyy2"},chatUUIDs={Jeffreyy2=uuid}}
   local replies,actions={},{}
   local chat=dofile("chat-control.lua").new(cfg,{
     save=function() return true end,
     reply=function(_,text) replies[#replies+1]=text end,
     execute=function(action) actions[#actions+1]=action return true end,
     now=function() return 1000 end,
-  })
+  },auth)
   chat:event("chat","Jeffreyy2","!hub","00000000-0000-4000-8000-000000000002",false)
   assert(#actions==0 and #replies==0,"display name authorized an intruder")
   chat:event("chat","Jeffreyy2","!hub",uuid,false)

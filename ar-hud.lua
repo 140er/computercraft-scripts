@@ -1,8 +1,9 @@
 local H = {}
+local SSOT = dofile("ssot.lua")
 local PREFIX = "ssot-ar:"
 local C = { bg=0xDD11161D, border=0xFF30363D, cyan=0xFF58A6FF, green=0xFF2EA043,
   gold=0xFFD29922, red=0xFFF85149, purple=0xFFA371F7, white=0xFFE6EDF3, muted=0xFF8B949E }
-local layers = { p="proHud", t="xrayTurtles", o="xrayOres", a="xrayTunnels" }
+local layers = { P="proHud", T="xrayTurtles", O="xrayOres", A="xrayTunnels" }
 local function finite(n) return type(n)=="number" and n==n and math.abs(n)<math.huge end
 local function position(p)
   return type(p)=="table" and finite(p.x) and finite(p.y) and finite(p.z) and type(p.dim)=="string"
@@ -30,8 +31,18 @@ local function context(turtles,cfg)
   return out
 end
 local function cellID(cell) return cell.dim..":"..cell.x..":"..cell.y..":"..cell.z end
-local function isOre(cell)
-  return type(cell.name)=="string" and (cell.name:find("_ore",1,true) or cell.name:find("ancient_debris",1,true))
+local function isOre(name)
+  return type(name)=="string" and (name:find("_ore",1,true) or name:find("ancient_debris",1,true))
+end
+local function authorized(cfg,authCfg)
+  return SSOT.chatAllowed(authCfg or {},cfg.ownerName,cfg.ownerUUID)
+end
+local function yieldWork()
+  local thread,main=coroutine.running()
+  if thread and not main and os.queueEvent and os.pullEvent then
+    os.queueEvent("ssot_ar_yield")
+    os.pullEvent("ssot_ar_yield")
+  elseif type(sleep)=="function" then sleep(0) end
 end
 function H.defaults()
   return {enabled=false,proHud=true,xrayTurtles=true,xrayOres=true,xrayTunnels=false,
@@ -82,10 +93,13 @@ function H.settings()
   end
   return cfg,save
 end
-function H.command(cfg,args,save)
+function H.command(cfg,args,save,authCfg)
   local old={}
   for k,v in pairs(cfg) do old[k]=v end
   if args[1]=="enable" and (args[2]=="on" or args[2]=="off") then cfg.enabled=args[2]=="on"
+  elseif args[1]=="owner" and #args==3 then
+    if not SSOT.chatAllowed(authCfg or {},args[2],args[3]) then return false,"Owner is not on the shared chat allowlist" end
+    cfg.ownerName,cfg.ownerUUID=args[2],args[3]:lower()
   elseif args[1]=="origin" and #args==5 and tostring(args[2]):match("^[%w_]+:[%w_/.-]+$") then
     local x,y,z=tonumber(args[3]),tonumber(args[4]),tonumber(args[5])
     if not finite(x) or not finite(y) or not finite(z) then return false,"Invalid coordinates" end
@@ -95,7 +109,7 @@ function H.command(cfg,args,save)
     if args[2]=="off" then cfg.followTarget=nil
     elseif finite(id) and id>=0 and id%1==0 and id<=2147483647 then cfg.followTarget=id
     else return false,"follow requires a computer ID or off" end
-  else return false,"ar enable on|off; ar origin dimension x y z; ar follow ID|off" end
+  else return false,"ar enable on|off; ar owner name UUID; ar origin dimension x y z; ar follow ID|off" end
   local ok,err=save()
   if not ok then
     for k in pairs(cfg) do cfg[k]=nil end
@@ -104,10 +118,11 @@ function H.command(cfg,args,save)
   end
   return true,"Saved AR configuration"
 end
-function H.controls(cfg,save,dispatch,notify)
+function H.controls(cfg,save,dispatch,notify,authCfg)
   local function execute(action,args)
     if action=="pro" or action=="xray" then
       if cfg.enabled~=true then return false,"Enable AR locally first." end
+      if action=="xray" and not authorized(cfg,authCfg) then return false,"AR owner is not on the shared chat allowlist." end
       local key=action=="pro" and "proHud" or "xrayTurtles"
       local old,ore=cfg[key],cfg.xrayOres
       cfg[key]=args[1] and args[1]=="on" or (not args[1] and cfg[key]==false)
@@ -123,33 +138,22 @@ function H.controls(cfg,save,dispatch,notify)
     chat=dofile("chat-control.lua").new(cfg,{save=save,execute=execute,reply=function(name,text)
       local box=peripheral.find("chat_box")
       if box then box.sendMessageToPlayer(text,name) end
-    end})
+    end},authCfg)
   end
-  local pending,untilAt
   return {
     chat=chat,
     key=function(key)
       if cfg.enabled~=true then return false end
       if layers[key] then
         local old=cfg[layers[key]]
-        H.toggle(cfg,key)
+        local changed,message=H.toggle(cfg,key,authCfg)
+        if not changed then notify(message) return true end
         local ok,err=save()
         if not ok then cfg[layers[key]]=old end
         notify(ok and ("AR "..layers[key].." "..tostring(cfg[layers[key]])) or tostring(err))
         return true
       end
-      local action=key=="h" and "hub" or (key=="r" and "recharge")
-      if not action then return false end
-      local now=os.epoch("utc")
-      if pending==action and now<untilAt then
-        pending=nil
-        local ok,message=execute(action,{})
-        notify(message or (ok and "Queued" or "Unavailable"))
-      else
-        pending,untilAt=action,now+30000
-        notify("Press "..key:upper().." again within 30s to confirm "..action)
-      end
-      return true
+      return false
     end,
   }
 end
@@ -205,13 +209,16 @@ function H.memory(path)
   end
   return mem
 end
-function H.toggle(cfg,key)
+function H.toggle(cfg,key,authCfg)
   local layer=layers[key]
   if cfg.enabled~=true or not layer then return false end
+  if layer~="proHud" and not authorized(cfg,authCfg) then
+    return false,"AR owner is not on the shared chat allowlist."
+  end
   cfg[layer]=cfg[layer]==false
   return true
 end
-function H.snapshot(fleet,state,cfg)
+function H.snapshot(fleet,state,cfg,authCfg,cache)
   state=state or {}
   local snap={turtles={},world_map={},anchors=cfg.anchors or {},revision=state.rev or 0,orders={}}
   if type(cfg.spots)=="table" then
@@ -231,38 +238,76 @@ function H.snapshot(fleet,state,cfg)
     snap.turtles[#snap.turtles+1]=t
   end
   cfg=context(snap.turtles,cfg)
-  if not position(cfg.origin) then return snap end
-  local keys={}
-  for key in pairs(state.chunks or {}) do
-    local dim,cx,cy,cz=key:match("^(.-)|(-?%d+)|(-?%d+)|(-?%d+)$")
-    if dim==cfg.dimension then
-      cx,cy,cz=tonumber(cx),tonumber(cy),tonumber(cz)
-      local o,r=cfg.origin,limit(cfg.radius,64,256)
-      if cx*16<=o.x+r and cx*16+15>=o.x-r and cy*16<=o.y+r and cy*16+15>=o.y-r
-        and cz*16<=o.z+r and cz*16+15>=o.z-r then
-        keys[#keys+1]={key=key,dim=dim,x=cx,y=cy,z=cz,d=(cx*16+8-o.x)^2+(cy*16+8-o.y)^2+(cz*16+8-o.z)^2}
+  if cfg.enabled~=true or not authorized(cfg,authCfg) or not position(cfg.origin) or cfg.origin.dim~=cfg.dimension
+    or (cfg.xrayOres==false and cfg.xrayTunnels~=true) then return snap end
+  local o,r,budget=cfg.origin,limit(cfg.radius,64,256),limit(cfg.maxCells,128,256)
+  local mapKey=table.concat({state.rev or 0,cfg.dimension,o.dim,o.x,o.y,o.z,r,budget,
+    tostring(cfg.xrayOres~=false),tostring(cfg.xrayTunnels==true)},"|")
+  if cache and cache.mapKey==mapKey then
+    snap.world_map,snap.truncated=cache.worldMap,cache.mapTruncated
+    return snap
+  end
+  local nearest,eligible,scanned={},0,0
+  local oreNames={}
+  for n,name in pairs(state.names or {}) do oreNames[n]=isOre(name) and true or false end
+  local function before(a,b)
+    if a.ore~=b.ore then return a.ore end
+    if a.distance~=b.distance then return a.distance<b.distance end
+    return a.id<b.id
+  end
+  local function keep(x,y,z,dim,name,ore,air)
+    local distance=(x-o.x)^2+(y-o.y)^2+(z-o.z)^2
+    if distance>r*r then return end
+    eligible=eligible+1
+    local worst=nearest[1]
+    if #nearest==budget and ((not ore and worst.ore) or (ore==worst.ore and distance>worst.distance)) then return end
+    local cell={x=x,y=y,z=z,dim=dim,name=name,state=air and "AIR" or nil}
+    local entry={cell=cell,ore=ore,distance=distance,id=cellID(cell)}
+    if #nearest<budget then
+      local at=#nearest+1
+      nearest[at]=entry
+      while at>1 do
+        local parent=math.floor(at/2)
+        if not before(nearest[parent],nearest[at]) then break end
+        nearest[parent],nearest[at]=nearest[at],nearest[parent]
+        at=parent
+      end
+    elseif before(entry,nearest[1]) then
+      nearest[1]=entry
+      local at=1
+      while at*2<=#nearest do
+        local child=at*2
+        if child<#nearest and before(nearest[child],nearest[child+1]) then child=child+1 end
+        if not before(nearest[at],nearest[child]) then break end
+        nearest[at],nearest[child]=nearest[child],nearest[at]
+        at=child
       end
     end
   end
-  table.sort(keys,function(a,b) return a.d==b.d and a.key<b.key or a.d<b.d end)
-  local scanned=0
-  for _,ch in ipairs(keys) do
-      for i=1,4096 do
-        scanned=scanned+1
-        if scanned>8192 then snap.truncated=true return snap end
-        if scanned%512==0 and type(sleep)=="function" then sleep(0) end
-        local n=state.chunks[ch.key].cells[i]
-        if n~=nil then
-          local at=i-1
-          local cell={x=ch.x*16+at%16,y=ch.y*16+math.floor(at/256),
-            z=ch.z*16+math.floor(at/16)%16,dim=ch.dim,name=(state.names or {})[n],state=n==0 and "AIR" or nil}
-          if nearby(cell,cfg) and ((isOre(cell) and cfg.xrayOres~=false)
-            or (cell.state=="AIR" and cfg.xrayTunnels==true)) then
-            snap.world_map[#snap.world_map+1]=cell
-            if #snap.world_map>=limit(cfg.maxCells,128,256) then return snap end
+  for key,ch in pairs(state.chunks or {}) do
+    local dim,cx,cy,cz=key:match("^(.-)|(-?%d+)|(-?%d+)|(-?%d+)$")
+    if dim==cfg.dimension then
+      cx,cy,cz=tonumber(cx),tonumber(cy),tonumber(cz)
+      if cx*16<=o.x+r and cx*16+15>=o.x-r and cy*16<=o.y+r and cy*16+15>=o.y-r
+        and cz*16<=o.z+r and cz*16+15>=o.z-r then
+        for i,n in pairs(ch.cells) do
+          scanned=scanned+1
+          if scanned%256==0 then yieldWork() end
+          local ore=oreNames[n] or false
+          if (ore and cfg.xrayOres~=false) or (n==0 and cfg.xrayTunnels==true) then
+            local at=i-1
+            keep(cx*16+at%16,cy*16+math.floor(at/256),cz*16+math.floor(at/16)%16,
+              dim,(state.names or {})[n],ore,n==0)
           end
         end
       end
+    end
+  end
+  table.sort(nearest,before)
+  for _,entry in ipairs(nearest) do snap.world_map[#snap.world_map+1]=entry.cell end
+  snap.truncated=eligible>budget or nil
+  if cache then
+    cache.mapKey,cache.worldMap,cache.mapTruncated=mapKey,snap.world_map,snap.truncated
   end
   return snap
 end
@@ -279,7 +324,7 @@ function H.clear(ar,mem)
   mem.elements={}
   if mem.persist then mem.persist(mem.elements) end
 end
-function H.render(ar,snap,mem,cfg)
+function H.render(ar,snap,mem,cfg,authCfg)
   if not mem.reconciled then
     local inspect=rawget(ar,"getAllElements")
     if inspect then
@@ -295,6 +340,7 @@ function H.render(ar,snap,mem,cfg)
     return
   end
   cfg=context(snap.turtles,cfg)
+  local allowed=authorized(cfg,authCfg)
   local desired={}
   local function put(method,id,...)
     desired[PREFIX..id]={method,...}
@@ -327,7 +373,7 @@ function H.render(ar,snap,mem,cfg)
   rect("header:bg",8,8,210,30,C.bg)
   text("header:title",12,12,"FLEET / AR",C.cyan)
   text("header:counts",12,24,#turtles.." units | revision "..tostring(snap.revision or 0),C.white)
-  text("footer",8,250,"P HUD | T turtles | O ore | A air | H hub | R recharge",C.muted)
+  text("footer",8,250,"Shift+P HUD | Shift+T turtles | Shift+O ore | Shift+A air",C.muted)
   if stopped>0 or low>0 then
     rect("alert:bg",228,8,240,24,stopped>0 and C.red or C.gold)
     text("alert:text",232,16,stopped>0 and ("ATTENTION: "..stopped.." units") or ("LOW FUEL: "..low.." units"),C.white)
@@ -350,8 +396,8 @@ function H.render(ar,snap,mem,cfg)
       for i,cell in ipairs(snap.world_map or {}) do
         if i>limit(cfg.maxCells,128,256) then break end
         if nearby(cell,cfg) then
-          local ore=isOre(cell)
-          if (ore and cfg.xrayOres~=false) or (cell.state=="AIR" and cfg.xrayTunnels==true) then
+          local ore=isOre(cell.name)
+          if allowed and ((ore and cfg.xrayOres~=false) or (cell.state=="AIR" and cfg.xrayTunnels==true)) then
             local scale=36/limit(cfg.radius,64,256)
             rect("radar:cell:"..cellID(cell),421+math.floor((cell.x-cfg.origin.x)*scale),
               87+math.floor((cell.z-cfg.origin.z)*scale),2,2,ore and C.cyan or C.muted)
@@ -359,7 +405,7 @@ function H.render(ar,snap,mem,cfg)
         end
       end
       for _,t in ipairs(turtles) do
-        if nearby(t,cfg) and not t.stale then
+        if allowed and cfg.xrayTurtles~=false and nearby(t,cfg) and not t.stale then
           local scale=36/limit(cfg.radius,64,256)
           local x,y=421+math.floor((t.x-cfg.origin.x)*scale),87+math.floor((t.z-cfg.origin.z)*scale)
           rect("radar:turtle:"..tostring(t.id),x,y,3,3,C.green)
@@ -367,7 +413,7 @@ function H.render(ar,snap,mem,cfg)
       end
     else text("radar:unknown",380,78,cfg.followTarget and "Target lost" or "Set origin",C.gold) end
   end
-  if cfg.xrayTurtles~=false then
+  if allowed and cfg.xrayTurtles~=false then
     for _,t in ipairs(turtles) do
       if nearby(t,cfg) and not t.stale then
         local id="turtle:"..tostring(t.id)
@@ -378,8 +424,8 @@ function H.render(ar,snap,mem,cfg)
   end
   for i,cell in ipairs(snap.world_map or {}) do
     if i>limit(cfg.maxCells,128,256) then break end
-    if nearby(cell,cfg) then
-      local ore=isOre(cell)
+    if allowed and nearby(cell,cfg) then
+      local ore=isOre(cell.name)
       if ore and cfg.xrayOres~=false then box("ore:"..cellID(cell),cell,C.cyan)
       elseif cell.state=="AIR" and cfg.xrayTunnels==true then box("air:"..cellID(cell),cell,C.muted) end
     end
@@ -390,7 +436,7 @@ function H.render(ar,snap,mem,cfg)
   for i=1,math.min(#anchors,16) do
     local name=anchors[i]
     local p=snap.anchors[name]
-    if nearby(p,cfg) then
+    if allowed and nearby(p,cfg) then
       line("anchor:"..name..":beam",p,{x=p.x,y=p.y+16,z=p.z},C.gold)
       put("drawText3D","anchor:"..name..":label",color(C.gold),p.x,p.y+16.5,p.z,0,0,3,name:sub(1,32),true)
     end

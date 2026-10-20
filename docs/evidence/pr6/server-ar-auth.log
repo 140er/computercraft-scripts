@@ -1,0 +1,23 @@
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS server clears AR and re-raises Terminated through parallel
+PASS legacy AR world geometry requires the shared owner allowlist
+PASS raw AR ownership claims cannot acquire a lease or change the view
+PASS hub suppresses AR until its first authenticated reply or the owner timeout
+PASS hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors and authenticated leases without replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+22 passed, 0 failed

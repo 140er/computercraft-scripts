@@ -28,6 +28,11 @@ if id==0 or id==5 then
   local H=dofile("ar-hud.lua")
   local cfg=H.defaults()
   cfg.enabled=true cfg.origin={x=0,y=64,z=0,dim="minecraft:overworld"}
+  cfg.ownerName,cfg.ownerUUID="GateBOperator","00000000-0000-4000-8000-000000000001"
+  local auth={controllers={["5"]="pr6-sandbox-controller-5"},chatNames={cfg.ownerName},
+    chatUUIDs={[cfg.ownerName]=cfg.ownerUUID},arControllers={["5"]={name=cfg.ownerName,uuid=cfg.ownerUUID}}}
+  local authFile=assert(fs.open("ssot.cfg","w"))
+  authFile.write(textutils.serialize(auth)) authFile.close()
   local h=assert(fs.open("ar.cfg","w")) h.write(textutils.serialize(cfg)) h.close()
   parallel.waitForAny(function()
     assert(loadfile(id==0 and "server.lua" or "hub.lua","t",_ENV))()

@@ -1,5 +1,6 @@
 param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240, [switch]$OnDesktop, [string]$View="crossing", [string]$ShotName="ssot-crossing.png")
 $ErrorActionPreference = 'Stop'
+$arView=$View -like 'ar*'
 if ($View -eq 'ar') { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='AboveNormal' }
 if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
     $desktopUser = (Get-CimInstance Win32_ComputerSystem).UserName
@@ -38,16 +39,22 @@ if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
     return
 }
 . "$PSScriptRoot\rcon.ps1"
+. "$PSScriptRoot\ar-host.ps1"
+$script:arBoxId=$null
+if (Test-Path "$TestRoot\box-run-id.txt") {
+    . 'C:\Work\gemini-input\gateb\gateb.ps1'
+    $script:arBoxId=[IO.File]::ReadAllText("$TestRoot\box-run-id.txt").Trim()
+}
 $client = Join-Path $TestRoot 'client'
 New-Item -ItemType Directory -Force -Path $client, "$client\mods", "$client\config" | Out-Null
 Copy-Item "$TestRoot\mods\*.jar" "$client\mods"
 Copy-Item "$TestRoot\config\classicperipherals.toml" "$client\config"
 Copy-Item "$PSScriptRoot\fml.toml" "$client\config\fml.toml"
-if ($View -eq 'ar') {
+if ($arView) {
     $fml=[IO.File]::ReadAllText("$client\config\fml.toml").Replace('earlyWindowControl = true','earlyWindowControl = false')
     [IO.File]::WriteAllText("$client\config\fml.toml",$fml,[Text.UTF8Encoding]::new($false))
 }
-$argumentPath=if ($View -eq 'ar') { 'C:\mc-client\args.txt' } else { 'C:\mc-run1\args.txt' }
+$argumentPath=if ($arView) { 'C:\mc-client\args.txt' } else { 'C:\mc-run1\args.txt' }
 $arguments = Get-Content $argumentPath -Raw
 function Set-ClientArgument([string]$Name, [string]$Value) {
     $option = [regex]::Escape($Name)
@@ -77,6 +84,7 @@ $secret = ($properties | Where-Object { $_ -like 'rcon.password=*' }).Substring(
 $previousDriver = $env:GALLIUM_DRIVER
 $env:GALLIUM_DRIVER = 'llvmpipe'
 $process = $null
+$recording = $null
 try {
     $process = Start-Process 'C:\mc-client\jdk\bin\java.exe' -ArgumentList "@$($client.Replace('\','/'))/client.args" -WorkingDirectory $client -WindowStyle Hidden -PassThru -RedirectStandardOutput "$client\stdout.log" -RedirectStandardError "$client\stderr.log"
     $process.PriorityClass = 'AboveNormal'
@@ -93,11 +101,14 @@ try {
         Start-Sleep -Seconds 2
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($players -notmatch 'SSOTProof') { throw 'Offline client did not join within the timeout.' }
-    $camera = if ($View -eq 'ar') {
+    $camera = if ($arView) {
         @('gamemode creative SSOTProof',
           'item replace entity SSOTProof armor.head with cc_ar:ar_goggles[cc_ar:ar_goggles_data={x:1.0d,y:66.0d,z:0.0d,turtleId:-1,version:0L,label:"PR 6"}]',
           'tp SSOTProof 6 70 6 180 35','time set day','weather clear')
     } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    if ($arView -and $View -ne 'ar' -and (Test-Path "$TestRoot\capture-camera.json")) {
+        $camera += @([IO.File]::ReadAllText("$TestRoot\capture-camera.json") | ConvertFrom-Json)
+    }
     foreach ($command in $camera) {
         $reply = Invoke-TestRcon $RconPort $secret $command
         if ($View -eq 'ar') { "$command`n$reply" | Add-Content "$Output\client-ar-rcon.txt" }
@@ -113,6 +124,18 @@ public static class SSOTCapture {
 '@
     $process.Refresh()
     if (!$process.MainWindowHandle) { throw 'Offline client has no screenshot window.' }
+    if ($View -in @('ar-production','ar-recall','ar-recharge')) {
+        $encoder='C:\Work\gemini-input\p2\test-tools\ffmpeg-8.1.2\verified\ffmpeg-8.1.2-essentials_build\bin\ffmpeg.exe'
+        if (!(Test-Path -LiteralPath $encoder)) { throw 'The verified FFmpeg executable is missing.' }
+        $filter="gfxcapture=hwnd=$($process.MainWindowHandle.ToInt64()):max_framerate=15:capture_cursor=0"
+        $recording=Start-Process -FilePath $encoder -WindowStyle Hidden -PassThru -ArgumentList @(
+            '-y','-hide_banner','-loglevel','warning','-f','lavfi','-i',$filter,
+            '-vf','hwdownload,format=bgra,format=yuv420p','-t','35','-c:v','libx264',
+            '-preset','ultrafast','-crf','22',"`"$Output\$View.mp4`""
+        ) -RedirectStandardOutput "$Output\video-stdout.log" -RedirectStandardError "$Output\video-stderr.log"
+        "Native Minecraft window $($process.MainWindowHandle.ToInt64()), process $($process.Id), gfxcapture, 15 fps, 35 seconds." |
+            Set-Content "$Output\video-source.txt"
+    }
     function Send-ClientKey([int]$Key) {
         $scanCode = [SSOTCapture]::MapVirtualKey($Key,0)
         $bits = [int64](1 -bor ($scanCode -shl 16))
@@ -158,7 +181,7 @@ public static class SSOTCapture {
         $until=[DateTime]::UtcNow.AddSeconds(90)
         do {
             $value=$null
-            try { $value=Get-Content $Path -Raw -ErrorAction Stop | ConvertFrom-Json } catch {}
+            try { $value=Read-ArText $Path | ConvertFrom-Json } catch {}
             if ($value -and (& $Ready $value)) { return $value }
             if ($process.HasExited) { throw 'The test client exited while waiting for AP chat.' }
             Start-Sleep -Milliseconds 250
@@ -166,13 +189,36 @@ public static class SSOTCapture {
         throw "Timed out waiting for an actual AP chat record in $Path."
     }
     $chatFailure=$null
+    if ($View -in @('ar-recharge','ar-recall')) {
+        $command=if ($View -eq 'ar-recharge') { '!recharge' } else { '!hub' }
+        $before=Read-ArText "$TestRoot\world\computercraft\computer\0\ar-depth.json" | ConvertFrom-Json
+        if (!$before.time) { throw 'Production server did not publish a chat observation timestamp.' }
+        $sent=[long]$before.time
+        Send-ClientChat $command
+        $server=Wait-ChatRecord "$TestRoot\world\computercraft\computer\0\ar-depth.json" {
+            param($v) @($v.replies | Where-Object { $_.at -gt $sent -and $_.name -eq 'SSOTProof' -and $_.text -match '[$!]confirm\s+([A-Za-z0-9-]+)' }).Count -gt 0
+        }
+        $reply=@($server.replies | Where-Object { $_.at -gt $sent -and $_.name -eq 'SSOTProof' -and $_.text -match '[$!]confirm\s+([A-Za-z0-9-]+)' })[-1]
+        if ($reply.text -notmatch '[$!]confirm\s+([A-Za-z0-9-]+)') { throw 'Production chat returned no confirmation token.' }
+        $token=$Matches[1]
+        Send-ClientChat ('!confirm '+$token)
+        $confirmed=Wait-ChatRecord "$TestRoot\world\computercraft\computer\0\ar-depth.json" {
+            param($v)
+            $chat=@($v.chat | Where-Object { $_.at -gt $sent -and $_.name -eq 'SSOTProof' })
+            $expected=if ($View -eq 'ar-recharge') {'Recharge queued'} else {'Recall queued'}
+            return @($chat | Where-Object { $_.message -eq $command }).Count -gt 0 -and
+                @($chat | Where-Object { $_.message -eq ('!confirm '+$token) }).Count -gt 0 -and
+                @($v.replies | Where-Object { $_.at -ge $reply.at -and $_.name -eq 'SSOTProof' -and $_.text -like "$expected*" }).Count -gt 0
+        }
+        $confirmed | ConvertTo-Json -Depth 40 | Set-Content "$Output\production-chat.json"
+    }
     if ($View -eq 'ar') {
         try {
         $disk = "$TestRoot\world\computercraft\computer\0"
         Send-ClientChat '!pro'
         $denied=Wait-ChatRecord "$disk\ar-chat-events.json" { param($v) @($v.events).Count -ge 1 }
         if (@($denied.actions | Where-Object { $_.action }).Count) { throw 'Unenrolled chat executed an action.' }
-        [IO.File]::WriteAllText("$disk\ar-enroll-test-player",'Explicit enrollment for disposable offline test player only.')
+        Write-ArText "$disk\ar-enroll-test-player" 'Explicit enrollment for disposable offline test player only.'
         $sent=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         Send-ClientChat '$pro'
         $reply=Wait-ChatRecord "$disk\ar-chat-reply.json" { param($v) $v.time -ge $sent }
@@ -191,7 +237,7 @@ public static class SSOTCapture {
         if (@($events.actions).Count -ne 2) { throw 'Unauthorized or replayed chat action was accepted, or confirmation failed.' }
         if (!(@($events.events | Where-Object { $_.hidden -eq $true }).Count) -or
             !(@($events.events | Where-Object { $_.hidden -eq $false }).Count)) { throw 'Missing actual AP hidden/public events.' }
-        Copy-Item "$disk\ar-chat-events.json" "$Output\real-ap-chat.json" -Force
+        Save-ArFile "$disk\ar-chat-events.json" "$Output\real-ap-chat.json"
         } catch {
             $chatFailure=$_.Exception.Message
             $chatFailure | Set-Content "$Output\chat-failure.txt"
@@ -202,6 +248,15 @@ public static class SSOTCapture {
         Start-Sleep -Seconds 5
     }
     Capture-ClientScreenshot $ShotName
+    if ($View -in @('ar-production','ar-recall','ar-recharge')) {
+        $inventory=Invoke-TestRcon $RconPort $secret 'data get entity SSOTProof Inventory'
+        $inventory | Set-Content "$Output\production-goggles-inventory.txt"
+        if ($inventory -notmatch 'cc_ar:ar_goggles_data') { throw 'Production capture has no linked goggles.' }
+        if (!$recording.WaitForExit(60000)) { throw 'Native video recorder exceeded its deadline.' }
+        if ($recording.ExitCode -ne 0 -or !(Test-Path "$Output\$View.mp4")) {
+            throw 'Native video recording failed. Inspect video-stderr.log.'
+        }
+    }
     if ($View -eq 'ar') {
         Invoke-TestRcon $RconPort $secret 'tp SSOTProof 6 65 5 180 0' | Out-Null
         Start-Sleep -Seconds 5
@@ -263,6 +318,7 @@ public static class SSOTCapture {
 } finally {
     $env:GALLIUM_DRIVER = $previousDriver
     if ($process -and !$process.HasExited) { Stop-Process -Id $process.Id -Force }
+    if ($recording -and !$recording.HasExited) { Stop-Process -Id $recording.Id -Force }
     foreach ($file in @('logs\latest.log','stderr.log')) {
         if (Test-Path "$client\$file") { Copy-Item "$client\$file" "$Output\client-$([IO.Path]::GetFileName($file))" -Force }
     }

@@ -4,12 +4,21 @@ param(
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr6\gateB',
     [string]$TestRoot = '',
     [int]$Timeout = 600,
+    [ValidateSet('Auto','Box','Local')][string]$HostKind = 'Auto',
+    [int]$SpaceLimit = 4000000,
     [switch]$PrepareOnly,
     [switch]$Client
 )
 $ErrorActionPreference = 'Stop'
 [Diagnostics.Process]::GetCurrentProcess().PriorityClass='AboveNormal'
 . "$PSScriptRoot\rcon.ps1"
+. 'C:\Work\gemini-input\gateb\gateb.ps1'
+. "$PSScriptRoot\ar-host.ps1"
+$script:arBoxId = $null
+$script:arBoxRunning = $false
+$script:arBoxStarted = $false
+$arTestOwnerName='SSOTProof'
+$arTestOwnerUUID='b853395f-3060-3b1f-bbe1-d4aa2249261f'
 $source = (Resolve-Path "$PSScriptRoot\..\..").Path
 $utf8 = New-Object Text.UTF8Encoding($false)
 if (!$TestRoot) { $TestRoot = 'C:\Work\mc-ssot-pr6-' + [guid]::NewGuid().ToString('N').Substring(0,8) }
@@ -20,7 +29,8 @@ if ($Output -eq 'C:\Work\gemini-input\p2\evidence\pr1\gateB') { $Output = 'C:\Wo
 New-Item -ItemType Directory -Force -Path $TestRoot,$Output,"$TestRoot\mods","$TestRoot\config","$TestRoot\world\serverconfig" | Out-Null
 New-Item -ItemType Junction -Path "$TestRoot\libraries" -Target "$Base\libraries" | Out-Null
 foreach ($pattern in @('cc-tweaked-1.21.1-forge-1.120.2.jar','classicperipherals-neoforge-1.21.1-0.6.5.jar',
-    'AdvancedPeripherals-*.jar','turtlematic-*.jar','cc_ar-*.jar','directgpu-*.jar','kotlinforforge-*.jar')) {
+    'AdvancedPeripherals-*.jar','turtlematic-*.jar','cc_ar-*.jar','directgpu-*.jar','kotlinforforge-*.jar',
+    'superbwarfare-*.jar','curios-*.jar')) {
     $jars = @(Get-ChildItem "$Base\mods" -Filter $pattern)
     if ($jars.Count -ne 1) { throw "Expected one installed jar matching $pattern." }
     Copy-Item -LiteralPath $jars[0].FullName -Destination "$TestRoot\mods"
@@ -29,8 +39,22 @@ foreach ($pattern in @('*tweakium*.jar','*broccolium*.jar','*peripheralium*.jar'
     Get-ChildItem "$Base\mods" -Filter $pattern | Copy-Item -Destination "$TestRoot\mods"
 }
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
+foreach ($jar in @(
+    'e67929626fafce1d4e05a6d9dde332749a3f89378b18e124df5b507ea099de3a-turtlematicfix-1.0.0.jar',
+    'efbf56d8c43d16a41421329a5ed9afc81451227619062925d6e277969452431c-recipe_index-0.1.0.jar')) {
+    $cached="C:\Work\gemini-input\gateb\mods-cache\$jar"
+    if ((Get-FileHash -LiteralPath $cached -Algorithm SHA256).Hash -ne $jar.Substring(0,64)) {
+        throw "Disposable jar checksum mismatch: $jar"
+    }
+    Copy-Item -LiteralPath $cached -Destination "$TestRoot\mods\$($jar.Substring(65))"
+}
+foreach ($name in @('superbwarfare-common.toml','superbwarfare-server.toml','turtlematic.toml')) {
+    Copy-Item -LiteralPath "$Base\config\$name" -Destination "$TestRoot\config"
+}
+Copy-Item -LiteralPath "$Base\config\superbwarfare-server.toml" -Destination "$TestRoot\world\serverconfig"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
-$cc = [IO.File]::ReadAllText("$Base\config\computercraft-server.toml").Replace('computer_space_limit = 1000000','computer_space_limit = 4000000')
+$cc = [regex]::Replace([IO.File]::ReadAllText("$Base\config\computercraft-server.toml"),
+    'computer_space_limit = \d+', "computer_space_limit = $SpaceLimit")
 foreach ($folder in @('config','world\serverconfig')) { [IO.File]::WriteAllText("$TestRoot\$folder\computercraft-server.toml",$cc,$utf8) }
 function Get-FreePort {
     $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,0)
@@ -49,15 +73,28 @@ $secret = [guid]::NewGuid().ToString('N')
     'generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}',
     'generate-structures=false','motd=Disposable SSOT PR 6 test'),$utf8)
 [IO.File]::WriteAllText("$TestRoot\eula.txt",'eula=true',$utf8)
+$checkoutSource=$source
+$source=Join-Path $TestRoot 'source'
+New-Item -ItemType Directory -Path $source | Out-Null
+foreach ($file in Get-ChildItem "$checkoutSource\*.lua") {
+    [IO.File]::WriteAllText("$source\$($file.Name)",[IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"),$utf8)
+}
+$arDriverRoot=Join-Path $Output 'driver-source'
+New-Item -ItemType Directory -Force -Path $arDriverRoot | Out-Null
+Get-ChildItem $PSScriptRoot -File | Where-Object { $_.Extension -in @('.lua','.ps1','.py','.toml') } |
+    Copy-Item -Destination $arDriverRoot
+Copy-Item -LiteralPath "$checkoutSource\tests\fixtures" -Destination "$arDriverRoot\fixtures" -Recurse
+. "$arDriverRoot\ar-host.ps1"
 foreach ($id in 0..4) {
     $disk = "$TestRoot\world\computercraft\computer\$id"
     New-Item -ItemType Directory -Force -Path $disk | Out-Null
-    foreach ($file in Get-ChildItem "$source\*.lua") {
-        [IO.File]::WriteAllText("$disk\$($file.Name)",[IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"),$utf8)
-    }
-    Copy-Item "$PSScriptRoot\ar-probe.lua" "$disk\ar-probe.lua"
+    $role=if ($id -eq 0) { 'server' } elseif ($id -eq 4) { 'hub' } else { 'miner' }
+    Copy-ArRole $id $role
+    Copy-Item "$arDriverRoot\ar-probe.lua" "$disk\ar-probe.lua"
+    [IO.File]::WriteAllText("$disk\ar-test-config.json",("{`"spaceLimit`":$SpaceLimit}"),$utf8)
     [IO.File]::WriteAllText("$disk\startup.lua",'shell.run("ar-probe.lua")',$utf8)
 }
+Copy-ArCache
 Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object {
     "$($_.Hash) $([IO.Path]::GetFileName($_.Path))"
 } | Set-Content "$Output\jar-sha256.txt"
@@ -72,12 +109,14 @@ $ownedLock = $false
 $script:arProcess = $null
 $result = @{ ok=$false; scenario='ar'; native=$false; visual=$false; errors=@(); root=$TestRoot
     missing=@('Production server/hub ownership failover with actual shared controller',
-        'Production chat recall with real turtle return movement',
+        'Production mining, recall and recharge depth checks',
         'Native cached installation of every role',
-        'Visible through-wall turtle and ore geometry')
-    deferred=@('PR 4 charging and warehouse routes use explicit unavailable adapters',
-        'PR 5 view roles and separate-hub ore snapshots use explicit unavailable adapters') }
+        'Visible through-wall turtle and ore geometry',
+        'Physical goggles removal detaches the wearer')
+    deferred=@('PR 5 view roles await the pushed PR 5 fix round',
+        'Ed25519 manifest signing awaits H1H2') }
 function Rcon([string]$Command) {
+    if ($script:arBoxId) { return Invoke-GatebRcon $script:arBoxId @($Command) -Log "$Output\rcon.txt" }
     $answer = Invoke-TestRcon $rconPort $secret $Command
     $entry="$([DateTime]::UtcNow.ToString('o')) > $Command`n$answer`n"
     for ($attempt=0; $attempt -lt 50; $attempt++) {
@@ -113,6 +152,44 @@ function Wait-ArResources {
     } while ($true)
 }
 function Start-ArServer([string]$Label) {
+    if ($script:arBoxId) {
+        do {
+            try {
+                Start-GatebRun $script:arBoxId -TimeoutSec $Timeout | Out-Null
+                $script:arBoxRunning = $true
+                $script:arBoxStarted = $true
+                return
+            } catch {
+                if ($_.Exception.Message -notmatch '\b409\b') { throw }
+                if ([DateTime]::UtcNow -gt $waitUntil) { throw 'Box capacity remained full for three hours.' }
+                "$([DateTime]::UtcNow.ToString('o')) Box capacity is full." | Add-Content "$Output\resource-wait.txt"
+                if (!$script:arBoxStarted -and $HostKind -eq 'Auto' -and !(Test-Path $lock)) {
+                    $freeGB=(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB
+                    $others=@(Get-CimInstance Win32_Process -Filter "name='java.exe'" |
+                        Where-Object { $_.CommandLine -match 'C:[\\/]+Work[\\/]+mc-ssot-' })
+                    if ($freeGB -ge 5 -and $others.Count -eq 0) {
+                        try {
+                            New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
+                            $script:ownedLock=$true
+                            'PR 6' | Set-Content "$lock\owner.txt"
+                        } catch {}
+                        if ($script:ownedLock) {
+                            Remove-GatebRun $script:arBoxId | Out-Null
+                            $script:arBoxId=$null
+                            Remove-Item -LiteralPath "$TestRoot\box-run-id.txt"
+                            [IO.File]::WriteAllText("$Output\test-location.txt","$TestRoot`nlocalhost:$port`nRCON localhost:$rconPort`n",$utf8)
+                            Get-ChildItem "$TestRoot\mods" | Get-FileHash -Algorithm SHA256 | ForEach-Object {
+                                "$($_.Hash) $([IO.Path]::GetFileName($_.Path))"
+                            } | Set-Content "$Output\jar-sha256.txt"
+                            break
+                        }
+                    }
+                }
+                Start-Sleep -Seconds 60
+                Start-Sleep -Seconds 60
+            }
+        } while ($true)
+    }
     Wait-ArResources
     foreach ($candidate in @($port,$rconPort)) {
         $listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback,$candidate)
@@ -134,6 +211,11 @@ function Start-ArServer([string]$Label) {
     throw 'Server boot timeout.'
 }
 function Stop-ArServer {
+    if ($script:arBoxId) {
+        if ($script:arBoxRunning) { Stop-GatebRun $script:arBoxId | Out-Null }
+        $script:arBoxRunning = $false
+        return
+    }
     if ($script:arProcess -and !$script:arProcess.HasExited) {
         try { Rcon 'stop' | Out-Null } catch {}
         if (!$script:arProcess.WaitForExit(60000)) { Stop-Process -Id $script:arProcess.Id -Force }
@@ -144,29 +226,71 @@ function Wait-Result([int]$Id,[string]$Name) {
     $path = "$TestRoot\world\computercraft\computer\$Id\$Name"
     $deadline = [DateTime]::UtcNow.AddSeconds($Timeout)
     do {
-        if (Test-Path $path) {
+        $text = Read-ArText $path
+        if ($text) {
             $value = $null
-            try { $value = Get-Content $path -Raw | ConvertFrom-Json } catch {}
+            try { $value = $text | ConvertFrom-Json } catch {}
             if ($value) {
                 if (!$value.ok) { throw "Computer $Id failed $Name. $($value.error)" }
-                Copy-Item $path "$Output\$Id-$Name" -Force
+                [IO.File]::WriteAllText("$Output\$Id-$Name",$text,$utf8)
                 return
             }
         }
-        if ($script:arProcess.HasExited) { throw 'Server exited during AR probe.' }
+        if (!(Test-ArServer)) { throw 'Server exited during AR probe.' }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Computer $Id timed out waiting for $Name."
 }
+function Invoke-ArCapture([string]$View) {
+    if (!$Client) { throw 'The native capture phase requires -Client.' }
+    $clientLocked=$false
+    $captureOutput=Join-Path $Output ('capture-'+$View+'-'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
+    New-Item -ItemType Directory -Path $captureOutput | Out-Null
+    try {
+        Enter-GatebClientLock 'PR 6 AR capture'
+        $clientLocked=$true
+        $clientPort,$clientRconPort=$port,$rconPort
+        if ($script:arBoxId) {
+            $local=Connect-GatebLocal $script:arBoxId $TestRoot
+            $clientPort,$clientRconPort=$local.Port,$local.RconPort
+        }
+        if ($arCaptureCamera) {
+            $camera=@("tp SSOTProof $($arCaptureCamera.x) $($arCaptureCamera.y) $($arCaptureCamera.z) $($arCaptureCamera.yaw) $($arCaptureCamera.pitch)")
+            [IO.File]::WriteAllText("$TestRoot\capture-camera.json",($camera | ConvertTo-Json),$utf8)
+        }
+        $shot=if ($View -eq 'ar') { 'ar-hud.png' } else { "$View.png" }
+        & "$arDriverRoot\client.ps1" -TestRoot $TestRoot -Port $clientPort -RconPort $clientRconPort `
+            -Output $captureOutput -View $View -ShotName $shot -Timeout $Timeout
+    } finally {
+        if ($script:arBoxId) { Disconnect-GatebLocal $TestRoot }
+        if ($clientLocked) { Exit-GatebClientLock }
+        Get-ChildItem $captureOutput -File | Where-Object { $_.Extension -in @('.png','.mp4') -or $_.Name -eq 'real-ap-chat.json' } |
+            Copy-Item -Destination $Output -Force
+    }
+}
+function New-ArBox {
+    $box = New-GatebRun -Name 'ssot-pr6' -XmxMb 3072 -SpaceLimit $SpaceLimit
+    $script:arBoxId = $box.id
+    [IO.File]::WriteAllText("$TestRoot\box-run-id.txt",$box.id,$utf8)
+    [IO.File]::WriteAllText("$Output\test-location.txt",
+        "box run $($box.id) at 100.78.96.94:$($box.game_port) (disposable, not live)`n",$utf8)
+    Send-GatebDir $box.id "$TestRoot\world\computercraft" 'world'
+    [IO.File]::WriteAllText("$Output\jar-sha256.txt",(Get-GatebText $box.id 'jar-sha256.txt'),$utf8)
+}
 try {
     $waitUntil = [DateTime]::UtcNow.AddHours(3)
+    if ($HostKind -eq 'Box' -or ($HostKind -eq 'Auto' -and (Test-Path $lock))) {
+        New-ArBox
+    }
     do {
+        if ($script:arBoxId) { break }
         try {
             New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
             $ownedLock = $true
             'PR 6' | Set-Content "$lock\owner.txt"
         } catch {
             if (!(Test-Path $lock)) { throw }
+            if ($HostKind -eq 'Auto') { New-ArBox; break }
             Write-Output 'Waiting for Gate B lock.'
             Start-Sleep -Seconds 60
         }
@@ -190,11 +314,11 @@ try {
         Rcon $command | Out-Null
     }
     foreach ($id in 0..4) { Wait-Result $id 'ar-native.json' }
-    Copy-Item "$TestRoot\logs\latest.log" "$Output\before-restart.log"
+    Save-ArFile "$TestRoot\logs\latest.log" "$Output\before-restart.log"
     $result.nativeRendering = $true
     if ($Client) {
         try {
-            & "$PSScriptRoot\client.ps1" -TestRoot $TestRoot -Port $port -RconPort $rconPort -Output $Output -View ar -ShotName ar-hud.png -Timeout $Timeout
+            Invoke-ArCapture 'ar'
         } catch { $result.errors += $_.Exception.Message }
         $result.visual = (Test-Path "$Output\ar-hud.png") -and (Test-Path "$Output\ar-xray.png")
     }
@@ -208,12 +332,17 @@ try {
     }
     if (!$result.native) { $result.missing += 'Native restart recovery' }
     try {
-        . "$PSScriptRoot\ar-owner.ps1"
+        . "$arDriverRoot\ar-owner.ps1"
         $result.owner = $true
         $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })
     } catch { $result.errors += $_.Exception.Message }
     try {
-        . "$PSScriptRoot\ar-install.ps1"
+        . "$arDriverRoot\ar-depth.ps1"
+        $result.depth = $true
+        $result.missing = @($result.missing | Where-Object { $_ -ne 'Production mining, recall and recharge depth checks' })
+    } catch { $result.errors += $_.Exception.Message }
+    try {
+        . "$arDriverRoot\ar-install.ps1"
         $result.installation = $true
         $result.missing = @($result.missing | Where-Object { $_ -ne 'Native cached installation of every role' })
     } catch { $result.errors += $_.Exception.Message }
@@ -225,7 +354,7 @@ try {
     $result.errors += $_.Exception.Message
     Write-Output "Gate B AR failed. $($_.Exception.Message)"
 } finally {
-    Stop-ArServer
+    try { Stop-ArServer } catch { $result.errors += "Server cleanup: $($_.Exception.Message)" }
     if (Test-Path "$TestRoot\client\process.id") {
         $clientId = [int](Get-Content "$TestRoot\client\process.id")
         $owned = Get-CimInstance Win32_Process -Filter "ProcessId=$clientId" -ErrorAction SilentlyContinue
@@ -234,7 +363,26 @@ try {
             Wait-Process -Id $clientId -ErrorAction SilentlyContinue
         }
     }
-    if (Test-Path "$TestRoot\logs\latest.log") { Copy-Item "$TestRoot\logs\latest.log" "$Output\latest.log" -Force }
+    if ($script:arBoxId) {
+        $downloaded=$false
+        for ($attempt=0; $attempt -lt 3 -and !$downloaded; $attempt++) {
+            try {
+                Save-GatebDir $script:arBoxId 'logs' $Output
+                Save-GatebDir $script:arBoxId 'world/computercraft/computer' $Output
+                [IO.File]::WriteAllText("$Output\box-rcon.txt",(Get-GatebText $script:arBoxId 'rcon.txt'),$utf8)
+                $downloaded=$true
+            } catch {
+                $result.errors += "Evidence download attempt $($attempt+1): $($_.Exception.Message)"
+                Start-Sleep -Seconds 5
+            }
+        }
+        if ($downloaded) {
+            try { Remove-GatebRun $script:arBoxId | Out-Null }
+            catch { $result.errors += "Box cleanup: $($_.Exception.Message)" }
+        } else {
+            $result.errors += "Stopped box run $script:arBoxId retained until its evidence can be downloaded."
+        }
+    } elseif (Test-Path "$TestRoot\logs\latest.log") { Copy-Item "$TestRoot\logs\latest.log" "$Output\latest.log" -Force }
     Get-ChildItem "$TestRoot\world\computercraft\computer" -Recurse -Filter 'ar-*.json' | ForEach-Object {
         Copy-Item $_.FullName "$Output\$($_.Directory.Name)-$($_.Name)" -Force
     }

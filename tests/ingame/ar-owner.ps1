@@ -1,7 +1,6 @@
 function Read-Owner([int]$Id) {
     $path="$TestRoot\world\computercraft\computer\$Id\ar-owner.json"
-    if (!(Test-Path $path)) { return $null }
-    try { $state=Get-Content $path -Raw | ConvertFrom-Json } catch { return $null }
+    try { $state=Read-ArText $path | ConvertFrom-Json } catch { return $null }
     if ($null -eq $state -or $null -eq $state.ok) { return $null }
     if (!$state.ok) { throw "Owner $Id failed. $($state.failure) $($state.error)" }
     return $state
@@ -19,8 +18,8 @@ function Wait-Owners([scriptblock]$Check,[string]$Description) {
 Stop-ArServer
 foreach ($id in @(0,4)) {
     $disk="$TestRoot\world\computercraft\computer\$id"
-    Copy-Item "$PSScriptRoot\ar-owner-probe.lua" $disk
-    [IO.File]::WriteAllText("$disk\startup.lua",'shell.run("ar-owner-probe.lua")',$utf8)
+    Copy-ArFile "$PSScriptRoot\ar-owner-probe.lua" "$disk\ar-owner-probe.lua"
+    Write-ArText "$disk\startup.lua" 'shell.run("ar-owner-probe.lua")'
 }
 Start-ArServer 'production-owner'
 Rcon 'computercraft turn-on 0 1 2 3 4' | Out-Null
@@ -36,7 +35,7 @@ if ($hub.mutations -ne $hubMutations) { throw 'Hub mutated the shared controller
 $injectionId=[guid]::NewGuid().ToString('N')
 $injection=@{id=$injectionId;fault='stale-namespace'} | ConvertTo-Json -Compress
 $injectionPath="$TestRoot\world\computercraft\computer\0\ar-owner-request.json"
-[IO.File]::WriteAllText($injectionPath,$injection,$utf8)
+Write-ArText $injectionPath $injection
 $seeded=Wait-Owners { param($s,$h) $s.request -eq $injectionId -and
     $s.elementIds -contains 'ssot-ar:ore:test-stale' -and $s.elementIds -contains 'pr6-owner:foreign' -and
     $h.elementIds -contains 'ssot-ar:ore:test-stale' -and $h.elementIds -contains 'pr6-owner:foreign'
@@ -67,8 +66,8 @@ $server=$baseline[0]
 $serverUpdates=$server.updates
 @{requestId=$requestId;server=$server;hub=$hub} | ConvertTo-Json -Depth 30 |
     Set-Content "$Output\owner-key-baseline.json"
-$request=@{id=$requestId;key='p'} | ConvertTo-Json -Compress
-[IO.File]::WriteAllText("$TestRoot\world\computercraft\computer\4\ar-owner-request.json",$request,$utf8)
+$request=@{id=$requestId;key='P'} | ConvertTo-Json -Compress
+Write-ArText "$TestRoot\world\computercraft\computer\4\ar-owner-request.json" $request
 $toggled=Wait-Owners { param($s,$h) $h.request -eq $requestId -and $s.updates -gt $serverUpdates } 'hub key reached server-owned HUD'
 Start-Sleep -Seconds 6
 $sampleAfter=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()

@@ -164,20 +164,30 @@ function M.new(attached, state)
       }
     end,
   }
-  local timer = 0
+  local timer, timers = 0, {}
   env.os = {
     queueEvent = function(...) m.queued[#m.queued+1]=table.pack(...) end,
-    cancelTimer = function() end,
+    cancelTimer = function(id) timers[id]=nil end,
     clock = function() return m.time end, epoch = function() return 1000000 + m.time * 1000 end,
     time = function() return 12 end, getComputerID = function() return 99 end,
     getComputerLabel = function() return "Hub" end,
-    startTimer = function(delay) timer = timer + 1 record("timer", delay) m.timer = timer return timer end,
+    startTimer = function(delay)
+      timer = timer + 1
+      record("timer", delay)
+      timers[timer] = (math.floor(m.time*20+.5)+math.max(1,math.ceil((delay or 0)*20)))/20
+      m.timer = timer
+      return timer
+    end,
     pullEvent = function(filter)
       local event = table.pack(coroutine.yield(filter))
       if event[1] == "terminate" then error("Terminated", 0) end
       return table.unpack(event, 1, event.n)
     end,
   }
+  env.sleep = function(delay)
+    local id = env.os.startTimer(delay or 0)
+    repeat local _, fired = env.os.pullEvent("timer") until fired == id
+  end
   env.print = function(...) record("print", ...) end
   env.rednet = {
     lookup = function() return nil end,
@@ -224,6 +234,8 @@ function M.new(attached, state)
     m.push()
   end
   function m.push(...)
+    local event, id = ...
+    if event=="timer" then timers[id]=nil end
     local ok, err = coroutine.resume(m.app, ...)
     assert(ok, err)
     while #m.queued>0 do
@@ -233,8 +245,19 @@ function M.new(attached, state)
     end
   end
   function m.tick()
-    m.time = m.time + 1
-    m.push("timer", m.timer)
+    local untilAt=m.time+1
+    while true do
+      local nextId,nextAt
+      for id,at in pairs(timers) do
+        if at<=untilAt and (not nextAt or at<nextAt or at==nextAt and id<nextId) then
+          nextId,nextAt=id,at
+        end
+      end
+      if not nextId then break end
+      m.time=math.max(m.time,nextAt)
+      m.push("timer",nextId)
+    end
+    m.time=untilAt
   end
   function m.status(id, packet) m.push("rednet_message", id, packet, "minearmy") end
   m.env = env

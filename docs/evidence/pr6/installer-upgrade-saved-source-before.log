@@ -1,0 +1,10 @@
+Replaying migration regressions against saved source .audit/craftos/63dbcc8694934eeb8e442fefcd26a74c/computer/0; release aedad068
+Testing the real pending manifest. Unavailable roles must refuse installation; the all-role gate remains incomplete.
+FAIL legacy data survives role update: buddy.memory: tests/install-role-checks.lua:108: Deleted buddy.memory
+FAIL legacy data survives role update: room.recipes: tests/install-role-checks.lua:108: Deleted room.recipes
+FAIL legacy data survives role update: board.hist: tests/install-role-checks.lua:108: Deleted board.hist
+FAIL legacy data survives role update: board.last: tests/install-role-checks.lua:108: Deleted board.last
+FAIL legacy startup migration preserves client board delivery and calibrated arguments: tests/install-role-checks.lua:150: Configured arguments changed
+FAIL current installer bootstraps the actual v1 updater through its file transport: update.lua:178: bad argument #1 to 'ipairs' (table expected, got string)
+FAIL actual v1 update CLI upgrades itself before role pruning without losing saved data: tests/install-role-checks.lua:179: assertion failed!
+0 passed, 7 failed

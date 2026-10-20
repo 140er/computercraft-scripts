@@ -70,17 +70,33 @@ function M.open(cfg)
   end
   function api.state() return A.copy(state) end
   function api.interrupt(reason)
-    if state.phase~="done" then state.phase="return" state.reason=reason or "recall" save("return-saved") end
+    if state.phase~="done" or reason=="recharge" then state.phase="return" state.reason=reason or "recall" save("return-saved") end
   end
-  function api.service()
+  function api.service(cancelled)
     if not cfg.service or cfg.service.enabled~=true then return false,"mining service disabled" end
     if state.phase~="home" then return false,"return home before service" end
     local w=dofile("warehouse.lua").open({nav=nav,client=client,path=cfg.service.path or "mining-warehouse.state"})
+    local function cancelService()
+      if not cancelled or not cancelled() then return end
+      local ok,why=w.cancelService()
+      if not ok then return why or "cancelled" end
+      ok,why=nav.go(cfg.home,"walk")
+      if not ok then return why end
+      ok,why=nav.face(cfg.home.h)
+      if not ok then return why end
+      state.service=nil
+      save()
+      return "cancelled"
+    end
+    local cancelledReason=cancelService()
+    if cancelledReason then return false,cancelledReason end
     if not state.service then state.service="drop" save() end
     if state.service=="drop" then
       if not cfg.service.drop then return false,"configure a drop pose" end
       if w.state().phase~="unload" then local ok,why=w.unload(cfg.service.drop,cfg.service.keep) if not ok then return false,why end end
       repeat
+        local why=cancelService()
+        if why then return false,why end
         local ok,why=w.tick() if not ok and w.state().phase~="done" then return false,why end
         (cfg.yield or sleep)(.1)
       until w.state().phase=="done"
@@ -92,6 +108,8 @@ function M.open(cfg)
         if not cfg.service.charger then return false,"configure a charging pose" end
         local ok,why=w.charge(cfg.service.charger,target,cfg.service.chargeTimeout or 60000) if not ok then return false,why end
         repeat
+          local why=cancelService()
+          if why then return false,why end
           local moved,err=w.tick()
           if not moved then
             if w.state().phase=="done" then
@@ -157,7 +175,7 @@ function M.open(cfg)
   function api.tick()
     reconcile()
     if nav.stopped() then return false,"cancelled" end
-    if state.phase=="done" or not state.task then return false,state.phase end
+    if state.phase=="done" then return false,state.phase end
     if state.phase=="home" then return false,state.reason or "home" end
     if state.phase=="return" then
       local ok,why=nav.go(cfg.home,"walk")
@@ -167,6 +185,7 @@ function M.open(cfg)
       state.phase="home" save("home-saved")
       return false,state.reason or "home"
     end
+    if not state.task then return false,state.phase end
     local reason=interruptReason()
     if reason then api.interrupt(reason) return true end
     local r,why=request("mine-renew",{token=state.task.token})

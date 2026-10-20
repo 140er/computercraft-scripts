@@ -5,13 +5,15 @@ param(
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
     [string]$TestRoot = '',
     [int]$Timeout = 600,
+    [ValidateSet('Auto','Box','Local')][string]$HostKind = 'Auto',
+    [int]$SpaceLimit = 4000000,
     [switch]$PrepareOnly,
     [switch]$Client,
     [switch]$ResumeProbes
 )
 $ErrorActionPreference = 'Stop'
 if ($Scenario -eq 'ar') {
-    & "$PSScriptRoot\ar.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -PrepareOnly:$PrepareOnly -Client:$Client
+    & "$PSScriptRoot\ar.ps1" -Base $Base -Battery $Battery -Output $Output -TestRoot $TestRoot -Timeout $Timeout -HostKind $HostKind -SpaceLimit $SpaceLimit -PrepareOnly:$PrepareOnly -Client:$Client
     return
 }
 if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }

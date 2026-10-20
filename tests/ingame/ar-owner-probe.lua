@@ -78,9 +78,19 @@ rednet.send=function(peer,message,protocol)
 end
 http=nil
 _G.http=nil
+local operatorName="SSOTProof"
+local operatorUUID="b853395f-3060-3b1f-bbe1-d4aa2249261f"
+if not fs.exists("ssot.cfg") then
+  local auth={controllers={["4"]="pr6-disposable-controller-4"},chatNames={operatorName},
+    chatUUIDs={[operatorName]=operatorUUID},arControllers={["4"]={name=operatorName,uuid=operatorUUID}}}
+  local h=assert(fs.open("ssot.cfg","w"))
+  h.write(textutils.serialize(auth))
+  h.close()
+end
 if not fs.exists("ar.cfg") then
   local cfg=dofile("ar-hud.lua").defaults()
   cfg.enabled=true
+  cfg.ownerName,cfg.ownerUUID=operatorName,operatorUUID
   cfg.origin={x=1,y=66,z=0,dim="minecraft:overworld"}
   cfg.anchors={hub={x=1,y=66,z=0,dim="minecraft:overworld"}}
   local h=assert(fs.open("ar.cfg","w"))
@@ -121,7 +131,7 @@ local function monitor()
       if request and request.id~=state.request then
         assert(type(request.id)=="string","Request ID must be a string")
         if request.key then
-          assert(type(request.key)=="string" and #request.key==1 and ("ptoav"):find(request.key,1,true),
+          assert(type(request.key)=="string" and #request.key==1 and ("PTOAv"):find(request.key,1,true),
             "Only real AR layer keys are accepted")
           os.queueEvent("char",request.key)
         end
@@ -146,7 +156,8 @@ local function monitor()
   end
 end
 local ok,err=pcall(function()
-  assert(fs.getCapacity("/")==4000000,"Wrong computer disk capacity")
+  local testConfig=assert(read("ar-test-config.json"),"Missing isolated test configuration")
+  assert(fs.getCapacity("/")==testConfig.spaceLimit,"Wrong computer disk capacity")
   save()
   parallel.waitForAny(function()
     state.programRunning=true

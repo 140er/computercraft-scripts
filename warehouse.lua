@@ -133,6 +133,22 @@ function M.open(cfg)
     return true
   end
   function api.state() return A.copy(state) end
+  function api.cancelService()
+    if state.phase=="charge" then
+      state.charge.returning=true
+      state.charge.outcome="cancelled"
+      save()
+      local _,why=api.tick()
+      return state.phase=="done",why
+    end
+    if state.phase=="unload" then
+      local ok,why=release()
+      if not ok then return false,why end
+      state.phase,state.reason="done","cancelled"
+      save()
+    end
+    return true
+  end
   function api.charge(name,target,timeout)
     if state.phase=="charge" then return true end
     reconcile()

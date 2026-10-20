@@ -64,11 +64,14 @@ try {
         if ($Scenario -eq 'ar') {
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
             Copy-Item -LiteralPath "$PSScriptRoot\ar-driver.lua" -Destination $disk
-            foreach ($testFile in @('ar-fixture.lua','ar-runtime.lua','mocks.lua','ar-hud-unit.lua','chat-checks.lua','install-checks.lua')) {
+            foreach ($testFile in @('ar-fixture.lua','ar-runtime.lua','mocks.lua','ar-hud-unit.lua','ar-snapshot-checks.lua',
+                'chat-checks.lua','auth-review-checks.lua','recharge-review-checks.lua','nav-fixture.lua','install-checks.lua','install-role-checks.lua')) {
                 if (Test-Path "$Source\tests\$testFile") {
                     Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination "$disk\tests"
                 }
             }
+            New-Item -ItemType Directory -Force -Path "$disk\tests\fixtures" | Out-Null
+            Copy-Item -LiteralPath "$Source\tests\fixtures\update-v1.lua" -Destination "$disk\tests\fixtures"
         }
         if ($Scenario -in @('ssot','nav','mining','warehouse')) {
             foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')) {
@@ -87,7 +90,7 @@ try {
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
     $process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
-    if ($Scenario -notin @('nav','mining','warehouse')) { $process.ProcessorAffinity = [IntPtr]1 }
+    if ($Scenario -notin @('nav','mining','warehouse','ar')) { $process.ProcessorAffinity = [IntPtr]1 }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
     $restarted = $false
     do {
@@ -97,7 +100,7 @@ try {
             foreach ($id in 1..4) { [IO.File]::WriteAllText("$run\computer\$id\boot-hold", 'restart barrier', $utf8) }
             $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
             $process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
-            if ($Scenario -notin @('nav','mining','warehouse')) { $process.ProcessorAffinity = [IntPtr]1 }
+            if ($Scenario -notin @('nav','mining','warehouse','ar')) { $process.ProcessorAffinity = [IntPtr]1 }
             Start-Sleep -Seconds 2
             foreach ($id in 1..4) { Remove-Item -LiteralPath "$run\computer\$id\boot-hold" }
             $restarted = $true
@@ -149,7 +152,7 @@ try {
                     'cc_ar calls use a signature-checking mock; goggles projection requires Gate B.'
                     'AP chat tuples run through production parsing; real chat_box event emission requires Gate B.'
                     'Installer rollback and disk faults use mocks inside CraftOS.'
-                    'Warehouse and view roles stop at the PR 4 and PR 5 adapter boundary.'
+                    'The warehouse runtime comes from main. PR 5 view roles await the corrected branch.'
                     'Owner checks sample separate controller mocks; they do not render two computers into one real goggles scene.'
                     'Controller mock elements reset on process restart; persisted external AR element cleanup is covered by module checks only.'
                 )

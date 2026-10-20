@@ -1,4 +1,5 @@
 local M = {}
+local SSOT = dofile("ssot.lua")
 local actions = { hub = true, recharge = true, pro = true, xray = true }
 local function uuid(value)
   if type(value) ~= "string" then return nil end
@@ -14,7 +15,7 @@ local function words(text)
   for word in text:gmatch("%S+") do out[#out + 1] = word end
   return out
 end
-function M.new(cfg, callbacks)
+function M.new(cfg, callbacks, auth)
   local self, pending, recent, serial = {}, {}, {}, 0
   local now = callbacks.now or function() return os.epoch("utc") end
   local session = tostring(now()) .. "-" .. tostring(math.random(1, 1073741824))
@@ -35,13 +36,32 @@ function M.new(cfg, callbacks)
       return save("chatEnabled", args[2] == "on")
     elseif verb == "allow" or verb == "deny" then
       local id = uuid(args[2])
-      if not id then return false, "Supply a verified UUID. Usernames do not authorize commands." end
-      local list, count = {}, 0
-      for k, v in pairs(cfg.chatAllowlist or {}) do list[k], count = v, count + 1 end
-      if verb == "allow" and not list[id] and count >= 32 then return false, "Allowlist limit is 32." end
-      list[id] = verb == "allow" and (args[3] or id) or nil
+      if not id then return false, "Supply a verified UUID and its exact username." end
+      if not auth or not callbacks.saveAuth then return false, "Configure the shared SSOT allowlist locally first." end
+      local name = args[3]
+      if verb == "allow" and (type(name) ~= "string" or #name < 1 or #name > 16 or not name:match("^[%w_]+$")) then
+        return false, "Supply the exact Minecraft username after its verified UUID."
+      end
+      local names, ids = {}, {}
+      for _, allowed in ipairs(auth.chatNames or {}) do
+        local enrolled=(auth.chatUUIDs or {})[allowed]
+        if (type(enrolled)~="string" or enrolled:lower()~=id) and allowed ~= name then
+          names[#names + 1], ids[allowed] = allowed, enrolled
+        end
+      end
+      if verb == "allow" then
+        if #names >= 32 then return false, "Allowlist limit is 32." end
+        names[#names + 1], ids[name] = name, id
+      end
+      local oldNames, oldIds = auth.chatNames, auth.chatUUIDs
+      auth.chatNames, auth.chatUUIDs = names, ids
+      local ok, result, err = pcall(callbacks.saveAuth)
+      if not ok or result == false then
+        auth.chatNames, auth.chatUUIDs = oldNames, oldIds
+        return false, tostring(err or result)
+      end
       pending[id], recent[id] = nil, nil
-      return save("chatAllowlist", list)
+      return true, "Saved shared chat authorization."
     elseif verb == "bounds" then
       if #args ~= 8 or not tostring(args[2]):match("^[%w_]+:[%w_/%-%.]+$") then
         return false, "bounds dimension x1 y1 z1 x2 y2 z2"
@@ -73,7 +93,7 @@ function M.new(cfg, callbacks)
   end
   function self:event(event, username, message, id, hidden)
     id = uuid(id)
-    if event ~= "chat" or cfg.chatEnabled ~= true or not id or not (cfg.chatAllowlist or {})[id]
+    if event ~= "chat" or cfg.chatEnabled ~= true or not id or not auth or not SSOT.chatAllowed(auth, username, id)
       or type(username) ~= "string" or type(message) ~= "string" or #message > 256 then return false end
     if hidden == true then message = message:gsub("^%$", ""):gsub("^!", "")
     elseif hidden == false and message:sub(1, 1) == "!" then message = message:sub(2)
@@ -88,6 +108,8 @@ function M.new(cfg, callbacks)
     if action == "confirm" then
       local request = pending[id]
       if not request or #args ~= 1 or args[1] ~= request.token or time > request.expires then
+        if recent[id] and time - recent[id].time < 2000 then return true, "rate-limited" end
+        recent[id] = { message = message, time = time }
         reply("No matching pending confirmation.")
         return true, "rejected"
       end
@@ -97,13 +119,15 @@ function M.new(cfg, callbacks)
       reply(tostring(detail or (accepted and "Applied." or "Unavailable.")))
       return true, accepted and "accepted" or "unavailable"
     end
+    if recent[id] and time - recent[id].time < 2000 then
+      return true, recent[id].message == message and "duplicate" or "rate-limited"
+    end
+    recent[id] = { message = message, time = time }
     if (#args > 0 and action ~= "pro" and action ~= "xray")
       or #args > 1 or (#args == 1 and args[1] ~= "on" and args[1] ~= "off") then
       reply("Use !" .. action .. ((action == "pro" or action == "xray") and " [on|off]" or ""))
       return true, "rejected"
     end
-    if recent[id] and recent[id].message == message and time - recent[id].time < 2000 then return true, "duplicate" end
-    recent[id] = { message = message, time = time }
     serial = serial + 1
     local token = session .. "-" .. serial
     pending[id] = { action = action, args = args, token = token, expires = time + 30000 }

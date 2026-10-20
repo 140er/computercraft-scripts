@@ -34,15 +34,35 @@ function M.config(raw)
   raw.chatNames = raw.chatNames or {"Jeffreyy2","njov10","yolobeerman"}
   raw.chatUUIDs = raw.chatUUIDs or {}
   assert(type(raw.chatNames) == "table" and type(raw.chatUUIDs) == "table", "invalid chat allowlist")
+  assert(#raw.chatNames<=32,"chat allowlist limit")
+  for _,name in ipairs(raw.chatNames) do
+    assert(word(name,16) and name:match("^[%w_]+$"),"invalid chat username")
+    local uuid=raw.chatUUIDs[name]
+    assert(uuid==nil or type(uuid)=="string" and uuid:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$"),
+      "invalid chat UUID")
+  end
+  raw.arControllers=raw.arControllers or {}
+  assert(type(raw.arControllers)=="table","invalid AR enrolment")
+  for id,owner in pairs(raw.arControllers) do
+    assert(raw.controllers[id] and type(owner)=="table" and word(owner.name,16) and word(owner.uuid,36),
+      "invalid enrolled AR controller")
+  end
   return raw
 end
 function M.chatAllowed(cfg,name,uuid)
-  if type(name) ~= "string" or type(uuid) ~= "string" or #uuid ~= 36
+  if type(cfg) ~= "table" or type(cfg.chatNames) ~= "table" or type(cfg.chatUUIDs) ~= "table"
+    or type(name) ~= "string" or type(uuid) ~= "string" or #uuid ~= 36
     or not uuid:match("^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") then return false end
   for _,allowed in ipairs(cfg.chatNames) do
-    if name == allowed and cfg.chatUUIDs[allowed] == uuid then return true end
+    local enrolled = cfg.chatUUIDs[allowed]
+    if name == allowed and type(enrolled) == "string" and enrolled:lower() == uuid:lower() then return true end
   end
   return false
+end
+function M.arAllowed(cfg,id,name,uuid)
+  local enrolled = cfg and cfg.arControllers and cfg.arControllers[tostring(id)]
+  return type(enrolled) == "table" and enrolled.name == name and type(enrolled.uuid) == "string"
+    and type(uuid) == "string" and enrolled.uuid:lower() == uuid:lower() and M.chatAllowed(cfg,name,uuid)
 end
 function M.bounded(value, limit, legacy)
   local seen, size, nodes = {}, 0, 0
@@ -98,6 +118,26 @@ function M.new(s, cfg, clock, epoch, save)
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
+    if op=="recharge" then
+      if not M.arAllowed(cfg,id,m.name,m.uuid) then return {ok=false,error="Recharge controller or owner is not enrolled"} end
+      if m.target~=nil and not integer(m.target,0,2147483647) then return {ok=false,error="invalid recharge target"} end
+      return {ok=true}
+    elseif op=="recharge-check" then
+      return {ok=true}
+    end
+    if op=="ar-control" then
+      if not M.arAllowed(cfg,id,m.name,m.uuid) then return {ok=false,error="AR controller or owner is not enrolled"} end
+      if m.action=="lease" then
+        if m.untilAt~=nil and not integer(m.untilAt,0,9007199254740991) then return {ok=false,error="invalid AR lease"} end
+      elseif m.action=="layer" then
+        if not ({P=true,T=true,O=true,A=true})[m.key] or type(m.enabled)~="boolean" then
+          return {ok=false,error="invalid AR layer"}
+        end
+      elseif m.action=="view" then
+        if type(m.enabled)~="boolean" then return {ok=false,error="invalid AR view"} end
+      else return {ok=false,error="unknown AR action"} end
+      return {ok=true}
+    end
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
     if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
     if op=="traffic" then
@@ -220,7 +260,7 @@ function M.new(s, cfg, clock, epoch, save)
     end
     return { ok = false, error = "unknown operation" }
   end
-  return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
+  return { epoch=epoch,state = function(project) if project then return project(s) end return A.copy(s) end, handle = function(id, m)
     if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"

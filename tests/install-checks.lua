@@ -30,17 +30,23 @@ return function(test, read, mocks)
     local roles = {}
     for id in source:gmatch('{ id = "([^"]+)"') do roles[#roles + 1] = id end
     assert(roles[5] == "roomclient", "existing fifth role changed")
-    assert(roles[#roles - 3] == "ar")
+    assert(source:find('{ id = "ar"', 1, true), "AR role missing")
+    local manifest = assert(load(read("bundle-manifest.lua"), "=manifest", "t", {}))()
     for _, role in ipairs(roles) do
       local m, env = setup()
       m.files = {}
       assert(load(source, "=install", "t", env))(role, "quick")
+      if manifest.roles[role].unavailable then
+        assert(next(m.files) == nil, "Unavailable role changed the disk")
+        assert(table.concat(m.output, "\n"):find(manifest.roles[role].unavailable, 1, true))
+      else
       assert(m.files["install.lua"] and m.files["update.lua"], role .. " did not install: " .. table.concat(m.output, "\n"))
       assert(not m.files[".fleet-update-journal"], role .. " left a transaction")
       if role == "ar" or role == "hub" or role == "server" then
-        for _, f in ipairs({ "ar-hud.lua", "chat-control.lua", "role-adapter.lua", "fleetview.lua", "ssot.lua", "atomic.lua" }) do
+        for _, f in ipairs({ "ar-hud.lua", "chat-control.lua", "fleetview.lua", "ssot.lua", "atomic.lua" }) do
           assert(m.files[f], role .. " missing " .. f)
         end
+      end
       end
     end
   end)

@@ -1,145 +1,276 @@
-local result={ok=false,roles={},boundaries={},transport={requests=0,bytes=0},faults={}}
+local selectedRole = ({ ... })[1]
+local result = { ok = false, roles = {}, unavailable = {}, transport = { requests = 0, bytes = 0 }, faults = {} }
+local resultPath = "data/ar-install-result.json"
+local recoveryPath = "data/ar-install-recovery.state"
 local function read(path)
-  local h=assert(fs.open(path,"r"),"Missing "..path)
-  local text=h.readAll()
+  local h = assert(fs.open(path, "r"), "Missing " .. path)
+  local text = h.readAll()
   h.close()
   return text
 end
-local function write(path,text)
-  local h=assert(fs.open(path,"w"))
+local function write(path, text)
+  local dir = fs.getDir(path)
+  if dir ~= "" then fs.makeDir(dir) end
+  local h = assert(fs.open(path, "w"))
   h.write(text)
   h.close()
 end
-local function save()
-  write("ar-install-result.json",textutils.serializeJSON(result))
-end
-local function hash(code)
-  local h=5381
-  for i=1,#code do
-    h=(h*33+code:byte(i))%4294967296
-    if i%32768==0 then sleep(0) end
+local function save() write(resultPath, textutils.serializeJSON(result)) end
+local function inventory()
+  local files = {}
+  local function walk(path)
+    for _, name in ipairs(fs.list(path)) do
+      local file = fs.combine(path, name)
+      if fs.getDrive(file) == "hdd" then
+        if fs.isDir(file) then walk(file) else files[#files + 1] = file end
+      end
+    end
   end
-  return string.format("%08x",h)
+  walk("")
+  table.sort(files)
+  return files
+end
+local function fingerprint(text)
+  local hash = 5381
+  for i = 1, #text do hash = (hash * 33 + text:byte(i)) % 4294967296 end
+  return #text .. ":" .. string.format("%08x", hash)
+end
+local function finish()
+  result.phase = "complete"
+  result.ok = #result.unavailable == 0
+  if not result.ok then result.error = "Available roles passed; PR5 view roles remain unavailable." end
+end
+local function recoverAfterReboot()
+  assert(os.getComputerID() == 4, "Recovery requires disposable computer 4")
+  http, _G.http = nil, nil
+  result = textutils.unserializeJSON(read(resultPath))
+  local saved = assert(textutils.unserialize(read(recoveryPath)))
+  assert(fs.exists(".fleet-update-journal") and fs.exists("miner.lua.fleet-backup"),
+    "Reboot did not leave the interrupted transaction")
+  assert(read("miner.lua") ~= read("miner.lua.fleet-backup"), "No file was promoted before reboot")
+  assert(assert(loadfile("update.lua", "t", _ENV))("--repair"), "Restart recovery failed")
+  local expected = {}
+  for _, file in ipairs(saved.files) do expected[file] = true end
+  for _, file in ipairs(inventory()) do assert(expected[file], "Recovery left unexpected file: " .. file) end
+  for file, hash in pairs(saved.contents) do assert(fingerprint(read(file)) == hash, "Recovery changed " .. file) end
+  result.faults.powerLoss = { ok = true, rebooted = true, recovered = inventory() }
+  write("startup.lua", saved.startup)
+  fs.delete(recoveryPath)
+  local updater = assert(loadfile("update.lua", "t", _ENV))("--module")
+  assert(updater.apply("ar"))
+  result.final = inventory()
+  finish()
 end
 local function run()
-  assert(os.getComputerID()==4,"Installer probe requires disposable computer 4")
-  assert(fs.getCapacity("/")==4000000,"Installer probe requires the 4 MB disk")
-  http=nil
-  _G.http=nil
-  local modem=assert(peripheral.find("modem",function(_,m) return m.isWireless() end),"Wireless modem missing")
+  if selectedRole then
+    assert(selectedRole == "miner" or selectedRole == "store" or selectedRole == "vworld" or selectedRole == "pro",
+      "Expected miner, store, vworld or pro")
+    if selectedRole == "miner" or selectedRole == "store" then
+      assert(turtle, "Miner and store evidence requires a real turtle")
+    end
+  else assert(os.getComputerID() == 4, "All-role probe requires disposable computer 4") end
+  result.computer, result.turtle, result.capacity = os.getComputerID(), turtle ~= nil, fs.getCapacity("/")
+  http, _G.http = nil, nil
+  local modem = assert(peripheral.find("modem", function(_, m) return m.isWireless() end), "Wireless modem missing")
   rednet.open(peripheral.getName(modem))
-  local server=rednet.lookup("fleetserver","server")
-  assert(server==0,"Expected production cache server 0")
-  result.server=server
-  local nativeSend,nativeReceive=rednet.send,rednet.receive
-  rednet.send=function(peer,message,protocol)
-    if protocol=="fleetserver" and type(message)=="table" and message.type=="get" then
-      assert(peer==0,"File request went to another server")
-      result.transport.requests=result.transport.requests+1
+  local server = rednet.lookup("fleetserver", "server")
+  assert(server == 0, "Expected disposable cache server 0")
+  result.server = server
+  local nativeSend, nativeReceive = rednet.send, rednet.receive
+  rednet.send = function(peer, message, protocol)
+    if protocol == "fleetserver" and type(message) == "table" and message.type == "get" then
+      assert(peer == server, "File request went to another server")
+      result.transport.requests = result.transport.requests + 1
     end
-    return nativeSend(peer,message,protocol)
+    return nativeSend(peer, message, protocol)
   end
-  rednet.receive=function(...)
-    local peer,message,protocol=nativeReceive(...)
-    if peer==0 and type(message)=="table" and message.type=="file" then
-      result.transport.bytes=result.transport.bytes+#(message.code or "")
+  rednet.receive = function(...)
+    local peer, message, protocol = nativeReceive(...)
+    if peer == server and type(message) == "table" and message.type == "file" then
+      result.transport.bytes = result.transport.bytes + #(message.code or "")
     end
-    return peer,message,protocol
+    return peer, message, protocol
   end
-  local updater=assert(loadfile("update.lua","t",_ENV))("--module")
-  local expectedManifest=assert(loadfile("bundle-manifest.lua","t",{}))()
-  result.expectedVersion=expectedManifest.version
-  local installer=read("install.lua")
-  local roles={}
-  local positions={}
-  for start,id in installer:gmatch('()  { id = "([^"]+)"') do positions[#positions+1]={start=start,id=id} end
-  for i,p in ipairs(positions) do
-    local entry=installer:sub(p.start,(positions[i+1] and positions[i+1].start-1) or #installer)
-    local files=assert(entry:match("files = (%b{})"),"Missing role files for "..p.id)
-    roles[#roles+1]={id=p.id,files=assert(load("return "..files,"=role-files","t",{}))()}
+  local updater = assert(loadfile("update.lua", "t", _ENV))("--module")
+  local manifest = updater.loadManifest(read("bundle-manifest.lua"))
+  local installer = read("install.lua")
+  local oldUpdater = read("data/update-v1.lua")
+  if not selectedRole then
+    write("data/ar-install-probe.lua", read(shell.getRunningProgram()))
   end
-  assert(#roles>=20 and roles[5].id=="roomclient","Installer role registry changed unexpectedly")
-  local function verify(files)
-    local seen={}
-    local function check(file)
-      if seen[file] then return end
-      seen[file]=true
-      assert(expectedManifest.files[file]==hash(read(file):gsub("\r\n","\n")),"Installed hash mismatch for "..file)
-      for _,dep in ipairs(updater.dependencies[file] or {}) do check(dep) end
+  result.expectedVersion, result.signature = manifest.version, manifest.signature
+  local roles = {}
+  if selectedRole then
+    assert(not manifest.roles[selectedRole].unavailable, manifest.roles[selectedRole].unavailable)
+    roles[1] = selectedRole
+  else for role in pairs(manifest.roles) do roles[#roles + 1] = role end table.sort(roles) end
+  local retained = {
+    ["data/install-proof.bin"] = "retained data",
+    ["cold-storage/install-proof.bin"] = "retained cold chunk",
+    ["journals/install-proof.bin"] = "retained movement journal",
+    ["keys/install-proof.key"] = "retained test key",
+    ["buddy.memory"] = "retained routes and notes",
+    ["room.recipes"] = "retained learned recipes",
+    ["board.hist"] = "retained board history",
+    ["board.last"] = "retained last arrivals",
+  }
+  for file, content in pairs(retained) do write(file, content) end
+  local function dataPath(file)
+    if file == resultPath then return true end
+    for _, root in ipairs(manifest.preserve.paths) do
+      if file == root or file:sub(1, #root + 1) == root .. "/" then return true end
     end
-    for _,file in ipairs(files) do check(file) end
-    check("install.lua") check("update.lua")
-    local manifest=assert(loadfile("bundle-manifest.lua","t",{}))()
-    assert(manifest.version==expectedManifest.version,"Installed another release")
-    assert(not fs.exists(".fleet-update-journal"),"Transaction journal remains")
-    for _,file in ipairs(updater.known) do
-      assert(not fs.exists(file..".fleet-stage") and not fs.exists(file..".fleet-backup"),"Transaction files remain")
+    local plain, changed = file, true
+    while changed do
+      local previous = plain
+      for _, suffix in ipairs(manifest.preserve.generations) do
+        if plain:sub(-#suffix - 1) == "." .. suffix then plain = plain:sub(1, -#suffix - 2) break end
+      end
+      changed = plain ~= previous
     end
-    return seen
+    for _, root in ipairs(manifest.preserve.paths) do if plain == root then return true end end
+    for _, suffix in ipairs(manifest.preserve.extensions) do
+      if plain:sub(-#suffix - 1) == "." .. suffix then return true end
+    end
+    return false
   end
-  for _,role in ipairs(roles) do
-    for _,file in ipairs(updater.known) do
-      assert(file:match("^[%w%-]+%.lua$"),"Refusing non-root script removal")
-      if file~="install.lua" and file~="update.lua" and fs.exists(file) then fs.delete(file) end
+  for _, file in ipairs(inventory()) do if dataPath(file) and file ~= resultPath then retained[file] = read(file) end end
+  save()
+  local function verify(role)
+    local wanted = { ["bundle-manifest.lua"] = true, [".fleet-role"] = true, [resultPath] = true }
+    for _, file in ipairs(manifest.roles[role].files) do
+      wanted[file] = true
+      assert(loadfile(file), "Installed Lua does not compile: " .. file)
     end
-    assert(load(installer,"=install.lua","t",_ENV))(role.id,"quick")
-    local files=verify(role.files)
-    local n=0
-    for _ in pairs(files) do n=n+1 end
-    result.roles[#result.roles+1]={role=role.id,ok=true,files=n,free=fs.getFreeSpace("/")}
-    if role.id=="store" then
-      assert(assert(loadfile("store-role.lua","t",_ENV))()==false,"Warehouse stub unexpectedly started")
-      local value,message=dofile("role-adapter.lua").warehouse()
-      assert(value==nil and message:find("unavailable",1,true))
-      result.boundaries.warehouse={available=false,expected=true,message=message}
-    elseif role.id=="vworld" or role.id=="pro" then
-      assert(assert(loadfile("view-role.lua","t",_ENV))(role.id)==false,"View stub unexpectedly started")
-      local value,message=dofile("role-adapter.lua").view(role.id)
-      assert(value==false and message:find("unavailable",1,true))
-      result.boundaries[role.id]={available=false,expected=true,message=message}
-    end
+    if manifest.roles[role].startup then wanted["startup.lua"] = true end
+    for file in pairs(retained) do wanted[file] = true end
+    local actual, seen = inventory(), {}
+    for _, file in ipairs(actual) do assert(wanted[file], "Unexpected installed file: " .. file) seen[file] = true end
+    for file in pairs(wanted) do assert(seen[file], "Missing installed file: " .. file) end
+    for file, content in pairs(retained) do assert(read(file) == content, "Retained data changed: " .. file) end
+    assert(read(".fleet-role") == role .. "\n", "Selected role did not survive")
+    assert(updater.loadManifest(read("bundle-manifest.lua")).version == manifest.version, "Installed another release")
+    return actual
+  end
+  local migrationRole = selectedRole or "roomclient"
+  write("update.lua", oldUpdater)
+  if not selectedRole then write("startup.lua", 'shell.run("roomsorter", "board")\n') end
+  assert(assert(load(installer, "=install.lua", "t", _ENV))(migrationRole, "quick"),
+    "Current installer could not bootstrap v1 through the native cache")
+  result.upgrade = { installer = verify(migrationRole) }
+  if not selectedRole then
+    assert(read("startup.lua") == 'shell.run("roomsorter", "board")\n', "Migration changed board startup")
+    write("update.lua", oldUpdater)
+    fs.delete(".fleet-role")
+    result.upgrade.cliBefore = inventory()
+    assert(assert(load(oldUpdater, "=update-v1", "t", _ENV))("noreboot"), "v1 CLI could not upgrade itself")
+    assert(read("update.lua") ~= oldUpdater, "v1 CLI left its old updater installed")
+    assert(not fs.exists(".fleet-role"), "Legacy CLI unexpectedly wrote role metadata")
+    assert(assert(loadfile("update.lua", "t", _ENV))("noreboot"))
+    result.upgrade.cli = verify("roomclient")
+    assert(read("startup.lua") == 'shell.run("roomsorter", "board")\n', "CLI migration changed board startup")
+  end
+  for _, role in ipairs(roles) do
+    if manifest.roles[role].unavailable then
+      local before = inventory()
+      local accepted, why = updater.apply(role)
+      assert(not accepted and why:find(manifest.roles[role].unavailable, 1, true))
+      assert(textutils.serialize(before) == textutils.serialize(inventory()), "Unavailable role changed files")
+      result.unavailable[#result.unavailable + 1] = { role = role, reason = manifest.roles[role].unavailable }
+    else
+    write("obsolete.lua", "return 'obsolete'\n")
+    write("obsolete/nested.txt", "obsolete nested file")
+    local row = { role = role, before = inventory() }
+    result.roles[#result.roles + 1] = row
+    assert(assert(load(installer, "=install.lua", "t", _ENV))(role, "quick"), "Installer failed for " .. role)
+    row.after = verify(role)
+    row.free = fs.getFreeSpace("/")
+    write("obsolete.lua", "return 'obsolete after install'\n")
+    assert(updater.apply({}))
+    row.afterUpdate = verify(role)
+    local ok, err, changed = updater.apply({})
+    assert(ok and changed == 0, err or "No-op update changed disk")
+    row.ok = true
     save()
     sleep(0)
-  end
-  assert(updater.apply({"ar-role.lua"}))
-  verify({"ar-role.lua"})
-  local value,message=dofile("role-adapter.lua").recharge()
-  assert(value==false and message:find("unavailable",1,true))
-  result.boundaries.recharge={available=false,expected=true,message=message}
-  local oldHub=read("hub.lua")
-  local observedReceive=rednet.receive
-  rednet.receive=function(...)
-    local peer,packet,protocol=observedReceive(...)
-    if peer==0 and type(packet)=="table" and packet.type=="file" and packet.file=="hub.lua" then
-      packet.hash="injected-bad-hash"
     end
-    return peer,packet,protocol
   end
-  local accepted,why=updater.apply({"hub.lua"})
-  rednet.receive=observedReceive
-  assert(not accepted and read("hub.lua")==oldHub,"Bad native cache response changed installed code")
-  result.faults.cacheHash={ok=true,injection="Hash changed after receipt from the real server",message=tostring(why)}
-  write("hub.lua","return 'native rollback sentinel'\n")
-  local nativeMove=fs.move
-  local injected=false
-  fs.move=function(from,to)
-    if from=="hub.lua.fleet-stage" and to=="hub.lua" and not injected then
-      injected=true
-      error("Injected promotion failure")
+  if selectedRole then
+    local configFile = selectedRole == "store" and "warehouse.cfg" or selectedRole == "miner" and "miner.cfg" or "views.cfg"
+    local cfg = textutils.unserialize(read(configFile))
+    assert(type(cfg) == "table", "Production role configuration missing")
+    if selectedRole == "store" then assert(cfg.enabled == true, "Store must be enabled in this disposable test") end
+    if selectedRole == "pro" or selectedRole == "vworld" then
+      assert(cfg.enabled == true and cfg.server and cfg.secret, "Views must be enabled and paired in this disposable test")
     end
-    return nativeMove(from,to)
+    local startup = { command = read("startup.lua"), running = false }
+    result.startup = startup
+    parallel.waitForAny(function()
+      local ok = shell.run("startup.lua")
+      error("Production startup exited: " .. tostring(ok))
+    end, function()
+      sleep(5)
+      startup.running = true
+    end)
+    assert(startup.running, "Production startup did not run")
+    startup.after = inventory()
+  else
+    assert(updater.apply("ar"))
+    local oldHub = read("hub.lua")
+    local observedReceive = rednet.receive
+    rednet.receive = function(...)
+      local peer, packet, protocol = observedReceive(...)
+      if peer == server and type(packet) == "table" and packet.type == "file" and packet.file == "hub.lua" then
+        packet.hash = "injected-bad-checksum"
+      end
+      return peer, packet, protocol
+    end
+    local accepted, why = updater.apply("ar")
+    rednet.receive = observedReceive
+    assert(not accepted and read("hub.lua") == oldHub, "Corrupt cached transfer changed installed code")
+    result.faults.cacheChecksum = { ok = true, message = tostring(why) }
+    write("obsolete.lua", "rollback sentinel")
+    local before, nativeMove = inventory(), fs.move
+    local injected = false
+    fs.move = function(from, to)
+      if from == "obsolete.lua" and not injected then injected = true error("Injected stale-file promotion failure") end
+      return nativeMove(from, to)
+    end
+    accepted, why = updater.apply("miner")
+    fs.move = nativeMove
+    assert(injected and not accepted, "Removal failure did not abort role change")
+    assert(read("obsolete.lua") == "rollback sentinel" and read("hub.lua") == oldHub, "Role rollback lost files")
+    assert(read(".fleet-role") == "ar\n", "Role rollback changed the selected role")
+    assert(textutils.serialize(before) == textutils.serialize(inventory()), "Role rollback changed the file list")
+    result.faults.commit = { ok = true, message = tostring(why) }
+    assert(updater.apply("ar"))
+    verify("ar")
+    assert(result.transport.requests > 0 and result.transport.bytes > 0, "No native cached transfer")
+    local startup = read("startup.lua")
+    write("miner.lua", read("miner.lua") .. "\n-- interrupted-upgrade sentinel\n")
+    write("startup.lua", 'shell.run("data/ar-install-probe.lua", "--recover")\n')
+    write(recoveryPath, "{}")
+    local saved = { files = inventory(), contents = {}, startup = startup }
+    for _, file in ipairs(saved.files) do
+      if file ~= resultPath and file ~= recoveryPath then saved.contents[file] = fingerprint(read(file)) end
+    end
+    write(recoveryPath, textutils.serialize(saved))
+    result.coverage = "Native role installs, exact inventories, v1 migration, rollback and recovery after a real reboot."
+    result.phase = "reboot-after-promotion"
+    save()
+    local move = fs.move
+    fs.move = function(from, to)
+      move(from, to)
+      if from == "miner.lua.fleet-stage" and to == "miner.lua" then os.reboot() end
+    end
+    updater.apply("miner")
+    error("Interrupted update did not reboot")
   end
-  accepted,why=updater.apply({"hub.lua"})
-  fs.move=nativeMove
-  assert(injected and not accepted and read("hub.lua")=="return 'native rollback sentinel'\n","Native disk rollback failed")
-  assert(not fs.exists(".fleet-update-journal"),"Rollback journal remains")
-  result.faults.commit={ok=true,injection="One fs.move exception on the native disk",message=tostring(why)}
-  assert(updater.apply({"hub.lua"}))
-  verify({"ar-role.lua"})
-  assert(result.transport.requests>0 and result.transport.bytes>0,"No native cached transfer was observed")
-  result.ok=true
-  result.coverage="Every current named role installed from production cache over native rednet. Entrypoint execution is limited to unavailable adapters."
+  assert(result.transport.requests > 0 and result.transport.bytes > 0, "No native cached transfer")
+  finish()
+  result.coverage = selectedRole and "Native role install, update, exact inventory, retained data and production startup."
+    or "Native all-role install, update, exact inventory, retained data and rollback. Turtle startup is tested separately."
 end
-local ok,err=pcall(run)
-if not ok then result.ok=false result.error=tostring(err) end
+local ok, err = pcall(selectedRole == "--recover" and recoverAfterReboot or run)
+if not ok then result.ok, result.error = false, tostring(err) end
 save()

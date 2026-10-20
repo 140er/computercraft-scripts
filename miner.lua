@@ -613,6 +613,13 @@ local function save() saveTable(STATE_FILE, st) end
 if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
   assert(not cfg.loc and type(cfg.ssot.dimension) == "string", "SSOT needs GPS and a dimension")
   C.ssot = dofile("ssot-client.lua").new(cfg.ssot)
+  local call=C.ssot.call
+  C.ssot.call=function(op,fields)
+    local request={}
+    for k,v in pairs(fields or {}) do request[k]=v end
+    request.rechargeAck=C.nav and C.nav.rechargeReceipt()
+    return call(op,request)
+  end
   C.netEvent = "miner_network"
 end
 C.netEvent = C.netEvent or "rednet_message"
@@ -625,6 +632,15 @@ local recall = false
 local updateWanted = false -- hub released a new version: go home to update
 local hubId = nil
 local radio = false
+function C.receiveSSOT(sender,packet,protocol)
+  local accepted=C.ssot.dispatch(sender,packet,protocol)
+  local order=accepted and packet.recharge
+  if type(order)=="table" and C.nav and cfg.mining and cfg.mining.enabled==true
+    and cfg.warehouse and cfg.warehouse.enabled==true and cfg.warehouse.charger then
+    if C.nav.control("recharge",order.epoch,order.cid,order.rechargeId) then recall=true end
+  end
+  return accepted
+end
 
 local function job() return st.job end
 
@@ -659,6 +675,9 @@ local function packet()
     reach = reach,
     fuel = turtle.getFuelLevel(), free = freeSlots(),
     maxFuel = type(turtle.getFuelLimit)=="function" and turtle.getFuelLimit() or nil,
+    rechargeAvailable = cfg.mining and cfg.mining.enabled==true and cfg.warehouse and cfg.warehouse.enabled==true
+      and type(cfg.warehouse.charger)=="string" or false,
+    rechargeResult = st.rechargeResult,
     ore = j.ore, level = j.y, branch = L.branch, step = L.step, branchLen = j.branchLen,
     found = st.found, dug = st.dug, recall = recall, scooped = st.scooped,
     items = items,
@@ -2127,9 +2146,34 @@ end
 function C.runMining()
   local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
     service=cfg.warehouse,cancelled=function() return recall or updateWanted end})
+  local checked=-1e9
   while true do
+    if os.clock()-checked>=3 then
+      checked=os.clock()
+      C.ssot.call("recharge-check")
+    end
     local state=mining.state()
-    if state.phase=="home" and cfg.warehouse and cfg.warehouse.enabled==true and not recall and not C.estop then
+    local command=C.nav.controlState()
+    if command.kind=="recharge" and not command.complete and not C.estop then
+      if state.phase~="home" then
+        mining.interrupt("recharge")
+        local ok,why=mining.tick()
+        if mining.state().phase~="home" then setStatus("Recharge return: "..tostring(why)) sleep(1) end
+      else
+        setStatus("Recharge service running")
+        local ok,why=mining.service(function()
+          local current=C.nav.controlState()
+          return current.kind~="recharge" or current.rechargeId~=command.rechargeId
+        end)
+        if not ok and why=="bay occupied" then setStatus("Recharge waiting for charging bay") sleep(1)
+        else
+          st.rechargeResult=ok and "charged" or tostring(why)
+          save()
+          C.nav.completeControl(command.epoch,command.cid,command.rechargeId)
+          setStatus("Recharge "..st.rechargeResult)
+        end
+      end
+    elseif state.phase=="home" and cfg.warehouse and cfg.warehouse.enabled==true and not recall and not C.estop then
       local ok,why=mining.service()
       if ok then
         if state.reason=="complete" then ok,why=mining.finish() else ok,why=mining.start() end
@@ -2741,7 +2785,8 @@ local function listener()
     local ev, a, b, c = os.pullEvent()
     if ev == C.netEvent and c == PROTOCOL and type(b) == "table" and (not C.nav or a==cfg.ssot.server) then
       local apply,valid=true,true
-      if C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop")
+      if b.type=="recharge" then valid,apply=false,false end
+      if valid and C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop" or b.type=="recharge")
         and (b.target==nil or b.target==os.getComputerID()) then
         local why
         apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid)
@@ -2754,9 +2799,9 @@ local function listener()
       if apply then
       if C.nav and b.type=="estop" and (b.target==nil or b.target==os.getComputerID()) then
         C.estop=true
-      elseif (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
+      elseif (b.type == "recall" or b.type == "go" or b.type=="recharge") and (b.target == nil or b.target == os.getComputerID()) then
         if b.from then hubId = b.from end
-        recall = (b.type == "recall")
+        recall = (b.type ~= "go")
         publish(true)
       elseif b.type == "rename" and b.target == os.getComputerID() and type(b.name) == "string" and b.name ~= "" then
         os.setComputerLabel(b.name:sub(1, 32))
@@ -2798,7 +2843,7 @@ if C.ssot then
       local ok,why
       if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
       assert(ok,why)
-      recall=C.nav.controlState().kind=="recall"
+      recall=C.nav.controlState().kind=="recall" or C.nav.controlState().kind=="recharge"
       local p=C.nav.pose()
       if st.navPending and (p.x~=pos.x or p.y~=pos.y or p.z~=pos.z) then
         if st.navPending.vein=="pop" then st.vein[#st.vein]=nil
@@ -2830,7 +2875,7 @@ if C.ssot then
   C.ssotReceive = function()
     while true do
       local _, sender, packet, protocol = os.pullEvent("rednet_message")
-      if not C.ssot.dispatch(sender, packet, protocol) then
+      if not C.receiveSSOT(sender, packet, protocol) then
         os.queueEvent(C.netEvent, sender, packet, protocol)
       end
     end

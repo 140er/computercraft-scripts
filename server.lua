@@ -137,9 +137,23 @@ if args[1]=="ar" or args[1]=="chat" then
   assert(AH,"ar-hud.lua missing")
   local command=table.remove(args,1)
   local ok,message
-  if command=="ar" then ok,message=AH.command(arConfig,args,saveAR)
+  local function saveAuth()
+    return writeFile("ssot.cfg",textutils.serialize(ssotConfig,{compact=true}))
+  end
+  if command=="ar" and args[1]=="enroll" then
+    local id,name,uuid=args[2],args[3],args[4]
+    if not ssotConfig or not ssotConfig.controllers[id] or not SSOT.chatAllowed(ssotConfig,name,uuid) then
+      ok,message=false,"Enroll a paired computer ID and an allowed name with its verified UUID."
+    else
+      local old=ssotConfig.arControllers[id]
+      ssotConfig.arControllers[id]={name=name,uuid=uuid:lower()}
+      ok=saveAuth()
+      if not ok then ssotConfig.arControllers[id]=old end
+      message=ok and "Saved AR controller enrolment." or "Could not save AR controller enrolment."
+    end
+  elseif command=="ar" then ok,message=AH.command(arConfig,args,saveAR,ssotConfig)
   else
-    ok,message=dofile("chat-control.lua").new(arConfig,{save=saveAR}):command(args)
+    ok,message=dofile("chat-control.lua").new(arConfig,{save=saveAR,saveAuth=saveAuth},ssotConfig):command(args)
   end
   print(message or tostring(ok))
   return
@@ -161,7 +175,8 @@ end
 local function trimStatus(p)
   local t = {}
   for _, k in ipairs({ "type", "label", "phase", "state", "status", "lastError", "lastErrorAt", "hash",
-    "x", "y", "z", "dim", "fuel", "maxFuel", "free", "ore", "branch", "step", "level", "branchLen", "reach", "role", "facing" }) do
+    "x", "y", "z", "dim", "fuel", "maxFuel", "free", "ore", "branch", "step", "level", "branchLen", "reach", "role", "facing",
+    "rechargeAvailable","rechargeResult" }) do
     local v = p[k]
     if type(v) == "string" then t[k] = v:sub(1, 256)
     elseif type(v) == "number" or type(v) == "boolean" then t[k] = v end
@@ -297,6 +312,11 @@ end
 local ar = peripheral.find("ar_controller")
 if ar and not (arConfig and arConfig.enabled) then pcall(function() ar.clear() ar.update() end) end
 local arHub, arUntil, arDrawn = state.arHub, 0, false
+local enrolled=ssotConfig and ssotConfig.arControllers[tostring(arHub)]
+if not (enrolled and SSOT.arAllowed(ssotConfig,arHub,enrolled.name,enrolled.uuid)) then
+  arHub,state.arHub=nil,nil
+end
+state.arCounters=state.arCounters or {}
 local arSeen, arDirty, arLastDraw = now(), true, 0
 
 local function toggle3D()
@@ -353,10 +373,18 @@ end
 
 -- Orders on their way: [cid] = { target, protocol, message, tries, next }. Miners answer
 -- with { type = "cmd_ack", cid }; until then the order goes out again every 3 seconds.
-local outbox, cidSeq = {}, 0
-local SWAPS = { go = "move", recall = "move", estop = "move" }
+local outbox, cidSeq = {}, state.commandSeq or 0
+state.recharges=state.recharges or {}
+state.rechargeRequests=state.rechargeRequests or {}
+local SWAPS = { go = "move", recall = "move", estop = "move", recharge = "move" }
 local function deliver(target, proto, p)
   local msg = copy(p)
+  if msg.type=="recharge" then return false end
+  if proto=="minearmy" and SWAPS[msg.type] and state.recharges[target] then
+    local old=state.recharges[target]
+    state.recharges[target]=nil
+    if not save() then state.recharges[target]=old return false end
+  end
   for cid, o in pairs(outbox) do
     local t = o.message.type
     if o.target == target and o.protocol == proto and (t == msg.type or (SWAPS[t] and SWAPS[t] == SWAPS[msg.type])) then
@@ -365,11 +393,36 @@ local function deliver(target, proto, p)
   end
   if proto == "minearmy" then -- only the miners confirm orders
     cidSeq = cidSeq + 1
+    state.commandSeq=cidSeq
     msg.cid = cidSeq
     if ssot then msg.commandEpoch=ssot.epoch end
     outbox[cidSeq] = { target = target, protocol = proto, message = msg, tries = 1, next = now() + 3000 }
   end
   rednet.send(target, msg, proto)
+end
+local function queueRecharge(target,controller,counter)
+  if not ssot then return false,"Configure SSOT before recharging." end
+  local previous=controller and state.rechargeRequests[tostring(controller)]
+  if previous and counter<=previous.counter then return true,previous.count end
+  local oldQueue,oldSeq=copy(state.recharges),state.commandSeq
+  local count=0
+  for id,b in pairs(state.bots) do
+    if (target==nil or target==id) and b.kind=="miner" and ssotConfig.controllers[tostring(id)]
+      and b.status and b.status.rechargeAvailable==true and now()-(b.lastSeen or 0)<15000 then
+      cidSeq=cidSeq+1
+      state.recharges[id]={cid=cidSeq,rechargeId=ssot.epoch..":"..cidSeq}
+      count=count+1
+    end
+  end
+  if count==0 then return false,"No online paired miner has charging service enabled." end
+  state.commandSeq=cidSeq
+  if controller then state.rechargeRequests[tostring(controller)]={counter=counter,count=count} end
+  if not save() then
+    state.recharges,state.commandSeq=oldQueue,oldSeq
+    if controller then state.rechargeRequests[tostring(controller)]=previous end
+    return false,"Could not save recharge delivery."
+  end
+  return true,count
 end
 
 local function retryOrders()
@@ -393,7 +446,61 @@ local function request(id, m)
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
-      if r then rednet.send(id, r, PROTOCOL) end
+      if r and r.ok and m.op=="ar-control" then
+        if not SSOT.arAllowed(ssotConfig,id,m.name,m.uuid) then
+          r.ok,r.error=false,"AR authorization was revoked"
+        elseif m.counter>(state.arCounters[tostring(id)] or 0) then
+          local previousCounter=state.arCounters[tostring(id)]
+          local previousHub,previousUntil,previousSeen,previousView=arHub,arUntil,arSeen,state.view3D
+          if m.action=="lease" then
+            if arHub~=id then arUntil=0 end
+            arHub,state.arHub,arSeen=id,id,now()
+            if m.untilAt then arUntil=math.min(m.untilAt,now()+10000) end
+          elseif id~=arHub then r.ok,r.error=false,"Claim AR ownership first"
+          elseif m.action=="view" then state.view3D=m.enabled
+          elseif AH and arConfig.enabled then
+            local field=({P="proHud",T="xrayTurtles",O="xrayOres",A="xrayTunnels"})[m.key]
+            local old=arConfig[field]
+            arConfig[field]=m.enabled
+            if not saveAR() then arConfig[field]=old r.ok,r.error=false,"Could not save AR layer" end
+          else r.ok,r.error=false,"AR is disabled" end
+          if r.ok then
+            state.arCounters[tostring(id)]=m.counter
+            if not save() then
+              state.arCounters[tostring(id)]=previousCounter
+              arHub,state.arHub,arUntil,arSeen,state.view3D=previousHub,previousHub,previousUntil,previousSeen,previousView
+              r.ok,r.error=false,"Could not save AR command"
+            end
+            arDirty=true
+          end
+        end
+        r.arOwner,r.view3D=ar~=nil and arHub==id,state.view3D~=false
+        if arConfig then
+          r.layers={P=arConfig.proHud,T=arConfig.xrayTurtles,O=arConfig.xrayOres,A=arConfig.xrayTunnels}
+        end
+      end
+      if r and r.ok and m.op=="recharge" then
+        if not SSOT.arAllowed(ssotConfig,id,m.name,m.uuid) then
+          r.ok,r.error=false,"Recharge authorization was revoked"
+        else
+          local accepted,result=queueRecharge(m.target,id,m.counter)
+          r.ok=accepted
+          if accepted then r.count=result else r.error=result end
+        end
+      end
+      if r then
+        local pending=state.recharges[id]
+        if pending and m.rechargeAck==pending.rechargeId then
+          state.recharges[id]=nil
+          if not save() then state.recharges[id]=pending end
+          pending=state.recharges[id]
+        end
+        if pending and m.op~="snapshot" then
+          r.recharge={cid=pending.cid,epoch=tonumber(ssot.epoch),rechargeId=pending.rechargeId}
+          if #textutils.serialize(r,{compact=true})>8192 then r.recharge=nil end
+        end
+        rednet.send(id, r, PROTOCOL)
+      end
       if err then log("ssot_error", id, err) end
     end
     return
@@ -401,17 +508,7 @@ local function request(id, m)
   if ssotConfig and
     (m.type == "hub_put" or m.type == "command" or m.type == "register" or m.type == "ar_toggle" or m.type == "ar_layer" or m.type == "ar_ready" or m.arClient)
     and not ssotConfig.controllers[tostring(id)] then return end
-  if m.arClient == true and (m.type == "hub_get" or m.type == "hub_put") then
-    arHub = id
-    arUntil = 0
-    arDirty = true
-    if state.arHub ~= id then state.arHub = id save() end
-  end
-  if id == arHub then arSeen = now() end
-  if id == arHub and (m.type == "ar_ready" or m.type == "hub_put")
-    and type(m.arUntil) == "number" and m.arUntil == m.arUntil then
-    arUntil = math.min(m.arUntil, now() + 10000)
-  end
+  if m.type=="ar_layer" or m.type=="ar_ready" or m.type=="ar_toggle" then return end
   if m.type == "get" and known[m.file] then
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
@@ -430,22 +527,6 @@ local function request(id, m)
     if not code then reply(id, m, { type = "file", file = m.file, error = "not cached" }) return end
     reply(id, m, { type = "file", file = m.file, hash = info.hash, size = #code, offset = offset,
       current = m.hash == info.hash, code = m.hash ~= info.hash and code:sub(offset + 1, offset + 12000) or nil })
-  elseif m.type == "ar_ready" and id == arHub then
-    arDirty = true
-    reply(id, m, { type = "ack" })
-  elseif m.type=="ar_layer" and id==arHub and AH and arConfig.enabled then
-    local before=copy(arConfig)
-    local changed=AH.toggle(arConfig,m.key)
-    local saved=changed and saveAR()
-    if changed and not saved then
-      for k in pairs(arConfig) do arConfig[k]=nil end
-      for k,v in pairs(before) do arConfig[k]=v end
-    end
-    arDirty=true
-    reply(id,m,{type="ack",ok=saved==true})
-  elseif m.type == "ar_toggle" then
-    if ar then toggle3D() end
-    reply(id, m, { type = "ack" })
   elseif m.type == "list" then
     reply(id, m, { type = "versions", files = state.files })
   elseif m.type == "state" or m.type == "hub_get" then
@@ -478,7 +559,7 @@ local function request(id, m)
     and (m.target == nil or (type(m.target) == "number" and m.target % 1 == 0 and m.target >= 0)) then
     local p = m.message
     -- Code and developer operations stay on their existing channels, including pairing checks.
-    if p.type == "dev" or p.key or p.code then return end
+    if p.type == "dev" or p.type=="recharge" or p.key or p.code then return end
     log("command", id, m.protocol .. " " .. tostring(p.cmd or p.type) .. " -> " .. tostring(m.target or "all"))
     if m.target then
       local b = bot(m.target, BOTS[m.protocol], m.protocol)
@@ -521,8 +602,9 @@ local arControls=AH and AH.controls(arConfig,saveAR,function(action)
     end
     return count>0,"Recall queued for "..count.." turtles; awaiting command acknowledgments."
   end
-  return dofile("role-adapter.lua").recharge()
-end,function(message) log("ar",nil,message) end)
+  local ok,result=queueRecharge()
+  return ok,ok and ("Recharge queued for "..result.." turtles; awaiting fuel-rise reports.") or result
+end,function(message) log("ar",nil,message) end,ssotConfig)
 local function clearAR(device)
   if AH and arConfig.enabled then AH.clear(device,hudMem) else V.arClear(device,arMem) end
 end
@@ -540,21 +622,37 @@ local function draw3D()
     return
   end
   if arDrawn and not arDirty and now() - arLastDraw < 5000 then return end
+  arDirty=false
+  local device,owner,view=ar,arHub,state.view3D
   local ok = pcall(function()
     local fleet=V.fromServer(state.bots, now(), forgottenList())
     if AH and arConfig.enabled then
       local cfg=copy(arConfig)
       if state.view3D==false then cfg.enabled=false end
-      AH.render(ar,AH.snapshot(fleet,ssot and ssot.state(),cfg),hudMem,cfg)
-    else V.ar(ar,fleet,state.view3D~=false,arMem,"Fleet") end
+      local snapshot={turtles={},world_map={}}
+      if cfg.enabled then
+        snapshot=ssot and ssot.state(function(current) return AH.snapshot(fleet,current,cfg,ssotConfig,hudMem) end)
+          or AH.snapshot(fleet,nil,cfg,ssotConfig,hudMem)
+      end
+      if ar~=device or arHub~=owner or state.view3D~=view or arHub and now()>=arUntil then arDirty=true return end
+      for _,key in ipairs({"ownerName","ownerUUID","proHud","xrayTurtles","xrayOres","xrayTunnels"}) do
+        if cfg[key]~=arConfig[key] then arDirty=true return end
+      end
+      if not arConfig.enabled then arDirty=true return end
+      AH.render(device,snapshot,hudMem,cfg,ssotConfig)
+    else V.ar(device,fleet,state.view3D~=false and arConfig~=nil and ssotConfig~=nil
+      and SSOT.chatAllowed(ssotConfig,arConfig.ownerName,arConfig.ownerUUID),arMem,"Fleet") end
     arDrawn = true
-    arDirty, arLastDraw = false, now()
+    arLastDraw = now()
   end)
   if not ok then
     pcall(clearAR,ar)
     ar = nil
     arDrawn, arMem.drawn = false, nil
   end
+end
+local function arLoop()
+  while true do draw3D() sleep(.25) end
 end
 
 ---------------------------------------------------------------------------
@@ -907,7 +1005,6 @@ local function network()
   local timer = os.startTimer(1)
   local ticks = 0
   draw()
-  draw3D()
   while true do
     local ev, id, m, proto, hidden = os.pullEvent()
     if ev == "rednet_message" and type(m) == "table" and type(id)=="number" and id>=0 and id<=2147483647
@@ -937,7 +1034,6 @@ local function network()
       if ticks % 5 == 0 or (ui.cam and ui.cam.auto and (ui.tab == "3d" or ui.tab == "fleet")) then
         draw()
       end
-      draw3D()
       timer = os.startTimer(1)
     elseif ev == "monitor_touch" or ev == "mouse_click" then
       if touch(m, proto) then draw() end
@@ -949,7 +1045,6 @@ local function network()
       arDirty=true
     elseif ev=="char" and arControls and arControls.key(id) then
       arDirty=true
-      draw3D()
       draw()
     elseif ev == "char" and id == "v" then
       toggle3D()
@@ -993,6 +1088,6 @@ local function gpuLoop()
   end, function(text) log("error", os.getComputerID(), text) save() end)
 end
 
-local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop)
+local ok, err = pcall(parallel.waitForAny, network, refresh, meshLoop, gpuLoop, arLoop)
 if ar then pcall(clearAR,ar) end
 if not ok then error(err, 0) end

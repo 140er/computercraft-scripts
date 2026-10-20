@@ -57,3 +57,13 @@ Neither successful element creation nor a screenshot filename proves x-ray.
 Changing Lua coordinates cannot remove the mod's depth test. A client renderer
 change or a compatible mod version with a supported see-through API is needed
 for actual through-wall geometry. No mod binary was changed.
+
+The saved API signatures in `docs/gemini-review/evidence/ccar-signatures.txt`
+also expose no wearer UUID, equipped-goggles status, removal event, or unlink
+method. `getAttachedComputerId`, `attach`, and `detach` describe the attached
+ComputerCraft computer. They do not report which player wears goggles.
+
+The Lua changes require an enrolled owner in the shared name and UUID policy
+before enabling world layers. They cannot detect physical goggles removal or
+verify the current wearer through this API. Computer peripheral detach tests
+do not establish goggles-removal behavior. That requirement remains unmet.

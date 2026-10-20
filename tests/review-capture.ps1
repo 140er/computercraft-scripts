@@ -19,7 +19,10 @@ foreach ($name in @('hub.lua','miner.lua','update.lua','fleetview.lua')) {
 Copy-Item -LiteralPath "$PSScriptRoot\review-capture-hub.lua" -Destination "$run\computer\0"
 if ($Scenario -eq 'ar') {
     New-Item -ItemType Directory -Force "$run\computer\0\tests" | Out-Null
-    Copy-Item "$PSScriptRoot\..\ar-hud.lua", "$PSScriptRoot\review-capture-ar.lua" "$run\computer\0"
+    foreach ($name in @('ar-hud.lua','ssot.lua','atomic.lua','mine-tasks.lua','warehouse-tasks.lua')) {
+        Copy-Item "$PSScriptRoot\..\$name" "$run\computer\0"
+    }
+    Copy-Item "$PSScriptRoot\review-capture-ar.lua" "$run\computer\0"
     Copy-Item "$PSScriptRoot\ar-fixture.lua", "$PSScriptRoot\mocks.lua" "$run\computer\0\tests"
 }
 [IO.File]::WriteAllText("$run\computer\0\startup.lua", "local ok,err=pcall(dofile,'review-capture-$Scenario.lua'); if not ok then local h=fs.open('capture-error.txt','w'); h.write(tostring(err)); h.close() end", $utf8)

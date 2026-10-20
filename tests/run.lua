@@ -26,6 +26,7 @@ local function equal(actual, expected, message)
   assert(mocks.encode(actual) == mocks.encode(expected), (message or "values differ")
     .. "\nexpected: " .. mocks.encode(expected) .. "\nactual: " .. mocks.encode(actual))
 end
+dofile("tests/mock-scheduler-checks.lua")(test,equal,mocks)
 local state = { target = "diamond", branchLen64 = true, sessionLen = 1800, reach = 96,
   totals = { ["minecraft:diamond"] = 24 }, progress = {} }
 local function turtle(role, x, z)
@@ -36,8 +37,18 @@ local function turtle(role, x, z)
 end
 local fleet = { turtle("east", 101, -20), turtle("south", 105, -20),
   turtle("west", 109, -20), turtle("north@2", 113, -20) }
+local function authorizeLegacyAR(m)
+  local owner, uuid = "Jeffreyy2", "12345678-1234-1234-1234-123456789abc"
+  for _, path in ipairs({ "ar-hud.lua", "ssot.lua", "atomic.lua", "chat-control.lua" }) do
+    m.files[path] = read(path)
+  end
+  m.files["ssot.cfg"] = mocks.encode({ controllers = {}, chatNames = { owner }, chatUUIDs = { [owner] = uuid } })
+  m.files["ar.cfg"] = mocks.encode({ enabled = false, ownerName = owner, ownerUUID = uuid })
+  m.env.dofile = function(path) return assert(load(read(path), "@" .. path, "t", m.env))() end
+end
 local function start(attached, code)
   local m = mocks.new(attached, state)
+  authorizeLegacyAR(m)
   m.start(code or source)
   for id, packet in ipairs(fleet) do m.status(id, packet) end
   m.tick()
@@ -253,6 +264,7 @@ test("key and dashboard touch toggles persist both states across restart", funct
       m.push("char", "q")
       local nextHub = mocks.new(true, state)
       nextHub.files = m.files
+      authorizeLegacyAR(nextHub)
       nextHub.start(source)
       for id, packet in ipairs(fleet) do nextHub.status(id, packet) end
       nextHub.tick()
@@ -442,8 +454,12 @@ dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 dofile("tests/ar-hud-unit.lua")
 dofile("tests/ar-shared-owner.lua")
+dofile("tests/ar-snapshot-checks.lua")
 dofile("tests/chat-checks.lua")(test,read,mocks)
+dofile("tests/auth-review-checks.lua")(test,read,mocks)
+dofile("tests/recharge-review-checks.lua")(test,read,mocks)
 dofile("tests/install-checks.lua")(test,read,mocks)
+dofile("tests/install-role-checks.lua")(test,read,mocks)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

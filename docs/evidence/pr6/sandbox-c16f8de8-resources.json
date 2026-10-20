@@ -1,0 +1,23 @@
+{
+    "processes":  [
+                      {
+                          "at":  "2026-10-20T18:07:53.8448422Z",
+                          "affinity":  63,
+                          "id":  22004,
+                          "command":  "\"C:\\Users\\LabAdmin\\AppData\\Local\\computercraft-sandbox\\craftos-2.8.3\\CraftOS-PC_console.exe\" --headless --directory \"C:\\Work\\gemini-input\\p3\\evidence\\h3\\native-control-01\" --rom \"C:\\Work\\gemini-input\\p3\\evidence\\h3\\native-control-01\\rom\" --id 0 ",
+                          "priority":  "AboveNormal",
+                          "cpuSeconds":  3.15625,
+                          "parentId":  20188
+                      },
+                      {
+                          "at":  "2026-10-20T18:07:53.8952085Z",
+                          "affinity":  63,
+                          "id":  22780,
+                          "command":  "\"C:\\Users\\LabAdmin\\AppData\\Local\\computercraft-sandbox\\craftos-2.8.3\\CraftOS-PC_console.exe\" --headless --directory \"C:\\Work\\gemini-input\\p2\\evidence\\pr6\\gateA\\runs\\1be815df46524f5f9ba9fdffc2d987ed\" --rom \"C:\\Work\\gemini-input\\p2\\evidence\\pr6\\gateA\\runs\\1be815df46524f5f9ba9fdffc2d987ed\\rom\" --id 0 ",
+                          "priority":  "AboveNormal",
+                          "cpuSeconds":  5.546875,
+                          "parentId":  15220
+                      }
+                  ],
+    "logicalCPUs":  6
+}
