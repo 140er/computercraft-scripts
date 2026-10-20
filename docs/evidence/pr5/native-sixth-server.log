@@ -1,0 +1,468 @@
+﻿[20Oct2026 17:14:12.772] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserver, --fml.neoForgeVersion, 21.1.259, --fml.fmlVersion, 4.0.45, --fml.mcVersion, 1.21.1, --fml.neoFormVersion, 20240808.144430, nogui]
+[20Oct2026 17:14:13.133] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Eclipse Adoptium OpenJDK 64-Bit Server VM 21.0.12.1+1-LTS
+[20Oct2026 17:14:13.180] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12.1 by Eclipse Adoptium; OS Windows 10 arch amd64 version 10.0
+[20Oct2026 17:14:17.092] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserver
+[20Oct2026 17:14:18.014] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Work/mc-ssot-pr5-e0f50b3f/libraries/net/fabricmc/sponge-mixin/0.16.4+mixin.0.8.7/sponge-mixin-0.16.4+mixin.0.8.7.jar%2373!/ Service=ModLauncher Env=SERVER
+[20Oct2026 17:14:24.289] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "server-1.21.1-20240808.144430-srg.jar" [locator: production server provider +net.neoforged:neoforge:21.1.259:server]
+[20Oct2026 17:14:24.747] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "neoforge-21.1.259-universal.jar" [locator: PathBasedLocator[name=neoforge, paths=[libraries\net\neoforged\neoforge\21.1.259\neoforge-21.1.259-universal.jar]], reader: mod manifest]
+[20Oct2026 17:14:24.895] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "AdvancedPeripherals-1.21.1-0.7.62b.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:24.977] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "cc-tweaked-1.21.1-forge-1.120.2.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.025] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "cc_ar-0.2.1.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.151] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "classicperipherals-neoforge-1.21.1-0.6.5.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.229] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "directgpu-1.0.25-neoforge-1.21.1.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.279] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinforforge-5.12.0-all.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.335] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "toms-peripherals-1.21-1.3.1.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.415] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "turtlebattery-0.3.0.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:25.489] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "turtlematic-forge-1.21.1-1.4.10.jar" [locator: {mods folder locator at C:\Work\mc-ssot-pr5-e0f50b3f\mods}, reader: mod manifest]
+[20Oct2026 17:14:37.425] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 21 dependencies adding them to mods collection
+[20Oct2026 17:14:37.440] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "mixinextras-neoforge-0.5.5.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.450] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "jzlib-1.1.3.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 17:14:37.456] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "tweakium-forge-1.21.1-1.4.9.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.458] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "broccolium-forge-1.21.1-1.4.6.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.459] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kaleido-config-0.3.3+1.3.2.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar]
+[20Oct2026 17:14:37.465] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "bcprov-jdk18on-1.78.1.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar]
+[20Oct2026 17:14:37.479] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-coroutines-jdk8-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.485] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "net.neoforged.neoforge-coremods-21.1.259.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.490] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-jdk7-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.496] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-jdk8-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.497] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "thedarkcolour.kfflang-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.498] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "thedarkcolour.kfflib-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.509] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-serialization-core-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.519] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "cobalt-0.9.9.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 17:14:37.529] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "thedarkcolour.kffmod-5.12.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.534] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-stdlib-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.536] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "peripheralium-forge-1.21.1-1.4.6.jar" [parent: turtlematic-forge-1.21.1-1.4.10.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.537] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlin-reflect-2.4.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.543] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-serialization-json-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.549] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "sable-companion-common-1.21.1-1.6.0.jar" [parent: classicperipherals-neoforge-1.21.1-0.6.5.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 17:14:37.557] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "kotlinx-coroutines-core-jvm-1.11.0.jar" [parent: kotlinforforge-5.12.0-all.jar, locator: jarinjar]
+[20Oct2026 17:14:37.605] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]:
+     Mod List:
+		Name Version (Mod Id)
+
+		Advanced Peripherals 0.7.62b (advancedperipherals)
+		Broccolium 1.4.6 (broccolium)
+		CC: AR(Neoforge port) 0.2.1 (cc_ar)
+		CC: Tweaked 1.120.2 (computercraft)
+		Classic Peripherals 0.6.5 (classicperipherals)
+		DirectGPU 1.0.25-neoforge-1.21.1 (directgpu)
+		Kotlin For Forge 5.12.0 (kotlinforforge)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.259 (neoforge)
+		Peripheralium 1.4.6 (peripheralium)
+		Sable Companion 1.6.0 (sablecompanion)
+		Tom's Peripherals 1.3.1 (toms_peripherals)
+		Turtle Battery 0.3.0 (turtlebattery)
+		Turtlematic 1.4.10 (turtlematic)
+		Tweakium 1.4.9 (tweakium)
+[20Oct2026 17:14:47.885] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[20Oct2026 17:14:48.623] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserver' with arguments [nogui]
+[20Oct2026 17:15:34.599] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.5).
+[20Oct2026 17:17:21.250] [modloading-worker-0/INFO] [Advanced Peripherals/]: AdvancedPeripherals says hello!
+[20Oct2026 17:17:23.599] [modloading-worker-0/INFO] [Advanced Peripherals/]: mekanism not loaded, skip integration loading
+[20Oct2026 17:17:23.601] [modloading-worker-0/WARN] [Advanced Peripherals/]: Failed to load integration for mekanism
+[20Oct2026 17:17:23.608] [modloading-worker-0/INFO] [Advanced Peripherals/]: powah not loaded, skip integration loading
+[20Oct2026 17:17:23.623] [modloading-worker-0/WARN] [Advanced Peripherals/]: Failed to load integration for powah
+[20Oct2026 17:17:28.509] [modloading-worker-0/INFO] [thedarkcolour.kotlinforforge.neoforge.test.KotlinForForge/]: Kotlin For Forge Enabled!
+[20Oct2026 17:17:33.703] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.259, for MC 1.21.1
+[20Oct2026 17:18:07.009] [modloading-sync-worker/INFO] [com.tom.peripherals.PeripheralsMod/]: Loaded Tom's Peripherals config file toms_peripherals-common.toml
+[20Oct2026 17:18:07.171] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Configuration LoadedConfig[config=SynchronizedConfig{DataHolder:{base=SynchronizedConfig{DataHolder:{cooldownTreshholdLevel=100, xpToFuelRate=10}}, turtlePeripherals=SynchronizedConfig{DataHolder:{enableTurtleChatter=true, enableCreativeChest=true, enablePistonTurtle=true, enableStickyPistonTurtle=true, pistonPitchLevel=5.0, pistonVolumeLevel=5.0, enableLaaBucket=true, enableChunkVial=true, chunkVialTimeLimit=5000, enableBowTurtle=true, bowTurtlePowerLimit=10.0, enableMimicGadget=true, mimicGadgetRMLLimit=8, enableInspectionMonocle=true}}, operations=SynchronizedConfig{DataHolder:{swingCooldown=1000, swingCost=1, transformBlockCooldown=500, transformBlockCost=1, useCooldown=1000, useCost=1, harvestCooldown=1000, harvestCost=1, suckCooldown=1000, suckCost=1, tradeCooldown=1000, tradeCost=5, restockCooldown=60000, restockCost=500, brewCooldown=1000, brewCost=5, smithCooldown=1000, smithCost=1, captureCooldown=50000, captureCost=100, enchantmentCooldown=5000, enchantmentCost=10, warpCooldown=1000, warpCost=1, scanBlocksCooldown=2000, scanBlocksMaxFreeRadius=8, scanBlocksMaxCostRadius=16, scanBlocksExtraBlockCost=0.17, scanEntitiesCooldown=2000, scanEntitiesMaxFreeRadius=8, scanEntitiesMaxCostRadius=16, scanEntitiesExtraBlockCost=0.17, scanItemsCooldown=2000, scanItemsMaxFreeRadius=8, scanItemsMaxCostRadius=16, scanItemsExtraBlockCost=0.17, chatMessageCooldown=100, smeltCooldown=1, smeltCost=80, chiselCooldown=1000, chiselCost=1, xpTransferCooldown=1000, xpTransferCost=1, throwPotionCooldown=1000, throwPotionCost=10, shootCooldown=1000, shootCost=10}}, automataCores=SynchronizedConfig{DataHolder:{enableWeakAutomataCore=true, enableEndAutomataCore=true, enableHusbandryAutomataCore=true, enableProtectiveAutomataCore=true, enableEnormousAutomata=true, enableBrewingAutomataCore=true, enableSmithingAutomataCore=true, enableEnchantingAutomataCore=true, enableMasonAutomataCore=true, enableMercantileAutomataCore=true, endAutomataCoreWarpPointLimit=64, durabilityRestoreChance=0.1, starboundAutomataFuelGenerationChance=0.15, starboundAutomataFuelGenerationAmount=1, brewingXPReward=0.8, brewingPowerLimit=10.0, enchantmentWipeChance=0.05, tier1AutomataCoreInteractionRadius=2, tier1AutomataCoreMaxFuelConsumptionRate=2, tier1AutomataCoreCooldownReduceFactor=1.0, tier2AutomataCoreInteractionRadius=4, tier2AutomataCoreMaxFuelConsumptionRate=3, tier2AutomataCoreCooldownReduceFactor=1.0, tier3AutomataCoreInteractionRadius=8, tier3AutomataCoreMaxFuelConsumptionRate=4, tier3AutomataCoreCooldownReduceFactor=0.8, tier4AutomataCoreInteractionRadius=16, tier4AutomataCoreMaxFuelConsumptionRate=6, tier4AutomataCoreCooldownReduceFactor=0.5, creativeAutomataCoreInteractionRadius=2147483647, creativeAutomataCoreMaxFuelConsumptionRate=2147483647, creativeAutomataCoreCooldownReduceFactor=0.0}}}}, path=C:\Work\mc-ssot-pr5-e0f50b3f\config\turtlematic.toml, modConfig=net.neoforged.fml.config.ModConfig@b0508fc] is not correct. Correcting
+[20Oct2026 17:18:07.184] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.transformBlockCooldown was corrected from 500 to its default, 1000.
+[20Oct2026 17:18:07.190] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.chatMessageCooldown was corrected from 100 to its default, 1000.
+[20Oct2026 17:18:07.199] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key operations.smeltCooldown was corrected from 1 to its default, 1000.
+[20Oct2026 17:18:07.210] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.enchantmentWipeChance was corrected from 0.05 to its default, 0.1.
+[20Oct2026 17:18:07.212] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.creativeAutomataCoreInteractionRadius was corrected from 2147483647 to its default, 64.
+[20Oct2026 17:18:07.213] [modloading-sync-worker/WARN] [net.neoforged.neoforge.common.ModConfigSpec/CORE]: Incorrect key automataCores.creativeAutomataCoreMaxFuelConsumptionRate was corrected from 2147483647 to its default, 32.
+[20Oct2026 17:18:12.228] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Starting version check at https://api.modrinth.com/updates/cc-tweaked/forge_updates.json
+[20Oct2026 17:18:15.877] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[20Oct2026 17:18:17.356] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Work/mc-ssot-pr5-e0f50b3f/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23126!/assets/.mcassetsroot' uses unexpected schema
+[20Oct2026 17:18:17.367] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/C:/Work/mc-ssot-pr5-e0f50b3f/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23126!/data/.mcassetsroot' uses unexpected schema
+[20Oct2026 17:18:22.736] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Found status: BETA Current: 1.120.2 Target: null
+[20Oct2026 17:18:22.737] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [toms_peripherals] Starting version check at https://raw.githubusercontent.com/tom5454/Toms-Peripherals/main/version-check.json
+[20Oct2026 17:18:26.603] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [toms_peripherals] Found status: BETA Current: 1.3.1 Target: null
+[20Oct2026 17:18:36.809] [main/INFO] [net.minecraft.server.Main/]: No existing world data, creating new world
+[20Oct2026 17:18:36.939] [main/ERROR] [net.minecraft.server.dedicated.DedicatedServerProperties/]: No key layers in MapLike[{}]
+[20Oct2026 17:19:03.885] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 1433 recipes
+[20Oct2026 17:19:10.576] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 1498 advancements
+[20Oct2026 17:19:28.651] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[20Oct2026 17:19:28.666] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[20Oct2026 17:19:28.667] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: CREATIVE
+[20Oct2026 17:19:28.674] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[20Oct2026 17:19:29.196] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on 127.0.0.1:53819
+[20Oct2026 17:19:29.589] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using default channel type
+[20Oct2026 17:19:30.380] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[20Oct2026 17:19:30.388] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[20Oct2026 17:19:30.397] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[20Oct2026 17:19:30.403] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[20Oct2026 17:19:30.580] [Server thread/INFO] [com.tom.peripherals.PeripheralsMod/]: Loaded Tom's Peripherals config file toms_peripherals-server.toml
+[20Oct2026 17:19:30.627] [Server thread/INFO] [net.neoforged.fml.config.ConfigTracker/CONFIG]: Found config file override in path .\world\serverconfig\computercraft-server.toml
+[20Oct2026 17:19:37.775] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[20Oct2026 17:19:55.045] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[20Oct2026 17:19:55.369] [Worker-Main-5/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[20Oct2026 17:19:55.564] [Worker-Main-5/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[20Oct2026 17:19:56.062] [Worker-Main-1/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 2%
+[20Oct2026 17:19:56.573] [Worker-Main-1/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 18%
+[20Oct2026 17:19:57.059] [Worker-Main-1/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 51%
+[20Oct2026 17:19:57.484] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 2428 ms
+[20Oct2026 17:19:57.492] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (26.982s)! For help, type "help"
+[20Oct2026 17:19:57.493] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting remote control listener
+[20Oct2026 17:19:57.535] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener started
+[20Oct2026 17:19:57.552] [Server thread/INFO] [net.minecraft.server.rcon.thread.RconThread/]: RCON running on 127.0.0.1:53820
+[20Oct2026 17:19:58.756] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[20Oct2026 17:19:59.628] [Server thread/INFO] [turtlematic/]: Server started
+[20Oct2026 17:19:59.990] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 0 (0 turtles with ender modem)
+[20Oct2026 17:20:17.701] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:20:17.946] [RCON Client /127.0.0.1 #2/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:20:53.137] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:20:53.402] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded]
+[20Oct2026 17:20:53.417] [RCON Client /127.0.0.1 #3/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:21:08.926] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:21:09.594] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 999 block(s)]
+[20Oct2026 17:21:09.595] [RCON Client /127.0.0.1 #4/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:21:20.107] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:21:20.230] [RCON Client /127.0.0.1 #5/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:21:42.055] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:21:42.082] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Set the time to 1000]
+[20Oct2026 17:21:42.088] [RCON Client /127.0.0.1 #6/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:21:52.895] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:21:53.147] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Set the weather to clear]
+[20Oct2026 17:21:53.157] [RCON Client /127.0.0.1 #7/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:03.740] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:04.457] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 5 block(s)]
+[20Oct2026 17:22:04.471] [RCON Client /127.0.0.1 #8/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:08.810] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:08.965] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -5, 65, 0]
+[20Oct2026 17:22:08.981] [RCON Client /127.0.0.1 #9/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:14.027] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:14.241] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 5, 65, 0]
+[20Oct2026 17:22:14.262] [RCON Client /127.0.0.1 #10/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:19.754] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:19.931] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -4, 65, -4]
+[20Oct2026 17:22:19.943] [RCON Client /127.0.0.1 #11/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:24.204] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:24.290] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -4, 66, -4]
+[20Oct2026 17:22:24.312] [RCON Client /127.0.0.1 #12/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:31.233] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:31.259] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, -4]
+[20Oct2026 17:22:31.262] [RCON Client /127.0.0.1 #13/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:37.320] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:37.367] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 66, -4]
+[20Oct2026 17:22:37.393] [RCON Client /127.0.0.1 #14/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:47.912] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:48.385] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -2, 65, -3]
+[20Oct2026 17:22:48.401] [RCON Client /127.0.0.1 #15/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:48.427] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 1 (1 turtles with ender modem)
+[20Oct2026 17:22:57.379] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:22:57.454] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -2, 65, 0]
+[20Oct2026 17:22:57.461] [RCON Client /127.0.0.1 #16/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:22:57.616] [Server thread/INFO] [turtlebattery/]: Turtle Battery: ender modem chunk tickets now 2 (2 turtles with ender modem)
+[20Oct2026 17:23:08.155] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:23:08.721] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -2, 65, 3]
+[20Oct2026 17:23:08.741] [RCON Client /127.0.0.1 #17/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:23:18.366] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:23:18.516] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 65, -6]
+[20Oct2026 17:23:18.526] [RCON Client /127.0.0.1 #18/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:23:42.383] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:23:42.497] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 66, -6]
+[20Oct2026 17:23:42.498] [RCON Client /127.0.0.1 #19/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:23:53.535] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:23:53.605] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 6, 65, -6]
+[20Oct2026 17:23:53.613] [RCON Client /127.0.0.1 #20/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:24:02.867] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:24:02.905] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 6, 66, -6]
+[20Oct2026 17:24:02.908] [RCON Client /127.0.0.1 #21/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:24:16.231] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:24:16.308] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 65, 6]
+[20Oct2026 17:24:16.315] [RCON Client /127.0.0.1 #22/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:24:29.976] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:24:29.998] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 66, 6]
+[20Oct2026 17:24:30.008] [RCON Client /127.0.0.1 #23/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:24:46.984] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:24:47.002] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 71, -6]
+[20Oct2026 17:24:47.020] [RCON Client /127.0.0.1 #24/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:24:55.842] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:24:55.858] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -6, 72, -6]
+[20Oct2026 17:24:55.866] [RCON Client /127.0.0.1 #25/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:25:12.231] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:25:12.641] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 0, 65, 8]
+[20Oct2026 17:25:12.643] [RCON Client /127.0.0.1 #26/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:25:21.308] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:25:21.522] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 0, 66, 8]
+[20Oct2026 17:25:21.529] [RCON Client /127.0.0.1 #27/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:25:30.423] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:25:30.618] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 7, 65, 8]
+[20Oct2026 17:25:30.639] [RCON Client /127.0.0.1 #28/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:25:42.110] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:25:42.135] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 7, 66, 8]
+[20Oct2026 17:25:42.143] [RCON Client /127.0.0.1 #29/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:01.881] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:02.122] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 14, 65, 8]
+[20Oct2026 17:26:02.144] [RCON Client /127.0.0.1 #30/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:15.287] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:15.699] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 14, 66, 8]
+[20Oct2026 17:26:15.703] [RCON Client /127.0.0.1 #31/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:26.050] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:26.502] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 1, 65, 8]
+[20Oct2026 17:26:26.510] [RCON Client /127.0.0.1 #32/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:38.458] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:38.540] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 0, 65, 9]
+[20Oct2026 17:26:38.544] [RCON Client /127.0.0.1 #33/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:52.776] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:53.220] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 8, 65, 8]
+[20Oct2026 17:26:53.228] [RCON Client /127.0.0.1 #34/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:26:58.200] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:26:58.274] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 6 block(s)]
+[20Oct2026 17:26:58.283] [RCON Client /127.0.0.1 #35/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:27:15.574] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:27:16.076] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Successfully filled 6 block(s)]
+[20Oct2026 17:27:16.083] [RCON Client /127.0.0.1 #36/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:27:21.066] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:27:21.587] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -1, 65, 8]
+[20Oct2026 17:27:21.614] [RCON Client /127.0.0.1 #37/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:27:30.344] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:27:30.394] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -2, 65, 8]
+[20Oct2026 17:27:30.395] [RCON Client /127.0.0.1 #38/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:27:46.738] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:27:46.807] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -3, 65, 8]
+[20Oct2026 17:27:46.821] [RCON Client /127.0.0.1 #39/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:27:59.216] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:27:59.257] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -3, 65, 9]
+[20Oct2026 17:27:59.265] [RCON Client /127.0.0.1 #40/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:28:18.675] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:28:18.964] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 6, 65, 8]
+[20Oct2026 17:28:18.980] [RCON Client /127.0.0.1 #41/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:28:30.424] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:28:30.984] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 5, 65, 8]
+[20Oct2026 17:28:30.990] [RCON Client /127.0.0.1 #42/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:28:46.542] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:28:46.728] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, 8]
+[20Oct2026 17:28:46.741] [RCON Client /127.0.0.1 #43/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:28:52.276] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:28:52.864] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, 9]
+[20Oct2026 17:28:52.871] [RCON Client /127.0.0.1 #44/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:29:02.256] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:29:02.309] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, 10]
+[20Oct2026 17:29:02.319] [RCON Client /127.0.0.1 #45/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:29:28.706] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:29:28.723] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, 11]
+[20Oct2026 17:29:28.737] [RCON Client /127.0.0.1 #46/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:29:53.572] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:29:53.904] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at -3, 65, 10]
+[20Oct2026 17:29:53.921] [RCON Client /127.0.0.1 #47/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:30:24.086] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:30:24.269] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 4, 65, 12]
+[20Oct2026 17:30:24.280] [RCON Client /127.0.0.1 #48/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:30:58.808] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:30:58.945] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 20, 65, 8]
+[20Oct2026 17:30:58.960] [RCON Client /127.0.0.1 #49/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:31:09.037] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:31:10.130] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 20, 66, 8]
+[20Oct2026 17:31:10.141] [RCON Client /127.0.0.1 #50/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:31:21.436] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:31:21.448] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 21, 65, 8]
+[20Oct2026 17:31:21.458] [RCON Client /127.0.0.1 #51/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:31:48.320] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:31:48.363] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Changed the block at 22, 65, 8]
+[20Oct2026 17:31:48.363] [RCON Client /127.0.0.1 #52/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:32:28.585] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:32:28.683] [RCON Client /127.0.0.1 #53/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:32:34.608] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 5153ms or 103 ticks behind
+[20Oct2026 17:32:52.581] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:32:52.692] [RCON Client /127.0.0.1 #54/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:32:56.876] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 2173ms or 43 ticks behind
+[20Oct2026 17:33:14.345] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 2491ms or 49 ticks behind
+[20Oct2026 17:33:19.232] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:33:19.379] [RCON Client /127.0.0.1 #55/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:33:31.830] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 2226ms or 44 ticks behind
+[20Oct2026 17:33:39.085] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:33:39.198] [RCON Client /127.0.0.1 #56/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:33:39.949] [ComputerCraft-Computer-Monitor-0/WARN] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Terminating computer #2 due to timeout (ran over by 3.0030114 seconds). This is NOT a bug, but may mean a computer is misbehaving.
+Thread ComputerCraft-Computer-Worker-0 is currently RUNNABLE
+  at java.base/sun.nio.fs.WindowsNativeDispatcher.CreateFile0(Native Method)
+  at java.base/sun.nio.fs.WindowsNativeDispatcher.CreateFile(WindowsNativeDispatcher.java:73)
+  at java.base/sun.nio.fs.WindowsChannelFactory.open(WindowsChannelFactory.java:309)
+  at java.base/sun.nio.fs.WindowsChannelFactory.newFileChannel(WindowsChannelFactory.java:168)
+  at java.base/sun.nio.fs.WindowsFileSystemProvider.newByteChannel(WindowsFileSystemProvider.java:229)
+  at java.base/java.nio.file.Files.newByteChannel(Files.java:380)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.FileMount.openForRead(FileMount.java:92)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.MountWrapper.openForRead(MountWrapper.java:125)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.FileSystem.openForRead(FileSystem.java:305)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.apis.FSAPI.open(FSAPI.java:373)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.asm.LuaMethodSupplier.lambda$static$1(LuaMethodSupplier.java:27)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.ResultInterpreterFunction.invoke(ResultInterpreterFunction.java:56)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.ResumableVarArgFunction.invoke(ResumableVarArgFunction.java:34)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invokeImpl(Dispatch.java:175)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:63)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.nativeCall(LuaInterpreter.java:614)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.execute(LuaInterpreter.java:412)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpretedFunction.resume(LuaInterpretedFunction.java:155)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.debug.DebugState.resume(DebugState.java:452)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.loop(LuaThread.java:353)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:301)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:297)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.CobaltLuaMachine.handleEvent(CobaltLuaMachine.java:131)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.resumeMachine(ComputerExecutor.java:551)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:517)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593)
+  at java.base/java.lang.Thread.run(Thread.java:1583)
+Enqueued command: ABORT_WITH_TIMEOUT
+Enqueued events: 0
+
+[20Oct2026 17:33:40.953] [ComputerCraft-Computer-Monitor-0/WARN] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Terminating computer #2 due to timeout (ran over by 4.0035596 seconds). This is NOT a bug, but may mean a computer is misbehaving.
+Thread ComputerCraft-Computer-Worker-0 is currently RUNNABLE
+  at java.base/sun.nio.fs.WindowsNativeDispatcher.CreateFile0(Native Method)
+  at java.base/sun.nio.fs.WindowsNativeDispatcher.CreateFile(WindowsNativeDispatcher.java:73)
+  at java.base/sun.nio.fs.WindowsChannelFactory.open(WindowsChannelFactory.java:309)
+  at java.base/sun.nio.fs.WindowsChannelFactory.newFileChannel(WindowsChannelFactory.java:168)
+  at java.base/sun.nio.fs.WindowsFileSystemProvider.newByteChannel(WindowsFileSystemProvider.java:229)
+  at java.base/java.nio.file.Files.newByteChannel(Files.java:380)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.FileMount.openForRead(FileMount.java:92)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.MountWrapper.openForRead(MountWrapper.java:125)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.filesystem.FileSystem.openForRead(FileSystem.java:305)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.apis.FSAPI.open(FSAPI.java:373)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.asm.LuaMethodSupplier.lambda$static$1(LuaMethodSupplier.java:27)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.ResultInterpreterFunction.invoke(ResultInterpreterFunction.java:56)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.ResumableVarArgFunction.invoke(ResumableVarArgFunction.java:34)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invokeImpl(Dispatch.java:175)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:63)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.nativeCall(LuaInterpreter.java:614)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.execute(LuaInterpreter.java:412)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpretedFunction.resume(LuaInterpretedFunction.java:155)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.debug.DebugState.resume(DebugState.java:452)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.loop(LuaThread.java:353)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:301)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:297)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.CobaltLuaMachine.handleEvent(CobaltLuaMachine.java:131)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.resumeMachine(ComputerExecutor.java:551)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:517)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593)
+  at java.base/java.lang.Thread.run(Thread.java:1583)
+Enqueued command: ABORT_WITH_TIMEOUT
+Enqueued events: 0
+
+[20Oct2026 17:33:48.003] [ComputerCraft-Computer-Worker-0/ERROR] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Error running task on computer #2
+java.lang.InterruptedException: null
+	at java.base/java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly(ReentrantLock.java:159) ~[?:?]
+	at java.base/java.util.concurrent.locks.ReentrantLock.lockInterruptibly(ReentrantLock.java:372) ~[?:?]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.shutdown(ComputerExecutor.java:421) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.resumeMachine(ComputerExecutor.java:554) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:517) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?]
+[20Oct2026 17:33:53.562] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 4557ms or 91 ticks behind
+[20Oct2026 17:34:04.267] [ComputerCraft-Computer-Monitor-0/WARN] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Terminating computer #13 due to timeout (ran over by 3.148998 seconds). This is NOT a bug, but may mean a computer is misbehaving.
+Thread ComputerCraft-Computer-Worker-1 is currently RUNNABLE
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.CobaltLuaMachine.lambda$new$0(CobaltLuaMachine.java:64)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaState.handleInterrupt(LuaState.java:196)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.LuaC$InputStreamReader.read(LuaC.java:205)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Lex.next(Lex.java:150)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Lex.lexToken(Lex.java:516)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Lex.nextToken(Lex.java:621)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.checkNext(Parser.java:206)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.body(Parser.java:760)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.localFunc(Parser.java:1289)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.statement(Parser.java:1410)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.statementList(Parser.java:576)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.Parser.mainFunction(Parser.java:1451)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.LuaC.loadTextChunk(LuaC.java:187)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.compiler.LuaC.compile(LuaC.java:176)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.lib.BaseLib.lambda$loadStream$3(BaseLib.java:365)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.lib.BaseLib$lambda$loadStream$3.call(Unknown Source)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.lib.BaseLib.loadStream(BaseLib.java:363)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.lib.BaseLib$Load.invoke(BaseLib.java:327)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.ResumableVarArgFunction.invoke(ResumableVarArgFunction.java:34)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invokeImpl(Dispatch.java:175)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:63)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.nativeCall(LuaInterpreter.java:614)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.execute(LuaInterpreter.java:412)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invokeImpl(Dispatch.java:166)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:63)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:58)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.ProtectedCall$CallSuspended.call(ProtectedCall.java:219)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.ProtectedCall$CallSuspended.call(ProtectedCall.java:208)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.ProtectedCall.apply(ProtectedCall.java:69)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.ProtectedCall.apply(ProtectedCall.java:42)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.lib.BaseLib$PCall.invoke(BaseLib.java:278)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.ResumableVarArgFunction.invoke(ResumableVarArgFunction.java:34)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invokeImpl(Dispatch.java:175)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.Dispatch.invoke(Dispatch.java:63)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.nativeCall(LuaInterpreter.java:614)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpreter.execute(LuaInterpreter.java:412)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.function.LuaInterpretedFunction.resume(LuaInterpretedFunction.java:155)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.debug.DebugState.resume(DebugState.java:452)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.loop(LuaThread.java:353)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:301)
+  at LAYER PLUGIN/cc.tweaked.cobalt/org.squiddev.cobalt.LuaThread.run(LuaThread.java:297)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.lua.CobaltLuaMachine.handleEvent(CobaltLuaMachine.java:131)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.resumeMachine(ComputerExecutor.java:551)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:517)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593)
+  at java.base/java.lang.Thread.run(Thread.java:1583)
+Enqueued command: ABORT_WITH_TIMEOUT
+Enqueued events: 0
+
+[20Oct2026 17:34:08.968] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:34:08.969] [ComputerCraft-Computer-Worker-1/ERROR] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Error running task on computer #6
+java.lang.InterruptedException: null
+	at java.base/java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly(ReentrantLock.java:159) ~[?:?]
+	at java.base/java.util.concurrent.locks.ReentrantLock.lockInterruptibly(ReentrantLock.java:372) ~[?:?]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.shutdown(ComputerExecutor.java:421) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.resumeMachine(ComputerExecutor.java:554) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:517) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?]
+[20Oct2026 17:34:09.002] [RCON Client /127.0.0.1 #57/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:34:20.844] [Server thread/WARN] [net.minecraft.server.MinecraftServer/]: Can't keep up! Is the server overloaded? Running 4590ms or 91 ticks behind
+[20Oct2026 17:34:31.529] [ComputerCraft-Computer-Monitor-0/WARN] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Terminating computer #0 due to timeout (ran over by 3.6270748000000004 seconds). This is NOT a bug, but may mean a computer is misbehaving.
+Thread ComputerCraft-Computer-Worker-1 is currently WAITING
+  on java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject@1933c23d
+  at java.base/jdk.internal.misc.Unsafe.park(Native Method)
+  at java.base/java.util.concurrent.locks.LockSupport.park(LockSupport.java:371)
+  at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionNode.block(AbstractQueuedSynchronizer.java:519)
+  at java.base/java.util.concurrent.ForkJoinPool.unmanagedBlock(ForkJoinPool.java:3780)
+  at java.base/java.util.concurrent.ForkJoinPool.managedBlock(ForkJoinPool.java:3725)
+  at java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitUninterruptibly(AbstractQueuedSynchronizer.java:1699)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:610)
+  at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593)
+  at java.base/java.lang.Thread.run(Thread.java:1583)
+Enqueued command: null
+Enqueued events: 0
+
+[20Oct2026 17:35:02.919] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:35:03.227] [RCON Client /127.0.0.1 #58/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:35:03.258] [ComputerCraft-Computer-Worker-1/ERROR] [dan200.computercraft.core.computer.computerthread.ComputerThread/]: Error running task on computer #9
+java.lang.InterruptedException: null
+	at java.base/java.util.concurrent.locks.ReentrantLock$Sync.lockInterruptibly(ReentrantLock.java:159) ~[?:?]
+	at java.base/java.util.concurrent.locks.ReentrantLock.lockInterruptibly(ReentrantLock.java:372) ~[?:?]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.turnOn(ComputerExecutor.java:385) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.workImpl(ComputerExecutor.java:491) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.ComputerExecutor.work(ComputerExecutor.java:460) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.runImpl(ComputerThread.java:639) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at TRANSFORMER/computercraft@1.120.2/dan200.computercraft.core.computer.computerthread.ComputerThread$WorkerThread.run(ComputerThread.java:593) ~[cc-tweaked-1.21.1-forge-1.120.2.jar%23129!/:1.120.2]
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?]
+[20Oct2026 17:35:40.979] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 17:35:41.044] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [Rcon: Stopping the server]
+[20Oct2026 17:35:41.063] [RCON Client /127.0.0.1 #59/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 17:35:41.076] [Server thread/INFO] [turtlematic/]: Stopping server
+[20Oct2026 17:35:41.077] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Stopping server
+[20Oct2026 17:35:41.093] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving players
+[20Oct2026 17:35:41.104] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving worlds
+[20Oct2026 17:35:46.966] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:overworld
+[20Oct2026 17:35:57.203] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_end
+[20Oct2026 17:35:57.275] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_nether
+[20Oct2026 17:35:57.417] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[20Oct2026 17:35:57.427] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[20Oct2026 17:35:57.437] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[20Oct2026 17:35:57.442] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[20Oct2026 17:35:58.705] [Server thread/ERROR] [dan200.computercraft.shared.computer.core.ServerContext/]: Failed to stop computers under deadline.
+[20Oct2026 17:35:58.742] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener stopped

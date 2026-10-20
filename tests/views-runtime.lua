@@ -83,7 +83,32 @@ local ok,err=pcall(function()
         end
       end)
     else
-      preserveRecovery(gps.locate(3))
+      local started=os.epoch("utc")
+      local diagnostic={ok=false,startedAt=started,attempts=0,samples={}}
+      local previous,consistent,ready=nil,0,nil
+      repeat
+        local at=os.epoch("utc")
+        local x,y,pz=gps.locate(2)
+        local finished=os.epoch("utc")
+        local p=x and {x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(pz+.5)} or nil
+        local inside=p and p.x>=-4 and p.x<=4 and p.y==65 and p.z>=-4 and p.z<=4
+        if inside then
+          consistent=previous and previous.x==p.x and previous.y==p.y and previous.z==p.z and consistent+1 or 1
+          previous=p
+        else previous=nil consistent=0 end
+        diagnostic.attempts=diagnostic.attempts+1
+        diagnostic.samples[#diagnostic.samples+1]={at=at,millis=finished-at,x=x,y=y,z=pz,
+          inBounds=inside==true,consistent=consistent}
+        if #diagnostic.samples>32 then table.remove(diagnostic.samples,1) end
+        diagnostic.elapsedMillis=finished-started
+        diagnostic.ok=consistent>=2 and finished-started<=180000
+        json("gps-preflight.json",diagnostic)
+        if diagnostic.ok then ready=p break end
+        if finished-started>=180000 then break end
+        sleep(.5)
+      until os.epoch("utc")-started>=180000
+      assert(ready,"real GPS preflight failed within 180 seconds; inspect gps-preflight.json")
+      preserveRecovery(ready.x,ready.y,ready.z)
       if not fs.exists("miner.cfg") then
         write("miner.cfg",{home={x=-2,y=65,z=z},facing=1,spine=1,viewsControl=true,
           ssot={enabled=true,server=0,secret=secret,dimension=dim,timeout=10},

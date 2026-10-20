@@ -16,6 +16,10 @@ The normal monitor passed in the first native attempt. Tom controls overflowed i
 
 The fourth attempt found that the fixture's hardcoded GPU side wrapped a wired modem. The fixture now finds the actual DirectGPU peripheral and records its methods. The fifth created a real display, then checked for scene data before the controller had saved its scan seed. The fixture now waits up to 180 seconds for a populated rendered scene and records refresh diagnostics. `gateB-fifth-attempt.json` and `native-directgpu-peripherals.json` preserve that partial result. Production code did not change for either fixture repair.
 
+The sixth attempt stopped when a production miner could not obtain a GPS observation. Other computers left empty reports, and the server log records watchdog terminations. Host coordinates and modem placement were correct. About 25 seconds elapsed between turning on the GPS hosts and turtles; that does not establish host readiness or the cause of the failure. A native-only preflight now requires two consistent, in-bounds observations from real GPS within 180 seconds before launching each miner. Production GPS calls and watchdog limits remain unchanged. `gateB-sixth-attempt.json`, `native-sixth-server.log` and `native-sixth-gc.log` retain the failed run. The curated server log trims trailing whitespace.
+
+Client polling now waits for complete JSON and preserves the exact parsed bytes. A valid failure verdict still fails immediately. `client-json-checks.txt` records the focused checks.
+
 The warehouse fixture replaces only PR 4's `wh-sites` read boundary. Mine snapshots, command authentication and navigation use production code. See `../../ssot-pr5.md` for the interface and configuration.
 
 Full logs and failed attempts remain at `C:\Work\gemini-input\p2\evidence\pr5`. The two CraftOS PNGs are also in `C:\Work\gemini-input\shots`.

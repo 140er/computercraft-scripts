@@ -1,0 +1,48 @@
+﻿{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-e0f50b3f",
+    "outcome":  "Production miner stopped when GPS observation was unavailable",
+    "report":  {
+                   "ok":  false,
+                   "lines":  [
+                                 "views production runtime"
+                             ],
+                   "errors":  [
+                                  "/miner.lua:2840: GPS unavailable or wrong dimension"
+                              ],
+                   "booted":  true,
+                   "free":  2934561,
+                   "checks":  {
+
+                              }
+               },
+    "emptyReportComputers":  [
+                                 "4",
+                                 "7",
+                                 "8"
+                             ],
+    "cause":  "No single cause established. GPS hosts had only a fixed startup delay. Native logs also contain server lag and ComputerCraft watchdog termination stacks.",
+    "productionChanged":  false,
+    "clientStarted":  false,
+    "ownedServerStopped":  true,
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\snapshot-readiness",
+    "watchdogs":  [
+                      {
+                          "overSeconds":  3.0030114,
+                          "localTime":  "2026-10-20T17:33:39.949+02:00",
+                          "computer":  2
+                      },
+                      {
+                          "overSeconds":  3.148998,
+                          "localTime":  "2026-10-20T17:34:04.267+02:00",
+                          "computer":  13
+                      },
+                      {
+                          "overSeconds":  3.6270748,
+                          "localTime":  "2026-10-20T17:34:31.529+02:00",
+                          "computer":  0
+                      }
+                  ],
+    "maxRecordedGcPauseMs":  338.614,
+    "maxRecordedSafepointMs":  6790.4457
+}
