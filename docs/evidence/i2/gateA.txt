@@ -1,0 +1,18 @@
+I2 Gate A. Gate B was not run.
+
+lua5.2 tests/run.lua
+121 tests passed
+exit 0
+
+The touch cases replay tests/i2-events on a turtle (39x13), a computer (51x19),
+a pocket (26x20) and a scale-1 8x6 monitor (164x81). Files: fresh-miner,
+home-frame, code-expired, code-replayed, code-burned, neighbour-missing,
+neighbour-unknown, disk-full, hash-mismatch. Each touch sequence matched the
+direct install-core sequence. install.touch stays off unless it is boolean true
+and the machine has a colour screen or an advanced monitor.
+
+pwsh tests/sandbox/run.ps1 -Scenario install
+CraftOS-PC v2.8.3, standardsMode=true, computerSpaceLimit=1000000
+installer: PASS booted=true errors=0 disk_free=824542
+Sandbox PASS
+exit 0

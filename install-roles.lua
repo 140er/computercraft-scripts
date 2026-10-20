@@ -7,6 +7,7 @@ local M = {}
 local KIT = {
   "install.lua", "update.lua", "install-roles.lua",
   "install-core.lua", "install-keys.lua", "install-shell.lua",
+  "install-touch.lua",
 }
 
 local ROLES = {

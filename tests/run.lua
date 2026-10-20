@@ -441,6 +441,7 @@ dofile("tests/warehouse-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 dofile("tests/install-unit.lua")(test, equal)
+dofile("tests/i2-touch.lua")(test, equal)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
