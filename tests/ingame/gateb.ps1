@@ -93,11 +93,13 @@ try {
         $testRoots.Add($root)
         Enter-GatebClientLock $owner
         $holdsClient = $true
+        Push-Location $src
         try {
             & "$src\tests\ingame\run.ps1" -Scenario $s -Base $stage -Battery "$stage\mods\turtlebattery-0.3.0.jar" -Output $out -TestRoot $root -Timeout $Timeout -Client *>&1 | Out-File "$out-driver.log" -Encoding utf8
         } catch {
             Add-Content "$out-driver.log" "DRIVER ERROR $($_.Exception.Message)"
         } finally {
+            Pop-Location
             Exit-GatebClientLock
             $holdsClient = $false
         }
