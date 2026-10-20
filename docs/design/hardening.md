@@ -32,26 +32,37 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
 
 ## H4: disk budget
 
-The server reads its disk size at runtime through `fs.getCapacity` and
-`fs.getFreeSpace` and never hardcodes it. Live is 4,000,000 bytes today, with
+The server never hardcodes its disk size. Live is 4,000,000 bytes today, with
 16,000,000 staged for the next restart.
 
-Steps, in this order:
+Foundation, from the review:
 
 - a. No fleet code cache on the state server's disk.
-- c. Per-chunk dirty saves with batched writes. No full-state copy and
-  validation per request.
-- e. A failed save is recovered and reported. It never silences the server
-  until a restart.
+- c. A runtime cap read from `fs.getCapacity` and `fs.getFreeSpace`. Per-chunk
+  dirty saves with batched writes, and no full-state copy and validation per
+  request.
+- e. An atomic save that keeps 2 copies, not 3. A failed save is recovered and
+  reported; it never silences the server until a restart.
 - b. Compact chunk format (binary or RLE) with a version header.
-- d. Optional: alert when the disk is nearly full.
 
-### Optional add-on, on hold
+Cold storage on peers, built on top of that foundation:
 
-Not built until Jeffrey chooses it. Store-robot cold storage: only store and
-warehouse robots inside the base's loaded chunks hold data, and only
-non-rebuildable overflow (archived journals, order history), never the map.
-Two replicas, each checked by hash. No rebalancing and no reachability score.
+- The server offloads cold state, such as map chunks nobody touched recently
+  and old journals, to peers it rates as reliable.
+- The score measures how consistently a peer stays reachable: ping and reply
+  success over time, never leaving modem range or sitting in an unloaded chunk,
+  uptime, and power headroom (fuel or battery). Movement and stationarity do
+  not count.
+- Priority: store and warehouse robots first (they move a lot but stay in
+  range), then stationary computers, then miners. Miners qualify only while
+  their measured reachability stays high.
+- Each cold chunk lives on at least 2 peers. Content hashes plus HMAC protect
+  integrity.
+- Fetch on demand into a local LRU cache.
+- Re-replicate early when a peer's reachability starts to drop or its power
+  runs low. Rebalance by free space.
+- Unreachable cold data counts as unknown, never as free. Turtles route
+  conservatively around it.
 
 ## H5: dead turtles
 

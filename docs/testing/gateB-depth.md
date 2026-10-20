@@ -66,6 +66,8 @@ where it involves the world, in gate B.
 - Disk: the real limits. Run once with a 1,000,000-byte server disk and
   realistic content (map chunks, journals, fleet records), and once with the
   limit read from `fs.getCapacity` on a larger disk. A failed save recovers.
+  At the real 1 MB limit, lose cold-storage peers mid-run: data re-replicates,
+  and unreachable cells stay unknown, never free.
 - Event loss: a rednet burst during a save and during an HTTP call. No request
   is dropped and the timer still fires.
 - Faults: a commit lost after a real move, the GPS host down, an ender modem

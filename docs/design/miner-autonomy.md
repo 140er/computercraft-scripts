@@ -27,6 +27,16 @@ per the hardening track). The lease covers:
 
 The miner never claims a cell outside the lease.
 
+## Safety invariants
+
+These hold in every mode. No dev-mode toggle can disable them.
+
+- No digging while lost. The miner re-anchors its position first.
+- A reserved corridor: the return route stays reserved and clear.
+- For block state, the newest observation wins.
+- An expired lease means wait: no new digging until the server renews it.
+- A full journal means go home.
+
 ## Local problem handling
 
 | Problem | Behavior |
@@ -41,7 +51,8 @@ The miner never claims a cell outside the lease.
 | Stuck | Back off, then mark the cell and skip it. |
 
 Defaults are conservative. Every behavior here is a dev-mode setting, on/off
-plus its thresholds, per turtle and global.
+plus its thresholds, per turtle and global. Settings tune behavior; they never
+switch off the safety invariants above.
 
 ## Store and forward
 
