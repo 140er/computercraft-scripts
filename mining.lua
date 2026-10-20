@@ -49,6 +49,7 @@ function M.open(cfg)
     if same(p,j.to) then
       if j.kind=="push" then
         state.stack[#state.stack].next=state.stack[#state.stack].next+1
+        state.stack[#state.stack].queued=nil
         state.stack[#state.stack+1]={pose=A.copy(p),next=0}
         state.visited[key(p)]=true
       elseif j.kind=="pop" then state.stack[#state.stack]=nil
@@ -60,6 +61,7 @@ function M.open(cfg)
     state.action=nil save("action-saved")
   end
   local function move(kind,to,fn)
+    if kind=="push" then state.stack[#state.stack].queued=state.stack[#state.stack].next end
     state.action={kind=kind,from=nav.pose(),to=A.copy(to)} save("action-prepared")
     local ok,why=fn()
     if cfg.checkpoint then cfg.checkpoint("action-physical") end
@@ -181,7 +183,9 @@ function M.open(cfg)
     for _,p in pairs(state.hazards) do
       if math.abs(p.x-to.x)+math.abs(p.y-to.y)+math.abs(p.z-to.z)<=1 then safe=false end
     end
-    if found and safe and T.inside(to,state.task) and M.ore(info,cfg.targets) and not state.visited[key(to)] then
+    if frame.queued==d and found and not M.ore(info,cfg.targets) then api.interrupt("queued ore blocked") return true end
+    if safe and T.inside(to,state.task) and not state.visited[key(to)]
+      and (found and M.ore(info,cfg.targets) or frame.queued==d and not found) then
       if #state.stack>=768 then api.interrupt("vein budget") return false,"vein budget" end
       local ok,err=move("push",to,function() return nav.step(d,"excavate") end)
       if not ok then api.interrupt(err) end

@@ -2,3 +2,4 @@ ts	phase	decision	why	evidence	result
 2026-10-20T07:23:27.9222690Z	start	Stack PR 3 on PR 2 and use one agent.	PR 2 is open and PR 1 rules require one agent.	https://github.com/140er/computercraft-scripts/pull/25	branch created
 2026-10-20T07:29:56.4498128Z	extraction	Use a durable DFS stack and the existing movement journal.	A restart must preserve pending ore and distinguish an attempted move from a completed move.	tests/mining-checks.lua	focused tests pass
 2026-10-20T07:49:34.7536234Z	review	Add a real hub and preserve ore during inventory injection.	The gate must exercise the hub and compare collected ore with the fixture.	tests/ingame/verify-mining.ps1	final runs pending
+2026-10-20T07:55:00.7977548Z	fix	Retain a queued ore cell after digging succeeds but movement fails.	An air observation must not discard the rest of an unvisited vein.	C:\Work\gemini-input\p2\evidence\pr3\gateA\dig-move-red.txt	red test captured; fix under test

@@ -21,3 +21,4 @@ $check="local h=assert(io.open([[$state]])); local s=assert(load('return '..h:re
 & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\durable-state.txt"
 if($LASTEXITCODE -ne 0){throw 'Durable mining state mismatch.'}
 @{ok=$true;turtles=3;leases=3;fuelInterrupt=$true;inventoryInterrupt=$true;restart=$true} | ConvertTo-Json | Set-Content "$Output\mining-verdict.json"
+& "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output

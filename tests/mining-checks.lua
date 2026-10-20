@@ -87,6 +87,21 @@ return function(test,mocks)
       assert(not m.world["2,65,1"])
     end
   end)
+  test("a dig followed by a failed move retains the air cell leading to the rest of the vein",function()
+    local m,mine,reopen=fixture()
+    m.world["1,65,1"]="minecraft:stone"
+    m.world["2,65,1"]="minecraft:diamond_ore" m.world["3,65,1"]="minecraft:diamond_ore"
+    local forward=m.env.turtle.forward
+    local injected=false
+    m.env.turtle.forward=function()
+      if not injected and m.key()=="1,65,1" and m.heading==1 then injected=true return false,"entity" end
+      return forward()
+    end
+    assert(mine.start()) assert(complete(mine)=="entity")
+    assert(injected and not m.world["2,65,1"] and m.world["3,65,1"])
+    mine=reopen() assert(mine.start()) assert(complete(mine)=="complete") assert(mine.finish())
+    assert(not m.world["3,65,1"],"lost the vein behind the dug air cell")
+  end)
   test("hazards, protection and blocked home routes report bounded refusal",function()
     for _,block in ipairs({"minecraft:water","minecraft:lava","minecraft:bedrock","minecraft:chest"}) do
       local m,mine=fixture() m.world["1,65,1"]=block
