@@ -5,13 +5,18 @@ features land. This track fixes the findings in
 [the 2026-10-20 review](../review/judgment-2026-10-20.md). The shared shapes
 for it live in [the wh2 contract](wh2-contract.md).
 
-## Merge order
+## Merge order (#48)
 
-PR 5, PR 6, H3, H1+H2, H4, H5, fleet, wizard, layout, craft. H4 is on hold
-pending approval, so H5 stacks on H1+H2 for now.
+H4 and miner autonomy are approved. Jeffrey accepted the plan on 2026-10-20
+at 17:09 Europe/Amsterdam. The program order follows
+[the accepted plan](../plans/cc-h4-offline-plan.md). It is P0, H3, H1H2, N1, then I1
+and I2 alongside H4a and H4b1, then H5, H4c, W1, then B1 and B2 alongside T1,
+A1 and T2, then S1, H4b2, H4d.
 
-Fleet and wizard develop alongside this track, then rebase onto it and use its
-auth and request queue. Layout and craft start after H3 and H4 are merged.
+PR 5 and PR 6 feed installer and UI work. W1 is the fleet PR and follows H4c.
+Wizard follows W1, layout follows wizard, and craft follows layout. They need
+H3 and H4a through H4c, without waiting for H4d. The full file ownership and
+shared-file integration order are in [the wh2 contract](wh2-contract.md).
 
 ## H3: server event loop
 
@@ -20,22 +25,30 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
   `os.pullEvent` in those paths.
 - The periodic timer survives lost events and is re-armed.
 
-## H1+H2: auth and updates
+## H1+H2 auth and updates (#47, #53, #55)
 
-- HMAC-SHA256 over request id, counter, op and body. The key never goes on
+- A MAC over request id, counter, op and body. The approved plan uses
+  ccryptolib's keyed BLAKE3 for it, and an Ed25519-signed manifest. The key never goes on
   the wire, in requests or in replies. Mesh relays forward the MAC, not a key.
-- Replays are rejected. A counter near or at its maximum cannot lock a turtle
-  out.
+- The v2 envelope carries a keyed BLAKE3 MAC over rid, counter, op, and the
+  canonical body, including its auth context. The client saves the counter
+  and complete envelope before sending, then restores that envelope on boot.
+- Replays return the saved result. Before the counter ceiling, an authenticated
+  exchange advances the integer authentication epoch and starts a new session.
 - Updates use a signed manifest that names one version for every file. The
-  client pins the server id, installs all files or none, and keeps the last
+  client pins the server ID, signing key ID, and Ed25519 public key. It installs
+  all files or none and keeps the last
   good version for rollback. No unauthenticated `rednet.lookup` fallback.
 - Extras: version and capability handshake between client and server.
+- `ssot.cfg.requireMac` defaults to false. Once true, it rejects v1 requests.
+  A durable upgrade marker prevents config changes or rollback from downgrading
+  the authority. New wh2 operations always require v2 authentication.
 
-## H4: disk budget (PENDING APPROVAL)
+## H4 disk budget, approved (#48, #49, #54)
 
-> PENDING APPROVAL. Jeffrey decides on the H4 plan (1 MB mode, peer cold
-> storage, storage policy). Nothing in this section gets built until he
-> accepts it. These are notes.
+> APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam).
+> The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md). It splits H4 into H4a, H4b1, H4b2,
+> H4c and H4d. Where the plan and these notes differ, the plan wins.
 
 The server never hardcodes its disk size. Live is 4,000,000 bytes today, with
 16,000,000 staged for the next restart.
@@ -50,7 +63,7 @@ Foundation, from the review:
   reported; it never silences the server until a restart.
 - b. Compact chunk format (binary or RLE) with a version header.
 
-Cold storage on peers, built on top of that foundation:
+Cold storage on peers follows the accepted plan's replica rules (#49).
 
 - The server offloads cold state, such as map chunks nobody touched recently
   and old journals, to peers it rates as reliable.
@@ -58,11 +71,12 @@ Cold storage on peers, built on top of that foundation:
   success over time, never leaving modem range or sitting in an unloaded chunk,
   uptime, and power headroom (fuel or battery). Movement and stationarity do
   not count.
-- Priority: store and warehouse robots first (they move a lot but stay in
-  range), then stationary computers, then miners. Miners qualify only while
-  their measured reachability stays high.
-- Each cold chunk lives on at least 2 peers. Content hashes plus HMAC protect
-  integrity.
+- Store and warehouse robots rank first, then stationary computers. At least
+  two eligible non-miner peers verify each cold section before local eviction.
+  Miners hold extra replicas only and hold none while holding an offline lease.
+  A changed boot removes a peer from the count until hash re-verification.
+- Content hashes and a server-only keyed BLAKE3 MAC protect integrity.
+  The storage key needs a floppy export before peer storage is enabled.
 - Fetch on demand into a local LRU cache.
 - Re-replicate early when a peer's reachability starts to drop or its power
   runs low. Rebalance by free space.
@@ -92,8 +106,16 @@ Capacity flow:
 - Enrolling a turtle as storage is one click on the panel, after a
   reachability check.
 - Until the player answers, new map data is held compressed and writes pause
-  gracefully. Nothing is lost and nothing crashes. Miners keep working on their
-  local journal.
+  before the control reserve is consumed. Miners retain observations in a
+  runtime-sized local journal and stop new work at its return threshold.
+  Nothing is dropped or acknowledged from RAM alone.
+
+The hub uses the same two-copy backend. The plan reports 142143 bytes of hub
+code after H4a, or about 260000 with crypto and planner code. The contract's
+1 MB table admits two 300000-byte state copies, a 65536-byte control reserve,
+32768 bytes for allocation overhead and small local files, 8192 scratch bytes,
+and 33504 bytes of headroom. The ledger checks actual allocated bytes before
+admission. The table is a design allowance, not runtime evidence.
 
 The panel has a storage view: each peer's capacity, use and reachability, what
 each one holds, where `forget` would apply, and a preview of exactly what would
@@ -106,4 +128,6 @@ be forgotten.
 - An admin `forget turtle` command.
 - A commit timeout after a real move, or a GPS failure, recovers instead of
   halting the turtle.
-- Extras: binary-heap A* open list, one GPS read per block.
+- Extras include a binary-heap A* open list. P0 checks its yielding batches.
+  N1 provides confidence and framed dead reckoning, with GPS as an optional
+  check (#49).
