@@ -21,7 +21,7 @@ AR and chat default to off. The existing owner protocol remains in use. Installe
 ## Verification
 
 - Gate A passed for bundle `8152c067`: 116 mock tests plus standalone checks; six CraftOS computers, three turtle emulators, 4 MB disks, ownership faults, and full process restart.
-- Gate B is incomplete. The first actual-mod server timed out during world startup. A retry is queued under the shared lock. No real goggles screenshots or native behavior pass is claimed.
+- Gate B is incomplete. The native renderer fixture and Minecraft restart recovery passed with actual cc_ar, AP, and three real turtles. The client timed out creating its loading window. Ownership polling hit an empty-file race. Fixes to the isolated runner are queued for another run; real goggles and production ownership remain unverified.
 - Production recall/charging and all-role storage/view integration remain unverified. Saved results and the emulated screenshot are in [docs/evidence/pr6](docs/evidence/pr6). Full VM evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`.
 
 The decision trail and full-doc6 AR findings are in [docs/evidence/pr6/decisions.tsv](docs/evidence/pr6/decisions.tsv) and [docs/gemini-review.md](docs/gemini-review.md).

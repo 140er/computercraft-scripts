@@ -1,0 +1,16 @@
+{
+    "errors":  [
+                   "FAIL\r\nOffline client exited with code .",
+                   "Owner 4 failed. "
+               ],
+    "native":  true,
+    "ok":  false,
+    "visual":  false,
+    "scenario":  "ar",
+    "missing":  [
+                    "Production server/hub ownership failover with actual shared controller",
+                    "Production chat recall and charging routes on real turtles",
+                    "All-role installation and storage regression with PR 4 and PR 5 integrations"
+                ],
+    "root":  "C:\\Work\\mc-ssot-pr6-cff7c78d"
+}

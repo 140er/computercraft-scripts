@@ -2,11 +2,12 @@ function Read-Owner([int]$Id) {
     $path="$TestRoot\world\computercraft\computer\$Id\ar-owner.json"
     if (!(Test-Path $path)) { return $null }
     try { $state=Get-Content $path -Raw | ConvertFrom-Json } catch { return $null }
-    if (!$state.ok) { throw "Owner $Id failed. $($state.failure)" }
+    if ($null -eq $state -or $null -eq $state.ok) { return $null }
+    if (!$state.ok) { throw "Owner $Id failed. $($state.failure) $($state.error)" }
     return $state
 }
 function Wait-Owners([scriptblock]$Check,[string]$Description) {
-    $until=[DateTime]::UtcNow.AddSeconds(120)
+    $until=[DateTime]::UtcNow.AddSeconds(600)
     do {
         $server=Read-Owner 0
         $hub=Read-Owner 4

@@ -1,0 +1,71 @@
+2026-10-20T13:22:48.7233660Z > gamerule doDaylightCycle false
+Gamerule doDaylightCycle is now set to: false
+
+2026-10-20T13:22:48.8556600Z > time set day
+Set the time to 1000
+
+2026-10-20T13:22:48.9482368Z > weather clear
+Set the weather to clear
+
+2026-10-20T13:22:49.0195998Z > forceload add -16 -16 16 16
+Marked 9 chunks in Overworld from [-1, -1] to [1, 1] to be force loaded
+
+2026-10-20T13:22:49.1339431Z > fill -10 64 -10 10 64 10 minecraft:stone
+Successfully filled 441 block(s)
+
+2026-10-20T13:22:49.2206787Z > fill -10 65 -10 10 74 10 minecraft:air
+No blocks were filled
+
+2026-10-20T13:22:49.2977631Z > setblock 0 66 0 computercraft:computer_advanced{ComputerId:0}
+Changed the block at 0, 66, 0
+
+2026-10-20T13:22:49.3877827Z > setblock 0 67 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 0, 67, 0
+
+2026-10-20T13:22:49.4600824Z > setblock 1 66 0 cc_ar:ar_controller
+Changed the block at 1, 66, 0
+
+2026-10-20T13:22:49.6274807Z > setblock -1 66 0 advancedperipherals:chat_box
+Changed the block at -1, 66, 0
+
+2026-10-20T13:22:49.7162662Z > setblock 2 66 0 computercraft:computer_advanced{ComputerId:4}
+Changed the block at 2, 66, 0
+
+2026-10-20T13:22:49.8078831Z > setblock 2 67 0 computercraft:wireless_modem_advanced[facing=down]
+Changed the block at 2, 67, 0
+
+2026-10-20T13:22:49.8870502Z > setblock 4 65 -3 computercraft:turtle_advanced[facing=south]{ComputerId:1,Fuel:10000,LeftUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 4, 65, -3
+
+2026-10-20T13:22:49.9927549Z > setblock 6 65 -3 computercraft:turtle_advanced[facing=south]{ComputerId:2,Fuel:100,LeftUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 6, 65, -3
+
+2026-10-20T13:22:50.0737576Z > setblock 8 65 -3 computercraft:turtle_advanced[facing=south]{ComputerId:3,Fuel:10000,LeftUpgrade:"computercraft:wireless_modem_advanced"}
+Changed the block at 8, 65, -3
+
+2026-10-20T13:22:50.2061532Z > setblock 5 65 -4 minecraft:diamond_ore
+Changed the block at 5, 65, -4
+
+2026-10-20T13:22:50.3010049Z > setblock 7 65 -4 minecraft:deepslate_iron_ore
+Changed the block at 7, 65, -4
+
+2026-10-20T13:22:50.4144500Z > fill 3 65 0 9 68 0 minecraft:stone
+Successfully filled 28 block(s)
+
+2026-10-20T13:22:50.4964245Z > computercraft turn-on 0 1 2 3 4
+Turned on 5/5 computers
+
+2026-10-20T13:22:52.7395496Z > stop
+Stopping the server
+
+2026-10-20T13:23:38.5047455Z > computercraft turn-on 0 1 2 3 4
+Turned on 5/5 computers
+
+2026-10-20T13:25:42.1075614Z > stop
+Stopping the server
+
+2026-10-20T13:30:33.1163523Z > computercraft turn-on 0 1 2 3 4
+Turned on 0/5 computers
+
+2026-10-20T13:30:47.4579938Z > stop
+Stopping the server

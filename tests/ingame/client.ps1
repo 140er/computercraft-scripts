@@ -42,6 +42,10 @@ New-Item -ItemType Directory -Force -Path $client, "$client\mods", "$client\conf
 Copy-Item "$TestRoot\mods\*.jar" "$client\mods"
 Copy-Item "$TestRoot\config\classicperipherals.toml" "$client\config"
 Copy-Item "$PSScriptRoot\fml.toml" "$client\config\fml.toml"
+if ($View -eq 'ar') {
+    $fml=[IO.File]::ReadAllText("$client\config\fml.toml").Replace('earlyWindowControl = true','earlyWindowControl = false')
+    [IO.File]::WriteAllText("$client\config\fml.toml",$fml,[Text.UTF8Encoding]::new($false))
+}
 $arguments = Get-Content 'C:\mc-run1\args.txt' -Raw
 function Set-ClientArgument([string]$Name, [string]$Value) {
     $option = [regex]::Escape($Name)
