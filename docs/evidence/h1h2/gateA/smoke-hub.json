@@ -1,0 +1,15 @@
+{
+  "rx": 45,
+  "booted": true,
+  "errors": [],
+  "free": 3763791,
+  "httpOK": 1,
+  "ok": true,
+  "httpAttempts": 1,
+  "lines": [
+    "Sandbox-mine -        Waiting for ord 64     inf 15",
+    "IN TURTLES NOW",
+    "nothing",
+    "Tap a turtle = only that one. 1-7 ore c custom s st"
+  ]
+}

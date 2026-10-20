@@ -14,12 +14,12 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 -- Everything in the repo that runs on a computer or turtle
 local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "h1h2.lua" }
 -- The hub hands miner.lua out to the mining turtles, so it keeps a copy too.
 -- fleetview.lua draws the 3D view and the AR goggles for the hub, server and panel.
 local ALSO = { ["store.lua"] = {"atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["roomsorter.lua"] = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["sorter.lua"] = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["hub.lua"] = { "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" },
-  ["miner.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, ["factory.lua"] = { "miner.lua" },
-  ["server.lua"] = { "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, ["panel.lua"] = { "fleetview.lua" } }
+  ["miner.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "h1h2.lua" }, ["factory.lua"] = { "miner.lua" },
+  ["server.lua"] = { "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "h1h2.lua" }, ["panel.lua"] = { "fleetview.lua" } }
 
 local args = { ... }
 local reboot = true
@@ -65,7 +65,8 @@ local function fromServer(f)
     for _, name in ipairs(peripheral.getNames()) do
       if peripheral.getType(name) == "modem" and peripheral.call(name, "isWireless") then
         rednet.open(name)
-        server = rednet.lookup(PROTOCOL, "server") or false
+        local okH, H = pcall(dofile, "h1h2.lua")
+        server = okH and type(H) == "table" and type(H.resolveUpdateServer) == "function" and H.resolveUpdateServer() or false
         break
       end
     end
@@ -93,7 +94,12 @@ local function fromServer(f)
     offset = offset + #reply.code
     if offset >= size then
       local code = table.concat(parts)
-      return offset == size and hashOf(code) == version and code or nil
+      if not (offset == size and hashOf(code) == version) then return nil end
+      local okH, H = pcall(dofile, "h1h2.lua")
+      if okH and type(H) == "table" and type(H.manifestAllows) == "function" and H.manifestAllows(f, code, hashOf) == false then
+        return nil
+      end
+      return code
     end
   end
 end

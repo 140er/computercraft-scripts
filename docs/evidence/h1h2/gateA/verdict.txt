@@ -1,0 +1,9 @@
+Gate A for H1H2, Linux, 2026-10-20.
+
+lua5.2 tests/run.lua: 98 tests passed, then h1h2 checks passed. Transcript: mocks.txt.
+
+CraftOS-PC v2.8.3 headless (AppImage SHA256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c), standardsMode, 4000000 byte disk. Attacker suite on computer 0: six PASS lines in craftos-checks.log. sandbox-result ok true (craftos-attacker.json). os.shutdown does not exit the headless process; the run was stopped with timeout after the result file existed.
+
+PR #59 smoke shape: three computers (server, hub, miner), driver.lua and turtle.lua from pr-59-gatea, 30 seconds. All three sandbox-result.json files have ok true. stderr empty (smoke-stderr.txt). ssot, nav, mining, and warehouse scenarios were not run.
+
+Gate B: NOT RUN. No local Minecraft server in this environment.

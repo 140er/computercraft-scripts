@@ -227,7 +227,9 @@ return function(test, equal, read, mocks)
   local function updater(server, httpCode)
     local m = new()
     m.files["miner.lua"] = "return 'old'"
-    m.env.rednet.lookup = function() return server and 99 end
+    m.env.dofile = function(path) return assert(loadfile(path, "t", m.env))() end
+    if server then m.files["fleet.pin"] = mocks.encode({ v = 1, server = 99 }) end
+    m.env.rednet.lookup = function() error("rednet.lookup is not an update server") end
     local queue, requests = {}, 0
     m.env.rednet.send = function(id, msg, proto)
       requests = requests + 1
