@@ -200,7 +200,7 @@ return {
     ["craft.lua"]="4cc5bc20",
     ["dead.lua"]="6f90ce7d",
     ["directview.lua"]="7e5470c6",
-    ["enrol.lua"]="053156f9",
+    ["enrol.lua"]="bfbf8019",
     ["factory.lua"]="673729f3",
     ["farmer.lua"]="93dbc431",
     ["fleetview.lua"]="e0feb498",
@@ -241,7 +241,7 @@ return {
     ["store-role.lua"]="4fdbeb07",
     ["store.lua"]="86f91913",
     ["update.lua"]="dc2f890d",
-    ["view-pair.lua"]="448965f7",
+    ["view-pair.lua"]="8bd8a67c",
     ["view-role.lua"]="72a23f2b",
     ["view-scene.lua"]="97baa2b4",
     ["view-source.lua"]="942bbbac",
@@ -1260,5 +1260,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="6f472550"
+  ["version"]="a47e3085"
 }

@@ -217,7 +217,6 @@ local function gate(rec, now)
   if type(now) ~= "number" or now > rec.untilAt then return { ok = false, error = "code_expired" } end
 end
 
--- A stranger must not burn the code. reject() counts attempts, and five burns it.
 local function locked(rec, senderId)
   if type(rec) ~= "table" then return nil end
   if rec.held or (rec.forId ~= nil and rec.forId ~= senderId) then

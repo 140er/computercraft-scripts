@@ -1,10 +1,6 @@
--- Pairing a second hub. The request lives on the enrol code record.
--- step is the only transition. commitController is the only writer of controllers.
-
 local ViewPair = {}
 local PROTOCOL = "fleetserver"
 local ACK_WAIT = 4000
--- Enrol off never answers. Waiting out Enrol.ttl would freeze a second hub at boot.
 
 local Enrol
 local function enrol()
@@ -12,7 +8,6 @@ local function enrol()
   return Enrol
 end
 
--- server 0 is views.cfg.example and is still an explicit pair.
 function ViewPair.explicit(views)
   if type(views) ~= "table" then return false end
   local server, secret = views.server, views.secret
