@@ -1,4 +1,4 @@
-param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240, [switch]$OnDesktop)
+param([string]$TestRoot, [int]$Port, [int]$RconPort, [string]$Output, [int]$Timeout = 240, [switch]$OnDesktop, [string]$View="crossing", [string]$ShotName="ssot-crossing.png")
 $ErrorActionPreference = 'Stop'
 if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
     $desktopUser = (Get-CimInstance Win32_ComputerSystem).UserName
@@ -8,7 +8,7 @@ if (!$OnDesktop -and (Get-Process -Id $PID).SessionId -eq 0) {
     $launcher = "$TestRoot\client-on-desktop.ps1"
     $quote = { param($value) "'" + $value.Replace("'", "''") + "'" }
     $command = '& ' + (& $quote $PSCommandPath) + ' -OnDesktop -TestRoot ' + (& $quote $TestRoot) +
-        ' -Port ' + $Port + ' -RconPort ' + $RconPort + ' -Output ' + (& $quote $Output) + ' -Timeout ' + $Timeout
+        ' -Port ' + $Port + ' -RconPort ' + $RconPort + ' -Output ' + (& $quote $Output) + ' -Timeout ' + $Timeout + ' -View ' + (& $quote $View) + ' -ShotName ' + (& $quote $ShotName)
     $body = "try { $command; [IO.File]::WriteAllText($(& $quote $status), 'PASS') } catch { [IO.File]::WriteAllText($(& $quote $status), 'FAIL' + [Environment]::NewLine + `$_.Exception.Message) }"
     [IO.File]::WriteAllText($launcher, $body)
     $name = 'SSOT-pr1-' + [guid]::NewGuid().ToString('N')
@@ -86,8 +86,8 @@ try {
         Start-Sleep -Seconds 2
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($players -notmatch 'SSOTProof') { throw 'Offline client did not join within the timeout.' }
-    foreach ($command in @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air',
-        'tp SSOTProof 5 71 8 148 32','time set day','weather clear')) {
+    $camera = if ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    foreach ($command in $camera) {
         Invoke-TestRcon $RconPort $secret $command | Out-Null
     }
     Start-Sleep -Seconds 5
@@ -113,7 +113,7 @@ public static class SSOTCapture {
         Start-Sleep -Milliseconds 500
     } while ([DateTime]::UtcNow -lt $deadline)
     if (!$shot) { throw 'F2 did not produce a Minecraft framebuffer PNG.' }
-    Copy-Item $shot.FullName "$Output\ssot-crossing.png" -Force
+    Copy-Item $shot.FullName "$Output\$ShotName" -Force
     'Offline client framebuffer captured with F2.' | Set-Content "$Output\visual.txt"
 } finally {
     $env:GALLIUM_DRIVER = $previousDriver

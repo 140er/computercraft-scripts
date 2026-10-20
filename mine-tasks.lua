@@ -14,11 +14,25 @@ end
 function M.valid(s,pose)
   if s==nil then return true end
   if type(s)~="table" or not M.zone(s.zone,pose) or type(s.tasks)~="table" or #s.tasks>128 then return false end
+  local z=s.zone
+  local width=(z.max.x-z.min.x+1)/z.spacing
+  local count=width*(z.max.y-z.min.y+1)/3
+  if #s.tasks~=count then return false end
+  local tokens={}
   for i,t in pairs(s.tasks) do
     if not int(i,1,128) or type(t)~="table" or not pose(t.min) or not pose(t.max) or not pose(t.entry)
-      or not int(t.progress,0,64) or t.status~="open" and t.status~="offered" and t.status~="active" and t.status~="done"
+      or not int(t.progress,0,z.max.z-z.min.z+1) or t.status~="open" and t.status~="offered" and t.status~="active" and t.status~="done"
       or t.owner~=nil and (not int(t.owner,0,2147483647) or type(t.token)~="string"
         or #t.token>80 or not int(t.untilAt,0,9007199254740991)) then return false end
+    local x=z.min.x+(i-1)%width*z.spacing
+    local y=z.min.y+math.floor((i-1)/width)*3
+    if i>count or t.min.x~=x or t.max.x~=x+z.spacing-1 or t.min.y~=y or t.max.y~=y+2
+      or t.min.z~=z.min.z or t.max.z~=z.max.z or t.min.dim~=z.min.dim or t.max.dim~=z.min.dim
+      or t.entry.x~=x+1 or t.entry.y~=y+1 or t.entry.z~=z.min.z-1 or t.entry.dim~=z.min.dim
+      or t.status=="open" and (t.owner~=nil or t.progress~=0)
+      or t.status~="open" and (not t.owner or t.id~=i or tokens[t.token])
+      or t.status=="done" and t.progress~=z.max.z-z.min.z+1 then return false end
+    if t.token then tokens[t.token]=true end
   end
   return true
 end
@@ -51,19 +65,27 @@ function M.run(s,id,m,clock,epoch,pose)
         return {ok=true,task=t}
       end
     end
+    local candidate,score
+    local p=s.poses[id]
     for i,t in ipairs(s.mining.tasks) do
       if t.status=="open" or t.status=="offered" and t.untilAt<=now then
-        s.seq=s.seq+1
-        t.owner,t.token,t.untilAt,t.status=id,epoch..":mine:"..s.seq,now+30000,"offered"
-        t.id=i
-        return {ok=true,task=t}
+        local distance=math.abs(p.x-t.entry.x)+math.abs(p.y-t.entry.y)+math.abs(p.z-t.entry.z)
+        if p.dim==t.entry.dim and (not score or distance<score) then candidate,score=i,distance end
       end
+    end
+    if candidate then
+      local t=s.mining.tasks[candidate]
+      s.seq=s.seq+1
+      t.owner,t.token,t.untilAt,t.status=id,epoch..":mine:"..s.seq,now+30000,"offered"
+      t.id=candidate
+      return {ok=true,task=t}
     end
     return {ok=true}
   end
   local t
   for _,task in ipairs(s.mining.tasks) do if task.owner==id and task.token==m.token then t=task break end end
-  if not t or t.status=="done" or t.untilAt<=now then return fail("expired or stale mining token") end
+  if t and t.status=="done" and m.op=="mine-finish" then return {ok=true} end
+  if not t or t.status=="done" or t.untilAt<=now and m.op~="mine-finish" then return fail("expired or stale mining token") end
   if m.op=="mine-progress" then
     local length=t.max.z-t.min.z+1
     if not int(m.progress,t.progress,length) then return fail("invalid mining progress") end

@@ -482,6 +482,23 @@ if not cfg then
   print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
+if args[1]=="mine" then
+  cfg.mining=cfg.mining or {}
+  if args[2]=="enable" or args[2]=="disable" then
+    assert(args[2]=="disable" or cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true and cfg.mining.home,
+      "configure SSOT, navigation and mining home first")
+    cfg.mining.enabled=args[2]=="enable" saveTable(CFG_FILE,cfg) print("Mining "..args[2].."d") return
+  elseif args[2]=="home" then
+    local p={dim=assert(cfg.ssot and cfg.ssot.dimension),h=assert(DIRS[args[6]],"home heading required")}
+    p.x,p.y,p.z=tonumber(args[3]),tonumber(args[4]),tonumber(args[5])
+    assert(dofile("ssot.lua").pose(p),"integer home coordinates required")
+    cfg.mining.home=p saveTable(CFG_FILE,cfg) print("Mining home saved") return
+  elseif args[2]=="bounds" then
+    local v={} for i=1,6 do v[i]=assert(tonumber(args[i+3]),"six coordinates required") end
+    C.mineZone={min={dim=args[3],x=v[1],y=v[2],z=v[3]},max={dim=args[3],x=v[4],y=v[5],z=v[6]},spacing=tonumber(args[10]) or 3}
+    assert(dofile("mine-tasks.lua").zone(C.mineZone,dofile("ssot.lua").pose),"invalid mine bounds")
+  else error("Use miner mine bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> [spacing], home <x> <y> <z> <heading>, enable or disable",0) end
+end
 if args[1]=="nav" and args[2]=="bounds" then
   local dim=assert(args[3],"dimension required")
   local v={}
@@ -550,7 +567,7 @@ if args[1] == "home" then
   return
 end
 
-local standaloneOre = args[1]~="nav" and args[1] and args[1]:lower()
+local standaloneOre = args[1]~="nav" and args[1]~="mine" and args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
   print("Unknown ore: " .. standaloneOre)
   return
@@ -2078,7 +2095,34 @@ local function groundBlock(info)
   return false
 end
 function C.navCanExcavate(info)
+  if cfg.mining and cfg.mining.enabled then
+    C.miningModule=C.miningModule or dofile("mining.lua")
+    return C.miningModule.excavatable(info,cfg.mining.targets)
+  end
   return not isLiquid(info) and not isUnbreakable(info) and groundBlock(info)
+end
+
+function C.runMining()
+  local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
+    cancelled=function() return recall or updateWanted end})
+  while true do
+    local state=mining.state()
+    if state.phase=="home" and state.reason=="complete" then
+      local ok,why=mining.finish() if not ok then setStatus(tostring(why)) sleep(5) end
+    elseif not recall and not C.estop then
+      local ok,why=mining.start()
+      if ok then
+        repeat
+          ok,why=mining.tick()
+          local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+          st.phase=mining.state().phase=="return" and "returning" or "mining" save()
+          setStatus("Mining "..tostring(why or mining.state().phase))
+          sleep(0)
+        until not ok
+      end
+      setStatus("Mining "..tostring(why)) sleep(5)
+    else setStatus("Mining paused") sleep(1) end
+  end
 end
 
 C.PILLAR = 8      -- marker pillar height
@@ -2721,7 +2765,7 @@ if C.ssot then
           local x,y,z=gps.locate(2)
           if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
         end,
-        cancelled=function() return C.estop or st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
+        cancelled=function() return C.estop or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
       local ok,why
       if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
@@ -2734,6 +2778,11 @@ if C.ssot then
       end
       pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h st.navPending=nil save()
       if C.navCalibration~=nil then print("Navigation pose calibrated") return end
+      if C.mineZone then
+        local r,why=C.ssot.call("mine-config",{zone=C.mineZone})
+        assert(r and r.ok,why) print("Mine zones saved: "..r.count) return
+      end
+      if cfg.mining and cfg.mining.enabled then C.runMining() return end
       worker()
       return
     end

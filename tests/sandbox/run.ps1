@@ -2,12 +2,12 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining')][string]$Scenario = 'smoke',
     [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
-if ($Scenario -eq 'nav') { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
-if ($Scenario -in @('ssot','nav') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -in @('nav','mining')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
+if ($Scenario -in @('ssot','nav','mining') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
 
 try {
     $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
@@ -43,12 +43,13 @@ try {
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
     [IO.File]::WriteAllText("$run\config\global.json", $config, $utf8)
-    $roles = if ($Scenario -in @('ssot','nav')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
+    $roles = if ($Scenario -in @('ssot','nav','mining')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
+    if ($Scenario -eq 'mining') { $roles += 'hub' }
     for ($id = 0; $id -lt $roles.Count; $id++) {
         $disk = "$run\computer\$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
+        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
             Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
@@ -57,10 +58,12 @@ try {
             [IO.File]::WriteAllText("$disk\$($file.Name)", $code, $utf8)
         }
         Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
-        if ($Scenario -in @('ssot','nav')) {
-            foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua')) {
+        if ($Scenario -in @('ssot','nav','mining')) {
+            foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua')) {
                 Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
             }
+            New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
+            Copy-Item "$Source\tests\mocks.lua", "$Source\tests\mining-checks.lua" "$disk\tests"
             Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
             [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
@@ -71,18 +74,18 @@ try {
     Write-Output "Artifacts: $run"
     $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
     $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
-    $process.PriorityClass = if ($Scenario -eq 'nav') { 'High' } else { 'AboveNormal' }
-    if ($Scenario -ne 'nav') { $process.ProcessorAffinity = [IntPtr]1 }
+    $process.PriorityClass = if ($Scenario -in @('nav','mining')) { 'High' } else { 'AboveNormal' }
+    if ($Scenario -notin @('nav','mining')) { $process.ProcessorAffinity = [IntPtr]1 }
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
     $restarted = $false
     do {
-        if ($Scenario -in @('ssot','nav') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
+        if ($Scenario -in @('ssot','nav','mining') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
             Stop-Process -Id $process.Id -Force
             $process.WaitForExit()
             foreach ($id in 1..4) { [IO.File]::WriteAllText("$run\computer\$id\boot-hold", 'restart barrier', $utf8) }
             $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
-            $process.PriorityClass = if ($Scenario -eq 'nav') { 'High' } else { 'AboveNormal' }
-            if ($Scenario -ne 'nav') { $process.ProcessorAffinity = [IntPtr]1 }
+            $process.PriorityClass = if ($Scenario -in @('nav','mining')) { 'High' } else { 'AboveNormal' }
+            if ($Scenario -notin @('nav','mining')) { $process.ProcessorAffinity = [IntPtr]1 }
             Start-Sleep -Seconds 2
             foreach ($id in 1..4) { Remove-Item -LiteralPath "$run\computer\$id\boot-hold" }
             $restarted = $true
@@ -125,6 +128,9 @@ try {
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
     if ($Scenario -eq 'nav') {
         & "$Source\tests\ingame\verify-results.ps1" -Computers "$run\computer" -Output $Output -Title 'Navigation PR 2'
+    }
+    if ($Scenario -eq 'mining') {
+        & "$Source\tests\ingame\verify-mining.ps1" -Computers "$run\computer" -Output $Output
     }
     Write-Output 'Sandbox PASS'
     exit 0

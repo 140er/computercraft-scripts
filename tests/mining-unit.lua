@@ -43,3 +43,10 @@ assert(not call(1,"mine-progress",{token=tasks[1].token,progress=5}).ok,"stale f
 local state=api.state()
 assert(state.mining.tasks[1].status=="done" and state.mining.tasks[1].progress==5)
 print("PASS mining allocation, ownership, expiry, replay and restart")
+local failures=0
+dofile("tests/mining-checks.lua")(function(name,run)
+  local ok,err=pcall(run)
+  print((ok and "PASS " or "FAIL ")..name..(ok and "" or ": "..tostring(err)))
+  if not ok then failures=failures+1 end
+end,mocks)
+assert(failures==0,failures.." mining failures")

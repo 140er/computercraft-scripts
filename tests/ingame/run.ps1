@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot','nav')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav','mining')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -48,16 +48,21 @@ $properties = @('level-name=world','online-mode=false',"server-port=$port",'serv
     'level-type=minecraft:flat','generate-structures=false','motd=Disposable SSOT PR 1 test')
 [IO.File]::WriteAllLines("$TestRoot\server.properties", $properties, $utf8)
 [IO.File]::WriteAllText("$TestRoot\eula.txt", 'eula=true', $utf8)
-foreach ($id in 0..4) {
+$computerIds=if($Scenario -eq 'mining'){@(0,1,2,3,4,6)}else{@(0,1,2,3,4)}
+foreach ($id in $computerIds) {
     $disk = "$TestRoot\world\computercraft\computer\$id"
     New-Item -ItemType Directory -Force -Path $disk | Out-Null
     foreach ($file in Get-ChildItem "$source\*.lua") {
         [IO.File]::WriteAllText("$disk\$($file.Name)", [IO.File]::ReadAllText($file.FullName).Replace("`r`n","`n"), $utf8)
     }
-    Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua" $disk
+    Copy-Item "$source\tests\ssot-runtime.lua", "$PSScriptRoot\nav-probe.lua", "$source\tests\mining-runtime.lua", "$source\tests\mining-fixture.lua" $disk
     [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
     $startup = if ($id -eq 0) { 'shell.run("test-server.lua")' } else {
         'peripheral.find("modem", rednet.open); shell.run("ssot-runtime.lua", "minecraft", "' + $Scenario + '")'
+    }
+    if ($Scenario -eq 'mining') { $startup = $startup.Replace('ssot-runtime.lua','mining-runtime.lua') }
+    if ($Scenario -eq 'mining' -and $id -eq 6) {
+        $startup = 'http=nil; parallel.waitForAny(function() shell.run("hub.lua") end,function() sleep(10); local h=assert(fs.open("sandbox-result.json","w")); h.write(textutils.serializeJSON({ok=true,booted=true,errors={},lines={"production hub running during mining"}})); h.close(); while true do sleep(1) end end)'
     }
     if ($Scenario -eq 'nav' -and $id -eq 3) { $startup = 'if fs.exists("nav-probe") then shell.run("nav-probe.lua") else ' + $startup + ' end' }
     $startup = 'while fs.exists("boot-hold") do sleep(0.1) end; while not peripheral.find("modem") do sleep(0.1) end; ' + $startup
@@ -130,6 +135,10 @@ function Wait-File([string]$Path) {
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Scenario timeout waiting for $Path."
+}
+if ($Scenario -eq 'mining') {
+    & "$PSScriptRoot\mining.ps1"
+    return
 }
 try {
     Start-TestServer 'first'
