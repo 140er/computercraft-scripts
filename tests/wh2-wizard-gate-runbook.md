@@ -21,6 +21,10 @@ APIs, then fails. It never creates an authenticated test server.
 The branch's legacy SSOT transport sends its pairing secret and cannot serve new wh2 operations.
 File presence alone cannot replace production authentication or a running dispatcher.
 
+The CraftOS wizard scenario does not use that binding. Computer 0 commits
+`wh2-wizard.lua` over rednet. Turtles report real chest contents. Boards drive
+`wh2-board.lua`. A passing run is that scenario, not a keyed BLAKE3 session.
+
 The dependencies include the H3 request worker, H1+H2 keyed BLAKE3 transport,
 N1 frames, H4 storage, H5 recovery, and the W1 shared client and dispatcher.
 The native inventory test adapter also needs the layout job lifecycle for a full gate.
@@ -36,9 +40,9 @@ powershell -NoProfile -File tests/review-capture.ps1 -Scenario wizard -View queu
 
 The wizard runner creates seven native CraftOS computers, four chest-backed turtle
 adapters, and real emulator monitors. Every disk has a native capacity of 1,000,000 bytes.
-The hidden GUI uses SDL dummy drivers because this CraftOS version disables monitors in headless mode.
-Each computer saves its boot, capacity, prerequisite report, and failure before shutdown.
-A missing authenticated binding is a failed gate even when all computers boot.
+Linux uses the CraftOS-PC 2.8.3 AppImage in headless mode with SDL dummy drivers.
+Each computer saves its boot, capacity, and scenario result.
+The production binding still fails closed when a caller asks it for keyed BLAKE3.
 
 The in-process self-check exercises real board controls and the server state module.
 It covers drafts, ownership, revisions, malformed bodies, and inventory conservation.

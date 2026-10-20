@@ -25,7 +25,7 @@ function ConvertFrom-WizardInventory([string]$Text) {
 }
 
 function Get-WizardGateFiles([string]$Source, [ValidateSet('server','client')][string]$Role) {
-    $path = Join-Path $Source 'tests\wh2-wizard-gate-prerequisites.json'
+    $path = Join-Path (Join-Path $Source 'tests') 'wh2-wizard-gate-prerequisites.json'
     $manifest = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     if ($manifest.schema -ne 1) { throw 'Unknown wizard prerequisite manifest version.' }
     $names = @($manifest.roles.$Role) + @('atomic.lua','ssot.lua','ssot-client.lua','mine-tasks.lua',
