@@ -1,13 +1,22 @@
 local args={...}
 local A,S=dofile("atomic.lua"),dofile("ssot.lua")
-local cfg=A.read("warehouse.cfg") or {enabled=false}
-local function save() local f=assert(fs.open("warehouse.cfg","w")) f.write(textutils.serialize(cfg)) f.close() end
+local function unwrap(raw)
+  if type(raw)=="table" and (raw.v==1 or raw.schema==1) and type(raw.value)=="table" then return raw.value end
+  return raw
+end
+local cfg=unwrap(A.read("warehouse.cfg")) or {enabled=false}
+local cfgRec
+local function save()
+  cfgRec=cfgRec or A.mount("/"):open("warehouse.cfg",function(v) return type(v)=="table" end,{class="control",limit=8192})
+  assert(cfgRec:save(cfg))
+end
 local function pose(offset)
   local p={dim=assert(cfg.dimension,"configure the server and dimension first"),x=tonumber(args[offset]),y=tonumber(args[offset+1]),z=tonumber(args[offset+2])}
   assert(S.pose(p),"integer world coordinates required") return p
 end
 if args[1]=="install" then
-  local f=assert(fs.open("startup.lua","w")) f.write('shell.run("store")\n') f.close() print("Warehouse starts on boot") return
+  assert(A.replaceBytes("startup.lua",'shell.run("store")\n',function(s) return load(s)==nil and false or true end))
+  print("Warehouse starts on boot") return
 elseif args[1]=="update" then shell.run("update") return
 elseif args[1]=="server" then
   cfg.server,cfg.secret,cfg.dimension=tonumber(args[2]),args[3],args[4]

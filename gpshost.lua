@@ -21,21 +21,21 @@ local function modem()
   return peripheral.find("modem", function(_, m) return m.isWireless() end)
 end
 
+local A = dofile("atomic.lua")
+local cfgRec
 local function save(x, y, z)
-  local h = fs.open(CFG, "w")
-  h.write(textutils.serialize({ x = x, y = y, z = z }))
-  h.close()
-  h = fs.open("startup.lua", "w")
-  h.write('shell.run("gpshost")\n')
-  h.close()
+  cfgRec = cfgRec or A.mount("/"):open(CFG, function(v) return type(v) == "table" end, { class = "control", limit = 8192 })
+  cfgRec:save({ x = x, y = y, z = z })
+  A.replaceBytes("startup.lua", 'shell.run("gpshost")\n', function(s) return load(s) ~= nil end)
 end
 
 local function load()
-  if not fs.exists(CFG) then return nil end
-  local h = fs.open(CFG, "r")
-  local t = textutils.unserialize(h.readAll())
-  h.close()
-  return t
+  local raw = A.read(CFG)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
+  end
+  return raw
 end
 
 local args = { ... }

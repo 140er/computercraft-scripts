@@ -227,9 +227,12 @@ try {
         $loaded = Rcon 'execute in minecraft:the_nether if loaded 512 65 0 run data get block 512 65 0'
     } while ($loaded -match 'ComputerId:' -and [DateTime]::UtcNow -lt $deadline)
     if ($loaded -match 'ComputerId:') { throw 'Controller chunk did not unload.' }
-    $statePath = "$TestRoot\world\computercraft\computer\0\ssot.state".Replace('\','/')
-    $check = "local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))(); f:close(); assert(s.value.poses[4]); print('Offline occupied cell retained')"
-    & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\offline-occupancy.txt"
+    $root = "$TestRoot\world\computercraft\computer\0".Replace('\','/')
+    $helper = [IO.Path]::GetFullPath("$PSScriptRoot\read-ssot.lua").Replace('\','/')
+    $check = "local control = dofile([[$helper]])([[$root]]); assert(control and control.poses[4]); print('Offline occupied cell retained')"
+    $lua52 = 'C:\Tools\lua52\lua52.exe'
+    if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+    & $lua52 -e $check | Set-Content "$Output\offline-occupancy.txt"
     if ($LASTEXITCODE -ne 0) { throw 'Offline occupancy was lost.' }
     Move-Item -LiteralPath "$controller\sandbox-result.json" -Destination "$controller\before-unload.json" -Force
     foreach ($dimension in @('minecraft:the_nether','minecraft:overworld')) {
@@ -292,9 +295,12 @@ try {
         Start-Sleep -Seconds 3
         $boundary=Rcon 'data get block 31 66 4'
         if ($boundary -notmatch 'ComputerId:\s*3(?=[,}\s])') { throw 'Disabled loader did not preserve the boundary pose.' }
-        $statePath="$TestRoot\world\computercraft\computer\0\ssot.state".Replace('\','/')
-        $check="local f=assert(io.open([[$statePath]])); local s=assert(load('return '..f:read('*a'),'state','t',{}))().value; f:close(); local p=assert(s.poses[3]); assert(p.x==31 and p.y==66 and p.z==4); print('Offline boundary occupancy retained')"
-        & 'C:\Tools\lua52\lua52.exe' -e $check | Set-Content "$Output\disabled-occupancy.txt"
+        $root="$TestRoot\world\computercraft\computer\0".Replace('\','/')
+        $helper=[IO.Path]::GetFullPath("$PSScriptRoot\read-ssot.lua").Replace('\','/')
+        $check="local control = dofile([[$helper]])([[$root]]); local p=assert(control and control.poses[3]); assert(p.x==31 and p.y==66 and p.z==4); print('Offline boundary occupancy retained')"
+        $lua52 = 'C:\Tools\lua52\lua52.exe'
+        if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorAction Stop).Source }
+        & $lua52 -e $check | Set-Content "$Output\disabled-occupancy.txt"
         if ($LASTEXITCODE -ne 0) { throw 'Offline boundary occupancy was lost.' }
         Copy-Item "$TestRoot\logs\latest.log" "$Output\before-loader-restart.log"
         Stop-TestServer

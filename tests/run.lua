@@ -87,7 +87,7 @@ test("no controller: the dashboard and its keys work and never touch AR", functi
   equal(m.arCalls, {}, "3D mode must stay off")
   local out = table.concat(m.output, "\n")
   assert(out:find(mocks.encode({ "dashboard", "write", " 3D VIEW " }), 1, true), "3D VIEW button missing")
-  equal(m.env.textutils.unserialize(m.files["hub.state"]).recallAll, false, "resume after recall")
+  equal(mocks.hubFile(m.files).recallAll, false, "resume after recall")
   m.push("char", "q")
 end)
 
@@ -440,6 +440,7 @@ dofile("tests/mining-unit.lua")
 dofile("tests/warehouse-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
+dofile("tests/h4a.lua")(test, equal, read, mocks)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

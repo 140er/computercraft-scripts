@@ -6,9 +6,9 @@ function M.new(cfg)
   local boot = tostring(os.epoch("utc")) .. ":" .. os.getComputerID()
   local pending, busy, moving, stopped = {}, false, false, false
   local path = cfg.counterFile or "ssot.counter"
-  local store = A.store(path, function(v)
+  local store = A.mount("/"):open(path, function(v)
     return type(v) == "table" and type(v.counter) == "number" and v.counter >= 0 and v.counter % 1 == 0
-  end, 8192)
+  end, { class = "control", limit = 8192 })
   local journal = store.value or { counter = 0 }
   local synced = false
   local api = {}
@@ -26,7 +26,7 @@ function M.new(cfg)
     if busy then return nil, "SSOT busy" end
     busy = true
     journal.counter = journal.counter + 1
-    local ok, err = store.save(journal)
+    local ok, err = store:save(journal)
     if not ok then busy = false return nil, tostring(err) end
     local rid = boot .. ":" .. journal.counter
     local m = {}
@@ -61,7 +61,7 @@ function M.new(cfg)
     local r, err = api.call(previous and "calibrate" or "sync",fields)
     if not r or not r.ok then return false, err end
     journal.move = nil
-    local ok, why = store.save(journal)
+    local ok, why = store:save(journal)
     synced = ok
     return ok, why, r.epoch
   end
@@ -85,13 +85,13 @@ function M.new(cfg)
     if not grant or not grant.ok then return false, why end
     local fields = { pose = from, to = to, token = grant.token, epoch = grant.epoch }
     journal.move = A.copy(fields)
-    assert(store.save(journal))
+    assert(store:save(journal))
     local started = api.start(fields)
     if not started or not started.ok or type(started.untilAt) ~= "number"
       or started.untilAt <= os.epoch("utc") + 250 then synced = false return false, "start unconfirmed" end
     local moved, err = execute()
     journal.move.observed = moved and to or from
-    assert(store.save(journal))
+    assert(store:save(journal))
     if moved then
       local committed = api.commit(fields)
       if not committed or not committed.ok then
@@ -103,7 +103,7 @@ function M.new(cfg)
       if not ok then synced = false return false, "failed move needs reconciliation" end
     end
     journal.move = nil
-    assert(store.save(journal))
+    assert(store:save(journal))
     return moved, err
   end
   function api.move(from,to,execute)

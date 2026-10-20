@@ -42,11 +42,11 @@ function M.open(cfg)
     return j==nil or type(j)=="table" and (j.kind=="move" or j.kind=="turn" or j.kind=="calibrate")
       and S.pose(j.from) and S.pose(j.to) and heading(j.from.h) and heading(j.to.h)
   end
-  local store=A.store(cfg.path or "nav.state",valid,400000)
+  local store=A.mount("/"):open(cfg.path or "nav.state",valid,{class="bulk",limit=400000})
   local state=store.value or {version=1,pose=A.copy(cfg.pose),cells={}}
   state.trail=state.trail or {}
   local api,busy,stopped,ready={},false,state.stopped==true,false
-  local function save() assert(store.save(state)) end
+  local function save() assert(store:save(state)) end
   local function checkpoint(name) if cfg.checkpoint then cfg.checkpoint(name) end end
   local function observe()
     local p=cfg.observe()

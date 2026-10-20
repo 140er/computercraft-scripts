@@ -26,9 +26,7 @@ local VERSION = 2
 
 -- Version = hash of this file's contents (same calculation as in hub.lua)
 local function hashOf(text)
-  local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
-  return string.format("%08x", h)
+  return dofile("atomic.lua").hash(text)
 end
 local PROGRAM = (shell and shell.getRunningProgram()) or "miner.lua"
 local MY_HASH = "?"
@@ -288,25 +286,24 @@ end
 ---------------------------------------------------------------------------
 -- Files
 ---------------------------------------------------------------------------
-local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
+local function slot(path)
+  local rec = saved[path]
+  if not rec then
+    local class, limit = "bulk", 900000
+    if path == CFG_FILE then class, limit = "control", 8192 end
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = class, limit = limit })
+    saved[path] = rec
   end
-  return nil
+  return rec
 end
-
+local function loadTable(path)
+  return slot(path).value
+end
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  return slot(path):save(t)
 end
 
 ---------------------------------------------------------------------------
@@ -455,10 +452,11 @@ if args[1] == "setup" then
   elseif chests > 1 then print("WARNING: more than one chest next to it. Keep one, or it can get confused about its direction.") end
   if role == "auto" then role = nil end -- the hub hands out a direction on the first start
   saveTable(CFG_FILE, { home = { x = hx, y = hy, z = hz }, facing = facing, spine = role, loc = loc, chest = chest })
-  if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("miner")\n')
-  h.close()
+  for _, suffix in ipairs({ "", ".a", ".b", ".tmp", ".bak" }) do
+    if fs.exists(STATE_FILE .. suffix) then fs.delete(STATE_FILE .. suffix) end
+  end
+  saved[STATE_FILE] = nil
+  A.replaceBytes("startup.lua", 'shell.run("miner")\n', function(s) return load(s) ~= nil end)
   os.setComputerLabel(name and name ~= "" and name:sub(1, 32)
     or (role and ("Miner-" .. DIRNAME[role]) or ("Miner-" .. os.getComputerID())))
   if loc then
@@ -2040,12 +2038,10 @@ local function selfUpdate(wanted)
   if hashOf(r.code) ~= wanted then print("Update failed: corrupted") return end
   local fn, err = load(r.code, "miner", "t", _ENV)
   if not fn then print("Update failed: " .. tostring(err)) return end
-  local tmp = PROGRAM .. ".new"
-  local h = fs.open(tmp, "w")
-  h.write(r.code)
-  h.close()
-  if fs.exists(PROGRAM) then fs.delete(PROGRAM) end
-  fs.move(tmp, PROGRAM)
+  local ok = A.replaceBytes(PROGRAM, r.code, function(text)
+    return hashOf(text) == wanted and load(text, "miner") ~= nil
+  end)
+  if not ok then print("Update failed: save") return end
   setStatus("Updated, rebooting")
   sleep(1)
   os.reboot()

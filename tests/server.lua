@@ -55,7 +55,7 @@ return function(test, equal, read, mocks)
       m.push("rednet_message", id or 7, msg, "fleetserver")
       return m.sent[#m.sent].msg
     end
-    function m.state() return decode(assert(m.files["server.state"])) end
+    function m.state() return mocks.value(m.files, "server.state") end
     return m
   end
 
@@ -217,7 +217,7 @@ return function(test, equal, read, mocks)
     end }
     m.start(serverCode)
     equal(downloads, 1)
-    local count = #assert(load("return " .. assert(serverCode:match("local FILES = (%b{})"))))()
+    local count = #dofile("roles.lua").catalog()
     m.advance(count - 1)
     equal(downloads, count)
     m.advance(301)
@@ -322,7 +322,7 @@ return function(test, equal, read, mocks)
     end
     m.files["hub.state"] = nil -- a fresh hub computer takes the server's copy
     m.start(hubCode)
-    equal(decode(m.files["hub.state"]).target, "diamond")
+    equal(mocks.hubFile(m.files).target, "diamond")
     m.advance(5)
     local frame = m.frames[#m.frames]
     assert(frame["turtle:5"], "restored miner absent from 3D view")
@@ -376,8 +376,8 @@ return function(test, equal, read, mocks)
         return receive(proto, timeout)
       end
       m.start(hubCode)
-      equal(decode(m.files["hub.state"]).target, case.want)
-      assert(decode(m.files["hub.state"]).rev >= case.server, "saved state has no newer revision")
+      equal(mocks.hubFile(m.files).target, case.want)
+      assert(mocks.hubFile(m.files).rev >= case.server, "saved state has no newer revision")
     end
   end)
 
@@ -563,7 +563,7 @@ return function(test, equal, read, mocks)
     return m
   end
 
-  local hosted = assert(load("return " .. assert(serverCode:match("local FILES = (%b{})")), "=files"))()
+  local hosted = dofile("roles.lua").catalog()
   local repo = {}
   for _, f in ipairs(hosted) do repo[f] = read(f) end
   local function downloads(m, files)
@@ -697,16 +697,17 @@ return function(test, equal, read, mocks)
     m.start(serverCode)
     equal(m.state().view3D, false)
     equal(m.request({ type = "get", file = "roomsorter.lua" }).hash, hashOf(repo["roomsorter.lua"]))
-    assert(decode(m.files["server.state.bak"]), "previous good generation missing")
+    equal(m.files["server.state.bak"], nil)
     equal(m.files["server-code/roomsorter.lua.bak"], nil)
-    local good, move = m.files["server.state"], m.env.fs.move
-    m.env.fs.move = function(a, b)
-      if b == "server.state" then error("move failed") end
-      return move(a, b)
+    local good = m.files["server.state.a"] or m.files["server.state.b"]
+    assert(good and decode(good).value.view3D == false, "adopted generation missing")
+    local open = m.env.fs.open
+    m.env.fs.open = function(path, mode)
+      if mode == "w" and path:match("^server%.state%.[ab]$") then return nil end
+      return open(path, mode)
     end
     m.status(5, { type = "status", status = "unsaved" })
-    equal(m.files["server.state"], nil)
-    equal(m.files["server.state.bak"], good)
+    assert(m.files["server.state.a"] == good or m.files["server.state.b"] == good, "failed save replaced the good slot")
     noTemps(m)
     local restored = new()
     restored.files = m.files
@@ -765,32 +766,33 @@ return function(test, equal, read, mocks)
   end)
 
   test("failed state writes preserve the only good state and persist errors after space returns", function()
-    for _, failure in ipairs({ "preflight", "write", "close", "move" }) do
+    for _, failure in ipairs({ "preflight", "open", "write", "close" }) do
       local m = new()
       m.capacity = 1000000
       m.start(serverCode)
-      local good, open, move = m.files["server.state"], m.env.fs.open, m.env.fs.move
+      local good = m.files["server.state.a"] or m.files["server.state.b"]
+      local open = m.env.fs.open
       if failure == "preflight" then m.capacity = m.used() end
       m.env.fs.open = function(path, mode)
-        local h = open(path, mode)
-        if mode == "w" and path == "server.state.tmp" and (failure == "write" or failure == "close") then
-          m.writeOnClose = failure == "close"
-          m.capacity = m.used() + 10
+        if mode == "w" and path:match("^server%.state%.[ab]$") then
+          if failure == "open" then return nil end
+          local h = open(path, mode)
+          if failure == "write" or failure == "close" then
+            m.writeOnClose = failure == "close"
+            m.capacity = m.used() + 10
+          end
+          return h
         end
-        return h
-      end
-      m.env.fs.move = function(a, b)
-        if failure == "move" and a == "server.state.tmp" then error("move failed") end
-        return move(a, b)
+        return open(path, mode)
       end
       m.status(1, { type = "status", status = failure })
-      equal(m.files["server.state"], good)
+      assert(m.files["server.state.a"] == good or m.files["server.state.b"] == good, "good generation lost on " .. failure)
       noTemps(m)
       local live = m.request({ type = "state" })
       equal(live.log[#live.log].kind, "state_error")
       m.advance(5)
       assert(table.concat(m.output, "\n"):find("disk full", 1, true))
-      m.env.fs.open, m.env.fs.move = open, move
+      m.env.fs.open = open
       m.capacity, m.writeOnClose = 1000000, false
       m.status(1, { type = "status", status = "recovered" })
       equal(m.state().bots[1].status.status, "recovered")
@@ -817,7 +819,8 @@ return function(test, equal, read, mocks)
     equal(s.bots[1].status.turtles, nil)
     equal(s.bots[1].status.items, { coal = 2 })
     equal(s.bots[2].status.extra, nil)
-    assert(#m.files["server.state"] < 65536)
+    local slot = m.files["server.state.a"] or m.files["server.state.b"]
+    assert(slot and #slot < 65536)
   end)
 
   test("server clears AR and re-raises Terminated through parallel", function()

@@ -46,6 +46,14 @@ local function readFile(path)
   fh.close()
   return text
 end
+local function readSlot(path)
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
+  end
+  return raw
+end
 
 local function writeFile(path, text)
   local fh = fs.open(path, "w")
@@ -62,10 +70,21 @@ local cfg = {
   think = false,        -- own server: let reasoning models (GLM, Qwen, ...) think first. Slower.
 }
 do
-  local saved = textutils.unserialize(readFile(CFG_FILE) or "")
+  local saved = readSlot(CFG_FILE)
   if type(saved) == "table" then for k, v in pairs(saved) do cfg[k] = v end end
 end
-local function saveCfg() writeFile(CFG_FILE, textutils.serialize(cfg)) end
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local buddySlots = {}
+local function saveSlot(path, value)
+  local rec = buddySlots[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    buddySlots[path] = rec
+  end
+  return rec:save(value)
+end
+local function saveCfg() saveSlot(CFG_FILE, cfg) end
 
 -- Position relative to home: x = right, z = forward, y = up, as seen from home.
 -- facing 0 = the way it faced at home, 1 = right of that, 2 = back, 3 = left.
@@ -76,21 +95,21 @@ local FACING_NAME = { [0] = "the way you face at home", "right of that", "back t
 
 local state = { facing = 0, path = { { x = 0, y = 0, z = 0 } } }
 do
-  local saved = textutils.unserialize(readFile(STATE_FILE) or "")
+  local saved = readSlot(STATE_FILE)
   if type(saved) == "table" and saved.path and #saved.path > 0 then state = saved end
 end
-local function saveState() writeFile(STATE_FILE, textutils.serialize(state)) end
+local function saveState() saveSlot(STATE_FILE, state) end
 
 -- places[name] = { path = path from home, facing = ..., note = ... }; notes = things to remember
 local memory = { places = {}, notes = {} }
 do
-  local saved = textutils.unserialize(readFile(MEMORY_FILE) or "")
+  local saved = readSlot(MEMORY_FILE)
   if type(saved) == "table" then
     memory.places = saved.places or {}
     memory.notes = saved.notes or {}
   end
 end
-local function saveMemory() writeFile(MEMORY_FILE, textutils.serialize(memory)) end
+local function saveMemory() saveSlot(MEMORY_FILE, memory) end
 local function pos() return state.path[#state.path] end
 
 -- ---------------------------------------------------------------- text helpers

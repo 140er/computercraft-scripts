@@ -264,6 +264,44 @@ end
 ---------------------------------------------------------------------------
 -- Download
 ---------------------------------------------------------------------------
+local function writeScript(f, code)
+  local function valid(text)
+    return load(text, "=" .. f) ~= nil
+  end
+  if f ~= "atomic.lua" and fs.exists("atomic.lua") then
+    local ok, lib = pcall(dofile, "atomic.lua")
+    if ok and type(lib) == "table" and lib.replaceBytes then
+      return lib.replaceBytes(f, code, valid)
+    end
+  end
+  local tmp = f .. ".tmp"
+  local h = fs.open(tmp, "w")
+  if not h then return false end
+  h.write(code)
+  h.close()
+  local back = fs.open(tmp, "r")
+  local got = back and back.readAll()
+  if back then back.close() end
+  if got ~= code or not valid(got) then
+    if fs.exists(tmp) then fs.delete(tmp) end
+    return false
+  end
+  if fs.exists(f) then fs.delete(f) end
+  fs.move(tmp, f)
+  return true
+end
+local rolesMod
+local function residentOf(id)
+  rolesMod = rolesMod or dofile("roles.lua")
+  local files, seen = {}, {}
+  local function add(name)
+    if name and not seen[name] then seen[name] = true files[#files + 1] = name end
+  end
+  add("install.lua")
+  for _, name in ipairs(rolesMod.resident(id, false)) do add(name) end
+  add("update.lua")
+  return files
+end
 local function download(files)
   local failed = {}
   for _, f in ipairs(files) do
@@ -271,11 +309,7 @@ local function download(files)
     local res, err = http.get(BASE .. f .. "?t=" .. os.epoch("utc"))
     local code = res and res.readAll()
     if res then res.close() end
-    if code and code ~= "" and load(code, "=" .. f) then
-      if fs.exists(f) then fs.delete(f) end
-      local h = fs.open(f, "w")
-      h.write(code)
-      h.close()
+    if code and code ~= "" and load(code, "=" .. f) and writeScript(f, code) then
       print("ok")
     else
       print("failed")
@@ -325,8 +359,7 @@ local function fuelCheck(n)
 end
 
 local BOTS = {
-  { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "miner" },
+  { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle", start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -367,8 +400,7 @@ local BOTS = {
         end },
       { say = "This turtle mines for the hub. If you haven't yet: set up a computer nearby with this installer and pick 'Mine Army hub'." },
     }) },
-  { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer",
-    files = { "hub.lua", "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "hub" },
+  { id = "hub", name = "Mine Army hub", hint = "base computer + dashboard for the miners", on = "computer", start = { "hub" },
     steps = join({
       { say = "Build this:\n\n* An (advanced) computer within about 64 blocks of the mining turtles, with a wireless or ender modem.\n* Optional: a monitor next to it (advanced = touch buttons). A second monitor becomes an info screen.",
         check = modemCheck },
@@ -378,15 +410,13 @@ local BOTS = {
       { run = function(c) return { "hub", "pos", c.x, c.y, c.z } end },
       { say = "Set up each mining turtle with this installer too (pick 'Mining turtle'). On the dashboard you pick a time and an ore." },
     }) },
-  { id = "relay", name = "Radio relay", hint = "range booster for normal wireless modems", on = "computer",
-    files = { "relay.lua" }, start = { "relay" },
+  { id = "relay", name = "Radio relay", hint = "range booster for normal wireless modems", on = "computer", start = { "relay" },
     steps = {
       { say = "Put this computer high above your base (y 250 or more, e.g. on a pillar) with a wireless modem, in a chunk that stays loaded. It passes all messages on, so the hub hears the turtles everywhere.",
         check = modemCheck },
       { run = function() return { "relay", "install" } end },
     } },
-  { id = "roomsorter", name = "Storage Room turtle", hint = "sorts, smelts and fetches in a closed room", on = "turtle",
-    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "roomsorter" },
+  { id = "roomsorter", name = "Storage Room turtle", hint = "sorts, smelts and fetches in a closed room", on = "turtle", start = { "roomsorter" },
     steps = {
       { say = "Build a closed room with a flat floor and ceiling (any size and shape), at least 3 high for furnaces. Build an INPUT chest and an OUTPUT chest into its walls, so you can reach them from outside. Best: both at floor height." },
       { say = "Put this turtle on the floor of the room, FACING THE INPUT CHEST, with some coal in it. A wireless modem is optional (for the pocket panel and the order computer).",
@@ -398,7 +428,6 @@ local BOTS = {
       { say = "Last step: put chests or barrels, furnaces / blast furnaces and coal in the input chest. The turtle builds its storage with them." },
     } },
   { id = "roomclient", name = "Storage order computer", hint = "order screen or stock board outside the room", on = "computer",
-    files = { "roomsorter.lua" },
     steps = {
       { ask = "mode", choices = { { "client", "Order screen / prompt" }, { "board", "Stock board on a monitor" } },
         q = "What should this computer be?" },
@@ -407,23 +436,20 @@ local BOTS = {
       { run = function(c) return { "roomsorter", "install", c.mode } end },
     },
     start = function(c) return { "roomsorter", c.mode } end },
-  { id = "sorter", name = "Sorter & Smelter", hint = "wired network of chests and furnaces", on = "any",
-    files = { "sorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "sorter" },
+  { id = "sorter", name = "Sorter & Smelter", hint = "wired network of chests and furnaces", on = "any", start = { "sorter" },
     steps = {
       { say = "Put a WIRED modem against this turtle/computer and connect your chests, furnaces and blast furnaces with cables and wired modems (right-click each modem so it turns red)." },
       { say = "Next, setup walks past every chest on the network and asks its role. Tip: put a marker item in a chest to recognise it." },
       { run = function() return { "sorter", "setup" } end },
       { run = function() return { "sorter", "install" } end },
     } },
-  { id = "lumber", name = "Lumberjack", hint = "tree farm: fells, replants, brings logs", on = "turtle",
-    files = { "lumber.lua" }, start = { "lumber" },
+  { id = "lumber", name = "Lumberjack", hint = "tree farm: fells, replants, brings logs", on = "turtle", start = { "lumber" },
     steps = {
       { say = "Build this:\n\n* A felling turtle (axe), in the open, next to a chest (behind it is best).\n* Lava buckets in that chest as fuel (it never burns its own wood).\n* The space above the turtle free: it flies out through there.\n* A few saplings help it get going (optional).\n* A wireless modem for the pocket panel (optional)." },
       { ask = "radius", kind = "number", default = 48, q = "How far from its chest may it look for trees? (blocks)" },
       { run = function(c) return { "lumber", "setup", c.radius } end },
     } },
-  { id = "farmer", name = "Farmer", hint = "crop farm: harvests and replants", on = "turtle",
-    files = { "farmer.lua" }, start = { "farmer" },
+  { id = "farmer", name = "Farmer", hint = "crop farm: harvests and replants", on = "turtle", start = { "farmer" },
     steps = {
       { say = "Put the turtle on the ground at one CORNER of the field, at the height of the crops, with a chest BEHIND it. The field lies in front of it. Keep the block above it free. A hoe is best (it tills dried-out dirt)." },
       { say = "Fuel: lava buckets or coal in a chest UNDER the turtle (or in the chest behind it, unless that one is the storage room's input)." },
@@ -445,8 +471,7 @@ local BOTS = {
         q = "Is the field new and empty? Then pick what to plant (and give it some):" },
       { run = function(c) return { "farmer", "seed", c.seed } end, when = function(c) return c.seed ~= "none" end },
     } },
-  { id = "lava", name = "Lava runner", hint = "fills buckets, stocks the bots' chests", on = "turtle",
-    files = { "lava.lua" }, start = { "lava" },
+  { id = "lava", name = "Lava runner", hint = "fills buckets, stocks the bots' chests", on = "turtle", start = { "lava" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a wireless or ender modem.\n* A chest BEHIND it with some empty buckets.\n* One lava bucket in it as fuel to start.\n* Lava: a dripstone cauldron farm in a corridor in front of it, and/or a lava pool somewhere.",
         check = modemCheck },
@@ -466,8 +491,7 @@ local BOTS = {
       { ask = "pz", kind = "number", q = "Z of that lava block:", when = function(c) return c.px end },
       { run = function(c) return { "lava", "pool", c.px, c.py, c.pz } end, when = function(c) return c.px end },
     }) },
-  { id = "builder", name = "Builder", hint = "floors, walls, flat land, torches", on = "turtle",
-    files = { "builder.lua" }, start = { "builder" },
+  { id = "builder", name = "Builder", hint = "floors, walls, flat land, torches", on = "turtle", start = { "builder" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a pickaxe (and a wireless modem to order blocks and for the panel).\n* A supply chest next to it. Best: against the outside of the Storage Room's pickup chest, so what it orders lands there.\n* Some fuel in it." },
       { ask = "pos", choices = { { "gps", "GPS, or count from its home" }, { "type", "I'll type its coordinates" } },
@@ -480,8 +504,7 @@ local BOTS = {
         end },
       { say = "Give it jobs from the pocket panel (Bots tab, Builder), or type them, e.g.: builder floor x1 y1 z1 x2 y2 z2" },
     }) },
-  { id = "buddy", name = "Buddy", hint = "a companion turtle you chat with (AI)", on = "turtle",
-    files = { "buddy.lua" }, start = { "buddy" },
+  { id = "buddy", name = "Buddy", hint = "a companion turtle you chat with (AI)", on = "turtle", start = { "buddy" },
     steps = {
       { say = "Buddy needs a language model: your own server (vLLM, Ollama, LM Studio, ...) that the Minecraft server can reach, or xAI's Grok (paid). http must be enabled in the CC config. A Chat Box on it lets you talk in game chat (optional)." },
       { ask = "brain", choices = { { "own", "My own model server" }, { "grok", "xAI Grok" } }, q = "Which brain?" },
@@ -495,8 +518,7 @@ local BOTS = {
       { say = "Put it on its home spot now: setup remembers this spot as home." },
       { run = function(c) return { "buddy", "setup", c.bname } end },
     } },
-  { id = "factory", name = "Turtle factory", hint = "crafty turtle that builds new miners", on = "turtle",
-    files = { "factory.lua", "miner.lua" }, start = { "factory" },
+  { id = "factory", name = "Turtle factory", hint = "crafty turtle that builds new miners", on = "turtle", start = { "factory" },
     steps = join({
       { say = "Around the factory (a crafty turtle with a wireless modem), outside the Storage Room:\n\n* FRONT: the room's pickup chest.\n* BELOW: a chest of its own for parts and coal.\n* ABOVE: the build spot, open to the sky.\n* A disk drive with a floppy right next to the build spot.\n\nThe Storage Room turtle needs a modem and a crafting table too.",
         check = modemCheck },
@@ -514,22 +536,19 @@ local BOTS = {
       { run = function() return { "factory", "disk" } end },
     }) },
   { id = "gpshost", name = "GPS host", hint = "one of 4 computers for positions + map", on = "computer",
-    files = { "gpshost.lua" },
     steps = join({
       { say = "A GPS tower is 4 computers with modems (ender modems are easiest), a few blocks apart, NOT all at the same height and NOT in one line, e.g. an L of three and the fourth 3 higher. Keep the chunk loaded.",
         check = modemCheck },
     }, coords("THIS computer block (F3: 'Targeted Block')")),
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
-  { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "server" },
+  { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer", start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
       { run = function() return { "server", "install" } end },
     } },
-  { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket",
-    files = { "panel.lua", "fleetview.lua" }, start = { "panel" },
+  { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket", start = { "panel" },
     steps = {
       { say = "Use an ADVANCED pocket computer with an ender modem (works anywhere) or a wireless modem (within range).",
         check = modemCheck },
@@ -537,7 +556,6 @@ local BOTS = {
       { say = "Tip: stand next to a bot and type 'pair' in the panel's console (>_) to unlock its developer commands." },
     } },
   { id = "smartmine", name = "Simple tunnel miner", hint = "the old standalone miner, no hub", on = "turtle",
-    files = { "smartmine.lua" },
     steps = {
       { say = "A mining turtle facing into the tunnel, with a chest of coal directly BEHIND it." },
       { ask = "len", kind = "number", default = 32, q = "Length of each tunnel:" },
@@ -547,7 +565,6 @@ local BOTS = {
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
   { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
-    files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"},
     done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
     steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
 
@@ -565,9 +582,7 @@ local function guide(bot)
   local gx, gy, gz = gpsHere()
   ctx.gps = gx and { gx, gy, gz } or nil
   print(" Downloading...")
-  local files = { "update.lua", "install.lua" }
-  for k = #bot.files, 1, -1 do table.insert(files, 1, bot.files[k]) end
-  local failed = download(files)
+  local failed = download(residentOf(bot.id))
   if #failed > 0 then
     local r = screen(title, "download", { { "Couldn't download:", colors.red }, { table.concat(failed, "\n") },
       { "\nIs http enabled in the ComputerCraft config, and can this server reach GitHub?", colors.lightGray } },
@@ -704,9 +719,7 @@ if not http then
   return
 end
 if args[1] and args[2] == "quick" then
-  local files = { "update.lua", "install.lua" }
-  for k = #byId[args[1]].files, 1, -1 do table.insert(files, 1, byId[args[1]].files[k]) end
-  local failed = download(files)
+  local failed = download(residentOf(args[1]))
   print(#failed == 0 and ("Done. Guided setup: install " .. args[1]) or ("Failed: " .. table.concat(failed, ", ")))
   return
 end
@@ -725,9 +738,7 @@ local function elsewhere(bot)
   if r ~= "dl" then return false end
   header(bot.name, "download")
   print("")
-  local files = { "update.lua", "install.lua" }
-  for k = #bot.files, 1, -1 do table.insert(files, 1, bot.files[k]) end
-  local failed = download(files)
+  local failed = download(residentOf(bot.id))
   screen(bot.name, "download", { #failed == 0 and { "Downloaded.", colors.lime }
     or { "Couldn't download: " .. table.concat(failed, ", "), colors.red } }, { { "ok", "OK" } })
   return false

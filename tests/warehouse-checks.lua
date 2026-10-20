@@ -161,10 +161,10 @@ return function(test,mocks)
     local function command(...) assert(loadfile("store.lua","t",e))(...) end
     command("server","0","test-secret-123456","minecraft:overworld")
     command("pose","1","65","0","2") command("bounds","0","64","-4","12","66","9")
-    local A=e.dofile("atomic.lua") assert(A.read("warehouse.cfg").enabled==false)
+    local A=e.dofile("atomic.lua") assert(A.read("warehouse.cfg").value.enabled==false)
     command("enable") command("traffic","on")
-    local c=A.read("warehouse.cfg") assert(c.enabled and c.traffic and c.pose.h==2 and c.bounds.min.z==-4)
-    command("disable") assert(A.read("warehouse.cfg").enabled==false)
+    local c=A.read("warehouse.cfg").value assert(c.enabled and c.traffic and c.pose.h==2 and c.bounds.min.z==-4)
+    command("disable") assert(A.read("warehouse.cfg").value.enabled==false)
     local seen={}
     e.shell={run=function(...) seen[#seen+1]={...} end}
     for _,name in ipairs({"roomsorter.lua","sorter.lua"}) do assert(loadfile(name,"t",e))("ssot","disable") end
@@ -200,12 +200,12 @@ return function(test,mocks)
     e=m.env e.dofile=function(path) return assert(loadfile(path,"t",e))() end
     for _,v in ipairs({{"drop","drop1"},{"charger","charge"},{"fuel","700"},{"enable"},{"disable"}}) do
       assert(loadfile("miner.lua","t",e))("service",table.unpack(v))
-      local c=e.textutils.unserialize(m.files["miner.cfg"])
+      local c=mocks.value(m.files, "miner.cfg")
       assert(c.warehouse.enabled==(v[1]=="enable"),"service enabled before explicit command")
     end
-    local c=e.textutils.unserialize(m.files["miner.cfg"])
+    local c=mocks.value(m.files, "miner.cfg")
     assert(c.warehouse.drop=="drop1" and c.warehouse.charger=="charge" and c.warehouse.targetFuel==700)
     assert(loadfile("miner.lua","t",e))("nav","traffic","on")
-    assert(e.textutils.unserialize(m.files["miner.cfg"]).nav.traffic==true)
+    assert(mocks.value(m.files, "miner.cfg").nav.traffic==true)
   end)
 end

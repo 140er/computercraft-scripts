@@ -87,7 +87,17 @@ function M.new(s, cfg, clock, epoch, save)
   local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
-  local failed = false
+  local function kindOf(op)
+    if op == "traffic" or op == "snapshot" then return "read" end
+    if op == "calibrate" or op == "sync" or op == "reserve" or op == "start"
+      or op == "commit" or op == "release" or op == "renew" then return "control" end
+    return "bulk"
+  end
+  local function slim(result)
+    return { ok = result.ok, error = result.error, token = result.token, epoch = result.epoch,
+      untilAt = result.untilAt, revision = result.revision, pose = result.pose,
+      v = result.v, type = result.type, rid = result.rid, server = result.server, auth = result.auth }
+  end
   local function occupied(p, owner)
     for id, pos in pairs(s.poses) do if id ~= owner and equal(p, pos) then return id end end
     for id, r in pairs(s.moves) do
@@ -221,19 +231,29 @@ function M.new(s, cfg, clock, epoch, save)
     return { ok = false, error = "unknown operation" }
   end
   return { epoch=epoch,state = function() return A.copy(s) end, handle = function(id, m)
-    if failed or not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
+    if not integer(id, 0, 2147483647) or not M.bounded(m, 32768)
       or #textutils.serialize(m, { compact = true }) > 8192 or m.v ~= 1 or m.type ~= "ssot" or not word(m.rid, 80)
       or not word(m.boot, 80) or not word(m.op, 16) or m.expect ~= "ssot_reply"
       or not integer(m.counter, 1, 2147483647) then return nil end
     local key = cfg.controllers and cfg.controllers[tostring(id)]
     if not word(key, 128) or #key < 16 or m.secret ~= key then return nil end
     local client = s.clients[id] or { counter = 0, cache = {} }
+    client.cache, client.order = client.cache or {}, client.order or {}
     local request = canonical(m)
+    local requestHash = A.hash(request)
     local cached = client.cache[m.rid]
     if cached then
       if cached.request == request and (m.op~="snapshot" or
         #textutils.serialize(cached.result,{compact=true})<=pageBytes) then return A.copy(cached.result) end
       return nil
+    end
+    if not next(client.cache) then
+      if s.applied and s.applied.rid == m.rid and s.applied.hash == requestHash and type(s.applied.result) == "table" then
+        return A.copy(s.applied.result)
+      end
+      if client.last and client.last.rid == m.rid and client.last.hash == requestHash and type(client.last.result) == "table" then
+        return A.copy(client.last.result)
+      end
     end
     if m.counter <= client.counter then return nil end
     local clients = 0
@@ -251,65 +271,132 @@ function M.new(s, cfg, clock, epoch, save)
     client.order[#client.order + 1] = m.rid
     client.cache[m.rid] = { request = request, result = A.copy(result) }
     while #client.order > 8 do client.cache[table.remove(client.order, 1)] = nil end
+    local kind = kindOf(m.op)
+    if kind == "bulk" then
+      s.applied = { rid = m.rid, hash = requestHash, rev = s.rev, result = slim(result) }
+    end
+    if kind ~= "read" then
+      client.last = { rid = m.rid, hash = requestHash, op = m.op, result = slim(result) }
+    end
     s.clients[id] = client
-    local ok, err = (save or function() return true end)(s)
-    if not ok then s, failed = previous, true return nil, tostring(err) end
+    local ok, err = true
+    if kind ~= "read" then ok, err = (save or function() return true end)(s, kind) end
+    if not ok then
+      s = previous
+      return { v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID(),
+        auth = key, ok = false, error = tostring(err) }
+    end
     return A.copy(result)
   end }
 end
+local function validControl(s)
+  if not (type(s) == "table" and integer(s.rev, 0, 2147483647) and integer(s.seq, 0, 2147483647)
+    and integer(s.epoch, 0, 2147483647) and integer(s.mapGen or 0, 0, 2147483647)
+    and type(s.poses) == "table" and type(s.moves) == "table" and type(s.clients) == "table") then return false end
+  local count = 0
+  for id, p in pairs(s.poses) do
+    count = count + 1
+    if count > 32 or not integer(id, 0, 2147483647) or not M.pose(p) or not word(p.boot, 80) then return false end
+  end
+  for id, r in pairs(s.moves) do
+    if not s.poses[id] or type(r) ~= "table" or not M.pose(r.from) or not M.pose(r.to)
+      or not equal(r.from, s.poses[id]) or r.from.dim ~= r.to.dim
+      or math.abs(r.from.x - r.to.x) + math.abs(r.from.y - r.to.y) + math.abs(r.from.z - r.to.z) ~= 1
+      or not word(r.token, 80) or not word(r.epoch, 80) or not word(r.boot, 80)
+      or (r.phase ~= "granted" and r.phase ~= "started") or not integer(r.untilAt, 0, 9007199254740991) then return false end
+  end
+  count = 0
+  for id, c in pairs(s.clients) do
+    count = count + 1
+    if count > 32 or not integer(id, 0, 2147483647) or type(c) ~= "table"
+      or not integer(c.counter, 0, 2147483647) then return false end
+    if c.last ~= nil and (type(c.last) ~= "table" or not word(c.last.rid, 80) or not word(c.last.hash, 16)
+      or type(c.last.result) ~= "table") then return false end
+  end
+  return true
+end
+local function validMap(s, cfg)
+  if not (type(s) == "table" and type(s.chunks) == "table" and type(s.names) == "table"
+    and integer(s.rev, 0, 2147483647)) then return false end
+  local names = 0
+  for i, name in pairs(s.names) do
+    names = names + 1
+    if not integer(i, 1, 256) or not word(name, 128) or not name:match("^[%w_]+:[%w_/.-]+$") then return false end
+  end
+  if names ~= #s.names then return false end
+  local count = 0
+  for key, ch in pairs(s.chunks) do
+    count = count + 1
+    if count > (cfg.maxChunks or 64) or not word(key, 120) or not key:match("^[%w_]+:[%w_/.-]+|%-?%d+|%-?%d+|%-?%d+$")
+      or type(ch) ~= "table" or not integer(ch.rev, 0, s.rev) or type(ch.cells) ~= "table" then return false end
+    for i, name in pairs(ch.cells) do
+      if not integer(i, 1, 4096) or not integer(name, 0, #s.names) then return false end
+    end
+  end
+  if s.applied ~= nil and (type(s.applied) ~= "table" or not word(s.applied.rid, 80)
+    or type(s.applied.result) ~= "table") then return false end
+  return Mining.valid(s.mining, M.pose) and Warehouse.valid(s.warehouse, M.pose)
+end
+local function projectControl(s)
+  local clients = {}
+  for id, c in pairs(s.clients) do
+    clients[id] = { counter = c.counter, last = c.last }
+  end
+  return { rev = s.rev or 0, seq = s.seq or 0, epoch = s.epoch or 0, mapGen = s.mapGen or 0,
+    poses = s.poses, moves = s.moves, clients = clients }
+end
+local function projectMap(s)
+  return { rev = s.rev or 0, names = s.names, chunks = s.chunks, mining = s.mining,
+    warehouse = s.warehouse, applied = s.applied }
+end
+local function readLegacy(path)
+  for _, file in ipairs({ path, path .. ".tmp", path .. ".bak" }) do
+    if fs.exists(file) then
+      local value = A.read(file)
+      if type(value) == "table" then
+        if value.schema == 1 and type(value.value) == "table" then return value.value end
+        if value.v == 1 and type(value.value) == "table" then return value.value end
+        return value
+      end
+    end
+  end
+end
 function M.open(cfg)
   cfg = M.config(cfg)
-  local store = A.store("ssot.state", function(s)
-    if not (type(s) == "table" and s.schema == 1 and type(s.chunks) == "table"
-      and type(s.poses) == "table" and type(s.moves) == "table" and type(s.clients) == "table"
-      and type(s.names) == "table" and integer(s.rev, 0, 2147483647)
-      and integer(s.seq, 0, 2147483647) and integer(s.epoch, 0, 2147483647)) then return false end
-    local names=0
-    for i,name in pairs(s.names) do
-      names=names+1
-      if not integer(i,1,256) or not word(name,128) or not name:match("^[%w_]+:[%w_/.-]+$") then return false end
-    end
-    if names~=#s.names then return false end
-    local count=0
-    for key,ch in pairs(s.chunks) do
-      count=count+1
-      if count>(cfg.maxChunks or 64) or not word(key,120) or not key:match("^[%w_]+:[%w_/.-]+|%-?%d+|%-?%d+|%-?%d+$")
-        or type(ch)~="table" or not integer(ch.rev,0,s.rev) or type(ch.cells)~="table" then return false end
-      for i,name in pairs(ch.cells) do
-        if not integer(i,1,4096) or not integer(name,0,#s.names) then return false end
-      end
-      if count%4==0 then sleep(0) end
-    end
-    count=0
-    for id,p in pairs(s.poses) do
-      count=count+1
-      if count>32 or not integer(id,0,2147483647) or not M.pose(p) or not word(p.boot,80) then return false end
-    end
-    for id,r in pairs(s.moves) do
-      if not s.poses[id] or type(r)~="table" or not M.pose(r.from) or not M.pose(r.to)
-        or not equal(r.from,s.poses[id]) or r.from.dim~=r.to.dim
-        or math.abs(r.from.x-r.to.x)+math.abs(r.from.y-r.to.y)+math.abs(r.from.z-r.to.z)~=1
-        or not word(r.token,80) or not word(r.epoch,80) or not word(r.boot,80)
-        or (r.phase~="granted" and r.phase~="started") or not integer(r.untilAt,0,9007199254740991) then return false end
-    end
-    count=0
-    for id,c in pairs(s.clients) do
-      count=count+1
-      if count>32 or not integer(id,0,2147483647) or type(c)~="table"
-        or not integer(c.counter,0,2147483647) or type(c.cache)~="table" or type(c.order)~="table" or #c.order>8 then return false end
-      local cached=0
-      for rid,entry in pairs(c.cache) do
-        cached=cached+1
-        if cached>8 or not word(rid,80) or type(entry)~="table" or not word(entry.request,32768)
-          or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
-      end
-    end
-    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
-  end, 900000)
-  local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
-    clients = {}, rev = 0, seq = 0, epoch = 0 }
+  local disk = A.mount("/")
+  local control = disk:open("ssot.control", validControl, { class = "control", limit = 32768 })
+  local map = disk:open("ssot.map", function(v) return validMap(v, cfg) end, { class = "bulk", limit = 900000, anchor = "ssot.control" })
+  local s
+  local legacy = (control.value == nil and map.value == nil) and readLegacy("ssot.state") or nil
+  if legacy then
+    s = legacy
+  else
+    local c, m = control.value or {}, map.value or {}
+    s = { schema = 1, rev = c.rev or m.rev or 0, seq = c.seq or 0, epoch = c.epoch or 0, mapGen = c.mapGen or 0,
+      poses = c.poses or {}, moves = c.moves or {}, clients = c.clients or {},
+      chunks = m.chunks or {}, names = m.names or {}, mining = m.mining, warehouse = m.warehouse, applied = m.applied }
+  end
+  s.schema = 1
+  s.chunks, s.names, s.poses = s.chunks or {}, s.names or {}, s.poses or {}
+  s.moves, s.clients = s.moves or {}, s.clients or {}
+  s.rev, s.seq, s.epoch, s.mapGen = s.rev or 0, s.seq or 0, s.epoch or 0, s.mapGen or 0
   s.epoch = s.epoch + 1
-  assert(store.save(s))
-  return M.new(s, cfg, function() return os.epoch("utc") end, tostring(s.epoch), store.save)
+  local function persist(state, kind)
+    if kind == "read" then return true end
+    if kind == "bulk" then
+      local ok, err = map:save(projectMap(state))
+      if not ok then return false, err end
+      state.mapGen = map.generation
+      return control:save(projectControl(state))
+    end
+    return control:save(projectControl(state))
+  end
+  assert(persist(s, "control"))
+  if legacy then
+    for _, file in ipairs({ "ssot.state", "ssot.state.tmp", "ssot.state.bak" }) do
+      if fs.exists(file) then fs.delete(file) end
+    end
+  end
+  return M.new(s, cfg, function() return os.epoch("utc") end, tostring(s.epoch), persist)
 end
 return M

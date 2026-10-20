@@ -429,7 +429,7 @@ local function controller()
       local filled=waitMessage("filled",0)
       assert(filled.free<=16384)
       local r=client.scan({pose=p,revision=revision,cells={{dim=p.dim,x=0,y=64,z=0,name="minecraft:stone"}}})
-      assert(r==nil,"disk-full mutation was acknowledged")
+      assert(r == nil or r.ok == false, "disk-full mutation was acknowledged")
       send(0,{action="clear-and-reboot"},"ssot_test")
       local page
       for _=1,30 do

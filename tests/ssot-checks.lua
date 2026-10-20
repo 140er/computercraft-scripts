@@ -147,14 +147,24 @@ return function(S, A, test)
     assert(n == 64)
     assert(not req(1, "snapshot", { chunk = "minecraft:overworld|0|4|0", revision = 0 }).ok)
   end)
-  test("failed persistence never acknowledges a grant or admits another mutation", function()
+  test("a failed save returns the reply and the same handle stores the pose once the disk accepts it", function()
     local cfg = { controllers = { ["1"] = "test-secret-123456" } }
-    local api = S.new({}, cfg, function() return 0 end, "1", function() return false, "disk full" end)
+    local fail = true
+    local api = S.new({}, cfg, function() return 0 end, "1", function()
+      if fail then return false, "disk full" end
+      return true
+    end)
     local m = { v = 1, type = "ssot", expect = "ssot_reply", op = "sync", rid = "one", counter = 1,
       boot = "turtle", secret = "test-secret-123456", pose = pose(0) }
-    assert(api.handle(1, m) == nil)
+    local denied = api.handle(1, m)
+    assert(type(denied) == "table" and denied.ok == false and denied.error == "disk full")
+    assert(denied.v == 1 and denied.type == "ssot_reply" and denied.rid == "one" and denied.auth == "test-secret-123456")
+    assert(denied.token == nil and denied.pose == nil)
     assert(api.state().poses[1] == nil)
-    assert(api.handle(1, m) == nil)
+    fail = false
+    local granted = api.handle(1, m)
+    assert(granted and granted.ok and granted.pose.x == 0)
+    assert(api.state().poses[1].x == 0)
   end)
   test("encoded snapshot limits include credentials and request metadata",function()
     local secret=string.rep("\127",128)

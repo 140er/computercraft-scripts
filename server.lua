@@ -14,9 +14,10 @@
 local PROTOCOL = "fleetserver"
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
-local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
-  "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }
+local A = dofile("atomic.lua")
+local roles = dofile("roles.lua")
+local disk = A.mount("/")
+local catalog = roles.catalog()
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -30,18 +31,13 @@ local function read(path)
   return s
 end
 
-local state, stateSource, stateExists
-for _, path in ipairs({ STATE_FILE, STATE_FILE .. ".bak", STATE_FILE .. ".tmp" }) do
-  stateExists=stateExists or fs.exists(path)
-  local s = read(path)
-  local ok, t = pcall(textutils.unserialize, s or "")
-  if not ok then t = nil end
-  if type(t) == "table" and (t.schema == nil or t.schema == 1)
+local function validState(t)
+  return type(t) == "table" and (t.schema == nil or t.schema == 1)
     and (t.bots == nil or type(t.bots) == "table") and (t.log == nil or type(t.log) == "table")
-    and (t.files == nil or type(t.files) == "table") then state, stateSource = t, path break end
+    and (t.files == nil or type(t.files) == "table")
 end
-if not state and stateExists then error("No valid server.state generation; preserve the files for recovery.",0) end
-state = state or {}
+local stateRec = disk:open(STATE_FILE, validState, { class = "bulk", limit = 262144 })
+local state = stateRec.value or {}
 state.schema = 1
 state.bots, state.log, state.files = state.bots or {}, state.log or {}, state.files or {}
 local function now() return os.epoch("utc") end
@@ -64,56 +60,55 @@ local function log(kind, id, text)
 end
 
 local diskFull = false
-local function writeFile(path, text, cache)
-  local tmp, backup, h = path .. ".tmp", path .. ".bak"
-  local ok, err = pcall(function()
-    if stateSource and stateSource ~= STATE_FILE and path == STATE_FILE then
-      if fs.exists(path) then fs.delete(path) end
-      fs.move(stateSource, path)
-      stateSource = STATE_FILE
-    end
-    if fs.exists(tmp) then fs.delete(tmp) end
-    if fs.exists(path) and fs.exists(backup) then fs.delete(backup) end
-    local free = fs.getFreeSpace(path)
-    if type(free) == "number" and free < #text + (cache and 65536 or 1024) then
-      error("disk full: insufficient space", 0)
-    end
-    h = assert(fs.open(tmp, "w"), "Cannot write " .. tmp)
-    h.write(text)
-    h.close()
-    h = nil
-    assert(read(tmp) == text, "write verification failed")
-    if path == STATE_FILE then
-      local parsed = textutils.unserialize(read(tmp))
-      assert(type(parsed) == "table" and parsed.schema == 1, "state verification failed")
-    end
-    if fs.exists(path) then
-      fs.move(path, backup)
-    end
-    fs.move(tmp, path)
-    local cleaned, cleanupError = true, nil
-    if cache or path ~= STATE_FILE then cleaned, cleanupError = pcall(fs.delete, backup) end
-    if not cleaned then
-      diskFull = true
-      log(cache and "code_error" or "state_error", nil, path .. ": " .. tostring(cleanupError))
-    end
-  end)
-  if not ok then
-    if h then pcall(h.close) end
-    pcall(function()
-      if fs.exists(backup) and not fs.exists(path) then fs.move(backup, path) end
-    end)
-    if stateSource ~= tmp then pcall(fs.delete, tmp) end
+local function scriptOk(name)
+  return function(text) return type(text) == "string" and load(text, "=" .. name) ~= nil end
+end
+local function sized(name, incoming)
+  if incoming and incoming.name == name then return #incoming.text end
+  local root, cached = read(name), read(CODE_DIR .. "/" .. name)
+  return math.max(root and #root or 0, cached and #cached or 0)
+end
+local function catalogFits(incoming)
+  local bytes, largest = 0, 0
+  for _, name in ipairs(catalog) do
+    local n = sized(name, incoming)
+    bytes = bytes + n
+    if n > largest then largest = n end
+  end
+  local need = bytes + largest + A.controlCeiling + A.writeMargin
+  local cap = disk:measure().capacity
+  if cap == nil or cap == "unlimited" then return true end
+  return type(cap) == "number" and cap >= need
+end
+local function writeScript(path, text, name, cache)
+  if cache and not catalogFits({ name = name, text = text }) then
     diskFull = true
-    log(cache and "code_error" or "state_error", nil, path .. ": " .. tostring(err))
+    log("code_error", nil, name .. ": disk full")
+    return false
+  end
+  if cache then
+    local free = disk:measure().free
+    local reserve = math.max(disk:reserve(), A.controlCeiling + A.writeMargin)
+    if type(free) == "number" and free + (fs.exists(path .. ".tmp") and #(read(path .. ".tmp") or "") or 0) - #text < reserve then
+      diskFull = true
+      log("code_error", nil, name .. ": disk full")
+      return false
+    end
+  end
+  local ok, err = A.replaceBytes(path, text, scriptOk(name or path))
+  if not ok then
+    diskFull = true
+    log(cache and "code_error" or "state_error", nil, (name or path) .. ": " .. tostring(err))
   end
   return ok
 end
 local function save()
-  local ok, text = pcall(function() return textutils.serialize(copy(state), { compact = true }) end)
-  if ok then return writeFile(STATE_FILE, text) end
-  log("state_error", nil, text)
-  return false
+  local ok, err = stateRec:save(state)
+  if not ok then
+    diskFull = true
+    log("state_error", nil, err == "capacity" and "disk full" or tostring(err))
+  end
+  return ok
 end
 local SSOT, ssot, ssotConfig
 if fs.exists("ssot.lua") and fs.exists("atomic.lua") then
@@ -129,7 +124,7 @@ end
 
 local args = { ... }
 if args[1] == "install" then
-  if writeFile("startup.lua", 'shell.run("server")\n') then
+  if writeScript("startup.lua", 'shell.run("server")\n', "startup.lua", false) then
     print("Server will now start automatically on boot.")
   else
     print("Could not install startup: disk full or write failed.")
@@ -178,12 +173,7 @@ local function yieldWork()
   os.pullEvent("server_work")
 end
 local function hashOf(text)
-  local h = 5381
-  for i = 1, #text do
-    h = (h * 33 + text:byte(i)) % 4294967296
-    if i%16384==0 then yieldWork() end
-  end
-  return string.format("%08x", h)
+  return A.hash(text)
 end
 
 local known = {}
@@ -197,7 +187,7 @@ if not cacheOK then diskFull = true log("code_error", nil, cacheFiles) end
 for _, f in ipairs(cacheOK and cacheFiles or {}) do
   if f:match("%.tmp$") then cacheOp(fs.delete, CODE_DIR .. "/" .. f) end
 end
-for _, f in ipairs(FILES) do
+for _, f in ipairs(catalog) do
   known[f] = true
   local path = CODE_DIR .. "/" .. f
   if not fs.exists(path) and fs.exists(path .. ".bak") then cacheOp(fs.move, path .. ".bak", path) end
@@ -230,7 +220,7 @@ local function mirror(f)
       cacheOp(fs.delete, CODE_DIR .. "/" .. f)
     elseif not state.files[f] or state.files[f].hash ~= hash or state.files[f].path ~= path
       or not fs.exists(path) then
-      if not writeFile(path, code, true) then save() return end
+      if not writeScript(path, code, f, true) then save() return end
       log("code", nil, f .. " " .. hash)
     end
     state.files[f] = { hash = hash, size = #code, fetched = now(), path = path }
@@ -397,6 +387,12 @@ local function request(id, m)
     arUntil = math.min(m.arUntil, now() + 10000)
   end
   if m.type == "get" and known[m.file] then
+    local shelfCfg = A.read("shelf.cfg")
+    if type(shelfCfg) == "table" and type(shelfCfg.value) == "table" then shelfCfg = shelfCfg.value end
+    if type(shelfCfg) == "table" and shelfCfg.codeShelf == true then
+      reply(id, m, { type = "file", file = m.file, error = "shelf" })
+      return
+    end
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
     local info = state.files[m.file]
@@ -764,10 +760,12 @@ end
 local function drawCode(x0, y0, w, h)
   for row = y0, y0 + h - 1 do fill(x0, row, w, colors.black) end
   local row = y0
-  text(x0 + 1, row, ("Disk: %s bytes free%s"):format(tostring(fs.getFreeSpace(STATE_FILE)),
-    diskFull and " | disk full" or ""), diskFull and colors.red or colors.lightGray, colors.black)
+  local reported = A.report()
+  text(x0 + 1, row, ("Disk: %s bytes free%s%s"):format(tostring(disk:measure().free),
+    diskFull and " | disk full" or "", reported and (" | " .. tostring(reported.error)) or ""),
+    diskFull and colors.red or colors.lightGray, colors.black)
   row = row + 1
-  for _, f in ipairs(FILES) do
+  for _, f in ipairs(catalog) do
     if row >= y0 + h then break end
     local info = state.files[f]
     local old = 0
@@ -810,8 +808,8 @@ local function draw()
   text(#(online .. " online / " .. stale .. " stale / ") + 1, 2, lost .. " LOST", lost > 0 and colors.red or colors.lightGray,
     colors.black)
   local hid = hubId()
-  local right = tostring(fs.getFreeSpace(STATE_FILE)) .. " bytes free" .. (diskFull and " | disk full" or "")
-    .. " | code " .. nfiles .. "/" .. #FILES .. (hid and (" | hub #" .. hid) or " | no hub")
+  local right = tostring(disk:measure().free) .. " bytes free" .. (diskFull and " | disk full" or "")
+    .. " | code " .. nfiles .. "/" .. #catalog .. (hid and (" | hub #" .. hid) or " | no hub")
     .. (ar and (" | AR " .. (state.view3D ~= false and "on" or "off")) or "")
   local left = #(online .. " online / " .. stale .. " stale / " .. lost .. " LOST") + 2
   right = right:sub(1, math.max(0, w - left))
@@ -921,7 +919,7 @@ end
 
 local function refresh()
   while true do
-    for _, f in ipairs(FILES) do mirror(f) sleep(1) end
+    for _, f in ipairs(catalog) do mirror(f) sleep(1) end
     sleep(300)
   end
 end

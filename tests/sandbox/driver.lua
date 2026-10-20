@@ -113,7 +113,9 @@ local ok, err = pcall(function()
   if id == 1 then assert(peers[2], "hub never heard miner") end
   if id == 2 then assert(peers[1], "miner never heard hub") end
   if id == 0 then
-    local state = readTable("server.state")
+    local saved = dofile("atomic.lua").read("server.state")
+    local state = type(saved) == "table" and (saved.value or saved) or nil
+    assert(type(state) == "table", "missing server.state")
     assert(state.hub, "server has no hub mirror")
     assert(state.bots[2], "server has no miner telemetry")
     for _, entry in ipairs(state.log or {}) do

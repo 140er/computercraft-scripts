@@ -32,10 +32,21 @@ if args[1] == "update" then
   fs.delete("hub.release") -- only reached when nothing changed
   return
 end
+if args[1] == "shelf" then
+  local roleList = dofile("roles.lua")
+  local shelf = dofile("shelf.lua")
+  local ok, err = shelf.enable(roleList.resident("hub", false), { roles = roleList, shelf = "fleet", role = "hub" })
+  if not ok then print("Shelf off: " .. tostring(err)) return end
+  local keep = {}
+  for _, name in ipairs(roleList.program("hub")) do keep[name] = true end
+  for _, name in ipairs(roleList.catalog()) do
+    if fs.exists(name) and not keep[name] then fs.delete(name) end
+  end
+  print("Shelf on")
+  return
+end
 if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("hub")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("hub")\n', function(s) return load(s) ~= nil end)
   print("Hub will now start automatically on boot.")
   return
 end
@@ -112,7 +123,20 @@ local function loadTable(path)
   return type(t) == "table" and t or nil
 end
 
-local hub = loadTable(STATE_FILE)
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local function tableOk(v) return type(v) == "table" end
+local hubControl = disk:open("hub.control", tableOk, { class = "control", limit = 8192 })
+local hubBulk = disk:open("hub.bulk", tableOk, { class = "bulk", limit = 900000, anchor = "hub.control" })
+local hub
+if hubControl.value then
+  hub = {}
+  for k, v in pairs(hubControl.value) do hub[k] = v end
+  hub.progress = hubBulk.value and hubBulk.value.progress or {}
+  hub.totals = hubBulk.value and hubBulk.value.totals or {}
+else
+  hub = loadTable(STATE_FILE)
+end
 local hadState = hub ~= nil -- the server's copy only wins when it is newer (hub.rev)
 hub = hub or {}
 hub.target = hub.target           -- nil = paused
@@ -153,9 +177,20 @@ local pushSoon = false -- the server gets the changed state on the next tick
 local function save()
   hub.rev = os.epoch("utc")
   pushSoon = true
-  local h = fs.open(STATE_FILE, "w")
-  h.write(textutils.serialize(hub))
-  h.close()
+  local bulkOk = hubBulk:save({ progress = hub.progress, totals = hub.totals })
+  if bulkOk then hub.mapGen = hubBulk.generation end
+  local ctrl = {}
+  for k, v in pairs(hub) do
+    if k ~= "progress" and k ~= "totals" then ctrl[k] = v end
+  end
+  local ctrlOk, ctrlErr = hubControl:save(ctrl)
+  if ctrlOk then
+    for _, file in ipairs({ STATE_FILE, STATE_FILE .. ".tmp", STATE_FILE .. ".bak" }) do
+      if fs.exists(file) then fs.delete(file) end
+    end
+  end
+  if not bulkOk then return false end
+  return ctrlOk, ctrlErr
 end
 
 -- Where this hub computer is (world x y z). Miners without GPS ask for it at setup
@@ -291,11 +326,19 @@ end
 local MINER_FILE = "miner.lua"
 local minerCache = { mod = nil, hash = nil, code = nil }
 local function hashOf(text)
-  local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
-  return string.format("%08x", h)
+  return A.hash(text)
+end
+local function shelfFlag()
+  local cfg = A.read("shelf.cfg")
+  if type(cfg) == "table" and type(cfg.value) == "table" and cfg.v == 1 then cfg = cfg.value end
+  return type(cfg) == "table" and cfg.codeShelf == true
 end
 local function minerVersion()
+  if shelfFlag() then
+    local text, err = dofile("shelf.lua").fetch("miner.lua")
+    if type(text) ~= "string" then return nil, nil, err or "shelf_absent" end
+    return hashOf(text), text
+  end
   if not fs.exists(MINER_FILE) then return nil end
   local attr = fs.attributes and fs.attributes(MINER_FILE)
   local mod = attr and (attr.modified .. ":" .. attr.size) or nil
@@ -433,8 +476,10 @@ local function handle(id, m)
       update = releasedVersion(),
     })
   elseif m.type == "get_miner" then
-    local hash, code = minerVersion()
-    if code and hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
+    local hash, code, err = minerVersion()
+    if not code then
+      if err then send(id, { type = "miner_file", error = err }) end
+    elseif hash == hub.released then send(id, { type = "miner_file", hash = hash, code = code }) end
   elseif m.type == "report" then
     mergeProgress(key, m.progress)
     -- A tunnel job ended (done, or something stopped it): the turtle stays home
@@ -718,7 +763,10 @@ local function draw(s)
   local onlyX = W - #modeLabel - #onlyLabel
   local topW = onlyX - 2
   local y = 1
-  if #lost > 0 then
+  local reported = A.report()
+  if reported then
+    at(1, y, tostring(reported.error):sub(1, topW), colors.red)
+  elseif #lost > 0 then
     at(1, y, ("LOST: " .. table.concat(lost, "  ")):sub(1, topW), colors.red)
   elseif notice and os.clock() < noticeUntil then
     at(1, y, notice:sub(1, topW), colors.yellow)

@@ -45,24 +45,24 @@ local TURTLE = "computercraft:turtle_normal"
 local FUELS = { "minecraft:coal", "minecraft:charcoal" }
 
 local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
   end
-  return nil
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec:save(t)
 end
 
 local function readFile(path)
@@ -74,9 +74,7 @@ local function readFile(path)
 end
 
 local function writeFile(path, s)
-  local h = fs.open(path, "w")
-  h.write(s)
-  h.close()
+  dofile("atomic.lua").replaceBytes(path, s, function(text) return load(text, "=" .. path) ~= nil end)
 end
 
 local function pretty(name)

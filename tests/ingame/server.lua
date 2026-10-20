@@ -13,14 +13,18 @@ end,function()
       if m.action == "reboot" then os.reboot() end
       if m.action == "metrics" then
         local A=dofile("atomic.lua")
-        local store=A.store("ssot.state",function(v) return type(v)=="table" and v.schema==1 end)
-        local chunks,cells=0,0
-        for _,ch in pairs(store.value.chunks) do
+        local disk=A.mount("/")
+        local map=disk:open("ssot.map",function(v) return type(v)=="table" end,{class="bulk",limit=900000,anchor="ssot.control"})
+        local chunks,cells,bytes=0,0,0
+        for _,ch in pairs((map.value and map.value.chunks) or {}) do
           chunks=chunks+1
-          for _ in pairs(ch.cells) do cells=cells+1 end
+          for _ in pairs(ch.cells or {}) do cells=cells+1 end
+        end
+        for _,slot in ipairs({"ssot.map.a","ssot.map.b","ssot.control.a","ssot.control.b"}) do
+          if fs.exists(slot) then bytes=bytes+fs.getSize(slot) end
         end
         local available,heap=pcall(function() return collectgarbage("count") end)
-        rednet.send(4,{kind="metrics",rid=m.rid,cells=cells,chunks=chunks,bytes=fs.getSize("ssot.state"),
+        rednet.send(4,{kind="metrics",rid=m.rid,cells=cells,chunks=chunks,bytes=bytes,
           free=fs.getFreeSpace("/"),capacity=fs.getCapacity("/"),luaHeapAvailable=available,luaHeapKiB=available and heap or false},"ssot_test")
       end
       if m.action == "fill" then
@@ -40,8 +44,8 @@ end,function()
       end
       if m.action == "done" then
         local A = dofile("atomic.lua")
-        local store = A.store("ssot.state",function(v) return type(v) == "table" and v.schema == 1 end)
-        assert(next(store.value.moves) == nil,"unreconciled reservations")
+        local control = A.mount("/"):open("ssot.control",function(v) return type(v) == "table" end,{class="control",limit=32768})
+        assert(next((control.value and control.value.moves) or {}) == nil,"unreconciled reservations")
         local h=assert(fs.open("sandbox-result.json","w"))
         h.write(textutils.serializeJSON({ok=true,booted=true,errors={},lines={"server restart and cleanup passed"}})) h.close()
       end

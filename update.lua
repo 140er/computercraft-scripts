@@ -10,16 +10,8 @@
 -- Needs a fleet server in modem range, or http enabled in the ComputerCraft config.
 
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
-
--- Everything in the repo that runs on a computer or turtle
-local KNOWN = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
-  "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }
--- The hub hands miner.lua out to the mining turtles, so it keeps a copy too.
--- fleetview.lua draws the 3D view and the AR goggles for the hub, server and panel.
-local ALSO = { ["store.lua"] = {"atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["roomsorter.lua"] = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["sorter.lua"] = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"}, ["hub.lua"] = { "miner.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" },
-  ["miner.lua"] = { "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, ["factory.lua"] = { "miner.lua" },
-  ["server.lua"] = { "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, ["panel.lua"] = { "fleetview.lua" } }
+local roles = dofile("roles.lua")
+local A = dofile("atomic.lua")
 
 local args = { ... }
 local reboot = true
@@ -32,11 +24,8 @@ for _, a in ipairs(args) do
   if a == "noreboot" then reboot = false else add(a) end
 end
 if #files == 0 then
-  for _, f in ipairs(KNOWN) do
-    if fs.exists(f) then
-      add(f)
-      for _, g in ipairs(ALSO[f] or {}) do add(g) end
-    end
+  for _, f in ipairs(roles.catalog()) do
+    if fs.exists(f) then add(f) end
   end
 end
 -- update.lua itself last, so a broken download never stops the rest
@@ -51,9 +40,12 @@ local function read(path)
 end
 
 local function hashOf(text)
-  local h = 5381
-  for i = 1, #text do h = (h * 33 + text:byte(i)) % 4294967296 end
-  return string.format("%08x", h)
+  return A.hash(text)
+end
+local function shelfOn()
+  local cfg = A.read("shelf.cfg")
+  if type(cfg) == "table" and type(cfg.value) == "table" and cfg.v == 1 then cfg = cfg.value end
+  return type(cfg) == "table" and cfg.codeShelf == true
 end
 
 local PROTOCOL = "fleetserver"
@@ -111,7 +103,13 @@ for _, f in ipairs(files) do
     if res then res.close() end
   end
   if not code or code == "" or not load(code, "=" .. f) then
-    local copy = fromServer(f)
+    local copy
+    if shelfOn() then
+      local shelf = dofile("shelf.lua")
+      copy = shelf.fetch(f)
+    else
+      copy = fromServer(f)
+    end
     if copy then code = copy end
   end
   if not code or code == "" then
@@ -124,13 +122,14 @@ for _, f in ipairs(files) do
   elseif code == read(f) then
     print("up to date")
   else
-    local h = fs.open(f .. ".new", "w")
-    h.write(code)
-    h.close()
-    if fs.exists(f) then fs.delete(f) end
-    fs.move(f .. ".new", f)
-    print("updated")
-    changed = changed + 1
+    local ok, why = A.replaceBytes(f, code, function(text) return load(text, "=" .. f) ~= nil end)
+    if not ok then
+      print("failed: " .. tostring(why))
+      failed = failed + 1
+    else
+      print("updated")
+      changed = changed + 1
+    end
   end
 end
 

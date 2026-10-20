@@ -129,7 +129,15 @@ function M.new(attached, state)
     exists = function(path) return m.files[path] ~= nil end,
     delete = function(path) m.files[path] = nil end,
     move = function(from, to) m.files[to], m.files[from] = m.files[from], nil end,
-    getFreeSpace = function() return (m.capacity or math.huge) - m.used() end,
+    getCapacity = function()
+      if m.unlimited or m.capacity == nil then return "unlimited" end
+      return m.capacity
+    end,
+    getFreeSpace = function()
+      if m.holdFree then return m.holdFree end
+      if m.unlimited or m.capacity == nil then return "unlimited" end
+      return m.capacity - m.used()
+    end,
     makeDir = function() end,
     list = function(path)
       local files = {}
@@ -147,7 +155,7 @@ function M.new(attached, state)
       if mode == "w" then m.files[path] = "" end
       local function write(text)
         local free = env.fs.getFreeSpace(path)
-        if #text > free then
+        if type(free) == "number" and #text > free then
           m.files[path] = m.files[path] .. text:sub(1, math.max(0, free))
           error("Out of space", 0)
         end
@@ -237,8 +245,59 @@ function M.new(attached, state)
     m.push("timer", m.timer)
   end
   function m.status(id, packet) m.push("rednet_message", id, packet, "minearmy") end
+  env.dofile = function(path)
+    return assert(loadfile(path, "t", env))()
+  end
   m.env = env
   return m
+end
+
+function M.value(files, path)
+  local function decode(text)
+    if type(text) ~= "string" then return nil end
+    local fn = load("return " .. text, "=state", "t", {})
+    if not fn then return nil end
+    local ok, value = pcall(fn)
+    if ok then return value end
+  end
+  local function slot(name)
+    local value = decode(files[name])
+    if type(value) == "table" and value.v == 1 and type(value.generation) == "number" and type(value.value) == "table" then
+      return value
+    end
+  end
+  if path:sub(-4) == ".map" or path:sub(-5) == ".bulk" then
+    local ctrl = path:gsub("%.map$", ".control"):gsub("%.bulk$", ".control")
+    local control = M.value(files, ctrl)
+    local gen = control and control.mapGen
+    for _, name in ipairs({ path .. ".a", path .. ".b" }) do
+      local env = slot(name)
+      if env and env.generation == gen then return env.value end
+    end
+  else
+    local best
+    for _, name in ipairs({ path .. ".a", path .. ".b" }) do
+      local env = slot(name)
+      if env and (not best or env.generation > best.generation) then best = env end
+    end
+    if best then return best.value end
+  end
+  local bare = decode(files[path])
+  if type(bare) == "table" and bare.schema == 1 and type(bare.value) == "table" then return bare.value end
+  if type(bare) == "table" and bare.v == 1 and type(bare.value) == "table" and type(bare.generation) == "number" then
+    return bare.value
+  end
+  return bare
+end
+
+function M.hubFile(files)
+  local ctrl = M.value(files, "hub.control")
+  if not ctrl then return M.value(files, "hub.state") end
+  local bulk = M.value(files, "hub.bulk")
+  local out = {}
+  for k, v in pairs(ctrl) do out[k] = v end
+  if bulk then out.progress, out.totals = bulk.progress, bulk.totals end
+  return out
 end
 
 function M.miner(cfg, state)

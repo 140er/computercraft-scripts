@@ -2,90 +2,190 @@ param(
     [ValidateRange(15, 3600)][int]$Seconds = 30,
     [string]$CraftOS = $env:CRAFTOS_PC,
     [string]$Source = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [ValidateSet('smoke','ssot','nav','mining','warehouse')][string]$Scenario = 'smoke',
+    [ValidateSet('smoke','ssot','nav','mining','warehouse','h4a')][string]$Scenario = 'smoke',
+    [ValidateSet(1000000, 4000000)][int]$DiskLimit = 4000000,
     [string]$Output = ''
 )
 $ErrorActionPreference = 'Stop'
-if ($Scenario -in @('nav','mining','warehouse')) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
+# Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
+$OnLinux = $false
+if ($PSVersionTable.PSVersion.Major -ge 6) { $OnLinux = $IsLinux -eq $true }
+if ($Scenario -in @('nav','mining','warehouse') -and -not $OnLinux) { [Diagnostics.Process]::GetCurrentProcess().PriorityClass='High' }
 if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 900 }
+if ($Scenario -eq 'h4a' -and !$PSBoundParameters.ContainsKey('Seconds')) { $Seconds = 90 }
+if ($Scenario -eq 'h4a' -and !$PSBoundParameters.ContainsKey('DiskLimit')) { $DiskLimit = 1000000 }
+
+# PowerShell cmdlets accept '\' on Linux. System.IO does not.
+function ConvertTo-SandboxPath([string]$Path) {
+    if ($script:OnLinux) { return $Path.Replace('\', '/') }
+    return $Path
+}
+function Write-SandboxText([string]$Path, [string]$Text, [Text.Encoding]$Encoding) {
+    [IO.File]::WriteAllText((ConvertTo-SandboxPath $Path), $Text, $Encoding)
+}
+function Start-SandboxProcess([string]$Stdout, [string]$Stderr) {
+    $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, (Join-Path $run 'rom')
+    if ($script:OnLinux) {
+        $proc = Start-Process -FilePath $CraftOS -ArgumentList $arguments -PassThru -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr
+    } else {
+        $proc = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $Stdout -RedirectStandardError $Stderr
+        $proc.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
+        if ($Scenario -notin @('nav','mining','warehouse')) { $proc.ProcessorAffinity = [IntPtr]1 }
+    }
+    return $proc
+}
 
 try {
-    $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
+    if ($env:LOCALAPPDATA) {
+        $cache = Join-Path $env:LOCALAPPDATA 'computercraft-sandbox'
+    } else {
+        $cacheRoot = if ($env:XDG_CACHE_HOME) { $env:XDG_CACHE_HOME } else { Join-Path $HOME '.cache' }
+        $cache = Join-Path $cacheRoot 'computercraft-sandbox'
+    }
+    $romSource = $null
     if (!$CraftOS) {
-        $app = Join-Path $cache 'craftos-2.8.3'
-        $CraftOS = Join-Path $app 'CraftOS-PC_console.exe'
-        if (!(Test-Path -LiteralPath $CraftOS)) {
-            New-Item -ItemType Directory -Force -Path $cache | Out-Null
-            $zip = Join-Path $cache 'craftos-2.8.3.zip'
-            $url = 'https://github.com/MCJack123/craftos2/releases/download/v2.8.3/CraftOS-PC-Portable-Win64.zip'
-            Write-Output 'Downloading CraftOS-PC v2.8.3 portable...'
-            Invoke-WebRequest -UseBasicParsing $url -OutFile $zip
-            if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ne 'caf74fa9d6fcce44c940bf77ff789378fa34a4ebb0b608c57f885a0b0aebac37') {
-                throw 'CraftOS-PC archive checksum mismatch.'
+        if ($OnLinux) {
+            $linuxApp = Join-Path $cache 'craftos-2.8.3-linux'
+            $root = Join-Path $linuxApp 'squashfs-root'
+            $CraftOS = Join-Path $root 'AppRun'
+            $romSource = Join-Path $root 'usr/share/craftos'
+            if (!(Test-Path -LiteralPath $CraftOS)) {
+                New-Item -ItemType Directory -Force -Path $linuxApp | Out-Null
+                $image = Join-Path $linuxApp 'CraftOS-PC.x86_64.AppImage'
+                $url = 'https://github.com/MCJack123/craftos2/releases/download/v2.8.3/CraftOS-PC.x86_64.AppImage'
+                if (!(Test-Path -LiteralPath $image)) {
+                    Write-Output 'Downloading CraftOS-PC v2.8.3 AppImage...'
+                    Invoke-WebRequest -UseBasicParsing $url -OutFile $image
+                }
+                if ((Get-FileHash -LiteralPath $image -Algorithm SHA256).Hash -ne 'f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c') {
+                    Remove-Item -LiteralPath $image -Force
+                    throw 'CraftOS-PC archive checksum mismatch.'
+                }
+                if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
+                & /bin/chmod +x $image
+                $extractLog = Join-Path $linuxApp 'extract.log'
+                Push-Location $linuxApp
+                try {
+                    & $image --appimage-extract > $extractLog 2>&1
+                    if ($LASTEXITCODE -ne 0) { throw 'CraftOS-PC AppImage extract failed.' }
+                } finally {
+                    Pop-Location
+                }
             }
-            Expand-Archive -LiteralPath $zip -DestinationPath $app -Force
+            & /bin/chmod +x $CraftOS
+        } else {
+            $app = Join-Path $cache 'craftos-2.8.3'
+            $CraftOS = Join-Path $app 'CraftOS-PC_console.exe'
+            if (!(Test-Path -LiteralPath $CraftOS)) {
+                New-Item -ItemType Directory -Force -Path $cache | Out-Null
+                $zip = Join-Path $cache 'craftos-2.8.3.zip'
+                $url = 'https://github.com/MCJack123/craftos2/releases/download/v2.8.3/CraftOS-PC-Portable-Win64.zip'
+                Write-Output 'Downloading CraftOS-PC v2.8.3 portable...'
+                Invoke-WebRequest -UseBasicParsing $url -OutFile $zip
+                if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ne 'caf74fa9d6fcce44c940bf77ff789378fa34a4ebb0b608c57f885a0b0aebac37') {
+                    throw 'CraftOS-PC archive checksum mismatch.'
+                }
+                Expand-Archive -LiteralPath $zip -DestinationPath $app -Force
+            }
         }
     }
     $CraftOS = (Resolve-Path -LiteralPath $CraftOS).Path
-    $app = Split-Path $CraftOS
+    if (-not $romSource) {
+        $romSource = Split-Path $CraftOS
+        if ($OnLinux) {
+            $share = Join-Path $romSource 'usr/share/craftos'
+            if (Test-Path -LiteralPath (Join-Path $share 'bios.lua')) { $romSource = $share }
+        }
+    }
+    # SDL writes ALSA and X11 errors when the host has no sound card or display. Any stderr fails the run.
+    if ($OnLinux) {
+        $env:SDL_AUDIODRIVER = 'dummy'
+        $env:SDL_VIDEODRIVER = 'dummy'
+    }
     if ((& $CraftOS --version | Select-Object -First 1) -ne 'CraftOS-PC v2.8.3') {
+        if ($OnLinux) { throw 'Use CraftOS-PC v2.8.3 AppImage (squashfs-root/AppRun).' }
         throw 'Use CraftOS-PC v2.8.3 portable (CraftOS-PC_console.exe).'
     }
     $Source = (Resolve-Path -LiteralPath $Source).Path
     $run = Join-Path $cache ('runs\' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path "$run\config" | Out-Null
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
-    Copy-Item -LiteralPath "$app\bios.lua", "$app\rom" -Destination "$run\rom" -Recurse
+    Copy-Item -LiteralPath (Join-Path $romSource 'bios.lua'), (Join-Path $romSource 'rom') -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     $config = @{
-        standardsMode = $true; computerSpaceLimit = 4000000
+        standardsMode = $true; computerSpaceLimit = $DiskLimit; abortTimeout = 10
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
         keepOpenOnShutdown = $false; logErrors = $true
     } | ConvertTo-Json
-    [IO.File]::WriteAllText("$run\config\global.json", $config, $utf8)
-    $roles = if ($Scenario -in @('ssot','nav','mining','warehouse')) { @('server','turtle1','turtle2','turtle3','controller','world') } else { @('server', 'hub', 'miner') }
+    Write-SandboxText "$run\config\global.json" $config $utf8
+    $roles = if ($Scenario -eq 'h4a') { @('mirror', 'fresh', 'server', 'hub') }
+      elseif ($Scenario -in @('ssot','nav','mining','warehouse')) { @('server','turtle1','turtle2','turtle3','controller','world') }
+      else { @('server', 'hub', 'miner') }
+    function Get-SandboxNames([string]$Kind, [string]$Which) {
+        $script = Join-Path $PSScriptRoot 'role-files.lua'
+        $lines = & lua5.2 $script $Source $Kind $Which
+        if ($LASTEXITCODE -ne 0) { throw "role file list failed for $Kind $Which" }
+        return @($lines | Where-Object { $_ })
+    }
     if ($Scenario -eq 'mining') { $roles += 'hub' }
     for ($id = 0; $id -lt $roles.Count; $id++) {
-        $disk = "$run\computer\$id"
+        $disk = Join-Path (Join-Path $run 'computer') "$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
         # Copies, not mounts: repo scripts count towards each computer's disk limit.
-        $files = if ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse')) { Get-ChildItem -LiteralPath $Source -Filter '*.lua' } else {
-            Get-Item -LiteralPath "$Source\$($roles[$id]).lua", "$Source\miner.lua", "$Source\update.lua" | Sort-Object FullName -Unique
+        $files = if ($Scenario -eq 'h4a') {
+            $which = if ($roles[$id] -eq 'mirror') { 'fleet' } elseif ($roles[$id] -eq 'fresh') { '' } else { $roles[$id] }
+            $kind = if ($roles[$id] -eq 'mirror') { 'union' } else { 'program' }
+            $listed = if ($roles[$id] -eq 'fresh') { @('shelf.lua', 'atomic.lua', 'roles.lua', 'update.lua') } else { Get-SandboxNames $kind $which }
+            @($listed | ForEach-Object { Get-Item -LiteralPath (Join-Path $Source $_) })
+        } elseif ($id -eq 0 -or $Scenario -in @('ssot','nav','mining','warehouse')) {
+            Get-ChildItem -LiteralPath $Source -Filter '*.lua'
+        } else {
+            $names = @("$($roles[$id]).lua", 'miner.lua', 'update.lua', 'atomic.lua')
+            if ($roles[$id] -eq 'hub') { $names += 'fleetview.lua' }
+            $names | ForEach-Object { Get-Item -LiteralPath (Join-Path $Source $_) } | Sort-Object FullName -Unique
         }
         foreach ($file in $files) {
             # Match wget's LF text so a Windows checkout does not duplicate the HTTP cache.
             $code = [IO.File]::ReadAllText($file.FullName).Replace("`r`n", "`n")
-            [IO.File]::WriteAllText("$disk\$($file.Name)", $code, $utf8)
+            Write-SandboxText (Join-Path $disk $file.Name) $code $utf8
         }
-        Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        if ($Scenario -eq 'h4a') {
+            Copy-Item -LiteralPath "$PSScriptRoot\h4a-driver.lua" -Destination $disk
+        } else {
+            Copy-Item -LiteralPath "$PSScriptRoot\driver.lua", "$PSScriptRoot\turtle.lua" -Destination $disk
+        }
         if ($Scenario -in @('ssot','nav','mining','warehouse')) {
             foreach ($testFile in @('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')) {
-                Copy-Item -LiteralPath "$Source\tests\$testFile" -Destination $disk
+                $from = Join-Path (Join-Path $Source 'tests') $testFile
+                if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $disk }
             }
             New-Item -ItemType Directory -Force -Path "$disk\tests" | Out-Null
-            Copy-Item "$Source\tests\mocks.lua", "$Source\tests\mining-checks.lua", "$Source\tests\warehouse-checks.lua" "$disk\tests"
+            $bundle = @('mocks.lua','mining-checks.lua','warehouse-checks.lua') | ForEach-Object {
+                $from = Join-Path (Join-Path $Source 'tests') $_
+                if (Test-Path -LiteralPath $from) { $from }
+            }
+            if ($bundle) { Copy-Item -LiteralPath $bundle -Destination "$disk\tests" }
             Copy-Item -LiteralPath "$PSScriptRoot\ssot-driver.lua" -Destination $disk
             Copy-Item -LiteralPath "$Source\tests\ingame\server.lua" -Destination "$disk\test-server.lua"
-            [IO.File]::WriteAllText("$disk\ssot.cfg", '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}', $utf8)
+            Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
         }
-        [IO.File]::WriteAllText("$disk\startup.lua", "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('driver.lua', '$Seconds', '$Scenario')", $utf8)
+        if ($Scenario -eq 'h4a' -and $roles[$id] -eq 'fresh') {
+            Write-SandboxText "$disk\shelf.cfg" '{v=1,codeShelf=true,shelf="fleet",role="miner"}' $utf8
+        }
+        $entry = if ($Scenario -eq 'h4a') { 'h4a-driver.lua' } else { 'driver.lua' }
+        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario')" $utf8
     }
-    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=4000000"
+    Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$DiskLimit"
     Write-Output "Artifacts: $run"
-    $arguments = '--headless --directory "{0}" --rom "{1}" --id 0' -f $run, "$run\rom"
-    $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout.log" -RedirectStandardError "$run\stderr.log"
-    $process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
-    if ($Scenario -notin @('nav','mining','warehouse')) { $process.ProcessorAffinity = [IntPtr]1 }
+    $process = Start-SandboxProcess (ConvertTo-SandboxPath "$run\stdout.log") (ConvertTo-SandboxPath "$run\stderr.log")
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds + 35)
     $restarted = $false
     do {
         if ($Scenario -in @('ssot','nav','mining','warehouse') -and !$restarted -and (Test-Path "$run\computer\4\restart-ready.json")) {
             Stop-Process -Id $process.Id -Force
             $process.WaitForExit()
-            foreach ($id in 1..4) { [IO.File]::WriteAllText("$run\computer\$id\boot-hold", 'restart barrier', $utf8) }
-            $process = Start-Process -FilePath $CraftOS -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput "$run\stdout-restart.log" -RedirectStandardError "$run\stderr-restart.log"
-            $process.PriorityClass = if ($Scenario -in @('nav','mining','warehouse')) { 'High' } else { 'AboveNormal' }
-            if ($Scenario -notin @('nav','mining','warehouse')) { $process.ProcessorAffinity = [IntPtr]1 }
+            foreach ($id in 1..4) { Write-SandboxText "$run\computer\$id\boot-hold" 'restart barrier' $utf8 }
+            $process = Start-SandboxProcess (ConvertTo-SandboxPath "$run\stdout-restart.log") (ConvertTo-SandboxPath "$run\stderr-restart.log")
             Start-Sleep -Seconds 2
             foreach ($id in 1..4) { Remove-Item -LiteralPath "$run\computer\$id\boot-hold" }
             $restarted = $true
@@ -126,6 +226,8 @@ try {
         Get-ChildItem -LiteralPath $run -Filter '*.log' | Copy-Item -Destination $Output -Force
     }
     if ($failed) { Write-Output 'Sandbox FAIL'; exit 1 }
+    if ($Scenario -in @('nav','mining','warehouse') -and -not $Output) { $Output = Join-Path $run 'verify' }
+    if ($Output) { New-Item -ItemType Directory -Force -Path $Output | Out-Null }
     if ($Scenario -eq 'nav') {
         & "$Source\tests\ingame\verify-results.ps1" -Computers "$run\computer" -Output $Output -Title 'Navigation PR 2'
     }
