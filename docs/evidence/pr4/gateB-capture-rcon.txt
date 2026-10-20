@@ -63,4 +63,3 @@ Turned on 1/1 computers
 
 2026-10-20T11:29:48.6575860Z > data get block 48 65 32
 48, 65, 32 has the following block data: {Fuel: 197, RightUpgrade: {components: {"computercraft:on": 0b}, id: "computercraft:wireless_modem_advanced"}, x: 48, Slot: 0, y: 65, Items: [], z: 32, id: "computercraft:turtle_advanced", ComputerId: 20, On: 1b}
-

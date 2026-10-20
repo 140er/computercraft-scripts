@@ -368,7 +368,7 @@ Set the world spawn point to -1000, 64, -1000 [0.0]
 Unmarked all force loaded chunks in Overworld
 
 2026-10-20T10:56:37.3705884Z > list
-There are 0 of a max of 20 players online: 
+There are 0 of a max of 20 players online:
 
 2026-10-20T10:56:53.1189817Z > execute if loaded 40 65 32 run data get block 40 65 32
 40, 65, 32 has the following block data: {Energy: 2006, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15598, ShowRange: 0b}
@@ -845,7 +845,7 @@ Set the world spawn point to -1000, 64, -1000 [0.0]
 Unmarked all force loaded chunks in Overworld
 
 2026-10-20T11:12:42.6400073Z > list
-There are 0 of a max of 20 players online: 
+There are 0 of a max of 20 players online:
 
 2026-10-20T11:12:58.1043611Z > execute if loaded 40 65 32 run data get block 40 65 32
 40, 65, 32 has the following block data: {Energy: 1299, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15617, ShowRange: 0b}
@@ -1196,7 +1196,7 @@ Set the world spawn point to -1000, 64, -1000 [0.0]
 Unmarked all force loaded chunks in Overworld
 
 2026-10-20T11:19:34.3896826Z > list
-There are 0 of a max of 20 players online: 
+There are 0 of a max of 20 players online:
 
 2026-10-20T11:19:49.8576650Z > execute if loaded 40 65 32 run data get block 40 65 32
 40, 65, 32 has the following block data: {Energy: 801, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15558, ShowRange: 0b}
@@ -1547,7 +1547,7 @@ Set the world spawn point to -1000, 64, -1000 [0.0]
 Unmarked all force loaded chunks in Overworld
 
 2026-10-20T11:26:04.7300957Z > list
-There are 0 of a max of 20 players online: 
+There are 0 of a max of 20 players online:
 
 2026-10-20T11:26:20.5168462Z > execute if loaded 40 65 32 run data get block 40 65 32
 40, 65, 32 has the following block data: {Energy: 2459, MaxFuelTick: 16000, x: 40, y: 65, Items: [{count: 63, Slot: 0b, id: "minecraft:coal_block"}], z: 32, id: "superbwarfare:charging_station", FuelTick: 15572, ShowRange: 0b}
@@ -1653,4 +1653,3 @@ No blocks were filled
 
 2026-10-20T11:30:04.5881817Z > stop
 Stopping the server
-
