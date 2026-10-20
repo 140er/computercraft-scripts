@@ -41,6 +41,7 @@ $client = Join-Path $TestRoot 'client'
 New-Item -ItemType Directory -Force -Path $client, "$client\mods", "$client\config" | Out-Null
 Copy-Item "$TestRoot\mods\*.jar" "$client\mods"
 Copy-Item "$TestRoot\config\classicperipherals.toml" "$client\config"
+Copy-Item "$PSScriptRoot\fml.toml" "$client\config\fml.toml"
 $arguments = Get-Content 'C:\mc-run1\args.txt' -Raw
 function Set-ClientArgument([string]$Name, [string]$Value) {
     $option = [regex]::Escape($Name)
@@ -63,7 +64,7 @@ foreach ($name in @('--username','--uuid','--accessToken','--gameDir','--quickPl
 }
 $utf8 = New-Object Text.UTF8Encoding($false)
 [IO.File]::WriteAllText("$client\client.args", $arguments, $utf8)
-[IO.File]::WriteAllLines("$client\options.txt", @('renderDistance:3','simulationDistance:3','maxFps:30',
+[IO.File]::WriteAllLines("$client\options.txt", @('renderDistance:3','simulationDistance:5','maxFps:30',
     'enableVsync:false','fullscreen:false','guiScale:2','tutorialStep:none','pauseOnLostFocus:false'), $utf8)
 $properties = Get-Content "$TestRoot\server.properties"
 $secret = ($properties | Where-Object { $_ -like 'rcon.password=*' }).Substring(14)
