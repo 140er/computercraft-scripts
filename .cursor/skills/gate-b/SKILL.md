@@ -19,36 +19,51 @@ Cursor-hosted Linux agents cannot run it. They run gate A (`tests/sandbox/run.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\gateb.ps1 -Ref <branch or refs/pull/N/head>
 ```
 
-- `-Scenario ssot,nav,mining,warehouse` is the default. Keep `warehouse`, because it records the video clip.
+- `-Scenario ssot,nav,mining,warehouse` is the default and the only set that can pass.
 - `-Output <dir>` defaults to `C:\Work\gateb-evidence\<stamp>`.
-- Exit code 0 means `GATES: PASS`. Anything else is a fail.
-- A full run takes one to two hours, plus any wait for the locks. Start it as a background command and poll `SUMMARY.md`.
+- Exit code 0 is `GATES: PASS`, 1 is `GATES: FAIL`, 2 is `GATES: PARTIAL`.
+- `GATES: PARTIAL` means a subset of scenarios ran. It is not a pass. Use it only to debug one scenario.
+- A full run takes about 40 minutes, plus any wait for holds and locks. Start it in the background and poll `SUMMARY.md`.
+
+## Reading SUMMARY.md while it runs
+
+The first line is `GATES: RUNNING` until the run ends. The heartbeat line names the time and the current step and is rewritten at every step.
+If the heartbeat is older than 60 minutes, or the PID it names is gone, the run is dead. Report it as a FAIL.
 
 ## What the script does
 
 1. Fetches `-Ref` into a fresh folder. The Lua code and the scenario drivers both come from that ref.
-2. Reads the live jar sha256 list from gatebd (`Get-GatebHealth`) and stages exactly those jars from the hash-keyed cache. A jar that is missing or has another hash stops the run.
-3. Waits for `C:\Work\gemini-input\p2\gateB.lock` and 5 GB free RAM, then holds the lock for the whole run.
-4. Per scenario, takes `gateB-client.lock` through gatebd's `Enter-GatebClientLock`, runs `tests\ingame\run.ps1 -Client`, and releases the client lock.
-5. Checks each scenario's verdict, its F2 screenshots and its `jar-sha256.txt` against the live hashes.
-6. Releases both locks and deletes every test folder and the staged base, even on failure. Junctions are unlinked first, so the shared `libraries` folder is never deleted.
+2. Reads the live jar sha256 list from gatebd (`Get-GatebHealth`) and stages exactly those jars from the hash-keyed cache. A missing jar or a different hash stops the run.
+3. Waits while a hold is active, meaning `C:\Work\gemini-input\p2\gateB.hold` exists or gatebd health reports `hold`. It checks again before each scenario. Create that file to pause gate B runs, for example during VM maintenance.
+4. Waits for `gateB.lock` and 5 GB free RAM, then holds the lock for the whole run. `owner.txt` names the host, stamp, PID and process start time.
+5. Per scenario, takes `gateB-client.lock` through gatebd's `Enter-GatebClientLock` and runs `tests\ingame\run.ps1 -Client`.
+6. Fails a scenario on a non-PASS verdict, no F2 screenshot, a jar whose hash differs from live, or a live jar the test server did not load. Fails a full run with no video clip.
+7. In `finally`, in this order, it stops this run's java, deletes the test folders and the staged base, releases the client lock, then releases the server lock. Junctions are unlinked with `cmd /c rmdir` first, so the shared `libraries` folder is never deleted.
+
+## Dead runs and stale locks
+
+A run killed hard skips its `finally`. The next gateb.ps1 run cleans it up.
+It reclaims a lock only when `owner.txt` was written by gateb.ps1 on this host and that PID is gone or now belongs to a process with another start time.
+It then stops that run's java, deletes that run's folders the junction-safe way, and removes the lock.
+Locks written by anything else, such as `PR 6`, are never reclaimed. Wait for them.
+
+## gateB-depth.md
+
+If the ref has `docs/testing/gateB-depth.md`, each `- ` item needs a line in `tests/ingame/depth-map.txt`:
+
+```
+warehouse | Build the warehouse room in the world.
+```
+
+The text is the start of the depth item. An item counts as covered only when its mapped scenario passed in this run. Uncovered items go to `depth-not-run.txt` and fail the run.
 
 ## Rules
 
-- Never delete or take over a lock someone else holds. Wait for it.
+- Never delete or take over a lock someone else holds, except the dead gateb.ps1 runs above.
 - Never stop java or Codex processes you did not start. Codex works in `C:\Work`.
-- Never restart the VM.
+- Never restart the VM or change its CPU pinning.
 - Never commit `token.txt`, the gatebd token or the box address.
-- A skipped scenario, a missing screenshot or a missing video is a `GATES: FAIL`. Report it as a fail with the reason. Never round it up to a pass.
-- If the ref has `docs/testing/gateB-depth.md`, the script lists its items in `depth-not-run.txt` and fails. Cover them by adding scenarios to `tests/ingame/run.ps1` on the branch, then run again.
-
-## If a run is killed
-
-Killing the PowerShell process skips the teardown.
-The lock `owner.txt` names the run stamp and its PID.
-Clean up only a run whose PID is gone and whose stamp is yours.
-Stop the java processes that run started, remove its two lock folders, and delete `C:\Work\gateb-run-<stamp>` and `C:\Work\mc-ssot-pr1-gb<stamp>-*`.
-Unlink each `libraries` junction with `cmd /c rmdir` before any recursive delete.
+- A skipped scenario, a missing screenshot or a missing video is not a pass. Never round it up.
 
 ## Report
 
