@@ -199,8 +199,8 @@ return {
     ["view-scene.lua"]="97baa2b4",
     ["view-source.lua"]="942bbbac",
     ["views.lua"]="e3966575",
-    ["warehouse-tasks.lua"]="7ea10cb8",
-    ["warehouse.lua"]="51f00b37",
+    ["warehouse-tasks.lua"]="821639d4",
+    ["warehouse.lua"]="07140763",
     ["wh2-ar.lua"]="807a5915",
     ["wh2-board.lua"]="777dc55f",
     ["wh2-client.lua"]="b3db8469",
@@ -1010,5 +1010,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="fd6009e4"
+  ["version"]="b974c0a2"
 }

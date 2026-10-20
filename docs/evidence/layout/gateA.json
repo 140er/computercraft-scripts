@@ -1,0 +1,24 @@
+{
+  "item": "layout",
+  "lua52": {
+    "command": "lua5.2 tests/run.lua",
+    "passed": 111,
+    "failed": 0
+  },
+  "craftos": {
+    "version": "CraftOS-PC v2.8.3",
+    "standardsMode": true,
+    "computerSpaceLimit": 4000000,
+    "layoutTests": { "ok": true, "passed": 13, "failed": 0 },
+    "smoke": {
+      "seconds": 20,
+      "stderrBytes": 0,
+      "computers": [
+        { "id": 0, "ok": true, "booted": true },
+        { "id": 1, "ok": true, "booted": true },
+        { "id": 2, "ok": true, "booted": true }
+      ]
+    }
+  },
+  "gateB": "NOT RUN"
+}
