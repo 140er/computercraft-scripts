@@ -1,0 +1,21 @@
+{
+    "errors":  [
+                   "Hub drew while forwarding a layer key to the server."
+               ],
+    "native":  true,
+    "deferred":  [
+                     "PR 4 charging and warehouse routes use explicit unavailable adapters",
+                     "PR 5 view roles and separate-hub ore snapshots use explicit unavailable adapters"
+                 ],
+    "ok":  false,
+    "visual":  true,
+    "scenario":  "ar",
+    "missing":  [
+                    "Production server/hub ownership failover with actual shared controller",
+                    "Production chat recall with real turtle return movement",
+                    "Native cached installation of every role",
+                    "Visible through-wall turtle and ore geometry"
+                ],
+    "root":  "C:\\Work\\mc-ssot-pr6-f1b55da9",
+    "nativeRendering":  true
+}

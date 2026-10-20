@@ -29,7 +29,9 @@ Start-Sleep -Seconds 40
 $settled=Wait-Owners { param($s,$h) @($h.journal | Where-Object { $_.kind -eq 'lease' -and $_.direction -eq 'received' -and $_.arOwner -eq $true }).Count -gt 0 } 'hub received server ownership lease'
 $hubMutations=$settled[1].mutations
 Start-Sleep -Seconds 6
-$hub=Read-Owner 4
+$sampleAfter=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$stable=Wait-Owners { param($s,$h) $s.time -ge $sampleAfter -and $h.time -ge $sampleAfter } 'fresh owner samples after suppression check'
+$hub=$stable[1]
 if ($hub.mutations -ne $hubMutations) { throw 'Hub mutated the shared controller during server ownership.' }
 $injectionId=[guid]::NewGuid().ToString('N')
 $injection=@{id=$injectionId;fault='stale-namespace'} | ConvertTo-Json -Compress
@@ -56,19 +58,29 @@ $oldBoot=$settled[0].boot
 Rcon 'computercraft turn-on 0' | Out-Null
 $reclaimed=Wait-Owners { param($s,$h) $s.boot -gt $oldBoot -and $s.updates -gt 0 -and $s.lastUpdate -gt $off } 'server reclaimed after computer restart'
 Start-Sleep -Seconds 35
-$hub=Read-Owner 4
+$requestId=[guid]::NewGuid().ToString('N')
+$sampleAfter=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$baseline=Wait-Owners { param($s,$h) $s.time -ge $sampleAfter -and $h.time -ge $sampleAfter } 'fresh owner samples before forwarded key'
+$hub=$baseline[1]
 $hubMutations=$hub.mutations
-$server=Read-Owner 0
+$server=$baseline[0]
 $serverUpdates=$server.updates
-$request=@{id=[guid]::NewGuid().ToString('N');key='p'} | ConvertTo-Json -Compress
+@{requestId=$requestId;server=$server;hub=$hub} | ConvertTo-Json -Depth 30 |
+    Set-Content "$Output\owner-key-baseline.json"
+$request=@{id=$requestId;key='p'} | ConvertTo-Json -Compress
 [IO.File]::WriteAllText("$TestRoot\world\computercraft\computer\4\ar-owner-request.json",$request,$utf8)
-$toggled=Wait-Owners { param($s,$h) $s.updates -gt $serverUpdates } 'hub key reached server-owned HUD'
+$toggled=Wait-Owners { param($s,$h) $h.request -eq $requestId -and $s.updates -gt $serverUpdates } 'hub key reached server-owned HUD'
 Start-Sleep -Seconds 6
-$hub=Read-Owner 4
+$sampleAfter=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$afterKey=Wait-Owners { param($s,$h) $h.request -eq $requestId -and $s.time -ge $sampleAfter -and
+    $h.time -ge $sampleAfter } 'fresh owner samples after forwarded key'
+$hub=$afterKey[1]
+@{requestId=$requestId;server=$afterKey[0];hub=$hub} | ConvertTo-Json -Depth 30 |
+    Set-Content "$Output\owner-key-after.json"
 if ($hub.mutations -ne $hubMutations) { throw 'Hub drew while forwarding a layer key to the server.' }
 Rcon 'setblock 1 66 0 minecraft:air' | Out-Null
-Wait-Owners { param($s,$h) !$s.attached -and !$h.attached } 'both owners observed physical detach' | Out-Null
-$serverUpdates=(Read-Owner 0).updates
+$detached=Wait-Owners { param($s,$h) !$s.attached -and !$h.attached } 'both owners observed physical detach'
+$serverUpdates=$detached[0].updates
 Rcon 'setblock 1 66 0 cc_ar:ar_controller' | Out-Null
 $restored=Wait-Owners { param($s,$h) $s.attached -and $h.attached -and $s.updates -gt $serverUpdates -and $s.elementCount -gt 5 } 'replacement controller redrew'
 $restored[0] | ConvertTo-Json -Depth 30 | Set-Content "$Output\owner-server-restored.json"

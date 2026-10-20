@@ -1,9 +1,7 @@
 $installDisk=Join-Path $TestRoot 'world\computercraft\computer\4'
 $installRoot=[IO.Path]::GetFullPath($TestRoot)
 if ($installRoot -notmatch '^C:\\Work\\mc-ssot-pr6-[a-zA-Z0-9-]+$') { throw 'Installer phase requires the owned PR 6 test root.' }
-if (!(Test-Path "$Output\owner-result.json")) { throw 'Run the ownership phase before replacing computer 4 startup.' }
-$ownerResult=Get-Content "$Output\owner-result.json" -Raw | ConvertFrom-Json
-if (!$ownerResult.ok) { throw 'Ownership phase did not pass.' }
+if (!$script:arProcess -or $script:arProcess.HasExited) { throw 'Installer phase requires the owned test server to be running.' }
 Rcon 'computercraft shutdown 4' | Out-Null
 Start-Sleep -Seconds 2
 $installStartup=Join-Path $installDisk 'startup.lua'

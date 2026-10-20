@@ -207,9 +207,11 @@ try {
         catch { $result.native=$false; $result.errors += $_.Exception.Message }
     }
     if (!$result.native) { $result.missing += 'Native restart recovery' }
-    . "$PSScriptRoot\ar-owner.ps1"
-    $result.owner = $true
-    $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })
+    try {
+        . "$PSScriptRoot\ar-owner.ps1"
+        $result.owner = $true
+        $result.missing = @($result.missing | Where-Object { $_ -notlike 'Production server/hub ownership*' })
+    } catch { $result.errors += $_.Exception.Message }
     try {
         . "$PSScriptRoot\ar-install.ps1"
         $result.installation = $true

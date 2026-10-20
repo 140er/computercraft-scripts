@@ -1,0 +1,1 @@
+Final F2 file and copy were zero bytes when client exit occurred. This is invalid visual evidence. A temporary recopy selected the earlier wall shot; it was replaced with the actual zero-byte final original. The two earlier originals remain intact.
