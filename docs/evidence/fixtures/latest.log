@@ -1,0 +1,71 @@
+[20Oct2026 15:40:32.674] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--launchTarget, forgeserver, --fml.neoForgeVersion, 21.1.259, --fml.fmlVersion, 4.0.45, --fml.mcVersion, 1.21.1, --fml.neoFormVersion, 20240808.144430, nogui]
+[20Oct2026 15:40:32.675] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: JVM identified as Ubuntu OpenJDK 64-Bit Server VM 21.0.12.1+1-1-24.04.4-Ubuntu
+[20Oct2026 15:40:32.676] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.12.1 by Ubuntu; OS Linux arch amd64 version 6.12.94+
+[20Oct2026 15:40:32.735] [main/INFO] [net.neoforged.fml.loading.ImmediateWindowHandler/]: ImmediateWindowProvider not loading because launch target is forgeserver
+[20Oct2026 15:40:32.761] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/tmp/gateb-server/libraries/net/fabricmc/sponge-mixin/0.16.4+mixin.0.8.7/sponge-mixin-0.16.4+mixin.0.8.7.jar%2373!/ Service=ModLauncher Env=SERVER
+[20Oct2026 15:40:32.958] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "server-1.21.1-20240808.144430-srg.jar" [locator: production server provider +net.neoforged:neoforge:21.1.259:server]
+[20Oct2026 15:40:32.971] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "neoforge-21.1.259-universal.jar" [locator: PathBasedLocator[name=neoforge, paths=[libraries/net/neoforged/neoforge/21.1.259/neoforge-21.1.259-universal.jar]], reader: mod manifest]
+[20Oct2026 15:40:32.976] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found mod file "cc-tweaked-1.21.1-forge-1.120.2.jar" [locator: {mods folder locator at /tmp/gateb-server/mods}, reader: mod manifest]
+[20Oct2026 15:40:33.060] [main/INFO] [net.neoforged.fml.loading.moddiscovery.locators.JarInJarDependencyLocator/]: Found 4 dependencies adding them to mods collection
+[20Oct2026 15:40:33.060] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found gamelibrary file "mixinextras-neoforge-0.5.5.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 15:40:33.060] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "cobalt-0.9.9.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 15:40:33.060] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "jzlib-1.1.3.jar" [parent: cc-tweaked-1.21.1-forge-1.120.2.jar, locator: jarinjar]
+[20Oct2026 15:40:33.060] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: Found library file "net.neoforged.neoforge-coremods-21.1.259.jar" [parent: neoforge-21.1.259-universal.jar, locator: jarinjar, reader: mod manifest]
+[20Oct2026 15:40:33.061] [main/INFO] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/]: 
+     Mod List:
+		Name Version (Mod Id)
+
+		CC: Tweaked 1.120.2 (computercraft)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.259 (neoforge)
+[20Oct2026 15:40:33.431] [main/INFO] [mixin/]: Compatibility level set to JAVA_21
+[20Oct2026 15:40:33.441] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeserver' with arguments [nogui]
+[20Oct2026 15:40:34.000] [main/INFO] [MixinExtras|Service/]: Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.5).
+[20Oct2026 15:40:37.206] [modloading-worker-0/INFO] [net.neoforged.neoforge.common.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.259, for MC 1.21.1
+[20Oct2026 15:40:37.892] [main/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[20Oct2026 15:40:37.912] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Starting version check at https://api.modrinth.com/updates/cc-tweaked/forge_updates.json
+[20Oct2026 15:40:37.967] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/tmp/gateb-server/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23118!/assets/.mcassetsroot' uses unexpected schema
+[20Oct2026 15:40:37.968] [main/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/tmp/gateb-server/libraries/net/minecraft/server/1.21.1-20240808.144430/server-1.21.1-20240808.144430-srg.jar%23118!/data/.mcassetsroot' uses unexpected schema
+[20Oct2026 15:40:38.143] [NeoForge Version Check/INFO] [net.neoforged.fml.VersionChecker/]: [computercraft] Found status: BETA Current: 1.120.2 Target: null
+[20Oct2026 15:40:38.898] [main/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 1365 recipes
+[20Oct2026 15:40:38.999] [main/INFO] [net.minecraft.advancements.AdvancementTree/]: Loaded 1469 advancements
+[20Oct2026 15:40:39.447] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting minecraft server version 1.21.1
+[20Oct2026 15:40:39.447] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Loading properties
+[20Oct2026 15:40:39.447] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Default game type: CREATIVE
+[20Oct2026 15:40:39.447] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[20Oct2026 15:40:39.553] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting Minecraft server on 127.0.0.1:25571
+[20Oct2026 15:40:39.580] [Server thread/INFO] [net.minecraft.server.network.ServerConnectionListener/]: Using epoll channel type
+[20Oct2026 15:40:39.602] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[20Oct2026 15:40:39.602] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: The server will make no attempt to authenticate usernames. Beware.
+[20Oct2026 15:40:39.602] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[20Oct2026 15:40:39.602] [Server thread/WARN] [net.minecraft.server.dedicated.DedicatedServer/]: To change this, set "online-mode" to "true" in the server.properties file.
+[20Oct2026 15:40:39.641] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Preparing level "world"
+[20Oct2026 15:40:39.755] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[20Oct2026 15:40:39.895] [Worker-Main-2/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Preparing spawn area: 0%
+[20Oct2026 15:40:40.024] [Server thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 268 ms
+[20Oct2026 15:40:40.024] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Done (0.414s)! For help, type "help"
+[20Oct2026 15:40:40.024] [Server thread/INFO] [net.minecraft.server.dedicated.DedicatedServer/]: Starting remote control listener
+[20Oct2026 15:40:40.030] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener started
+[20Oct2026 15:40:40.030] [Server thread/INFO] [net.minecraft.server.rcon.thread.RconThread/]: RCON running on 127.0.0.1:25575
+[20Oct2026 15:40:40.052] [Server thread/INFO] [net.neoforged.neoforge.server.permission.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[20Oct2026 15:40:40.953] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 15:40:40.953] [RCON Client /127.0.0.1 #2/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 15:40:40.954] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 15:40:40.961] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 15:40:40.961] [RCON Client /127.0.0.1 #3/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 15:40:40.963] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 15:40:40.963] [RCON Client /127.0.0.1 #4/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 15:40:41.068] [RCON Client /127.0.0.1 #5/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 15:40:41.068] [RCON Listener #1/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Client /127.0.0.1 started
+[20Oct2026 15:40:41.074] [RCON Client /127.0.0.1 #6/INFO] [net.minecraft.server.rcon.thread.RconClient/]: Thread RCON Client /127.0.0.1 shutting down
+[20Oct2026 15:40:41.113] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Stopping server
+[20Oct2026 15:40:41.113] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving players
+[20Oct2026 15:40:41.114] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving worlds
+[20Oct2026 15:40:41.403] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:overworld
+[20Oct2026 15:40:41.494] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_end
+[20Oct2026 15:40:41.496] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[world]'/minecraft:the_nether
+[20Oct2026 15:40:41.501] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (world): All chunks are saved
+[20Oct2026 15:40:41.501] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[20Oct2026 15:40:41.501] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[20Oct2026 15:40:41.501] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[20Oct2026 15:40:41.507] [Server thread/INFO] [net.minecraft.server.rcon.thread.GenericThread/]: Thread RCON Listener stopped
