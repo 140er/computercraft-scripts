@@ -270,8 +270,19 @@ local ok,err=pcall(function()
       end
       _G.dofile=dofile
     end
+    local gpuName
+    if runtime=="minecraft" then
+      local devices={}
+      for _,name in ipairs(peripheral.getNames()) do
+        devices[#devices+1]={name=name,type=peripheral.getType(name),methods=peripheral.getMethods(name)}
+      end
+      json("views-peripherals.json",devices)
+      if id~=8 then
+        gpuName=peripheral.getName(assert(peripheral.find("directgpu"),"missing real DirectGPU"))
+      end
+    end
     write("views.cfg",{enabled=true,mode=id==8 and "warehouse" or "pro",server=0,secret=secret,
-      dim=dim,center={x=0,y=65,z=0},radius=runtime=="sandbox" and 1 or 4,gpu=runtime=="minecraft" and id~=8 and "right" or nil,
+      dim=dim,center={x=0,y=65,z=0},radius=runtime=="sandbox" and 1 or 4,gpu=gpuName,
       monitor=runtime=="minecraft" and "back" or "right",width=320,height=240,camera="iso",timeout=10})
     parallel.waitForAny(function() assert(loadfile("hub.lua","t",_ENV))(id==8 and "warehouse" or "pro") end,function()
       sleep(15)

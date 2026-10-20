@@ -17,3 +17,4 @@ The warehouse fixture replaces only PR 4's `wh-sites` read boundary. Mine snapsh
 Full logs and failed attempts remain at `C:\Work\gemini-input\p2\evidence\pr5`. The two CraftOS PNGs are also in `C:\Work\gemini-input\shots`.
 
 The third attempt's log is native-watchdog.log. It records whole-server lag and watchdog stacks in scheduling and error cleanup. It does not establish a Lua loop, GC failure or memory exhaustion. The next probe keeps watchdog limits unchanged, adds GC/safepoint logs, staggers startup and rejects partial JSON verdicts.
+The curated watchdog log trims trailing whitespace. The original remains in the full evidence directory.

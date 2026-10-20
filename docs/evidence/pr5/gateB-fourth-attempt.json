@@ -1,0 +1,24 @@
+{
+    "ok":  false,
+    "testRoot":  "C:\\Work\\mc-ssot-pr5-615679ab",
+    "outcome":  "Fixture bound the wired modem as the GPU",
+    "report":  {
+                   "ok":  false,
+                   "lines":  [
+                                 "views production runtime"
+                             ],
+                   "errors":  [
+                                  "/views-runtime.lua:244: DirectGPU initialization: /directview.lua:71: attempt to call field \u0027autoDetectAndCreateDisplay\u0027 (a nil value)"
+                              ],
+                   "booted":  true,
+                   "free":  2972216,
+                   "checks":  {
+
+                              }
+               },
+    "cause":  "A stationary computer swaps local left/right. GPU at x+1 is left; right is the wired modem.",
+    "fix":  "Test configuration selects peripheral.find(directgpu) by its actual name and saves peripheral methods",
+    "productionChanged":  false,
+    "clientStarted":  false,
+    "evidence":  "C:\\Work\\gemini-input\\p2\\evidence\\pr5\\gateB\\instrumented"
+}
