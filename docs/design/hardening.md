@@ -23,17 +23,24 @@ auth and request queue. Layout and craft start after H3 and H4 are merged.
   `os.pullEvent` in those paths.
 - The periodic timer survives lost events and is re-armed.
 
-## H1+H2: auth and updates
+## H1+H2 auth and updates (#47, #53, #55)
 
 - A MAC over request id, counter, op and body. The approved plan uses
   ccryptolib's keyed BLAKE3 for it, and an Ed25519-signed manifest. The key never goes on
   the wire, in requests or in replies. Mesh relays forward the MAC, not a key.
-- Replays are rejected. A counter near or at its maximum cannot lock a turtle
-  out.
+- The v2 envelope carries a keyed BLAKE3 MAC over rid, counter, op, and the
+  canonical body, including its auth context. The client saves the counter
+  and complete envelope before sending, then restores that envelope on boot.
+- Replays return the saved result. Before the counter ceiling, an authenticated
+  exchange advances the integer authentication epoch and starts a new session.
 - Updates use a signed manifest that names one version for every file. The
-  client pins the server id, installs all files or none, and keeps the last
+  client pins the server ID, signing key ID, and Ed25519 public key. It installs
+  all files or none and keeps the last
   good version for rollback. No unauthenticated `rednet.lookup` fallback.
 - Extras: version and capability handshake between client and server.
+- `ssot.cfg.requireMac` defaults to false. Once true, it rejects v1 requests.
+  A durable upgrade marker prevents config changes or rollback from downgrading
+  the authority. New wh2 operations always require v2 authentication.
 
 ## H4: disk budget (APPROVED)
 

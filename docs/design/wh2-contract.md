@@ -1,6 +1,6 @@
 # Warehouse v2 contract
 
-This is the shared reference for the hardening track, fleet, wizard, layout, and craft. It defines the interfaces those PRs use. Existing `mine-*`, `wh-*`, and navigation operations retain their domain meanings under the authenticated transport below. Legacy packets cannot authorize shared-state changes or updates.
+This is the shared reference for the hardening track, fleet, wizard, layout, and craft. It defines the interfaces those PRs use. Existing `mine-*`, `wh-*`, and navigation operations retain their domain meanings. The authentication upgrade is default-off through `ssot.cfg.requireMac`, as defined under Rednet protocol (#55). New wh2 operations always require v2 authentication.
 
 H4 and miner offline autonomy are APPROVED. Jeffrey accepted it on 2026-10-20 at 17:09 (Europe/Amsterdam). The build plan is [the H4 offline plan](../plans/cc-h4-offline-plan.md), and its P0 PR freezes the implementable shapes in `docs/design/h4-offline-contract.md`. Where those shapes and the notes below differ, the plan wins. The H1+H2 MAC uses ccryptolib's keyed BLAKE3, and the update manifest is signed with Ed25519. This contract takes precedence over the earlier H4 prerequisite for layout and craft in [the hardening plan](hardening.md).
 
@@ -323,41 +323,58 @@ Graph pages are disposable. Only selected production steps and bounded query fra
 
 ## Rednet protocol (#47, #53, #55, #56)
 
-All requests use rednet protocol `fleetserver`. H1+H2 owns transport `wire={major=2,minor=0}` and the authenticated version and capability handshake below. `wh2=1` is the payload schema, independent of transport and release versions. A bare `v=1` is not a handshake. Clients use one `ssot-client` instance and feed `dispatch` from the program's existing sole application receiver. Blocking calls run outside that receiver.
+All requests use rednet protocol `fleetserver`. H1+H2 owns envelope `v=2`, transport `wire={major=2,minor=0}`, and the authenticated version and capability handshake below. `wh2=1` is the payload schema, independent of transport and release versions. A bare `v=1` is not a handshake. Clients use one `ssot-client` instance and feed `dispatch` from the program's existing sole application receiver. Blocking calls run outside that receiver.
+
+### Authentication rollout (#55)
+
+`ssot.cfg.requireMac` defaults to false when absent. This flag is separate from `ssot.cfg.wh2.enabled` and local `wh2.enabled`, which also default off. With `requireMac=false`, existing v1 operations keep their legacy behavior. Installing new code alone does not remove their write authority. New wh2, lease, enrolment, and storage operations require authenticated v2 even during migration. A v2 client never falls back to v1 after a failed MAC or negotiation.
+
+This sample shows the auth field in `ssot.cfg`. Existing controller and wh2 configuration fields remain alongside it.
+
+```lua
+ssotAuthConfig = { requireMac = false }
+```
+
+The operator first installs compatible code, provisions fresh keys and the pinned server ID and public key, and verifies v2 clients. It then sets `requireMac=true` locally on the authority. The server saves a durable `macRequired=true` upgrade marker before accepting that setting. Thereafter it rejects every v1 request, including domain reads and writes, and refuses unsigned updates. Setting the flag false or deleting it cannot clear that marker. Boot keeps v2 required when the config conflicts with the marker. Code rollback must preserve and understand it. Moving or replacing an authority requires a local migration that carries the marker and rotates credentials. Network requests cannot downgrade it. This is the one-way upgrade path.
 
 ```lua
 request = {
-	wire = { major = 2, minor = 0 }, type = "ssot", expect = "ssot_reply",
+	v = 2, wire = { major = 2, minor = 0 }, direction = "request", type = "ssot", expect = "ssot_reply",
 	server = 0, sender = 17, keyId = "pair:17:2", session = "session:17:9",
+	sessionGeneration = 9,
 	rid = "1792500000000:17:42", boot = "1792500000000:17", counter = 42,
 	op = "wh2-get", body = { wh2 = 1, topic = "locations", cursor = 0 },
 	mac = "<64 lowercase hex digits>",
 }
 reply = {
-	wire = { major = 2, minor = 0 }, type = "ssot_reply",
+	v = 2, wire = { major = 2, minor = 0 }, direction = "reply", type = "ssot_reply",
 	server = 0, sender = 0, target = 17, keyId = "pair:17:2", session = "session:17:9",
+	sessionGeneration = 9,
 	rid = "1792500000000:17:42", boot = "1792500000000:17", counter = 42,
 	op = "wh2-get", body = { wh2 = 1, ok = true, revision = 3, records = {}, cursor = 0 },
 	mac = "<64 lowercase hex digits>",
 }
 changeHint = {
-	wire = { major = 2, minor = 0 }, type = "wh2_changed",
+	v = 2, wire = { major = 2, minor = 0 }, direction = "hint", type = "wh2_changed",
 	server = 0, sender = 0, target = 17, keyId = "pair:17:2", session = "session:17:9",
+	sessionGeneration = 9,
 	rid = "hint:17:6", counter = 6, op = "wh2-changed",
 	body = { wh2 = 1, topic = "settings", revision = 5 },
 	mac = "<64 lowercase hex digits>",
 }
 ```
 
-H1+H2 vendors `sha2.lua` from [Egor Skriptunoff's pure_lua_SHA](https://github.com/Egor-Skriptunoff/pure_lua_SHA), pinned to a reviewed revision with its MIT license. The pure-Lua module supports Lua 5.2 and `bit32`. `ssot-auth.lua` owns canonical encoding, key derivation, and `sha.hmac(sha.sha256, key, bytes)`. It returns the full 256-bit MAC as 64 lowercase hex digits. These are planned filenames owned by H1+H2, not modules already present in this branch.
+### MAC and key contract (#47)
 
-The signed bytes are `"cc-ssot/2/" .. direction .. canonical(envelopeWithoutMac)`. Directions are `request`, `reply`, `hint`, `pair`, `session`, and `manifest`. This covers the request ID, counter, op, complete body, wire version, type, expected reply, identities, key generation, session, and boot wherever present. No field can be added outside the signed envelope to influence authorization. Relays cannot change these bytes. MACs authenticate bytes but do not encrypt bodies.
+H1+H2 vendors ccryptolib at a reviewed pin with its MIT license. The accepted plan inspected revision `14489aa`. `ssot-auth.lua` owns canonical encoding, ccryptolib's keyed BLAKE3 MAC, and domain-separated key derivation. It returns the full 32-byte MAC as 64 lowercase hex digits. HMAC-SHA256, `sha2.lua`, and the previous HMAC vectors are rejected. No hand-written cryptographic primitive or wrapper replaces ccryptolib. These modules are planned dependencies, not implementations already present in this branch.
+
+The MAC input is the plan's `rid|counter|op|canonical body`. Precisely, it is `rid .. "|" .. decimal(counter) .. "|" .. op .. "|" .. canonical(B)`. `B` is the complete envelope with only `rid`, `counter`, `op`, and `mac` removed. It includes the domain `body`, direction, v, wire version, message type, expected reply, server and client IDs, key ID, session, authentication epoch, and boot wherever present. This definition preserves authentication of the complete context. The decimal counter has no leading zeros or plus sign. IDs and op names cannot contain `|`. Directions are `request`, `reply`, `hint`, `pair`, or `session` and must match the message type and derived key. Relays forward these bytes unchanged. MACs authenticate bodies without encrypting them.
 
 Canonical encoding uses type tags and byte lengths. Strings are `s<decimal byte length>:<raw bytes>`, and booleans are `t` or `f`. Numbers are `n<16 lowercase hex digits>;`, the IEEE-754 binary64 bits in big-endian order. Negative zero encodes as positive zero. Tables are `m<count>{<key><value>...}` with integer keys first in numeric order and string keys next in byte order. Lengths and counts have no leading zero or plus sign. Empty tables encode as `m0{}`. Array positions are integer keys. Nil values, duplicate keys, other key types, non-finite numbers, and integers outside the exact binary64 range fail at this boundary. Domain validators still require integers for IDs, revisions, and counters. `textutils.serialize` is not the MAC encoding.
 
-The analytic cost for `n` canonical signed bytes and a normalized 32-byte key is `ceil((n+9)/64)+3` SHA-256 compression blocks per HMAC, without cached hash states. Each block has 64 rounds. For 1024 bytes that is 20 blocks. For 8192 bytes it is 132 blocks. Signing and verifying each cost one HMAC, so a request and reply cost four HMAC evaluations across both machines. Each recipient adds two for a hint. These counts follow [the HMAC construction](https://www.rfc-editor.org/rfc/rfc2104). They are not measured latency. H1+H2 records actual CC timings for small, page-sized, and maximum envelopes. Encoding and durable replay I/O add separate costs.
+P0 checks keyed BLAKE3, SHA-256, X25519, and Ed25519 in Cobalt against the 7-second timeout and records any required yields outside SSOT transactions. H1+H2 keeps known-answer and canonical-encoding fixtures for the pinned library and records actual timings for small, page-sized, and maximum envelopes. The rejected primitive's analytic costs and vectors are not evidence for BLAKE3 performance or correctness.
 
-Pairing provisions a distinct high-entropy 32-byte bootstrap key locally on the server and each controller through a trusted installer or direct console. Neither pairing messages nor discovery transmit that key. A short PIN, `math.random`, a computer ID, and a timestamp do not supply key entropy. The peers exchange public one-use challenges and prove possession over the transcript below. Challenges are unique within a durable pairing generation. Keys stay in local private configuration. Migration rotates the old plaintext keys before v2 use.
+Initial local pairing provisions a distinct high-entropy 32-byte bootstrap key on the server and controller through a trusted installer or direct console. Neither pairing messages nor discovery transmit it. A short PIN, `math.random`, a computer ID, and a timestamp do not supply key entropy. Public one-use challenges bind the transcript below. Challenges are unique within a durable pairing generation. Migration rotates the old plaintext keys before v2 use. I1 enrolment replaces manual entry with the plan's transcript-authenticated ephemeral X25519 exchange. Its copy code authenticates public keys, nonces, and IDs. The pairing key derives from the shared secret and transcript. Only if P0 rejects X25519 does I1 use the plan's 16-character code fallback. Randomness initialization must pass P0 before secret operations.
 
 ```lua
 pairTranscript = {
@@ -366,21 +383,27 @@ pairTranscript = {
 }
 keyDerivation = {
 	label = "cc-ssot-key/2", direction = "request", server = 0, client = 17,
-	pairingGeneration = 2, session = "session:17:9",
+	pairingGeneration = 2, session = "session:17:9", sessionGeneration = 9,
 }
 ```
 
-Pairing proof is `hexHmac(Kbootstrap, "cc-ssot/2/pair" .. canonical(pairTranscript))`. `Kpair=rawHmac(Kbootstrap, canonical(pairTranscript))`. Each traffic key is `rawHmac(Kpair, canonical(keyDerivation))`. The direction is exactly `request`, `reply`, `hint`, or `manifest`. The session-control derivation uses direction `session` and omits the `session` key entirely. It remains available when a session file is lost. `hexHmac` is the module's 64-character output. `rawHmac` decodes that hex to 32 binary bytes with `sha.hex_to_bin`. KDF inputs and local keys always use raw bytes. Only MAC fields on the wire use hex. The transcript and derivation field sets are exact.
+For local bootstrap pairing, the proof is keyed BLAKE3 under `Kbootstrap` over the pairing transcript with domain `cc-ssot/2/pair`. ccryptolib's domain-separated KDF derives the 32-byte `Kpair` from the bootstrap secret and full transcript under `cc-ssot-pair/2`. I1 derives that key from the X25519 secret and its full enrolment transcript instead. Traffic keys derive from `Kpair` and the exact `keyDerivation` table under `cc-ssot-traffic/2`. The traffic direction is `request`, `reply`, or `hint`. The session-control derivation uses direction `session` and omits both `session` and `sessionGeneration`. It remains available when a session file is lost. KDF inputs and local keys are raw bytes. Wire MACs are lowercase hex. P0 freezes the library calls and their fixtures, including labels and field sets.
 
-The fixed test vector uses the two tables above and bootstrap bytes `00` through `1f` in order. It expects `Kpair` hex `d3112db576986600216a96bd18ee1d046ab501ff2e9862f632588820d1d223c1` and request-key hex `8d81c035d1f9dfcff439d1ab170d07721a742ee31a5d7cee24f88aa440cedad7`. These are public test values, never deployment keys.
+Ed25519 manifest signatures use the server's separate signing key and pinned public key. Pairing keys and the server-only storage key never sign a manifest. The old fixed MAC vector is removed rather than relabelled as a BLAKE3 result.
 
 The replay window stores the last eight completed requests per client session, including their exact signed bytes and durable results. An exact retry returns that saved result without running the operation again. Reusing an ID or counter with different bytes fails. An evicted counter at or below the high-water mark fails. A new counter is an integer from 1 through 2147483647 and at most 64 above the high-water mark. The small gap allows a crash after reserving a local counter. Invalid MACs, huge counters, and rejected gaps never advance replay state. State, accepted counter, and result commit before reply.
 
-Before the final 64 counter values, the client drains its worker and performs an authenticated `ssot-session` control exchange. That exchange also works when the counter is exhausted or its local file is lost. Pairing and session control use a fixed v2 control envelope before negotiation, with their own message types, MAC directions, and `counter=0`. They never pass through the domain-request counter check. Session control uses the session key, a fresh one-use server challenge, and a client attempt ID saved before sending. The server atomically records a new session ID, increasing `sessionGeneration`, and counter zero. Its signed acknowledgement contains `{attemptId, serverChallenge, session, sessionGeneration}`. Retries return that acknowledgement only while its session remains current. A superseded attempt returns `superseded`, never its old success. The client correlates the current attempt and challenge, rejects older session generations, and saves the acknowledgement before counter one. A crash resumes the same exchange. Hello must succeed before domain work. Old sessions remain fenced, including after reboot. A hint sequence rolls with the session as well. No numeric wrap, timestamp reset, unauthenticated reset, or accepted maximum counter can permanently lock out a paired turtle.
+Before the final 64 counter values, the client drains its worker and performs an authenticated `ssot-session` exchange. It rolls the client's authentication epoch, `sessionGeneration`, to the next integer and issues a new session ID before resetting the counter to zero. It does not overwrite the server's authority epoch or existing lease facts. The exchange also works when the counter is exhausted or its local file is lost. Pairing and session control use a fixed v2 control envelope before negotiation, with separate message types and MAC directions and `counter=0`. They bypass the domain-request counter check. Session control uses the session key, a fresh one-use server challenge, and a client attempt ID saved before sending. The server atomically saves the new session, authentication epoch, and counter zero. Its MAC-authenticated acknowledgement contains `{attemptId, serverChallenge, session, sessionGeneration}`. Retries return it only while that session remains current. A superseded attempt returns `superseded`. The client rejects older epochs and saves the acknowledgement before counter one. A crash resumes the same exchange. Hello must succeed before new domain work. Old sessions and hint sequences remain fenced. Numeric wrap, timestamp reset, unauthenticated reset, and a maximum counter cannot lock out a paired turtle.
 
-The paired sender owns its own telemetry and settings acknowledgement. Configured operator computer IDs may edit settings, layouts, classes, and craft requests. A configured recipe hub ID may claim and publish recipe queries. These roles come from private `ssot.cfg.wh2` configuration, not a self-reported fleet role. Legacy hub packets cannot write v2 state. Keys never appear in records, view responses, errors, hints, or relay wrappers.
+The paired sender owns its own telemetry and settings acknowledgement. Configured operator computer IDs may edit settings, layouts, classes, and craft requests. A configured recipe hub ID may claim and publish recipe queries. These roles come from private `ssot.cfg.wh2` configuration, not a self-reported fleet role. Legacy hub packets cannot write v2 state. Keys never appear in v2 requests, replies, records, errors, hints, or relay wrappers. Legacy behavior while `requireMac=false` remains the migration exception, not a permitted v2 encoding.
 
-The client validates the pinned server, target, session, negotiated version, MAC, reply type, op, and pending request ID and counter. Direct messages also match the rednet sender. Relayed messages prove the original identity with the end-to-end MAC, never the relay's claimed sender alone. The relay forwards the complete original envelope and MAC unchanged. Its bounded outer wrapper contains only routing IDs, deduplication ID, and hop limit. It holds no controller keys. Retries reuse the original envelope byte for byte. New requests reserve their counter durably before transmission.
+The client validates the pinned server, target, session, authentication epoch, negotiated version, MAC, reply type, op, and pending request ID and counter. Direct messages also match the rednet sender. Relayed messages prove the original identity with the end-to-end MAC. The relay forwards the complete original envelope and MAC unchanged. Its bounded outer wrapper contains only routing IDs, deduplication ID, and hop limit. It holds no controller keys.
+
+### Durable pending requests (#53)
+
+Before any transmission, one atomic local outbox record saves the reserved counter and the complete immutable envelope, including its boot, session, authentication epoch, rid, body, and MAC. It saves the serialized envelope. Canonical input is reproduced deterministically from those saved fields. The record has a 20480-byte encoded ceiling per generation, covering an 8192-byte envelope, string escaping, and metadata. Both save copies count against the local ledger. A failed save sends nothing. One outbound worker permits one pending request. Saving only `ssot.counter`, as the current client does, does not meet this contract.
+
+Boot restores that pending envelope before minting another counter, boot-dependent rid, or session. It retries the same authenticated bytes even if the current process has a different boot. It does not regenerate them from a new status snapshot. After a verified reply, it durably records the result and the caller's recovery cursor before clearing the pending record. A crash resumes that step. A fenced session or an evicted replay requires authenticated status and domain reconciliation using the stable operation key. It never authorizes blind repetition of a physical action. Only after the pending result is resolved may the client roll its session or send new domain work. Rednet may serialize a table again, but every authenticated field and canonical byte stays unchanged.
 
 Operation names stay within 16 bytes. Requests and replies stay within 8192 compact serialized bytes, including envelope and MAC, and existing `ssot.bounded` limits. Canonical signed bytes also have an 8192-byte cap before hashing. Oversized records use smaller pages. Ordinary pages target 4096 bytes with at most 64 records. Larger records use explicit subresource pages, never truncated facts.
 
@@ -432,30 +455,33 @@ The authenticated `ssot-hello` exchange negotiates a transport version before do
 hello = {
 	challenge = "client:17:hello:8", release = "<immutable release id>", stateSchema = 1,
 	wire = { minMajor = 2, maxMajor = 2, maxMinor = 0 },
-	capabilities = { hmacSha256 = 1, atomicBundle = 1, traffic = 1, wh2 = 1 },
-	required = { "hmacSha256", "atomicBundle", "traffic" },
+	capabilities = { keyedBlake3 = 1, ed25519Manifest = 1, atomicBundle = 1, traffic = 1, wh2 = 1 },
+	required = { "keyedBlake3", "ed25519Manifest", "atomicBundle", "traffic" },
 }
 helloReply = {
 	challenge = "client:17:hello:8", serverChallenge = "server:0:hello:19",
 	release = "<immutable release id>", stateSchema = 1, wire = { major = 2, minor = 0 },
-	capabilities = { hmacSha256 = 1, atomicBundle = 1, traffic = 1, wh2 = 1 },
+	capabilities = { keyedBlake3 = 1, ed25519Manifest = 1, atomicBundle = 1, traffic = 1, wh2 = 1 },
 	epoch = 3, compatible = true,
 }
 manifest = {
-	schema = 1, release = "<immutable release id>", server = 0,
+	v = 1, release = "<immutable release id>", server = 0, keyId = "ed25519:0:1",
 	wire = { major = 2, minor = 0 }, stateSchema = 1,
 	files = {
 		{ path = "startup.lua", release = "<immutable release id>", bytes = 600, sha256 = "<64 hex digits>" },
 		{ path = "ssot-client.lua", release = "<immutable release id>", bytes = 5200, sha256 = "<64 hex digits>" },
 	},
+	signature = "<128 lowercase hex digits>",
 }
 ```
 
-These are bodies within the signed envelopes. The example manifest abbreviates its file list. The real manifest names every file and transitive dependency for the selected role, including optional modules that the release installs. Every entry names the same release. Paths are normalized relative paths from an allowlist. Duplicate paths, traversal, wrong sizes, missing dependencies, and mixed releases fail. Capability values are interface revisions, not self-granted roles. A missing required capability or major-version mismatch returns `incompatible` and pauses work. Unknown optional capabilities are ignored. The challenge, negotiated result, release, state schema, and capabilities are authenticated. A client never downgrades to plaintext after a failed negotiation.
+The hello tables are MAC-authenticated bodies. The manifest also has one server Ed25519 signature. Its example abbreviates the file list. The real manifest names every file and transitive dependency for the selected role, including optional modules that the release installs. Every entry names the same release. Paths are normalized relative paths from an allowlist. Duplicate paths, traversal, wrong sizes, missing dependencies, and mixed releases fail. Capability values are interface revisions, not self-granted roles. A missing required capability or major-version mismatch returns `incompatible` and pauses work. Unknown optional capabilities are ignored. The challenge, negotiated result, release, state schema, and capabilities are authenticated. A client never downgrades to plaintext after a failed negotiation.
 
-The signed manifest uses an envelope with `type="update_manifest"`, `op="update-manifest"`, and `body={challenge, manifest}` with those named keys. Its MAC direction is `manifest`. The paired client's request names that expected response type and supplies the challenge. The response echoes it. HMAC-SHA256 with the recipient's manifest key binds the pinned server ID, target, session, request identity, challenge, and entire manifest. This is paired-server trust, not a public-key claim about an upstream author. HTTP and relay downloads must match those signed hashes. Neither `rednet.lookup` nor `rednet.host` can replace the locally pinned server. First pairing and a server-ID change require local setup.
+The server signs `"cc-update-manifest/1|" .. canonical(manifestWithoutSignature)` once with its Ed25519 private key. The client pins the server computer ID, signing key ID, and 32-byte public key in local setup. It selects that pinned key by `keyId` and verifies the 64-byte signature encoded as 128 lowercase hex digits. A key supplied by discovery, a relay, or the manifest cannot replace the pin. The immutable signed bytes cover the release, file paths, byte counts, SHA-256 hashes, wire version, state schema, server ID, and signing key ID. The signature authenticates the paired server's release, without asserting upstream authorship.
 
-The updater stages the complete generation under a new directory, checks the manifest MAC, byte counts, SHA-256 hashes, and Lua syntax, then records readiness. A recoverable activation journal selects the complete generation at boot. Recovery chooses either the old generation or the complete new generation, never per-file renames into a running tree. The launcher and module search path load only the selected generation. A successful boot and handshake promote it to last-good. An interrupted install or failed boot restores the previous last-good code generation. Code rollback preserves current durable shared state, counters, session fences, movement journals, and cargo facts. It never restores an older authority checkpoint. Automatic rollback requires that last-good code can read the current state schema. An incompatible migration is refused before activation. The updater checks free space for staging and rollback before starting. Insufficient space leaves the current generation active.
+Transport replies use `type="update_manifest"`, `op="update-manifest"`, and `body={challenge, manifest}` with those named keys. Their MAC direction is `reply`. The keyed BLAKE3 reply MAC binds the current request and challenge, while the same static Ed25519 signature verifies for every client. HTTP and relay downloads must match the signed hashes. Neither `rednet.lookup` nor `rednet.host` replaces the locally pinned server. First pairing, a server-ID change, or a signing-key change requires local setup.
+
+The updater stages the complete generation under a new directory, checks the Ed25519 signature, transport MAC where applicable, byte counts, SHA-256 hashes, and Lua syntax, then records readiness. A recoverable activation journal selects the complete generation at boot. Recovery chooses either the old generation or the complete new generation, never per-file renames into a running tree. The launcher and module search path load only the selected generation. A successful boot and handshake promote it to last-good. An interrupted install or failed boot restores the previous last-good code generation. Code rollback preserves current durable shared state, counters, session fences, the MAC-required upgrade marker, movement journals, and cargo facts. It never restores an older authority checkpoint. Automatic rollback requires that last-good code can read the current state schema. An incompatible migration is refused before activation. The updater checks free space for staging and rollback before starting. Insufficient space leaves the current generation active.
 
 H1+H2 also publishes the server's mirror as one verified generation. Its asynchronous refresh may fetch files individually, but no client can observe that generation until every manifest file passes. A serving node uses only a published manifest and matching chunks. This works with the current mirror location. It does not depend on the pending H4 cache relocation. Fleet adds its files to this manifest mechanism and does not restore mutable per-file updates.
 
@@ -624,7 +650,7 @@ The server is the final merge authority. Ownership, reservations, leases, job pr
 
 The default check-in period is 60000 ms and lease duration is 900000 ms. The effective settings set the next check-in relative to `issuedAt`. The miner returns toward range early enough for the route estimate plus `returnMarginMs`, and always before `untilAt`. Failed check-ins do not extend permission. Reboot and clock uncertainty cannot extend a lease. At a missed check-in the server marks the miner overdue. At expiry it fences the lease and frees scheduling claims. Possible physical occupancy stays unknown until observation clears it.
 
-The proposed request and reply bodies are below. Each uses the approved HMAC envelope, but remains absent from the operation registry until approval.
+The request and reply bodies below use the approved v2 keyed BLAKE3 envelope. B1 registers them after its named dependencies and gates. No further feature approval is pending.
 
 | Operation | Intended request body | Intended successful reply body |
 | --- | --- | --- |
