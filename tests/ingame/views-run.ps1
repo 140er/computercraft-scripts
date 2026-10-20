@@ -29,7 +29,9 @@ foreach ($id in @(0,1,2,3,4,6,7,8,9)) {
     Copy-Item "$source\tests\views-runtime.lua" $disk
     Copy-Item "$PSScriptRoot\views-gpu-checks.lua" $disk
     [IO.File]::WriteAllText("$disk\ssot.cfg",'{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456",["6"]="test-secret-123456",["7"]="test-secret-123456",["8"]="test-secret-123456"},leaseMs=30000,maxChunks=8}',$utf8)
-    [IO.File]::WriteAllText("$disk\startup.lua",'while not peripheral.find("modem") do sleep(0.2) end; shell.run("views-runtime.lua","minecraft")',$utf8)
+    $startupDelay=if ($id -eq 0) { 0 } else { ($id-1)*10 }
+    $startup="sleep($startupDelay); "+'while not peripheral.find("modem") do sleep(0.2) end; shell.run("views-runtime.lua","minecraft")'
+    [IO.File]::WriteAllText("$disk\startup.lua",$startup,$utf8)
 }
 $sourceProof=foreach ($file in Get-ChildItem "$source\*.lua") {
     $expected=(Get-FileHash $file.FullName -Algorithm SHA256).Hash
