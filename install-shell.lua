@@ -139,7 +139,9 @@ local function writeBoot(role)
   if not spec or not spec.boot or fs.exists("startup.lua") then return end
   local h = fs.open("startup.lua", "w")
   if not h then return end
-  h.write('shell.run("' .. spec.boot .. '")\n')
+  local words = {}
+  for word in spec.boot:gmatch("%S+") do words[#words + 1] = string.format("%q", word) end
+  h.write("shell.run(" .. table.concat(words, ", ") .. ")\n")
   h.close()
 end
 
