@@ -1,0 +1,13 @@
+lua5.2 tests/run.lua
+132 tests passed
+
+CraftOS-PC v2.8.3
+AppImage sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+standardsMode true
+computerSpaceLimit 1000000
+gps host none
+tests/b2-sandbox.lua
+{"ok":true,"passed":34,"failed":0}
+stderr empty
+
+Gate B: NOT RUN
