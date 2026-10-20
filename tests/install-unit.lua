@@ -142,9 +142,15 @@ return function(test, equal)
     assert(bad == nil and why == "hash_mismatch", why)
     assert(disk.get("relay.lua") == nil, "bad hash wrote relay.lua")
     bodies["relay.lua"] = { text = "relay\n", expect = Roles.hash("relay\n") }
-    assert(Roles.apply(disk, "", "relay", bodies, 500), "500 byte slot holds a new file")
+    local bytes = 0
+    for _, name in ipairs(Roles.get("relay").files) do
+      local body = bodies[name]
+      local text = type(body) == "table" and body.text or body
+      bytes = bytes + math.max(500, #text)
+    end
+    assert(Roles.apply(disk, "", "relay", bodies, bytes), "the 500 byte minimum admits the new files")
     local tight = memoryDisk()
-    assert(Roles.apply(tight, "", "relay", bodies, 499) == nil, "499 bytes is short of the 500 byte minimum")
+    assert(Roles.apply(tight, "", "relay", bodies, bytes - 1) == nil, "one byte under the 500 byte minimum writes nothing")
   end)
 
   test("role bundles fit a 1000000 byte disk with the installer kit", function()

@@ -17,16 +17,28 @@ end
 local PROTOCOL = "fleetserver"
 local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/"
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
-local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
-  "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
-  "warehouse-tasks.lua", "warehouse.lua", "store.lua", "ar-hud.lua", "chat-control.lua", "ar-role.lua",
-  "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
-  "views.lua", "view-source.lua", "view-scene.lua", "directview.lua",
-  "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua", "dead.lua",
-  "wh2-fleet.lua", "wh2-client.lua", "wh2-dispatch.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-ar.lua", "wh2-dev.lua",
-  "alpha-boot.lua", "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-ledger.lua",
-  "storage-buffer.lua", "storage-view.lua", "storage-peer.lua" }
+local FILES = { "miner.lua", "alpha-boot.lua", "ar-hud.lua", "ar-planner.lua", "ar-role.lua",
+  "atomic.lua", "b1-nav.lua", "buddy.lua", "builder.lua", "chat-control.lua", "craft.lua",
+  "dead.lua", "directview.lua", "enrol.lua", "factory.lua", "farmer.lua", "fleetview.lua",
+  "gpshost.lua", "hub.lua", "install-core.lua", "install-keys.lua", "install-roles.lua",
+  "install-shell.lua", "install-touch.lua", "install.lua", "journal.lua", "lava.lua", "lease.lua",
+  "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_n1.lua",
+  "lib/stubs/b1_w1.lua", "lib/stubs/craft_dep.lua", "lib/stubs/h4b2_b1.lua",
+  "lib/stubs/h4b2_h1.lua", "lib/stubs/h4b2_h4b1.lua", "lib/stubs/h4c_dep.lua",
+  "lib/stubs/h4d_dep.lua", "lib/stubs/layout_dep.lua", "lib/stubs/t2_dep.lua", "lumber.lua",
+  "mapsection.lua", "mapstore.lua", "mine-tasks.lua", "mining.lua", "nav.lua", "panel.lua",
+  "planner-core.lua", "planner-enrol.lua", "planner-host.lua", "planner-hub.lua",
+  "planner-map.lua", "planner-ops.lua", "planner-panel.lua", "planner-settings.lua",
+  "planner-tools.lua", "planner-view.lua", "plug.lua", "position.lua", "relay.lua",
+  "role-adapter.lua", "roles.lua", "roomsorter.lua", "s1_b1.lua", "s1_h4c.lua", "s1_i1.lua",
+  "s1_t1.lua", "server.lua", "shelf.lua", "smartmine.lua", "sorter.lua", "ssot-client.lua",
+  "ssot-hub.lua", "ssot.lua", "storage-buffer.lua", "storage-host.lua", "storage-ledger.lua",
+  "storage-peer.lua", "storage-view.lua", "store-role.lua", "store.lua", "strata.lua",
+  "update.lua", "view-role.lua", "view-scene.lua", "view-source.lua", "views.lua",
+  "warehouse-tasks.lua", "warehouse.lua", "wh2-ar.lua", "wh2-board.lua", "wh2-client.lua",
+  "wh2-craft.lua", "wh2-dev.lua", "wh2-dispatch.lua", "wh2-fleet.lua", "wh2-layout.lua",
+  "wh2-locations.lua", "wh2-program.lua", "wh2-recipes.lua", "wh2-wizard-adapter.lua",
+  "wh2-wizard-host.lua", "wh2-wizard.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }

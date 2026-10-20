@@ -25,83 +25,84 @@ local function encode(value, depth)
   end
   return "{\n" .. table.concat(out, ",\n") .. "\n" .. string.rep("  ", depth) .. "}"
 end
-local dependencies = {
-  ["miner.lua"] = { "mining.lua", "nav.lua", "ssot-client.lua", "view-source.lua" },
-  ["hub.lua"] = { "miner.lua", "fleetview.lua", "ar-hud.lua", "views.lua", "directview.lua" },
-  ["server.lua"] = { "fleetview.lua", "ssot.lua", "ar-hud.lua" },
-  ["panel.lua"] = { "fleetview.lua" },
-  ["factory.lua"] = { "miner.lua", "craft.lua" },
-  ["store.lua"] = { "warehouse.lua", "nav.lua", "ssot-client.lua" },
-  ["roomsorter.lua"] = { "store.lua" },
-  ["sorter.lua"] = { "store.lua" },
-  ["ar-role.lua"] = { "hub.lua" },
-  ["ar-hud.lua"] = { "chat-control.lua" },
-  ["chat-control.lua"] = { "ssot.lua" },
-  ["fleetview.lua"] = { "ar-hud.lua" },
-  ["mining.lua"] = { "atomic.lua", "ssot.lua", "mine-tasks.lua", "warehouse.lua" },
-  ["warehouse.lua"] = { "atomic.lua", "ssot.lua" },
-  ["nav.lua"] = { "atomic.lua", "ssot.lua", "position.lua" },
-  ["ssot-client.lua"] = { "atomic.lua", "ssot.lua" },
-  ["ssot.lua"] = { "atomic.lua", "mine-tasks.lua", "warehouse-tasks.lua", "planner-ops.lua", "dead.lua", "wh2-dispatch.lua", "lease.lua", "ssot-hub.lua", "mapstore.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h4c.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_w1.lua", "lib/stubs/h4d_dep.lua" },
-  ["mapstore.lua"] = { "mapsection.lua" },
-  ["ssot-hub.lua"] = { "atomic.lua", "s1_t1.lua", "s1_h4c.lua", "s1_i1.lua", "s1_b1.lua" },
-  ["lease.lua"] = { "journal.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_h1.lua", "lib/stubs/b1_h5.lua", "lib/stubs/b1_w1.lua" },
-  ["journal.lua"] = { "atomic.lua" },
-  ["b1-nav.lua"] = { "atomic.lua", "lease.lua", "journal.lua", "lib/stubs/b1_n1.lua", "lib/stubs/b1_h4c.lua" },
-  ["planner-ops.lua"] = { "planner-core.lua", "planner-enrol.lua", "planner-settings.lua" },
-  ["planner-core.lua"] = { "planner-enrol.lua", "planner-settings.lua" },
-  ["mine-tasks.lua"] = { "atomic.lua" },
-  ["views.lua"] = { "view-source.lua", "view-scene.lua", "ssot-client.lua" },
-  ["directview.lua"] = { "view-scene.lua" },
-}
+local function exists(path)
+  local f = io.open(path, "rb")
+  if not f then return false end
+  f:close()
+  return true
+end
+local function accept(path)
+  if type(path) ~= "string" or path == "" or path:find("%.%.", 1, true) or path:find("^tests/") then return nil end
+  if path:sub(-4) ~= ".lua" then
+    if exists(path .. ".lua") then path = path .. ".lua" else return nil end
+  end
+  if not exists(path) then return nil end
+  return path
+end
+local function directSet(code)
+  local set = {}
+  local function add(path)
+    path = accept(path)
+    if path then set[path] = true end
+  end
+  local patterns = {
+    "dofile%s*%(%s*[\"']([^\"']+)[\"']",
+    "loadfile%s*%(%s*[\"']([^\"']+)[\"']",
+    "require%s*%(%s*[\"']([^\"']+)[\"']",
+    "pcall%s*%(%s*dofile%s*,%s*[\"']([^\"']+)[\"']",
+    "pcall%s*%(%s*require%s*,%s*[\"']([^\"']+)[\"']",
+    "attempt%s*%(%s*[\"']([^\"']+)[\"']",
+    "openWh2%s*%(%s*[\"']([^\"']+)[\"']",
+    "readFile%s*%(%s*[\"']([^\"']+)[\"']",
+  }
+  for _, pat in ipairs(patterns) do
+    for path in code:gmatch(pat) do add(path) end
+  end
+  for path in code:gmatch("https://[^\"']+/([%w_%-]+%.lua)") do add(path) end
+  if code:find("dofile%s*,%s*[%a_]") or code:find("dofile%s*%(%s*[%a_]") then
+    for path in code:gmatch("[\"']([^\"']+%.lua)[\"']") do add(path) end
+  end
+  local i = 1
+  while true do
+    local startAt, stopAt, name = code:find("shell%.run%s*%(%s*[\"']([%w_%-]+)[\"']", i)
+    if not startAt then break end
+    local prev = startAt > 1 and code:sub(startAt - 1, startAt - 1) or ""
+    if prev ~= "'" and prev ~= '"' then add(name) end
+    i = stopAt + 1
+  end
+  return set
+end
+local dependencies = {}
+local function directList(file)
+  if dependencies[file] then return dependencies[file] end
+  local code = read(file)
+  local set = code and directSet(code) or {}
+  set[file] = nil
+  local list = {}
+  for name in pairs(set) do list[#list + 1] = name end
+  table.sort(list)
+  dependencies[file] = list
+  return list
+end
 local pendingViews = arg and arg[1] == "--pending-pr5"
 if pendingViews then
   assert(not read("miner.lua"):find('"view-source.lua"', 1, true)
     and not read("hub.lua"):find('"views.lua"', 1, true), "Merged view code requires the complete PR5 modules")
-  dependencies["miner.lua"] = { "mining.lua", "nav.lua", "ssot-client.lua" }
-  dependencies["hub.lua"] = { "miner.lua", "fleetview.lua", "ar-hud.lua" }
-end
-dependencies["wh2-program.lua"] = { "atomic.lua", "ssot-client.lua", "wh2-client.lua" }
-dependencies["wh2-client.lua"] = { "atomic.lua" }
-dependencies["wh2-dev.lua"] = { "wh2-fleet.lua" }
-for _, file in ipairs({ "hub.lua", "server.lua", "panel.lua", "factory.lua", "store.lua",
-  "roomsorter.lua", "sorter.lua", "miner.lua", "lava.lua", "lumber.lua", "relay.lua",
-  "smartmine.lua", "buddy.lua", "builder.lua", "farmer.lua", "gpshost.lua" }) do
-  local listed = dependencies[file] or {}
-  dependencies[file] = listed
-  listed[#listed + 1] = "wh2-program.lua"
-end
-for _, file in ipairs({
-  "miner.lua", "store.lua", "factory.lua", "farmer.lua", "lumber.lua", "lava.lua",
-  "builder.lua", "buddy.lua", "roomsorter.lua", "panel.lua", "server.lua", "gpshost.lua",
-  "planner-panel.lua", "planner-hub.lua",
-}) do
-  local listed = dependencies[file] or {}
-  dependencies[file] = listed
-  listed[#listed + 1] = "plug.lua"
-end
-dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-ar.lua"
-dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-dev.lua"
-dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-ar.lua"
-dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-dev.lua"
-dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-dev.lua"
-dependencies["storage-peer.lua"] = { "lib/stubs/h4d_dep.lua" }
-dependencies["alpha-boot.lua"] = { "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-peer.lua" }
-dependencies["storage-host.lua"] = { "storage-ledger.lua", "storage-buffer.lua", "storage-view.lua" }
-dependencies["server.lua"][#dependencies["server.lua"] + 1] = "storage-peer.lua"
-dependencies["server.lua"][#dependencies["server.lua"] + 1] = "alpha-boot.lua"
-dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "alpha-boot.lua"
-dependencies["planner-host.lua"] = { "planner-view.lua", "planner-map.lua" }
-dependencies["server.lua"][#dependencies["server.lua"] + 1] = "planner-host.lua"
-dependencies["miner.lua"][#dependencies["miner.lua"] + 1] = "wh2-client.lua"
-dependencies["miner.lua"][#dependencies["miner.lua"] + 1] = "b1-nav.lua"
-dependencies["store.lua"][#dependencies["store.lua"] + 1] = "wh2-client.lua"
-dependencies["wh2-board.lua"] = { "wh2-wizard-adapter.lua", "wh2-wizard.lua", "atomic.lua" }
-for _, file in ipairs({ "hub.lua", "panel.lua" }) do
-  for _, name in ipairs({ "wh2-wizard-host.lua", "wh2-board.lua", "wh2-recipes.lua" }) do
-    dependencies[file][#dependencies[file] + 1] = name
+  local function drop(file, banned)
+    local kept = {}
+    for _, name in ipairs(directList(file)) do
+      if not banned[name] then kept[#kept + 1] = name end
+    end
+    dependencies[file] = kept
   end
+  drop("miner.lua", { ["view-source.lua"] = true })
+  drop("hub.lua", { ["views.lua"] = true, ["directview.lua"] = true })
 end
+local companions = {
+  ["hub.lua"] = { "planner-hub.lua" },
+  ["panel.lua"] = { "planner-panel.lua" },
+  ["server.lua"] = { "wh2-recipes.lua" },
+}
 local roles = {}
 local function role(id, entry, startup)
   roles[id] = { entry = entry, startup = startup or false }
@@ -124,27 +125,85 @@ if pendingViews then
   end
 end
 
-local files = {}
-for _, spec in pairs(roles) do
-  if not spec.unavailable then
+local function selectFrom(roots)
   local selected = {}
   local function include(file)
     if selected[file] then return end
     selected[file] = true
-    files[file] = checksum(read(file))
-    for _, dependency in ipairs(dependencies[file] or {}) do include(dependency) end
+    for _, dependency in ipairs(directList(file)) do include(dependency) end
   end
-  include(spec.entry)
-  include("install.lua")
-  include("update.lua")
+  for _, file in ipairs(roots) do include(file) end
+  return selected
+end
+local function programFiles(id)
+  local spec = roles[id]
+  if not spec then return nil end
+  local roots = { spec.entry }
+  for _, extra in ipairs(companions[spec.entry] or {}) do roots[#roots + 1] = extra end
+  local selected = selectFrom(roots)
+  local list = {}
+  for name in pairs(selected) do
+    if name ~= spec.entry then list[#list + 1] = name end
+  end
+  table.sort(list)
+  table.insert(list, 1, spec.entry)
+  return list
+end
+local files = {}
+for _, spec in pairs(roles) do
+  if not spec.unavailable then
+  local selected = selectFrom({ spec.entry, "install.lua", "update.lua" })
+  for _, extra in ipairs(companions[spec.entry] or {}) do
+    for name in pairs(selectFrom({ extra })) do selected[name] = true end
+  end
   spec.files = {}
   for file in pairs(selected) do spec.files[#spec.files + 1] = file end
   table.sort(spec.files)
+  for _, file in ipairs(spec.files) do files[file] = true end
   end
 end
 for _, file in ipairs({ "role-adapter.lua", "store-role.lua", "view-role.lua" }) do
-  files[file] = checksum(read(file))
+  files[file] = true
 end
+local function cacheNames()
+  local names = {}
+  for name in pairs(files) do names[#names + 1] = name end
+  table.sort(names)
+  for i, name in ipairs(names) do
+    if name == "miner.lua" then
+      table.remove(names, i)
+      table.insert(names, 1, name)
+      break
+    end
+  end
+  return names
+end
+local function writeCacheList(names)
+  local lines, row = {}, "local FILES = { "
+  local function add(text)
+    if #row + #text > 100 then
+      lines[#lines + 1] = row:gsub("%s+$", "")
+      row = "  "
+    end
+    row = row .. text
+  end
+  for i, name in ipairs(names) do
+    add(string.format("%q%s", name, i < #names and ", " or " }"))
+  end
+  lines[#lines + 1] = row
+  local block = table.concat(lines, "\n")
+  local source = read("server.lua")
+  local updated = source:gsub("local FILES = %b{}", block, 1)
+  if updated == source then return end
+  local handle = assert(io.open("server.lua", "wb"))
+  handle:write(updated)
+  handle:close()
+end
+if arg and arg[1] == "--module" then
+  return { programFiles = programFiles, cacheNames = cacheNames, directList = directList }
+end
+writeCacheList(cacheNames())
+for name in pairs(files) do files[name] = checksum(read(name)) end
 local manifest = {
   schema = 1,
   roleSchema = 1,

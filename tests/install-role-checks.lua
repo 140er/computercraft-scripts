@@ -253,7 +253,7 @@ return function(test, read, mocks)
   test("an abandoned updater coroutine is recovered by a fresh updater after promotion", function()
     local m, env, updater = fixture()
     assert(updater.apply("ar"))
-    m.files["miner.lua"] = m.files["miner.lua"] .. "\n-- previous release\n"
+    m.files["atomic.lua"] = m.files["atomic.lua"] .. "\n-- previous release\n"
     for file, value in pairs(retained) do m.files[file] = value end
     local source = { ["bundle-manifest.lua"] = read("bundle-manifest.lua") }
     for _, file in ipairs(manifest().roles.miner.files) do source[file] = read(file) end
@@ -264,12 +264,12 @@ return function(test, read, mocks)
     local before, move = mocks.encode(m.files), env.fs.move
     env.fs.move = function(from, to)
       move(from, to)
-      if from == "miner.lua.fleet-stage" and to == "miner.lua" then coroutine.yield("power-cut") end
+      if from == "atomic.lua.fleet-stage" and to == "atomic.lua" then coroutine.yield("power-cut") end
     end
     local process = coroutine.create(function() updater.apply("miner") end)
     local ok, stopped = coroutine.resume(process)
     assert(ok and stopped == "power-cut" and coroutine.status(process) == "suspended")
-    assert(m.files[".fleet-update-journal"] and m.files["miner.lua.fleet-backup"])
+    assert(m.files[".fleet-update-journal"] and m.files["atomic.lua.fleet-backup"])
     env.fs.move = move
     assert(assert(load(read("update.lua"), "=fresh-update", "t", env))("--repair"))
     assert(mocks.encode(m.files) == before, "Restart did not restore the interrupted release")

@@ -1,4 +1,5 @@
 local mocks = dofile("tests/mocks.lua")
+dofile("tests/make-bundle-manifest.lua")
 local function read(path)
   local f = assert(io.open(path, "rb"))
   local code = f:read("*a")
@@ -505,6 +506,7 @@ dofile("tests/t2-planner.lua")
 dofile("tests/b2-checks.lua")(test, equal)
 dofile("tests/h4d-unit.lua")
 dofile("tests/plug-checks.lua")(test, equal)
+dofile("tests/role-closure-checks.lua")(test)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end

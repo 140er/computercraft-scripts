@@ -3,7 +3,7 @@ return function(test,equal,read,mocks)
     local m=mocks.new(false)
     m.env.term.getSize=function() return 51,19 end
     local code=read("install.lua")
-    local prefix=assert(code:match("^(.-)\n%-+[\r]?\n%-%- Walking through one bot"))
+    local prefix=assert(code:match("^(.-)\nlocal function guide"))
     local roles=assert(load(prefix.."\nreturn BOTS","=install.lua","t",m.env))()
     local byId={}
     for _,role in ipairs(roles) do byId[role.id]=role end
@@ -19,10 +19,11 @@ return function(test,equal,read,mocks)
       equal(role.start[1],"hub") equal(role.start[2],mode)
       local present={}
       for _,name in ipairs(role.files) do present[name]=true end
-      for _,name in ipairs({"hub.lua","miner.lua","fleetview.lua","atomic.lua","ssot.lua","ssot-client.lua",
-        "nav.lua","mine-tasks.lua","mining.lua","views.lua","view-source.lua","view-scene.lua","directview.lua"}) do
+      for _,name in ipairs({"hub.lua","fleetview.lua","views.lua","view-source.lua","view-scene.lua",
+        "directview.lua","planner-hub.lua"}) do
         assert(present[name],role.id.." missing "..name)
       end
+      assert(not present["miner.lua"],role.id.." ships miner.lua")
       local configured=role.steps[#role.steps].run({server=11,secret="installer-secret-123",gpu="directgpu_0",monitor="monitor_4"})
       equal(configured[1],"hub") equal(configured[2],"view-installed")
       local cfg=assert(load("return "..m.files["views.cfg"],"=views.cfg","t",{}))()
