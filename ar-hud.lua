@@ -53,6 +53,7 @@ function H.ensureOrigin(cfg, spot)
   cfg.origin = { dim=dim, x=at.x, y=at.y, z=at.z }
   return true
 end
+local authorized
 local keyNames = { p="P", t="T", o="O", a="A" }
 function H.layerKey(ev, key, shifted)
   if ev=="char" and layers[key] then return key end
@@ -109,7 +110,7 @@ local function cellID(cell) return cell.dim..":"..cell.x..":"..cell.y..":"..cell
 local function isOre(name)
   return type(name)=="string" and (name:find("_ore",1,true) or name:find("ancient_debris",1,true))
 end
-local function authorized(cfg,authCfg)
+authorized = function(cfg,authCfg)
   return SSOT.chatAllowed(authCfg or {},cfg.ownerName,cfg.ownerUUID)
 end
 local function yieldWork()

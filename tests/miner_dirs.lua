@@ -12,7 +12,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     m.start(hub)
   end
   local function last(m) return m.messages[#m.messages] end
-  local function saved(m) return m.env.textutils.unserialize(m.files["hub.state"]) end
+  local function saved(m) return mocks.hubFile(m.files) end
 
   test("hub hands each new miner the direction the fewest others have and keeps it", function()
     local m = mocks.new(false, { target = "iron" })
@@ -63,8 +63,8 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     m.push()
     local ok, why = pcall(m.push, "rednet_message", 99, { type = "job", paused = true, dir = "north" }, "minearmy")
     assert(not ok and tostring(why):find("rebooted"), "no restart after a new direction: " .. tostring(why))
-    equal(m.env.textutils.unserialize(m.files["miner.cfg"]).spine, 0)
-    equal(m.env.textutils.unserialize(m.files["miner.state"]).levels, {})
+    equal(mocks.value(m.files, "miner.cfg").spine, 0)
+    equal(mocks.value(m.files, "miner.state").levels, {})
   end)
 
   test("miner keeps going when the hub's direction is the one it has", function()
@@ -77,7 +77,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     m.app = coroutine.create(api.getJob)
     m.push()
     m.push("rednet_message", 99, { type = "job", paused = true, dir = "west" }, "minearmy")
-    equal(m.env.textutils.unserialize(m.files["miner.cfg"]).spine, 3)
+    equal(mocks.value(m.files, "miner.cfg").spine, 3)
   end)
 
   test("setup without a role leaves the direction to the hub and takes a name", function()
@@ -96,7 +96,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
       m.env.os.setComputerLabel = function(l) label = l end
       m.env.os.getComputerLabel = function() return label end
       assert(load(miner, "=miner.lua", "t", m.env))(table.unpack(case.args))
-      local saved = m.env.textutils.unserialize(assert(m.files["miner.cfg"], table.concat(case.args, " ")))
+      local saved = assert(mocks.value(m.files, "miner.cfg"), table.concat(case.args, " "))
       equal(saved.spine, case.spine, table.concat(case.args, " "))
       equal(saved.loc, case.loc)
       equal(label, case.label)
@@ -113,7 +113,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
       m.env.gps = { locate = function() return m.pos.x, m.pos.y, m.pos.z end }
       m.env.os.setComputerLabel = function() end
       assert(load(miner, "=miner.lua", "t", m.env))("setup", "east")
-      local saved = m.env.textutils.unserialize(assert(m.files["miner.cfg"], "setup failed"))
+      local saved = assert(mocks.value(m.files, "miner.cfg"), "setup failed")
       equal(saved.facing, 2)
       equal(saved.chest, 0)
       equal(m.world["100,64,19"], "minecraft:chest", "dug up its chest")
@@ -150,7 +150,7 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
     equal(last(m).type, "dir?")
     equal(last(m).shaft, { x = 100, z = 21 })
     m.push("rednet_message", 99, { type = "dir", dir = "south" }, "minearmy")
-    equal(m.env.textutils.unserialize(m.files["miner.cfg"]).spine, 2)
+    equal(mocks.value(m.files, "miner.cfg").spine, 2)
     equal(api.cfg.spine, 2)
   end)
 

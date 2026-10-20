@@ -54,24 +54,24 @@ local TURTLE = "computercraft:turtle_normal"
 local FUELS = { "minecraft:coal", "minecraft:charcoal" }
 
 local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
   end
-  return nil
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec:save(t)
 end
 
 local function readFile(path)
@@ -83,9 +83,7 @@ local function readFile(path)
 end
 
 local function writeFile(path, s)
-  local h = fs.open(path, "w")
-  h.write(s)
-  h.close()
+  dofile("atomic.lua").replaceBytes(path, s, function(text) return load(text, "=" .. path) ~= nil end)
 end
 
 local function pretty(name)
@@ -304,7 +302,16 @@ end
 if args[1] == "setup" then
   if not turtle then print("The factory runs on a crafty turtle.") return end
   local x, y, z = tonumber(args[2]), tonumber(args[3]), tonumber(args[4])
-  if not x and gps then
+  if not (x and y and z) and fs.exists("plug.lua") then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local fix = plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+        spec.title = "Factory"
+        return plug.ask(plug.termio(), spec)
+      end, "Factory")
+      if fix then x, y, z = fix.x, fix.y, fix.z end
+    end
+  elseif not x and gps then
     local gx, gy, gz = gps.locate(2)
     if gx then x, y, z = math.floor(gx + 0.5), math.floor(gy + 0.5), math.floor(gz + 0.5) end
   end
@@ -314,11 +321,38 @@ if args[1] == "setup" then
   end
   cfg.pos = { x = x, y = y, z = z }
   cfg.cruise = cfg.cruise or y + 10
+  local function sideIsInventory(side)
+    if peripheral.hasType then return peripheral.hasType(side, "inventory") == true end
+    for _, method in ipairs(peripheral.getMethods(side) or {}) do
+      if method == "pushItems" then return true end
+    end
+    return false
+  end
+  if fs.exists("plug.lua") and not (sideIsInventory("front") and sideIsInventory("bottom")) then
+    local ok, plug = pcall(dofile, "plug.lua")
+    if ok and type(plug) == "table" then
+      local sides = { "front", "back", "left", "right", "top", "bottom" }
+      local choices = {}
+      for _, side in ipairs(sides) do choices[#choices + 1] = side end
+      if not sideIsInventory(cfg.pickup or "front") then
+        local picked = plug.ask(plug.termio(), {
+          kind = "choice", title = "Factory", question = "Which side is the pickup chest?", choices = choices,
+        })
+        if picked then cfg.pickup = picked end
+      end
+      if not sideIsInventory(cfg.parts or "bottom") then
+        local picked = plug.ask(plug.termio(), {
+          kind = "choice", title = "Factory", question = "Which side is the parts chest?", choices = choices,
+        })
+        if picked then cfg.parts = picked end
+      end
+    end
+  end
   saveCfg()
-  local okFront = peripheral.hasType and peripheral.hasType("front", "inventory") or peripheral.getType("front")
-  local okDown = peripheral.hasType and peripheral.hasType("bottom", "inventory") or peripheral.getType("bottom")
-  if not okFront then print("WARNING: no pickup chest in front of the turtle!") end
-  if not okDown then print("WARNING: no parts chest under the turtle!") end
+  local okFront = sideIsInventory(cfg.pickup or "front")
+  local okDown = sideIsInventory(cfg.parts or "bottom")
+  if not okFront then print("WARNING: no pickup chest on the " .. (cfg.pickup or "front") .. ".") end
+  if not okDown then print("WARNING: no parts chest on the " .. (cfg.parts or "bottom") .. ".") end
   if turtle.detectUp() then print("WARNING: the build spot above the turtle isn't empty!") end
   writeFile("startup.lua", 'shell.run("factory")\n')
   os.setComputerLabel(os.getComputerLabel() or "Factory")
@@ -419,6 +453,20 @@ if args[1] and args[1] ~= "build" then
 end
 
 if not turtle then error("factory.lua runs on a crafty turtle", 0) end
+if not cfg.pos and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local fix = plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+      spec.title = "Factory"
+      return plug.ask(plug.termio(), spec)
+    end, "Factory")
+    if fix then
+      cfg.pos = { x = fix.x, y = fix.y, z = fix.z }
+      cfg.cruise = cfg.cruise or fix.y + 10
+      saveCfg()
+    end
+  end
+end
 if not cfg.pos then print("Not set up yet. First: factory setup [x y z]") return end
 if not openModem() then print("The factory needs a wireless modem.") return end
 if not turtle.craft then print("The factory needs a crafting table (craft it onto the turtle).") return end
@@ -428,8 +476,8 @@ if args[1] == "build" then command("build", { args[2] }) end
 ---------------------------------------------------------------------------
 -- Parts: ordered from the Storage Room, moved from its pickup chest to our own chest
 ---------------------------------------------------------------------------
-local pickup = function() return peripheral.wrap("front") end
-local parts = function() return peripheral.wrap("bottom") end
+local pickup = function() return peripheral.wrap(cfg.pickup or "front") end
+local parts = function() return peripheral.wrap(cfg.parts or "bottom") end
 
 local function countIn(inv, names)
   local n = 0

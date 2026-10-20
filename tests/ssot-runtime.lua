@@ -97,7 +97,7 @@ local starts = { [1]={dim="minecraft:overworld",x=-2,y=65,z=0,h=1},
   [2]={dim="minecraft:overworld",x=0,y=65,z=-2,h=2}, [3]={dim="minecraft:overworld",x=2,y=65,z=0,h=3} }
 local function worker()
   if runtime == "sandbox" then turtle = dofile("turtle.lua").new(world) _G.turtle=turtle end
-  local store = A.store("test.pose",function(v) return type(v) == "table" and S.pose(v.pose) end)
+  local store = A.mount("/"):open("test.pose",function(v) return type(v) == "table" and S.pose(v.pose) end,{class="bulk",limit=900000})
   local state = store.value or {pose=starts[id],stage="new"}
   local p = state.pose
   local before={x=p.x,y=p.y,z=p.z}
@@ -125,7 +125,7 @@ local function worker()
   if before.x~=p.x or before.y~=p.y or before.z~=p.z then
     timeline[#timeline+1]={x=p.x,y=p.y,z=p.z,at=os.epoch("utc"),method="observed after crash"}
     state.timeline=timeline
-    assert(store.save(state))
+    assert(store:save(state))
   end
   if state.stage == "new" then
     if id == 1 and not state.preflight then
@@ -146,11 +146,11 @@ local function worker()
         assert(turtle.dig())
         assert(turtle.turnRight())
       end)
-      state.preflight=true assert(store.save(state))
+      state.preflight=true assert(store:save(state))
     end
     if not state.go then
       waitMessage("go",4,nil,function() rednet.send(4,{kind="ready"},"ssot_test") end)
-      state.go=true assert(store.save(state))
+      state.go=true assert(store:save(state))
     end
     local function move(to)
       local attempts = 0
@@ -168,17 +168,17 @@ local function worker()
             end
           end
           if id==1 and not state.crashedBefore then
-            state.crashedBefore=true assert(store.save(state)) os.reboot()
+            state.crashedBefore=true assert(store:save(state)) os.reboot()
           end
           local crashAfter=id==1 and not state.crashedAfter
-          if crashAfter then state.crashedAfter=true assert(store.save(state)) end
+          if crashAfter then state.crashedAfter=true assert(store:save(state)) end
           local moved,err = turtle[method]()
           if moved and crashAfter then os.reboot() end
           if moved then
             p.x,p.y,p.z = to.x,to.y,to.z
             timeline[#timeline+1] = {x=p.x,y=p.y,z=p.z,at=os.epoch("utc"),method=method}
             state.timeline=timeline
-            assert(store.save(state))
+            assert(store:save(state))
           else error("physical move failure: " .. tostring(err)) end
           return moved,err
         end)
@@ -205,14 +205,14 @@ local function worker()
             if q.x~=p.x or q.y~=p.y or q.z~=p.z then
               p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
               timeline[#timeline+1]={x=p.x,y=p.y,z=p.z,at=os.epoch("utc"),method="nav"}
-              state.timeline=timeline assert(store.save(state))
+              state.timeline=timeline assert(store:save(state))
             end
           end
           if id==1 and point=="move-started" and not state.navBefore then
-            state.navBefore=true assert(store.save(state)) os.reboot()
+            state.navBefore=true assert(store:save(state)) os.reboot()
           end
           if id==1 and point=="move-physical" and not state.navAfter then
-            state.navAfter=true assert(store.save(state)) os.reboot()
+            state.navAfter=true assert(store:save(state)) os.reboot()
           end
         end})
       navRuntime=nav
@@ -223,7 +223,7 @@ local function worker()
                     local ok,why=nav.go(to,"explore")
           local q=nav.pose() p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
           if ok then
-            state.timeline=timeline assert(store.save(state)) return
+            state.timeline=timeline assert(store:save(state)) return
           end
 
           assert(why=="search budget" or why=="no route" or why=="replan budget" or why=="occupied" or why=="already reserved",tostring(why))
@@ -243,7 +243,7 @@ local function worker()
     for i=state.nextStep or 1,#route do
       local to=route[i] to.dim=p.dim
       if p.x~=to.x or p.y~=to.y or p.z~=to.z then move(to) end
-      state.nextStep=i+1 assert(store.save(state))
+      state.nextStep=i+1 assert(store:save(state))
     end
     if navigation and id==3 and not state.maze then
       if runtime=="minecraft" then
@@ -268,9 +268,9 @@ local function worker()
         assert(not turtle.inspectUp())
         local q=navRuntime.pose() p.x,p.y,p.z,p.h=q.x,q.y,q.z,q.h
       end)
-      state.maze=true assert(store.save(state))
+      state.maze=true assert(store:save(state))
     end
-    state.stage = "crossed" assert(store.save(state))
+    state.stage = "crossed" assert(store:save(state))
   end
   send(4,{kind="crossed",pose=p,timeline=timeline},"ssot_test")
   if id == 1 then
@@ -283,7 +283,7 @@ local function worker()
       assert(client.resync(p))
       local second = assert(client.reserve({pose=p,to=to})) assert(second.ok)
       assert(client.start({pose=p,to=to,token=second.token,epoch=second.epoch}).ok)
-      state.stage="full" assert(store.save(state))
+      state.stage="full" assert(store:save(state))
       send(4,{kind="full-held"},"ssot_test")
       waitMessage("never",4,navigation and 1800 or 600)
     else assert(state.stage == "full") assert(client.resync(p)) end
@@ -296,7 +296,7 @@ local function worker()
   end
 end
 local function controller()
-  local phase = A.store("test.phase",function(v) return type(v) == "table" and type(v.stage) == "string" end)
+  local phase = A.mount("/"):open("test.phase",function(v) return type(v) == "table" and type(v.stage) == "string" end,{class="bulk",limit=900000})
   local current = phase.value or {stage="new"}
   if fs.exists("transport-probe") then
     local h=assert(fs.open("transport-probe","r")) local mode=h.readAll() h.close()
@@ -429,7 +429,7 @@ local function controller()
       local filled=waitMessage("filled",0)
       assert(filled.free<=16384)
       local r=client.scan({pose=p,revision=revision,cells={{dim=p.dim,x=0,y=64,z=0,name="minecraft:stone"}}})
-      assert(r==nil,"disk-full mutation was acknowledged")
+      assert(r == nil or r.ok == false, "disk-full mutation was acknowledged")
       send(0,{action="clear-and-reboot"},"ssot_test")
       local page
       for _=1,30 do
@@ -440,7 +440,7 @@ local function controller()
       assert(page and page.ok and page.revision==chunkRevision and page.cells[1][2]==false)
     end)
     current={stage="after-full",checks=checks,revision=revision}
-    assert(phase.save(current))
+    assert(phase:save(current))
     writeJSON("restart-ready.json",{ok=true,revision=revision})
     waitMessage("never",0,600)
   end

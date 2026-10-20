@@ -29,11 +29,11 @@ function M.open(cfg)
         and integer(v.pending.slot,1,16) and integer(v.pending.before,0,4096) and integer(v.pending.count,1,4096)
         and (v.pending.kind=="pickup" or v.pending.kind=="restore" or v.pending.kind=="deliver" or v.pending.kind=="unload"))
   end
-  local disk=A.store(cfg.path or "warehouse.state",valid,64000)
+  local disk=A.mount("/"):open(cfg.path or "warehouse.state",valid,{class="bulk",limit=64000})
   local state=disk.value or {version=1,phase="idle",line=1,cargo={},escrow={}}
   local api,confirmedLock={},nil
   local function save(point)
-    assert(disk.save(state))
+    assert(disk:save(state))
     if point and cfg.checkpoint then cfg.checkpoint(point) end
   end
   local function call(op,v)

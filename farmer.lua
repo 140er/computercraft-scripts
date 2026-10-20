@@ -76,24 +76,24 @@ end
 -- Files
 ---------------------------------------------------------------------------
 local function loadTable(path)
-  for _, p in ipairs({ path, path .. ".tmp" }) do
-    if fs.exists(p) then
-      local h = fs.open(p, "r")
-      local t = textutils.unserialize(h.readAll())
-      h.close()
-      if type(t) == "table" then return t end
-    end
+  local raw = dofile("atomic.lua").read(path)
+  if type(raw) ~= "table" then return nil end
+  if (raw.v == 1 or raw.schema == 1) and type(raw.generation) == "number" and type(raw.value) == "table" then
+    return raw.value
   end
-  return nil
+  return raw
 end
 
+local A = dofile("atomic.lua")
+local disk = A.mount("/")
+local saved = {}
 local function saveTable(path, t)
-  local tmp = path .. ".tmp"
-  local h = fs.open(tmp, "w")
-  h.write(textutils.serialize(t, { compact = true }))
-  h.close()
-  if fs.exists(path) then fs.delete(path) end
-  fs.move(tmp, path)
+  local rec = saved[path]
+  if not rec then
+    rec = disk:open(path, function(v) return type(v) == "table" end, { class = "bulk", limit = 900000 })
+    saved[path] = rec
+  end
+  return rec:save(t)
 end
 
 local function hasTag(info, t) return info and info.tags and info.tags[t] end
@@ -146,9 +146,7 @@ if args[1] == "setup" then
   saveTable(CFG_FILE, { length = math.floor(len), width = math.floor(wid), left = args[4] == "left",
     drop = old.drop, seed = old.seed })
   if fs.exists(STATE_FILE) then fs.delete(STATE_FILE) end
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("farmer")\n')
-  h.close()
+  A.replaceBytes("startup.lua", 'shell.run("farmer")\n', function(s) return load(s) ~= nil end)
   os.setComputerLabel(os.getComputerLabel() or "Farmer")
   print("Saved: a field of " .. math.floor(len) .. " x " .. math.floor(wid) .. " to the "
     .. (args[4] == "left" and "left" or "right") .. ", in front of the turtle.")
@@ -157,6 +155,32 @@ if args[1] == "setup" then
 end
 
 local cfg = loadTable(CFG_FILE)
+if not cfg and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local len = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "How many rows in front?" })
+    local wid = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "How wide is each row?" })
+    local side = plug.ask(plug.termio(), {
+      kind = "choice", title = "Farmer", question = "Which side is the field on?",
+      choices = { { value = false, label = "right" }, { value = true, label = "left" } },
+    })
+    if len and wid and len >= 1 and wid >= 1 and len * wid <= 4096 and side ~= nil then
+      if turtle then
+        local found = false
+        for _ = 1, 4 do
+          turtle.turnLeft() turtle.turnLeft()
+          local seen, info = turtle.inspect()
+          turtle.turnLeft() turtle.turnLeft()
+          if seen and isChest(info) then found = true break end
+          turtle.turnRight()
+        end
+        if not found then print("WARNING: no chest found next to the turtle!") end
+      end
+      saveTable(CFG_FILE, { length = math.floor(len), width = math.floor(wid), left = side == true })
+      cfg = loadTable(CFG_FILE)
+    end
+  end
+end
 if not cfg then
   print("Not set up yet. First: farmer setup <length> <width> [left]")
   return
@@ -168,6 +192,16 @@ if args[1] == "drop" then
     print("The harvest goes in the chest behind the turtle again.")
   else
     local f, s, y = tonumber(args[2] or ""), tonumber(args[3] or ""), tonumber(args[4] or "")
+    if not f or not s or not y then
+      if fs.exists("plug.lua") then
+        local ok, plug = pcall(dofile, "plug.lua")
+        if ok and type(plug) == "table" then
+          f = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks forward" })
+          s = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks right" })
+          y = plug.ask(plug.termio(), { kind = "number", title = "Farmer", question = "Chest, blocks up" })
+        end
+      end
+    end
     if not f or not s or not y then
       print("Usage: farmer drop <forward> <right> <up>   (or: farmer drop off)")
       print("Where the chest is, from the turtle's home spot looking at the field.")

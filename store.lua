@@ -1,12 +1,40 @@
 local args={...}
 local A,S=dofile("atomic.lua"),dofile("ssot.lua")
-local cfg=A.read("warehouse.cfg") or {enabled=false}
-local fleetBootstrap=A.read("wh2.cfg") or {enabled=false}
+local function unwrap(raw)
+  if type(raw)~="table" then return raw end
+  if (raw.v==1 or raw.schema==1) and type(raw.value)=="table" then return raw.value end
+  return raw
+end
+local cfg=unwrap(A.read("warehouse.cfg")) or {enabled=false}
+local fleetBootstrap=unwrap(A.read("wh2.cfg")) or {enabled=false}
 local fleetEnabled=fleetBootstrap.enabled==true
 if fleetEnabled then
   cfg.server,cfg.dimension=fleetBootstrap.server,fleetBootstrap.dimension
 end
-local function save() local f=assert(fs.open("warehouse.cfg","w")) f.write(textutils.serialize(cfg)) f.close() end
+local cfgRec
+local function save()
+  cfgRec=cfgRec or A.mount("/"):open("warehouse.cfg",function(v) return type(v)=="table" end,{class="control",limit=8192})
+  assert(cfgRec:save(cfg))
+end
+local function plugmod()
+  if not (fs and fs.exists and fs.exists("plug.lua")) then return nil end
+  local ok, mod = pcall(dofile, "plug.lua")
+  if ok and type(mod) == "table" then return mod end
+end
+local function pairSecret(plug, explicit, serverId)
+  local env = { peripheral = peripheral, rednet = rednet, gps = gps }
+  return plug.takeSecret(explicit, plug.savedPairing(), function()
+    local code = plug.ask(plug.termio(), {
+      title = "Warehouse", kind = "text",
+      question = "Type the id and the code from the server",
+      hint = "One line, the id and the code.",
+    })
+    if not code or not fs.exists("enrol.lua") then return nil end
+    local loaded, Enrol = pcall(dofile, "enrol.lua")
+    if not loaded then return nil end
+    return plug.claim(Enrol, plug.rpc(env, serverId), code, os.getComputerID())
+  end)
+end
 local function pose(offset)
   local p={dim=assert(cfg.dimension,"configure the server and dimension first"),x=tonumber(args[offset]),y=tonumber(args[offset+1]),z=tonumber(args[offset+2])}
   assert(S.pose(p),"integer world coordinates required") return p
@@ -15,11 +43,38 @@ if args[1]=="install" then
   local f=assert(fs.open("startup.lua","w")) f.write('shell.run("store")\n') f.close() print("Warehouse starts on boot") return
 elseif args[1]=="update" then shell.run("update") return
 elseif args[1]=="server" then
-  cfg.server,cfg.secret,cfg.dimension=tonumber(args[2]),args[3],args[4]
+  local plug = plugmod()
+  local id = tonumber(args[2])
+  if not id and plug then
+    local env = { peripheral = peripheral, rednet = rednet, gps = gps }
+    id = plug.fill(nil, nil, function() return plug.lookup(env, "fleetserver", "server") end, function(spec)
+      spec.title, spec.question = "Warehouse", "Fleet server id"
+      spec.kind = spec.kind or "number"
+      return plug.ask(plug.termio(), spec)
+    end)
+  end
+  local secret = args[3]
+  if type(secret) ~= "string" and plug then secret = pairSecret(plug, nil, id) end
+  local dimension = args[4] or cfg.dimension
+  if type(dimension) ~= "string" and plug then
+    dimension = plug.ask(plug.termio(), {
+      title = "Warehouse", kind = "text", question = "Dimension", default = "minecraft:overworld",
+    })
+  end
+  cfg.server,cfg.secret,cfg.dimension=id,secret,dimension
   assert(cfg.server and cfg.server%1==0 and cfg.server>=0 and type(cfg.secret)=="string" and #cfg.secret>=16
     and S.pose({dim=cfg.dimension,x=0,y=64,z=0}),"server ID, paired secret and dimension required")
   save() print("Warehouse server saved") return
 elseif args[1]=="pose" then
+  if not args[2] then
+    local plug = plugmod()
+    local fix = plug and plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+      spec.title = "Warehouse"
+      return plug.ask(plug.termio(), spec)
+    end, "Warehouse")
+    if fix then args[2], args[3], args[4] = fix.x, fix.y, fix.z end
+    if not args[5] then args[5] = 0 end
+  end
   cfg.pose=pose(2) cfg.pose.h=tonumber(args[5]) assert(cfg.pose.h and cfg.pose.h%1==0 and cfg.pose.h>=0 and cfg.pose.h<4,"heading must be 0 through 3")
   save() print("Warehouse pose saved") return
 elseif args[1]=="bounds" then
@@ -35,6 +90,40 @@ elseif args[1]=="charger" then
   assert(type(args[2])=="string" and #args[2]>0 and #args[2]<=64,"charger site required")
   local target=tonumber(args[3]) or 2000 assert(target%1==0 and target>=1 and target<=100000,"invalid fuel target")
   cfg.charger=args[2] cfg.targetFuel=target save() return
+end
+if not fleetEnabled then
+  local plug = plugmod()
+  if plug then
+    local dirty = false
+    local env = { peripheral = peripheral, rednet = rednet, gps = gps }
+    if not plug.present(cfg.server) then
+      local server, source = plug.fill(nil, nil, function() return plug.lookup(env, "fleetserver", "server") end, function(spec)
+        spec.title, spec.question = "Warehouse", "Fleet server id"
+        spec.kind = spec.kind or "number"
+        return plug.ask(plug.termio(), spec)
+      end)
+      if type(server) == "number" and (source == "discover" or source == "prompt") then cfg.server = server dirty = true end
+    end
+    if type(cfg.secret) ~= "string" or #cfg.secret < 16 then
+      local secret, source, enrolled = pairSecret(plug, cfg.secret, cfg.server)
+      if (source == "saved" or source == "enrol") and type(secret) == "string" then
+        cfg.secret = secret
+        dirty = true
+        if not plug.present(cfg.server) and type(enrolled) == "number" then cfg.server = enrolled end
+      end
+    end
+    if not plug.present(cfg.dimension) then
+      local dim = plug.ask(plug.termio(), {
+        title = "Warehouse", kind = "text", question = "Dimension", default = "minecraft:overworld",
+      })
+      if type(dim) == "string" and dim ~= "" then cfg.dimension = dim dirty = true end
+    end
+    if not cfg.pose then
+      local fix = plug.gps(env)
+      if fix then cfg.pose = { dim = cfg.dimension, x = fix.x, y = fix.y, z = fix.z, h = 0 } dirty = true end
+    end
+    if dirty then save() end
+  end
 end
 assert(cfg.server and (fleetEnabled or cfg.secret),"configure warehouse server first")
 peripheral.find("modem",rednet.open)

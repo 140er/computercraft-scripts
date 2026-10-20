@@ -25,9 +25,7 @@ if args[1] == "update" then
   return
 end
 if args[1] == "install" then
-  local h = fs.open("startup.lua", "w")
-  h.write('shell.run("relay")\n')
-  h.close()
+  dofile("atomic.lua").replaceBytes("startup.lua", 'shell.run("relay")\n', function(s) return load(s) ~= nil end)
   print("Relay will now start automatically on boot.")
   return
 end

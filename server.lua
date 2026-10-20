@@ -137,6 +137,20 @@ if fs.exists("ssot.cfg") then
   ssot = SSOT.open(ssotConfig)
 end
 
+local function adoptPaired()
+  if not ssotConfig then return end
+  pcall(function()
+    if not fs.exists("plug.lua") or not fs.exists("enrol.lua") or not fs.exists("enrol.store") then return end
+    local plug = dofile("plug.lua")
+    local Enrol = dofile("enrol.lua")
+    local store = Enrol.load(fs)
+    if store and plug.adopt(ssotConfig.controllers, store.paired) then
+      writeFile("ssot.cfg", textutils.serialize(ssotConfig, { compact = true }))
+    end
+  end)
+end
+adoptPaired()
+
 local args = { ... }
 local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
 local arConfig,saveAR
@@ -516,6 +530,7 @@ local function request(id, m, fetched, receivedAt)
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
+      if r and r.ok and m.op == "enrol-claim" then adoptPaired() end
       if r and r.ok and m.op=="ar-control" then
         if not SSOT.arAllowed(ssotConfig,id,m.name,m.uuid) then
           r.ok,r.error=false,"AR authorization was revoked"
@@ -580,6 +595,12 @@ local function request(id, m, fetched, receivedAt)
     and not ssotConfig.controllers[tostring(id)] then return end
   if m.type=="ar_layer" or m.type=="ar_ready" or m.type=="ar_toggle" then return end
   if m.type == "get" and known[m.file] then
+    local shelfCfg = dofile("atomic.lua").read("shelf.cfg")
+    if type(shelfCfg) == "table" and type(shelfCfg.value) == "table" then shelfCfg = shelfCfg.value end
+    if type(shelfCfg) == "table" and shelfCfg.codeShelf == true then
+      reply(id, m, { type = "file", file = m.file, error = "shelf" })
+      return
+    end
     local offset = m.offset or 0
     if type(offset) ~= "number" or offset < 0 or offset % 1 ~= 0 then return end
     local info = state.files[m.file]

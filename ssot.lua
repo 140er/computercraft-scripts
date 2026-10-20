@@ -696,7 +696,11 @@ function M.new(s, cfg, clock, epoch, save, map)
     while #client.order > 8 do client.cache[table.remove(client.order, 1)] = nil end
     s.clients[id] = client
     local ok, err = (save or function() return true end)(s)
-    if not ok then s, failed = previous, true return nil, tostring(err) end
+    if not ok then
+      s = previous
+      return { v = 1, type = "ssot_reply", rid = m.rid, server = os.getComputerID(),
+        auth = paired and key or false, ok = false, error = tostring(err) }
+    end
     return A.copy(result)
   end }
 end
