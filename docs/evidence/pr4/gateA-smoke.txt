@@ -1,0 +1,18 @@
+Sandbox: local source=C:\Work\computercraft-scripts seconds=120 scenario=smoke standardsMode=true disk=4000000
+Artifacts: C:\Users\LabAdmin\AppData\Local\computercraft-sandbox\runs\9498143c159c4e119398b3fd43bd8df7
+server: PASS booted=True errors=0 disk_free=2625612 rx=85 http_ok=27/27
+  last:                      Sandbox-miner
+  last:                         
+  last:                         
+  last:  <    >    ^    v    +    -    A    o
+hub: PASS booted=True errors=0 disk_free=3763921 rx=143 http_ok=1/1
+  last: Sandbox-mine -        Waiting for ord 64     inf 15
+  last: IN TURTLES NOW
+  last: nothing
+  last: Tap a turtle = only that one. 1-7 ore c custom s st
+miner: PASS booted=True errors=0 disk_free=3864077 rx=55 http_ok=0/0
+  last: Waiting for orders
+  last: Unloading
+  last: Waiting for orders
+  last: Unloading
+Sandbox PASS

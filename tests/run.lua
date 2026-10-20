@@ -437,6 +437,7 @@ dofile("tests/server.lua")(test, equal, read, mocks)
 dofile("tests/ssot-unit.lua")
 dofile("tests/nav-unit.lua")
 dofile("tests/mining-unit.lua")
+dofile("tests/warehouse-unit.lua")
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 

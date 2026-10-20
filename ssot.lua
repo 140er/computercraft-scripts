@@ -1,6 +1,7 @@
 local M = { version = 1 }
 local A = dofile("atomic.lua")
 local Mining = dofile("mine-tasks.lua")
+local Warehouse = dofile("warehouse-tasks.lua")
 local function integer(n, lo, hi)
   return type(n) == "number" and n == n and n % 1 == 0 and n >= lo and n <= hi
 end
@@ -88,16 +89,28 @@ function M.new(s, cfg, clock, epoch, save)
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
   local failed = false
   local function occupied(p, owner)
-    for id, pos in pairs(s.poses) do if id ~= owner and equal(p, pos) then return true end end
+    for id, pos in pairs(s.poses) do if id ~= owner and equal(p, pos) then return id end end
     for id, r in pairs(s.moves) do
       if id ~= owner and (r.phase == "started" or (r.epoch == epoch and r.untilAt > clock()))
-        and (equal(p, r.to) or equal(p, r.from)) then return true end
+        and (equal(p, r.to) or equal(p, r.from)) then return id end
     end
     return false
   end
   local function run(id, m)
     local op, p, r = m.op, m.pose, s.moves[id]
     if op:sub(1,5)=="mine-" then return Mining.run(s,id,m,clock,epoch,M.pose) end
+    if op:sub(1,3)=="wh-" then return Warehouse.run(s,id,m,epoch,M.pose) end
+    if op=="traffic" then
+      if not s.poses[id] or s.poses[id].boot~=m.boot then return {ok=false,error="sync before traffic"} end
+      if m.peer~=nil then
+        if not integer(m.peer,0,2147483647) then return {ok=false,error="invalid traffic peer"} end
+        return {ok=true,pose=s.poses[m.peer] and clone(s.poses[m.peer])}
+      end
+      if not M.pose(m.to) or m.to.dim~=s.poses[id].dim
+        or math.abs(m.to.x-s.poses[id].x)+math.abs(m.to.y-s.poses[id].y)+math.abs(m.to.z-s.poses[id].z)~=1 then return {ok=false,error="invalid traffic destination"} end
+      local peer=occupied(m.to,id)
+      return {ok=true,peer=peer or false,yield=peer and id>peer or false,pose=peer and clone(s.poses[peer])}
+    end
     if op=="calibrate" then
       local previous=s.poses[id]
       if not M.pose(p) or not M.pose(m.previous) or p.dim~=m.previous.dim or occupied(p,id) then
@@ -291,7 +304,7 @@ function M.open(cfg)
           or type(entry.result)~="table" or entry.result.type~="ssot_reply" then return false end
       end
     end
-    return Mining.valid(s.mining,M.pose)
+    return Mining.valid(s.mining,M.pose) and Warehouse.valid(s.warehouse,M.pose)
   end, 900000)
   local s = store.value or { schema = 1, chunks = {}, names = {}, poses = {}, moves = {},
     clients = {}, rev = 0, seq = 0, epoch = 0 }

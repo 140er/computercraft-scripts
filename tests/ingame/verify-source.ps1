@@ -1,4 +1,4 @@
-param([string]$Computers,[string]$Output)
+param([string]$Computers,[string]$Output,[int[]]$Ids=@(0,1,2,3,4,6))
 $ErrorActionPreference='Stop'
 $source=(Resolve-Path "$PSScriptRoot\..\..").Path
 $sha=[Security.Cryptography.SHA256]::Create()
@@ -8,13 +8,13 @@ function Hash-Text([string]$Path) {
     ([BitConverter]::ToString($sha.ComputeHash($utf8.GetBytes($text)))).Replace('-','').ToLowerInvariant()
 }
 $rows=@()
-foreach($file in @('atomic.lua','ssot.lua','ssot-client.lua','mine-tasks.lua','nav.lua','mining.lua','miner.lua','server.lua','hub.lua','install.lua','update.lua')) {
+foreach($file in @('atomic.lua','ssot.lua','ssot-client.lua','mine-tasks.lua','nav.lua','mining.lua','miner.lua','server.lua','hub.lua','install.lua','update.lua','warehouse.lua','warehouse-tasks.lua','store.lua','roomsorter.lua','sorter.lua')) {
     $hash=Hash-Text "$source\$file"
-    foreach($id in @(0,1,2,3,4,6)) {
+    foreach($id in $Ids) {
         if((Hash-Text "$Computers\$id\$file") -ne $hash){throw "Computer $id used a different $file."}
     }
-    $rows+=@{file=$file;sha256=$hash;computers=@(0,1,2,3,4,6)}
+    $rows+=@{file=$file;sha256=$hash;computers=$Ids}
 }
 $sha.Dispose()
 $rows | ConvertTo-Json -Depth 4 | Set-Content "$Output\source-sha256.json"
-Write-Output 'The six computer disks match the current production source after LF normalization.'
+Write-Output 'The computer disks match the current production source after LF normalization.'
