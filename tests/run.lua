@@ -444,6 +444,7 @@ dofile("tests/wh2-fleet-client.lua")
 dofile("tests/wh2-fleet-controls.lua")
 dofile("tests/wh2-fleet-program.lua")
 dofile("tests/wh2-fleet-store.lua")
+dofile("tests/wh2-fleet-miner.lua")(test,read,mocks)
 dofile("tests/miner-ssot-checks.lua")(test,read,mocks)
 dofile("tests/miner-nav-checks.lua")(test,read,mocks)
 

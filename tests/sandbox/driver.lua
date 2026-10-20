@@ -1,7 +1,7 @@
 local seconds, scenario = ...
 seconds = assert(tonumber(seconds))
-if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
-  local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)
+if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" or scenario=="fleet" then
+  local ok,err = pcall(assert(loadfile(scenario=="fleet" and "fleet-driver.lua" or "ssot-driver.lua","t",_ENV)),scenario)
   local h = assert(fs.open("sandbox-result.json","w"))
   h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "driver stopped")},lines={}})) h.close()
   while true do os.pullEvent() end

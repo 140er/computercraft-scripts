@@ -60,7 +60,7 @@ function M.open(config, poseValidator)
     local module = modules[path]
     if not module then
       if message.op=="wh2-get" and message.body.topic=="locations" then
-        return dofile("wh2-locations.lua").read(state,message.body,poseValidator)
+        return dofile("wh2-locations.lua").read(state,message.body,poseValidator,context.now)
       end
       if message.op=="wh2-get" and message.body.topic=="classes" then
         return {wh2=1,ok=true,revision=tostring(state.wh2 and state.wh2.layout and state.wh2.layout.revision or 0)..":0",records={},cursor=0}

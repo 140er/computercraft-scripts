@@ -4,7 +4,7 @@ local function copy(value)
   if type(value)~="table" then return value end
   local result={} for key,v in pairs(value) do result[key]=copy(v) end return result
 end
-function M.read(state, query, validPose)
+function M.read(state, query, validPose, now)
   local sites=state.warehouse and state.warehouse.sites or {}
   local revision=state.warehouse and state.warehouse.locationsRevision or 0
   local layout=state.wh2 and state.wh2.layout
@@ -25,7 +25,9 @@ function M.read(state, query, validPose)
       record.v=1
       local p=record.access.pose
       if p.v==nil then
-        p.v,p.frame,p.yAbs,p.conf,p.src,p.anchoredAt=1,"abs",true,"certain","typed",0
+        -- Legacy sites store no clock. A server read time is the typed anchor; 0 stays unroutable.
+        local anchor=type(now)=="number" and now%1==0 and now>0 and now<=9007199254740991 and now or 0
+        p.v,p.frame,p.yAbs,p.conf,p.src,p.anchoredAt=1,"abs",true,"certain","typed",anchor
       end
       if kind~="charge" then
         local block=copy(record.access.pose)

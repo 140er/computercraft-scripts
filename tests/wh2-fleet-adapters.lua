@@ -11,6 +11,7 @@ local state={rev=8,warehouse={locationsRevision=8,sites={
 local result=locations.read(state,{cursor=0},pose)
 assert(result.ok and #result.records==2 and result.records[1].id=="output")
 assert(result.records[1].access.pose.x==1 and result.records[1].block.x==1 and result.records[1].block.z==1)
+assert(result.records[1].access.pose.anchoredAt==0)
 assert(result.records[1].v==1 and result.records[1].access.pose.frame=="abs" and result.records[1].access.pose.h==0)
 assert(result.records[1].siteNames.drop=="output" and result.records[2].kind=="charge")
 assert(state.warehouse.sites.output.block==nil)
@@ -48,7 +49,11 @@ assert(dispatch.run(state,7,{op="wh2-report",body={wh2=1}},{now=1000}).code=="di
 assert(state.wh2==nil)
 dispatch=env.dofile("wh2-dispatch.lua").open({enabled=true},pose)
 assert(dispatch.run(state,7,{op="wh2-layout",body={wh2=1}},{now=1000}).code=="unavailable")
-assert(dispatch.run(state,7,{op="wh2-get",body={wh2=1,topic="locations",cursor=0}},{now=1000}).ok)
+local listed=dispatch.run(state,7,{op="wh2-get",body={wh2=1,topic="locations",cursor=0}},{now=1000})
+assert(listed.ok)
+local output
+for _,row in ipairs(listed.records) do if row.id=="output" then output=row end end
+assert(output.access.pose.anchoredAt==1000 and output.access.pose.src=="typed" and output.access.pose.conf=="certain")
 assert(dispatch.valid({schema=1,layout={opaque="retained"}}))
 local config=env.dofile("wh2-dispatch.lua").config
 assert(config(nil).enabled==false)
