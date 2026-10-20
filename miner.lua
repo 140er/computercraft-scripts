@@ -3099,6 +3099,7 @@ if C.ssot then
       assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
       C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
         bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,traffic=cfg.nav.traffic==true,
+        gpsFree=cfg.nav.gpsFree==true,
         beforeAction=C.fleetOptIn and function(_,to) return C.fleetBoundary(C.fleetAction or "navigation",to) end or nil,
         actionReady=C.fleetOptIn and function() return C.fleet.ready(),"fresh fleet settings required" end or nil,
         fuelReserve=C.fleetOptIn and C.fleetFuelReserve or nil,

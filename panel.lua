@@ -119,7 +119,7 @@ local function updateAll(sure)
   print("Update sent to every bot.")
   print("Updating this panel...")
   if not fs.exists("update.lua") then
-    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/update.lua", "update.lua")
   end
   shell.run("update") -- reboots when there's a new version
   toast("Update sent. This panel was already up to date.", 5)

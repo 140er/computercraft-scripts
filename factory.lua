@@ -104,7 +104,7 @@ local args = { ... }
 
 if args[1] == "update" then
   if not fs.exists("update.lua") then
-    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/update.lua", "update.lua")
   end
   shell.run("update")
   return
@@ -638,7 +638,7 @@ local function minerCode()
   local code = readFile("miner.lua")
   if code then return code end
   if http then
-    local res = http.get("https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/miner.lua")
+    local res = http.get("https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/miner.lua")
     if res then code = res.readAll() res.close() return code end
   end
 end

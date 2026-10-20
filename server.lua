@@ -15,7 +15,7 @@ end
 -- * An AR controller (cc_ar) next to it draws the fleet in the AR goggles.
 
 local PROTOCOL = "fleetserver"
-local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
+local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/"
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",

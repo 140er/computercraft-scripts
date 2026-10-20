@@ -1,6 +1,6 @@
 -- update refreshes this computer's installed role. Add noreboot to keep it running.
 
-local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
+local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/"
 
 local args = { ... }
 local reboot, requested = true, {}

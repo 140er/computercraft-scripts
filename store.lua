@@ -86,6 +86,7 @@ local function work()
   end
   assert(turtle and cfg.pose and cfg.bounds,"a calibrated turtle and navigation bounds are required")
   nav=dofile("nav.lua").open({path="store-nav.state",pose=cfg.pose,bounds=cfg.bounds,client=client,traffic=cfg.traffic==true,
+    gpsFree=cfg.gpsFree==true,
     beforeAction=fleet and boundary or nil,actionReady=fleet and function() return fleet.ready(),"Fresh fleet settings required" end or nil,
     observe=function()
       local x,y,z=gps.locate(2)

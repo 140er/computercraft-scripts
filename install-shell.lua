@@ -378,7 +378,7 @@ local function gui(preset, base)
 end
 
 return function(args, base)
-  args, base = args or {}, base or "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
+  args, base = args or {}, base or "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/"
   local role, quickMode, issueMode, confirmMode
   for i, arg in ipairs(args) do
     if not (i == 1 and (arg == "role" or arg == "roles")) then

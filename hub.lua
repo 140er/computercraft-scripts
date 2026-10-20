@@ -70,7 +70,7 @@ end
 if args[1] == "update" then
   -- latest version from GitHub (update.lua does the work, fetched here if missing)
   if not fs.exists("update.lua") then
-    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+    shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/update.lua", "update.lua")
   end
   -- after the reboot the hub releases the new miner.lua to the turtles (see releaseUpdate)
   local h = fs.open("hub.release", "w") h.close()
@@ -1621,7 +1621,7 @@ local function panelRequest(id, m)
     pcall(redraw)
     local h = fs.open("hub.release", "w") h.close()
     if not fs.exists("update.lua") then
-      shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/update.lua", "update.lua")
+      shell.run("wget", "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/update.lua", "update.lua")
     end
     shell.run("update") -- reboots when anything changed
     fs.delete("hub.release")

@@ -1,7 +1,7 @@
 -- install.lua - guided installer for every bot in this repo (CC: Tweaked)
 --
 -- One command on a fresh computer, turtle or pocket computer:
---   wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/install.lua
+--   wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/install.lua
 -- Then pick what it should become and follow the screens: it downloads the script,
 -- tells you what to build around it, checks what it can, asks the few numbers it
 -- needs (with GPS it fills in the coordinates) and runs the setup commands for you.
@@ -12,7 +12,7 @@
 -- Keys: arrows / Tab to move, Enter to press, Backspace = back. Or tap / click.
 -- Every install also gets update.lua, so "update" (or "<bot> update") fetches new versions later.
 
-local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/"
+local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/"
 local args = { ... }
 
 ---------------------------------------------------------------------------

@@ -227,7 +227,7 @@ return function(test, equal, read, mocks)
       return { readAll = function() return code end, close = function() end }
     end }
     m.start(serverCode)
-    equal(urls[1]:match("^(.-)%?"), "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/main/miner.lua")
+    equal(urls[1]:match("^(.-)%?"), "https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/alpha/miner.lua")
     equal(m.state().files["miner.lua"].hash, hashOf(code))
     local parts = {}
     for _, offset in ipairs({ 0, 12000, 24000 }) do
