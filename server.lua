@@ -331,7 +331,7 @@ local function status(id, p, proto, seen)
         for k, v in pairs((state.bots[t.id] or {}).status or {}) do packet[k] = v end
         for k, v in pairs(t) do packet[k] = v end
         packet.type, packet.lastError, packet.err = "status", t.err, nil
-        status(t.id, packet, "minearmy", now() - math.max(0, t.age) * 1000)
+        status(t.id, packet, "minearmy", seen - math.max(0, t.age) * 1000)
       end
     end
   end
@@ -384,7 +384,8 @@ local function retryOrders()
   end
 end
 
-local function request(id, m, fetched)
+local function request(id, m, fetched, receivedAt)
+  receivedAt = receivedAt or now()
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
@@ -453,15 +454,15 @@ local function request(id, m, fetched)
   elseif m.type == "hub_put" and type(m.hub) == "table" and type(m.turtles) == "table"
     and type(m.hub.overrides) == "table" and type(m.hub.bores) == "table"
     and type(m.hub.progress) == "table" and type(m.hub.totals) == "table" then
-    state.hub = { id = id, state = m.hub, updated = now() }
+    state.hub = { id = id, state = m.hub, updated = receivedAt }
     arDirty = true
     local b = bot(id, "hub", "minearmy")
-    b.lastSeen = now()
+    b.lastSeen = receivedAt
     b.assignments = { target = m.hub.target, overrides = copy(m.hub.overrides), bores = copy(m.hub.bores) }
     for tid, t in pairs(m.turtles) do
       if type(tid) == "number" and type(t) == "table" and type(t.p) == "table" and t.p.type == "status"
         and type(t.age) == "number" and t.age >= 0 and t.age < math.huge then
-        status(tid, t.p, "minearmy", now() - math.max(0, t.age) * 1000)
+        status(tid, t.p, "minearmy", receivedAt - math.max(0, t.age) * 1000)
         local ore = (m.hub.overrides or {})[tid]
         if ore == nil then ore = m.hub.target end
         state.bots[tid].assignment = { ore = ore, recall = m.hub.recallAll, bore = copy((m.hub.bores or {})[tid]) }
@@ -929,7 +930,7 @@ local function worker()
       if queueHead > queueTail then queueHead, queueTail = 1, 0 end
       local ev, id, m, proto = table.unpack(entry.event)
       if ev == "rednet_message" then
-        if proto == PROTOCOL then request(id, m)
+        if proto == PROTOCOL then request(id, m, nil, entry.receivedAt)
         elseif proto == "minearmy" and m.type == "cmd_ack" then
           local o = outbox[m.cid]
           if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
@@ -998,40 +999,50 @@ local function worker()
   end
 end
 
+local fetching = {}
+local function fetchFile(f)
+  if http and not fetching[f] then
+    fetching[f] = true
+    local res
+    local ok, code, err = pcall(function()
+      local failure
+      res, failure = http.get(BASE .. f .. "?t=" .. now())
+      if not res then return nil, failure end
+      local bytes = res.readAll()
+      if bytes and #bytes > FILE_BYTES then return nil, "download too large" end
+      return bytes
+    end)
+    if res then pcall(res.close) end
+    if not ok then code, err = nil, code end
+    if err then err = tostring(err):sub(1, 256) end
+    local completion = { "server_mirror", f, code, err }
+    while not enqueue(completion, (code and #code or 0) + 384) do os.pullEvent() end
+    while not completion.done do os.pullEvent() end
+    fetching[f] = nil
+  end
+end
+
 local function refresh()
   local index, nextAt = 1, 0
   while true do
-    local urgent
-    for _, f in ipairs(FILES) do if waiting[f] then urgent = f break end end
-    if urgent or now() >= nextAt then
-      local f = urgent or FILES[index]
-      if http then
-        local res
-        local ok, code, err = pcall(function()
-          local failure
-          res, failure = http.get(BASE .. f .. "?t=" .. now())
-          if not res then return nil, failure end
-          local bytes = res.readAll()
-          if bytes and #bytes > FILE_BYTES then return nil, "download too large" end
-          return bytes
-        end)
-        if res then pcall(res.close) end
-        if not ok then code, err = nil, code end
-        if err then err = tostring(err):sub(1, 256) end
-        local completion = { "server_mirror", f, code, err }
-        while not enqueue(completion, (code and #code or 0) + 384) do os.pullEvent() end
-        while not completion.done do os.pullEvent() end
-      end
-      if not urgent then
-        index = index % #FILES + 1
-        nextAt = now() + (index == 1 and 301000 or 1000)
-      end
+    if now() >= nextAt then
+      fetchFile(FILES[index])
+      index = index % #FILES + 1
+      nextAt = now() + (index == 1 and 301000 or 1000)
     end
-    if not next(waiting) then
-      local timer = os.startTimer(math.max(0, (nextAt - now()) / 1000))
-      repeat os.pullEvent() until next(waiting) or now() >= nextAt
-      os.cancelTimer(timer)
+    local timer = os.startTimer(math.max(0, (nextAt - now()) / 1000))
+    repeat os.pullEvent() until now() >= nextAt
+    os.cancelTimer(timer)
+  end
+end
+
+local function fetchRequested()
+  while true do
+    local file
+    for name in pairs(waiting) do
+      if not fetching[name] then file = name break end
     end
+    if file then fetchFile(file) else os.pullEvent() end
   end
 end
 
@@ -1046,6 +1057,6 @@ local function gpuLoop()
   end, function(text) enqueue({ "server_error", tostring(text):sub(1, 256) }) end)
 end
 
-local ok, err = pcall(parallel.waitForAny, network, worker, maintenanceLoop, refresh, meshLoop, gpuLoop)
+local ok, err = pcall(parallel.waitForAny, network, worker, maintenanceLoop, refresh, fetchRequested, meshLoop, gpuLoop)
 if ar then pcall(function() ar.clear() ar.update() end) end
 if not ok then error(err, 0) end

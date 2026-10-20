@@ -329,6 +329,44 @@ return function(test, equal, read, mocks)
     equal(waits, {}, "a request or save pulled an event")
   end)
 
+  test("H3 a slow background fetch does not delay an unrelated cache miss", function()
+    local m = fixture()
+    m.env.http = { get = function(url)
+      if url:find("miner.lua", 1, true) then m.env.os.pullEvent("h3_background_http") end
+      return { readAll = function() return "return true" end, close = function() end }
+    end }
+    m.start(source)
+    m.request({ type = "get", file = "builder.lua", rid = "urgent-download" })
+    m.advance(2)
+    assert(m.reply("urgent-download") and m.reply("urgent-download").code == "return true",
+      "unrelated background HTTP blocked the requested file")
+    m.push("h3_background_http")
+  end)
+
+  test("H3 queued hub mirrors cannot suppress a newer direct turtle status", function()
+    for _, proto in ipairs({ "minearmy", "fleetserver" }) do
+      local m = fixture()
+      m.start(source)
+      local find, paused = m.env.peripheral.find, true
+      m.env.peripheral.find = function(kind, filter)
+        if paused and kind == "ar_controller" then m.env.os.pullEvent("h3_view_ready") end
+        return find(kind, filter)
+      end
+      m.push("peripheral", "view")
+      local old = { type = "status", x = 0, y = 64, z = 0 }
+      local mirror = proto == "minearmy" and { type = "panel_state", turtles = { { id = 1, age = 0, x = 0, y = 64, z = 0 } } }
+        or { type = "hub_put", rid = "mirror", hub = { overrides = {}, bores = {}, progress = {}, totals = {} },
+          turtles = { { p = old, age = 0 } } }
+      m.push("rednet_message", 7, mirror, proto)
+      m.time = 1
+      m.push("rednet_message", 1, { type = "status", x = 1, y = 64, z = 0 }, "minearmy")
+      m.time, paused = 5, false
+      m.push("h3_view_ready")
+      equal(m.state().bots[1].position.x, 1, "queued older hub status hid the newer turtle position")
+      equal(m.state().bots[1].lastSeen, 1001000)
+    end
+  end)
+
   test("H3 queue and HTTP progress survive lost private wake notifications", function()
     local m = fixture()
     m.env.http = { get = function()
