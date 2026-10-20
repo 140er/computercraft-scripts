@@ -35,10 +35,26 @@ local function fingerprint(text)
   for i = 1, #text do hash = (hash * 33 + text:byte(i)) % 4294967296 end
   return #text .. ":" .. string.format("%08x", hash)
 end
-local function finish()
+local function finish(spec)
   result.phase = "complete"
-  result.ok = #result.unavailable == 0
-  if not result.ok then result.error = "Available roles passed; PR5 view roles remain unavailable." end
+  if not spec then
+    result.ok = #result.unavailable == 0
+    if not result.ok then result.error = "A selected role was reported unavailable." end
+    return
+  end
+  local wanted, seen = {}, {}
+  for role, entry in pairs(spec.roles) do
+    if entry.unavailable then wanted[role] = entry.unavailable end
+  end
+  result.ok = true
+  for _, row in ipairs(result.unavailable) do
+    if seen[row.role] or wanted[row.role] ~= row.reason then result.ok = false end
+    seen[row.role] = true
+  end
+  for role in pairs(wanted) do
+    if not seen[role] then result.ok = false end
+  end
+  if not result.ok then result.error = "Unavailable role set did not match the manifest." end
 end
 local function recoverAfterReboot()
   assert(os.getComputerID() == 4, "Recovery requires disposable computer 4")
@@ -59,7 +75,7 @@ local function recoverAfterReboot()
   local updater = assert(loadfile("update.lua", "t", _ENV))("--module")
   assert(updater.apply("ar"))
   result.final = inventory()
-  finish()
+  finish(updater.loadManifest(read("bundle-manifest.lua")))
 end
 local function run()
   if selectedRole then
@@ -267,7 +283,7 @@ local function run()
     error("Interrupted update did not reboot")
   end
   assert(result.transport.requests > 0 and result.transport.bytes > 0, "No native cached transfer")
-  finish()
+  finish(selectedRole and nil or manifest)
   result.coverage = selectedRole and "Native role install, update, exact inventory, retained data and production startup."
     or "Native all-role install, update, exact inventory, retained data and rollback. Turtle startup is tested separately."
 end

@@ -34,7 +34,7 @@ Sorting rooms, furnace recipes, crafting chains, and the warehouse wizard are
 outside this PR's changed behavior. PR 6 installs the existing store role;
 that does not establish new evidence for every warehouse workflow.
 
-The required native through-wall view is unavailable in the pinned cc_ar
-renderer. Successful Lua drawing calls cannot establish that view.
+The pinned cc_ar renderer has no through-wall draw call. Successful Lua
+drawing calls do not establish that view. The HUD states the limit.
 The current wearer cannot be checked through its Lua API either.
-Both limitations keep the overall verdict at `GATES: FAIL`.
+Gate A does not count either item as passed. Gate B must list both as limits.

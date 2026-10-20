@@ -81,7 +81,7 @@ return {
     }
   },
   ["files"]={
-    ["ar-hud.lua"]="19d020be",
+    ["ar-hud.lua"]="b918fe82",
     ["ar-role.lua"]="9260ce8d",
     ["atomic.lua"]="d7da82a6",
     ["buddy.lua"]="cba823b0",
@@ -89,14 +89,14 @@ return {
     ["chat-control.lua"]="7ca4de48",
     ["factory.lua"]="dc6bd071",
     ["farmer.lua"]="d8f8b56b",
-    ["fleetview.lua"]="052a0b86",
+    ["fleetview.lua"]="9cf046df",
     ["gpshost.lua"]="35051764",
     ["hub.lua"]="480dbe11",
     ["install.lua"]="598879d5",
     ["lava.lua"]="50b443c3",
     ["lumber.lua"]="19a17375",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="b8e8ecc4",
+    ["miner.lua"]="1e45c33a",
     ["mining.lua"]="e301f99e",
     ["nav.lua"]="f2d6f768",
     ["panel.lua"]="fd6486b6",
@@ -509,5 +509,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="c16f8de8"
+  ["version"]="4538c7db"
 }

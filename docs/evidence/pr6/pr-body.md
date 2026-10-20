@@ -4,7 +4,7 @@ The Gemini AR draft uses incompatible controller calls and accepts chat commands
 
 ## What changed
 
-- Add fleet cards, fuel alerts, radar, dimensioned x-ray geometry, configurable anchors, and namespaced element cleanup.
+- Add fleet cards, fuel alerts, a 2D radar, depth-tested world boxes, configurable anchors, and namespaced element cleanup.
 - Add UUID authorization, expiring single-use confirmation, local configuration, and public/hidden AP chat handling.
 - Append named installer roles and verify staged release bundles with rollback and manual offline repair.
 
@@ -20,10 +20,10 @@ AR and chat default to off. The existing owner protocol remains in use. Installe
 
 ## Verification
 
-- Gate A passed for bundle `8152c067`: 116 mock tests plus standalone checks; six CraftOS computers, three turtle emulators, 4 MB disks, ownership faults, and full process restart.
-- Gate B is failing. Native element creation, three real turtles, Minecraft restart recovery, and production shared-controller ownership passed. This includes server death/reclaim, key forwarding, controller replacement, and scoped cleanup. Real linked goggles show the HUD.
-- Through-wall geometry is blocked by cc_ar 0.2.1's depth-tested renderer. Its Lua API exposes no see-through option. The captured wall image shows no outlines; it is retained as failure evidence. See [the bytecode findings](docs/evidence/pr6/cc-ar-depth.md).
-- Real AP chat passed after fixing the test token parser: an unenrolled UUID caused no action, hidden/public commands each executed once, and replay was rejected. A later ownership comparison was inconclusive because a status read could be empty; the hub journal shows no drawing after the key. Fresh-snapshot checks, complete-PNG capture, and native cached-role installation are queued for another run.
-- Production chat recall with physical turtle return remains unverified. PR 4 charging/storage and PR 5 views are deferred integration boundaries. Saved results and screenshots are in [docs/evidence/pr6](docs/evidence/pr6). Full VM evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`.
+- Linux Gate A passed for bundle `4538c7db`. `lua5.2 tests/run.lua` printed `168 tests passed`. CraftOS-PC 2.8.3 ran the `ar` scenario with six computers, three turtle emulators, 4,000,000-byte disks, and a full process restart. `pwsh -NoProfile -File tests/chat-token-parser.ps1` printed `PASS confirmation token parser`.
+- Gate B was not run on this pass. Earlier native runs created elements, moved three real turtles, recovered from a Minecraft restart, and passed production shared-controller ownership. Those runs are not this commit's Gate B.
+- cc_ar 0.2.1 depth-tests 3D lines and text. The HUD says outlines stop at blocks. A wall image with no outlines matches that renderer. See [the bytecode findings](docs/evidence/pr6/cc-ar-depth.md).
+- The confirmation parser keeps the token after `!confirm` or `$confirm`. It does not take `pro` from `Confirm pro`.
+- A recalled miner that is already outside the mining loop walks home. The mock and the CraftOS scenario cover that path. A physical return on a real turtle, and a native install of every role, still need Gate B.
 
 The decision trail and full-doc6 AR findings are in [docs/evidence/pr6/decisions.tsv](docs/evidence/pr6/decisions.tsv) and [docs/gemini-review.md](docs/gemini-review.md).

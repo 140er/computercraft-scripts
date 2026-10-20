@@ -90,14 +90,20 @@ function Invoke-ArRechargeChecks {
     Check-Depth 'real AP confirmed recall returns four production miners home' {
         $before=@{}; foreach($id in $depthIds){$before[$id]=Read-Depth $id}
         $chat=Invoke-ArTravelChat 'hub'
+        foreach ($id in $depthIds) {
+            if (!$before[$id].pose -or $before[$id].pose.z -le 8) {
+                throw "Turtle $id was already on its home block before recall."
+            }
+        }
         $atHome=Wait-Depth {param($s)
             foreach ($id in $depthIds) {
                 if ($s[$id].control.kind -ne 'recall' -or !(Test-ArHome $s[$id] $id) -or
+                    $s[$id].moves -le $before[$id].moves -or
                     ($s[$id].control.epoch -eq $before[$id].control.epoch -and
                         $s[$id].control.cid -le $before[$id].control.cid)) {return $false}
             }
             return $true
-        } 'all four production miners recalled home' 300
+        } 'all four production miners walked home after recall' 300
         foreach ($id in $depthIds) {
             $block=Rcon "data get block $($depthHomes[$id]) 65 8"
             if ($block -notmatch "ComputerId:\s*$id(?=[,}\s])") {throw "Recalled turtle $id is absent at its reported home."}

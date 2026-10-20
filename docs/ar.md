@@ -6,7 +6,7 @@ The AR role runs the existing hub. AR and chat start disabled. Shared-controller
 
 The server renderer reads ore cells from its SSOT map. The hub fallback has fleet telemetry only. Ore rendering on a separate AR hub needs the PR 5 snapshot adapter.
 
-The installed cc_ar 0.2.1 build depth-tests its 3D lines and text. The `xray` commands select world geometry; the installed renderer cannot show it through walls. Its Lua API also exposes no wearer identity, equipped status, removal event, or unlink operation. Controller detach is detectable, but taking off goggles is not. These requirements remain unmet.
+The installed cc_ar 0.2.1 build depth-tests its 3D lines and text. The `xray` commands select world geometry; the installed renderer cannot show it through walls. The HUD says `Outlines stop at blocks`. Its Lua API also exposes no wearer identity, equipped status, removal event, or unlink operation. Controller detach is detectable, but taking off goggles is not. These requirements remain unmet.
 
 Run these commands on the computer that owns the controller, then restart its program.
 

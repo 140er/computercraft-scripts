@@ -19,6 +19,7 @@ cfg.enabled=true
 cfg.origin={x=0,y=64,z=0,dim="minecraft:overworld"}
 H.render(m.ar,snap,mem,cfg,auth)
 assert(m.elements["ssot-ar:card:1:fuel"],"fuel bar missing")
+assert(m.elements["ssot-ar:footer:depth"].args[5]=="Outlines stop at blocks","HUD hid the depth-test limit")
 assert(m.elements["ssot-ar:alert:text"],"low fuel alert missing")
 assert(m.elements["ssot-ar:turtle:1:edge:1"],"turtle box missing")
 assert(not m.elements["ssot-ar:turtle:2:edge:1"],"wrong dimension drawn")

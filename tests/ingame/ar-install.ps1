@@ -35,6 +35,11 @@ function Invoke-NativeInstall([int]$Id,[string]$Role='') {
 try {
     $value=Invoke-NativeInstall 4
     $installRows+=@{computer=4;role='all';result=$value}
+    $pending=@('pro','view-map','view-pro','view-warehouse','vworld') | Sort-Object
+    $got=@($value.unavailable | ForEach-Object { $_.role }) | Sort-Object
+    if (($pending -join ',') -ne ($got -join ',')) {
+        $installFailures += "Unavailable roles were $($got -join ', ')."
+    }
     if (!$value.ok) { $installFailures+=$value.error }
 } catch { $installFailures+=$_.Exception.Message }
 finally { Rcon 'computercraft shutdown 4' | Out-Null }

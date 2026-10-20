@@ -420,7 +420,7 @@ function V.ar(ar, list, enabled, mem, title)
         text3(key .. ":position", color, x, y + 0.9, z, 2, "#" .. e.id)
         if e.x ~= s.x or e.z ~= s.z then line3(key .. ":path", color, sx, y, sz, x, y, z) end
       end
-      -- A box around the turtle (see it through the rock)
+      -- Depth-tested box. cc_ar 0.2.1 hides it behind blocks.
       local a, b = 0.55, 0.55
       local c8 = { { x - a, y - b, z - a }, { x + a, y - b, z - a }, { x + a, y - b, z + a }, { x - a, y - b, z + a },
         { x - a, y + b, z - a }, { x + a, y + b, z - a }, { x + a, y + b, z + a }, { x - a, y + b, z + a } }

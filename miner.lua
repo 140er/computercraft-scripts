@@ -2193,6 +2193,12 @@ function C.runMining()
         until not ok
       end
       setStatus("Mining "..tostring(why)) sleep(5)
+    elseif recall and not C.estop and mining.state().phase~="home" and mining.state().phase~="done" then
+      mining.interrupt("recall")
+      local ok,why=mining.tick()
+      local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
+      st.phase=mining.state().phase=="home" and "home" or "returning" save()
+      if mining.state().phase~="home" then setStatus("Recall return: "..tostring(why)) sleep(1) end
     else setStatus("Mining paused") sleep(1) end
   end
 end
@@ -2838,6 +2844,7 @@ if C.ssot then
           local x,y,z=gps.locate(2)
           if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
         end,
+        -- Recall walks home with nav.go. Treating recall as a cancel would stop that walk.
         cancelled=function() return C.estop or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
       local ok,why

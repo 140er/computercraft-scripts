@@ -61,6 +61,25 @@ return function(test, read, mocks)
     c:event("chat", "Jeffreyy2", "$recharge", UUID, true)
     assert(replies[#replies][3] == true and replies[#replies][2]:find("recharge", 1, true))
   end)
+  test("AP confirmation text keeps the token instead of the action word", function()
+    local c, replies = setup({ chatEnabled = true, chatNames = { "Jeffreyy2" }, chatUUIDs = { Jeffreyy2 = UUID } })
+    c:event("chat", "Jeffreyy2", "$pro", UUID, true)
+    local text = replies[#replies][2]
+    assert(text:lower():match("confirm%s+(%S+)") == "pro", "the action word is the case-insensitive confirm match")
+    local token = assert(text:lower():match("[$!]confirm%s+([%w%-]+)"), "prefixed confirm missing")
+    assert(token ~= "pro" and text:find(token, 1, true), "token was the action word")
+    local okClient, client = pcall(read, "tests/ingame/client.ps1")
+    if okClient and type(client) == "string" then
+      local pattern, count, from = "[$!]confirm\\s+([A-Za-z0-9-]+)", 0, 1
+      while true do
+        local at = client:find(pattern, from, true)
+        if not at then break end
+        count, from = count + 1, at + #pattern
+      end
+      assert(count >= 5, "client confirmation parser drifted")
+      assert(not client:find("-notmatch 'confirm\\s+", 1, true), "client parser can capture the action word")
+    end
+  end)
   test("chat rejects confirmation replay after restart", function()
     local cfg = { chatEnabled = true, chatNames={"Jeffreyy2"},chatUUIDs={Jeffreyy2=UUID} }
     local c, replies = setup(cfg)

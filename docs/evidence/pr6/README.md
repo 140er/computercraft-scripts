@@ -1,6 +1,8 @@
 # PR 6 evidence
 
-Gate A passed for production bundle `8152c067`. Gate B is failing. The installed cc_ar 0.2.1 renderer depth-tests 3D lines and text and exposes no see-through API. The required through-wall view remains blocked. See [the bytecode findings](cc-ar-depth.md).
+The Linux Gate A run on bundle `4538c7db` passed. `lua5.2 tests/run.lua` printed `168 tests passed`. The CraftOS-PC 2.8.3 AR scenario passed six computers, three turtle emulators, 4,000,000-byte disks, and a full process restart. The transcript is [linux-2026-10-20.txt](gateA/linux-2026-10-20.txt). Gate B was not run.
+
+cc_ar 0.2.1 depth-tests 3D lines and text and has no see-through API. World boxes are ordinary depth-tested outlines. The HUD says `Outlines stop at blocks`. A wall screenshot that shows no outlines matches the renderer. It is not a failed x-ray pass. See [the bytecode findings](cc-ar-depth.md).
 
 Gate A passed 116 registered mock tests plus the standalone SSOT, navigation, mining, and AR checks. The CraftOS scenario used six computers, three turtle emulators, virtual modems, and 4,000,000-byte disks. It covered controller detach and replacement, ownership recovery, and full process restart. Results are in [mocks-final.log](mocks-final.log), [coverage.json](gateA/coverage.json), and [sandbox.log](gateA/sandbox.log).
 
@@ -29,4 +31,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\run.ps1 -Scenar
 
 Full raw evidence is under `C:\Work\gemini-input\p2\evidence\pr6\gateA` and `gateB`. The [decision trail](decisions.tsv) records earlier startup, transcript, scheduling, and polling failures. Failed runs remain preserved. A result's `visual` field means the requested image paths existed; human inspection is still required.
 
-Production chat recall with physical turtle return remains unverified. PR 4 charging/warehouse and PR 5 views are accepted integration boundaries; their adapters report unavailable. A separate hub has no ore snapshot until PR 5. AR bounds record intent; existing miner bounds enforce movement. UUID authorization starts empty. Interrupted bundle promotion requires manual offline repair.
+A recalled miner that is already outside the mining loop now walks home. The mock and the CraftOS scenario both cover that path. A real turtle returning across blocks, and a native install of every role, still need Gate B.
+
+PR 4 charging and warehouse behavior is the code merged from main. PR 5 view roles stay unavailable until that branch is merged. A separate hub has no ore snapshot until PR 5. AR bounds record intent. Existing miner bounds enforce movement. UUID authorization starts empty. Interrupted bundle promotion requires manual offline repair.

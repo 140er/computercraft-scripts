@@ -123,4 +123,51 @@ return function(test,read,mocks)
       assert(scenario.cancel and command.kind==scenario.cancel or command.complete,"replayed recharge changed the current command")
     end)
   end
+  test("recall from a saved mining pose walks home instead of pausing", function()
+    local dim = "minecraft:overworld"
+    local home = { dim = dim, x = 0, y = 65, z = 0, h = 1 }
+    local m = mocks.miner({ home = { x = 0, y = 65, z = 0 }, facing = 1, spine = 2,
+      ssot = { server = 0, dimension = dim },
+      mining = { enabled = true, home = home, targets = { "minecraft:diamond_ore" } } })
+    local env = m.env
+    env.dofile = function(path) return assert(load(read(path), "@" .. path, "t", env))() end
+    m.files["mining.state"] = env.textutils.serialize({ schema = 1, generation = 1, value = {
+      version = 1, phase = "work", stack = {}, visited = {}, hazards = {}, progress = 0 } })
+    local prefix = assert(read("miner.lua"):match("^(.*)\nopenModem%(%)"))
+    local api = assert(load(prefix .. "\nreturn {C=C,listener=listener}", "=miner.lua", "t", env))()
+    local current = { dim = dim, x = 4, y = 65, z = 0, h = 1 }
+    local visits = {}
+    api.C.nav = {
+      control = function(kind, epoch, cid)
+        if type(epoch) ~= "number" or type(cid) ~= "number" then return false, "invalid command" end
+        api.C.command = { kind = kind, epoch = epoch, cid = cid }
+        return true
+      end,
+      controlState = function() return api.C.command or {} end,
+      stopped = function() return false end,
+      pose = function() return { dim = current.dim, x = current.x, y = current.y, z = current.z, h = current.h } end,
+      go = function(to)
+        visits[#visits + 1] = to
+        current.x, current.y, current.z, current.h = to.x, to.y, to.z, to.h or current.h
+        return true
+      end,
+      face = function(h) current.h = h return true end,
+    }
+    api.C.ssot = { call = function() return { ok = true } end }
+    env.sleep = function() coroutine.yield() end
+    m.app = coroutine.create(api.listener)
+    m.push()
+    m.push("rednet_message", 0, { type = "recall", commandEpoch = "3", cid = 9 }, "minearmy")
+    assert(api.C.command.kind == "recall", "recall did not reach the miner")
+    local worker = coroutine.create(api.C.runMining)
+    for _ = 1, 20 do
+      local ok, why = coroutine.resume(worker)
+      assert(ok, why)
+      if current.x == home.x and current.y == home.y and current.z == home.z and current.h == home.h then
+        assert(visits[1] and visits[1].x == home.x and visits[1].z == home.z, "recall did not request the home pose")
+        return
+      end
+    end
+    error("recalled miner stayed at " .. current.x .. "," .. current.z)
+  end)
 end

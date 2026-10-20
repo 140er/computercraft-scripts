@@ -1,0 +1,22 @@
+lua5.2 tests/run.lua
+168 tests passed
+
+pwsh -NoProfile -File tests/chat-token-parser.ps1
+PASS confirmation token parser
+
+pwsh -NoProfile -File tests/sandbox/run.ps1 -Scenario ar -Output /tmp/gate-a/ar
+CraftOS-PC v2.8.3 AppImage, sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+standardsMode=true disk=4000000 seconds=900
+Restarted the complete CraftOS process at the durable checkpoint.
+server: PASS booted=True errors=0 disk_free=2806049
+turtle1: PASS booted=True errors=0 disk_free=2832526
+turtle2: PASS booted=True errors=0 disk_free=2832526
+turtle3: PASS booted=True errors=0 disk_free=2832526
+controller: PASS booted=True errors=0 disk_free=2826408
+  last: owner detach and reattach passed
+  last: HUD, world layers, and UUID checks passed
+hub: PASS booted=True errors=0 disk_free=2820534
+Sandbox PASS
+stderr empty before and after the process restart
+controller checks: 73 passed, 0 failed
+bundle 4538c7db

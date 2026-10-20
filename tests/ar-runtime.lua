@@ -113,4 +113,4 @@ request(0,"done")
 request(5,"done")
 local h=assert(fs.open("sandbox-result.json","w"))
 h.write(textutils.serializeJSON({ok=true,booted=true,errors={},lines={"owner detach and reattach passed",
-  "HUD, x-ray, UUID checks passed"},free=fs.getFreeSpace("/")})) h.close()
+  "HUD, world layers, and UUID checks passed"},free=fs.getFreeSpace("/")})) h.close()

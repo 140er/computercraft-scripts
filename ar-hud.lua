@@ -374,6 +374,7 @@ function H.render(ar,snap,mem,cfg,authCfg)
   text("header:title",12,12,"FLEET / AR",C.cyan)
   text("header:counts",12,24,#turtles.." units | revision "..tostring(snap.revision or 0),C.white)
   text("footer",8,250,"Shift+P HUD | Shift+T turtles | Shift+O ore | Shift+A air",C.muted)
+  text("footer:depth",8,262,"Outlines stop at blocks",C.muted)
   if stopped>0 or low>0 then
     rect("alert:bg",228,8,240,24,stopped>0 and C.red or C.gold)
     text("alert:text",232,16,stopped>0 and ("ATTENTION: "..stopped.." units") or ("LOW FUEL: "..low.." units"),C.white)
