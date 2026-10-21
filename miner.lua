@@ -13,7 +13,8 @@
 --                the two in the middle = south and north)
 -- Then:
 --   miner            listens to the hub (dashboard) for orders. The screen shows
---                    what it does; keys: P pause / go on, H come home, Q quit.
+--                    what it does; keys: P pause / go on, H come home, R retry when stuck.
+--                    Ctrl+T stops it.
 --   miner diamond    works without a hub, mines diamonds (also: iron, gold, ...)
 --   miner diamond fast   same, in fast mode
 --   miner home       after putting it back on its home spot by hand: reset position
@@ -737,7 +738,7 @@ local ui = {
   pause = false,
   home = false,
   owned = false,
-  quitAsk = false,
+  retry = false,
   said = nil,
   realPrint = nil,
 }
@@ -763,21 +764,17 @@ ui.colour = function(out)
 end
 
 ui.key = function(code)
-  if ui.quitAsk then
-    ui.quitAsk = false
-    if code == keys.q then return "quit" end
-    return "redraw"
-  end
-  if code == keys.p then
+  local mode = "run"
+  if ui.note then mode = ui.note().keys or "run" end
+  if mode == "none" then return "redraw" end
+  if code == keys.p and mode ~= "stuck" then
     ui.pause = not ui.pause
     ui.sync()
   elseif code == keys.h then
-    if not ui.pause then
-      ui.home = true
-      ui.sync()
-    end
-  elseif code == keys.q then
-    ui.quitAsk = true
+    ui.home = true
+    ui.sync()
+  elseif code == keys.r and mode == "stuck" then
+    ui.retry = true
   end
   return "redraw"
 end
@@ -890,7 +887,7 @@ end
 
 local function setStatus(s)
   status = s
-  if not ui.owned then print(s) end
+  if ui.owned then os.queueEvent("miner_draw") else print(s) end
   publish(true)
 end
 
@@ -1717,6 +1714,7 @@ local B = {} -- tunnel bore (filled in further down)
 -- Back home via the known route: vein -> branch -> main tunnel -> shaft
 local function goHome(reason)
   st.phase = "returning"
+  st.homeReason = reason
   save()
   setStatus("Going home: " .. (reason or ""))
   if C.nav then
@@ -2087,6 +2085,7 @@ end
 local function unload()
   face(cfg.chest)
   local haul = {}
+  ui.haul = haul
   for s = 1, 16 do
     local d = turtle.getItemDetail(s)
     if d and (d.name == BUCKET or d.name == LAVA_BUCKET or d.name == WATER_BUCKET or d.name == "minecraft:torch") then
@@ -2097,7 +2096,7 @@ local function unload()
       else
         haulInto(haul, s)
         turtle.select(s)
-        if not turtle.drop() then print("Chest full!") end
+        if not turtle.drop() then setStatus("Chest full!") end
       end
     end
   end
@@ -2282,329 +2281,403 @@ local function tripFuel(j)
   return math.max(C.MIN_TRIP_FUEL, 2 * (down + far) + 600)
 end
 
-ui.place = function(h)
-  local at = {}
-  if h >= 13 then
-    at.title, at.task1, at.task2 = 1, 3, 4
-    at.fuel, at.inventory = 5, 6
-    at.stat1, at.stat2 = 8, 9
-    at.problem, at.keys = 11, h
-  elseif h == 1 then
-    at.title = 1
-  elseif h >= 2 then
-    at.keys = h
-    if h >= 3 then at.problem = h - 1 end
-    local order = { "task1", "fuel", "inventory", "stat1", "stat2", "task2" }
-    local used = {}
-    if at.keys then used[at.keys] = true end
-    if at.problem then used[at.problem] = true end
-    local n = 1
-    for y = 1, h do
-      if not used[y] and order[n] then
-        at[order[n]] = y
-        n = n + 1
+ui.fuelText = function(level)
+  if level == "unlimited" then return nil end
+  local n = type(level) == "number" and level or tonumber(level) or 0
+  local text
+  if n >= 10000 then text = string.format("%.1fk", n / 1000)
+  else text = tostring(math.floor(n)) end
+  if #text > 6 then text = text:sub(1, 6) end
+  return text
+end
+
+ui.barHalves = function(fraction, cells)
+  cells = tonumber(cells) or 22
+  if cells < 1 then return 0 end
+  fraction = tonumber(fraction) or 0
+  if fraction < 0 then fraction = 0 end
+  if fraction > 1 then fraction = 1 end
+  local halves = math.floor(cells * 2 * fraction + 0.5)
+  if fraction > 0 and halves == 0 then halves = 1 end
+  local cap = cells * 2
+  if halves > cap then halves = cap end
+  return halves
+end
+
+ui.ink = function(out, name)
+  local c = colors[name] or colors.white
+  if ui.colour(out) then return c end
+  if name == "lightGray" or name == "gray" or name == "black" then return c end
+  return colors.white
+end
+
+ui.note = function()
+  local text = status or ""
+  local reason = st.homeReason
+  local phase = st.phase or "home"
+  local mining = C.mining and type(C.mining.state) == "function" and C.mining.state() or nil
+  local atHome = ui.atHome()
+  local stopped = C.estop or (C.nav and type(C.nav.stopped) == "function" and C.nav.stopped())
+  local id
+  if stopped then id = "stopped"
+  elseif text:find("^ERROR: no chest") then id = "nochest"
+  elseif text:find("^STUCK:") or text:find("^Error:") then id = "stuck"
+  elseif text:find("^Not enough fuel") then id = "outfuel"
+  elseif text:find("^Chest full") then id = "chestfull"
+  elseif ui.pause then id = "paused"
+  elseif phase == "returning" and reason == "fuel low" then id = "lowfuel"
+  elseif phase == "returning" and reason == "recalled" then id = "recalled"
+  elseif phase == "returning" then id = "returning"
+  elseif ui.hub and not atHome then id = "recalled"
+  elseif ui.home and not atHome then id = "returning"
+  elseif phase == "lost" or text:find("^LOST:") then id = "lost"
+  elseif text == "Unloading" then id = "unloading"
+  elseif text == "Refueling" then id = "refueling"
+  elseif (mining and mining.phase == "done") or text == "Waiting for orders" or text:find("^No hub found") then id = "done"
+  elseif phase == "descending" then id = "descending"
+  elseif phase == "mining" then id = "mining"
+  else id = "home" end
+
+  local unloadWhy = {
+    ["inventory full"] = "The bag is full.",
+    ["trip time up"] = "Trip time is up.",
+    ["session time up"] = "Session time is up.",
+    update = "An update is ready.",
+    lava = "Lava is in the way.",
+  }
+  local otherWhy = {
+    reboot = "I rebooted away from home.",
+    ["after error"] = "Something went wrong on the trip.",
+  }
+  local toneOf = { work = "lime", move = "lightGray", soon = "orange", now = "red", done = "lightBlue" }
+  local toneName = {
+    mining = "work", descending = "move", returning = "move", recalled = "move",
+    unloading = "move", refueling = "move", lowfuel = "soon", outfuel = "now",
+    chestfull = "soon", stuck = "now", lost = "now", nochest = "now",
+    paused = "move", stopped = "now", done = "done", home = "move",
+  }
+  local keyMode = {
+    mining = "run", descending = "run", returning = "run", recalled = "run",
+    unloading = "run", refueling = "run", lowfuel = "run", outfuel = "run",
+    chestfull = "run", stuck = "stuck", lost = "run", nochest = "none",
+    paused = "pause", stopped = "none", done = "run", home = "run",
+  }
+  local keyText = {
+    run = "P pause   H come home",
+    pause = "P go on   H come home",
+    stuck = "R retry   H come home",
+    none = "",
+  }
+  local gemColor = {
+    diamond = "lightBlue", emerald = "lime", redstone = "red", lapis = "blue",
+    iron = "pink", gold = "yellow", copper = "orange", coal = "gray",
+    quartz = "white", ["ancient debris"] = "brown", ancient_debris = "brown",
+  }
+
+  local function wrap(msg)
+    local out, rest = {}, tostring(msg or ""):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    local width, maxLines = 35, 2
+    for n = 1, maxLines do
+      if rest == "" then break end
+      if #rest <= width then
+        out[#out + 1] = rest
+        break
+      end
+      local last = n == maxLines
+      local limit = last and (width - 3) or width
+      if limit < 1 then limit = 1 end
+      local cut
+      for i = math.min(limit, #rest), 1, -1 do
+        if rest:sub(i, i) == " " then cut = i break end
+      end
+      local take = cut and (cut - 1) or limit
+      if take < 1 then take = limit end
+      local body = rest:sub(1, take)
+      if last then
+        out[#out + 1] = body .. "..."
+        break
+      end
+      out[#out + 1] = body
+      if cut then rest = rest:sub(cut + 1) else rest = rest:sub(take + 1) end
+    end
+    return out
+  end
+
+  local function oreWord()
+    local ore = st.job and st.job.ore
+    if type(ore) ~= "string" or ore == "" or ore == "tunnel" or ore == "ore" then return "ore" end
+    return ore
+  end
+
+  local function branchDetail()
+    local j = st.job
+    local y = j and j.y
+    local L = y and st.levels and st.levels[y]
+    if j and L and not j.bore then
+      return { string.format("Branch %s at Y %s, %s of %s blocks.",
+        tostring(L.branch or 0), tostring(y), tostring(L.step or 0), tostring(j.branchLen or 0)) }
+    end
+    if text ~= "" and text ~= "Starting" then return wrap(text) end
+    return { "Working the level." }
+  end
+
+  local function plainName(name)
+    return tostring(name or ""):gsub("^%w+:", ""):gsub("_", " ")
+  end
+
+  local function haulDetail()
+    local haul = ui.haul
+    local rows = {}
+    if type(haul) == "table" then
+      local ore = st.job and st.job.ore
+      for name, count in pairs(haul) do
+        if type(count) == "number" and count > 0 then
+          local plain = plainName(name)
+          local hit = type(ore) == "string" and ore ~= "" and (plain == ore or plain:find(ore, 1, true) ~= nil)
+          rows[#rows + 1] = { plain = plain, count = count, hit = hit and 1 or 0 }
+        end
       end
     end
+    table.sort(rows, function(a, b)
+      if a.hit ~= b.hit then return a.hit > b.hit end
+      if a.count ~= b.count then return a.count > b.count end
+      return a.plain < b.plain
+    end)
+    if #rows == 0 then return { "Nothing to unload." } end
+    local parts = {}
+    for i = 1, math.min(3, #rows) do
+      parts[i] = tostring(rows[i].count) .. " " .. rows[i].plain
+    end
+    return wrap(table.concat(parts, ", ") .. ".")
   end
-  return at
+
+  local function fillDetail()
+    local n = ui.tripNeed
+    if type(n) ~= "number" and st.job then
+      local ok, got = pcall(tripFuel, st.job)
+      if ok and type(got) == "number" then n = got end
+    end
+    if type(n) ~= "number" then n = 0 end
+    return { "Filling to " .. tostring(math.floor(n + 0.5)) .. " for the next trip." }
+  end
+
+  local function returnDetail()
+    if unloadWhy[reason] then return { unloadWhy[reason] } end
+    if otherWhy[reason] then return { otherWhy[reason] } end
+    if type(reason) == "string" and reason ~= "" then
+      local sentence = reason
+      if sentence:sub(-1) ~= "." then sentence = sentence:gsub("^%l", string.upper) .. "." end
+      return wrap(sentence)
+    end
+    return { "On my way." }
+  end
+
+  local detail
+  if id == "mining" then detail = branchDetail()
+  elseif id == "descending" then
+    local y = st.job and st.job.y or "?"
+    detail = { "At Y " .. tostring(pos.y) .. ", heading for Y " .. tostring(y) .. "." }
+  elseif id == "returning" then detail = returnDetail()
+  elseif id == "recalled" then detail = { "The hub called me back." }
+  elseif id == "unloading" then detail = haulDetail()
+  elseif id == "refueling" then detail = fillDetail()
+  elseif id == "lowfuel" then
+    detail = { "Fuel is low. If the chest behind", "home is empty, add coal or lava." }
+  elseif id == "outfuel" then
+    detail = { "Put coal or lava buckets in the", "chest behind me." }
+  elseif id == "chestfull" then detail = { "Empty it and I carry on by myself." }
+  elseif id == "stuck" then
+    local msg = st.lastError and st.lastError.msg
+    if type(msg) ~= "string" or msg == "" then
+      msg = text:gsub("^STUCK:%s*", ""):gsub("^Error:%s*", "")
+    end
+    detail = wrap(msg)
+    if #detail == 0 then detail = { "I am stuck." } end
+  elseif id == "lost" then
+    detail = { "At " .. tostring(pos.x) .. " " .. tostring(pos.y) .. " " .. tostring(pos.z) .. "." }
+  elseif id == "nochest" then
+    detail = { "Put me on my home spot, then", "Ctrl+T and type: miner home" }
+  elseif id == "paused" then detail = { "Press P to go on." }
+  elseif id == "stopped" then detail = { "It starts again from the hub." }
+  elseif id == "done" then
+    if mining and mining.phase == "done" then detail = { "Waiting at home for the hub." }
+    elseif text == "Waiting for orders" then detail = { "Waiting for orders." }
+    elseif text ~= "" and text ~= "Starting" then
+      detail = text:sub(-1) == "." and wrap(text) or wrap(text .. ".")
+    else detail = { "Waiting at home for the hub." } end
+  else
+    if text ~= "" and text ~= "Starting" then detail = wrap(text)
+    else detail = { "Waiting for the next trip." } end
+  end
+
+  local word = oreWord()
+  local headline
+  if id == "mining" then headline = "Digging for " .. word .. "s."
+  elseif id == "returning" and unloadWhy[reason] then headline = "Coming home to unload."
+  elseif id == "returning" or id == "recalled" then headline = "Coming home."
+  elseif id == "descending" then headline = "Going down the shaft."
+  elseif id == "unloading" then headline = "Unloading into the chest."
+  elseif id == "refueling" then headline = "Refueling from the chest."
+  elseif id == "lowfuel" then headline = "Coming home to refuel."
+  elseif id == "outfuel" then headline = "Out of fuel at home."
+  elseif id == "chestfull" then headline = "The chest at home is full."
+  elseif id == "stuck" then headline = "Stuck. I need a hand."
+  elseif id == "lost" then headline = "Lost. Going up to find home."
+  elseif id == "nochest" then headline = "No chest next to me."
+  elseif id == "paused" then headline = "Paused."
+  elseif id == "stopped" then headline = "Stopped by the hub."
+  elseif id == "done" then headline = "This level is done."
+  else headline = "At home." end
+  if #headline > 35 then headline = headline:sub(1, 35) end
+
+  local tone = toneName[id] or "move"
+  local marker = toneOf[tone] or "lightGray"
+  local head = (tone == "soon" or tone == "now") and marker or "white"
+  local keys = keyMode[id] or "run"
+  local level = turtle.getFuelLevel()
+  local limit = type(turtle.getFuelLimit) == "function" and turtle.getFuelLimit() or nil
+  local fuel
+  if level ~= "unlimited" and limit ~= "unlimited" then
+    local n = type(level) == "number" and level or 0
+    local cap = type(limit) == "number" and limit or 0
+    local fraction = 0
+    if cap > 0 then fraction = math.min(1, math.max(0, n / cap)) end
+    fuel = {
+      text = ui.fuelText(n),
+      fraction = fraction,
+      color = (id == "lowfuel" or id == "outfuel") and "orange" or "green",
+    }
+  end
+  local free = freeSlots()
+  local used = 16 - (type(free) == "number" and free or 0)
+  if used < 0 then used = 0 end
+  if used > 16 then used = 16 end
+  local found = tonumber(st.found) or 0
+  if found < 0 then found = 0 end
+  found = math.floor(found)
+  local gems
+  if found == 0 then gems = { n = 0, empty = "No " .. word .. "s yet this trip." }
+  else
+    local color = "white"
+    if word ~= "ore" then color = gemColor[word] or "white" end
+    gems = { n = found, shown = math.min(24, found), color = color }
+  end
+  local label = os.getComputerLabel()
+  if type(label) ~= "string" or label == "" then label = "Turtle " .. tostring(os.getComputerID()) end
+  return {
+    id = id, tone = tone, marker = marker, headline = headline, head = head,
+    detail = detail, keys = keys, keysText = keyText[keys] or "",
+    label = label, fuel = fuel,
+    bag = {
+      text = used .. "/16",
+      fraction = used / 16,
+      color = id == "chestfull" and "orange" or "lightGray",
+    },
+    gems = gems,
+  }
 end
 
 ui.snap = function()
-  local raw = turtle.getFuelLevel()
-  local text, ratio, numeric
-  if raw == "unlimited" then
-    text, ratio = "unlimited", 1
-  else
-    numeric = type(raw) == "number" and raw or 0
-    if numeric >= 10000 then text = string.format("%.1fk", numeric / 1000)
-    else text = tostring(math.floor(numeric)) end
-    if #text > 9 then text = text:sub(1, 9) end
-    ratio = math.min(1, math.max(0, numeric / C.MIN_TRIP_FUEL))
-  end
-  local tone = "ok"
-  if not fuelOk(8) then tone = "low"
-  elseif numeric and numeric < C.MIN_TRIP_FUEL then tone = "short" end
-  local home = ui.atHome()
-  local state = "RUNNING"
-  if st.phase == "lost" then state = "LOST"
-  elseif ui.pause and home then state = "PAUSED"
-  elseif ui.pause then state = "PAUSING"
-  elseif ui.home and not home then state = "COMING HOME"
-  elseif ui.hub then state = "RECALLED"
-  elseif C.estop then state = "STOPPED" end
-  local rows = {}
-  local mining = C.mining and C.mining.state()
-  if mining and mining.task then
-    local task = mining.task
-    local span = task.max.z - task.min.z + 1
-    rows[1] = {
-      leftLabel = "Strip", leftValue = tostring(mining.progress) .. "/" .. tostring(span),
-      rightLabel = "Vein", rightValue = tostring(#(mining.stack or {})),
-    }
-    rows[2] = {
-      leftLabel = "Phase", leftValue = tostring(mining.phase or ""),
-      rightLabel = "Service", rightValue = mining.service or "",
-    }
-  elseif st.job and st.job.bore then
-    local bore = st.job.bore
-    local key = tostring(bore.x) .. "," .. tostring(bore.z)
-    local done = st.bores and st.bores[key] or 0
-    local route = B.route(bore)
-    local total = route and route.total or 0
-    rows[1] = {
-      leftLabel = "Tunnel", leftValue = tostring(done) .. "/" .. tostring(total),
-      rightLabel = "At", rightValue = st.boreAt == nil and "-" or tostring(st.boreAt),
-    }
-    rows[2] = { leftLabel = "Dug", leftValue = tostring(st.dug or 0) }
-  elseif st.job and st.job.y then
-    local y = st.job.y
-    local L = st.levels and st.levels[y] or {}
-    local branchLen = st.job.branchLen or C.BRANCH_LEN
-    local cap = math.min(branchLen, reach)
-    rows[1] = {
-      leftLabel = "Layer", leftValue = "Y " .. tostring(y),
-      rightLabel = "Branch", rightValue = tostring(L.branch or ""),
-    }
-    rows[2] = {
-      leftLabel = "Step", leftValue = tostring(L.step or 0) .. "/" .. tostring(cap),
-      rightLabel = "Dug", rightValue = tostring(st.dug or 0),
-    }
-  else
-    rows[1] = {
-      leftLabel = "Y", leftValue = tostring(pos.y),
-      rightLabel = "Phase", rightValue = tostring(st.phase or ""),
-    }
-  end
-  local problem = st.lastError and st.lastError.msg
-  if problem == "" then problem = nil end
-  local notice
-  if type(ui.said) == "string" and ui.said ~= "" and ui.said ~= status then notice = ui.said end
-  local mode = "run"
-  if ui.quitAsk then mode = "quit" elseif ui.pause then mode = "hold" end
-  return {
-    state = state, task = status,
-    fuel = { text = text, ratio = ratio, tone = tone },
-    slots = { free = freeSlots(), total = 16 },
-    rows = rows, problem = problem, notice = notice, keys = mode,
-  }
+  return ui.note()
 end
 
 ui.paint = function(out, frame)
   out = out or term
-  frame = frame or {}
+  frame = frame or ui.note()
   local w, h = out.getSize()
-  local on = ui.colour(out)
-  if w < 1 or h < 1 then return end
-  if on then
-    out.setBackgroundColor(colors.black)
-    out.setTextColor(colors.white)
-  end
-  out.clear()
-  out.setCursorPos(1, 1)
-  local at = ui.place(h)
-  local function writeAt(x, y, text)
+  if type(w) ~= "number" or type(h) ~= "number" or w < 1 or h < 1 then return end
+  local function writeAt(x, y, text, name)
     if type(text) ~= "string" or text == "" then return end
     if y < 1 or y > h or x > w then return end
     if x < 1 then
       text = text:sub(2 - x)
       x = 1
     end
-    if text == "" or x > w then return end
-    local room = w - x + 1
+    local room = (w - 1) - x + 1
+    if room < 1 or text == "" then return end
     if #text > room then text = text:sub(1, room) end
     if text == "" then return end
+    out.setBackgroundColor(ui.ink(out, "black"))
+    out.setTextColor(ui.ink(out, name or "white"))
     out.setCursorPos(x, y)
     out.write(text)
   end
-  local function bar(x, y, width, ratio, tone)
-    if width < 1 or y < 1 or y > h or x > w then return end
-    if x < 1 then
-      width = width - (1 - x)
-      x = 1
+  local function clearRow(y)
+    if y < 1 or y > h then return end
+    out.setCursorPos(1, y)
+    out.setBackgroundColor(ui.ink(out, "black"))
+    out.setTextColor(ui.ink(out, "white"))
+    if out.clearLine then out.clearLine()
+    else out.write(string.rep(" ", w)) end
+  end
+  for y = 1, h do clearRow(y) end
+  writeAt(2, 1, frame.label or "", "lightGray")
+  writeAt(2, 3, string.char(16), frame.marker or "lightGray")
+  writeAt(4, 3, frame.headline or "", frame.head or "white")
+  local detail = frame.detail or {}
+  writeAt(4, 4, detail[1] or "", "lightGray")
+  writeAt(4, 5, detail[2] or "", "lightGray")
+  local barW = w - 17
+  local function bar(x, y, fraction, name)
+    if barW < 1 or y > h or y < 1 then return end
+    local halves = ui.barHalves(fraction, barW)
+    local band, half = string.char(140), string.char(132)
+    for i = 0, barW - 1 do
+      local lit = halves - 2 * i
+      local ch, ink = band, "gray"
+      if lit >= 2 then ch, ink = band, name
+      elseif lit == 1 then ch, ink = half, name end
+      writeAt(x + i, y, ch, ink)
     end
-    if width < 1 or x > w then return end
-    if x + width - 1 > w then width = w - x + 1 end
-    local fill = math.floor(width * (ratio or 0) + 0.5)
-    if fill < 0 then fill = 0 end
-    if fill > width then fill = width end
-    if on then
-      local ink = colors.lime
-      if tone == "low" then ink = colors.red elseif tone == "short" then ink = colors.orange end
-      if fill > 0 then
-        out.setBackgroundColor(ink)
-        writeAt(x, y, string.rep(" ", fill))
-      end
-      if fill < width then
-        out.setBackgroundColor(colors.gray)
-        writeAt(x + fill, y, string.rep(" ", width - fill))
-      end
+  end
+  local function putRight(y, text, name)
+    text = tostring(text or "")
+    if #text > 6 then text = text:sub(1, 6) end
+    if text == "" or y > h then return end
+    writeAt(w - #text, y, text, name)
+  end
+  if frame.fuel and h >= 7 then
+    writeAt(4, 7, "Fuel", "lightGray")
+    bar(10, 7, frame.fuel.fraction, frame.fuel.color or "green")
+    putRight(7, frame.fuel.text, frame.fuel.color == "orange" and "orange" or "white")
+  end
+  if frame.bag and h >= 9 then
+    writeAt(4, 9, "Bag", "lightGray")
+    bar(10, 9, frame.bag.fraction, frame.bag.color or "lightGray")
+    putRight(9, frame.bag.text, "white")
+  end
+  if frame.gems and h >= 11 then
+    if frame.gems.empty then
+      writeAt(4, 11, frame.gems.empty, "gray")
     else
-      writeAt(x, y, string.rep("#", fill) .. string.rep("-", width - fill))
-    end
-  end
-  local function words(x, y, label, value, last)
-    if not y or not label or x > w then return end
-    last = math.min(last or w, w)
-    local function put(text, ink)
-      if text == "" or x > last then return end
-      local room = last - x + 1
-      if room < 1 then return end
-      if #text > room then text = text:sub(1, room) end
-      if on and ink then
-        out.setBackgroundColor(colors.black)
-        out.setTextColor(ink)
+      local shown = frame.gems.shown or 0
+      if shown > 0 then
+        writeAt(4, 11, string.rep(string.char(4), shown), frame.gems.color or "white")
       end
-      writeAt(x, y, text)
-      x = x + #text
-    end
-    put(label, on and colors.lightGray or nil)
-    if value ~= nil and tostring(value) ~= "" then put(" " .. tostring(value), on and colors.white or nil) end
-  end
-  local function stateInk(name)
-    if name == "RUNNING" then return colors.lime end
-    if name == "PAUSED" or name == "PAUSING" then return colors.yellow end
-    if name == "COMING HOME" or name == "RECALLED" then return colors.orange end
-    return colors.red
-  end
-  if at.title then
-    local y = at.title
-    if on then
-      out.setBackgroundColor(colors.green)
-      out.setTextColor(colors.white)
-      writeAt(1, y, string.rep(" ", w))
-    end
-    writeAt(1, y, " MINER")
-    local name = frame.state or ""
-    local x = w - #name + 1
-    if x < 1 then
-      name = name:sub(1, w)
-      x = 1
-    end
-    if name ~= "" then
-      if on then out.setTextColor(stateInk(frame.state)) end
-      writeAt(x, y, name)
+      writeAt(4 + shown + 1, 11, tostring(frame.gems.n or shown), "lightBlue")
     end
   end
-  local task = frame.task or ""
-  local function taskLine(y, text)
-    if not y or text == "" then return end
-    if on then
-      out.setBackgroundColor(colors.black)
-      out.setTextColor(colors.yellow)
-    end
-    writeAt(1, y, " " .. text)
+  if type(frame.keysText) == "string" and frame.keysText ~= "" then
+    writeAt(2, 13, frame.keysText, "gray")
   end
-  if at.task1 and not at.task2 then
-    taskLine(at.task1, task)
-  elseif at.task1 then
-    local limit = w - 1
-    if limit < 1 or #task <= limit then
-      taskLine(at.task1, task)
-    else
-      local cut = limit
-      for i = limit, math.max(1, math.floor(limit / 2)), -1 do
-        if task:sub(i, i) == " " then cut = i break end
-      end
-      taskLine(at.task1, task:sub(1, cut))
-      taskLine(at.task2, (task:sub(cut + 1):gsub("^ +", "")))
-    end
+  out.setBackgroundColor(ui.ink(out, "black"))
+  out.setTextColor(ui.ink(out, "white"))
+  out.setCursorPos(1, 1)
+end
+
+
+ui.hold = function(seconds)
+  local start = os.clock()
+  local deadline = start + (seconds or 0)
+  while os.clock() < deadline do
+    if ui.retry then ui.retry = false return true end
+    local now = os.clock()
+    sleep(math.min(0.25, math.max(0, deadline - now)))
+    -- A mocked sleep does not move the clock, so one wait is the whole pause.
+    if os.clock() == now then return false end
   end
-  if at.fuel and frame.fuel then
-    local y = at.fuel
-    local num = frame.fuel.text or ""
-    if #num > 9 then num = num:sub(1, 9) end
-    if w < 15 then
-      if on then
-        out.setBackgroundColor(colors.black)
-        out.setTextColor(colors.white)
-      end
-      writeAt(1, y, "Fuel " .. num)
-    else
-      if on then
-        out.setBackgroundColor(colors.black)
-        out.setTextColor(colors.lightGray)
-      end
-      writeAt(1, y, "Fuel ")
-      local numX = w - 8
-      local gap = numX - 1
-      local barW = gap - 6
-      if barW > 0 then bar(6, y, barW, frame.fuel.ratio, frame.fuel.tone) end
-      if on then
-        out.setBackgroundColor(colors.black)
-        out.setTextColor(colors.white)
-      end
-      writeAt(gap, y, " ")
-      writeAt(numX, y, num)
-    end
-  end
-  if at.inventory and frame.slots then
-    local y = at.inventory
-    local text = "Free " .. tostring(frame.slots.free) .. "/" .. tostring(frame.slots.total or 16)
-    if on then
-      out.setBackgroundColor(colors.black)
-      out.setTextColor(colors.white)
-    end
-    writeAt(1, y, text)
-    local free = tonumber(frame.slots.free) or 0
-    local total = tonumber(frame.slots.total) or 16
-    local x = #text + 2
-    if on and total > 0 and x <= w then
-      local width = total
-      if x + width - 1 > w then width = w - x + 1 end
-      if width > 0 then bar(x, y, width, free / total, "ok") end
-    end
-  end
-  local function stat(y, row)
-    if not y or not row then return end
-    local mid = math.floor(w / 2) + 2
-    local stop = w
-    if row.rightLabel and mid <= w then stop = mid - 2 end
-    words(1, y, row.leftLabel, row.leftValue, stop)
-    if row.rightLabel and mid <= w then words(mid, y, row.rightLabel, row.rightValue, w) end
-  end
-  local rows = frame.rows or {}
-  stat(at.stat1, rows[1])
-  stat(at.stat2, rows[2])
-  local function used(y)
-    for _, row in pairs(at) do if row == y then return true end end
-  end
-  if frame.notice and frame.notice ~= "" and h >= 13 and not used(7) then
-    if on then
-      out.setBackgroundColor(colors.black)
-      out.setTextColor(colors.white)
-    end
-    writeAt(1, 7, " " .. frame.notice)
-  end
-  if at.problem and frame.problem and frame.problem ~= "" then
-    if on then
-      out.setBackgroundColor(colors.black)
-      out.setTextColor(colors.red)
-    end
-    writeAt(1, at.problem, " ! " .. frame.problem)
-  end
-  if at.keys then
-    local options = {
-      run = { " [P] pause  [H] come home  [Q] quit", " [P] pause [Q] quit" },
-      hold = { " [P] go on  [Q] quit", " [P] go [Q] quit" },
-      quit = { " Press Q again to quit, any key: no", " Q again to quit" },
-    }
-    local list = options[frame.keys] or options.run
-    local text = list[#list]
-    for i = 1, #list do
-      if #list[i] <= w then text = list[i] break end
-    end
-    if #text > w then text = text:sub(1, w) end
-    if on then
-      out.setBackgroundColor(colors.gray)
-      out.setTextColor(colors.white)
-      writeAt(1, at.keys, string.rep(" ", w))
-    end
-    writeAt(1, at.keys, text)
-  end
-  if on then
-    out.setBackgroundColor(colors.black)
-    out.setTextColor(colors.white)
-  end
+  if ui.retry then ui.retry = false return true end
+  return false
 end
 
 ui.screen = function()
@@ -2631,21 +2704,10 @@ ui.screen = function()
       end
       redraw()
       timer = os.startTimer(1)
-    elseif ev == "key" then
-      if ui.key(a) == "quit" then
-        print = ui.realPrint
-        local out = term
-        if ui.colour(out) then
-          out.setBackgroundColor(colors.black)
-          out.setTextColor(colors.white)
-        end
-        out.clear()
-        out.setCursorPos(1, 1)
-        print("Miner stopped. Type miner to start it again.")
-        return
-      end
+    elseif ev == "miner_draw" or ev == "term_resize" then
       redraw()
-    elseif ev == "term_resize" then
+    elseif ev == "key" then
+      ui.key(a)
       redraw()
     end
   end
@@ -3385,7 +3447,7 @@ local function worker()
     if tostring(err):find("^" .. C.LOST) then lostBeacon(err) end
     logError(err)
     setStatus("STUCK: " .. tostring(err))
-    sleep(60)
+    ui.hold(60)
   end
   while true do
     st.phase = "home"
@@ -3415,6 +3477,7 @@ local function worker()
     else
       setStatus("Refueling")
       local need = tripFuel(j)
+      ui.tripNeed = need
       refuelFromChest(need)
       if j.bore then B.takeTorches() end
       local f = turtle.getFuelLevel()
@@ -3445,7 +3508,7 @@ local function worker()
             if tostring(err2):find("^" .. C.LOST) then lostBeacon(err2) end
             logError(err2)
             setStatus("STUCK: " .. tostring(err2))
-            sleep(30)
+            ui.hold(30)
             pcall(recover)
           end
           sleep(5)
