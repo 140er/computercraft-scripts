@@ -34,6 +34,8 @@ New-Item -ItemType Directory -Force -Path $work, $Output | Out-Null
 function Write-Summary([string]$Gates) {
     $lines = @("GATES: $Gates", '', "Ref $Ref at $sha.", "Run $stamp, pid $PID, host $env:COMPUTERNAME. VM-local disposable servers under C:\Work\mc-ssot-pr1-gb$stamp-*, never live.",
         "Scenarios $($Scenario -join ', ')$(if ($partial) { ' (subset, so PARTIAL at best)' }).",
+        'New-H3Disks does not block GATES: PASS. gateb.ps1 and the ssot, nav, mining, and warehouse scenarios never call it.',
+        $(if ($script:GatebUseVmLocks) { 'Gate path VM locks. gatebd was unreachable.' } else { 'Gate path gatebd.' }),
         "Started $($started.ToString('s')). Heartbeat $([DateTime]::Now.ToString('s')), $script:phase.", '',
         '| Scenario | Verdict | Screenshots | Video |', '| --- | --- | --- | --- |') + $rows + @('', 'Problems:') +
         $(if ($problems.Count) { $problems | ForEach-Object { "- $_" } } else { '- none' }) + @('', "Evidence: $Output")
@@ -79,24 +81,39 @@ function Invoke-Reclaim([string]$Lock) {
     if ((Get-Content "$Lock\owner.txt" -Raw -ErrorAction SilentlyContinue) -eq $text) { Remove-Item -LiteralPath $Lock -Recurse -Force }
     $problems.Add("Reclaimed $(Split-Path $Lock -Leaf) from dead run $deadStamp (pid $deadPid). This is a note, not a failure.")
 }
+. "$PSScriptRoot\gateb-retry.ps1"
+function Get-VmModLines {
+    $patterns = @(
+        'AdvancedPeripherals-*.jar', 'cc-tweaked-*.jar', 'cc_ar-*.jar', 'classicperipherals-*.jar',
+        'directgpu-*.jar', 'kotlinforforge-*.jar', 'recipe_index-*.jar', 'superbwarfare-*.jar',
+        'turtlebattery-*.jar', 'turtlematic-forge-*.jar', 'turtlematicfix-*.jar'
+    )
+    $cache = Join-Path (Split-Path $Gateb) 'mods-cache'
+    $files = @()
+    if (Test-Path -LiteralPath (Join-Path $Base 'mods')) { $files += @(Get-ChildItem -LiteralPath (Join-Path $Base 'mods') -Filter '*.jar' -File) }
+    if (Test-Path -LiteralPath $cache) { $files += @(Get-ChildItem -LiteralPath $cache -File) }
+    foreach ($pat in $patterns) {
+        $named = @($files | ForEach-Object {
+            $jar = $_.Name
+            if ($jar -match '^([0-9a-f]{64})-(.+)$') { $jar = $Matches[2]; $prefix = $Matches[1] } else { $prefix = '' }
+            if ($jar -like $pat) { [pscustomobject]@{ File = $_; Jar = $jar; Prefix = $prefix } }
+        })
+        $hit = @($named | Where-Object { $_.Prefix -and $_.Prefix -eq (Get-FileHash -LiteralPath $_.File.FullName -Algorithm SHA256).Hash.ToLower() } | Select-Object -First 1)
+        if (-not $hit) { $hit = @($named | Select-Object -First 1) }
+        if (-not $hit) { throw "VM mods have no jar matching $pat." }
+        $hash = if ($hit.Prefix) { $hit.Prefix } else { (Get-FileHash -LiteralPath $hit.File.FullName -Algorithm SHA256).Hash.ToLower() }
+        "$hash $($hit.Jar)"
+    }
+}
 function Wait-NoHold {
     $deadline = [DateTime]::UtcNow.AddSeconds($LockTimeoutSec)
+    $log = Join-Path $Output 'gatebd-wait.log'
     while ($true) {
-        $health = $null
-        $last = $null
-        foreach ($delay in @(0, 2, 2, 2)) {
-            if ($delay -gt 0) { Start-Sleep -Seconds $delay }
-            try {
-                $health = Get-GatebHealth
-                $last = $null
-                break
-            } catch {
-                $last = $_
-            }
+        $slot = Complete-GatebFallback -HoldFile $holdFile -LockDir $serverLock -Owner $owner -Log $log
+        if (-not $slot.Held) {
+            if ($slot.Source -eq 'vm') { return [pscustomobject]@{ hold = $false; vm = $true; mods = @(Get-VmModLines) } }
+            return $slot.Health
         }
-        if ($last) { throw $last }
-        $held = (Test-Path $holdFile) -or ($health.PSObject.Properties['hold'] -and $health.hold)
-        if (!$held) { return $health }
         if ([DateTime]::UtcNow -gt $deadline) { throw "A gate B hold stayed active for $LockTimeoutSec s." }
         Set-Phase 'waiting for a gate B hold'
         Start-Sleep -Seconds 60
@@ -108,12 +125,7 @@ function Enter-ServerLock {
         Wait-NoHold | Out-Null
         Invoke-Reclaim $serverLock
         if ((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB -ge 5) {
-            $created = $false
-            try { New-Item -ItemType Directory -Path $serverLock -ErrorAction Stop | Out-Null; $created = $true } catch { }
-            if ($created) {
-                try { [IO.File]::WriteAllText("$serverLock\owner.txt", $owner, $utf8); $script:holdsServer = $true; return }
-                catch { Remove-Item -LiteralPath $serverLock -Recurse -Force -ErrorAction SilentlyContinue; throw }
-            }
+            if (Lock-GatebServer $serverLock $owner) { $script:holdsServer = $true; return }
         }
         if ([DateTime]::UtcNow -gt $deadline) { throw "gateB.lock or 5 GB free RAM not available within $LockTimeoutSec s." }
         Set-Phase 'waiting for gateB.lock'
@@ -138,6 +150,7 @@ function Exit-OwnLock([string]$Lock) {
 
 try {
     . $Gateb
+    Install-GatebRetry (Join-Path $Output 'gatebd-wait.log')
     Set-Phase 'fetching the ref'
     $src = "$work\src"
     git init -q $src
