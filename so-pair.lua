@@ -148,7 +148,9 @@ end
 
 M.invite = function(screen)
   loadCrypto()
-  local code = string.format("%06d", math.random(0, 999999))
+  local raw = S.rnd.random(4)
+  local n = raw:byte(1) * 16777216 + raw:byte(2) * 65536 + raw:byte(3) * 256 + raw:byte(4)
+  local code = string.format("%06d", n % 1000000)
   local sk = S.rnd.random(32)
   S.pending = {
     code = code,
