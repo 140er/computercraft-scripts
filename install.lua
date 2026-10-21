@@ -13,7 +13,7 @@ local ROLES = {
   display = { program = "display.lua", "display.lua" },
   server = { program = "so-server.lua",
     "so-server.lua", "so-log.lua", "so-plan.lua", "so-mine-plan.lua",
-    "so-lumber-plan.lua", "so-mod-cells.lua", "so-mod-display.lua",
+    "so-lumber-plan.lua", "so-mod-ar.lua", "so-mod-cells.lua", "so-mod-display.lua",
     "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
     "so-mod-mine.lua", "so-mod-shop.lua", "so-mod-state.lua",
   },
@@ -167,8 +167,14 @@ local function main(command)
   if command == "reset" then
     print('Delete this machine\'s files? Type "yes" to confirm.')
     if read() ~= "yes" then return end
-    for _, path in ipairs(fs.list("/")) do
-      if path ~= "rom" and path ~= "install.lua" then fs.delete("/" .. path) end
+    local drive = fs.getDrive("/")
+    for _, name in ipairs(fs.list("/")) do
+      local path = "/" .. name
+      if name ~= "rom" and name ~= "install.lua" and not fs.isReadOnly(path)
+        and fs.getDrive(path) == drive then
+        local ok, err = pcall(fs.delete, path)
+        if not ok then print("Reset could not delete " .. path .. ": " .. tostring(err)) end
+      end
     end
     return
   end

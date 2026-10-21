@@ -18,6 +18,8 @@ return function(test, equal, read)
     e.fs = {
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
       getCapacity = function() return m.capacity end,
+      isReadOnly = function() return false end,
+      getDrive = function() return "hdd" end,
       exists = function(p) p = norm(p); return disk[p] ~= nil or dirs[p] == true end,
       makeDir = function(p)
         p = norm(p)
@@ -40,6 +42,7 @@ return function(test, equal, read)
             if child and not seen[child] then seen[child] = true; out[#out + 1] = child end
           end
         end
+        table.sort(out)
         return out
       end,
       move = function(a, b)
@@ -304,6 +307,45 @@ return function(test, equal, read)
     m.run("reset")
     for p in pairs(m.files) do assert(p == "install.lua" or p:match("^rom/"), p) end
     equal(m.files["rom/programs/test"], "rom")
+  end)
+  test("SO9 reset skips mounted and read-only paths and removes keys and data", function()
+    local m = installed("worker")
+    m.files["disk/keep"] = "mounted disk"
+    m.files["readonly/keep"] = "read-only data"
+    m.env.fs.getDrive = function(p) return p == "/disk" and "left" or "hdd" end
+    m.env.fs.isReadOnly = function(p) return p == "/readonly" end
+    local delete = m.env.fs.delete
+    m.env.fs.delete = function(p)
+      if p == "/disk" or p == "/readonly" then error("Cannot delete " .. p) end
+      delete(p)
+    end
+    m.env.read = function() return "yes" end
+    m.run("reset")
+    equal(m.files["disk/keep"], "mounted disk")
+    equal(m.files["readonly/keep"], "read-only data")
+    assert(m.files["install.lua"])
+    equal(m.files["so-keys"], nil)
+    equal(m.files["so-data/mine/job"], nil)
+    for p in pairs(m.files) do
+      assert(p == "install.lua" or p == "disk/keep" or p == "readonly/keep", p)
+    end
+  end)
+  test("SO9 reset reports a failed delete and continues clearing local data", function()
+    local m = installed("worker")
+    m.files["blocked"] = "cannot delete"
+    local delete = m.env.fs.delete
+    m.env.fs.delete = function(p)
+      if p == "/blocked" then error("delete denied") end
+      delete(p)
+    end
+    m.env.read = function() return "yes" end
+    m.run("reset")
+    equal(m.files["blocked"], "cannot delete")
+    equal(m.files["so-keys"], nil)
+    equal(m.files["so-data/mine/job"], nil)
+    local output = table.concat(m.log, "\n")
+    assert(output:find("/blocked", 1, true))
+    assert(output:find("delete denied", 1, true))
   end)
   test("SO9 update shim calls only role installer", function()
     local args

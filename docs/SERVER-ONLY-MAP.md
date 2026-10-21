@@ -163,9 +163,10 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
 - Worker adds `worker.lua`. Only turtles install this role.
 - Display adds `display.lua`. Pockets install this role. Computers can choose it.
 - Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
-  `so-lumber-plan.lua` and every root `so-mod-*.lua`. Current modules are cells,
-  display, drops, lease, lumber, mine, shop and state. Only a regular computer
-  with at least 16000000 bytes of capacity can install this role.
+  `so-lumber-plan.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`.
+  Current modules are ar, cells, display, drops, lease, lumber, mine, shop and
+  state. Only a regular computer with at least 16000000 bytes of capacity can
+  install this role.
 
 `/.so-role` contains the plain role name. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
@@ -180,9 +181,11 @@ paths and whether they existed before the swap. Old copies move under
 removes newly introduced targets unless `/.so-new/committed` exists. That marker
 means every target was moved and recovery only finishes cleanup. The next
 installer invocation and installed startup both recover before continuing.
-`install reset` requires `yes` and deletes everything except `install.lua`
-and `/rom`, including pairing keys. SO9 tests check role coverage, dependency
-closure, client size, download validation, crash recovery and state preservation.
+`install reset` requires `yes` and deletes writable files on the root drive,
+including pairing keys, except `install.lua` and `/rom`. It skips mounts and
+read-only paths, reports failed deletions and continues with the remaining files.
+SO9 tests check role coverage, dependency closure, client size, download
+validation, crash recovery and state preservation.
 
 ## One event loop
 
