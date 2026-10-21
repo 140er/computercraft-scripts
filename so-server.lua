@@ -118,7 +118,9 @@ S.run = function()
       by = {}
       sent[msg.from] = by
     end
-    by[msg.rid] = { at = os.epoch("utc"), payload = wire }
+    local slot = { at = os.epoch("utc"), payload = wire }
+    if msg.t == "pair" then slot.hs = key end
+    by[msg.rid] = slot
     rednet.send(msg.from, wire, "so")
   end
 
@@ -156,11 +158,13 @@ S.run = function()
     local key
     if msg.t == "pair" then
       local code = pair.pending()
-      if not code then
-        print("so-server: bad mac from " .. tostring(sender))
-        return
+      if code then
+        key = pair.derive(code, os.getComputerID(), msg.from)
+      else
+        local by = sent[msg.from]
+        local slot = by and by[msg.rid]
+        if slot and slot.hs and os.epoch("utc") - slot.at <= memory then key = slot.hs end
       end
-      key = pair.derive(code, os.getComputerID(), msg.from)
     else
       key = pair.key(msg.from)
     end
