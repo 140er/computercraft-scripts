@@ -1,51 +1,34 @@
-program returned: true  pcall err: nil
-capacity 1000000 free 451561
+program returned: false  pcall err: nil
+capacity 1000000 free 701814
        11 .fleet-role
     13750 atomic.lua
-    39768 bundle-manifest.lua
-     4250 dead.lua
+    11634 install-core.lua
+     5252 install-keys.lua
+      203 install-out.txt
+     8470 install-roles.lua
+    15786 install-shell.lua
+    12032 install-touch.lua
+       85 install.cfg
     48950 install.lua
-     6067 journal.lua
-    23597 lease.lua
       202 lib/stubs/b1_h1.lua
       381 lib/stubs/b1_h5.lua
      1886 lib/stubs/b1_n1.lua
      2140 lib/stubs/b1_w1.lua
-     4745 mine-tasks.lua
-    33966 nav.lua
-    17895 planner-core.lua
-     1211 planner-enrol.lua
-     5971 planner-ops.lua
-      867 planner-settings.lua
     10633 plug.lua
-    12240 position.lua
         0 result.txt
-   150013 roomsorter.lua
-      481 s1_b1.lua
-      867 s1_h4c.lua
-     1388 s1_i1.lua
-     3850 s1_t1.lua
-     6359 ssot-client.lua
-    23850 ssot-hub.lua
-    43180 ssot.lua
+   151173 roomsorter.lua
        30 startup.lua
-       31 startup_real.lua
-    11897 store.lua
+       34 startup_real.lua
     15465 update.lua
-    10515 warehouse-tasks.lua
-    19041 warehouse.lua
-    20085 wh2-client.lua
-     4058 wh2-dispatch.lua
-     8730 wh2-program.lua
        69 wrap.cfg
 -- screen
-Looking for the storage turtle...                  
-No storage turtle found. Is it running roomsorter, 
-with a wireless modem, within ~64 blocks?          
-                                                   
-                                                   
-                                                   
-                                                   
+Order screen is on the monitor (right).            
+Type commands, e.g.:                               
+ get iron ingot 32   order torch 16   craft chest 2
+ find coal   list   recipes   status   build       
+ pause   learn   resume   blocked   resync   help  
+quit = stop                                        
+>                                                  
                                                    
                                                    
                                                    
@@ -59,27 +42,27 @@ with a wireless modem, within ~64 blocks?
                                                    
                                                    
 -- monitor
+ ORDER                 Status: idle 
+                                    
+  “€œ Frequent     —‹ Fuel         
+  †€‰ nothing yet  šŸ 1 item       
+                                    
+  ˆŸ„ Ores         Ÿƒ‹ Ingots       
+  †€‘ 0 items      ‡ 1 item       
+                                    
+  ‡‹ Gems         —Œ– Wood         
+  ‚ 0 items      ‹‡ 0 items      
+                                    
+  Œœ Blocks       Ÿ Food         
+  ŒˆŒ 0 items      €Ÿ 0 items      
+                                    
+  ‹€ Mob drops    ƒ›š Tools        
+  €‚ 0 items      †€€ 0 items      
+                                    
+  †œ™ Other        ˆŒ„ All items    
+  €‘€ 0 items      Š… 2 items      
                                     
                                     
                                     
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
-                                    
+  Materials/Wizard [w]              
+  Refresh  type on the computer     

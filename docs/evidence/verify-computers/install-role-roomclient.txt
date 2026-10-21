@@ -1,0 +1,10 @@
+http roomsorter.lua yes
+http atomic.lua yes
+http update.lua yes
+http plug.lua yes
+Installed roomclient. Wrote 0, removed 24.
+shell.run true
+pcall true nil
+startup true
+shell.run("roomsorter", "client")
+

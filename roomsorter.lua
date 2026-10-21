@@ -1684,7 +1684,26 @@ end
 
 if not map or not map.slots then
   print("No map yet. Stand the turtle on the floor facing the input chest and run: roomsorter scan")
-  return
+  local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
+  if not modem then return end
+  rednet.open(peripheral.getName(modem))
+  rednet.host(PROTOCOL, os.getComputerLabel() or ("storage" .. os.getComputerID()))
+  local function noMapStock()
+    return { version = VERSION, totals = {}, state = "No map yet", crafty = false, cutoff = 0,
+      recipes = {}, orders = {} }
+  end
+  local tick = os.startTimer(1)
+  while true do
+    local ev, a, b, c = os.pullEvent()
+    if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
+      local reply = b.cmd == "stock" and noMapStock() or { "No map yet. Run roomsorter scan on the turtle first." }
+      reply.rid = b.rid
+      rednet.send(a, reply, PROTOCOL)
+    elseif ev == "timer" and a == tick then
+      rednet.broadcast({ totals = {}, state = "No map yet" }, PROTOCOL .. "_stock")
+      tick = os.startTimer(10)
+    end
+  end
 end
 
 ---------------------------------------------------------------------------

@@ -151,9 +151,10 @@ return {
       [4]="wh2-program.lua",
       [5]="plug.lua",
       [6]="wh2-dev.lua",
-      [7]="storage-peer.lua",
-      [8]="alpha-boot.lua",
-      [9]="planner-host.lua"
+      [7]="wh2-locations.lua",
+      [8]="storage-peer.lua",
+      [9]="alpha-boot.lua",
+      [10]="planner-host.lua"
     },
     ["smartmine.lua"]={
       [1]="wh2-program.lua"
@@ -232,7 +233,7 @@ return {
     ["ar-role.lua"]="2f58b080",
     ["atomic.lua"]="7af052ba",
     ["b1-nav.lua"]="baaf3cd7",
-    ["buddy.lua"]="c8fd6866",
+    ["buddy.lua"]="f1a520a5",
     ["builder.lua"]="92c93b01",
     ["chat-control.lua"]="7ca4de48",
     ["craft.lua"]="4b6b7eab",
@@ -270,12 +271,12 @@ return {
     ["position.lua"]="5b8a22aa",
     ["relay.lua"]="a00d373b",
     ["role-adapter.lua"]="708c90da",
-    ["roomsorter.lua"]="b5b48374",
+    ["roomsorter.lua"]="1adb330a",
     ["s1_b1.lua"]="63b01e7c",
     ["s1_h4c.lua"]="113dc0db",
     ["s1_i1.lua"]="225f23f7",
     ["s1_t1.lua"]="7d1136bf",
-    ["server.lua"]="cde008e8",
+    ["server.lua"]="6f13384c",
     ["smartmine.lua"]="2eca6024",
     ["sorter.lua"]="1140c8fa",
     ["ssot-client.lua"]="5c914046",
@@ -302,6 +303,7 @@ return {
     ["wh2-dev.lua"]="83198de6",
     ["wh2-dispatch.lua"]="84cab815",
     ["wh2-fleet.lua"]="1c63b2cd",
+    ["wh2-locations.lua"]="a77c5754",
     ["wh2-program.lua"]="f42f186f",
     ["wh2-recipes.lua"]="88ecd1ff",
     ["wh2-wizard-adapter.lua"]="695233e7",
@@ -1088,7 +1090,8 @@ return {
         [42]="wh2-dev.lua",
         [43]="wh2-dispatch.lua",
         [44]="wh2-fleet.lua",
-        [45]="wh2-program.lua"
+        [45]="wh2-locations.lua",
+        [46]="wh2-program.lua"
       },
       ["startup"]={
         [1]="server"
@@ -1485,5 +1488,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="49003027"
+  ["version"]="6c1466eb"
 }

@@ -84,6 +84,7 @@ dependencies["hub.lua"][#dependencies["hub.lua"] + 1] = "wh2-dev.lua"
 dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-ar.lua"
 dependencies["panel.lua"][#dependencies["panel.lua"] + 1] = "wh2-dev.lua"
 dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-dev.lua"
+dependencies["server.lua"][#dependencies["server.lua"] + 1] = "wh2-locations.lua"
 dependencies["storage-peer.lua"] = { "lib/stubs/h4d_dep.lua" }
 dependencies["alpha-boot.lua"] = { "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-peer.lua" }
 dependencies["storage-host.lua"] = { "storage-ledger.lua", "storage-buffer.lua", "storage-view.lua" }

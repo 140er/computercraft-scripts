@@ -1,20 +1,10 @@
 CraftOS-PC v2.8.3 sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
 rom CC:Tweaked 1.112.0
-ref 2206271c3a59737ca0634a220959aa79fb79f3b5
+ref fix/roomclient-boot
 exempt none
 
-VERIFY: FAIL
+F1 checks only. This is not a full role sweep. Older dumps in this folder are from ref 2206271.
 
-mocks PASS
-server PASS free=369509 capacity=1000000 returned=false bytes=627818
-hub PASS free=21728 capacity=1000000 returned=false bytes=978154
-miner PASS free=438951 capacity=1000000 returned=false bytes=560865
-store FAIL free=601557 capacity=1000000 returned=false bytes=398291 waiting for setup input
-roomclient PASS free=451559 capacity=1000000 returned=true bytes=548309
-roomsorter PASS free=451262 capacity=1000000 returned=true bytes=548309
-lumber PASS free=620212 capacity=1000000 returned=false bytes=379427
-panel PASS free=389672 capacity=1000000 returned=false bytes=610208
-miner FAIL free=438807 capacity=1000000 returned=true bytes=560865 crash /miner.lua:3263: SSOT timeout (stopped)
-miner FAIL free=438795 capacity=1000000 returned=true bytes=560865 crash /miner.lua:3259: Resolve the miner movement journal
-roomclient FAIL free=451561 capacity=1000000 returned=true bytes=548309 order screen missing
-server FAIL free=70990 capacity=1000000 returned=false bytes=627818 disk full
+late-turtle roomclient PASS free=701814 capacity=1000000 returned=false bytes=550121
+no-map roomclient PASS free=701814 capacity=1000000 returned=false bytes=550121
+role-boot roomclient PASS free=449747 capacity=1000000 returned=false bytes=550121

@@ -38,7 +38,7 @@ local ROLES = {
   { id = "gpshost", name = "GPS host", on = "computer",
     files = { "gpshost.lua", "plug.lua" } },
   { id = "server", name = "Fleet server", on = "computer", boot = "server",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "enrol.lua", "plug.lua" } },
+    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "enrol.lua", "plug.lua", "wh2-locations.lua" } },
   { id = "panel", name = "Pocket panel", on = "pocket", boot = "panel",
     files = { "panel.lua", "fleetview.lua", "plug.lua" } },
   { id = "smartmine", name = "Simple tunnel miner", on = "turtle",
