@@ -49,7 +49,7 @@ return function(test, equal, read, mocks)
       assert(name ~= "miner.lua")
       hubBytes = hubBytes + select(1, bytes(name))
     end
-    assert(hubBytes <= 165161, "hub program is " .. hubBytes)
+    assert(hubBytes <= 165420, "hub program is " .. hubBytes)
     local hubOff, sawMiner, sawSsot = roles.resident("hub", false), false, false
     for _, name in ipairs(hubOff) do
       if name == "miner.lua" then sawMiner = true end

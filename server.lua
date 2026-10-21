@@ -1177,7 +1177,7 @@ end
 local function network()
   local applicationEvents = { monitor_touch = true, mouse_click = true, mouse_scroll = true,
     char = true, key = true, chat = true, peripheral = true, peripheral_detach = true,
-    monitor_resize = true, term_resize = true }
+    monitor_resize = true, term_resize = true, playerClick = true, redstone = true }
   while true do
     local event = { os.pullEvent() }
     local ev, id, m, proto = table.unpack(event)
@@ -1211,6 +1211,7 @@ local function maintenanceLoop()
   end
 end
 
+local gesture = AH and AH.gestureState()
 local function worker()
   local ticks = 0
   draw()
@@ -1295,6 +1296,10 @@ local function worker()
       elseif ev=="char" and not ui.dev and arLayerArmed and id==arLayerArmed then
         arLayerArmed=nil
       elseif ev=="char" and arControls and arControls.key(id) and not ui.dev then
+        arDirty=true
+        draw()
+      elseif gesture and (ev=="playerClick" or ev=="redstone") and arConfig
+        and AH.feed(gesture, ev, id, arConfig, ssotConfig, function(letter) return arControls and arControls.key(letter) end) then
         arDirty=true
         draw()
       elseif ev == "char" and id == "d" and wh2 and not ui.dev then

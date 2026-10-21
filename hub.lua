@@ -1360,11 +1360,8 @@ local function draw3D()
       local cfg={}
       for k,v in pairs(arConfig) do cfg[k]=v end
       if not view3D then cfg.enabled=false end
-      cfg.input = {
-        keys = not wh2.active,
-        touch = (not viewUI or viewUI.mode == "classic") and not wh2.active,
-        server = serverOwnsAR() or false,
-      }
+      cfg.input = AH.inputMode(wh2.active, viewUI and viewUI.mode, serverOwnsAR())
+      cfg.hub = AH.hubFrom(hub.pos, cfg.dimension)
       AH.render(ar,AH.snapshot(fleetList(),nil,cfg,arAuth.cfg,hudMem),hudMem,cfg,arAuth.cfg)
     else V.ar(ar,fleetList(),view3D and arConfig~=nil and arAuth.cfg~=nil
       and arAuth.lib.chatAllowed(arAuth.cfg,arConfig.ownerName,arConfig.ownerUUID),arMem,"Fleet") end
@@ -1392,6 +1389,7 @@ local function viewFleet()
 end
 local function viewAction(action)
   if not action then return end
+  if action.kind == "layer" then applyLayer(action.key) return end
   if action.kind == "select" then selected=selected~=action.id and action.id or nil return end
   if not selected then flash("Pick one turtle first") return end
   local types={resume="go",recall="recall",estop="estop",move="view_move"}
@@ -1410,7 +1408,7 @@ local function redraw()
   for _, s in ipairs(screens) do
     if wh2.active then
       wh2.active.draw(s.t, s.name)
-    elseif viewUI and viewUI.mode ~= "classic" then viewUI.draw(s,viewFleet(),selected,notice and os.clock()<noticeUntil and notice or nil)
+    elseif viewUI and viewUI.mode ~= "classic" then viewUI.draw(s,viewFleet(),selected,notice and os.clock()<noticeUntil and notice or nil,AH and AH.lights(arConfig))
     else
       if s.info then drawInfo(s) else draw(s) end
       if wh2.enabled then
@@ -1930,6 +1928,7 @@ end
 local function uiLoop()
   local timer = os.startTimer(1)
   local tick = 0
+  local gesture = AH and AH.gestureState()
   redraw()
   while true do
     local event = {os.pullEvent()}
@@ -1967,6 +1966,9 @@ local function uiLoop()
       click("term", b, c)
     elseif ev == "monitor_touch" then
       click(a, b, c)
+    elseif gesture and (ev == "playerClick" or ev == "redstone") and arConfig
+      and AH.feed(gesture, ev, a, arConfig, arAuth.cfg, applyLayer) then
+      redraw()
     elseif ev == "key" then
       if keys and (a == keys.leftShift or a == keys.rightShift) then shiftDown = true
       elseif shiftDown and not b and AH and keys and type(keys.getName) == "function" then
