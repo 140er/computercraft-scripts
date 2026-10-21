@@ -14,12 +14,12 @@ function M.new(cfg,source)
   local api={mode=cfg.mode or 'pro',page=1,camera={mode=cfg.camera or (cfg.mode=='warehouse' and 'top' or 'iso'),center=cfg.center or {x=0,y=64,z=0},zoom=1}}
   local sceneLib
   local function geometry() sceneLib=sceneLib or dofile('view-scene.lua') return sceneLib end
-  local function button(s,x,y,label,action)
+  local function button(s,x,y,label,action,color)
     local w,h=s.t.getSize()
-    put(s.t,x,y,label,colors.cyan)
+    put(s.t,x,y,label,color or colors.cyan)
     if x<=w and y<=h then s.buttons[#s.buttons+1]={x1=x,x2=math.min(w,x+#label-1),y=y,action=action} end
   end
-  function api.draw(s,fleet,selected,notice)
+  function api.draw(s,fleet,selected,notice,layers)
     local t=s.t local w,h=t.getSize()
     s.buttons={} s.map=nil
     if colorTerm(t) then t.setBackgroundColor(colors.black) t.setTextColor(colors.white) end
@@ -88,7 +88,20 @@ function M.new(cfg,source)
     end
     if h>=7 then
       button(s,1,h-1,'Resume',{kind='resume'}) button(s,9,h-1,'Recall',{kind='recall'}) button(s,17,h-1,'E-stop',{kind='estop'})
-      put(t,1,h,'p classic  m map  n warehouse',colors.lightGray)
+      if api.mode=='pro' then
+        local x=1
+        local labels={P='HUD',T='TRT',O='ORE',A='AIR'}
+        for _,letter in ipairs({'P','T','O','A'}) do
+          local label=labels[letter]
+          if x+#label-1>w then break end
+          local on=type(layers)=='table' and layers[letter]==true
+          button(s,x,h,label,{kind='layer',key=letter},on and colors.lime or colors.lightGray)
+          x=x+#label+1
+        end
+        if x+4<=w then put(t,x,h,'p m n',colors.lightGray) end
+      else
+        put(t,1,h,'p classic  m map  n warehouse',colors.lightGray)
+      end
     end
   end
   function api.click(s,x,y)

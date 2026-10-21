@@ -19,7 +19,9 @@ server ar follow off
 
 Replace `server` with `hub` on an AR hub. An origin has a dimension and world coordinates. A followed turtle must have a fresh, dimensioned position. If that position becomes unavailable, the HUD suppresses world geometry.
 
-Shift+P, Shift+T, Shift+O, and Shift+A toggle the fleet cards, turtle boxes, ore boxes, and known-air boxes. The hub's existing lowercase `h` and `r` keep their resume and recall behavior. Recharge uses the confirmed chat command below.
+Shift+P, Shift+T, Shift+O, and Shift+A toggle the fleet cards, turtle boxes, ore boxes, and known-air boxes while the computer terminal is open. The Pro view puts the same four controls on the monitor as HUD, TRT, ORE, and AIR. Touch works with the terminal closed. cc_ar 0.2.1 has no goggle button and no wearer event. Advanced Peripherals 1.21.1-0.7.62b queues `playerClick` with the player name when that player uses a connected player detector. The computer receives that event with the terminal closed. A click from the enrolled owner cycles the four layers. A redstone rise on one side of the computer, such as a button, cycles them too. A rise on two sides in the same moment does not. Chat commands stay off. A turtle with no world fix and no nav pose is drawn at its last world point, or at its home plus the reported offset, or on the hub as a gold `unknown` post. A lost pose is not drawn at the lost coordinates.
+
+The hub's existing lowercase `h` and `r` keep their resume and recall behavior. Recharge uses the confirmed chat command below.
 
 ## Authorize chat
 
