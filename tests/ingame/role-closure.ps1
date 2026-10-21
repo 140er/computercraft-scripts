@@ -2,7 +2,7 @@ $script:GateRoleRom = @(
     'gps','wget','pastebin','edit','lua','clear','exit','reboot','shutdown','programs','help',
     'cd','ls','dir','copy','move','delete','mkdir','id','label','monitor','rednet','bg','fg',
     'shell','alias','apis','attach','detach','drive','eject','equip','unequip','peripherals',
-    'set','unset','time','type','which','hello','motd','list','rename'
+    'set','unset','time','type','which','hello','motd','list','rename','repeat'
 )
 
 function Get-GateEntries([string]$Source, [string]$Scenario, [int]$Id) {
@@ -114,8 +114,33 @@ function Get-GateManifestRole([string]$Source, [string[]]$Entry) {
     return $null
 }
 
+function Get-GateBundleText([string]$Source) {
+    return [IO.File]::ReadAllText((Join-Path $Source 'bundle-manifest.lua'))
+}
+
+function Get-GateBundleRoleNames([string]$Source) {
+    $text = Get-GateBundleText $Source
+    $start = $text.IndexOf('["roles"]={')
+    $end = $text.IndexOf('["schema"]=', $start + 1)
+    if ($start -lt 0 -or $end -lt 0) { throw "bundle-manifest.lua has no roles table." }
+    $slice = $text.Substring($start, $end - $start)
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($hit in [regex]::Matches($slice, '(?m)^    \["([^"]+)"\]=\{')) {
+        $names.Add($hit.Groups[1].Value)
+    }
+    if ($names.Count -eq 0) { throw "bundle-manifest.lua lists no roles." }
+    return @($names)
+}
+
+function Get-GateBundleEntry([string]$Source, [string]$Role) {
+    $text = Get-GateBundleText $Source
+    $body = [regex]::Match($text, '\["' + [regex]::Escape($Role) + '"\]=\{[\s\S]*?\["entry"\]="([^"]+)"')
+    if (-not $body.Success) { throw "bundle-manifest.lua has no entry for $Role." }
+    return $body.Groups[1].Value
+}
+
 function Get-GateBundleFiles([string]$Source, [string]$Role) {
-    $text = [IO.File]::ReadAllText((Join-Path $Source 'bundle-manifest.lua'))
+    $text = Get-GateBundleText $Source
     $set = @{}
     if ($Role -eq '*stubs') {
         foreach ($hit in [regex]::Matches($text, '\["(lib/stubs/[^"]+\.lua)"\]=')) {
@@ -133,7 +158,23 @@ function Get-GateBundleFiles([string]$Source, [string]$Role) {
     return $set
 }
 
-function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
+function Test-GateDynamicAllowed([string]$RelHere, $Dyn) {
+    $rel = $RelHere -replace '\\','/'
+    if ($rel -eq 'wh2-program.lua' -and $Dyn.Kind -eq 'loadfile' -and $Dyn.Arg.StartsWith('path')) { return $true }
+    if ($Dyn.Kind -eq 'shell.run' -and $Dyn.Arg.StartsWith('shell.getRunningProgram()')) { return $true }
+    return $false
+}
+
+function Test-GateScannable([string]$Path, [string]$SourceFull) {
+    $calls = Get-LuaCalls ([IO.File]::ReadAllText($Path))
+    $relHere = $Path.Substring($SourceFull.Length).TrimStart('\','/').Replace('\','/')
+    foreach ($dyn in $calls.Dynamics) {
+        if (-not (Test-GateDynamicAllowed $relHere $dyn)) { return $false }
+    }
+    return $true
+}
+
+function Get-GateRoleFiles([string]$Source, [string[]]$Entry, [string]$ManifestRole) {
     $sourceFull = [IO.Path]::GetFullPath($Source)
     $allow = @(
         (Join-Path $sourceFull 'tests\ssot-runtime.lua'),
@@ -146,7 +187,7 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
         (Join-Path $sourceFull 'tests\ingame\charge-probe.lua'),
         (Join-Path $sourceFull 'tests\gate-disk.lua')
     )
-    $manifestRole = Get-GateManifestRole $Source $Entry
+    $manifestRole = if ($ManifestRole) { $ManifestRole } else { Get-GateManifestRole $Source $Entry }
     $roleFiles = $null
     $stubAllow = @{}
     if ($manifestRole) {
@@ -164,6 +205,7 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
         if (-not (Test-Path -LiteralPath $full)) { throw "Gate B entry is missing: $path" }
         $queue.Enqueue($full)
     }
+    while ($true) {
     while ($queue.Count -gt 0) {
         $path = $queue.Dequeue()
         if ($seen.ContainsKey($path)) { continue }
@@ -171,8 +213,7 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
         $calls = Get-LuaCalls ([IO.File]::ReadAllText($path))
         $relHere = $path.Substring($sourceFull.Length).TrimStart('\','/')
         foreach ($dyn in $calls.Dynamics) {
-            $allowed = ($relHere -replace '\\','/') -eq 'wh2-program.lua' -and $dyn.Kind -eq 'loadfile' -and $dyn.Arg.StartsWith('path')
-            if (-not $allowed) { throw "Unresolved dynamic $($dyn.Kind) in ${relHere}:$($dyn.Line): $($dyn.Arg)" }
+            if (-not (Test-GateDynamicAllowed $relHere $dyn)) { throw "Unresolved dynamic $($dyn.Kind) in ${relHere}:$($dyn.Line): $($dyn.Arg)" }
         }
         foreach ($lit in $calls.Literals) {
             $spec = $lit.Arg
@@ -213,6 +254,17 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
             if (-not $seen.ContainsKey($target)) { $queue.Enqueue($target) }
         }
     }
+        if (-not $roleFiles) { break }
+        $progress = $false
+        foreach ($rel in @($roleFiles.Keys)) {
+            if ($rel.StartsWith('lib/stubs/')) { continue }
+            $src = [IO.Path]::GetFullPath((Join-Path $sourceFull ($rel.Replace('/','\'))))
+            if (-not (Test-Path -LiteralPath $src) -or $seen.ContainsKey($src)) { continue }
+            if (Test-GateScannable $src $sourceFull) { $queue.Enqueue($src) } else { $seen[$src] = $true }
+            $progress = $true
+        }
+        if (-not $progress) { break }
+    }
     $rows = New-Object System.Collections.Generic.List[object]
     foreach ($path in $seen.Keys) {
         $rel = $path.Substring($sourceFull.Length).TrimStart('\','/').Replace('\','/')
@@ -224,13 +276,6 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry) {
     if ($roleFiles) {
         $have = @{}
         foreach ($row in $rows) { $have[$row.DiskName] = $true }
-        foreach ($rel in @($roleFiles.Keys)) {
-            if ($have.ContainsKey($rel)) { continue }
-            $src = Join-Path $sourceFull ($rel.Replace('/','\'))
-            if (-not (Test-Path -LiteralPath $src)) { continue }
-            $rows.Add([pscustomobject]@{ DiskName = $rel; SourcePath = [IO.Path]::GetFullPath($src) })
-            $have[$rel] = $true
-        }
         $missing = @($roleFiles.Keys | Where-Object { -not $have.ContainsKey($_) } | Sort-Object)
         if ($missing.Count -gt 0) {
             throw "Gate B copy left out files bundle-manifest.lua lists for ${manifestRole}: $($missing -join ', ')"
