@@ -19,12 +19,42 @@ function Get-GatebHealthAttempt {
     }
 }
 
+function Set-GatebVmLocks([string]$Log) {
+    if ($script:GatebUseVmLocks) { return }
+    $script:GatebUseVmLocks = $true
+    $line = 'gatebd unavailable, using VM locks'
+    if ($Log) { Add-Content -LiteralPath $Log -Value $line }
+    if (Get-Command Set-Phase -ErrorAction SilentlyContinue) { Set-Phase $line }
+}
+
+function Lock-GatebServer([string]$LockDir, [string]$Owner) {
+    try { New-Item -ItemType Directory -Path $LockDir -ErrorAction Stop | Out-Null }
+    catch { return $false }
+    $utf8 = New-Object Text.UTF8Encoding($false)
+    try {
+        [IO.File]::WriteAllText("$LockDir\owner.txt", $Owner, $utf8)
+        return $true
+    } catch {
+        Remove-Item -LiteralPath $LockDir -Recurse -Force -ErrorAction SilentlyContinue
+        throw
+    }
+}
+
+function New-GatebVmSlot([string]$HoldFile, [string]$LockDir, [string]$Owner, [bool]$TakeLock) {
+    $held = Test-Path -LiteralPath $HoldFile
+    if ($TakeLock -and -not $held) {
+        if (-not (Lock-GatebServer $LockDir $Owner)) { throw 'VM lock was not taken' }
+    }
+    [pscustomobject]@{ Source = 'vm'; Held = [bool]$held; Health = $null }
+}
+
 function Invoke-GatebRetry {
     param(
         [Parameter(Mandatory)][scriptblock]$Call,
-        [int]$BudgetSec = 1200,
+        [int]$BudgetSec = 120,
         [string]$Log = ''
     )
+    if ($script:GatebUseVmLocks) { throw 'gatebd unavailable, using VM locks' }
     $started = [DateTime]::UtcNow
     $delay = 0
     $attempt = 1
@@ -38,12 +68,17 @@ function Invoke-GatebRetry {
         try {
             return (& $Call)
         } catch {
-            $last = $_
             $spent = ([DateTime]::UtcNow - $started).TotalSeconds
-            if ($spent -ge $BudgetSec) { throw $last }
+            if ($spent -ge $BudgetSec) {
+                Set-GatebVmLocks $Log
+                throw 'gatebd unavailable, using VM locks'
+            }
             $delay = if ($delay -lt 1) { 1 } else { [Math]::Min(60, [int]$delay * 2) }
             $remain = [int][Math]::Floor($BudgetSec - $spent)
-            if ($remain -lt 1) { throw $last }
+            if ($remain -lt 1) {
+                Set-GatebVmLocks $Log
+                throw 'gatebd unavailable, using VM locks'
+            }
             if ($delay -gt $remain) { $delay = $remain }
             $attempt++
         }
@@ -85,7 +120,16 @@ function Complete-GatebFallback {
         [string]$Log = '',
         [switch]$TakeLock
     )
-    Invoke-GatebRetry -Log $Log -Call { Get-GatebHealthAttempt }
+    if ($script:GatebUseVmLocks) { return New-GatebVmSlot $HoldFile $LockDir $Owner ([bool]$TakeLock) }
+    try {
+        $health = Invoke-GatebRetry -Log $Log -Call { Get-GatebHealthAttempt }
+    } catch {
+        if ($script:GatebUseVmLocks) { return New-GatebVmSlot $HoldFile $LockDir $Owner ([bool]$TakeLock) }
+        throw
+    }
+    $healthHeld = $health -and $health.PSObject.Properties['hold'] -and $health.hold
+    $held = (Test-Path -LiteralPath $HoldFile) -or $healthHeld
+    [pscustomobject]@{ Source = 'gatebd'; Held = [bool]$held; Health = $health }
 }
 
 function Install-GatebRetry([string]$Log) {

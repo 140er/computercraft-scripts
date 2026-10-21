@@ -9,9 +9,7 @@ $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
 $probe.Start()
 $port = ([Net.IPEndPoint]$probe.LocalEndpoint).Port
 $probe.Stop()
-$server = $null
-$caller = $null
-$live = $null
+$serverJob = $null
 
 $job = Start-Job -ScriptBlock {
     param($Module, $Port, $Log, $Hold, $Lock, $Root)
@@ -43,7 +41,7 @@ $job = Start-Job -ScriptBlock {
 
 try {
     $done = Wait-Job $job -Timeout 180
-    if (-not $done) {
+    if ($job.State -ne 'Completed') {
         Stop-Job $job
         throw 'gatebd retry still waiting after 180s, which is the 20 minute budget'
     }
@@ -60,17 +58,15 @@ try {
     $answerLog = Join-Path $root 'answer.log'
     $answerLock = Join-Path $root 'answer.lock'
     $answerHold = Join-Path $root 'answer.hold'
-    $live = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-    $live.Start()
-    $livePort = ([Net.IPEndPoint]$live.LocalEndpoint).Port
-    $server = [powershell]::Create()
-    $serverSpace = [runspacefactory]::CreateRunspace()
-    $serverSpace.Open()
-    $server.Runspace = $serverSpace
-    [void]$server.AddScript({
-        param($Listener)
+    $portFile = Join-Path $root 'answer.port'
+    $serverJob = Start-Job -ScriptBlock {
+        param($PortFile)
+        $ErrorActionPreference = 'Stop'
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+        $listener.Start()
+        [IO.File]::WriteAllText($PortFile, ([Net.IPEndPoint]$listener.LocalEndpoint).Port)
         function Serve([string]$Body) {
-            $client = $Listener.AcceptTcpClient()
+            $client = $listener.AcceptTcpClient()
             try {
                 $stream = $client.GetStream()
                 $buf = New-Object byte[] 1024
@@ -83,42 +79,26 @@ try {
         }
         Serve '{"ok":true,"hold":false}'
         Serve '{"ok":true,"hold":true}'
-    }).AddArgument($live)
-    $serverHandle = $server.BeginInvoke()
-    $caller = [powershell]::Create()
-    $callerSpace = [runspacefactory]::CreateRunspace()
-    $callerSpace.Open()
-    $caller.Runspace = $callerSpace
-    [void]$caller.AddScript({
-        param($Module, $Port, $Log, $Hold, $Lock)
-        $ErrorActionPreference = 'Stop'
-        . $Module
-        $script:GatebUrl = "http://127.0.0.1:$Port"
-        $script:GatebToken = 'fallback-check'
-        $open = Complete-GatebFallback -HoldFile $Hold -LockDir $Lock -Owner 'gateb-fallback-check' -Log $Log -TakeLock
-        $shut = Complete-GatebFallback -HoldFile $Hold -LockDir $Lock -Owner 'gateb-fallback-check' -Log $Log -TakeLock
-        [pscustomobject]@{
-            OpenSource = [string]$open.Source
-            OpenHeld = [bool]$open.Held
-            ShutSource = [string]$shut.Source
-            ShutHeld = [bool]$shut.Held
-            LockTaken = [bool](Test-Path -LiteralPath $Lock)
-        }
-    }).AddArgument("$PSScriptRoot\gateb-retry.ps1", $livePort, $answerLog, $answerHold, $answerLock)
-    $callerHandle = $caller.BeginInvoke()
-    if (-not $callerHandle.AsyncWaitHandle.WaitOne(30000)) { throw 'gatebd answer check did not finish' }
-    $answered = $caller.EndInvoke($callerHandle)
-    if ($answered.OpenSource -ne 'gatebd' -or $answered.OpenHeld) { throw "gatebd answer took path $($answered.OpenSource) held $($answered.OpenHeld)" }
-    if ($answered.ShutSource -ne 'gatebd' -or -not $answered.ShutHeld) { throw "gatebd hold took path $($answered.ShutSource) held $($answered.ShutHeld)" }
-    if ($answered.LockTaken) { throw 'VM lock was taken while gatebd answered' }
+    } -ArgumentList $portFile
+    $portDeadline = [DateTime]::UtcNow.AddSeconds(20)
+    while (-not (Test-Path -LiteralPath $portFile)) {
+        if ([DateTime]::UtcNow -gt $portDeadline) { throw 'gatebd answer listener did not start' }
+        Start-Sleep -Milliseconds 200
+    }
+    . "$PSScriptRoot\gateb-retry.ps1"
+    $script:GatebUrl = 'http://127.0.0.1:' + (Get-Content -LiteralPath $portFile -Raw).Trim()
+    $script:GatebToken = 'fallback-check'
+    $open = Complete-GatebFallback -HoldFile $answerHold -LockDir $answerLock -Owner 'gateb-fallback-check' -Log $answerLog -TakeLock
+    $shut = Complete-GatebFallback -HoldFile $answerHold -LockDir $answerLock -Owner 'gateb-fallback-check' -Log $answerLog -TakeLock
+    if ($open.Source -ne 'gatebd' -or $open.Held) { throw "gatebd answer took path $($open.Source) held $($open.Held)" }
+    if ($shut.Source -ne 'gatebd' -or -not $shut.Held) { throw "gatebd hold took path $($shut.Source) held $($shut.Held)" }
+    if (Test-Path -LiteralPath $answerLock) { throw 'VM lock was taken while gatebd answered' }
     $answerLines = @(Get-Content -LiteralPath $answerLog -ErrorAction SilentlyContinue | Where-Object { $_ -eq 'gatebd unavailable, using VM locks' })
     if ($answerLines.Count -ne 0) { throw 'gatebd answer logged the VM lock fallback' }
     Write-Output "PASS dead gatebd fell back in $($slot.Sec)s and took the VM lock. A VM hold file blocked the next take."
 } finally {
     Stop-Job $job -ErrorAction SilentlyContinue
     Remove-Job $job -Force -ErrorAction SilentlyContinue
-    if ($server) { $server.Stop(); $serverSpace.Close(); $server.Dispose() }
-    if ($caller) { $caller.Stop(); $callerSpace.Close(); $caller.Dispose() }
-    if ($live) { $live.Stop() }
+    if ($serverJob) { Stop-Job $serverJob -ErrorAction SilentlyContinue; Remove-Job $serverJob -Force -ErrorAction SilentlyContinue }
     Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue
 }
