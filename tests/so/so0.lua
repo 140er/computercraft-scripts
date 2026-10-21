@@ -636,4 +636,27 @@ HELLO = reply
     assert(logtext(server):find("so-server: bad mac from 2", 1, true), logtext(server))
     assert(server.alive(), tostring(server.error))
   end)
+
+  test("the pair code comes from ccryptolib random bytes", function()
+    local net, server = bootServer(16000000, true, function(srv)
+      srv.env.math = setmetatable({ random = function() return 0 end }, { __index = srv.env.math })
+    end)
+    assert(server.alive(), tostring(server.error))
+    server.env.os.queueEvent("key", 25, false)
+    net.flush()
+    assert(not server.error, tostring(server.error))
+    local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
+    local raw
+    local nout = 0
+    for i = 1, #server.randomLog do
+      local entry = server.randomLog[i]
+      if type(entry) == "string" and entry:sub(1, 7) == "random:" then
+        nout = nout + 1
+        if entry == "random:4" then raw = server.randomOut[nout] end
+      end
+    end
+    assert(type(raw) == "string" and #raw == 4, "no random(4), log: " .. table.concat(server.randomLog, ","))
+    local n = raw:byte(1) * 16777216 + raw:byte(2) * 65536 + raw:byte(3) * 256 + raw:byte(4)
+    equal(code, string.format("%06d", n % 1000000))
+  end)
 end
