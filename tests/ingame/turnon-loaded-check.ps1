@@ -1,17 +1,15 @@
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\turnon-loaded.ps1"
 
-$script:sent = New-Object Collections.Generic.List[string]
-$script:loaded = $false
-$script:gaveLoaded = $false
+$state = @{ sent = (New-Object Collections.Generic.List[string]); loaded = $false; gaveLoaded = $false }
 
 function Send-Rcon([string]$Command) {
-    $script:sent.Add($Command)
-    if ($Command -eq 'forceload add -4 -4 -4 -4') { $script:loaded = $true; return 'marked' }
+    $state.sent.Add($Command)
+    if ($Command -eq 'forceload add -4 -4 -4 -4') { $state.loaded = $true; return 'marked' }
     if ($Command -eq 'computercraft turn-on 0 1 2 3 4 6') { return 'Turned on 3/6 computers' }
     if ($Command -eq 'computercraft turn-on 0') {
-        if ($script:gaveLoaded) { return 'Turned on 0/0 computers' }
-        if ($script:loaded) { $script:gaveLoaded = $true; return 'Turned on 1/1 computers' }
+        if ($state.gaveLoaded) { return 'Turned on 0/0 computers' }
+        if ($state.loaded) { $state.gaveLoaded = $true; return 'Turned on 1/1 computers' }
         return 'Turned on 0/0 computers'
     }
     return 'ok'
@@ -44,9 +42,9 @@ try {
 '@
 & $child
 
-$place = $script:GatebComputerAt['0']
+$place = $GatebComputerAt['0']
 if (-not $place -or [int]$place.X -ne -4 -or [int]$place.Z -ne -4) { throw 'place was not recorded from the child script' }
-$nether = $script:GatebComputerAt['4']
+$nether = $GatebComputerAt['4']
 if (-not $nether -or $nether.Dim -ne 'minecraft:the_nether' -or [int]$nether.X -ne 512) { throw 'nether place was not recorded from the child script' }
-if (-not ($script:sent -contains 'forceload add -4 -4 -4 -4')) { throw 'chunk was not force-loaded before turn-on' }
+if (-not ($state.sent -contains 'forceload add -4 -4 -4 -4')) { throw 'chunk was not force-loaded before turn-on' }
 Write-Output 'PASS turn-on force-loads the computer chunk and rejects 0/0'
