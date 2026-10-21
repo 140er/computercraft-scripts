@@ -300,7 +300,6 @@ local function oreFor(id)
   return o or hub.target
 end
 
--- Routed orders go through the fleet server while it answers.
 local ROUTED = { go = true, recall = true, update = true, rename = true, anchor = true }
 if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter

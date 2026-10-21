@@ -1,3 +1,5 @@
+if type(rawget(_G, "anchorRadio")) == "table" then return _G.anchorRadio end
+
 local M = {}
 
 local GPS_CHANNEL = 65534
@@ -287,4 +289,5 @@ function M.boot(nav, opts)
   return ok, why
 end
 
+_G.anchorRadio = M
 return M

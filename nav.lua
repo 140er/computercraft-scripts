@@ -338,7 +338,6 @@ function M.open(cfg)
     if cfg.client and cfg.client.anchor then
       local ok,why,epoch=cfg.client.anchor(pos,evidence)
       if not ok then state.journal.probe=false save() return false,why or "anchor rejected" end
-      -- The anchor op already stored this cell. A following sync can still reject it and leave the turtle certain but unready.
       anchored,anchorEpoch=true,epoch
     end
     local previous=A.copy(state.pose)
