@@ -6,8 +6,16 @@ for name in ("diamond emerald lapis_lazuli redstone coal charcoal coal_block qua
 M.ores = { diamond = true, redstone = true, gold = true, lapis = true, iron = true, copper = true, coal = true }
 function M.key(p) return p.x .. "," .. p.y .. "," .. p.z end
 function M.same(a, b) return a.x == b.x and a.y == b.y and a.z == b.z end
-function M.ore(d)
+function M.ore(d, ores)
   if not d or type(d.name) ~= "string" then return false end
+  if ores and #ores > 0 then
+    local matched = false
+    for _, name in ipairs(ores) do
+      if d.name:match("[:_]" .. name .. "_") or d.name:match("[:_]" .. name .. "$")
+          or (d.tags and (d.tags["c:ores/" .. name] or d.tags["forge:ores/" .. name])) then matched = true break end
+    end
+    if not matched then return false end
+  end
   if d.name:match("_ore$") or d.name:find(":raw_", 1, true) or d.name:find(":ore_", 1, true) then return true end
   for tag, yes in pairs(d.tags or {}) do
     if yes and (tag == "c:ores" or tag == "forge:ores" or tag:match("^c:ores/") or tag:match("^forge:ores/")) then return true end
@@ -97,7 +105,7 @@ function M.travel(from, goal, point)
     end
   end
 end
-function M.next(job, row, lookup, inv, fuel)
+local function nextOne(job, row, lookup, inv, fuel)
   local p, goal = row.pose, row.goal
   local out = { steps = {}, cells = {}, pose = p }
   if not goal or M.same(p, goal) then out.kind = "arrived" return out end
@@ -135,6 +143,33 @@ function M.next(job, row, lookup, inv, fuel)
       out.kind, out.error = "hold", "container blocks route"
     else out.steps, out.kind = { { op = "dig" .. suffix } }, "dig" out.ore = M.ore(known) and known.name or nil end
   else out.steps, out.kind, out.pose = { { op = dir } }, "move", P.apply(p, dir) end
+  return out
+end
+function M.next(job, row, lookup, inv, fuel)
+  local out = { kind = "batch", steps = {}, cells = {}, actions = {}, pose = row.pose }
+  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip }
+  while #out.steps < 16 do
+    local action = nextOne(job, cursor, lookup, inv, fuel)
+    if #action.steps == 0 or #out.steps + #action.steps > 16 then
+      if #out.steps == 0 then return action end
+      break
+    end
+    local first = out.actions[1]
+    if first then
+      if first.kind == "turn" and action.kind ~= "turn" then break end
+      if first.kind == "move" and action.kind ~= "inspect"
+          and (action.kind ~= "move" or action.steps[1].op ~= first.steps[1].op) then break end
+    end
+    action.first = #out.steps + 1
+    out.actions[#out.actions+1] = action
+    for _, step in ipairs(action.steps) do out.steps[#out.steps+1] = step end
+    for _, cell in ipairs(action.cells) do out.cells[#out.cells+1] = cell end
+    out.pose = action.pose
+    if action.kind ~= "move" and action.kind ~= "turn" then break end
+    cursor.pose = action.pose
+    if action.kind == "move" and not row.trip and row.pose.y == row.goal.y then break end
+  end
+  if #out.actions == 1 then return out.actions[1] end
   return out
 end
 return M

@@ -302,7 +302,9 @@ commands through that screen's `input.text`:
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
 - `bottom <y>` and `length <n>` set the shaft bottom and branch length.
 - `mode thorough|fast` selects wall inspection or faster branches.
-- `ores diamond,iron,...` accepts the ore names from `miner.lua`.
+- `ores diamond,iron,...` accepts the supported names from `so-mine-plan.lua`.
+  Only selected ores start wall veins. Empty or missing lists accept all ores.
+  Ores blocking the route are still dug.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
 - `remove <id>` removes a worker once its lease has closed.
 - `start` and `stop` control planning. An already sent batch finishes after stop.
@@ -316,9 +318,12 @@ Lost and expired workers retain their reservations until a recovery report.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 
-Work uses batches of at most 16 steps. Inspect, dig, and movement have separate
-report boundaries. A failed dig cannot authorize movement. Thorough mode checks
-branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
+Work uses batches of at most 16 steps. Known straight travel and consecutive
+turns share a lease. Travel can end with an inspect, whose result is read before
+planning more work. Dig has a separate report boundary, so a failed dig cannot
+authorize movement. Unknown shaft cells still require inspect and dig reports.
+A fresh ten-block shaft therefore cannot be dug in two leases with this worker.
+Thorough mode checks branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
 `c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
 It scoops lava sources with an empty bucket before trying sealing blocks.
 It seals other lava and water before movement. Extra junk drops at the current
@@ -331,7 +336,15 @@ Ore unloading includes mined fuel items. Front drops use a free neighbour
 at the same height. Down drops use the cell above the chest. The drop module's
 numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
 -1, and `minecraft:the_end` as 1. Other dimensions wait with an alert.
-No usable drop point parks the worker with the drop module's hold alert.
+After three failed transfers at the same drop, the worker parks and retries
+once per 60000 ms. Failed drop inspections call `drops.note(id, nil)` once each.
+The first exhausted retry emits `mine.alert { id, text }`, where text is
+`ore chest full` or `fuel chest empty`, and the screen shows that error.
+No usable drop point uses the same retry policy and retains the drop hold text.
+A successful transfer clears the retry state. Saved turtle rows use
+`dropRetry = { key, tries, alerted, after }`, where `after` is a UTC epoch in ms.
+Each retry after the threshold sets a new one-minute deadline without repeating
+the alert until a transfer succeeds or the drop changes.
 
 The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
 `{ level, branch, done }` through `SO.mods.state.emit` when available.
@@ -340,7 +353,10 @@ and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a bat
 description without network, storage, or server calls. `row.pose` and `row.goal`
 are world poses. `lookup(cell)` returns nil for unknown, false for air, or block
 data. The caller reserves `cells` before sending `steps` and applies the actual
-report rather than assuming the returned expected `pose`.
+report rather than assuming the returned expected `pose`. Multi-action batches
+also return `actions`, each with a one-based `first` index into `steps`.
+`ore(data, ores)` accepts an optional list of supported ore names and matches
+block names or ore subtype tags before applying the ore classifier.
 
 ### cells
 
@@ -358,6 +374,8 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 
 `cells.forget(x, y, z, dim)` drops both the reservation and the dug mark. `cells.forgetOwner(who)` frees that owner's reservations and emits state event `cells.forget` with `{ who, count }`. Direct API calls queue the event until tick. Dug marks remain.
 
+`cells.list(who, max)` returns up to `max` copied reservations as `{ dim, x, y, z }`. The default limit is 256. Results have no defined order and edits to them do not change reservations.
+
 `cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
 
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk loading yields.
@@ -370,7 +388,7 @@ SO5 owns this API on `SO.mods.display`.
 
 `display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
-Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, and `lumber`.
+Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, `lumber`, and `ar`.
 
 The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
 
@@ -401,6 +419,8 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
 `drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension and fewer than 3 inspect failures. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `alert` is `drops: hold <kind>`. That call also emits `drops.alert` with `{ kind, text }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
+`drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken }`. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
+
 `drops.steps(point)` takes a point. Side `front` returns `{ { op = "inspect" }, { op = "drop" } }`. Side `down` returns `{ { op = "inspectDown" }, { op = "dropDown" } }`. A call with no string `id` returns `{}`, including `steps({ name = "minecraft:cobble", n = 1, where = "front" })`.
 
 `drops.add(point)` takes `{ id, dim, x, y, z, side, kind }`. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
@@ -412,6 +432,42 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
+
+### ar
+
+`so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
+`tick(now)` and has no wire handlers. Without a controller it does not draw.
+It registers `display.screen("ar", render, input)`. The generic screen has an
+`ar` button even when the drops module supplies that screen. The `ar` role
+survives restart through `so-display`.
+
+The screen has one toggle for each layer, all enabled initially. Switches save
+through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
+boolean values. A failed save leaves the current switches unchanged.
+
+- `turtles` draws a box, heading arrow and name or `#id` with fuel for each
+  machine with a pose in `state.get("machines")`. A machine unseen for two
+  minutes is grey. Otherwise a lost lease is red, an open lease is cyan, and
+  an idle machine is white.
+- `leases` draws one bounding outline per `mine:<id>` or `lumber:<id>` owner
+  with reservations from `cells.list`. It includes all that owner's cells in
+  the server dimension, rather than the default 256-cell page.
+- `drops` draws a small box and `kind id` label per `drops.list()` point.
+  Broken points are red.
+- `alerts` draws up to eight state keys ending in `.alert` at the top left.
+  Retained state history orders alerts newest first, including repeated alerts.
+  Keys absent from retained history use their first observation order.
+
+Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
+map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
+`minecraft:the_end`. Without a known server dimension all elements are shown.
+
+Tick discovers controllers at most once every five seconds without waiting.
+It compares scenes and draws changes at most once per second. Stable element
+ids let it delete removed elements with `ar.delete`; it clears each frame only
+when delete is missing. Each frame ends with one `ar.update()`. Colours are
+signed ARGB integers. Drawing errors drop that controller until later discovery.
+The layers do not draw item icons.
 
 ## Plan helpers
 

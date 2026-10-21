@@ -47,10 +47,12 @@ and listeners use `listener(sender, message)`.
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
 
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
-  Calls are `key(p)`, `same(a, b)`, `ore(d)`, `junk(d)`, `distance(a, b)`,
+  Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
   `cleanup(inv, all)`, `travel(from, goal, point)` and `next(job, row, lookup, inv, fuel)`.
-  `ores` is the supported ore-name set.
+  `ores` is the supported ore-name set. The optional `ore` filter uses those names.
+  `next` batches known straight travel and turns, ending at inspect or dig report
+  boundaries. Multi-action results include `actions` with one-based `first` step indices.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
   `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
@@ -83,13 +85,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
   `release(who, x, y, z, dim)`, `releaseOwner(who)`, `forgetOwner(who)`,
   `owner(x, y, z, dim)`, `isFree(x, y, z, dim)`, `markDug(x, y, z, dim)`,
-  `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()` and `tick(now)`.
+  `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()`,
+  `list(who, max)` and `tick(now)`. `list` returns up to `max` copied
+  `{ dim, x, y, z }` reservations, default 256.
   The optional dimension defaults to `minecraft:overworld`.
   Handler `cells.forget` requires a second, confirmed request.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
-  `remove(id)`, `fix(id)`, `note(id, blockName)` and `tick(now)`.
+  `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
+  `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
   Handler `drops.edit` edits points. Tick registers the generic screen.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
@@ -98,7 +103,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
-  The generic screen includes a `lumber` button, including with the drops screen.
+  The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
@@ -112,6 +117,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
+  Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
+  Three failures at one drop emit `mine.alert { id, text }`, show the error,
+  and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
   Only `tick(now)` is exported beyond module metadata; no wire handlers.
@@ -120,6 +128,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
+
+- [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
+  controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
+  Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
+  `drops` and `alerts` toggles. Switches save through `so-store` to `so-data/ar`.
+  Discovery runs at most every five seconds; changed scenes redraw at most once
+  per second. Failed controllers are dropped until discovery. Known server
+  dimensions filter world elements. See [AR](server-only/PROTOCOL.md#ar).
 
 ### Thin clients
 
@@ -235,6 +251,7 @@ blocks later saves until restart. Do not save inside tight loops.
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
+- `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
 
@@ -280,5 +297,4 @@ not run and which Minecraft or client checks remain unavailable in the PR.
 
 - Lease state is memory-only. Planner recovery must use park leases and account
   for reservations that survived the restart.
-- SO3 mining, SO7 lumber and SO9 installer are implemented. SO10 AR remains.
-  `so-mod-ar.lua` is still absent.
+- SO3 mining, SO7 lumber, SO9 installer and SO10 AR are implemented.
