@@ -22,7 +22,7 @@ The signed bytes are the canonical encoding of `{ v, t, rid, from, at, body }` w
 
 Canonical encoding is a Lua literal. String values use `%q`. Whole numbers use `%d`. Other numbers use `%.17g`. Booleans are `true` and `false`. Table keys are sorted by `type(key) .. ":" .. tostring(key)`. A cycle is an error. Two tables that differ only in key order encode to the same string.
 
-The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code is a bad MAC.
+The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. A retry of a pair `rid` that still has a saved reply is checked with the handshake key stored beside that reply. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code and no saved handshake key for that `rid` is a bad MAC.
 
 `at` must be within 60000 ms of the receiver's `os.epoch("utc")`. A larger gap is dropped as `so-server: bad message from <id>`.
 
@@ -46,13 +46,25 @@ The joining computer sends `pair` to the server. `body.pub` is its X25519 public
 
 The server answers `ack` when the MAC matches the live code. `body.ok` is `true`. `body.pub` is the server public key, 64 lowercase hex characters. `body.proof` is HMAC-SHA256, keyed by the 6-digit code, over the bytes `so-pair-v2\0`, then the client public key, then the server public key. Those public keys are the raw 32-byte values, not the hex text. `proof` is 64 lowercase hex characters. The server then clears the code.
 
-The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
+The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. The server keeps that handshake key for 120000 ms next to the saved reply, so the retry still verifies after the code is cleared. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
 
 ### hello
 
 A paired computer sends `hello` to the server.
 
 `body.role` is an optional string. `body.label` is an optional string.
+
+A turtle also sends these fields.
+
+`body.fuel` is a number, or the string `unlimited`.
+
+`body.free` is how many of the 16 slots are empty.
+
+`body.inv` lists the occupied slots. Each entry is `{ slot = number, name = string, count = number }`.
+
+`body.gps` is optional. When a GPS answers, it is `{ x = number, y = number, z = number }`.
+
+`body.journal` is the turtle's journal. `journal.id` is a string. `journal.seq` is a number. `journal.pose` is `{ x = number, y = number, z = number, f = number }` in the turtle's own frame since boot. `f` is 0 north, 1 east, 2 south, 3 west. `journal.moves` is the last 32 completed moves, oldest first. Each move is `{ n = number, op = string, ok = true }`. `op` is `forward`, `back`, `up`, `down`, `turnLeft`, or `turnRight`. `journal.dug` is the last 32 cells this turtle dug. Each entry is `{ x = number, y = number, z = number }`. `journal.pending` is optional. It is `{ n = number, op = string, lease = string }` when a step was started and not finished.
 
 The server answers `ack`.
 
@@ -92,11 +104,15 @@ The turtle sends `step.report` to the server.
 
 `results[i].ok` is a boolean. `results[i].err` is an optional string. `results[i].data` is an optional table. For a successful inspect, `data.name` is the block name when a block is present.
 
+`results[i].counts` is an optional array of 16 numbers, the item count in slots 1 to 16 after the step.
+
+`results[i].err` is `expired` when the step was not run because `lease.batch` `expires` had passed. Later steps in that batch use the same error.
+
 ### beacon
 
 The turtle broadcasts `beacon`.
 
-`body.id` is its computer id. `body.fuel` is a number. `body.journal` is a string, the last journal id it knows.
+`body.id` is its computer id. `body.fuel` is a number. Unlimited fuel is sent as `-1`. `body.journal` is a string, the last journal id it knows.
 
 The MAC still uses that turtle's paired key. The server can verify it. SO0 has no beacon handler, so the server answers `err` until SO2 registers one.
 
@@ -180,13 +196,55 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 ### state
 
-SO1 owns this API on `SO.mods.state`.
+SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
-`state.emit(key, value)` stores `value` under `key`. `key` is a string. `value` is a value `so-store` can save. The revision grows by 1.
+`state.emit(kind, data)` appends one event and folds it into the current state. `kind` is a string. `data` is a value `so-store` can save. The call returns true, or false and an error string. A false return changes nothing. The revision is the event sequence number. `emit(key, value)` is this same call.
 
-`state.get(key)` returns the stored value, or nil.
+`state.get(key)` returns the last value stored under that key, or nil.
 
-`state.view()` returns `{ rev = number, values = table }`. `values` is a shallow copy of the top table. The stub keeps this in memory only. SO1 saves it.
+`state.get(path)` also walks the machine registry. `machines`, `machines/<id>`, and `machines/<id>/<field>` read the registry. Dots work the same way as slashes.
+
+`state.view()` with no arguments returns `{ rev = number, values = table }`. `values` is a shallow copy of the top key table.
+
+`state.view(name, buildFn)` declares a named view. `buildFn` receives `{ rev, values, machines, jobs }` and returns the view data. The names `fleet`, `log`, `status`, and `turtle/<id>` stay built in.
+
+`state.view.get({ name = string })` returns one frame `{ t = "view.frame", name, rev, at, data }`. `rev` is the event sequence. `at` is utc milliseconds. This frame is in-process. It is not a rednet `view.frame`.
+
+`state.view.sub({ name = string, notify = function })` subscribes to that view. On a change, SO1 calls `notify(frame)`. The frame `rev` is greater than the previous frame for that subscriber. Two frames for one subscriber are at least 500 ms apart, so a subscriber gets at most 2 frames per second. `tick` sends a frame that was held back once the gap has passed.
+
+`state.history.page({ from = number, count = number })` returns `{ entries, next }`. `entries` is `{ seq, at, kind, data }` in ascending `seq`, starting after `from`. Omit `from` to start at the oldest retained event. `count` defaults to 20 and is clamped to 1..50. `next` is the last `seq` in this page when another page exists, and nil on the last page. Pass `next` as `from` to read the following page. `limit` is accepted as an alias of `count`.
+
+`state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
+
+`state.tick(now)` flushes held view frames. `now` is utc milliseconds. The server passes it once a second.
+
+#### Events
+
+Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` starts at 1. `at` is utc milliseconds.
+
+`kind` `machine` merges a registry row. `data` is `{ id, role, fp, seen, fuel, pose }`. `id` is the computer id. Fields left out stay as they were. Missing `seen` becomes the event time. Missing `fp` becomes the sha256 hex of that computer's paired key when the key is known.
+
+`kind` `pose` sets the turtle pose. `data` is `{ id, dim, x, y, z, facing }`.
+
+`kind` `job` appends a job. Any other `kind` stores `data` under that key for `get`.
+
+#### Views
+
+`fleet` is every machine row, sorted by id. Each row is `{ id, role, fp, seen, fuel, pose }`.
+
+`turtle/<id>` is one machine row, or nil when that id is unknown.
+
+`log` is the last 50 retained events, oldest first. Each entry is `{ seq, at, kind, data }`.
+
+`status` is `{ capacity, used, free, ratio, alerts, accepting }`. `ratio` is `used / capacity`. `alerts` contains `"disk"` when `ratio` is 0.8 or more. `accepting` is false in that case.
+
+#### Log files
+
+Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads the newest valid snapshot and applies later segment events. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
+
+When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
+
+SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, and `input`. SO6 owns wire `history.page`.
 
 ### cells
 
@@ -234,7 +292,7 @@ The list is saved through `so-store` in the file `so-drops`. A change emits `dro
 
 ## Pairing and so-keys
 
-The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and prints `Pair code: <digits>`. The code includes leading zeros. It works once and expires after 300000 ms. When it is spent or expired, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
 
 `pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 
@@ -261,7 +319,7 @@ X25519 comes from ccryptolib, MIT, Copyright (c) 2023 Miguel Oliveira. `lib/ccry
 - `lib/ccryptolib/internal/edwards25519.lua`
 - `lib/ccryptolib/internal/packing.lua`
 
-`pair.join(code)` looks up `so` / `server`, sends `pair`, checks `body.proof`, and saves the machine key after `ack`.
+`pair.join(code)` looks up `so` / `server`. `pair.join(code, serverId)` sends to `serverId` and does not call `rednet.lookup`. Both send `pair`, check `body.proof`, and save the machine key after `ack`.
 
 Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<computer id>"] = "<64 hex>" } }`. On the server, the id is the paired machine. On the machine, the id is the server. The file budget is 200000 bytes.
 
@@ -296,7 +354,7 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 
 SO0 owns `so-proto.lua`, `so-pair.lua`, `so-store.lua`, `so-server.lua`, and `tests/so/harness.lua`. It handles `pair`, `hello`, `ack`, and `err`.
 
-SO1 owns `so-mod-state.lua`. It handles no wire types. It owns `state.emit`, `state.get`, and `state.view`.
+SO1 owns `so-mod-state.lua` and `so-log.lua`. It handles no wire types. It owns `state.emit`, `state.get`, `state.view`, `state.job`, and `state.history.page`.
 
 SO2 owns `so-mod-beacon.lua`. It handles `beacon` on the server and writes fuel and journal through `state.emit`.
 
