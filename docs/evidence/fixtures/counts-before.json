@@ -1,0 +1,605 @@
+{
+  "after": null,
+  "before": {
+    "containers": [
+      {
+        "block": "minecraft:barrel",
+        "items": [
+          {
+            "components": null,
+            "count": 16,
+            "id": "minecraft:sand",
+            "slot": 0
+          },
+          {
+            "components": null,
+            "count": 2,
+            "id": "minecraft:red_dye",
+            "slot": 1
+          }
+        ],
+        "pos": [
+          8,
+          65,
+          8
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "items": [
+          {
+            "components": null,
+            "count": 64,
+            "id": "minecraft:cobblestone",
+            "slot": 0
+          },
+          {
+            "components": null,
+            "count": 13,
+            "id": "minecraft:cobblestone",
+            "slot": 1
+          },
+          {
+            "components": null,
+            "count": 17,
+            "id": "minecraft:iron_ingot",
+            "slot": 2
+          },
+          {
+            "components": null,
+            "count": 1,
+            "id": "minecraft:diamond_pickaxe",
+            "slot": 3
+          },
+          {
+            "components": null,
+            "count": 1,
+            "id": "computercraft:disk",
+            "slot": 4
+          },
+          {
+            "components": null,
+            "count": 16,
+            "id": "computercraft:cable",
+            "slot": 5
+          },
+          {
+            "components": null,
+            "count": 32,
+            "id": "minecraft:oak_log",
+            "slot": 6
+          }
+        ],
+        "pos": [
+          13,
+          65,
+          12
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "items": [],
+        "pos": [
+          41,
+          65,
+          14
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "items": [],
+        "pos": [
+          77,
+          65,
+          18
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "items": [],
+        "pos": [
+          117,
+          65,
+          16
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "items": [],
+        "pos": [
+          171,
+          65,
+          16
+        ]
+      },
+      {
+        "block": "computercraft:turtle_advanced",
+        "items": [],
+        "pos": [
+          10,
+          65,
+          40
+        ]
+      },
+      {
+        "block": "minecraft:furnace",
+        "items": [
+          {
+            "components": null,
+            "count": 8,
+            "id": "minecraft:raw_iron",
+            "slot": 0
+          },
+          {
+            "components": null,
+            "count": 3,
+            "id": "minecraft:coal",
+            "slot": 1
+          }
+        ],
+        "pos": [
+          14,
+          65,
+          40
+        ]
+      },
+      {
+        "block": "minecraft:blast_furnace",
+        "items": [
+          {
+            "components": null,
+            "count": 4,
+            "id": "minecraft:raw_gold",
+            "slot": 0
+          },
+          {
+            "components": null,
+            "count": 2,
+            "id": "minecraft:coal",
+            "slot": 1
+          }
+        ],
+        "pos": [
+          16,
+          65,
+          40
+        ]
+      },
+      {
+        "block": "minecraft:smoker",
+        "items": [
+          {
+            "components": null,
+            "count": 6,
+            "id": "minecraft:beef",
+            "slot": 0
+          },
+          {
+            "components": null,
+            "count": 1,
+            "id": "minecraft:coal",
+            "slot": 1
+          }
+        ],
+        "pos": [
+          18,
+          65,
+          40
+        ]
+      }
+    ],
+    "dimension": "minecraft:overworld",
+    "parts": [
+      {
+        "max": [
+          13,
+          67,
+          13
+        ],
+        "min": [
+          7,
+          64,
+          6
+        ],
+        "name": "small"
+      },
+      {
+        "max": [
+          41,
+          68,
+          15
+        ],
+        "min": [
+          31,
+          64,
+          6
+        ],
+        "name": "medium"
+      },
+      {
+        "max": [
+          77,
+          68,
+          19
+        ],
+        "min": [
+          63,
+          64,
+          6
+        ],
+        "name": "large"
+      },
+      {
+        "max": [
+          123,
+          68,
+          17
+        ],
+        "min": [
+          111,
+          64,
+          6
+        ],
+        "name": "ell"
+      },
+      {
+        "max": [
+          171,
+          68,
+          17
+        ],
+        "min": [
+          159,
+          64,
+          6
+        ],
+        "name": "notched"
+      },
+      {
+        "max": [
+          18,
+          65,
+          40
+        ],
+        "min": [
+          8,
+          65,
+          40
+        ],
+        "name": "machines"
+      }
+    ]
+  },
+  "table": {
+    "containers_after": 10,
+    "containers_before": 10,
+    "empty": [
+      {
+        "block": "computercraft:turtle_advanced",
+        "pos": [
+          10,
+          65,
+          40
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "pos": [
+          41,
+          65,
+          14
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "pos": [
+          77,
+          65,
+          18
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "pos": [
+          117,
+          65,
+          16
+        ]
+      },
+      {
+        "block": "minecraft:chest",
+        "pos": [
+          171,
+          65,
+          16
+        ]
+      }
+    ],
+    "rows": [
+      {
+        "after": null,
+        "before": 16,
+        "block": "minecraft:barrel",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:sand",
+        "pos": [
+          8,
+          65,
+          8
+        ],
+        "slot": 0
+      },
+      {
+        "after": null,
+        "before": 2,
+        "block": "minecraft:barrel",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:red_dye",
+        "pos": [
+          8,
+          65,
+          8
+        ],
+        "slot": 1
+      },
+      {
+        "after": null,
+        "before": 64,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:cobblestone",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 0
+      },
+      {
+        "after": null,
+        "before": 13,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:cobblestone",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 1
+      },
+      {
+        "after": null,
+        "before": 17,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:iron_ingot",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 2
+      },
+      {
+        "after": null,
+        "before": 1,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:diamond_pickaxe",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 3
+      },
+      {
+        "after": null,
+        "before": 1,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "computercraft:disk",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 4
+      },
+      {
+        "after": null,
+        "before": 16,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "computercraft:cable",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 5
+      },
+      {
+        "after": null,
+        "before": 32,
+        "block": "minecraft:chest",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:oak_log",
+        "pos": [
+          13,
+          65,
+          12
+        ],
+        "slot": 6
+      },
+      {
+        "after": null,
+        "before": 8,
+        "block": "minecraft:furnace",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:raw_iron",
+        "pos": [
+          14,
+          65,
+          40
+        ],
+        "slot": 0
+      },
+      {
+        "after": null,
+        "before": 3,
+        "block": "minecraft:furnace",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:coal",
+        "pos": [
+          14,
+          65,
+          40
+        ],
+        "slot": 1
+      },
+      {
+        "after": null,
+        "before": 4,
+        "block": "minecraft:blast_furnace",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:raw_gold",
+        "pos": [
+          16,
+          65,
+          40
+        ],
+        "slot": 0
+      },
+      {
+        "after": null,
+        "before": 2,
+        "block": "minecraft:blast_furnace",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:coal",
+        "pos": [
+          16,
+          65,
+          40
+        ],
+        "slot": 1
+      },
+      {
+        "after": null,
+        "before": 6,
+        "block": "minecraft:smoker",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:beef",
+        "pos": [
+          18,
+          65,
+          40
+        ],
+        "slot": 0
+      },
+      {
+        "after": null,
+        "before": 1,
+        "block": "minecraft:smoker",
+        "components": null,
+        "delta": null,
+        "id": "minecraft:coal",
+        "pos": [
+          18,
+          65,
+          40
+        ],
+        "slot": 1
+      }
+    ],
+    "totals": [
+      {
+        "after": null,
+        "before": 16,
+        "delta": null,
+        "id": "computercraft:cable"
+      },
+      {
+        "after": null,
+        "before": 1,
+        "delta": null,
+        "id": "computercraft:disk"
+      },
+      {
+        "after": null,
+        "before": 6,
+        "delta": null,
+        "id": "minecraft:beef"
+      },
+      {
+        "after": null,
+        "before": 6,
+        "delta": null,
+        "id": "minecraft:coal"
+      },
+      {
+        "after": null,
+        "before": 77,
+        "delta": null,
+        "id": "minecraft:cobblestone"
+      },
+      {
+        "after": null,
+        "before": 1,
+        "delta": null,
+        "id": "minecraft:diamond_pickaxe"
+      },
+      {
+        "after": null,
+        "before": 17,
+        "delta": null,
+        "id": "minecraft:iron_ingot"
+      },
+      {
+        "after": null,
+        "before": 32,
+        "delta": null,
+        "id": "minecraft:oak_log"
+      },
+      {
+        "after": null,
+        "before": 4,
+        "delta": null,
+        "id": "minecraft:raw_gold"
+      },
+      {
+        "after": null,
+        "before": 8,
+        "delta": null,
+        "id": "minecraft:raw_iron"
+      },
+      {
+        "after": null,
+        "before": 2,
+        "delta": null,
+        "id": "minecraft:red_dye"
+      },
+      {
+        "after": null,
+        "before": 16,
+        "delta": null,
+        "id": "minecraft:sand"
+      }
+    ]
+  }
+}

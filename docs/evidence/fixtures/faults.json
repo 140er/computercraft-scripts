@@ -1,0 +1,44 @@
+{
+  "rejected_mod_item": {
+    "ok": false,
+    "error": "Unknown item 'examplemod:not_installed'\n...er.0 with examplemod:not_installed 1<--[HERE]"
+  },
+  "removed_furnace": {
+    "pos": [
+      14,
+      65,
+      40
+    ],
+    "block": "minecraft:air"
+  },
+  "fuel": {
+    "pos": [
+      10,
+      65,
+      40
+    ],
+    "before": 250,
+    "after": 0
+  },
+  "filled_chest": {
+    "pos": [
+      22,
+      65,
+      40
+    ],
+    "item": "minecraft:cobblestone",
+    "total": 1728,
+    "slots": 27
+  },
+  "unloaded_chunk": {
+    "pos": [
+      400,
+      65,
+      8
+    ],
+    "unloaded": true,
+    "forceload": "Unmarked chunk [25, 0] in Overworld for force loading",
+    "polls": 1
+  },
+  "restarted": true
+}

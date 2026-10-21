@@ -1,0 +1,91 @@
+{
+  "computer": {
+    "pos": [
+      8,
+      65,
+      40
+    ],
+    "block": "computercraft:computer_advanced",
+    "computer_id": 50,
+    "facing": "north",
+    "modem": {
+      "pos": [
+        8,
+        66,
+        40
+      ],
+      "block": "computercraft:wireless_modem_advanced",
+      "kind": "wireless_advanced",
+      "facing": "down"
+    }
+  },
+  "turtle": {
+    "pos": [
+      10,
+      65,
+      40
+    ],
+    "block": "computercraft:turtle_advanced",
+    "computer_id": 51,
+    "facing": "north",
+    "heading": 0,
+    "fuel": 250,
+    "left": "minecraft:diamond_pickaxe",
+    "right": "computercraft:wireless_modem_advanced"
+  },
+  "wired_modem": {
+    "pos": [
+      12,
+      65,
+      40
+    ],
+    "block": "computercraft:wired_modem_full",
+    "kind": "wired",
+    "facing": "down"
+  },
+  "furnace": {
+    "pos": [
+      14,
+      65,
+      40
+    ],
+    "block": "minecraft:furnace",
+    "kind": "furnace",
+    "facing": "north",
+    "slots": {
+      "input": 0,
+      "fuel": 1,
+      "output": 2
+    }
+  },
+  "blast_furnace": {
+    "pos": [
+      16,
+      65,
+      40
+    ],
+    "block": "minecraft:blast_furnace",
+    "kind": "blast_furnace",
+    "facing": "north",
+    "slots": {
+      "input": 0,
+      "fuel": 1,
+      "output": 2
+    }
+  },
+  "smoker": {
+    "pos": [
+      18,
+      65,
+      40
+    ],
+    "block": "minecraft:smoker",
+    "kind": "smoker",
+    "facing": "north",
+    "slots": {
+      "input": 0,
+      "fuel": 1,
+      "output": 2
+    }
+  }
+}
