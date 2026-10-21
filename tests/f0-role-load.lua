@@ -111,6 +111,51 @@ else
   failed = true
 end
 
+local function listed(list, name)
+  for _, item in ipairs(list) do
+    if item == name then return true end
+  end
+  return false
+end
+
+local bare, bareGuarded = graph.literalDeps('dofile("bare-missing.lua")\n')
+local guardedOnly, guardedNames = graph.literalDeps('pcall(require,"guarded-missing")\n')
+if not listed(bare, "bare-missing.lua") or listed(guardedOnly, "guarded-missing")
+    or not listed(guardedNames, "guarded-missing") or listed(bareGuarded, "bare-missing.lua") then
+  print("classifier FAIL unguarded missing module was not required")
+  failed = true
+end
+
+local attemptSrc = [[
+local function attempt(path)
+  local ok, mod = pcall(dofile, path)
+  if ok and type(mod) == "table" then return mod end
+end
+attempt("lib/stubs/craft_dep.lua")
+attempt("craft_dep.lua")
+]]
+local attemptReq, attemptGrd = graph.forwardedDeps(attemptSrc)
+if listed(attemptReq, "craft_dep.lua") or listed(attemptReq, "lib/stubs/craft_dep.lua")
+    or not listed(attemptGrd, "craft_dep.lua") or not listed(attemptGrd, "lib/stubs/craft_dep.lua") then
+  print("classifier FAIL guarded fallback was required")
+  failed = true
+end
+
+local craftDeps = graph.direct("craft.lua")
+local hostDeps = graph.direct("wh2-wizard-host.lua")
+if not listed(craftDeps, "lib/stubs/craft_dep.lua") or listed(craftDeps, "craft_dep.lua")
+    or listed(hostDeps, "ssot-auth.lua")
+    or not listed(hostDeps, "wh2-client.lua")
+    or not listed(hostDeps, "ssot-client.lua") then
+  print("classifier FAIL real optional loads were required")
+  failed = true
+end
+
+local optional = graph.guardedAbsent()
+for _, path in ipairs(optional) do
+  print("optional " .. path .. " (guarded, not in tree)")
+end
+
 if failed then
   print("role-load failed")
   os.exit(1)

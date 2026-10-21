@@ -5,7 +5,7 @@ param(
     [string]$TestRoot = '',
     [int]$Timeout = 600,
     [ValidateSet('Auto','Box','Local')][string]$HostKind = 'Auto',
-    [int]$SpaceLimit = 4000000,
+    [int]$SpaceLimit = 1000000,
     [switch]$PrepareOnly,
     [switch]$Client
 )

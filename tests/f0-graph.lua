@@ -224,10 +224,16 @@ function M.forwardedDeps(src)
     end
     if tok[p] and tok[p].text == ")" then p = p + 1 end
     local forwarded, depth = {}, 0
-    local function mark(arg)
+    local function mark(arg, mode)
       if arg and arg.kind == "name" then
         for pos, pname in pairs(params) do
-          if pname == arg.text then forwarded[pos] = true end
+          if pname == arg.text then
+            if mode ~= "guarded" or forwarded[pos] == "open" then
+              forwarded[pos] = "open"
+            else
+              forwarded[pos] = "guarded"
+            end
+          end
         end
       end
     end
@@ -248,11 +254,11 @@ function M.forwardedDeps(src)
         depth = depth - 1
         p = p + 1
       elseif LOADERS[text] and tok[p + 1] and tok[p + 1].text == "(" then
-        mark(tok[p + 2])
+        mark(tok[p + 2], "open")
         p = p + 1
       elseif text == "pcall" and tok[p + 1] and tok[p + 1].text == "("
           and tok[p + 2] and LOADERS[tok[p + 2].text] and tok[p + 3] and tok[p + 3].text == "," then
-        mark(tok[p + 4])
+        mark(tok[p + 4], "guarded")
         p = p + 1
       else
         p = p + 1
@@ -287,11 +293,14 @@ function M.forwardedDeps(src)
     end
   end
 
-  local out, seen = {}, {}
-  local function add(path)
-    if path and not seen[path] then
-      seen[path] = true
-      out[#out + 1] = path
+  local openSet, guardedSet = {}, {}
+  local function add(path, mode)
+    if not path then return end
+    if mode ~= "guarded" then
+      openSet[path] = true
+      guardedSet[path] = nil
+    elseif not openSet[path] then
+      guardedSet[path] = true
     end
   end
   local function scan(from, limit, binding)
@@ -323,9 +332,10 @@ function M.forwardedDeps(src)
           elseif depth == 0 and not saw then
             saw = true
             if spec[argIndex] then
-              if tok[k].kind == "string" then add(tok[k].text)
+              local mode = spec[argIndex] == "guarded" and "guarded" or "open"
+              if tok[k].kind == "string" then add(tok[k].text, mode)
               elseif binding and tok[k].kind == "name" and tok[k].text == binding.var then
-                for _, value in ipairs(tables[binding.table] or {}) do add(value) end
+                for _, value in ipairs(tables[binding.table] or {}) do add(value, mode) end
               end
             end
           end
@@ -338,11 +348,17 @@ function M.forwardedDeps(src)
     end
   end
   scan(1, n + 1, nil)
-  return out
+  local function keys(set)
+    local list = {}
+    for path in pairs(set) do list[#list + 1] = path end
+    table.sort(list)
+    return list
+  end
+  return keys(openSet), keys(guardedSet)
 end
 
 function M.literalDeps(src)
-  local out, i, n = {}, 1, #src
+  local required, guarded, i, n = {}, {}, 1, #src
   while i <= n do
     local b = src:byte(i)
     if b == 45 and src:byte(i + 1) == 45 then
@@ -361,7 +377,7 @@ function M.literalDeps(src)
     else
       local from, to = src:find("[%a_][%w_]*", i)
       local word = from == i and src:sub(from, to) or nil
-      local path, nxt
+      local path, nxt, guardedLoad
       if word == "dofile" or word == "loadfile" or word == "require" then
         local j = skipSpace(src, i + #word)
         if src:byte(j) == 40 then
@@ -374,19 +390,23 @@ function M.literalDeps(src)
           local after = loaderEnd(src, j)
           if after then
             j = skipSpace(src, after)
-            if src:byte(j) == 44 then path, nxt = quoted(src, j + 1) end
+            if src:byte(j) == 44 then
+              path, nxt = quoted(src, j + 1)
+              guardedLoad = true
+            end
           end
         end
       end
       if path then
-        out[#out + 1] = path
+        local bucket = guardedLoad and guarded or required
+        bucket[#bucket + 1] = path
         i = nxt or (i + 1)
       else
         i = i + 1
       end
     end
   end
-  return out
+  return required, guarded
 end
 
 function M.normalize(path)
@@ -401,6 +421,8 @@ function M.normalize(path)
 end
 
 local depCache = {}
+local requiredEdge = {}
+local guardedAbsent = {}
 
 local function depsOf(path)
   if depCache[path] then return depCache[path] end
@@ -408,19 +430,35 @@ local function depsOf(path)
   local list = {}
   if src then
     local seen = {}
-    local raws = M.literalDeps(src)
-    for _, raw in ipairs(M.forwardedDeps(src)) do raws[#raws + 1] = raw end
-    for _, raw in ipairs(raws) do
+    local function consider(raw, guarded)
       local norm = M.normalize(raw)
-      if norm and not seen[norm] then
-        seen[norm] = true
-        list[#list + 1] = norm
+      if not norm or seen[norm] then return end
+      if guarded and not readFile(norm) then
+        if not requiredEdge[norm] then guardedAbsent[norm] = true end
+        return
       end
+      requiredEdge[norm] = true
+      guardedAbsent[norm] = nil
+      seen[norm] = true
+      list[#list + 1] = norm
     end
+    local required, guarded = M.literalDeps(src)
+    local forwarded, forwardedGuarded = M.forwardedDeps(src)
+    for _, raw in ipairs(required) do consider(raw, false) end
+    for _, raw in ipairs(forwarded) do consider(raw, false) end
+    for _, raw in ipairs(guarded) do consider(raw, true) end
+    for _, raw in ipairs(forwardedGuarded) do consider(raw, true) end
     table.sort(list)
   end
   depCache[path] = list
   return list
+end
+
+function M.guardedAbsent()
+  local out = {}
+  for path in pairs(guardedAbsent) do out[#out + 1] = path end
+  table.sort(out)
+  return out
 end
 
 function M.direct(path)

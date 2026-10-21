@@ -2,7 +2,7 @@
 local result = { ok = false, booted = true, errors = {}, lines = {} }
 local ok, err = pcall(function()
   assert(config.get("standardsMode") == true, "standardsMode disabled")
-  assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+  assert(fs.getCapacity("/") == 1000000, "wrong disk limit")
   dofile("tests/b1-unit.lua")
 end)
 if not ok then result.errors[1] = tostring(err) else result.ok = true end
