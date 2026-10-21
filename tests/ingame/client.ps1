@@ -131,7 +131,7 @@ try {
         @('gamemode creative SSOTProof',
           'item replace entity SSOTProof armor.head with cc_ar:ar_goggles[cc_ar:ar_goggles_data={x:1.0d,y:66.0d,z:0.0d,turtleId:-1,version:0L,label:"PR 6"}]',
           'tp SSOTProof 6 70 6 180 35','time set day','weather clear')
-    } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+    } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } elseif ($View -eq 'room') { @('gamemode spectator SSOTProof','tp SSOTProof 100 70 108 180 40','time set day','weather clear') } elseif ($View -eq 'board') { @('gamemode spectator SSOTProof','tp SSOTProof 100 66.5 113 180 25','time set day','weather clear') } elseif ($View -eq 'wizard') { @('gamemode spectator SSOTProof','tp SSOTProof 103 66 110 270 20','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
     if ($arView -and $View -ne 'ar' -and (Test-Path "$TestRoot\capture-camera.json")) {
         $camera += @([IO.File]::ReadAllText("$TestRoot\capture-camera.json") | ConvertFrom-Json)
     }
@@ -188,7 +188,7 @@ public static class SSOTCapture {
     } else { @(@($ShotName,'')) }
     foreach ($planned in $shotPlan) {
         $ShotName=$planned[0]
-        $camera = if ($View -eq 'views') { @('gamemode spectator SSOTProof',$planned[1],'time set day','weather clear') } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
+        $camera = if ($View -eq 'views') { @('gamemode spectator SSOTProof',$planned[1],'time set day','weather clear') } elseif ($View -eq 'warehouse') { @('gamemode spectator SSOTProof','tp SSOTProof 6 76 16 180 40','time set day','weather clear') } elseif ($View -eq 'mining') { @('gamemode spectator SSOTProof','tp SSOTProof 6 73 10 180 55','time set day','weather clear') } elseif ($View -eq 'room') { @('gamemode spectator SSOTProof','tp SSOTProof 100 70 108 180 40','time set day','weather clear') } elseif ($View -eq 'board') { @('gamemode spectator SSOTProof','tp SSOTProof 100 66.5 113 180 25','time set day','weather clear') } elseif ($View -eq 'wizard') { @('gamemode spectator SSOTProof','tp SSOTProof 103 66 110 270 20','time set day','weather clear') } else { @('gamemode spectator SSOTProof','fill -3 67 -3 3 67 3 minecraft:air','tp SSOTProof 5 71 8 148 32','time set day','weather clear') }
         foreach ($command in $camera) {
             Invoke-TestRcon $RconPort $secret $command | Out-Null
         }

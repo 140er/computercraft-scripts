@@ -1,0 +1,1 @@
+{v=1,generation=1,value={extraSmelt={"minecraft:sand"}}}

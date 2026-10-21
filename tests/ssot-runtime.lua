@@ -103,9 +103,11 @@ local function worker()
   local p = state.pose
   local before={x=p.x,y=p.y,z=p.z}
   timeline=state.timeline or {}
-  if runtime=="sandbox" then
+  if runtime=="sandbox" and not fs.exists("no-gps") then
     local observed=world("pose")
     p.x,p.y,p.z,p.h=observed[1],observed[2],observed[3],observed[4]
+  elseif fs.exists("no-gps") then
+    -- Dead reckoning from the fixture pose. gps.locate stays the native call.
   else
     local x,y,z
     for _=1,30 do
@@ -194,11 +196,13 @@ local function worker()
       nav=dofile("nav.lua").open({path="nav.state",pose=p,
         bounds={min={dim=p.dim,x=-32,y=64,z=-32},max={dim=p.dim,x=32,y=69,z=32}},client=client,
         observe=function()
-          if runtime=="sandbox" then
+          if runtime=="sandbox" and not fs.exists("no-gps") then
             local v=world("pose") return {dim=p.dim,x=v[1],y=v[2],z=v[3]}
           end
-          local x,y,z=gps.locate(2)
-          if x then return {dim=p.dim,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
+          if gps and gps.locate then
+            local x,y,z=gps.locate(2)
+            if x then return {dim=p.dim,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
+          end
         end,
         checkpoint=function(point)
           if point=="move-observed" then

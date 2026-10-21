@@ -1,5 +1,13 @@
-local seconds, scenario, diskLimit = ...
+local seconds, scenario, diskLimit, gpsMode = ...
 seconds = assert(tonumber(seconds))
+if gpsMode == "nogps" then
+  if scenario ~= "nav" and scenario ~= "mining" then
+    error("NoGps runs nav or mining", 0)
+  end
+  local handle = assert(fs.open("no-gps", "w"))
+  handle.write("native")
+  handle.close()
+end
 if scenario == "h3" then
   return assert(loadfile("h3-driver.lua", "t", _ENV))("sandbox")
 end
@@ -90,7 +98,9 @@ local ok, err = pcall(function()
       return getName(p)
     end
   end
-  gps.locate = function() return id * 2, 64, 0 end
+  if gpsMode ~= "nogps" then
+    gps.locate = function() return id * 2, 64, 0 end
+  end
   if id == 2 then
     assert(not turtle, "review fixture for native turtle support")
     turtle = dofile("turtle.lua").idle()

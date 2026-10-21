@@ -5,9 +5,11 @@ param(
     [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet','h4a')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = '',
-    [ValidateRange(100000, 64000000)][int]$Disk = 4000000
+    [ValidateRange(100000, 64000000)][int]$Disk = 4000000,
+    [switch]$NoGps
 )
 $ErrorActionPreference = 'Stop'
+if ($NoGps -and $Scenario -notin @('nav','mining')) { throw 'NoGps runs with nav or mining.' }
 # Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
 $OnLinux = $false
 if ($PSVersionTable.PSVersion.Major -ge 6) { $OnLinux = $IsLinux -eq $true }
@@ -267,7 +269,8 @@ try {
             Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456",["6"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
         }
         $entry = if ($Scenario -eq 'h4a') { 'h4a-driver.lua' } else { 'driver.lua' }
-        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario', '$diskLimit')" $utf8
+        $gpsMode = if ($NoGps) { 'nogps' } else { 'gps' }
+        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario', '$diskLimit', '$gpsMode')" $utf8
     }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$diskLimit"
     if ($Scenario -eq 'views') { $sourceProof | ConvertTo-Json | Set-Content "$run\source-sha256.json" }
@@ -311,6 +314,13 @@ try {
         foreach ($line in $result.lines) { Write-Output "  last: $line" }
         foreach ($errorText in $errors) { Write-Output "  error: $errorText" }
         if (!$result.ok) { $failed = $true }
+        if ($NoGps) {
+            $marker = Join-Path (Join-Path (Join-Path $run 'computer') "$id") 'no-gps'
+            if (!(Test-Path -LiteralPath $marker) -or (Get-Content -LiteralPath $marker -Raw).Trim() -ne 'native') {
+                Write-Output "computer ${id}: missing no-gps marker"
+                $failed = $true
+            }
+        }
     }
     $stderrPath = ConvertTo-SandboxPath "$run\stderr.log"
     if (Test-Path -LiteralPath $stderrPath) {

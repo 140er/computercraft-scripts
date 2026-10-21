@@ -1,15 +1,46 @@
 param(
     [string]$Ref = 'main',
-    [ValidateSet('ssot','nav','mining','warehouse')][string[]]$Scenario = @('ssot','nav','mining','warehouse'),
+    [ValidateSet('ssot','nav','mining','warehouse','room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update','soak','ar')][string[]]$Scenario = @('ssot','nav','mining','warehouse','room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update'),
     [string]$Output = '',
     [int]$Timeout = 900,
     [int]$LockTimeoutSec = 14400,
     [string]$Gateb = 'C:\Work\gemini-input\gateb\gateb.ps1',
-    [string]$Base = 'C:\mc-cc-test\base'
+    [string]$Base = 'C:\mc-cc-test\base',
+    [switch]$IncludeSoak,
+    [switch]$DryRun
 )
 $ErrorActionPreference = 'Stop'
+function Test-DepthMap([string]$DepthPath, [string]$MapPath) {
+    $known = @('ssot','nav','mining','warehouse','room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update','soak','ar','H1H2')
+    $bullets = @(Get-Content -LiteralPath $DepthPath | Where-Object { $_ -match '^- ' } | ForEach-Object { $_.Substring(2).Trim() })
+    $map = New-Object System.Collections.Generic.List[object]
+    foreach ($line in Get-Content -LiteralPath $MapPath) {
+        if ($line -match '^\s*#' -or $line.Trim() -eq '') { continue }
+        if ($line -notmatch '^\s*(\w+)\s*\|\s*(.+?)\s*$') { Write-Output "Bad depth map line: $line"; return 1 }
+        $map.Add([pscustomobject]@{ Scenario = $Matches[1]; Item = $Matches[2] })
+    }
+    $problems = New-Object System.Collections.Generic.List[string]
+    if ($bullets.Count -ne 33) { $problems.Add("expected 33 depth bullets, found $($bullets.Count)") }
+    foreach ($bullet in $bullets) {
+        $hits = @($map | Where-Object { $bullet.StartsWith($_.Item) })
+        if ($hits.Count -ne 1) { $problems.Add("bullet matches $($hits.Count) map lines: $bullet") }
+    }
+    foreach ($row in $map) {
+        $hits = @($bullets | Where-Object { $_.StartsWith($row.Item) })
+        if ($hits.Count -ne 1) { $problems.Add("map line matches $($hits.Count) bullets: $($row.Item)") }
+        if ($known -notcontains $row.Scenario) { $problems.Add("unknown scenario $($row.Scenario)") }
+    }
+    if ($problems.Count) { $problems | ForEach-Object { Write-Output $_ }; return 1 }
+    Write-Output "depth map covers $($bullets.Count) items"
+    return 0
+}
+if ($DryRun) {
+    $root = (Resolve-Path "$PSScriptRoot\..\..").Path
+    exit (Test-DepthMap (Join-Path $root 'docs\testing\gateB-depth.md') (Join-Path $PSScriptRoot 'depth-map.txt'))
+}
+if ($IncludeSoak -and $Scenario -notcontains 'soak') { $Scenario += 'soak' }
 $utf8 = New-Object Text.UTF8Encoding($false)
-$allScenarios = @('ssot','nav','mining','warehouse')
+$allScenarios = @('ssot','nav','mining','warehouse','room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update')
 $partial = @($allScenarios | Where-Object { $Scenario -notcontains $_ }).Count -gt 0
 $stamp = [DateTime]::Now.ToString('yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 6)
 $work = "C:\Work\gateb-run-$stamp"
