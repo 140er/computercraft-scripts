@@ -93,37 +93,30 @@ elseif args[1]=="charger" then
 end
 if not fleetEnabled then
   local plug = plugmod()
+  local dirty = false
   if plug then
-    local dirty = false
     local env = { peripheral = peripheral, rednet = rednet, gps = gps }
     if not plug.present(cfg.server) then
-      local server, source = plug.fill(nil, nil, function() return plug.lookup(env, "fleetserver", "server") end, function(spec)
-        spec.title, spec.question = "Warehouse", "Fleet server id"
-        spec.kind = spec.kind or "number"
-        return plug.ask(plug.termio(), spec)
-      end)
-      if type(server) == "number" and (source == "discover" or source == "prompt") then cfg.server = server dirty = true end
+      local server, source = plug.fill(nil, nil, function() return plug.lookup(env, "fleetserver", "server") end)
+      if type(server) == "number" and source == "discover" then cfg.server = server dirty = true end
     end
     if type(cfg.secret) ~= "string" or #cfg.secret < 16 then
-      local secret, source, enrolled = pairSecret(plug, cfg.secret, cfg.server)
-      if (source == "saved" or source == "enrol") and type(secret) == "string" then
-        cfg.secret = secret
-        dirty = true
-        if not plug.present(cfg.server) and type(enrolled) == "number" then cfg.server = enrolled end
-      end
-    end
-    if not plug.present(cfg.dimension) then
-      local dim = plug.ask(plug.termio(), {
-        title = "Warehouse", kind = "text", question = "Dimension", default = "minecraft:overworld",
-      })
-      if type(dim) == "string" and dim ~= "" then cfg.dimension = dim dirty = true end
+      local secret, source = plug.takeSecret(cfg.secret, plug.savedPairing())
+      if source == "saved" and type(secret) == "string" then cfg.secret = secret dirty = true end
     end
     if not cfg.pose then
       local fix = plug.gps(env)
-      if fix then cfg.pose = { dim = cfg.dimension, x = fix.x, y = fix.y, z = fix.z, h = 0 } dirty = true end
+      if fix and plug.present(cfg.dimension) then
+        cfg.pose = { dim = cfg.dimension, x = fix.x, y = fix.y, z = fix.z, h = 0 }
+        dirty = true
+      end
     end
-    if dirty then save() end
   end
+  if not (cfg.server and type(cfg.secret) == "string" and #cfg.secret >= 16) then
+    print("Not set up yet. First: store server <id> <secret> [dimension]")
+    return
+  end
+  if dirty then save() end
 end
 assert(cfg.server and (fleetEnabled or cfg.secret),"configure warehouse server first")
 peripheral.find("modem",rednet.open)

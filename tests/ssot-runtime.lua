@@ -410,6 +410,8 @@ local function controller()
       assert(n==2560,"missing snapshot cells: " .. n)
     end)
     test("resident chunk limit rejects a ninth chunk without evicting observations",function()
+      local scenario=A.read("ssot.cfg")
+      assert(type(scenario)=="table" and scenario.maxChunks==8,"gate B ssot scenario config is missing maxChunks=8")
       for _,point in ipairs({{-1,0},{-1,-1},{0,-1},{-32,0}}) do
         local r=client.scan({pose=p,revision=revision,cells={{dim=p.dim,x=point[1],y=64,z=point[2],name=false}}})
         assert(r and r.ok) revision=r.revision

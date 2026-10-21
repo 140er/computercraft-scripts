@@ -165,17 +165,38 @@ function Test-GateDynamicAllowed([string]$RelHere, $Dyn) {
     return $false
 }
 
-function Test-GateScannable([string]$Path, [string]$SourceFull) {
-    $calls = Get-LuaCalls ([IO.File]::ReadAllText($Path))
-    $relHere = $Path.Substring($SourceFull.Length).TrimStart('\','/').Replace('\','/')
-    foreach ($dyn in $calls.Dynamics) {
-        if (-not (Test-GateDynamicAllowed $relHere $dyn)) { return $false }
-    }
-    return $true
+function Get-GateDiskName([string]$SourceFull, [string]$FullPath) {
+    $rel = $FullPath.Substring($SourceFull.Length).TrimStart('\','/').Replace('\','/')
+    if ($FullPath -eq [IO.Path]::GetFullPath((Join-Path $SourceFull 'tests\ingame\server.lua'))) { return 'test-server.lua' }
+    if ($rel.StartsWith('lib/stubs/')) { return $rel }
+    return [IO.Path]::GetFileName($FullPath)
 }
 
 function Get-GateRoleFiles([string]$Source, [string[]]$Entry, [string]$ManifestRole) {
     $sourceFull = [IO.Path]::GetFullPath($Source)
+    $manifestRole = if ($ManifestRole) { $ManifestRole } else { Get-GateManifestRole $Source $Entry }
+    if ($manifestRole) {
+        $roleFiles = Get-GateBundleFiles $Source $manifestRole
+        $rows = New-Object System.Collections.Generic.List[object]
+        $names = @{}
+        foreach ($rel in ($roleFiles.Keys | Sort-Object)) {
+            $full = [IO.Path]::GetFullPath((Join-Path $sourceFull ($rel.Replace('/','\'))))
+            if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "bundle-manifest.lua lists $rel for $manifestRole, and that file is missing." }
+            $disk = Get-GateDiskName $sourceFull $full
+            if ($names.ContainsKey($disk)) { throw "Two gate B files want the disk name $disk." }
+            $names[$disk] = $full
+            $rows.Add([pscustomobject]@{ DiskName = $disk; SourcePath = $full })
+        }
+        foreach ($path in $Entry) {
+            $full = [IO.Path]::GetFullPath($path)
+            if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "Gate B entry is missing: $path" }
+            $disk = Get-GateDiskName $sourceFull $full
+            if ($names.ContainsKey($disk)) { continue }
+            $names[$disk] = $full
+            $rows.Add([pscustomobject]@{ DiskName = $disk; SourcePath = $full })
+        }
+        return @($rows | Sort-Object DiskName)
+    }
     $allow = @(
         (Join-Path $sourceFull 'tests\ssot-runtime.lua'),
         (Join-Path $sourceFull 'tests\mining-runtime.lua'),
@@ -187,17 +208,7 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry, [string]$ManifestR
         (Join-Path $sourceFull 'tests\ingame\charge-probe.lua'),
         (Join-Path $sourceFull 'tests\gate-disk.lua')
     )
-    $manifestRole = if ($ManifestRole) { $ManifestRole } else { Get-GateManifestRole $Source $Entry }
-    $roleFiles = $null
-    $stubAllow = @{}
-    if ($manifestRole) {
-        $roleFiles = Get-GateBundleFiles $Source $manifestRole
-        foreach ($relStub in @($roleFiles.Keys)) {
-            if ($relStub.StartsWith('lib/stubs/')) { $stubAllow[$relStub] = $true }
-        }
-    } else {
-        $stubAllow = Get-GateBundleFiles $Source '*stubs'
-    }
+    $stubAllow = Get-GateBundleFiles $Source '*stubs'
     $seen = @{}
     $queue = New-Object System.Collections.Generic.Queue[string]
     foreach ($path in $Entry) {
@@ -205,7 +216,6 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry, [string]$ManifestR
         if (-not (Test-Path -LiteralPath $full)) { throw "Gate B entry is missing: $path" }
         $queue.Enqueue($full)
     }
-    while ($true) {
     while ($queue.Count -gt 0) {
         $path = $queue.Dequeue()
         if ($seen.ContainsKey($path)) { continue }
@@ -254,37 +264,13 @@ function Get-GateRoleFiles([string]$Source, [string[]]$Entry, [string]$ManifestR
             if (-not $seen.ContainsKey($target)) { $queue.Enqueue($target) }
         }
     }
-        if (-not $roleFiles) { break }
-        $progress = $false
-        foreach ($rel in @($roleFiles.Keys)) {
-            if ($rel.StartsWith('lib/stubs/')) { continue }
-            $src = [IO.Path]::GetFullPath((Join-Path $sourceFull ($rel.Replace('/','\'))))
-            if (-not (Test-Path -LiteralPath $src) -or $seen.ContainsKey($src)) { continue }
-            if (Test-GateScannable $src $sourceFull) { $queue.Enqueue($src) } else { $seen[$src] = $true }
-            $progress = $true
-        }
-        if (-not $progress) { break }
-    }
     $rows = New-Object System.Collections.Generic.List[object]
-    foreach ($path in $seen.Keys) {
-        $rel = $path.Substring($sourceFull.Length).TrimStart('\','/').Replace('\','/')
-        $disk = if ($path -eq [IO.Path]::GetFullPath((Join-Path $sourceFull 'tests\ingame\server.lua'))) { 'test-server.lua' }
-            elseif ($rel.StartsWith('lib/stubs/')) { $rel }
-            else { [IO.Path]::GetFileName($path) }
-        $rows.Add([pscustomobject]@{ DiskName = $disk; SourcePath = $path })
-    }
-    if ($roleFiles) {
-        $have = @{}
-        foreach ($row in $rows) { $have[$row.DiskName] = $true }
-        $missing = @($roleFiles.Keys | Where-Object { -not $have.ContainsKey($_) } | Sort-Object)
-        if ($missing.Count -gt 0) {
-            throw "Gate B copy left out files bundle-manifest.lua lists for ${manifestRole}: $($missing -join ', ')"
-        }
-    }
     $names = @{}
-    foreach ($row in $rows) {
-        if ($names.ContainsKey($row.DiskName)) { throw "Two gate B files want the disk name $($row.DiskName)." }
-        $names[$row.DiskName] = $true
+    foreach ($path in $seen.Keys) {
+        $disk = Get-GateDiskName $sourceFull $path
+        if ($names.ContainsKey($disk)) { throw "Two gate B files want the disk name $disk." }
+        $names[$disk] = $path
+        $rows.Add([pscustomobject]@{ DiskName = $disk; SourcePath = $path })
     }
     return @($rows | Sort-Object DiskName)
 }

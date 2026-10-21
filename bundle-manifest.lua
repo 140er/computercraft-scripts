@@ -347,7 +347,7 @@ return {
     ["lib/stubs/layout_dep.lua"]="dce263ed",
     ["lumber.lua"]="4eee182d",
     ["mapsection.lua"]="7849c730",
-    ["mapstore.lua"]="d70153b2",
+    ["mapstore.lua"]="a0c0bb4e",
     ["mine-tasks.lua"]="85edae0a",
     ["miner.lua"]="1dfb00eb",
     ["mining.lua"]="ddb8ce8b",
@@ -383,7 +383,7 @@ return {
     ["storage-peer.lua"]="c7dd4487",
     ["storage-view.lua"]="2cf48c17",
     ["store-role.lua"]="4fdbeb07",
-    ["store.lua"]="21a6b7bf",
+    ["store.lua"]="fc51244b",
     ["strata.lua"]="9cc1206b",
     ["update.lua"]="e300dcd0",
     ["view-role.lua"]="72a23f2b",
@@ -1844,5 +1844,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="f89c20d0"
+  ["version"]="4382e1a9"
 }

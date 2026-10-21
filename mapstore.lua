@@ -434,4 +434,40 @@ function M.open(fs, opts)
   return store
 end
 
+function M.schema1View(fs, root)
+  root = root or "map"
+  local best
+  for _, path in ipairs({ root .. "/index", root .. "/index.next", root .. "/index.bak" }) do
+    local index = decodeIndex(readFile(fs, path))
+    if index and (not best or index.gen > best.gen) then best = index end
+  end
+  if not best then return nil end
+  local names, chunks = {}, {}
+  local function nameId(name)
+    if name == "minecraft:air" then return 0 end
+    for i, existing in ipairs(names) do
+      if existing == name then return i end
+    end
+    names[#names + 1] = name
+    return #names
+  end
+  for key, meta in pairs(best.sections) do
+    local bytes = readFile(fs, slotPath(root, meta.slot, meta.id))
+    if type(bytes) ~= "string" or #bytes ~= meta.bytes then return nil, nil, "bad section" end
+    local section = Section.decode(bytes)
+    if not section or section.key ~= key or section.rev ~= meta.rev or section.hash ~= meta.hash then
+      return nil, nil, "bad section"
+    end
+    local legacy = key:match("^abs|(.+)$")
+    if not legacy then return nil, nil, "bad section" end
+    local cells = {}
+    for index = 0, 4095 do
+      local name = Section.get(section, index)
+      if name then cells[index + 1] = nameId(name) end
+    end
+    chunks[legacy] = { rev = section.rev, cells = cells }
+  end
+  return names, chunks
+end
+
 return M

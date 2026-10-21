@@ -160,12 +160,18 @@ function Start-TestServer([string]$Label) {
     } while ([DateTime]::UtcNow -lt $deadline)
     throw 'Minecraft boot timeout.'
 }
-function Rcon([string]$Command) {
+. "$PSScriptRoot\turnon-loaded.ps1"
+function Send-Rcon([string]$Command) {
     $response = Invoke-TestRcon $rconPort $password $Command
     $record=$utf8.GetBytes("$([DateTime]::UtcNow.ToString('o')) > $Command`n$response`n")
     $stream=[IO.File]::Open("$Output\rcon.txt",[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
     try {$stream.Write($record,0,$record.Length)} finally {$stream.Dispose()}
     $response
+}
+function Rcon([string]$Command) {
+    Register-GatebComputerPlace $Command
+    if ($Command -match '(^| )computercraft turn-on ') { return Invoke-LoadedTurnOn $Command { param($Sent) Send-Rcon $Sent } }
+    Send-Rcon $Command
 }
 function Stop-TestServer {
     if ($script:process -and !$script:process.HasExited) {
@@ -349,9 +355,18 @@ try {
         [IO.File]::WriteAllText("$probe\nav-probe", 'resume', $utf8)
         [IO.File]::WriteAllText("$probe\boot-hold", 'waiting for GPS', $utf8)
         Start-TestServer 'loader-resume'
+        Rcon 'forceload add -16 -16 16 16' | Out-Null
         Rcon 'forceload add 16 0 31 15' | Out-Null
-        Rcon 'computercraft shutdown 10 11 12 13' | Out-Null
-        Rcon 'computercraft turn-on 10 11 12 13' | Out-Null
+        $gpsHosts = ''
+        $gpsDeadline = [DateTime]::UtcNow.AddSeconds(30)
+        do {
+            $gpsHosts = Rcon 'computercraft shutdown 10 11 12 13'
+            if ($gpsHosts -match '/4') { break }
+            Start-Sleep -Seconds 1
+        } while ([DateTime]::UtcNow -lt $gpsDeadline)
+        if ($gpsHosts -notmatch '/4') { throw "GPS hosts 10-13 were not loaded. $gpsHosts" }
+        $gpsHosts = Rcon 'computercraft turn-on 10 11 12 13'
+        if ($gpsHosts -notmatch '/4') { throw "GPS hosts 10-13 did not turn on. $gpsHosts" }
         Start-Sleep -Seconds 2
         Remove-Item -LiteralPath "$probe\boot-hold"
         Rcon 'computercraft turn-on 3' | Out-Null
