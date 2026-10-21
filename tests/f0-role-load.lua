@@ -1,6 +1,7 @@
 -- One role, one disk. The closure is every static and lazy literal dofile,
--- loadfile, require, and pcall(dofile, "..."). A file the closure loads and
--- the bundle does not ship is a failure.
+-- loadfile, require, and pcall of those. A path passed into a local function
+-- that loads it counts too. A file the closure loads and the bundle does not
+-- ship is a failure.
 --
 -- tests/f0-expected.lua, when present, freezes the installer gaps. The
 -- release bundle and the root-module manifest are never allowlisted.
@@ -51,6 +52,11 @@ local function noteRoot(order)
   end
 end
 
+local function show(path)
+  local note = graph.read(path) and "" or " (not in tree)"
+  print("  " .. path .. note)
+end
+
 local function report(kind, id, miss)
   if #miss == 0 then
     print(kind .. " " .. id .. " PASS")
@@ -60,14 +66,14 @@ local function report(kind, id, miss)
     local want = sorted(expected[id] or {})
     if same(miss, want) then
       print(kind .. " " .. id .. " EXPECTED")
-      for _, path in ipairs(miss) do print("  " .. path) end
+      for _, path in ipairs(miss) do show(path) end
       return
     end
     print(kind .. " " .. id .. " FAIL expected list does not match")
   else
     print(kind .. " " .. id .. " FAIL")
   end
-  for _, path in ipairs(miss) do print("  " .. path) end
+  for _, path in ipairs(miss) do show(path) end
   failed = true
 end
 
@@ -101,7 +107,7 @@ if #rootMiss == 0 then
   print("root PASS")
 else
   print("root FAIL")
-  for _, path in ipairs(rootMiss) do print("  " .. path) end
+  for _, path in ipairs(rootMiss) do show(path) end
   failed = true
 end
 

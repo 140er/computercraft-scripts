@@ -1,4 +1,6 @@
--- Literal dofile, loadfile, require, and pcall(dofile, "...") edges.
+-- Literal dofile, loadfile, require, and pcall of those with a string.
+-- Also a string passed to a local function that dofiles, loadfiles, or
+-- requires that parameter, including a table of paths walked into it.
 -- One scan per file. Callers decide which edges are shipped.
 
 local M = {}
@@ -58,6 +60,287 @@ local function quoted(src, i)
   return nil, n + 1
 end
 
+local LOADERS = { dofile = true, loadfile = true, require = true }
+local BLOCKS = { ["function"] = true, ["if"] = true, ["while"] = true, ["for"] = true, ["do"] = true }
+
+local function loaderEnd(src, j)
+  for _, name in ipairs({ "dofile", "loadfile", "require" }) do
+    if src:sub(j, j + #name - 1) == name and not isName(src:byte(j + #name) or 0) then
+      return j + #name
+    end
+  end
+end
+
+local function tokenize(src)
+  local tok, i, n = {}, 1, #src
+  while i <= n do
+    local b = src:byte(i)
+    if b == 45 and src:byte(i + 1) == 45 then
+      if src:sub(i, i + 3) == "--[[" then
+        local j = src:find("]]", i + 4, true)
+        i = j and j + 2 or n + 1
+      else
+        local j = src:find("\n", i + 2, true)
+        i = j and j + 1 or n + 1
+      end
+    elseif b == 91 and src:byte(i + 1) == 91 then
+      local j = src:find("]]", i + 2, true)
+      i = j and j + 2 or n + 1
+    elseif b == 34 or b == 39 then
+      local text, nxt = quoted(src, i)
+      if text then tok[#tok + 1] = { kind = "string", text = text } end
+      i = nxt or (i + 1)
+    elseif (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b == 95 then
+      local from, to = src:find("[%a_][%w_]*", i)
+      tok[#tok + 1] = { kind = "name", text = src:sub(from, to) }
+      i = to + 1
+    elseif b == 40 or b == 41 or b == 123 or b == 125 or b == 91 or b == 93
+        or b == 61 or b == 44 or b == 46 then
+      tok[#tok + 1] = { kind = "punct", text = string.char(b) }
+      i = i + 1
+    else
+      i = i + 1
+    end
+  end
+  return tok
+end
+
+local function readTable(tok, i)
+  local n, values = #tok, {}
+  local depth = 1
+  i = i + 1
+  while i <= n and depth > 0 do
+    local t = tok[i]
+    if t.text == "{" then
+      depth = depth + 1
+      i = i + 1
+    elseif t.text == "}" then
+      depth = depth - 1
+      i = i + 1
+    elseif depth > 1 then
+      i = i + 1
+    elseif t.text == "[" then
+      local bracket = 1
+      i = i + 1
+      while i <= n and bracket > 0 do
+        if tok[i].text == "[" then bracket = bracket + 1
+        elseif tok[i].text == "]" then bracket = bracket - 1 end
+        i = i + 1
+      end
+      if tok[i] and tok[i].text == "=" then i = i + 1 end
+      if tok[i] and tok[i].kind == "string" and tok[i].text:find("%.lua$") then
+        values[#values + 1] = tok[i].text
+      end
+      i = i + 1
+    elseif t.kind == "name" and tok[i + 1] and tok[i + 1].text == "=" then
+      i = i + 2
+      if tok[i] and tok[i].kind == "string" and tok[i].text:find("%.lua$") then
+        values[#values + 1] = tok[i].text
+      end
+      i = i + 1
+    elseif t.kind == "string" then
+      if t.text:find("%.lua$") then values[#values + 1] = t.text end
+      i = i + 1
+    else
+      i = i + 1
+    end
+  end
+  return values, i
+end
+
+local function parseFor(tok, i)
+  i = i + 1
+  if not tok[i] or tok[i].kind ~= "name" then return end
+  local valueVar = tok[i].text
+  i = i + 1
+  if tok[i] and tok[i].text == "," then
+    i = i + 1
+    if not tok[i] or tok[i].kind ~= "name" then return end
+    valueVar = tok[i].text
+    i = i + 1
+  end
+  if not tok[i] or tok[i].text ~= "in" then return end
+  i = i + 1
+  if not tok[i] or (tok[i].text ~= "pairs" and tok[i].text ~= "ipairs") then return end
+  i = i + 1
+  if not tok[i] or tok[i].text ~= "(" then return end
+  i = i + 1
+  if not tok[i] or tok[i].kind ~= "name" then return end
+  local tableName = tok[i].text
+  i = i + 1
+  if not tok[i] or tok[i].text ~= ")" then return end
+  i = i + 1
+  if not tok[i] or tok[i].text ~= "do" then return end
+  return valueVar, tableName, i + 1
+end
+
+local function findEnd(tok, i)
+  local n, depth = #tok, 0
+  while i <= n do
+    local text = tok[i].text
+    if BLOCKS[text] then depth = depth + 1
+    elseif text == "end" then
+      if depth == 0 then return i end
+      depth = depth - 1
+    end
+    i = i + 1
+  end
+  return n + 1
+end
+
+function M.forwardedDeps(src)
+  local tok, n = tokenize(src), nil
+  n = #tok
+  local forwards = {}
+  local function register(info)
+    if info and info.name and next(info.forwarded) then forwards[info.name] = info.forwarded end
+  end
+  local function parseFunction(i)
+    local name, paren
+    local p = i + 1
+    if tok[p] and tok[p].kind == "name" and tok[p + 1] and tok[p + 1].text == "(" then
+      name = tok[p].text
+      paren = p + 1
+    elseif tok[p] and tok[p].kind == "name" and tok[p + 1] and tok[p + 1].text == "."
+        and tok[p + 2] and tok[p + 2].kind == "name" and tok[p + 3] and tok[p + 3].text == "(" then
+      paren = p + 3
+    elseif tok[p] and tok[p].text == "(" then
+      if tok[i - 1] and tok[i - 1].text == "=" and tok[i - 2] and tok[i - 2].kind == "name" then
+        name = tok[i - 2].text
+      end
+      paren = p
+    else
+      return nil, i + 1
+    end
+    p = paren + 1
+    local params, index = {}, 1
+    while tok[p] and tok[p].text ~= ")" do
+      if tok[p].kind == "name" then
+        params[index] = tok[p].text
+        index = index + 1
+      end
+      p = p + 1
+      if p > n then break end
+    end
+    if tok[p] and tok[p].text == ")" then p = p + 1 end
+    local forwarded, depth = {}, 0
+    local function mark(arg)
+      if arg and arg.kind == "name" then
+        for pos, pname in pairs(params) do
+          if pname == arg.text then forwarded[pos] = true end
+        end
+      end
+    end
+    while p <= n do
+      local text = tok[p].text
+      if text == "function" then
+        local info, nxt = parseFunction(p)
+        register(info)
+        p = nxt
+      elseif BLOCKS[text] then
+        depth = depth + 1
+        p = p + 1
+      elseif text == "end" then
+        if depth == 0 then
+          p = p + 1
+          break
+        end
+        depth = depth - 1
+        p = p + 1
+      elseif LOADERS[text] and tok[p + 1] and tok[p + 1].text == "(" then
+        mark(tok[p + 2])
+        p = p + 1
+      elseif text == "pcall" and tok[p + 1] and tok[p + 1].text == "("
+          and tok[p + 2] and LOADERS[tok[p + 2].text] and tok[p + 3] and tok[p + 3].text == "," then
+        mark(tok[p + 4])
+        p = p + 1
+      else
+        p = p + 1
+      end
+    end
+    return { name = name, forwarded = forwarded }, p
+  end
+
+  local i = 1
+  while i <= n do
+    if tok[i].text == "function" then
+      local info, nxt = parseFunction(i)
+      register(info)
+      i = nxt or (i + 1)
+    else
+      i = i + 1
+    end
+  end
+
+  local tables = {}
+  i = 1
+  while i <= n do
+    if tok[i].kind == "name" and tok[i + 1] and tok[i + 1].text == "="
+        and tok[i + 2] and tok[i + 2].text == "{" then
+      local values, nxt = readTable(tok, i + 2)
+      local list = tables[tok[i].text] or {}
+      for _, value in ipairs(values) do list[#list + 1] = value end
+      tables[tok[i].text] = list
+      i = nxt
+    else
+      i = i + 1
+    end
+  end
+
+  local out, seen = {}, {}
+  local function add(path)
+    if path and not seen[path] then
+      seen[path] = true
+      out[#out + 1] = path
+    end
+  end
+  local function scan(from, limit, binding)
+    local j = from
+    while j < limit do
+      local text = tok[j].text
+      if text == "for" then
+        local var, tableName, bodyAt = parseFor(tok, j)
+        if var and bodyAt then
+          local endAt = findEnd(tok, bodyAt)
+          scan(bodyAt, endAt, { var = var, table = tableName })
+          j = endAt + 1
+        else
+          j = j + 1
+        end
+      elseif forwards[text] and tok[j + 1] and tok[j + 1].text == "(" then
+        local spec = forwards[text]
+        local k = j + 2
+        local argIndex, depth, saw = 1, 0, false
+        while k <= n do
+          local t = tok[k].text
+          if t == "(" then depth = depth + 1
+          elseif t == ")" then
+            if depth == 0 then break end
+            depth = depth - 1
+          elseif t == "," and depth == 0 then
+            argIndex = argIndex + 1
+            saw = false
+          elseif depth == 0 and not saw then
+            saw = true
+            if spec[argIndex] then
+              if tok[k].kind == "string" then add(tok[k].text)
+              elseif binding and tok[k].kind == "name" and tok[k].text == binding.var then
+                for _, value in ipairs(tables[binding.table] or {}) do add(value) end
+              end
+            end
+          end
+          k = k + 1
+        end
+        j = j + 1
+      else
+        j = j + 1
+      end
+    end
+  end
+  scan(1, n + 1, nil)
+  return out
+end
+
 function M.literalDeps(src)
   local out, i, n = {}, 1, #src
   while i <= n do
@@ -88,8 +371,9 @@ function M.literalDeps(src)
         local j = skipSpace(src, i + #word)
         if src:byte(j) == 40 then
           j = skipSpace(src, j + 1)
-          if src:sub(j, j + 5) == "dofile" and not isName(src:byte(j + 6) or 0) then
-            j = skipSpace(src, j + 6)
+          local after = loaderEnd(src, j)
+          if after then
+            j = skipSpace(src, after)
             if src:byte(j) == 44 then path, nxt = quoted(src, j + 1) end
           end
         end
@@ -124,7 +408,9 @@ local function depsOf(path)
   local list = {}
   if src then
     local seen = {}
-    for _, raw in ipairs(M.literalDeps(src)) do
+    local raws = M.literalDeps(src)
+    for _, raw in ipairs(M.forwardedDeps(src)) do raws[#raws + 1] = raw end
+    for _, raw in ipairs(raws) do
       local norm = M.normalize(raw)
       if norm and not seen[norm] then
         seen[norm] = true

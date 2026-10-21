@@ -206,6 +206,6 @@ local function turtle()
 end
 
 assert(config.get("standardsMode") == true, "standardsMode disabled")
-assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+assert(fs.getCapacity("/") == 1000000, "wrong disk limit")
 local ok, err = pcall(id == 0 and server or turtle)
 if not ok then report(false, { tostring(err) }, {}) end
