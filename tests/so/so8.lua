@@ -84,13 +84,22 @@ return function(test, equal)
     local ok, err = drops.add(place("p65", 65, "front", "fuel"))
     assert(ok == false and err == "full", tostring(err))
     assert(drops.add(place("p1", 1, "front", "fuel")) == true)
+    assert(drops.note("p1", nil) == true)
+    assert(drops.add(place("p1", 1, "front", "fuel")) == true)
+    local keptFails
+    local kept = server.env.textutils.unserialize(server.files["so-drops"]).value.points
+    for i = 1, #kept do
+      if kept[i].id == "p1" then keptFails = kept[i].fails end
+    end
+    equal(keptFails, 1)
     local again, exists = drops.add(place("p1", 9, "front", "fuel"))
     assert(again == false and exists == "exists", tostring(exists))
     local saved = server.env.textutils.unserialize(server.files["so-drops"])
     equal(#saved.value.points, 64)
     equal(drops.steps({ name = "minecraft:cobble", n = 1, where = "front" }), {})
     assert(drops.pick({ name = "minecraft:cobble", n = 1 }) == nil)
-    assert(drops.add({ id = "up_1", dim = 0, x = 0, y = 70, z = 0, side = "up", kind = "ore" }) == false)
+    local upOk, upErr = drops.add({ id = "up_1", dim = 0, x = 0, y = 70, z = 0, side = "up", kind = "ore" })
+    assert(upOk == false and upErr == "side", tostring(upErr))
   end)
 
   test("pick falls back from a broken ore chest to any, then hold, and fix brings the ore back", function()
@@ -100,14 +109,21 @@ return function(test, equal)
     assert(drops.add(place("ore_1", 3, "front", "ore")) == true)
     assert(drops.add(place("any_1", 9, "down", "any")) == true)
     assert(drops.add(place("other_dim", 1, "front", "ore", 1)) == true)
-    drops.note("ore_1", nil)
-    drops.note("ore_1", "minecraft:chest")
-    local healed = drops.pick("ore", near())
-    equal(healed.point.id, "ore_1")
-    drops.note("ore_1", nil)
-    drops.note("ore_1", nil)
-    drops.note("ore_1", nil)
-    drops.note("ore_1", "minecraft:chest")
+    local onlyAny = drops.pick("any", near())
+    equal(#onlyAny.chain, 2)
+    equal(onlyAny.chain[2], "hold")
+    equal(onlyAny.point.id, "any_1")
+    assert(drops.note("ore_1", nil) == true)
+    assert(drops.note("ore_1", "minecraft:chest") == true)
+    assert(drops.note("ore_1", nil) == true)
+    assert(drops.note("ore_1", nil) == true)
+    equal(drops.pick("ore", near()).point.id, "ore_1")
+    assert(drops.note("ore_1", "minecraft:chest") == true)
+    assert(drops.note("ore_1", nil) == true)
+    assert(drops.note("ore_1", nil) == true)
+    equal(drops.pick("ore", near()).point.id, "ore_1")
+    assert(drops.note("ore_1", nil) == true)
+    assert(drops.note("ore_1", "minecraft:chest") == true)
     local choice = drops.pick("ore", near())
     equal(choice.point, { id = "any_1", dim = 0, x = 9, y = 64, z = 0, side = "down", kind = "any" })
     assert(choice.alert == nil)
@@ -135,17 +151,24 @@ return function(test, equal)
   test("hold still returns an alert when state and display are missing", function()
     local net, server = boot(function(machine)
       machine.files["so-mod-state.lua"] = nil
-      machine.files["so-mod-display.lua"] = nil
     end)
     assert(server.alive(), tostring(server.error))
-    assert(server.files["lib/ccryptolib/x25519.lua"], "ccryptolib missing")
-    local drops = server.env.SO.mods.drops
-    local held = drops.pick("wood", near())
+    local held = server.env.SO.mods.drops.pick("wood", near())
     assert(held.point == nil)
     equal(held.alert, "drops: hold wood")
     net.advance(1)
     assert(server.alive(), tostring(server.error))
     assert(not logtext(server):find("tick drops failed", 1, true), logtext(server))
+    local net2, server2 = boot(function(machine)
+      machine.files["so-mod-display.lua"] = nil
+    end)
+    assert(server2.alive(), tostring(server2.error))
+    local drops2 = server2.env.SO.mods.drops
+    assert(drops2.add(place("bin", 1, "front", "fuel")) == true)
+    net2.advance(1)
+    assert(server2.alive(), tostring(server2.error))
+    assert(not logtext(server2):find("tick drops failed", 1, true), logtext(server2))
+    equal(drops2.pick("fuel", near()).point.id, "bin")
   end)
 
   test("the generic screen can fix a point and a saved file loads on the next boot", function()
@@ -157,11 +180,14 @@ return function(test, equal)
     drops.note("ore_1", nil)
     drops.note("ore_1", nil)
     local seen
+    local calls = 0
     server.env.SO.mods.display.screen = function(role, render, input)
+      calls = calls + 1
       seen = { role = role, render = render, input = input }
     end
     net.advance(1)
     equal(seen.role, "generic")
+    equal(calls, 1)
     local frame = seen.render()
     assert(type(frame.rev) == "number")
     local broken = false
@@ -175,6 +201,8 @@ return function(test, equal)
     equal(drops.pick("ore", near()).point.id, "ore_1")
     seen.input({ role = "generic", id = "add", x = 1, y = 3 })
     equal(drops.pick("ore", near()).point.id, "0_0_64_0_front_ore")
+    net.advance(1)
+    equal(calls, 1)
     local raw = server.files["so-drops"]
     local _, again = boot(function(machine)
       machine.files["so-drops"] = raw
@@ -203,12 +231,14 @@ local reply, err = proto.request(%d, "drops.edit", {
   op = "add", id = "wire_1", dim = 0, x = 4, y = 64, z = 1, side = "front", kind = "wood",
 }, 2, 2)
 assert(reply and reply.t == "ack" and reply.body.ok == true and reply.body.id == "wire_1", tostring(err))
+local fix, ferr = proto.request(%d, "drops.edit", { op = "fix", id = "wire_1" }, 2, 2)
+assert(fix and fix.t == "ack" and fix.body.ok == true and fix.body.id == "wire_1", tostring(ferr))
 local up, uerr = proto.request(%d, "drops.edit", {
   op = "add", id = "wire_up", dim = 0, x = 0, y = 70, z = 0, side = "up", kind = "ore",
 }, 2, 2)
-assert(up and up.t == "err" and up.body.code == "side", tostring(uerr) .. " " .. tostring(up and up.t))
+assert(up and up.t == "err" and up.body.code == "side" and up.body.text == "bad side", tostring(uerr) .. " " .. tostring(up and up.t))
 EDIT = reply
-]], server.id, server.id))
+]], server.id, server.id, server.id))
     net.flush()
     assert(not client.error, tostring(client.error))
     assert(not server.error, tostring(server.error))
@@ -241,5 +271,34 @@ FULL = reply
     net.flush()
     assert(not client.error, tostring(client.error))
     equal(client.env.FULL.body.code, "full")
+  end)
+
+  test("the nearer same-dimension point wins, and a distance tie takes the smaller id", function()
+    local _, server = boot()
+    assert(server.alive(), tostring(server.error))
+    local drops = server.env.SO.mods.drops
+    assert(drops.add(place("b", 3, "front", "ore")) == true)
+    assert(drops.add(place("a", -3, "front", "ore")) == true)
+    assert(drops.add(place("z", 1, "front", "ore")) == true)
+    assert(drops.add(place("other", 0, "front", "ore", 1)) == true)
+    equal(drops.pick("ore", near()).point.id, "z")
+    assert(drops.note("z", nil) == true)
+    assert(drops.note("z", nil) == true)
+    assert(drops.note("z", nil) == true)
+    equal(drops.pick("ore", near()).point.id, "a")
+  end)
+
+  test("a failed save puts the previous points back", function()
+    local _, server = boot()
+    assert(server.alive(), tostring(server.error))
+    local drops = server.env.SO.mods.drops
+    assert(drops.add(place("keep", 5, "front", "ore")) == true)
+    local before = server.files["so-drops"]
+    server.files["pad"] = string.rep("x", server.capacity)
+    local ok, err = drops.add(place("drop", 0, "front", "ore"))
+    assert(ok == false, "save succeeded on a full disk")
+    assert(tostring(err):find("disk full", 1, true), tostring(err))
+    assert(server.files["so-drops"] == before, "failed save changed so-drops")
+    equal(drops.pick("ore", near()).point.id, "keep")
   end)
 end

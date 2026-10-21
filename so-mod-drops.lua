@@ -29,11 +29,20 @@ local S = {
 }
 
 S.whole = function(n)
-  return type(n) == "number" and n == math.floor(n) and n > -1e15 and n < 1e15
+  return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge and n == math.floor(n)
 end
 
 S.recordOk = function(p)
   if type(p) ~= "table" then return false end
+  local keys = 0
+  for key in pairs(p) do
+    keys = keys + 1
+    if key ~= "id" and key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z"
+      and key ~= "side" and key ~= "kind" and key ~= "fails" then
+      return false
+    end
+  end
+  if keys ~= 8 then return false end
   if type(p.id) ~= "string" or not p.id:match("^[%w_%-]+$") then return false end
   if not S.whole(p.dim) or not S.whole(p.x) or not S.whole(p.y) or not S.whole(p.z) then return false end
   if not S.face[p.side] or not S.kinds[p.kind] then return false end
@@ -43,6 +52,9 @@ end
 
 S.valid = function(value)
   if type(value) ~= "table" or type(value.points) ~= "table" then return false end
+  for key in pairs(value) do
+    if key ~= "points" then return false end
+  end
   local points = value.points
   local n = #points
   if n > S.cap then return false end
@@ -164,22 +176,25 @@ S.note = function(id, blockName)
   return S.commit(previous, "note", id)
 end
 
-S.nearest = function(kind, nearPos)
-  local best, bestDist, bestId
+S.scan = function(kind, nearPos)
+  local want, wantDist, wantId
+  local anyPoint, anyDist, anyId
   for i = 1, #S.points do
     local p = S.points[i]
-    if p.kind == kind and p.dim == nearPos.dim and p.fails < S.strikes then
+    if p.dim == nearPos.dim and p.fails < S.strikes and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
       local dz = p.z - nearPos.z
       local dist = dx * dx + dy * dy + dz * dz
-      if not best or dist < bestDist or (dist == bestDist and p.id < bestId) then
-        best, bestDist, bestId = p, dist, p.id
+      if p.kind == kind and (not want or dist < wantDist or (dist == wantDist and p.id < wantId)) then
+        want, wantDist, wantId = p, dist, p.id
+      end
+      if p.kind == "any" and (not anyPoint or dist < anyDist or (dist == anyDist and p.id < anyId)) then
+        anyPoint, anyDist, anyId = p, dist, p.id
       end
     end
   end
-  if not best then return nil, false end
-  return S.pub(best), true
+  return want, anyPoint
 end
 
 S.pick = function(kind, nearPos)
@@ -188,11 +203,10 @@ S.pick = function(kind, nearPos)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
     return nil
   end
-  local chain = { { kind = kind, point = nil, usable = false } }
-  chain[1].point, chain[1].usable = S.nearest(kind, nearPos)
+  local want, anyPoint = S.scan(kind, nearPos)
+  local chain = { { kind = kind, point = want and S.pub(want) or nil, usable = want ~= nil } }
   if kind ~= "any" then
-    chain[2] = { kind = "any", point = nil, usable = false }
-    chain[2].point, chain[2].usable = S.nearest("any", nearPos)
+    chain[2] = { kind = "any", point = anyPoint and S.pub(anyPoint) or nil, usable = anyPoint ~= nil }
   end
   chain[#chain + 1] = "hold"
   local point
@@ -274,8 +288,11 @@ S.render = function()
   local d = S.draft
   rows[#rows + 1] = S.row(string.format("draft %d %d %d %d %s %s", d.dim, d.x, d.y, d.z, d.side, d.kind))
   local names = { "kind", "side", "dim+", "dim-", "x+", "x-", "y+", "y-", "z+", "z-", "add" }
+  local x = 1
   for i = 1, #names do
-    buttons[#buttons + 1] = S.button(names[i], i, #rows, names[i])
+    local label = names[i]
+    buttons[#buttons + 1] = S.button(label, x, #rows, label)
+    x = x + #label + 1
   end
   return { rev = S.rev, rows = rows, buttons = buttons }
 end
