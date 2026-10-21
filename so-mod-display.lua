@@ -167,7 +167,10 @@ D.statusRender = function()
   local rows = { { text = "status", fg = "0", bg = "f" } }
   local state = SO.mods.state
   local view
-  if type(state) == "table" and type(state.view) == "function" then
+  local viewFn = type(state) == "table" and state.view
+  local viewMeta = type(viewFn) == "table" and getmetatable(viewFn)
+  if type(viewFn) == "function"
+      or (type(viewMeta) == "table" and type(viewMeta.__call) == "function") then
     local ok, got = pcall(state.view)
     if ok and type(got) == "table" then view = got end
   end
