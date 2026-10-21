@@ -435,7 +435,9 @@ dofile("tests/miner_lost.lua")(test, equal, read, mocks)
 dofile("tests/miner_dirs.lua")(test, equal, read, mocks)
 dofile("tests/server.lua")(test, equal, read, mocks)
 dofile("tests/so/so0.lua")(test, equal, read, mocks)
-dofile("tests/so/so1.lua")(test, equal, read, mocks)
 
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/so1.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
