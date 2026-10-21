@@ -82,7 +82,19 @@ function Invoke-Reclaim([string]$Lock) {
 function Wait-NoHold {
     $deadline = [DateTime]::UtcNow.AddSeconds($LockTimeoutSec)
     while ($true) {
-        $health = Get-GatebHealth
+        $health = $null
+        $last = $null
+        foreach ($delay in @(0, 2, 2, 2)) {
+            if ($delay -gt 0) { Start-Sleep -Seconds $delay }
+            try {
+                $health = Get-GatebHealth
+                $last = $null
+                break
+            } catch {
+                $last = $_
+            }
+        }
+        if ($last) { throw $last }
         $held = (Test-Path $holdFile) -or ($health.PSObject.Properties['hold'] -and $health.hold)
         if (!$held) { return $health }
         if ([DateTime]::UtcNow -gt $deadline) { throw "A gate B hold stayed active for $LockTimeoutSec s." }
@@ -158,39 +170,56 @@ try {
 
     Enter-ServerLock
     foreach ($s in $Scenario) {
-        Wait-NoHold | Out-Null
         $out = "$Output\$s"
         $root = "C:\Work\mc-ssot-pr1-gb$stamp-$s"
         $testRoots.Add($root)
-        Enter-ClientLock
-        Set-Phase "scenario $s running"
-        Push-Location $src
+        $recorded = $false
         try {
-            & "$src\tests\ingame\run.ps1" -Scenario $s -Base $stage -Battery "$stage\mods\$battery" -Output $out -TestRoot $root -Timeout $Timeout -Client *>&1 | Out-File "$out-driver.log" -Encoding utf8
-        } catch {
-            Add-Content "$out-driver.log" "DRIVER ERROR $($_.Exception.Message)"
-        } finally {
-            Pop-Location
-            Stop-RunJava $stamp $PID $startTicks
-            Exit-OwnLock $clientLock
-            $holdsClient = $false
-        }
-        Get-ChildItem $root -Filter 'std*.log' -ErrorAction SilentlyContinue | Copy-Item -Destination $out
-        $verdict = if (Test-Path "$out\verdict.txt") { ([IO.File]::ReadAllText("$out\verdict.txt") -split "`n")[0].Trim() } else { 'MISSING' }
-        $shots = @(Get-ChildItem $out -Filter '*.png' -File -ErrorAction SilentlyContinue)
-        $videos = @(Get-ChildItem $out -Filter '*.mp4' -File -ErrorAction SilentlyContinue)
-        if ($verdict -ne 'PASS') { $problems.Add("$s verdict $verdict. See $out\verdict.txt and $out-driver.log.") }
-        if ($shots.Count -eq 0 -or (Test-Path "$out\visual-missing.txt")) { $problems.Add("$s has no client F2 screenshot.") }
-        if (Test-Path "$out\jar-sha256.txt") {
-            foreach ($line in Get-Content "$out\jar-sha256.txt") {
-                $hash, $name = $line.Trim() -split '\s+', 2
-                if ($live[$name] -ne $hash.ToLower()) { $problems.Add("$s loaded $name, which does not match the live sha256.") }
+            Wait-NoHold | Out-Null
+            Enter-ClientLock
+            Set-Phase "scenario $s running"
+            Push-Location $src
+            try {
+                & "$src\tests\ingame\run.ps1" -Scenario $s -Base $stage -Battery "$stage\mods\$battery" -Output $out -TestRoot $root -Timeout $Timeout -Client *>&1 | Out-File "$out-driver.log" -Encoding utf8
+            } catch {
+                Add-Content "$out-driver.log" "DRIVER ERROR $($_.Exception.Message)"
+            } finally {
+                Pop-Location
+                Stop-RunJava $stamp $PID $startTicks
+                Exit-OwnLock $clientLock
+                $holdsClient = $false
             }
-            $missing = @($live.Keys | Where-Object { !(Select-String -LiteralPath "$out\jar-sha256.txt" -SimpleMatch " $_" -Quiet) } | Sort-Object)
-            if ($missing) { $problems.Add("$s test server is missing live jars $($missing -join ', ').") }
-        } else { $problems.Add("$s wrote no jar-sha256.txt.") }
-        $rows.Add("| $s | $verdict | $(($shots | ForEach-Object { $_.FullName }) -join '<br>') | $(($videos | ForEach-Object { $_.FullName }) -join '<br>') |")
-        Set-Phase "scenario $s finished $verdict"
+            Get-ChildItem $root -Filter 'std*.log' -ErrorAction SilentlyContinue | Copy-Item -Destination $out
+            $verdict = if (Test-Path "$out\verdict.txt") { ([IO.File]::ReadAllText("$out\verdict.txt") -split "`n")[0].Trim() } else { 'MISSING' }
+            $shots = @(Get-ChildItem $out -Filter '*.png' -File -ErrorAction SilentlyContinue)
+            $videos = @(Get-ChildItem $out -Filter '*.mp4' -File -ErrorAction SilentlyContinue)
+            if ($verdict -ne 'PASS') { $problems.Add("$s verdict $verdict. See $out\verdict.txt and $out-driver.log.") }
+            if ($shots.Count -eq 0 -or (Test-Path "$out\visual-missing.txt")) { $problems.Add("$s has no client F2 screenshot.") }
+            if (Test-Path "$out\jar-sha256.txt") {
+                foreach ($line in Get-Content "$out\jar-sha256.txt") {
+                    $hash, $name = $line.Trim() -split '\s+', 2
+                    if ($live[$name] -ne $hash.ToLower()) { $problems.Add("$s loaded $name, which does not match the live sha256.") }
+                }
+                $missing = @($live.Keys | Where-Object { !(Select-String -LiteralPath "$out\jar-sha256.txt" -SimpleMatch " $_" -Quiet) } | Sort-Object)
+                if ($missing) { $problems.Add("$s test server is missing live jars $($missing -join ', ').") }
+            } else { $problems.Add("$s wrote no jar-sha256.txt.") }
+            $rows.Add("| $s | $verdict | $(($shots | ForEach-Object { $_.FullName }) -join '<br>') | $(($videos | ForEach-Object { $_.FullName }) -join '<br>') |")
+            $recorded = $true
+            Set-Phase "scenario $s finished $verdict"
+        } catch {
+            if ($holdsClient) {
+                Exit-OwnLock $clientLock
+                $holdsClient = $false
+            }
+            Stop-RunJava $stamp $PID $startTicks
+            if (-not $recorded) {
+                $problems.Add("$s error. $($_.Exception.Message)")
+                $rows.Add("| $s | ERROR |  |  |")
+                try { Set-Phase "scenario $s finished ERROR" } catch { }
+            } else {
+                $problems.Add("$s error after its verdict. $($_.Exception.Message)")
+            }
+        }
     }
     if (!$partial -and !(Get-ChildItem $Output -Recurse -Filter '*.mp4' -File)) { $problems.Add('No video clip.') }
     $depth = "$src\docs\testing\gateB-depth.md"
