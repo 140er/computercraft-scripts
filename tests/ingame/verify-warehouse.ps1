@@ -12,7 +12,7 @@ foreach($id in 1..3) {
 if(!$results[2].mining){throw 'Mining continuation was not exercised.'}
 if($results[1].automaticCharges -lt 1){throw 'The low-fuel store turtle did not continue its order after charging.'}
 if(($results[0].trafficYields+$results[1].trafficYields) -lt 1){throw 'The aisle test did not exercise physical yielding.'}
-& "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output -Ids @(0,1,2,3,4)
+& "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output -Ids @(0,1,2,3,4) -Scenario warehouse
 $results | ConvertTo-Json -Depth 14 | Set-Content "$Output\warehouse-results.json"
 if(Test-Path "$Computers\5\world.json") {
     $world=Get-Content "$Computers\5\world.json" -Raw | ConvertFrom-Json

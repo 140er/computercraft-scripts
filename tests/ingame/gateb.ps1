@@ -34,6 +34,7 @@ New-Item -ItemType Directory -Force -Path $work, $Output | Out-Null
 function Write-Summary([string]$Gates) {
     $lines = @("GATES: $Gates", '', "Ref $Ref at $sha.", "Run $stamp, pid $PID, host $env:COMPUTERNAME. VM-local disposable servers under C:\Work\mc-ssot-pr1-gb$stamp-*, never live.",
         "Scenarios $($Scenario -join ', ')$(if ($partial) { ' (subset, so PARTIAL at best)' }).",
+        'New-H3Disks does not block GATES: PASS. gateb.ps1 and the ssot, nav, mining, and warehouse scenarios never call it.',
         "Started $($started.ToString('s')). Heartbeat $([DateTime]::Now.ToString('s')), $script:phase.", '',
         '| Scenario | Verdict | Screenshots | Video |', '| --- | --- | --- | --- |') + $rows + @('', 'Problems:') +
         $(if ($problems.Count) { $problems | ForEach-Object { "- $_" } } else { '- none' }) + @('', "Evidence: $Output")

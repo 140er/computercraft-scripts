@@ -6,7 +6,7 @@ param(
     [string]$TestRoot = '',
     [int]$Timeout = 600,
     [ValidateSet('Auto','Box','Local')][string]$HostKind = 'Auto',
-    [int]$SpaceLimit = 4000000,
+    [int]$SpaceLimit = 1000000,
     [switch]$PrepareOnly,
     [switch]$Client,
     [switch]$ResumeProbes,
@@ -43,7 +43,7 @@ foreach ($pattern in $patterns) {
 }
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
-$diskLimit = 8000000
+$diskLimit = 1000000
 foreach ($file in @('computercraft-server.toml')) {
     $config = [regex]::Replace([IO.File]::ReadAllText("$Base\config\$file"), 'computer_space_limit\s*=\s*\d+', "computer_space_limit = $diskLimit")
     $limits = @([regex]::Matches($config, 'computer_space_limit\s*=\s*(\d+)') | ForEach-Object { $_.Groups[1].Value })
