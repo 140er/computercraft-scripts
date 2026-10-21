@@ -7,7 +7,7 @@ persistence and checks. Read [[server-only/PROTOCOL]]
 
 ## Wave plan
 
-This is the planned sequence, not a completion report.
+SO3 mining and SO7 lumber are merged. Wave 5 is next.
 
 1. Wave 1 is SO0, the server core, protocol, pairing, store and test harness.
 2. Wave 2 is SO1 state and logs, SO2 workers, SO5 displays and SO8 drop points.
@@ -22,12 +22,12 @@ See [[server-only/PROTOCOL#Tasks]]
 ## Open gaps
 
 - `install.lua` lists no `so-*` files yet. SO9 must include the core files,
-  thin clients, `lib/ccryptolib/`, `so-log.lua`, `so-plan.lua`, planner files
-  and every `so-mod-*.lua`.
+  thin clients, `lib/ccryptolib/`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
+  `so-lumber-plan.lua` and every `so-mod-*.lua`.
 - Lease records are memory-only. Planners must recover durable reservations
   with park leases after a server restart.
-- Mining SO3 and lumber SO7 are in progress in wave 4. Their modules are absent
-  from the mapped base, as is SO10 AR.
+- SO3 mining and SO7 lumber are merged. Next is wave 5, SO9 installer and SO10 AR.
+  The AR module is still absent.
 - Offline checks do not replace CraftOS-PC sandbox runs or integration with
   a local Minecraft server and real mods. Those environments are unavailable
   for this docs change, so in-game checks remain untested.

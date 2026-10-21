@@ -10,10 +10,9 @@ and API details. Return to [[index]] ([start page](index.md)) for the wave plan.
 
 ## Files and public calls
 
-Signatures below use each file's returned library or `SO.mods.<name>`.
-Programs have no returned public API. Internal helper functions are omitted.
-Every module handler has signature `handler(msg, reply)`; every tick accepts
-`tick(now)`. Listeners have signature `listener(sender, message)`.
+Signatures use each returned library or `SO.mods.<name>`. Programs export no API.
+Handlers use `handler(msg, reply)`, ticks use `tick(now)`,
+and listeners use `listener(sender, message)`.
 
 ### Core and shared libraries
 
@@ -46,6 +45,16 @@ Every module handler has signature `handler(msg, reply)`; every tick accepts
   `park` is a ten-minute `inspectDown` lease template. Renew it with less than
   one minute remaining. Paths assume success; callers reserve cells and split
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
+
+- [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
+  Calls are `key(p)`, `same(a, b)`, `ore(d)`, `junk(d)`, `distance(a, b)`,
+  `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
+  `cleanup(inv, all)`, `travel(from, goal, point)` and `next(job, row, lookup, inv, fuel)`.
+  `ores` is the supported ore-name set.
+- [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
+  Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
+  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
+  and `distance(a, b)`.
 
 ### Server modules
 
@@ -89,12 +98,28 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
+  The generic screen includes a `lumber` button, including with the drops screen.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
   Tick registers the shop screen, discovers storage and polls stock.
   See the [shop exception](server-only/PROTOCOL.md#shop).
+
+- [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
+  Only `tick(now)` is exported beyond module metadata; no wire handlers.
+  Tick registers `display.screen("mining", render, input)` and
+  `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
+  Screen callbacks are `render()` and `input(event)`; reports use
+  `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
+  See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
+- [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
+  Only `tick(now)` is exported beyond module metadata; no wire handlers.
+  Tick registers `display.screen("lumber", render, input)` and
+  `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
+  Screen callbacks are `render()` and `input(event)`; reports use
+  `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
+  See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 ### Thin clients
 
@@ -217,9 +242,9 @@ not run and which Minecraft or client checks remain unavailable in the PR.
 ## Open gaps
 
 - `install.lua` lists no `so-*` files yet. SO9 must add `lib/ccryptolib/`,
-  `so-log.lua`, `so-plan.lua`, planner files and every `so-mod-*.lua`, along
-  with the core server-only files and thin clients.
+  `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`, `so-lumber-plan.lua` and every
+  `so-mod-*.lua`, with the core server-only files and thin clients.
 - Lease state is memory-only. Planner recovery must use park leases and account
   for reservations that survived the restart.
-- Mining and lumber planners are in progress in wave 4. `so-mod-mine.lua` and
-  `so-mod-lumber.lua` are absent from this base. `so-mod-ar.lua` is also absent.
+- SO3 mining and SO7 lumber are merged. Next is wave 5, SO9 installer and SO10 AR.
+  `so-mod-ar.lua` is still absent.
