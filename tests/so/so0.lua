@@ -2,6 +2,7 @@ local harness = dofile("tests/so/harness.lua")
 
 local SOURCES = {
   "so-proto.lua", "so-pair.lua", "so-store.lua", "so-server.lua",
+  "so-log.lua",
   "so-mod-state.lua", "so-mod-cells.lua", "so-mod-display.lua", "so-mod-drops.lua",
 }
 
