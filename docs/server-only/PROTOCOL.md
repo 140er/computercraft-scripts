@@ -104,17 +104,19 @@ The turtle sends `step.report` to the server.
 
 `body.lease` is the lease string from `lease.batch`. `body.results` is one table per step, in the same order.
 
-`results[i].ok` is a boolean. `results[i].err` is an optional string. `results[i].data` is an optional table. For a successful inspect, `data.name` is the block name when a block is present.
+`results[i].ok` is a boolean. `results[i].err` is an optional string. `results[i].data` is an optional table. For a successful inspect, `data.name` is the block name. `data.tags` contains at most eight matching tags as `[tag] = true`. The allowed tags are `c:ores`, `forge:ores`, `minecraft:logs`, `minecraft:leaves`, `minecraft:saplings`, `minecraft:dirt`, `c:chests`, `forge:chests`, and any tag beginning with `c:ores/` or `forge:ores/`. The worker retains the fixed tags before subtype tags. If the full report would exceed the envelope limit, it removes the longest subtype tags until it fits. `data.level` is the numeric `state.level` when present. A water or lava source has level 0.
 
 `results[i].counts` is an optional array of 16 numbers, the item count in slots 1 to 16 after the step.
 
 `results[i].err` is `expired` when the step was not run because `lease.batch` `expires` had passed. Later steps in that batch use the same error.
 
+`body.pose` is `{ x, y, z, f }` in the journal frame after the last step. `body.journal` is the journal id. `body.fuel` is the numeric fuel level, or `-1` for unlimited. `body.inv` is the occupied-slot list `{ { slot, name, count }, ... }`. `body.dug` is the last 32 dug cells `{ { x, y, z }, ... }` in the journal frame. The worker reads these facts once after the batch, including when a step failed or expired.
+
 ### beacon
 
 The turtle broadcasts `beacon`.
 
-`body.id` is its computer id. `body.fuel` is a number. Unlimited fuel is sent as `-1`. `body.journal` is a string, the last journal id it knows.
+`body.id` is its computer id. `body.fuel` is a number. Unlimited fuel is sent as `-1`. `body.journal` is a string, the last journal id it knows. `body.pose` is `{ x, y, z, f }` in that journal frame.
 
 The MAC still uses that turtle's paired key. The server can verify it. SO0 has no beacon handler, so the server answers `err` until SO2 registers one.
 
@@ -269,13 +271,13 @@ SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, a
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
 
-`lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<n>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost`. Invalid arguments, an absent pair key, or a failed send also return nil and a reason.
+`lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, `recover`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<n>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost` unless `opts.recover` is true. Recovery still refuses an open lease with `busy`. Invalid arguments, an absent pair key, or a failed send also return nil and a reason.
 
-`lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. A later registration replaces the callback.
+`lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. An accepted report stores `lease.report = { pose, journal, fuel, inv, dug }`. Each field is type-checked independently. A bad field is omitted while valid fields remain. These facts are stored for successful batches and batches with failed or expired steps. A later registration replaces the callback.
 
-A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
+An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
-`lease.status(id)` returns `{ open, lost, range, seen }`. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact. `lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
+`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact. `lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
 
 The server position comes from the plain `so-server.cfg` table `{ pos = { dim, x, y, z } }`, read through `so-store`. Without it, the module tries `gps.locate(2)`. Without either position, every range check returns true and the module logs that once at load.
 
@@ -334,6 +336,22 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
+
+## Plan helpers
+
+Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It does not use `SO`, rednet, waits, or storage. Facing is 0 north, 1 east, 2 south, and 3 west. North decreases z and east increases x.
+
+`P.frame(worldPose, journalPose)` anchors a journal frame at a known world pose. World poses use `{ dim, x, y, z, facing }` and journal poses use `{ x, y, z, f }`. The frame is `{ dim, rot, ox, oy, oz }`. `rot` is the clockwise quarter-turn count. `P.toWorld(frame, journalPose)` converts to a world pose. `P.toJournal(frame, worldPose)` is its inverse.
+
+`P.ahead(pose, dir)` returns the x, y, z of the cell `forward`, `back`, `up`, or `down`. `P.apply(pose, op)` returns a new pose after a move or turn. Other operations leave the pose unchanged. Both accept world or journal poses and preserve the facing field convention. `P.replay(startPose, steps, results)` applies only operations with a corresponding successful result.
+
+`P.path(from, to, opts)` returns `{ steps, cells, pose }`. It turns and moves to the target cell in axis order `opts.order`, default `"yxz"`. An order must contain x, y, and z once each. With `opts.dig = true`, each move follows `dig`, `digUp`, or `digDown` as appropriate. `cells` lists every entered cell with its dimension. `pose` is the final pose. The path assumes success and does not avoid obstacles or reserve cells. Callers split steps into batches of at most 16. `P.chunk(steps, n)` returns the first n steps and the remainder as two arrays.
+
+`P.inRange(lease, id, cells)` calls `lease.inRange(id, cell)` for every cell and returns false if any check fails. It returns true if the lease module or its range function is missing.
+
+`P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. An expired lease makes the worker beacon and back up its last moves.
+
+`P.fuelValue(name)` returns fuel per item for Minecraft coal and charcoal as 80, coal blocks as 800, lava buckets as 1000, and blaze rods as 120. Other names return 0. `P.free(inv)` returns the number of empty slots among the turtle's 16 slots using the occupied-slot report list.
 
 ## Pairing and so-keys
 
@@ -409,3 +427,4 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 - SO9 owns `install.lua`.
 - SO10 owns `so-mod-ar.lua`.
 - W3-B owns `so-mod-lease.lua`. It sends `lease.batch` and handles `step.report`, `beacon`, and `history.page`.
+- W4-0 owns worker report facts, lease recovery facts, and the shared `so-plan.lua` helpers. It adds no planner.

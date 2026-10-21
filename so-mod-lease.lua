@@ -13,6 +13,41 @@ S.copyPose = function(p)
   return { dim = p.dim, x = p.x, y = p.y, z = p.z, facing = p.facing }
 end
 
+S.journalPose = function(p)
+  if not S.position(p) or not S.number(p.f) or p.f % 1 ~= 0 or p.f < 0 or p.f > 3 then return nil end
+  return { x = p.x, y = p.y, z = p.z, f = p.f }
+end
+
+S.facts = function(body)
+  local facts = { pose = S.journalPose(body.pose) }
+  if type(body.journal) == "string" then facts.journal = body.journal end
+  if S.number(body.fuel) then facts.fuel = body.fuel end
+  if type(body.inv) == "table" then
+    local good = true
+    for _, item in pairs(body.inv) do
+      if type(item) ~= "table" or not S.number(item.slot) or item.slot % 1 ~= 0
+        or item.slot < 1 or item.slot > 16 or type(item.name) ~= "string"
+        or not S.number(item.count) or item.count < 0 then good = false break end
+    end
+    if good then facts.inv = SO.store.copy(body.inv) end
+  end
+  if type(body.dug) == "table" then
+    local good = true
+    for _, cell in pairs(body.dug) do if not S.position(cell) then good = false break end end
+    if good then facts.dug = SO.store.copy(body.dug) end
+  end
+  return facts
+end
+
+S.journalSeen = function(row, pose, journal)
+  local p = S.journalPose(pose)
+  if type(journal) == "string" and journal ~= row.journal and not p then
+    row.pose, row.poseAt = nil, nil
+  end
+  if p then row.pose, row.poseAt = p, os.epoch("utc") end
+  if type(journal) == "string" then row.journal = journal end
+end
+
 S.distance = function(p)
   if not S.pos or not S.position(p) then return nil end
   if S.pos.dim ~= nil and p.dim ~= nil and S.pos.dim ~= p.dim then return nil end
@@ -57,7 +92,7 @@ end
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
-  if row.lost then return nil, "lost" end
+  if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
   if type(steps) ~= "table" or #steps < 1 or #steps > 16 then return nil, "steps" end
   local count = 0
@@ -100,7 +135,8 @@ end
 
 S.status = function(id)
   local row = S.row(id)
-  return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen }
+  return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
+    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt }
 end
 
 S.inRange = function(id, pos)
@@ -132,6 +168,9 @@ S.report = function(msg)
   if count ~= #lease.steps then return end
   row.open = nil
   row.seen = os.epoch("utc")
+  row.lost = false
+  lease.report = S.facts(body)
+  S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
   local cells = S.module("cells")
   if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
@@ -148,7 +187,7 @@ S.beacon = function(msg)
   local row = S.row(msg.from)
   row.lost = true
   row.seen = os.epoch("utc")
-  row.journal = msg.body.journal
+  S.journalSeen(row, msg.body.pose, msg.body.journal)
   S.emit("machine", { id = msg.from, fuel = msg.body.fuel, seen = row.seen, journal = row.journal })
 end
 
@@ -156,6 +195,8 @@ S.hello = function(msg)
   local row = S.row(msg.from)
   row.lost = false
   row.seen = os.epoch("utc")
+  local journal = msg.body.journal
+  if type(journal) == "table" then S.journalSeen(row, journal.pose, journal.id) end
   S.observe(row, msg.body.pose or msg.body.gps)
 end
 

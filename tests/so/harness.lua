@@ -78,6 +78,7 @@ local function attachTurtle(m, opts, world)
   end
   local function inspect(d)
     local name = world[key(d)]
+    if type(name) == "table" then return true, { name = name.name, tags = name.tags, state = name.state } end
     if name then return true, { name = name } end
     return false, "No block to inspect"
   end
@@ -90,12 +91,33 @@ local function attachTurtle(m, opts, world)
     if item.count < 1 then m.inv[m.selected] = nil end
     return true
   end
-  local function drop(n)
+  local function suck(d, n)
+    local chest = world[key(d)]
+    if type(chest) ~= "table" or type(chest.inv) ~= "table" then return false end
+    for slot = 1, #chest.inv do
+      local item = chest.inv[slot]
+      local selected = m.inv[m.selected]
+      if item and item.count > 0 and (not selected or selected.name == item.name) then
+        local take = math.min(n or 64, item.count, 64 - (selected and selected.count or 0))
+        if take > 0 then
+          m.inv[m.selected] = { name = item.name, count = (selected and selected.count or 0) + take }
+          item.count = item.count - take
+          return true
+        end
+      end
+    end
+    return false
+  end
+  local function drop(n, d)
     local item = m.inv[m.selected]
     if not item or item.count < 1 then return false end
     local take = n or item.count
     if take > item.count then take = item.count end
     if take < 1 then return false end
+    local chest = world[key(d)]
+    if type(chest) == "table" and type(chest.inv) == "table" then
+      chest.inv[#chest.inv + 1] = { name = item.name, count = take }
+    end
     item.count = item.count - take
     if item.count < 1 then m.inv[m.selected] = nil end
     return true
@@ -106,6 +128,8 @@ local function attachTurtle(m, opts, world)
     local each = 0
     if item.name == "minecraft:coal" or item.name == "minecraft:charcoal" then each = 80 end
     if item.name == "minecraft:lava_bucket" then each = 1000 end
+    if item.name == "minecraft:coal_block" then each = 800 end
+    if item.name == "minecraft:blaze_rod" then each = 120 end
     if each == 0 then return false end
     local take = n or 1
     if take > item.count then take = item.count end
@@ -115,7 +139,7 @@ local function attachTurtle(m, opts, world)
       item.count = item.count - take
       if item.count < 1 then m.inv[m.selected] = nil end
     end
-    m.fuel = m.fuel + each * take
+    if m.fuel ~= "unlimited" then m.fuel = m.fuel + each * take end
     return true
   end
   local function turn(n)
@@ -135,10 +159,10 @@ local function attachTurtle(m, opts, world)
     place = function() return place(m.heading) end,
     placeUp = function() return place(4) end,
     placeDown = function() return place(5) end,
-    suck = function() return false end,
-    suckDown = function() return false end,
-    drop = function(n) return drop(n) end,
-    dropDown = function(n) return drop(n) end,
+    suck = function(n) return suck(m.heading, n) end,
+    suckDown = function(n) return suck(5, n) end,
+    drop = function(n) return drop(n, m.heading) end,
+    dropDown = function(n) return drop(n, 5) end,
     refuel = function(n) return refuel(n) end,
     select = function(slot)
       if type(slot) ~= "number" or slot < 1 or slot > 16 or slot % 1 ~= 0 then return false end
