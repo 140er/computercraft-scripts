@@ -1,5 +1,3 @@
--- so-server.lua - entry point. Loads so-mod-*.lua and dispatches "so" messages.
-
 local MIN = 16000000
 local cap = fs.getCapacity("/")
 if type(cap) ~= "number" or cap < MIN then
@@ -46,41 +44,90 @@ S.run = function()
     end
   end
 
+  local sent = {}
+  local view = { mode = "" }
+  local memory = 120000
+
+  local function showPrompt()
+    if view.mode == "prompt" then return end
+    view.mode = "prompt"
+    term.clear()
+    term.setCursorPos(1, 1)
+    term.write("Press P to pair")
+    print("Press P to pair")
+  end
+
+  local function showCode()
+    view.mode = "code"
+    pair.invite(term)
+  end
+
+  local function recall(msg)
+    local by = sent[msg.from]
+    local slot = by and by[msg.rid]
+    if not slot then return nil end
+    if os.epoch("utc") - slot.at > memory then
+      by[msg.rid] = nil
+      return nil
+    end
+    return slot.payload
+  end
+
+  local function priorReply(msg)
+    local again = recall(msg)
+    if again then return again end
+    return nil, proto.fresh(msg)
+  end
+
   local builtin = {
     pair = function(msg, reply)
       local code = pair.pending()
-      if code then
-        local key = pair.derive(code, os.getComputerID(), msg.from)
-        local saved, err = pair.remember(msg.from, key)
-        if not saved then
-          reply("err", { code = "store", text = tostring(err) })
-          return
-        end
-        pair.clear()
+      if not code then return end
+      local hs = pair.derive(code, os.getComputerID(), msg.from)
+      local pub = type(msg.body) == "table" and msg.body.pub or nil
+      local machine, body = pair.session(pub)
+      if not machine then
+        reply("err", { code = "pair", text = tostring(body) }, hs)
+        return
       end
-      reply("ack", { ok = true })
+      local saved, err = pair.remember(msg.from, machine)
+      if not saved then
+        reply("err", { code = "store", text = tostring(err) }, hs)
+        return
+      end
+      reply("ack", body, hs)
+      pair.clear()
+      showPrompt()
     end,
     hello = function(msg, reply)
       reply("ack", { ok = true })
     end,
   }
 
-  local function replyTo(msg, t, body)
-    local key = pair.key(msg.from)
+  local function replyTo(msg, t, body, key)
+    if not key then key = pair.key(msg.from) end
     if not key then
       print("so-server: no key for " .. tostring(msg.from))
       return
     end
     local out = proto.build(key, t, body, msg.rid)
-    rednet.send(msg.from, proto.encode(out), "so")
+    local wire = proto.encode(out)
+    if not wire then return end
+    local by = sent[msg.from]
+    if not by then
+      by = {}
+      sent[msg.from] = by
+    end
+    by[msg.rid] = { at = os.epoch("utc"), payload = wire }
+    rednet.send(msg.from, wire, "so")
   end
 
   local function deliver(msg)
-    local sent = false
-    local function reply(t, body)
-      if sent then return end
-      sent = true
-      replyTo(msg, t, body)
+    local replied = false
+    local function reply(t, body, key)
+      if replied then return end
+      replied = true
+      replyTo(msg, t, body, key)
     end
     local found = false
     local built = builtin[msg.t]
@@ -101,18 +148,19 @@ S.run = function()
   end
 
   local function dispatch(sender, payload)
-    if type(payload) ~= "string" then
-      print("so-server: bad message from " .. tostring(sender))
-      return
-    end
     local msg = proto.decode(payload)
     if not msg or msg.from ~= sender then
       print("so-server: bad message from " .. tostring(sender))
       return
     end
     local key
-    if msg.t == "pair" and pair.pending() then
-      key = pair.derive(pair.pending(), os.getComputerID(), msg.from)
+    if msg.t == "pair" then
+      local code = pair.pending()
+      if not code then
+        print("so-server: bad mac from " .. tostring(sender))
+        return
+      end
+      key = pair.derive(code, os.getComputerID(), msg.from)
     else
       key = pair.key(msg.from)
     end
@@ -120,7 +168,12 @@ S.run = function()
       print("so-server: bad mac from " .. tostring(sender))
       return
     end
-    if not proto.fresh(msg) then
+    local again, fresh = priorReply(msg)
+    if again then
+      rednet.send(msg.from, again, "so")
+      return
+    end
+    if not fresh then
       print("so-server: replay from " .. tostring(sender))
       return
     end
@@ -134,12 +187,19 @@ S.run = function()
   else
     print("so-server: no modem")
   end
-  pair.invite(term)
+  showPrompt()
+  local pairKey = (type(keys) == "table" and keys.p) or 25
   local timer = os.startTimer(1)
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
+      if view.mode == "code" and not pair.pending() then showPrompt() end
       local now = os.epoch("utc")
+      for _, by in pairs(sent) do
+        for rid, slot in pairs(by) do
+          if now - slot.at > memory then by[rid] = nil end
+        end
+      end
       for i = 1, #mods do
         local tick = mods[i].tick
         if type(tick) == "function" then
@@ -148,6 +208,8 @@ S.run = function()
         end
       end
       timer = os.startTimer(1)
+    elseif ev == "key" and a == pairKey and not b then
+      showCode()
     elseif ev == "rednet_message" and c == "so" then
       dispatch(a, b)
     end

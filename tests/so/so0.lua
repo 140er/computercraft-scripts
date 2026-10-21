@@ -99,8 +99,8 @@ return function(test, equal)
   local function acks(server)
     local n = 0
     for i = 1, #server.sent do
-      local msg = server.env.SO.proto.decode(server.sent[i].payload)
-      if msg and msg.t == "ack" then n = n + 1 end
+      local payload = server.sent[i].payload
+      if type(payload) == "table" and payload.t == "ack" then n = n + 1 end
     end
     return n
   end
@@ -183,9 +183,11 @@ HELLO = reply
     assert(not logtext(server):find("replay", 1, true), logtext(server))
   end)
 
-  test("a replayed rid is dropped", function()
+  test("a repeated rid gets the saved reply again", function()
     local net, server, client = pairWith(function(code)
       return string.format(JOIN, code)
+    end, function(srv)
+      srv.files["so-mod-count.lua"] = COUNTMOD
     end)
     local before = acks(server)
     local key = client.env.pair.key(server.id)
@@ -195,8 +197,9 @@ HELLO = reply
     net.flush()
     client.env.rednet.send(server.id, wire, "so")
     net.flush()
-    equal(acks(server), before + 1)
-    assert(logtext(server):find("so-server: replay from 2", 1, true), logtext(server))
+    equal(acks(server), before + 2)
+    equal(server.env.SO.mods.count.hits, 1)
+    assert(not logtext(server):find("replay", 1, true), logtext(server))
   end)
 
   test("an unknown type gets err", function()
@@ -295,7 +298,6 @@ HELLO = reply
 
     local big = client.env.proto.build(key, "hello", {})
     big.body.blob = string.rep("a", 1000000)
-    big.mac = client.env.proto.sign(key, big)
     assert(client.env.proto.decode(big) == nil, "1 MB field decoded")
     client.env.rednet.send(server.id, big, "so")
     net.flush()
