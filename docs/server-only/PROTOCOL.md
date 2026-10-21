@@ -272,21 +272,25 @@ Lease records, callbacks, beacon journals, and observed ranges live in memory. A
 
 ### cells
 
-SO4 owns this API on `SO.mods.cells`. Coordinates are numbers.
+SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. All one-cell calls accept an optional last `dim` string, defaulting to `minecraft:overworld`. The same coordinates in different dimensions are separate cells. `who` is a computer id or a lease string.
 
-`cells.reserve(who, x, y, z)` returns true, or false and an error string. `who` is a computer id or a lease string.
+`cells.reserve(who, x, y, z, dim)` returns true, or false and `held` if another owner holds the cell. Reserving a cell already held by `who` succeeds.
 
-`cells.release(who, x, y, z)` returns true.
+`cells.reserveMany(who, cells)` takes `{ {dim, x, y, z}, ... }`. It reserves all cells or changes nothing. A conflict returns false, `held`, and the conflicting input cell.
 
-`cells.isFree(x, y, z)` returns a boolean.
+`cells.release(who, x, y, z, dim)` returns true. It frees the cell only when `who` holds it. `cells.releaseOwner(who)` frees all cells held by that owner. Silence never expires a reservation.
 
-`cells.markDug(x, y, z)` records a dug block.
+`cells.owner(x, y, z, dim)` returns the owner or nil. `cells.isFree(x, y, z, dim)` returns a boolean.
 
-`cells.isDug(x, y, z)` returns a boolean.
+`cells.markDug(x, y, z, dim)` records a dug block. Repeating it does not increase the dug count. `cells.isDug(x, y, z, dim)` returns a boolean.
 
-`cells.forget(x, y, z)` drops both the reservation and the dug mark.
+`cells.forget(x, y, z, dim)` drops both the reservation and the dug mark. `cells.forgetOwner(who)` frees that owner's reservations and emits state event `cells.forget` with `{ who, count }`. Direct API calls queue the event until tick. Dug marks remain.
 
-The SO0 stub returns true from `reserve`, `release`, and `isFree`. `isDug` returns false. `markDug` and `forget` do nothing.
+`cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
+
+Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk loading yields.
+
+Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` without freeing anything. The same sender must send `{ who, confirm = token }` within 30 seconds. A valid confirmation runs `forgetOwner`. Invalid, expired, reused, or mismatched confirmations reply with `err`.
 
 ### display
 
@@ -378,26 +382,15 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 
 ## Tasks
 
-SO0 owns `so-proto.lua`, `so-pair.lua`, `so-store.lua`, `so-server.lua`, and `tests/so/harness.lua`. It handles `pair`, `hello`, `ack`, and `err`.
-
-SO1 owns `so-mod-state.lua` and `so-log.lua`. It handles no wire types. It owns `state.emit`, `state.get`, `state.view`, `state.job`, and `state.history.page`.
-
-SO2 owns `so-mod-beacon.lua`. It handles `beacon` on the server and writes fuel and journal through `state.emit`.
-
-SO3 owns `so-mod-lease.lua`. It sends `lease.batch` and handles `step.report`.
-
-SO4 owns `so-mod-cells.lua`. It handles no wire types. It owns `cells.reserve`, `cells.release`, `cells.isFree`, `cells.markDug`, `cells.isDug`, and `cells.forget`.
-
-SO5 owns `so-mod-display.lua`. It handles `view.get`, `view.sub`, `view.frame`, and `input`. It owns `display.screen`.
-
-SO6 owns `so-mod-history.lua`. It handles `history.page`.
-
-SO7 owns `so-turtle.lua`, the turtle program, not a server module. It receives `lease.batch` and sends `step.report` and `beacon`. It stores nothing it cannot rebuild from the next lease.
-
-SO8 owns `so-mod-drops.lua`. It handles `drops.edit`. It owns `drops.pick`, `drops.steps`, `drops.add`, `drops.remove`, `drops.fix`, and `drops.note`.
-
-SO9 owns `so-mod-fuel.lua`. It handles no wire types. It reads beacon fuel from `state` and decides when a turtle should refuel.
-
-SO10 owns `so-mod-jobs.lua`. It handles no wire types. It turns a job into lease steps and asks SO3 to send them.
-
-SO1, SO4, SO5, and SO8 replace the stub file and keep the calls above. The other tasks add their files.
+- SO0 owns `so-proto.lua`, `so-pair.lua`, `so-store.lua`, `so-server.lua`, and the harness.
+- SO1 owns `so-mod-state.lua` and `so-log.lua`.
+- SO2 owns `worker.lua`, the turtle program.
+- SO3 owns `so-mod-mine.lua`, the mining planner.
+- SO4 owns `so-mod-cells.lua`.
+- SO5 owns `display.lua` and `so-mod-display.lua`.
+- SO6 owns `so-mod-shop.lua`.
+- SO7 owns `so-mod-lumber.lua`.
+- SO8 owns `so-mod-drops.lua`.
+- SO9 owns `install.lua`.
+- SO10 owns `so-mod-ar.lua`.
+- W3-B owns `so-mod-lease.lua`. It sends `lease.batch` and handles `step.report`, `beacon`, and `history.page`.
