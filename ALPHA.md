@@ -43,7 +43,7 @@ Other files that default on:
 - Factory craft. In `factory.cfg`, `wh2` is on unless `enabled` is false. A computer that is not a turtle, or has no modem, prints that and keeps running.
 - Planner tools on the panel, hub, and server. In `planner.cfg`, `enabled` is on unless it is false.
 - AR planner. On unless the host config sets `arPlanner` to false. It needs a player detector. Without one the screen says `No player detector. AR planner is not drawing.` and the computer keeps running.
-- AR goggles. On when an `ar_controller` is attached, unless `ar.cfg` sets `enabled` to false. `chatEnabled` stays off. The first player, or an enrol record, becomes the owner. The origin is the hub's own position, or the paired hub position, when `ar.cfg` has none. A turtle with no fix stays on the HUD as `no position`. Shift+P, Shift+T, Shift+O, and Shift+A work on the computer terminal. The same layers are the HUD, TRT, ORE, and AIR buttons on the computer and on monitors. The goggles list only the controls that work in the current mode.
+- AR goggles. On when an `ar_controller` is attached, unless `ar.cfg` sets `enabled` to false. `chatEnabled` stays off. The first player, or an enrol record, becomes the owner. The origin is the hub's own position, or the paired hub position, when `ar.cfg` has none. A turtle with no fix is drawn at its last world point, or at its home plus the reported offset, or on the hub as a gold `unknown` post. Shift+P, Shift+T, Shift+O, and Shift+A work on the computer terminal. The same layers are the HUD, TRT, ORE, and AIR buttons on the classic screen and on the Pro view. With the terminal closed, the enrolled owner can cycle those layers by using a player detector, and a single-side redstone rise does the same. The goggles list only the controls that work in the current mode.
 - Views. On unless `views.cfg` sets `enabled` to false. Without a GPU the screen says `No GPU. The text view stays on.`
 - Strata. The boot path turns it on unless `strata` is false. Missing files print `Strata did not start.`
 - Storage ledger. On unless `storageHost` is false. Without a wireless modem it says `No ender modem. Storage host keeps local books.` and still keeps the local ledger.
@@ -95,6 +95,10 @@ The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime
 `tests/sandbox/run.ps1` does not list the wizard or h3 scenarios. `tests/sandbox/driver.lua` can start `h3` and `h3-burst` when the scenario name is passed in. The Lua unit files cover those programs.
 
 Gate B is not required for this branch. `tests/ingame/run.ps1` on alpha includes the main fix that loads every live jar. That came in with pull request 60, merge `5140e2c`.
+
+# Miner screen
+
+A miner turtle draws a status screen in the lumberjack shape. The screen is on unless `miner.cfg` sets `screen = false`. The keys are P, H, and Q.
 
 # Setup without editing a cfg
 

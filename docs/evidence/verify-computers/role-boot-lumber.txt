@@ -1,0 +1,59 @@
+program returned: false  pcall err: nil
+capacity 1000000 free 620212
+        7 .fleet-role
+    13750 atomic.lua
+    39768 bundle-manifest.lua
+     4250 dead.lua
+    48950 install.lua
+     6067 journal.lua
+    23597 lease.lua
+      202 lib/stubs/b1_h1.lua
+      381 lib/stubs/b1_h5.lua
+     1886 lib/stubs/b1_n1.lua
+     2140 lib/stubs/b1_w1.lua
+       38 lumber.cfg.a
+    58279 lumber.lua
+       85 lumber.state.a
+       85 lumber.state.b
+     4745 mine-tasks.lua
+    17895 planner-core.lua
+     1211 planner-enrol.lua
+     5971 planner-ops.lua
+      867 planner-settings.lua
+    10633 plug.lua
+        0 result.txt
+      481 s1_b1.lua
+      867 s1_h4c.lua
+     1388 s1_i1.lua
+     3850 s1_t1.lua
+     6359 ssot-client.lua
+    23850 ssot-hub.lua
+    43180 ssot.lua
+       30 startup.lua
+       20 startup_real.lua
+    15465 update.lua
+    10515 warehouse-tasks.lua
+    20085 wh2-client.lua
+     4058 wh2-dispatch.lua
+     8730 wh2-program.lua
+      103 wrap.cfg
+-- screen
+ LUMBERJACK                                RUNNING 
+                                                   
+ ERROR: no chest behind me. Put me on my home      
+ spot, Ctrl+T, type: lumber home                   
+ Fuel                                      20.0k   
+ Lava put lava buckets in my chest                 
+                                                   
+ Felled  0                Logs     0               
+ Farm    0/64             Saplings 0               
+ Search  0%               Area     48 blocks       
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+ [P] pause  [H] come home  [Q] quit                
