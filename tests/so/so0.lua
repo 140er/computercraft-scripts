@@ -18,6 +18,39 @@ end
 return mod
 ]]
 
+local COUNTMOD = [[
+local mod = { name = "count", hits = 0, handlers = {} }
+mod.handlers.hello = function()
+  mod.hits = mod.hits + 1
+end
+return mod
+]]
+
+local LIB = {
+  "lib/ccryptolib/x25519.lua",
+  "lib/ccryptolib/random.lua",
+  "lib/ccryptolib/blake3.lua",
+  "lib/ccryptolib/chacha20.lua",
+  "lib/ccryptolib/config.lua",
+  "lib/ccryptolib/internal/util.lua",
+  "lib/ccryptolib/internal/hw.lua",
+  "lib/ccryptolib/internal/curve25519.lua",
+  "lib/ccryptolib/internal/fp.lua",
+  "lib/ccryptolib/internal/edwards25519.lua",
+  "lib/ccryptolib/internal/packing.lua",
+}
+
+local function installTree(machine)
+  for i = 1, #LIB do
+    local path = LIB[i]
+    local handle = io.open(path, "rb")
+    if not handle then return end
+    local data = handle:read("*a")
+    handle:close()
+    machine.files[path] = data
+  end
+end
+
 local JOIN = [[
 proto = dofile("so-proto.lua")
 store = dofile("so-store.lua")
@@ -37,6 +70,7 @@ return function(test, equal)
     local net = harness.new()
     local server = net.machine({ id = 1, capacity = cap, modem = true })
     server.install(full and SOURCES or { "so-server.lua" })
+    if full then installTree(server) end
     if extra then extra(server) end
     server.boot("so-server.lua")
     net.flush()
@@ -46,10 +80,14 @@ return function(test, equal)
   local function pairWith(spawn, extra)
     local net, server = bootServer(16000000, true, extra)
     assert(server.alive(), tostring(server.error))
+    server.env.os.queueEvent("key", 25, false)
+    net.flush()
+    assert(not server.error, tostring(server.error))
     local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
     equal(server.screen[1], "Pair code: " .. code)
     local client = net.machine({ id = 2, capacity = 1000000, modem = true })
     client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(client)
     client.spawn(spawn(code, server.id))
     net.flush()
     assert(not client.error, tostring(client.error))
@@ -241,5 +279,236 @@ HELLO = reply
     equal(turtle.pos.y, 0)
     equal(turtle.pos.z, 0)
     equal(turtle.fuel, 999)
+  end)
+
+  test("a string payload, a 1 MB field, and a deep body are dropped and the server still answers", function()
+    local net, server, client = pairWith(function(code)
+      return string.format(JOIN, code)
+    end)
+    local key = client.env.pair.key(server.id)
+    local before = acks(server)
+    local hello = client.env.proto.build(key, "hello", { role = "turtle" })
+    assert(client.env.proto.decode(client.env.proto.ser(hello)) == nil, "string payload decoded")
+    client.env.rednet.send(server.id, client.env.proto.ser(hello), "so")
+    net.flush()
+    equal(acks(server), before)
+
+    local big = client.env.proto.build(key, "hello", {})
+    big.body.blob = string.rep("a", 1000000)
+    big.mac = client.env.proto.sign(key, big)
+    assert(client.env.proto.decode(big) == nil, "1 MB field decoded")
+    client.env.rednet.send(server.id, big, "so")
+    net.flush()
+    equal(acks(server), before)
+
+    local deep = client.env.proto.build(key, "hello", {})
+    local cur = deep.body
+    for _ = 1, 8 do
+      cur.n = {}
+      cur = cur.n
+    end
+    deep.mac = client.env.proto.sign(key, deep)
+    assert(client.env.proto.decode(deep) == nil, "deep body decoded")
+    client.env.rednet.send(server.id, deep, "so")
+    net.flush()
+    equal(acks(server), before)
+
+    local okm = client.env.proto.build(key, "hello", { role = "turtle" })
+    client.env.rednet.send(server.id, okm, "so")
+    net.flush()
+    equal(acks(server), before + 1)
+    assert(server.alive(), tostring(server.error))
+    assert(logtext(server):find("so-server: bad message from 2", 1, true), logtext(server))
+  end)
+
+  local function latestCode(server)
+    local code
+    for found in logtext(server):gmatch("Pair code: (%d%d%d%d%d%d)") do code = found end
+    return code
+  end
+
+  local function pressP(net, server)
+    server.env.os.queueEvent("key", 25, false)
+    net.flush()
+    assert(not server.error, tostring(server.error))
+    local code = assert(latestCode(server), "pair code missing")
+    equal(server.screen[1], "Pair code: " .. code)
+    return code
+  end
+
+  local function savedKey(machine, id)
+    local raw = assert(machine.files["so-keys"], "so-keys missing")
+    return assert(machine.env.textutils.unserialize(raw)).value.keys[tostring(id)]
+  end
+
+  local function bootClient(net, id)
+    local client = net.machine({ id = id, capacity = 1000000, modem = true, turtle = true })
+    client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(client)
+    return client
+  end
+
+  test("three turtles pair one after another and a re-pair needs a fresh code", function()
+    local net, server = bootServer(16000000, true)
+    assert(server.alive(), tostring(server.error))
+    equal(server.screen[1], "Press P to pair")
+    local clients = {}
+    local codes = {}
+    for n = 1, 3 do
+      local id = n + 1
+      local code = pressP(net, server)
+      codes[n] = code
+      local client = bootClient(net, id)
+      clients[n] = client
+      client.spawn(string.format(JOIN, code))
+      net.flush()
+      assert(not client.error, tostring(client.error))
+      assert(client.env.JOINED == true, "turtle " .. id .. " did not pair")
+      equal(savedKey(server, id), savedKey(client, server.id))
+      equal(server.screen[1], "Press P to pair")
+    end
+    local burned = bootClient(net, 9)
+    burned.spawn(string.format(JOIN, codes[3]))
+    net.advance(8)
+    assert(burned.env.JOINED ~= true, "spent code paired a fourth turtle")
+    local again = clients[1]
+    local first = savedKey(server, again.id)
+    again.error = nil
+    again.env.JOINED = nil
+    again.spawn(string.format(JOIN, codes[1]))
+    net.advance(8)
+    assert(again.env.JOINED ~= true, "old code re-paired an existing id")
+    equal(savedKey(server, again.id), first)
+    local code = pressP(net, server)
+    again.error = nil
+    again.env.JOINED = nil
+    again.spawn(string.format(JOIN, code))
+    net.flush()
+    assert(not again.error, tostring(again.error))
+    assert(again.env.JOINED == true, "fresh code did not re-pair")
+    local second = savedKey(server, again.id)
+    equal(second, savedKey(again, server.id))
+    assert(second ~= first, "re-pair kept the old key")
+    local stale = pressP(net, server)
+    net.advance(300)
+    equal(server.screen[1], "Press P to pair")
+    local late = bootClient(net, 10)
+    late.spawn(string.format(JOIN, stale))
+    net.advance(8)
+    assert(late.env.JOINED ~= true, "expired code paired")
+    assert(server.alive(), tostring(server.error))
+  end)
+
+  test("a listener that records pairing and knows the code cannot compute the key", function()
+    local net, server, client, code = pairWith(function(pairCode)
+      return string.format(JOIN, pairCode)
+    end)
+    local saved = savedKey(server, client.id)
+    equal(saved, savedKey(client, server.id))
+    equal(#saved, 64)
+    local function guess(material)
+      return client.env.proto.hex(client.env.proto.sha256(material))
+    end
+    local old = guess("so-pair-v1\0" .. server.id .. "\0" .. client.id .. "\0" .. code)
+    assert(old ~= saved, "key is sha256 of the code and ids")
+    local hs = guess("so-pair-hs-v2\0" .. server.id .. "\0" .. client.id .. "\0" .. code)
+    assert(hs ~= saved, "key is the handshake mac key")
+    local pubs = {}
+    local function collect(value)
+      if type(value) == "string" then
+        assert(value ~= saved, "key appeared on the wire")
+      elseif type(value) == "table" then
+        if type(value.pub) == "string" then pubs[#pubs + 1] = value.pub end
+        for k, item in pairs(value) do
+          collect(k)
+          collect(item)
+        end
+      end
+    end
+    for _, machine in ipairs({ server, client }) do
+      for i = 1, #machine.sent do collect(machine.sent[i].payload) end
+    end
+    assert(#pubs >= 2, "public keys were not on the wire")
+    local raws = {}
+    for i = 1, #pubs do raws[i] = client.env.proto.unhex(pubs[i]) end
+    local mixed = guess(code .. raws[1] .. raws[2])
+    assert(mixed ~= saved, "key is sha256 of the code and public keys")
+    local proof = client.env.proto.hex(client.env.proto.hmac(code, "so-pair-v2\0" .. raws[1] .. raws[2]))
+    assert(proof ~= saved, "key is the pairing proof")
+    local x = server.env.require("ccryptolib.x25519")
+    local function unhex(hex) return server.env.SO.proto.unhex(hex) end
+    equal(x.exchange(
+      unhex("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4"),
+      unhex("e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c")),
+      unhex("c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552"))
+    assert(not server.error, tostring(server.error))
+    assert(net.machines[server.id].alive())
+  end)
+
+  test("a replay 61s later is dropped and a retry runs the handler once", function()
+    local net, server, client = pairWith(function(code)
+      return string.format(JOIN, code)
+    end, function(srv)
+      srv.files["so-mod-count.lua"] = COUNTMOD
+    end)
+    local key = client.env.pair.key(server.id)
+    local before = acks(server)
+    local msg = client.env.proto.build(key, "hello", { role = "turtle" })
+    local wire = client.env.proto.encode(msg)
+    client.env.rednet.send(server.id, wire, "so")
+    net.flush()
+    for _ = 1, 256 do
+      local filler = client.env.proto.build(key, "hello", { role = "turtle" })
+      client.env.rednet.send(server.id, client.env.proto.encode(filler), "so")
+    end
+    net.flush()
+    equal(acks(server), before + 257)
+    net.advance(61)
+    client.env.rednet.send(server.id, wire, "so")
+    net.flush()
+    equal(acks(server), before + 257)
+    local fresh = client.env.proto.build(key, "hello", { role = "turtle" })
+    client.env.rednet.send(server.id, client.env.proto.encode(fresh), "so")
+    net.flush()
+    equal(acks(server), before + 258)
+    assert(server.alive(), tostring(server.error))
+
+    local countNet, countServer, countClient = pairWith(function(code)
+      return string.format(JOIN, code)
+    end, function(srv)
+      srv.files["so-mod-count.lua"] = COUNTMOD
+    end)
+    local send = countServer.env.rednet.send
+    local skipped = false
+    countServer.env.rednet.send = function(id, payload, protocol)
+      local decoded = countServer.env.SO.proto.decode(payload)
+      if not skipped and decoded and decoded.t == "ack" then
+        skipped = true
+        return
+      end
+      return send(id, payload, protocol)
+    end
+    local sentBefore = #countClient.sent
+    countClient.spawn(string.format([[
+      local reply, err = proto.request(%d, "hello", { role = "turtle" }, 0.4, 2)
+      assert(reply and reply.t == "ack" and reply.body.ok == true, tostring(err))
+      GOT = reply
+    ]], countServer.id))
+    countNet.flush()
+    countNet.advance(0.5)
+    assert(not countClient.error, tostring(countClient.error))
+    assert(countClient.env.GOT and countClient.env.GOT.t == "ack", "retry got no reply")
+    equal(countServer.env.SO.mods.count.hits, 1)
+    local rid
+    local hellos = 0
+    for i = sentBefore + 1, #countClient.sent do
+      local decoded = countClient.env.proto.decode(countClient.sent[i].payload)
+      if decoded and decoded.t == "hello" then
+        hellos = hellos + 1
+        if not rid then rid = decoded.rid else equal(decoded.rid, rid) end
+      end
+    end
+    equal(hellos, 2)
+    equal(countClient.env.GOT.rid, rid)
   end)
 end
