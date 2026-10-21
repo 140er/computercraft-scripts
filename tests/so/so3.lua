@@ -601,4 +601,139 @@ return function(test,equal)
     equal(persisted(s).progress.done,1)
   end)
 
+  test("SO11 lane geometry includes the shaft spine junction and exit",function()
+    local env={dofile=dofile}
+    setmetatable(env,{__index=_G})
+    local M=assert(loadfile("so-mine-plan.lua","t",env))()
+    local j={dim="minecraft:overworld",home={x=0,y=64,z=0,facing=0},bottom=40,
+      mode="thorough",length=24,turtles={["2"]={branch=0},["3"]={branch=1}}}
+    assert(M.inLane(j,{x=0,y=60,z=-1}),"shaft missing")
+    assert(M.inLane(j,{x=0,y=40,z=-9}),"junction missing")
+    assert(not M.inLane(j,{x=1,y=40,z=-9}),"branch is outside lane")
+    local cells=M.lane(j,{x=1,y=40,z=-9})
+    assert(#cells>16,"long lane truncated")
+    local found={}
+    for _,p in ipairs(cells) do found[p.x..","..p.y..","..p.z]=true end
+    assert(found["0,64,-1"] and found["0,40,-9"] and found["1,40,-9"],"lane route or exit omitted")
+  end)
+  test("SO11 opposite lane passes retain one owner and let the waiter proceed",function()
+    local s=setup()
+    s.add(3,2)
+    s.input("bottom -20")
+    local disk=persisted(s)
+    disk.running=true
+    disk.turtles["2"].pose={dim=disk.dim,x=0,y=-20,z=-5,facing=2}
+    disk.turtles["2"].anchor=disk.turtles["2"].pose
+    disk.turtles["2"].frame=nil
+    disk.turtles["2"].route={{dim=disk.dim,x=0,y=-20,z=-1},
+      {dim=disk.dim,x=0,y=0,z=-1},{dim=disk.dim,x=-1,y=0,z=-1}}
+    disk.turtles["2"].index=1
+    s.turtle.pos={x=0,y=-20,z=-5} s.turtle.heading=2
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.server=s.net.boot(s.server)
+    for _,w in ipairs(s.turtles) do
+      s.server.env.SO.mods.lease.handlers.hello({from=w.id,body={pose={x=0,y=-20,z=-9}}})
+    end
+    local cells=s.server.env.SO.mods.cells
+    local moved,held,batches={},nil,0
+    local reserve=cells.reserveMany
+    cells.reserveMany=function(who,list)
+      local ok,err=reserve(who,list)
+      if ok then
+        local a=cells.owner(0,0,-1)
+        local b=cells.owner(0,-20,-1)
+        if a and b then equal(a,b) held=a end
+      end
+      return ok,err
+    end
+    for _,w in ipairs(s.turtles) do
+      local send=w.env.rednet.send
+      w.env.rednet.send=function(id,msg,protocol)
+        if msg.t=="step.report" then
+          local p=w.pos
+          if p.x==0 and p.z==-1 and p.y<0 then
+            equal(cells.owner(0,0,-1),"mine:"..w.id)
+            equal(cells.owner(0,-20,-1),"mine:"..w.id)
+            batches=batches+1
+          end
+          if w.id==2 and p.y==0 and p.x==-1 or w.id==3 and p.x>=1 and p.y==-20 then moved[w.id]=true end
+        end
+        return send(id,msg,protocol)
+      end
+    end
+    run(s,240)
+    assert(held and batches>16,"lane was not kept across batches")
+    assert(moved[2] and moved[3],"waiter did not enter after lane exit")
+    local picture=H.encode(s.render())
+    assert(not picture:find("failed",1,true),picture)
+  end)
+  test("SO11 deadlocked shaft poses cannot authorize a second lane entrant",function()
+    local s=setup()
+    local other=s.add(3,2)
+    local cells=s.server.env.SO.mods.cells
+    cells.releaseOwner("mine:2") cells.releaseOwner("mine:3")
+    assert(cells.reserve("mine:2",0,60,-2))
+    assert(cells.reserve("mine:3",0,60,-1))
+    local disk=persisted(s)
+    disk.running=true
+    disk.home.y=64 disk.bottom=60
+    disk.turtles["2"].frame=nil disk.turtles["3"].frame=nil
+    disk.turtles["2"].pose={dim=disk.dim,x=0,y=60,z=-2,facing=2}
+    disk.turtles["3"].pose={dim=disk.dim,x=0,y=60,z=-1,facing=0}
+    disk.turtles["2"].anchor=disk.turtles["2"].pose
+    disk.turtles["3"].anchor=disk.turtles["3"].pose
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.turtle.pos={x=0,y=60,z=-2} s.turtle.heading=2
+    other.pos={x=0,y=60,z=-1} other.heading=0
+    s.server=s.net.boot(s.server)
+    for _,w in ipairs(s.turtles) do
+      s.server.env.SO.mods.lease.handlers.hello({from=w.id,body={pose={x=0,y=64,z=0}}})
+    end
+    local before={#s.server.sent,s.turtle.pos.z,other.pos.z}
+    s.net.advance(6)
+    for i=before[1]+1,#s.server.sent do
+      local msg=s.server.sent[i].payload
+      if msg.t=="lease.batch" then
+        for _,step in ipairs(msg.body.steps) do
+          assert(step.op~="forward" and step.op~="back" and step.op~="up" and step.op~="down","entered occupied lane")
+        end
+      end
+    end
+    equal(s.turtle.pos.z,before[2]) equal(other.pos.z,before[3])
+  end)
+
+  test("SO11 lane waiters use age then id and all pass within three grants",function()
+    local s=setup()
+    for id=3,5 do s.add(id,(id-2)*2) end
+    local disk=persisted(s)
+    local starts={{0,0,0},{1,-1,3},{-1,-1,1},{0,-2,2}}
+    for id=2,5 do
+      local at=starts[id-1]
+      local row=disk.turtles[tostring(id)]
+      row.pose={dim=disk.dim,x=at[1],y=0,z=at[2],facing=at[3]}
+      row.anchor,row.frame=row.pose,nil
+      local w=s.turtles[id-1]
+      w.pos={x=at[1],y=0,z=at[2]} w.heading=at[3]
+      s.server.env.SO.mods.cells.releaseOwner("mine:"..id)
+    end
+    disk.running=true
+    disk.turtles["5"].laneWait={at=s.net.time-2000,passes=0}
+    for id=3,4 do disk.turtles[tostring(id)].laneWait={at=s.net.time-1000,passes=0} end
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.server=s.net.boot(s.server)
+    local cells=s.server.env.SO.mods.cells
+    local reserve=cells.reserveMany
+    local grants,last={},nil
+    cells.reserveMany=function(who,list)
+      local ok,err=reserve(who,list)
+      local held=cells.owner(0,0,-1)
+      if ok and held and held~=last then
+        grants[#grants+1]=tonumber(held:match("mine:(%d+)")) last=held
+      end
+      return ok,err
+    end
+    run(s,240)
+    equal(grants,{5,3,4,2})
+  end)
+
 end
