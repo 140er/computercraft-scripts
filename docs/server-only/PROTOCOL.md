@@ -46,6 +46,18 @@ A paired computer sends `hello` to the server.
 
 `body.role` is an optional string. `body.label` is an optional string.
 
+A turtle also sends these fields.
+
+`body.fuel` is a number, or the string `unlimited`.
+
+`body.free` is how many of the 16 slots are empty.
+
+`body.inv` lists the occupied slots. Each entry is `{ slot = number, name = string, count = number }`.
+
+`body.gps` is optional. When a GPS answers, it is `{ x = number, y = number, z = number }`.
+
+`body.journal` is the turtle's journal. `journal.id` is a string. `journal.seq` is a number. `journal.pose` is `{ x = number, y = number, z = number, f = number }` in the turtle's own frame since boot. `f` is 0 north, 1 east, 2 south, 3 west. `journal.moves` is the last 32 completed moves, oldest first. Each move is `{ n = number, op = string, ok = true }`. `op` is `forward`, `back`, `up`, `down`, `turnLeft`, or `turnRight`. `journal.dug` is the last 32 cells this turtle dug. Each entry is `{ x = number, y = number, z = number }`. `journal.pending` is optional. It is `{ n = number, op = string, lease = string }` when a step was started and not finished.
+
 The server answers `ack`.
 
 ### ack
@@ -82,11 +94,15 @@ The turtle sends `step.report` to the server.
 
 `results[i].ok` is a boolean. `results[i].err` is an optional string. `results[i].data` is an optional table. For a successful inspect, `data.name` is the block name when a block is present.
 
+`results[i].counts` is an optional array of 16 numbers, the item count in slots 1 to 16 after the step.
+
+`results[i].err` is `expired` when the step was not run because `lease.batch` `expires` had passed. Later steps in that batch use the same error.
+
 ### beacon
 
 The turtle broadcasts `beacon`.
 
-`body.id` is its computer id. `body.fuel` is a number. `body.journal` is a string, the last journal id it knows.
+`body.id` is its computer id. `body.fuel` is a number. Unlimited fuel is sent as `-1`. `body.journal` is a string, the last journal id it knows.
 
 The MAC still uses that turtle's paired key. The server can verify it. SO0 has no beacon handler, so the server answers `err` until SO2 registers one.
 
