@@ -26,7 +26,7 @@ M.roles = {
   store = { shelf = "fleet", program = with("store.lua", stack) },
   sorter = { shelf = "fleet", program = with("sorter.lua", stack) },
   roomsorter = { shelf = "fleet", program = with("roomsorter.lua", stack) },
-  roomclient = { shelf = "fleet", program = { "roomsorter.lua", "update.lua" } },
+  roomclient = { shelf = "fleet", program = { "roomsorter.lua", "atomic.lua", "update.lua" } },
   factory = { shelf = "fleet", program = { "factory.lua", "miner.lua", "update.lua", "atomic.lua" } },
   lumber = { shelf = "yard", program = { "lumber.lua", "atomic.lua", "update.lua" } },
   builder = { shelf = "yard", program = { "builder.lua", "atomic.lua", "update.lua" } },

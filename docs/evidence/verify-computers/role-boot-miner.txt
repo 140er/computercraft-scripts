@@ -1,9 +1,9 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 225604
+capacity 1000000 free 224245
         6 .fleet-role
     13750 atomic.lua
     10164 b1-nav.lua
-    50953 bundle-manifest.lua
+    50985 bundle-manifest.lua
      4250 dead.lua
     14129 enrol.lua
     48950 install.lua
@@ -16,7 +16,7 @@ capacity 1000000 free 225604
      2140 lib/stubs/b1_w1.lua
      1059 lib/stubs/layout_dep.lua
     13491 mapsection.lua
-    16699 mapstore.lua
+    18026 mapstore.lua
      4745 mine-tasks.lua
        32 miner.cfg
    148826 miner.lua

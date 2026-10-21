@@ -1212,6 +1212,19 @@ local function maintenanceLoop()
 end
 
 local gesture = AH and AH.gestureState()
+local function safeRequest(id, m, fetched, receivedAt)
+  local ok, err = pcall(request, id, m, fetched, receivedAt)
+  if ok then return end
+  log("error", id, err)
+  if type(m) ~= "table" then return end
+  local text = tostring(err):sub(1, 256)
+  local body = { type = "error", error = text }
+  if m.type == "ssot" and type(m.rid) == "string" then
+    body = { v = 1, type = "ssot_reply", server = os.getComputerID(), auth = m.secret, ok = false, error = text }
+  end
+  pcall(reply, id, m, body)
+end
+
 local function worker()
   local ticks = 0
   draw()
@@ -1227,12 +1240,11 @@ local function worker()
       if queueHead > queueTail then queueHead, queueTail = 1, 0 end
       local ev, id, m, proto, hidden = table.unpack(entry.event)
       if ev == "rednet_message" then
-        if proto == PROTOCOL then request(id, m, nil, entry.receivedAt)
+        if proto == PROTOCOL then safeRequest(id, m, nil, entry.receivedAt)
         elseif proto == "minearmy" and m.type == "cmd_ack" then
           local o = outbox[m.cid]
           if o and o.target == id and (m.commandEpoch==nil or m.commandEpoch==o.message.commandEpoch) then outbox[m.cid] = nil end
-        elseif BOTS[proto] and (not ssotConfig or ssotConfig.controllers[tostring(id)])
-          and (m.type == "status" or tostring(m.type):match("_state$")
+        elseif BOTS[proto] and (m.type == "status" or tostring(m.type):match("_state$")
           or proto == "roomsorter_stock" or (proto == "turtlefactory" and m.state)) then
           if proto == "minearmy" and m.type == "panel_state" then hubPanel = m end
           status(id, m, proto, entry.receivedAt)
@@ -1244,7 +1256,7 @@ local function worker()
         waiting[id] = nil
         for index, caller in ipairs(pending) do
           waitingCount, waitingBytes = waitingCount - 1, waitingBytes - caller.bytes
-          request(caller.id, caller.message, true)
+          safeRequest(caller.id, caller.message, true)
           if index % 8 == 0 then yieldWork() end
         end
         entry.event.done = true

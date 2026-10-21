@@ -10,7 +10,7 @@ The order computer boots first and keeps looking for the storage turtle. The tur
 
 ## How to get to it (user POV)
 
-- Place the order computer, run `roomsorter install client`, and reboot it.
+- Place the order computer, run `install role roomclient quick`, and reboot it.
 - Leave the storage turtle's chunk unloaded, or let that turtle finish booting later.
 - Look at the order computer. The monitor shows ORDER once the turtle is up, without a second reboot.
 
@@ -28,7 +28,7 @@ Preconditions:
 ## Gotchas
 
 - Headless CraftOS-PC does not boot computer 1 until the wrapper calls `periphemu.create(1, "computer")`. `turtle did not start` means the harness failed. Fix the harness before calling it a product failure.
-- The client looks up the turtle for about 2 seconds, then waits 15 seconds for a stock broadcast. A turtle that waits 25 seconds is later than that. Current alpha prints `No storage turtle found` and returns, so ORDER is missing and the line is FAIL. Report it and do not change `roomsorter.lua` here.
-- Because the client returns first, the dump can show `booted` without `up`. The turtle was still inside its 25 second wait when the computer shut down.
+- The client looks up the turtle, waits 15 seconds for a stock broadcast, then looks again. A turtle that waits 25 seconds is later than the first wait. ORDER has to appear once that turtle hosts.
+- The install step runs `install role roomclient quick` against the files on the disk. The dump can show `booted` before `up` while the turtle is still inside its 25 second wait.
 - The modem patch makes `isWireless()` true on the order computer. The fake turtle creates its own modem and hosts `roomsorter`.
 - `wh2.cfg` is not written. The peripheral-proxy failure in `wh2-program.lua` stays latent and is not this scenario.

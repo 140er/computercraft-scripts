@@ -56,6 +56,7 @@ Doctor checks the pinned checksum, the CraftOS-PC version line, the CC:Tweaked 1
 .cursor/skills/verify-computers/bin/verify-computers run role-boot miner
 .cursor/skills/verify-computers/bin/verify-computers run no-server
 .cursor/skills/verify-computers/bin/verify-computers run late-turtle
+.cursor/skills/verify-computers/bin/verify-computers run no-map
 .cursor/skills/verify-computers/bin/verify-computers run reboot-mid-move
 .cursor/skills/verify-computers/bin/verify-computers run ssot-cache
 .cursor/skills/verify-computers/bin/verify-computers run mocks

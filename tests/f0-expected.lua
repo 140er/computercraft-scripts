@@ -416,7 +416,6 @@ return {
     "wh2-wizard.lua",
   },
   ["roomclient"] = {
-    "atomic.lua",
     "dead.lua",
     "enrol.lua",
     "journal.lua",
@@ -533,7 +532,6 @@ return {
     "wh2-dispatch.lua",
     "wh2-fleet.lua",
     "wh2-layout.lua",
-    "wh2-locations.lua",
     "wh2-program.lua",
     "wh2-wizard.lua",
   },

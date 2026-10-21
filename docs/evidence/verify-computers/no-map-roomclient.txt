@@ -1,0 +1,68 @@
+program returned: false  pcall err: nil
+capacity 1000000 free 701779
+       11 .fleet-role
+    13750 atomic.lua
+    11634 install-core.lua
+     5252 install-keys.lua
+      203 install-out.txt
+     8470 install-roles.lua
+    15786 install-shell.lua
+    12032 install-touch.lua
+       85 install.cfg
+    48950 install.lua
+      202 lib/stubs/b1_h1.lua
+      381 lib/stubs/b1_h5.lua
+     1886 lib/stubs/b1_n1.lua
+     2140 lib/stubs/b1_w1.lua
+    10633 plug.lua
+        0 result.txt
+   151208 roomsorter.lua
+       30 startup.lua
+       34 startup_real.lua
+    15465 update.lua
+       69 wrap.cfg
+-- screen
+Order screen is on the monitor (right).            
+Type commands, e.g.:                               
+ get iron ingot 32   order torch 16   craft chest 2
+ find coal   list   recipes   status   build       
+ pause   learn   resume   blocked   resync   help  
+quit = stop                                        
+>                                                  
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+-- monitor
+ ORDER           Status: No map yet 
+                                    
+  “€œ Frequent     —‹ Fuel         
+  †€‰ nothing yet  šŸ 0 items      
+                                    
+  ˆŸ„ Ores         Ÿƒ‹ Ingots       
+  †€‘ 0 items      ‡ 0 items      
+                                    
+  ‡‹ Gems         —Œ– Wood         
+  ‚ 0 items      ‹‡ 0 items      
+                                    
+  Œœ Blocks       Ÿ Food         
+  ŒˆŒ 0 items      €Ÿ 0 items      
+                                    
+  ‹€ Mob drops    ƒ›š Tools        
+  €‚ 0 items      †€€ 0 items      
+                                    
+  †œ™ Other        ˆŒ„ All items    
+  €‘€ 0 items      Š… 0 items      
+                                    
+                                    
+                                    
+  Materials/Wizard [w]              
+  Refresh  type on the computer     

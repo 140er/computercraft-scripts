@@ -1,20 +1,8 @@
 CraftOS-PC v2.8.3 sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
 rom CC:Tweaked 1.112.0
-ref 496263f555e6ba51d32c0403e599d04526f08331
+ref 032eb3fbbf62329a560938896a2d7af3570c1115
 exempt none
 
-VERIFY: FAIL
+VERIFY: PASS
 
-mocks PASS
-server PASS free=187169 capacity=1000000 returned=false bytes=810000
-hub FAIL bytes=1169959 install did not write startup
-miner PASS free=225604 capacity=1000000 returned=false bytes=774212
-store FAIL free=401674 capacity=1000000 returned=false bytes=598174 waiting for setup input
-roomclient PASS free=214723 capacity=1000000 returned=true bytes=785145
-roomsorter PASS free=214426 capacity=1000000 returned=true bytes=785145
-lumber PASS free=420329 capacity=1000000 returned=false bytes=579310
-panel PASS free=234891 capacity=1000000 returned=false bytes=764989
-miner FAIL free=225460 capacity=1000000 returned=true bytes=774212 crash /miner.lua:3624: SSOT timeout (stopped)
-miner FAIL free=225448 capacity=1000000 returned=true bytes=774212 crash /miner.lua:3620: Resolve the miner movement journal
-roomclient FAIL free=214725 capacity=1000000 returned=true bytes=785145 order screen missing
-server FAIL free=67816 capacity=1000000 returned=false bytes=810000 disk full
+roomclient PASS free=700720 capacity=1000000 returned=false bytes=787277

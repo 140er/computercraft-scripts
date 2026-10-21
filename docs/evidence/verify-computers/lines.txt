@@ -1,13 +1,9 @@
-mocks PASS
-server PASS free=187169 capacity=1000000 returned=false bytes=810000
-hub FAIL bytes=1169959 install did not write startup
-miner PASS free=225604 capacity=1000000 returned=false bytes=774212
-store FAIL free=401674 capacity=1000000 returned=false bytes=598174 waiting for setup input
-roomclient PASS free=214723 capacity=1000000 returned=true bytes=785145
-roomsorter PASS free=214426 capacity=1000000 returned=true bytes=785145
-lumber PASS free=420329 capacity=1000000 returned=false bytes=579310
-panel PASS free=234891 capacity=1000000 returned=false bytes=764989
-miner FAIL free=225460 capacity=1000000 returned=true bytes=774212 crash /miner.lua:3624: SSOT timeout (stopped)
-miner FAIL free=225448 capacity=1000000 returned=true bytes=774212 crash /miner.lua:3620: Resolve the miner movement journal
-roomclient FAIL free=214725 capacity=1000000 returned=true bytes=785145 order screen missing
-server FAIL free=67816 capacity=1000000 returned=false bytes=810000 disk full
+server PASS free=185372 capacity=1000000 returned=false bytes=811797
+hub FAIL bytes=1171332 install did not write startup
+miner PASS free=224245 capacity=1000000 returned=false bytes=775571
+store PASS free=400737 capacity=1000000 returned=true bytes=599111
+roomclient PASS free=212591 capacity=1000000 returned=false bytes=787277
+roomsorter PASS free=212294 capacity=1000000 returned=false bytes=787277
+lumber PASS free=418970 capacity=1000000 returned=false bytes=580669
+panel PASS free=233532 capacity=1000000 returned=false bytes=766348
+late-turtle roomclient PASS free=700720 capacity=1000000 returned=false bytes=787277

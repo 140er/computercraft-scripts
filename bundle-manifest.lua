@@ -194,12 +194,13 @@ return {
       [4]="wh2-program.lua",
       [5]="plug.lua",
       [6]="wh2-dev.lua",
-      [7]="storage-peer.lua",
-      [8]="alpha-boot.lua",
-      [9]="planner-host.lua",
-      [10]="atomic.lua",
-      [11]="chat-control.lua",
-      [12]="enrol.lua"
+      [7]="wh2-locations.lua",
+      [8]="storage-peer.lua",
+      [9]="alpha-boot.lua",
+      [10]="planner-host.lua",
+      [11]="atomic.lua",
+      [12]="chat-control.lua",
+      [13]="enrol.lua"
     },
     ["shelf.lua"]={
       [1]="atomic.lua"
@@ -315,7 +316,7 @@ return {
     ["ar-role.lua"]="2f58b080",
     ["atomic.lua"]="7af052ba",
     ["b1-nav.lua"]="baaf3cd7",
-    ["buddy.lua"]="c8fd6866",
+    ["buddy.lua"]="f1a520a5",
     ["builder.lua"]="92c93b01",
     ["chat-control.lua"]="7ca4de48",
     ["craft.lua"]="4b6b7eab",
@@ -364,13 +365,13 @@ return {
     ["position.lua"]="5b8a22aa",
     ["relay.lua"]="a00d373b",
     ["role-adapter.lua"]="708c90da",
-    ["roles.lua"]="1beb86f2",
-    ["roomsorter.lua"]="46807f3d",
+    ["roles.lua"]="0501678f",
+    ["roomsorter.lua"]="aae3e008",
     ["s1_b1.lua"]="63b01e7c",
     ["s1_h4c.lua"]="113dc0db",
     ["s1_i1.lua"]="225f23f7",
     ["s1_t1.lua"]="7d1136bf",
-    ["server.lua"]="cde008e8",
+    ["server.lua"]="c41b2fa2",
     ["shelf.lua"]="51649ba7",
     ["smartmine.lua"]="2eca6024",
     ["sorter.lua"]="1140c8fa",
@@ -1844,5 +1845,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="4382e1a9"
+  ["version"]="5df258d2"
 }

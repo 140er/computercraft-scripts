@@ -189,6 +189,22 @@ stop_emu() {
   EMUPID=""
 }
 
+install_roomclient_role() {
+  local dir=$1
+  local kit
+  for kit in install-roles.lua install-core.lua install-keys.lua install-shell.lua install-touch.lua; do
+    if [ ! -f "$dir/computer/0/$kit" ]; then
+      cp "$ROOT/$kit" "$dir/computer/0/$kit"
+    fi
+  done
+  start_emu "$dir" --id 0 --exec "shell.run('/verify/roomclient-install.lua')"
+  wait_file "$EMUPID" "$dir/computer/0/install-out.txt" 45 || true
+  stop_emu
+  if [ -f "$dir/computer/0/install-out.txt" ]; then
+    cp "$dir/computer/0/install-out.txt" "$EVIDENCE/install-role-roomclient.txt"
+  fi
+}
+
 install_role() {
   local dir=$1 role=$2
   local kind
@@ -304,13 +320,45 @@ run_late() {
   printf '%s\n' '{"isColor":true}' > "$dir/config/1.json"
   cp "$BIN/fake-turtle.lua" "$dir/computer/1/startup.lua"
   printf '%s\n' '25' > "$dir/computer/1/delay"
-  install_role "$dir" roomclient
+  install_roomclient_role "$dir"
   boot_disk "$dir" 40 1 0 60 1
   record "late-turtle-roomclient" "$dir/computer/0/result.txt" >/dev/null
   if [ -f "$dir/computer/1/turtle-up.txt" ]; then
     cp "$dir/computer/1/turtle-up.txt" "$EVIDENCE/late-turtle-turtle-up.txt"
   else
     echo "turtle did not start" > "$EVIDENCE/late-turtle-turtle-up.txt"
+  fi
+  local line
+  if [ -f "$dir/computer/0/startup_real.lua" ]; then
+    line=$(judge_result "$dir/computer/0/result.txt" "$dir/computer/0/startup_real.lua" "$bytes" order || true)
+  else
+    line="FAIL bytes=$bytes install did not write startup"
+  fi
+  echo "roomclient $line"
+  printf '%s\n' "roomclient $line" >> "$EVIDENCE/lines.txt"
+  case "$line" in
+    PASS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_nomap() {
+  local dir="$RUNDIR/no-map-roomclient"
+  local bytes
+  prepare_tree "$dir" 0
+  bytes=$(copy_role "$dir" roomclient)
+  mkdir -p "$dir/computer/1"
+  printf '%s\n' '{"isColor":true}' > "$dir/config/1.json"
+  cp "$ROOT/roomsorter.lua" "$dir/computer/1/roomsorter.lua"
+  cp "$ROOT/atomic.lua" "$dir/computer/1/atomic.lua"
+  cp "$BIN/nomap-turtle.lua" "$dir/computer/1/startup.lua"
+  install_roomclient_role "$dir"
+  boot_disk "$dir" 30 1 0 50 1
+  record "no-map-roomclient" "$dir/computer/0/result.txt" >/dev/null
+  if [ -f "$dir/computer/1/turtle-up.txt" ]; then
+    cp "$dir/computer/1/turtle-up.txt" "$EVIDENCE/no-map-turtle-up.txt"
+  else
+    echo "turtle did not start" > "$EVIDENCE/no-map-turtle-up.txt"
   fi
   local line
   if [ -f "$dir/computer/0/startup_real.lua" ]; then
@@ -455,6 +503,10 @@ cmd_run() {
   if [ "$scenario" = "all" ] || [ "$scenario" = "late-turtle" ]; then
     echo "== late-turtle"
     run_late || failed=1
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "no-map" ]; then
+    echo "== no-map"
+    run_nomap || failed=1
   fi
   if [ "$scenario" = "all" ] || [ "$scenario" = "ssot-cache" ]; then
     echo "== ssot-cache"
