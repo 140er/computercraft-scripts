@@ -1,5 +1,3 @@
--- so-mod-drops.lua - places turtles drop or take items.
-
 local S = {
   points = {},
   box = nil,
@@ -9,7 +7,6 @@ local S = {
   strikes = 3,
   kinds = { fuel = true, ore = true, junk = true, wood = true, storage = true, any = true },
   kindOrder = { "fuel", "ore", "junk", "wood", "storage", "any" },
-  -- The lease list has no dropUp, so up is not a side.
   face = {
     front = { "inspect", "drop" },
     down = { "inspectDown", "dropDown" },
