@@ -349,7 +349,7 @@ return {
     ["mapsection.lua"]="7849c730",
     ["mapstore.lua"]="d70153b2",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="39453802",
+    ["miner.lua"]="1dfb00eb",
     ["mining.lua"]="ddb8ce8b",
     ["nav.lua"]="6c824656",
     ["panel.lua"]="9d4d1c4d",
@@ -376,7 +376,7 @@ return {
     ["sorter.lua"]="1140c8fa",
     ["ssot-client.lua"]="5c914046",
     ["ssot-hub.lua"]="edc5ee05",
-    ["ssot.lua"]="640773d8",
+    ["ssot.lua"]="fd1c7c7d",
     ["storage-buffer.lua"]="0dad294a",
     ["storage-host.lua"]="253e5cb5",
     ["storage-ledger.lua"]="93dc474f",
@@ -1844,5 +1844,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="dbb30872"
+  ["version"]="f89c20d0"
 }

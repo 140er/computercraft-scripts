@@ -224,7 +224,10 @@ function M.new(s, cfg, clock, epoch, save, map)
   cfg = cfg or {}
   local wh2=Wh2.open(cfg.wh2,M.pose)
   if hubEnabled(cfg) then hub().prepare(s, cfg, clock) end
-  local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
+  local explicitChunks = tonumber(cfg.maxChunks)
+  local maxChunks
+  if compact then maxChunks = explicitChunks
+  else maxChunks = math.min(64, explicitChunks or 64) end
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
   assert(cfg.deadTurtles == nil or type(cfg.deadTurtles) == "boolean", "invalid deadTurtles")
@@ -259,11 +262,19 @@ function M.new(s, cfg, clock, epoch, save, map)
     end
     return false
   end
+  local function overChunkLimit(additions)
+    if maxChunks == nil or next(additions) == nil then return false end
+    local count = 0
+    if compact then count = map:sizes().sections
+    else for _ in pairs(s.chunks) do count = count + 1 end end
+    for _ in pairs(additions) do count = count + 1 end
+    return count > maxChunks
+  end
   local function scanMap(id, m, p)
     if not map then return { ok = false, error = "compact map unavailable" } end
     if not M.pose(p) or not equal(p, s.poses[id]) or not integer(m.revision, 0, s.rev)
       or type(m.cells) ~= "table" or #m.cells > 64 or #m.cells == 0 then return { ok = false, error = "invalid scan" } end
-    local grouped, same = {}, true
+    local grouped, additions, same = {}, {}, true
     for k, c in pairs(m.cells) do
       if not integer(k, 1, #m.cells) or type(c) ~= "table" or not M.pose(c) or c.dim ~= p.dim
         or math.abs(c.x - p.x) > 32 or math.abs(c.y - p.y) > 32 or math.abs(c.z - p.z) > 32
@@ -281,11 +292,16 @@ function M.new(s, cfg, clock, epoch, save, map)
       else
         same = false
         local bucket = grouped[key]
-        if not bucket then bucket = {} grouped[key] = bucket end
+        if not bucket then
+          bucket = {}
+          grouped[key] = bucket
+          if map:read(key) == nil then additions[key] = true end
+        end
         bucket[#bucket + 1] = { index = index, name = c.name }
       end
     end
     if same then return { ok = true, revision = s.rev } end
+    if overChunkLimit(additions) then return { ok = false, error = "resident chunk limit" } end
     map:checkpoint()
     local rev, now = s.rev + 1, clock()
     for key, edits in pairs(grouped) do
@@ -560,9 +576,8 @@ function M.new(s, cfg, clock, epoch, save, map)
         bucket.cells, bucket.dim, s.rel[p.frame] = cells, p.dim, bucket
         return { ok = true, revision = s.rev }
       end
-      local count, additions, names = 0, {}, {}
+      local additions, names = {}, {}
       for _, name in ipairs(s.names) do names[name] = true end
-      for _ in pairs(s.chunks) do count = count + 1 end
       for k, c in pairs(m.cells) do
         if not integer(k, 1, #m.cells) or type(c) ~= "table" or not M.pose(c) or c.dim ~= p.dim
           or math.abs(c.x - p.x) > 32 or math.abs(c.y - p.y) > 32 or math.abs(c.z - p.z) > 32
@@ -571,10 +586,10 @@ function M.new(s, cfg, clock, epoch, save, map)
         end
         local key = chunk(c)
         if c.name then names[c.name] = true end
-        if not s.chunks[key] and not additions[key] then additions[key], count = true, count + 1 end
+        if not s.chunks[key] then additions[key] = true end
         if s.chunks[key] and m.revision < s.chunks[key].rev then return { ok = false, error = "stale revision" } end
       end
-      if count > maxChunks then return { ok = false, error = "resident chunk limit" } end
+      if overChunkLimit(additions) then return { ok = false, error = "resident chunk limit" } end
       local nameCount = 0
       for _ in pairs(names) do nameCount = nameCount + 1 end
       if nameCount > 256 then return { ok = false, error = "name limit" } end
