@@ -5,6 +5,13 @@ Open `docs/` as an Obsidian vault. Start with [[SERVER-ONLY-MAP]]
 persistence and checks. Read [[server-only/PROTOCOL]]
 ([protocol](server-only/PROTOCOL.md)) for wire formats and module contracts.
 
+## UI overhaul
+
+The Big Tiles screens are specified in [[ui/BIG-TILES-SPEC]]
+([Big Tiles spec](ui/BIG-TILES-SPEC.md)), built on branch `server-only-ui`.
+[mockup-gen.py](ui/mockup-gen.py) regenerates every mockup in that spec.
+Run it from a scratch directory: it writes `mockups.md` and `font.txt` there.
+
 ## Wave plan
 
 SO3 mining and SO7 lumber are merged. Wave 5 is next.
