@@ -280,7 +280,7 @@ return {
     ["sorter.lua"]="1140c8fa",
     ["ssot-client.lua"]="5c914046",
     ["ssot-hub.lua"]="edc5ee05",
-    ["ssot.lua"]="640773d8",
+    ["ssot.lua"]="bc4b5941",
     ["storage-buffer.lua"]="0dad294a",
     ["storage-host.lua"]="253e5cb5",
     ["storage-ledger.lua"]="93dc474f",
@@ -1485,5 +1485,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="946afaec"
+  ["version"]="dd11e3e3"
 }

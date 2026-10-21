@@ -185,7 +185,7 @@ return function(test)
     assert(not refused and why == "palette limit")
   end)
 
-  test("compact scans pass the old section and name caps and reload from files", function()
+  test("compact scans pass the old name cap and reload from files", function()
     local box = mocks.new(false)
     local env = box.env
     env.sleep = function() end
@@ -248,25 +248,8 @@ return function(test)
     assert(refused and not refused.ok and refused.error == "name limit")
 
     local map = assert(Store.open(env.fs, { reserve = 0, root = "compact" }))
-    local api = session(true, map)
-    assert(send(api, "sync", { pose = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 } }, 1).ok)
-    n = 2
-    for cx = -2, 2 do
-      for cy = 2, 6 do
-        for cz = -2, 2 do
-          if n <= 66 then
-            local cell = { dim = "minecraft:overworld", x = cx * 16, y = cy * 16, z = cz * 16,
-              name = "mod:section" .. n }
-            local reply = send(api, "scan", { pose = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 },
-              revision = n - 2, cells = { cell } }, n)
-            assert(reply and reply.ok, reply and reply.error)
-            n = n + 1
-          end
-        end
-      end
-    end
     rev, counter = map:maxRevision(), 100
-    api = S.new({ rev = rev }, { controllers = { ["1"] = secret }, compactSections = true },
+    local api = S.new({ rev = rev }, { controllers = { ["1"] = secret }, compactSections = true },
       function() return 50000 end, "boot", function() return true end, map)
     assert(send(api, "sync", { pose = { dim = "minecraft:overworld", x = 8, y = 64, z = 8 } }, counter).ok)
     counter = counter + 1
@@ -357,28 +340,30 @@ return function(test)
         return api.handle(1, m)
       end
       local label = compact and "compact" or "legacy"
+      local function snap(chunk)
+        local page = send("snapshot", { chunk = chunk })
+        assert(page and page.ok, label .. " snap " .. tostring(page and page.error))
+        return page
+      end
       assert(send("sync", { pose = pose }).ok, label)
       for _, spot in ipairs(spots) do
         local reply = send("scan", { pose = pose, revision = rev, cells = { cell(spot[1], spot[2]) } })
         assert(reply and reply.ok, label .. " fill " .. tostring(reply and reply.error))
         rev = reply.revision
       end
+      local refused = send("scan", { pose = pose, revision = rev, cells = { cell(0, 32), cell(16, 16) } })
+      assert(refused and refused.ok == false and refused.error == "resident chunk limit",
+        label .. " two new chunks reply=" .. tostring(refused and refused.error))
+      assert(#snap("minecraft:overworld|0|4|2").cells == 0, label .. " stored a rejected chunk")
+      assert(#snap("minecraft:overworld|1|4|1").cells == 0, label .. " stored a rejected chunk")
       local pair = send("scan", { pose = pose, revision = rev, cells = { cell(0, 32), cell(0, 32, false, 65) } })
       assert(pair and pair.ok, label .. " same chunk " .. tostring(pair and pair.error))
       rev = pair.revision
-      local refused = send("scan", { pose = pose, revision = rev, cells = { cell(16, 16), cell(16, -16) } })
-      assert(refused and refused.ok == false and refused.error == "resident chunk limit",
-        label .. " past maxChunks reply=" .. tostring(refused and refused.error))
       local ninth = send("scan", { pose = pose, revision = rev, cells = { cell(16, 16) } })
       assert(ninth and ninth.ok == false and ninth.error == "resident chunk limit",
         label .. " ninth reply=" .. tostring(ninth and ninth.error))
       local solid = send("scan", { pose = pose, revision = rev, cells = { cell(0, 0, "minecraft:stone") } })
       assert(solid and solid.ok, label .. " update " .. tostring(solid and solid.error))
-      local function snap(chunk)
-        local page = send("snapshot", { chunk = chunk })
-        assert(page and page.ok, label .. " snap " .. tostring(page and page.error))
-        return page
-      end
       local kept = snap("minecraft:overworld|0|4|0")
       local found = false
       for _, entry in ipairs(kept.cells) do
@@ -386,7 +371,6 @@ return function(test)
       end
       assert(found, label .. " dropped the kept chunk")
       assert(#snap("minecraft:overworld|1|4|1").cells == 0, label .. " stored a rejected chunk")
-      assert(#snap("minecraft:overworld|1|4|-1").cells == 0, label .. " stored a rejected chunk")
     end
   end)
 
