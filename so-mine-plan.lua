@@ -56,6 +56,61 @@ function M.route(job, branch)
   for _ = 1, job.length do p = P.apply(p, "forward") out[#out+1] = p end
   return out
 end
+local function laneShape(job)
+  local top=P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing},"forward")
+  local last=0
+  for _,row in pairs(job.turtles or {}) do last=math.max(last,row.branch or 0) end
+  return top,(last+1)*(job.mode=="fast" and 2 or 4)
+end
+function M.lane(job, exit)
+  local top,length=laneShape(job)
+  local cells={}
+  for y=math.min(top.y,job.bottom),math.max(top.y,job.bottom) do
+    cells[#cells+1]={dim=job.dim,x=top.x,y=y,z=top.z}
+  end
+  local p={dim=job.dim,x=top.x,y=job.bottom,z=top.z,facing=top.facing}
+  for _=1,length do p=P.apply(p,"forward") cells[#cells+1]=p end
+  if exit and not M.inLane(job,exit) then cells[#cells+1]={dim=job.dim,x=exit.x,y=exit.y,z=exit.z} end
+  return cells
+end
+function M.inLane(job, p)
+  if not p or p.dim and p.dim~=job.dim then return false end
+  local top,length=laneShape(job)
+  if p.x==top.x and p.z==top.z and p.y>=math.min(top.y,job.bottom) and p.y<=math.max(top.y,job.bottom) then return true end
+  if p.y~=job.bottom then return false end
+  local dx,dz=({[0]=0,1,0,-1})[top.facing],({[0]=-1,0,1,0})[top.facing]
+  local x,z=p.x-top.x,p.z-top.z
+  local along=x*dx+z*dz
+  return x*dz-z*dx==0 and along>=0 and along<=length
+end
+function M.lanePass(job,row)
+  local cells,seen={},{}
+  local cursor=row.pose
+  local entered=M.inLane(job,cursor)
+  local function add(p)
+    local key=M.key(p)
+    if not seen[key] then cells[#cells+1]={dim=job.dim,x=p.x,y=p.y,z=p.z} seen[key]=true end
+  end
+  if entered then add(cursor) end
+  local function walk(goal,trip,vein)
+    local order=not vein and job.home.facing%2==0 and not M.inLane(job,goal) and "yzx" or "yxz"
+    local path=trip and M.travel(cursor,goal,trip.point) or P.path(cursor,goal,{order=order}).cells
+    for _,p in ipairs(path or {}) do
+      if M.inLane(job,p) then entered=true add(p)
+      elseif entered then add(p) return true end
+    end
+    cursor={dim=job.dim,x=goal.x,y=goal.y,z=goal.z,facing=goal.facing or cursor.facing or 0}
+  end
+  local vein=row.veins and row.veins[#row.veins]
+  if row.trip then
+    if walk(row.goal,row.trip) then return cells end
+  elseif vein and row.goal and M.same(vein,row.goal) then
+    if walk(row.goal,nil,true) then return cells end
+  end
+  local route=row.route or M.route(job,row.branch or 0)
+  for i=row.index or 1,#route do if walk(route[i]) then break end end
+  return cells
+end
 function M.sealable(item)
   if not M.junk(item) then return false end
   if item.name == "minecraft:sand" or item.name == "minecraft:red_sand" or item.name == "minecraft:gravel" then return false end
@@ -116,6 +171,9 @@ local function nextOne(job, row, lookup, inv, fuel)
   end
   local dir, want
   if p.y ~= goal.y then dir = goal.y > p.y and "up" or "down"
+  elseif not row.trip and not (row.veins and #row.veins>0) and job.home
+      and job.home.facing%2==0 and p.z~=goal.z and not M.inLane(job,goal) then
+    dir,want="forward",goal.z>p.z and 2 or 0
   elseif p.x ~= goal.x then dir, want = "forward", goal.x > p.x and 1 or 3
   else dir, want = "forward", goal.z > p.z and 2 or 0 end
   local turn = want and M.turn(p, want)
@@ -147,7 +205,7 @@ local function nextOne(job, row, lookup, inv, fuel)
 end
 function M.next(job, row, lookup, inv, fuel)
   local out = { kind = "batch", steps = {}, cells = {}, actions = {}, pose = row.pose }
-  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip }
+  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip, veins = row.veins }
   while #out.steps < 16 do
     local action = nextOne(job, cursor, lookup, inv, fuel)
     if #action.steps == 0 or #out.steps + #action.steps > 16 then

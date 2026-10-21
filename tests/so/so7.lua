@@ -269,4 +269,31 @@ return function(test, equal)
     d.handlers["view.get"]({from=3},function(_,v) body=v end)
     equal(body.role,"lumber")
   end)
+  test("SO7 saved frame recovers on the first tick without lease memory",function()
+    local g=setup(true)
+    run(g,function(v) return #v.digs>=1 end)
+    local fresh=g.net.boot(g.server)
+    g.server=fresh
+    local lease=fresh.env.SO.mods.lease
+    equal(lease.status(2).pose,nil)
+    local sent,work={},false
+    local send=lease.send
+    lease.send=function(id,steps,opts)
+      local lid,err=send(id,steps,opts)
+      if lid then
+        sent[#sent+1]={recover=opts.recover,steps=steps}
+        if not opts.recover and not (#steps==1 and steps[1].op=="inspectDown") then work=true end
+      end
+      return lid,err
+    end
+    fresh.env.SO.mods.lumber.tick(g.net.time)
+    assert(sent[1] and sent[1].recover,"first tick did not send recovery park")
+    g.net.advance(3)
+    assert(work,"no work after recovery report")
+    local saved=fresh.env.SO.store.read("so-data/lumber/job").value
+    equal(saved.turtle.pose.x,g.worker.pos.x)
+    equal(saved.turtle.pose.y,g.worker.pos.y)
+    equal(saved.turtle.pose.z,g.worker.pos.z)
+  end)
+
 end

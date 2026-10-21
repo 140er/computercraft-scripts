@@ -97,7 +97,7 @@ S.send = function(steps, action, cells, recover, ms)
       cells[#cells + 1] = { dim = j.dim, x = at.x, y = at.y, z = at.z }
     end
   end
-  if not P.inRange(lease, j.turtle.id, cells) then
+  if not recover and not P.inRange(lease, j.turtle.id, cells) then
     j.blocked = "out of range"
     S.alert("out of range")
     return false
@@ -538,8 +538,7 @@ S.tick = function(now)
   if status.lost then S.recover = true j.blocked = "lost" end
   if S.pending or status.open then return end
   if S.recover then
-    if not j.turtle.anchor and not status.pose then S.alert("waiting for reported pose") return end
-    if not j.turtle.anchor and status.pose and j.turtle.frame then j.turtle.pose = P.toWorld(j.turtle.frame, status.pose) end
+    if not j.turtle.frame and not j.turtle.anchor then S.alert("waiting for reported pose") return end
     S.park(true)
     return
   end
