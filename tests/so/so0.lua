@@ -84,7 +84,7 @@ return function(test, equal)
     net.flush()
     assert(not server.error, tostring(server.error))
     local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
-    equal(server.screen[1], "Pair code: " .. code)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
     local client = net.machine({ id = 2, capacity = 1000000, modem = true })
     client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
     installTree(client)
@@ -334,7 +334,7 @@ HELLO = reply
     net.flush()
     assert(not server.error, tostring(server.error))
     local code = assert(latestCode(server), "pair code missing")
-    equal(server.screen[1], "Pair code: " .. code)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
     return code
   end
 

@@ -47,6 +47,7 @@ S.run = function()
   local sent = {}
   local view = { mode = "" }
   local memory = 120000
+  local misses = 0
 
   local function showPrompt()
     if view.mode == "prompt" then return end
@@ -58,6 +59,7 @@ S.run = function()
   end
 
   local function showCode()
+    misses = 0
     view.mode = "code"
     pair.invite(term)
   end
@@ -169,6 +171,13 @@ S.run = function()
       key = pair.key(msg.from)
     end
     if not key or not proto.macOk(key, msg) then
+      if msg.t == "pair" and pair.pending() then
+        misses = misses + 1
+        if misses >= 5 then
+          pair.clear()
+          showPrompt()
+        end
+      end
       print("so-server: bad mac from " .. tostring(sender))
       return
     end

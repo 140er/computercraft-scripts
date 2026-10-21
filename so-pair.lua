@@ -158,7 +158,7 @@ M.invite = function(screen)
     sk = sk,
     pk = S.x.publicKey(sk),
   }
-  local line = "Pair code: " .. code
+  local line = "Pair code: " .. code .. " server " .. tostring(os.getComputerID())
   print(line)
   if screen and screen.clear then
     screen.clear()
@@ -168,10 +168,11 @@ M.invite = function(screen)
   return code
 end
 
-M.join = function(code)
+M.join = function(code, serverId)
   if not S.proto then return nil, "not open" end
   if type(code) ~= "string" or not code:match("^%d%d%d%d%d%d$") then return nil, "code" end
-  local server = rednet.lookup("so", "server")
+  local server = serverId
+  if server == nil then server = rednet.lookup("so", "server") end
   if type(server) ~= "number" then return nil, "no server" end
   loadCrypto()
   local name = tostring(server)
