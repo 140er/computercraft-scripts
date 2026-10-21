@@ -858,7 +858,7 @@ local function board()
 
     local y = 2
     if H >= 7 then
-      local pct = data.size > 0 and math.floor(data.used * 100 / data.size) or 0
+      local pct = (data.size or 0) > 0 and math.floor((data.used or 0) * 100 / (data.size or 0)) or 0
       local s = ("%s items  %d kinds  %d chests %d%% full  %d furnaces  %s"):format(fmtNum(total), #items,
         data.chests or 0, pct, data.furnaces or 0, data.full and "STORAGE FULL" or (data.state or ""))
       put(2, y, s:sub(1, W - 2), data.full and C.down or C.label)
@@ -1683,7 +1683,7 @@ if args[1] == "scan" then
 end
 
 if not map or not map.slots then
-  print("No map yet. Stand the turtle on the floor facing the input chest and run: roomsorter scan")
+  print("No map yet. Hold Ctrl+T to stop, then run roomsorter scan")
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then return end
   rednet.open(peripheral.getName(modem))
@@ -1700,7 +1700,7 @@ if not map or not map.slots then
       reply.rid = b.rid
       rednet.send(a, reply, PROTOCOL)
     elseif ev == "timer" and a == tick then
-      rednet.broadcast({ totals = {}, state = "No map yet" }, PROTOCOL .. "_stock")
+      rednet.broadcast({ totals = {}, used = 0, size = 0, chests = 0, furnaces = 0, state = "No map yet" }, PROTOCOL .. "_stock")
       tick = os.startTimer(10)
     end
   end

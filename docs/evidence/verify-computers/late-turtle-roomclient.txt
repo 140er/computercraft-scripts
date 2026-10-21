@@ -1,5 +1,5 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 701814
+capacity 1000000 free 701779
        11 .fleet-role
     13750 atomic.lua
     11634 install-core.lua
@@ -16,7 +16,7 @@ capacity 1000000 free 701814
      2140 lib/stubs/b1_w1.lua
     10633 plug.lua
         0 result.txt
-   151173 roomsorter.lua
+   151208 roomsorter.lua
        30 startup.lua
        34 startup_real.lua
     15465 update.lua

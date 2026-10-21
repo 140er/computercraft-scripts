@@ -1,10 +1,12 @@
 CraftOS-PC v2.8.3 sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
 rom CC:Tweaked 1.112.0
-ref fix/roomclient-boot
+ref PENDING
 exempt none
 
-F1 checks only. This is not a full role sweep. Older dumps in this folder are from ref 2206271.
+Late-turtle, no-map, and the hub boot. Not a full role sweep.
 
-late-turtle roomclient PASS free=701814 capacity=1000000 returned=false bytes=550121
-no-map roomclient PASS free=701814 capacity=1000000 returned=false bytes=550121
-role-boot roomclient PASS free=449747 capacity=1000000 returned=false bytes=550121
+VERIFY: PASS
+
+late-turtle roomclient PASS free=701779 capacity=1000000 returned=false bytes=550156
+no-map roomclient PASS free=701779 capacity=1000000 returned=false bytes=550156
+hub PASS free=7612 capacity=1000000 returned=false bytes=992270

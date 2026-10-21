@@ -1,12 +1,12 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 21728
+capacity 1000000 free 7612
         4 .fleet-role
      5774 alpha-boot.lua
     32245 ar-hud.lua
     19080 ar-planner.lua
     13750 atomic.lua
     10164 b1-nav.lua
-    39768 bundle-manifest.lua
+    39872 bundle-manifest.lua
      6849 chat-control.lua
      4250 dead.lua
      6862 directview.lua
@@ -22,7 +22,7 @@ capacity 1000000 free 21728
      2140 lib/stubs/b1_w1.lua
      2492 lib/stubs/h4d_dep.lua
      4745 mine-tasks.lua
-   135362 miner.lua
+   148826 miner.lua
     22903 mining.lua
     33966 nav.lua
     17895 planner-core.lua
@@ -38,7 +38,7 @@ capacity 1000000 free 21728
      3850 s1_t1.lua
      6359 ssot-client.lua
     23850 ssot-hub.lua
-    43180 ssot.lua
+    43728 ssot.lua
        30 startup.lua
        17 startup_real.lua
      2366 storage-buffer.lua

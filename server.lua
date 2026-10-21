@@ -1216,9 +1216,13 @@ local function safeRequest(id, m, fetched, receivedAt)
   local ok, err = pcall(request, id, m, fetched, receivedAt)
   if ok then return end
   log("error", id, err)
-  if type(m) == "table" then
-    pcall(reply, id, m, { type = "error", error = tostring(err):sub(1, 256) })
+  if type(m) ~= "table" then return end
+  local text = tostring(err):sub(1, 256)
+  local body = { type = "error", error = text }
+  if m.type == "ssot" and type(m.rid) == "string" then
+    body = { v = 1, type = "ssot_reply", server = os.getComputerID(), auth = m.secret, ok = false, error = text }
   end
+  pcall(reply, id, m, body)
 end
 
 local function worker()
