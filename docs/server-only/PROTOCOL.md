@@ -302,7 +302,9 @@ commands through that screen's `input.text`:
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
 - `bottom <y>` and `length <n>` set the shaft bottom and branch length.
 - `mode thorough|fast` selects wall inspection or faster branches.
-- `ores diamond,iron,...` accepts the ore names from `miner.lua`.
+- `ores diamond,iron,...` accepts the supported names from `so-mine-plan.lua`.
+  Only selected ores start wall veins. Empty or missing lists accept all ores.
+  Ores blocking the route are still dug.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
 - `remove <id>` removes a worker once its lease has closed.
 - `start` and `stop` control planning. An already sent batch finishes after stop.
@@ -316,9 +318,12 @@ Lost and expired workers retain their reservations until a recovery report.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 
-Work uses batches of at most 16 steps. Inspect, dig, and movement have separate
-report boundaries. A failed dig cannot authorize movement. Thorough mode checks
-branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
+Work uses batches of at most 16 steps. Known straight travel and consecutive
+turns share a lease. Travel can end with an inspect, whose result is read before
+planning more work. Dig has a separate report boundary, so a failed dig cannot
+authorize movement. Unknown shaft cells still require inspect and dig reports.
+A fresh ten-block shaft therefore cannot be dug in two leases with this worker.
+Thorough mode checks branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
 `c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
 It scoops lava sources with an empty bucket before trying sealing blocks.
 It seals other lava and water before movement. Extra junk drops at the current
@@ -331,7 +336,15 @@ Ore unloading includes mined fuel items. Front drops use a free neighbour
 at the same height. Down drops use the cell above the chest. The drop module's
 numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
 -1, and `minecraft:the_end` as 1. Other dimensions wait with an alert.
-No usable drop point parks the worker with the drop module's hold alert.
+After three failed transfers at the same drop, the worker parks and retries
+once per 60000 ms. Failed drop inspections call `drops.note(id, nil)` once each.
+The first exhausted retry emits `mine.alert { id, text }`, where text is
+`ore chest full` or `fuel chest empty`, and the screen shows that error.
+No usable drop point uses the same retry policy and retains the drop hold text.
+A successful transfer clears the retry state. Saved turtle rows use
+`dropRetry = { key, tries, alerted, after }`, where `after` is a UTC epoch in ms.
+Each retry after the threshold sets a new one-minute deadline without repeating
+the alert until a transfer succeeds or the drop changes.
 
 The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
 `{ level, branch, done }` through `SO.mods.state.emit` when available.
@@ -340,7 +353,10 @@ and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a bat
 description without network, storage, or server calls. `row.pose` and `row.goal`
 are world poses. `lookup(cell)` returns nil for unknown, false for air, or block
 data. The caller reserves `cells` before sending `steps` and applies the actual
-report rather than assuming the returned expected `pose`.
+report rather than assuming the returned expected `pose`. Multi-action batches
+also return `actions`, each with a one-based `first` index into `steps`.
+`ore(data, ores)` accepts an optional list of supported ore names and matches
+block names or ore subtype tags before applying the ore classifier.
 
 ### cells
 
