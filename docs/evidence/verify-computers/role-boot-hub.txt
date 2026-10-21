@@ -1,10 +1,12 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 61500
+capacity 1000000 free 21728
+        4 .fleet-role
      5774 alpha-boot.lua
     32245 ar-hud.lua
     19080 ar-planner.lua
     13750 atomic.lua
     10164 b1-nav.lua
+    39768 bundle-manifest.lua
      6849 chat-control.lua
      4250 dead.lua
      6862 directview.lua

@@ -37,7 +37,7 @@ Preconditions:
 
 ## Gotchas
 
-- The file list comes from `bundle-manifest.lua`. An install command that returns without writing `startup.lua` is FAIL, with the reason `install did not write startup`.
+- The file list comes from `bundle-manifest.lua`. The disk also gets `bundle-manifest.lua` and `.fleet-role`, which `update.lua` apply writes on a real install. An install command that returns without writing `startup.lua` is FAIL, with the reason `install did not write startup`.
 - Store on current alpha prints `Type an answer and press enter.` after `store install` and waits for a fleet server id. That line is FAIL. Leave `store.lua` unchanged and report it.
 - Roomclient with no turtle returns after `No storage turtle found`. That clean return can PASS `fit`. It does not prove the late-turtle scenario.
 - Hub's free space is the tight one. A few thousand bytes free is still PASS. Free space below 0 is FAIL.

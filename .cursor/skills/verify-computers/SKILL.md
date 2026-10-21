@@ -65,7 +65,7 @@ Doctor checks the pinned checksum, the CraftOS-PC version line, the CC:Tweaked 1
 
 A role disk is built in three steps.
 
-1. Copy that role's file list from `bundle-manifest.lua`.
+1. Copy that role's file list from `bundle-manifest.lua`, then add `bundle-manifest.lua` and `.fleet-role`. `update.lua` apply leaves both on the disk.
 2. Run that role's install command on computer 0.
 3. Boot the `startup.lua` the installer wrote.
 

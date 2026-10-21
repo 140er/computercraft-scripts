@@ -1,6 +1,8 @@
 program returned: true  pcall err: nil
-capacity 1000000 free 491041
+capacity 1000000 free 451262
+       11 .fleet-role
     13750 atomic.lua
+    39768 bundle-manifest.lua
      4250 dead.lua
     48950 install.lua
      6067 journal.lua

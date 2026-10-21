@@ -128,6 +128,16 @@ copy_role() {
     n=$(wc -c < "$ROOT/$file")
     bytes=$((bytes + n))
   done < <(lua5.2 "$PLAN" "$ROOT" files "$role")
+  if [ ! -f "$dir/computer/0/bundle-manifest.lua" ]; then
+    cp "$ROOT/bundle-manifest.lua" "$dir/computer/0/bundle-manifest.lua"
+    local n
+    n=$(wc -c < "$ROOT/bundle-manifest.lua")
+    bytes=$((bytes + n))
+  fi
+  printf '%s\n' "$role" > "$dir/computer/0/.fleet-role"
+  local rolebytes
+  rolebytes=$(wc -c < "$dir/computer/0/.fleet-role")
+  bytes=$((bytes + rolebytes))
   echo "$bytes"
 }
 

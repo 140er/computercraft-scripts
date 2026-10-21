@@ -1,9 +1,11 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 63275
+capacity 1000000 free 70990
+        7 .fleet-role
      5774 alpha-boot.lua
     32245 ar-hud.lua
     19080 ar-planner.lua
     13750 atomic.lua
+    39768 bundle-manifest.lua
      6849 chat-control.lua
      4250 dead.lua
     33148 fleetview.lua
@@ -29,15 +31,19 @@ capacity 1000000 free 63275
       867 s1_h4c.lua
      1388 s1_i1.lua
      3850 s1_t1.lua
-    52314 server-code/farmer.lua
+      290 server-code/ar-role.lua
+     4002 server-code/gpshost.lua
     90004 server-code/hub.lua
    148972 server-code/miner.lua
      1899 server-code/relay.lua
+      230 server-code/role-adapter.lua
     13416 server-code/smartmine.lua
     30110 server-code/sorter.lua
+      110 server-code/store-role.lua
+      127 server-code/view-role.lua
     62719 server.lua
-     5536 server.state
-     5433 server.state.bak
+     5571 server.state
+     5463 server.state.bak
      6359 ssot-client.lua
     23850 ssot-hub.lua
        58 ssot.cfg
