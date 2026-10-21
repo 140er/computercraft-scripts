@@ -44,6 +44,17 @@ PASS setup digs its own hole and turns around when placed facing the chest
 PASS setup says why it failed, last on the screen
 PASS miner set up without a direction asks the hub before it starts
 PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS miner screen formats fuel and bar halves
+PASS miner screen picks a headline and a tone from phase or homeReason
+PASS miner screen draws the note, the gauges, and the gems
+PASS miner screen keys pause, come home, and retry
+PASS miner screen stays quiet once it is up and still logs a bad frame
+PASS miner screen clears come home once it is home
+PASS miner screen wraps a long detail onto the next row
+PASS miner screen pause stops the next move and keeps the find
+PASS miner screen strips minecraft from the stuck line
+PASS miner screen names the command ore when the job has none
+PASS miner screen is on unless screen is false
 PASS server captures broadcasts, polls legacy bots and persists registry and log
 PASS serialize mock rejects shared tables and cycles
 PASS server refuses to overwrite corrupt generations without a recoverable state
@@ -592,6 +603,8 @@ PASS a second migration is a no-op and a different legacy is kept
 PASS a full disk refuses the new section and keeps the old one
 PASS a section stores 256 names and refuses the 257th
 PASS compact scans pass the old section and name caps and reload from files
+PASS resident chunk limit rejects the next chunk for compact and legacy scans
+PASS a map already over the cap still accepts an update to a stored section
 SIZE workload_sections=43 payload=57213 largest=4283 runs=10407 quarry_sections=15 quarry_cells=46848
 SIZE workload_allocated_estimate=65116
 PASS measured section payload for a quarry and branch workload
@@ -703,4 +716,4 @@ PASS a coordinate prompt keeps the typed block
 PASS fill does not discover when the config already has the value
 PASS a server secret comes from enrol and is not sent back on the wire
 PASS empty controller slots take the enrol key and a written secret stays
-388 tests passed
+401 tests passed

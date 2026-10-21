@@ -40,7 +40,7 @@ $scene = @(
 )
 [IO.File]::WriteAllLines("$TestRoot\scene.txt", $scene, $script:H3Utf8)
 $plan = [ordered]@{ scenario='h3'; source=$source; root=$TestRoot; seconds=$Seconds; turtles=4; httpBase=$HttpBase
-    queueConfig=$QueueConfig; computerSpaceLimit=4000000; computerThreads=$ComputerThreads; clientLockRequired=$true; clientStarted=$false
+    queueConfig=$QueueConfig; computerSpaceLimit=1000000; computerThreads=$ComputerThreads; clientLockRequired=$true; clientStarted=$false
     captureView=@{x=5;y=71;z=8;lookAt=@{x=0;y=65;z=0}}; F2Required=$true; videoRequired=$true }
 [IO.File]::WriteAllText("$Output\plan.json", ($plan | ConvertTo-Json -Depth 6), $script:H3Utf8)
 if ($PrepareOnly) { Write-Output "Prepared $TestRoot. Scene and client capture position are in $Output\plan.json."; return }
@@ -62,7 +62,7 @@ $run = $null
 $httpJob = $null
 $failure = $null
 try {
-    $run = New-GatebRun -Name 'hard-h3' -SpaceLimit 4000000 -XmxMb 3072
+    $run = New-GatebRun -Name 'hard-h3' -SpaceLimit 1000000 -XmxMb 3072
     [IO.File]::WriteAllText("$Output\box-run.json", ($run | ConvertTo-Json -Depth 10), $script:H3Utf8)
     Send-GatebDir $run.id "$TestRoot\world\computercraft" 'world'
     $assets = "$TestRoot\h3-http-assets"

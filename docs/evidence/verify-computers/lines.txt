@@ -1,3 +1,9 @@
-late-turtle roomclient PASS free=701779 capacity=1000000 returned=false bytes=550156
-no-map roomclient PASS free=701779 capacity=1000000 returned=false bytes=550156
-hub PASS free=7612 capacity=1000000 returned=false bytes=992270
+server PASS free=185372 capacity=1000000 returned=false bytes=811797
+hub FAIL bytes=1171332 install did not write startup
+miner PASS free=224245 capacity=1000000 returned=false bytes=775571
+store PASS free=400737 capacity=1000000 returned=true bytes=599111
+roomclient PASS free=212591 capacity=1000000 returned=false bytes=787277
+roomsorter PASS free=212294 capacity=1000000 returned=false bytes=787277
+lumber PASS free=418970 capacity=1000000 returned=false bytes=580669
+panel PASS free=233532 capacity=1000000 returned=false bytes=766348
+late-turtle roomclient PASS free=700720 capacity=1000000 returned=false bytes=787277

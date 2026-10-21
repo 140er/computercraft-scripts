@@ -1,7 +1,7 @@
 $script:H3Utf8 = New-Object Text.UTF8Encoding($false)
 function New-H3Disks {
     param([string]$Source, [string]$Computers, [string]$Runtime, [string]$HttpBase,
-        [int]$Seconds = 7200, [int]$SpaceLimit = 4000000, [int]$SeedBatches = 4,
+        [int]$Seconds = 7200, [int]$SpaceLimit = 1000000, [int]$SeedBatches = 4,
         [double]$IntervalSeconds = 2, [string]$QueueConfig = '')
     if ($HttpBase -notmatch '^http://(127\.0\.0\.1|localhost):\d+$') {
         throw 'HTTP fixture must use loopback and an explicit port.'
@@ -52,7 +52,7 @@ function Test-H3Results {
         $report = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
         $reports += $report
         if (!$report.ok) { $failures += "Computer $id failed. $($report.errors -join '; ')" }
-        if ($report.capacity -ne 4000000 -or $report.free -lt 8192) { $failures += "Computer $id exceeded the disk budget." }
+        if ($report.capacity -ne 1000000 -or $report.free -lt 8192) { $failures += "Computer $id exceeded the disk budget." }
     }
     $summary = $null
     $path = "$Computers\5\h3-summary.json"

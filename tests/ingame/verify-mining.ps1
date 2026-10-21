@@ -25,7 +25,7 @@ if (!(Test-Path -LiteralPath $lua52)) { $lua52 = (Get-Command lua5.2 -ErrorActio
 & $lua52 -e $check | Set-Content "$Output\durable-state.txt"
 if($LASTEXITCODE -ne 0){throw 'Durable mining state mismatch.'}
 @{ok=$true;turtles=3;leases=3;fuelInterrupt=$true;inventoryInterrupt=$true;restart=$true} | ConvertTo-Json | Set-Content "$Output\mining-verdict.json"
-& "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output
+& "$PSScriptRoot\verify-source.ps1" -Computers $Computers -Output $Output -Scenario mining
 if(Test-Path "$Computers\5\world.json") {
     $world=Get-Content "$Computers\5\world.json" -Raw | ConvertFrom-Json
     $ores=@($world.blocks.PSObject.Properties | Where-Object {$_.Value -like '*_ore'})
