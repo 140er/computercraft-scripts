@@ -5,7 +5,8 @@ Read this first; explore only what it doesn't cover. Update it in the same PR wh
 This maps the code on `origin/server-only`. One server computer owns durable
 state and needs at least 16000000 bytes of disk. Workers and displays are thin,
 paired clients. Workers must fit a 1 MB disk. All times use `os.epoch("utc")`.
-The [protocol](server-only/PROTOCOL.md) owns wire formats and API details.
+The [[server-only/PROTOCOL]] ([protocol](server-only/PROTOCOL.md)) owns wire formats
+and API details. Return to [[index]] ([start page](index.md)) for the wave plan.
 
 ## Files and public calls
 
