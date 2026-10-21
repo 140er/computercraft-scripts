@@ -287,6 +287,61 @@ A `beacon` marks the authenticated sender lost, retains its journal id, and emit
 
 Lease records, callbacks, beacon journals, and observed ranges live in memory. A server restart clears them. Planners must recover reservations before sending new work after a restart.
 
+### mine
+
+`so-mod-mine.lua` plans work for paired workers. It starts stopped. Its job lives in
+`so-data/mine/job` through `so-store`. The job contains `dim`, `home`, `bottom`,
+`length`, `mode`, `ores`, `turtles`, and `progress`. `home` is the chest side of
+the shaft. The shaft is one block forward from it. Each turtle gets one branch
+at the bottom level. Branch junctions are four blocks apart in `thorough` mode
+and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
+
+The module registers `display.screen("mining", render, input)`. Send these text
+commands through that screen's `input.text`:
+
+- `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
+- `bottom <y>` and `length <n>` set the shaft bottom and branch length.
+- `mode thorough|fast` selects wall inspection or faster branches.
+- `ores diamond,iron,...` accepts the ore names from `miner.lua`.
+- `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
+- `remove <id>` removes a worker once its lease has closed.
+- `start` and `stop` control planning. An already sent batch finishes after stop.
+
+Adding a worker sends a recovery park lease. Startup also sends each saved worker
+one recovery park lease before planning. Reports supply the real journal pose,
+inventory, fuel, and dug cells. The planner maps these facts through the worker's
+frame. It keeps reservations under `mine:<id>`. Every entered, inspected, sealed,
+or dug cell must pass the range check and reservation check before dispatch.
+Lost and expired workers retain their reservations until a recovery report.
+The screen shows each worker's state, pose, fuel, ore count, and last error.
+Lost workers and workers outside their proven radio range appear in red.
+
+Work uses batches of at most 16 steps. Inspect, dig, and movement have separate
+report boundaries. A failed dig cannot authorize movement. Thorough mode checks
+branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
+`c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
+It scoops lava sources with an empty bucket before trying sealing blocks.
+It seals other lava and water before movement. Extra junk drops at the current
+position about every ten digs. One stack of suitable blocks stays for sealing.
+
+Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
+below the distance home plus 64 visit a fuel drop and refuel towards 2000.
+Trips return to the position where work stopped. Trips route around their chest. Full inventories unload before a fuel pickup.
+Ore unloading includes mined fuel items. Front drops use a free neighbour
+at the same height. Down drops use the cell above the chest. The drop module's
+numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
+-1, and `minecraft:the_end` as 1. Other dimensions wait with an alert.
+No usable drop point parks the worker with the drop module's hold alert.
+
+The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
+`{ level, branch, done }` through `SO.mods.state.emit` when available.
+`so-mine-plan.lua` owns the pure movement decisions, geometry, ore recognition,
+and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a batch
+description without network, storage, or server calls. `row.pose` and `row.goal`
+are world poses. `lookup(cell)` returns nil for unknown, false for air, or block
+data. The caller reserves `cells` before sending `steps` and applies the actual
+report rather than assuming the returned expected `pose`.
+
 ### cells
 
 SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. All one-cell calls accept an optional last `dim` string, defaulting to `minecraft:overworld`. The same coordinates in different dimensions are separate cells. `who` is a computer id or a lease string.
@@ -315,9 +370,30 @@ SO5 owns this API on `SO.mods.display`.
 
 `display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
-Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, and `generic`.
+Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, and `lumber`.
 
 The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
+
+### lumber
+
+`SO.mods.lumber` plans a tree farm for one paired worker with an axe. It is stopped until the operator configures it and sends `start`. It uses `so-plan.lua` and the pure helpers in `so-lumber-plan.lua`.
+
+The `lumber` display accepts these text commands:
+
+- `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
+- `saplings <x> <y> <z> <front|down>` sets the turtle access cell for the sapling chest.
+- `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
+- `start` begins work. `stop` parks after the current lease reports.
+
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart recovers the worker with a park lease before continuing from its reported pose.
+
+The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
+
+Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
+
+An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. Saplings stay in the turtle. A `hold` result parks and raises an alert. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned.
+
+The screen shows state, logs delivered, saplings carried, known and planted spots, fuel, and the last alert. Lost workers and range failures appear in red. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 

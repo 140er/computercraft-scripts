@@ -1,0 +1,140 @@
+local P = dofile("so-plan.lua")
+local M = {}
+local junk, keep = {}, {}
+for name in ("cobblestone cobbled_deepslate stone deepslate granite diorite andesite tuff calcite dirt coarse_dirt rooted_dirt grass_block mud gravel sand red_sand sandstone netherrack basalt smooth_basalt blackstone dripstone_block pointed_dripstone flint clay_ball moss_block mossy_cobblestone soul_sand soul_soil end_stone amethyst_shard infested_stone infested_deepslate"):gmatch("%S+") do junk["minecraft:" .. name] = true end
+for name in ("diamond emerald lapis_lazuli redstone coal charcoal coal_block quartz ancient_debris netherite_scrap gold_nugget bucket lava_bucket water_bucket torch"):gmatch("%S+") do keep["minecraft:" .. name] = true end
+M.ores = { diamond = true, redstone = true, gold = true, lapis = true, iron = true, copper = true, coal = true }
+function M.key(p) return p.x .. "," .. p.y .. "," .. p.z end
+function M.same(a, b) return a.x == b.x and a.y == b.y and a.z == b.z end
+function M.ore(d)
+  if not d or type(d.name) ~= "string" then return false end
+  if d.name:match("_ore$") or d.name:find(":raw_", 1, true) or d.name:find(":ore_", 1, true) then return true end
+  for tag, yes in pairs(d.tags or {}) do
+    if yes and (tag == "c:ores" or tag == "forge:ores" or tag:match("^c:ores/") or tag:match("^forge:ores/")) then return true end
+  end
+  return false
+end
+function M.junk(d)
+  if junk[d.name] then return true end
+  for _, part in ipairs({ "sandstone", "terracotta", "cobble" }) do if d.name:find(part, 1, true) then return true end end
+  if keep[d.name] or M.ore(d) or P.fuelValue(d.name) > 0 then return false end
+  for tag in pairs(d.tags or {}) do
+    if tag:match("^[cf]:") or tag:match("^forge:") then
+      for _, part in ipairs({ "ores", "raw_materials", "gems", "dusts" }) do if tag:find(part, 1, true) then return false end end
+    end
+    if tag == "minecraft:coals" then return false end
+  end
+  return true
+end
+function M.distance(a, b) return math.abs(a.x-b.x) + math.abs(a.y-b.y) + math.abs(a.z-b.z) end
+function M.cell(p, dir)
+  local x, y, z = P.ahead(p, dir)
+  return { dim = p.dim, x = x, y = y, z = z }
+end
+function M.turn(p, want)
+  local delta = (want - p.facing) % 4
+  if delta == 0 then return nil end
+  return { op = delta == 3 and "turnLeft" or "turnRight" }
+end
+function M.route(job, branch)
+  local home = job.home
+  local p = P.apply({ dim = job.dim, x = home.x, y = home.y, z = home.z, facing = home.facing }, "forward")
+  local out = { p }
+  p = { dim = job.dim, x = p.x, y = job.bottom, z = p.z, facing = p.facing }
+  out[#out+1] = p
+  local gap = job.mode == "fast" and 2 or 4
+  for _ = 1, (branch + 1) * gap do p = P.apply(p, "forward") out[#out+1] = p end
+  p = P.apply(p, "turnRight")
+  for _ = 1, job.length do p = P.apply(p, "forward") out[#out+1] = p end
+  return out
+end
+function M.sealable(item)
+  if not M.junk(item) then return false end
+  if item.name == "minecraft:sand" or item.name == "minecraft:red_sand" or item.name == "minecraft:gravel" then return false end
+  for part in ("diamond emerald raw_ coal redstone lapis quartz flint ingot gem nugget dust shard ball bone string stick torch bucket _ore ore_ gravel concrete_powder seeds pickaxe modem pointed_dripstone"):gmatch("%S+") do
+    if item.name:find(part,1,true) then return false end
+  end
+  return true
+end
+function M.cleanup(inv, all)
+  local steps, kept = {}, false
+  for _, item in ipairs(inv) do
+    if M.junk(item) then
+      if kept or all or not M.sealable(item) then
+        steps[#steps+1] = { op = "select", slot = item.slot }
+        steps[#steps+1] = { op = "dropDown" }
+      else kept = true end
+    end
+    if #steps >= 16 then break end
+  end
+  return steps
+end
+function M.travel(from, goal, point)
+  local function join(waypoints, order)
+    local cells, pose = {}, from
+    for _, waypoint in ipairs(waypoints) do
+      local path = P.path(pose, waypoint, { order = order })
+      for _, cell in ipairs(path.cells) do
+        if M.same(cell, point) then return nil end
+        cells[#cells + 1] = cell
+      end
+      pose = path.pose
+    end
+    return cells
+  end
+  for _, order in ipairs({ "yxz", "yzx", "xyz", "xzy", "zxy", "zyx" }) do
+    local cells = join({ goal }, order)
+    if cells then return cells end
+  end
+  for _, axis in ipairs({ "x", "z", "y" }) do
+    for _, offset in ipairs({ 1, -1 }) do
+      local a, b = {}, {}
+      for key, value in pairs(from) do a[key] = value end
+      for key, value in pairs(goal) do b[key] = value end
+      a[axis], b[axis] = from[axis] + offset, from[axis] + offset
+      local cells = join({ a, b, goal }, "yxz")
+      if cells then return cells end
+    end
+  end
+end
+function M.next(job, row, lookup, inv, fuel)
+  local p, goal = row.pose, row.goal
+  local out = { steps = {}, cells = {}, pose = p }
+  if not goal or M.same(p, goal) then out.kind = "arrived" return out end
+  if row.trip then
+    local route = M.travel(p, goal, row.trip.point)
+    if not route or not route[1] then out.kind, out.error = "hold", "no route around drop" return out end
+    goal = route[1]
+  end
+  local dir, want
+  if p.y ~= goal.y then dir = goal.y > p.y and "up" or "down"
+  elseif p.x ~= goal.x then dir, want = "forward", goal.x > p.x and 1 or 3
+  else dir, want = "forward", goal.z > p.z and 2 or 0 end
+  local turn = want and M.turn(p, want)
+  if turn then out.steps = { turn } out.pose = P.apply(p, turn.op) out.kind = "turn" return out end
+  local cell = M.cell(p, dir)
+  local known = lookup(cell)
+  local suffix = dir == "up" and "Up" or dir == "down" and "Down" or ""
+  out.cells, out.cell = { cell }, cell
+  if known == nil then out.steps, out.kind = { { op = "inspect" .. suffix } }, "inspect"
+  elseif known ~= false then
+    if known.name == "minecraft:lava" or known.name == "minecraft:water" then
+      local selected, scoop
+      if known.name == "minecraft:lava" and known.level == 0 then
+        for _, item in ipairs(inv) do if item.name == "minecraft:bucket" then selected, scoop = item, true break end end
+      end
+      if not selected then for _, item in ipairs(inv) do if M.sealable(item) then selected = item break end end end
+      if selected then
+        out.steps = { { op = "select", slot = selected.slot }, { op = "place" .. suffix } }
+        if scoop then out.steps[#out.steps+1] = { op = "refuel", n = 1 } end
+        out.kind = "seal" return out
+      end
+      out.kind, out.error = "hold", "fluid needs bucket or sealing block"
+    elseif known.name:find("chest", 1, true) or known.name:find("barrel", 1, true)
+        or (known.tags and (known.tags["c:chests"] or known.tags["forge:chests"])) then
+      out.kind, out.error = "hold", "container blocks route"
+    else out.steps, out.kind = { { op = "dig" .. suffix } }, "dig" out.ore = M.ore(known) and known.name or nil end
+  else out.steps, out.kind, out.pose = { { op = dir } }, "move", P.apply(p, dir) end
+  return out
+end
+return M
