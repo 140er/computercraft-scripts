@@ -1,6 +1,6 @@
 CraftOS-PC v2.8.3 sha256 f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
 rom CC:Tweaked 1.112.0
-ref PENDING
+ref fix/roomclient-boot
 exempt none
 
 Late-turtle, no-map, and the hub boot. Not a full role sweep.
