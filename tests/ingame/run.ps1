@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('ssot','nav','mining','warehouse','ar','views')][string]$Scenario = 'ssot',
+    [ValidateSet('ssot','nav','mining','warehouse','ar','views','room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update','soak')][string]$Scenario = 'ssot',
     [string]$Base = 'C:\mc-cc-test\base',
     [string]$Battery = 'C:\Work\gemini-input\p2\turtlebattery-0.3.0.jar',
     [string]$Output = 'C:\Work\gemini-input\p2\evidence\pr1\gateB',
@@ -43,7 +43,8 @@ foreach ($pattern in $patterns) {
 }
 Copy-Item -LiteralPath $Battery -Destination "$TestRoot\mods\turtlebattery-0.3.0.jar"
 Copy-Item 'C:\Work\gemini-input\p2\classicperipherals.toml' "$TestRoot\config\classicperipherals.toml"
-$diskLimit = 8000000
+. "$PSScriptRoot\disk-limit.ps1"
+$diskLimit = $script:GateComputerSpaceLimit
 foreach ($file in @('computercraft-server.toml')) {
     $config = [regex]::Replace([IO.File]::ReadAllText("$Base\config\$file"), 'computer_space_limit\s*=\s*\d+', "computer_space_limit = $diskLimit")
     $limits = @([regex]::Matches($config, 'computer_space_limit\s*=\s*(\d+)') | ForEach-Object { $_.Groups[1].Value })
@@ -204,6 +205,10 @@ function Wait-File([string]$Path) {
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Scenario timeout waiting for $Path."
+}
+if ($Scenario -in @('room','craft','wizard','dropoff','devmode','faults','disk1mb','events','fuzz','update','soak')) {
+    & "$PSScriptRoot\$Scenario.ps1"
+    return
 }
 if ($Scenario -eq 'warehouse') { & "$PSScriptRoot\warehouse.ps1"; return }
 if ($Scenario -eq 'mining') {

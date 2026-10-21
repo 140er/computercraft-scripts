@@ -54,8 +54,10 @@ local function worker()
   local Mine=dofile("mining.lua")
   local nav=dofile("nav.lua").open({pose=home,bounds={min={dim=home.dim,x=-1,y=63,z=-1},max={dim=home.dim,x=12,y=67,z=7}},
     client=client,canExcavate=Mine.excavatable,observe=function()
-      if runtime=="sandbox" then local p=world("pose") return {dim=home.dim,x=p[1],y=p[2],z=p[3]} end
-      local a,b,c=gps.locate(2) if a then return {dim=home.dim,x=math.floor(a+.5),y=math.floor(b+.5),z=math.floor(c+.5)} end
+      if runtime=="sandbox" and not fs.exists("no-gps") then local p=world("pose") return {dim=home.dim,x=p[1],y=p[2],z=p[3]} end
+      if gps and gps.locate then
+        local a,b,c=gps.locate(2) if a then return {dim=home.dim,x=math.floor(a+.5),y=math.floor(b+.5),z=math.floor(c+.5)} end
+      end
     end})
   local ok,why
   for _=1,30 do ok,why=nav.recover() if ok then break end sleep(1) end

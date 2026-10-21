@@ -19,16 +19,18 @@ Cursor-hosted Linux agents cannot run it. They run gate A (`tests/sandbox/run.ps
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\ingame\gateb.ps1 -Ref <branch or refs/pull/N/head>
 ```
 
-- `-Scenario ssot,nav,mining,warehouse` is the default and the only set that can pass.
-- `-Output <dir>` defaults to `C:\Work\gateb-evidence\<stamp>`.
+- The default scenario list is `ssot,nav,mining,warehouse,room,craft,wizard,dropoff,devmode,faults,disk1mb,events,fuzz,update`.
+- Soak is opt-in. A full run that includes the 2 hour soak is `tests\ingame\gateb.ps1 -Ref <branch> -IncludeSoak`. Soak is not part of the default list, so a default run is not PARTIAL for skipping it.
+- `-Output <dir>` defaults to `C:\Work\gateb-evidence\<stamp>`. Each scenario also copies its verdict, logs and screenshots to `docs/evidence/<scenario>/` in the fetched tree.
 - Exit code 0 is `GATES: PASS`, 1 is `GATES: FAIL`, 2 is `GATES: PARTIAL`.
-- `GATES: PARTIAL` means a subset of scenarios ran. It is not a pass. Use it only to debug one scenario.
-- A full run takes about 40 minutes, plus any wait for holds and locks. Start it in the background and poll `SUMMARY.md`.
+- `GATES: PARTIAL` means a subset of the default scenarios ran. It is not a pass. Use it only to debug one scenario.
+- A default run is longer than the old 40 minute ssot, nav, mining and warehouse set. Soak adds about 2 hours and is excluded unless `-IncludeSoak` is set. Start it in the background and poll `SUMMARY.md`.
+- `-DryRun` checks `depth-map.txt` against `docs/testing/gateB-depth.md` and exits before Java, locks or a fetch. Run it from the repo on any host.
 
 ## Reading SUMMARY.md while it runs
 
 The first line is `GATES: RUNNING` until the run ends. The heartbeat line names the time and the current step and is rewritten at every step.
-If the heartbeat is older than 60 minutes, or the PID it names is gone, the run is dead. Report it as a FAIL.
+If the heartbeat is older than 60 minutes, or the PID it names is gone, the run is dead. Report it as a FAIL. A run with `-IncludeSoak` is the exception. Soak's own deadline is 7500 seconds, so use the soak log mtime instead of the 60 minute rule while that scenario is the current step.
 
 ## What the script does
 
@@ -55,7 +57,7 @@ If the ref has `docs/testing/gateB-depth.md`, each `- ` item needs a line in `te
 warehouse | Build the warehouse room in the world.
 ```
 
-The text is the start of the depth item. An item counts as covered only when its mapped scenario passed in this run. An item mapped to a scenario that a subset skipped leaves the run at PARTIAL. Uncovered items go to `depth-not-run.txt` and fail the run.
+The text is the start of the depth item. An item counts as covered only when its mapped scenario passed in this run, or the scenario was not requested. Uncovered items go to `depth-not-run.txt` and fail the run. `H1H2` and `ar` are mapped and are not in the default list, so a default run does not execute them. Request `ar` with an explicit `-Scenario` list. There is no `H1H2` scenario in this runner.
 
 ## Rules
 
