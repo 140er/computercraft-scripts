@@ -64,7 +64,47 @@ try {
     $logged = Get-Content -LiteralPath $log -ErrorAction SilentlyContinue
     if (-not $logged -or -not ($logged -match 'waited')) { throw 'retry returned without logging a wait' }
     Write-Output "PASS gatebd retry waited out a ${downSec}s outage on 127.0.0.1:$port"
+
+    $live = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $live.Start()
+    $livePort = ([Net.IPEndPoint]$live.LocalEndpoint).Port
+    $liveScript = [powershell]::Create()
+    $liveSpace = [runspacefactory]::CreateRunspace()
+    $liveSpace.Open()
+    $liveScript.Runspace = $liveSpace
+    [void]$liveScript.AddScript({
+        param($Listener)
+        $client = $Listener.AcceptTcpClient()
+        try {
+            $stream = $client.GetStream()
+            $buf = New-Object byte[] 512
+            [void]$stream.Read($buf, 0, $buf.Length)
+            $body = '{"ok":true,"hold":false}'
+            $payload = [Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n$body")
+            $stream.Write($payload, 0, $payload.Length)
+        } finally { $client.Close(); $Listener.Stop() }
+    }).AddArgument($live)
+    $liveHandle = $liveScript.BeginInvoke()
+    $script:GatebUrl = "http://127.0.0.1:$livePort"
+    $script:GatebToken = 'test-token'
+    $script:rawCalls = 0
+    function Invoke-Gateb {
+        param([string]$Method, [string]$Path, $Body = $null, [string]$OutFile = $null, [switch]$Raw, [switch]$AllowMissing)
+        $script:rawCalls++
+        if ($script:rawCalls -lt 2) { throw 'raw client down' }
+        return @{ via = 'raw'; path = $Path }
+    }
+    Install-GatebRetry (Join-Path $root 'wrap.log')
+    $wrapped = Invoke-Gateb GET '/health'
+    if (-not $wrapped.ok) { throw 'wrapped health call did not return ok' }
+    if ($script:rawCalls -ne 0) { throw 'health retry used the raw client' }
+    $other = Invoke-Gateb GET '/runs/1'
+    if ($other.via -ne 'raw' -or $script:rawCalls -lt 2) { throw 'non-health gatebd call was not retried' }
+    $wrapLog = Get-Content -LiteralPath (Join-Path $root 'wrap.log')
+    if (-not ($wrapLog -match 'waited')) { throw 'wrapped retry did not log the wait' }
+    Write-Output 'PASS wrapped gatebd calls retry, and health uses the short client'
 } finally {
+    if ($liveScript) { $liveScript.Stop(); $liveSpace.Close(); $liveScript.Dispose() }
     $server.Stop()
     $runspace.Close()
     $server.Dispose()

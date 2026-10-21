@@ -84,7 +84,7 @@ function Invoke-Reclaim([string]$Lock) {
 function Wait-NoHold {
     $deadline = [DateTime]::UtcNow.AddSeconds($LockTimeoutSec)
     while ($true) {
-        $health = Invoke-GatebRetry -Log (Join-Path $Output 'gatebd-wait.log') -Call { Get-GatebHealth }
+        $health = Get-GatebHealth
         $held = (Test-Path $holdFile) -or ($health.PSObject.Properties['hold'] -and $health.hold)
         if (!$held) { return $health }
         if ([DateTime]::UtcNow -gt $deadline) { throw "A gate B hold stayed active for $LockTimeoutSec s." }
@@ -128,6 +128,7 @@ function Exit-OwnLock([string]$Lock) {
 
 try {
     . $Gateb
+    Install-GatebRetry (Join-Path $Output 'gatebd-wait.log')
     Set-Phase 'fetching the ref'
     $src = "$work\src"
     git init -q $src
