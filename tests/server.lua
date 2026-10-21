@@ -1,5 +1,12 @@
 return function(test, equal, read, mocks)
-  local serverCode, updateCode, hubCode = read("server.lua"), read("update.lua"), read("hub.lua")
+  local mainCode = {}
+  for _, path in ipairs({ "install.lua", "update.lua" }) do
+    local baseline = assert(io.popen("git show main:" .. path, "r"))
+    mainCode[path] = baseline:read("*a")
+    assert(baseline:close(), "git show main:" .. path .. " failed")
+    assert(#mainCode[path] > 0, "empty baseline for " .. path)
+  end
+  local serverCode, updateCode, hubCode = read("server.lua"), mainCode["update.lua"], read("hub.lua")
   local function decode(s) return assert(load("return " .. s, "=mock", "t", {}))() end
   local function hashOf(s)
     local h = 5381
@@ -534,7 +541,7 @@ return function(test, equal, read, mocks)
 
   local hosted = assert(load("return " .. assert(serverCode:match("local FILES = (%b{})")), "=files"))()
   local repo = {}
-  for _, f in ipairs(hosted) do repo[f] = read(f) end
+  for _, f in ipairs(hosted) do repo[f] = mainCode[f] or read(f) end
   local function downloads(m, files)
     m.downloads = 0
     m.env.http = { get = function(url)
