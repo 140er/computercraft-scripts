@@ -190,6 +190,25 @@ S.forget = function(x, y, z, dim)
   return true
 end
 
+S.list = function(who, max)
+  local out = {}
+  max = max or 256
+  for key, held in pairs(S.reservations) do
+    if #out >= max then break end
+    if held == who then
+      local dim, sx, sy, sz, index = key:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+):(%d+)$")
+      if dim then
+        dim = dim:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
+        index = tonumber(index)
+        out[#out + 1] = { dim = dim, x = tonumber(sx) * 16 + index % 16,
+          y = tonumber(sy) * 16 + math.floor(index / 16) % 16,
+          z = tonumber(sz) * 16 + math.floor(index / 256) }
+      end
+    end
+  end
+  return out
+end
+
 S.counts = function()
   local reserved = {}
   for _, who in pairs(S.reservations) do reserved[who] = (reserved[who] or 0) + 1 S.pause() end
@@ -282,5 +301,5 @@ return {
   reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
   releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner,
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
-  markDug = S.markDug, isDug = S.isDug, forget = S.forget, counts = S.counts,
+  markDug = S.markDug, isDug = S.isDug, forget = S.forget, counts = S.counts, list = S.list,
 }
