@@ -334,7 +334,8 @@ function M.open(cfg)
     problems=problems or dofile("problems.lua")
     local pose=nav.pose()
     local distance,why=nav.homeCost(cfg.home)
-    if distance==false then return nil,"no home route: "..tostring(why) end
+    if distance==false and pose.conf~="lost" and pose.conf~="suspect" then return nil,"no home route: "..tostring(why) end
+    if distance==false then distance=nil end
     local found,info=turtle.inspect()
     local detected=turtle.detect()
     local slots={}

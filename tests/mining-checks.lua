@@ -1,5 +1,6 @@
 return function(test,mocks)
-  local function fixture(crash,service)
+  local function fixture(crash,service,opts)
+    opts=opts or {}
     local m=mocks.miner({home={x=1,y=65,z=0},facing=2})
     local e=m.env
     e.dofile=function(path) return assert(loadfile(path,"t",e))() end
@@ -17,7 +18,7 @@ return function(test,mocks)
     local home=p(1,65,0)
     assert(call("mine-config",{zone={min=p(0,64,1),max=p(3,66,5),spacing=4}}).ok)
     local Mine=e.dofile("mining.lua")
-    local nc={pose=home,bounds={min=p(-1,63,-1),max=p(4,67,6)},
+    local nc={pose=home,bounds={min=p(-1,63,-1),max=p(4,67,6)},gpsFree=opts.gpsFree==true,
       client={resync=function(q) return call("sync",{pose=q}).ok end,move=function(from,to,execute)
         local g=assert(call("reserve",{pose=from,to=to})) assert(g.ok,g.error)
         local fields={pose=from,to=to,token=g.token,epoch=g.epoch}
@@ -27,8 +28,14 @@ return function(test,mocks)
         return ok,why
       end},
       observe=function() return p(m.pos.x,m.pos.y,m.pos.z) end,canExcavate=Mine.excavatable}
-    local nav=e.dofile("nav.lua").open(nc) assert(nav.recover())
-    local cfg={nav=nav,client={call=call},home=home,service=service,checkpoint=function(point)
+    local nav=e.dofile("nav.lua").open(nc)
+    if opts.gpsFree then
+      nav.recover()
+      assert(nav.anchor({x=home.x,y=home.y,z=home.z,h=home.h,dim=home.dim,src="typed",frame="abs",yAbs=true}))
+    else
+      assert(nav.recover())
+    end
+    local cfg={nav=nav,client={call=call},home=home,service=service,autonomy=opts.autonomy==true,checkpoint=function(point)
       if crash and point==crash then crash=nil error("test crash "..point) end
     end}
     local miner=Mine.open(cfg)
@@ -183,5 +190,37 @@ return function(test,mocks)
       if sleep then sleep(0) end
     end
     error("miner worker did not complete")
+  end)
+  test("autonomy walks gravel and water home through mining and does not dig",function()
+    for _,name in ipairs({"minecraft:gravel","minecraft:water","minecraft:lava"}) do
+      local m,mine=fixture(nil,nil,{gpsFree=true,autonomy=true})
+      m.world["1,65,1"]=name
+      assert(mine.start(),name)
+      assert(mine.tick(),name)
+      assert(mine.state().phase=="return",name.." stayed in "..tostring(mine.state().phase))
+      assert(m.world["1,65,1"]==name,name.." was dug")
+    end
+  end)
+  test("autonomy sends a full inventory and a short fuel reserve home through mining",function()
+    local full,mine=fixture(nil,nil,{gpsFree=true,autonomy=true})
+    for slot=1,16 do full.inventory[slot]={name="minecraft:cobblestone",count=64} end
+    assert(mine.start())
+    assert(mine.tick())
+    assert(mine.state().phase=="return")
+    local dry,dryMine=fixture(nil,nil,{gpsFree=true,autonomy=true})
+    dry.fuel=1
+    assert(dryMine.start())
+    assert(dryMine.tick())
+    assert(dryMine.state().phase=="return")
+  end)
+  test("a lost pose digs nothing through mining",function()
+    local m,mine,_,home,nav=fixture(nil,nil,{gpsFree=true,autonomy=true})
+    nav.hear("$anchor 99",{x=home.x,y=home.y+1,z=home.z,dim="minecraft:the_nether"})
+    assert(nav.pose().conf=="lost")
+    m.world["1,65,1"]="minecraft:gravel"
+    assert(mine.start())
+    assert(mine.tick())
+    assert(m.world["1,65,1"]=="minecraft:gravel")
+    assert(m.pos.x==home.x and m.pos.z==home.z)
   end)
 end
