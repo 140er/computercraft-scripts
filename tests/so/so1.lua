@@ -5,6 +5,30 @@ local SERVER = {
   "so-proto.lua", "so-pair.lua", "so-store.lua", "so-server.lua", "so-log.lua",
   "so-mod-state.lua", "so-mod-cells.lua", "so-mod-display.lua", "so-mod-drops.lua",
 }
+local LIB = {
+  "lib/ccryptolib/x25519.lua",
+  "lib/ccryptolib/random.lua",
+  "lib/ccryptolib/blake3.lua",
+  "lib/ccryptolib/chacha20.lua",
+  "lib/ccryptolib/config.lua",
+  "lib/ccryptolib/internal/util.lua",
+  "lib/ccryptolib/internal/hw.lua",
+  "lib/ccryptolib/internal/curve25519.lua",
+  "lib/ccryptolib/internal/fp.lua",
+  "lib/ccryptolib/internal/edwards25519.lua",
+  "lib/ccryptolib/internal/packing.lua",
+}
+
+local function lay(machine, paths)
+  machine.install(paths)
+  for i = 1, #LIB do
+    local path = LIB[i]
+    local handle = assert(io.open(path, "rb"))
+    local data = handle:read("*a")
+    handle:close()
+    machine.files[path] = data
+  end
+end
 
 local PREAMBLE = [[
 SO = { mods = {} }
@@ -75,7 +99,7 @@ return function(test, equal)
   test("restart after 5000 events restores the same state", function()
     local net = harness.new()
     local machine = net.machine({ id = 1, capacity = 16000000 })
-    machine.install(MODS)
+    lay(machine, MODS)
     machine.spawn(PREAMBLE .. [[
       local i = 1
       while i <= 5000 do
@@ -115,7 +139,7 @@ return function(test, equal)
     assert(biggest <= 65536, "segment " .. biggest)
 
     local restarted = net.machine({ id = 9, capacity = 16000000 })
-    restarted.install(MODS)
+    lay(restarted, MODS)
     copyDisk(machine, restarted)
     restarted.spawn(PREAMBLE .. SHOT .. "\nDONE = true\n")
     net.flush()
@@ -127,7 +151,7 @@ return function(test, equal)
   test("a killed segment write loses only the event in that write", function()
     local net = harness.new()
     local machine = net.machine({ id = 1, capacity = 16000000 })
-    machine.install(MODS)
+    lay(machine, MODS)
     machine.spawn(PREAMBLE .. [[
       local i = 1
       while i <= 30 do
@@ -163,7 +187,7 @@ return function(test, equal)
     equal(machine.env.state.view().rev, 30)
 
     local restarted = net.machine({ id = 6, capacity = 16000000 })
-    restarted.install(MODS)
+    lay(restarted, MODS)
     copyDisk(machine, restarted)
     restarted.spawn(PREAMBLE .. [[
       KEPT = state.get("k")
@@ -183,7 +207,7 @@ return function(test, equal)
   test("disk at 80 percent raises the disk alert and refuses a new job", function()
     local net = harness.new()
     local machine = net.machine({ id = 1, capacity = 200000 })
-    machine.install(MODS)
+    lay(machine, MODS)
     machine.spawn(PREAMBLE .. "\nDONE = true\n")
     net.flush()
     assert(not machine.error, tostring(machine.error))
@@ -225,7 +249,7 @@ return function(test, equal)
   test("a subscriber gets increasing revs and at most 2 frames per second", function()
     local net = harness.new()
     local machine = net.machine({ id = 1, capacity = 16000000 })
-    machine.install(MODS)
+    lay(machine, MODS)
     machine.spawn(PREAMBLE .. [[
       got = {}
       state.view.sub({ name = "log", notify = function(frame) got[#got + 1] = frame end })
@@ -280,7 +304,7 @@ return function(test, equal)
   test("history pages move forward and the raw log stays within its caps", function()
     local net = harness.new()
     local machine = net.machine({ id = 1, capacity = 16000000 })
-    machine.install(MODS)
+    lay(machine, MODS)
     local blob = string.rep("a", 20000)
     machine.spawn(PREAMBLE .. string.format([[
       local blob = %q
@@ -314,7 +338,7 @@ return function(test, equal)
     assert(hasSnap(machine.files), "fold did not write a snapshot")
 
     local restarted = net.machine({ id = 7, capacity = 16000000 })
-    restarted.install(MODS)
+    lay(restarted, MODS)
     copyDisk(machine, restarted)
     restarted.spawn(PREAMBLE .. "\nLAST = state.get(\"b\")\nREV = state.view().rev\nDONE = true\n")
     net.flush()
@@ -323,7 +347,7 @@ return function(test, equal)
     equal(restarted.env.LAST, blob .. "80")
 
     local paging = net.machine({ id = 8, capacity = 16000000 })
-    paging.install(MODS)
+    lay(paging, MODS)
     paging.spawn(PREAMBLE .. [[
       local i = 1
       while i <= 55 do
@@ -355,13 +379,16 @@ return function(test, equal)
   test("a paired machine keeps its fingerprint and pose across a server restart", function()
     local net = harness.new()
     local server = net.machine({ id = 1, capacity = 16000000, modem = true })
-    server.install(SERVER)
+    lay(server, SERVER)
     server.boot("so-server.lua")
     net.flush()
     assert(server.alive(), tostring(server.error))
+    server.env.os.queueEvent("key", 25, false)
+    net.flush()
+    assert(not server.error, tostring(server.error))
     local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
     local client = net.machine({ id = 2, capacity = 1000000, modem = true })
-    client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    lay(client, { "so-proto.lua", "so-pair.lua", "so-store.lua" })
     client.spawn(string.format(JOIN, code))
     net.flush()
     assert(not client.error, tostring(client.error))
@@ -380,7 +407,7 @@ return function(test, equal)
     assert(server.env.SO.mods.state.get("n") == nil, "shallow view wrote through")
 
     local server2 = net.machine({ id = 11, capacity = 16000000, modem = true })
-    server2.install(SERVER)
+    lay(server2, SERVER)
     copyDisk(server, server2)
     server2.boot("so-server.lua")
     net.flush()
