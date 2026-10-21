@@ -164,7 +164,7 @@ try {
     if ($Scenario -eq 'ar') { $roles = @('server','turtle1','turtle2','turtle3','controller','hub') }
     $sourceProof=@()
     $viewsNetwork=Get-Random -Minimum 100000 -Maximum 2000000000
-    $bundleNames=@('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua')
+    $bundleNames=@('ssot-runtime.lua','ssot-checks.lua','ssot-client-checks.lua','ssot-storage.lua','miner-ssot-checks.lua','mocks.lua','nav-checks.lua','nav-fixture.lua','miner-nav-checks.lua','mining-runtime.lua','mining-checks.lua','mining-fixture.lua','mining-unit.lua','warehouse-unit.lua','warehouse-checks.lua','warehouse-fixture.lua','warehouse-runtime.lua','gate-disk.lua')
     for ($id = 0; $id -lt $roles.Count; $id++) {
         $disk = Join-Path (Join-Path $run 'computer') "$id"
         New-Item -ItemType Directory -Force -Path $disk | Out-Null
@@ -267,7 +267,7 @@ try {
             Write-SandboxText "$disk\ssot.cfg" '{controllers={["1"]="test-secret-123456",["2"]="test-secret-123456",["3"]="test-secret-123456",["4"]="test-secret-123456",["6"]="test-secret-123456"},leaseMs=30000,maxChunks=8}' $utf8
         }
         $entry = if ($Scenario -eq 'h4a') { 'h4a-driver.lua' } else { 'driver.lua' }
-        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario')" $utf8
+        Write-SandboxText "$disk\startup.lua" "while fs.exists('boot-hold') do sleep(0.1) end; shell.run('$entry', '$Seconds', '$Scenario', '$diskLimit')" $utf8
     }
     Write-Output "Sandbox: local source=$Source seconds=$Seconds scenario=$Scenario standardsMode=true disk=$diskLimit"
     if ($Scenario -eq 'views') { $sourceProof | ConvertTo-Json | Set-Content "$run\source-sha256.json" }

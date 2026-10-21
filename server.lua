@@ -24,7 +24,9 @@ local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lu
   "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
   "views.lua", "view-source.lua", "view-scene.lua", "directview.lua",
   "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua", "dead.lua",
-  "wh2-fleet.lua", "wh2-client.lua", "wh2-dispatch.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-ar.lua", "wh2-dev.lua" }
+  "wh2-fleet.lua", "wh2-client.lua", "wh2-dispatch.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-ar.lua", "wh2-dev.lua",
+  "alpha-boot.lua", "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-ledger.lua",
+  "storage-buffer.lua", "storage-view.lua", "storage-peer.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -135,6 +137,20 @@ if fs.exists("ssot.cfg") then
   ssot = SSOT.open(ssotConfig)
 end
 
+local function adoptPaired()
+  if not ssotConfig then return end
+  pcall(function()
+    if not fs.exists("plug.lua") or not fs.exists("enrol.lua") or not fs.exists("enrol.store") then return end
+    local plug = dofile("plug.lua")
+    local Enrol = dofile("enrol.lua")
+    local store = Enrol.load(fs)
+    if store and plug.adopt(ssotConfig.controllers, store.paired) then
+      writeFile("ssot.cfg", textutils.serialize(ssotConfig, { compact = true }))
+    end
+  end)
+end
+adoptPaired()
+
 local args = { ... }
 local AH = fs.exists("ar-hud.lua") and dofile("ar-hud.lua")
 local arConfig,saveAR
@@ -188,12 +204,15 @@ local function trimStatus(p)
     if type(v) == "string" then t[k] = v:sub(1, 256)
     elseif type(v) == "number" or type(v) == "boolean" then t[k] = v end
   end
-  for _, k in ipairs({ "gps", "pos", "shaft" }) do
+  for _, k in ipairs({ "gps", "pos", "shaft", "pose" }) do
     if type(p[k]) == "table" then
       t[k] = {}
       for _, axis in ipairs({ "x", "y", "z", "bottom" }) do
         if type(p[k][axis]) == "number" then t[k][axis] = p[k][axis] end
       end
+      if type(p[k].dim) == "string" then t[k].dim = p[k].dim:sub(1, 80) end
+      if p[k].conf == "certain" or p[k].conf == "suspect" or p[k].conf == "lost" then t[k].conf = p[k].conf end
+      if type(p[k].src) == "string" then t[k].src = p[k].src:sub(1, 16) end
     end
   end
   if type(p.items) == "table" then
@@ -328,6 +347,48 @@ end
 
 local ar = peripheral.find("ar_controller")
 if ar and not (arConfig and arConfig.enabled) then pcall(function() ar.clear() ar.update() end) end
+local arOwnerNoted, arMissingNoted = false, false
+local function saveSsot()
+  if type(ssotConfig) ~= "table" then return false end
+  local ok, text = pcall(function() return textutils.serialize(ssotConfig, { compact = true }) end)
+  if not ok then return false end
+  return writeFile("ssot.cfg", text)
+end
+local function claimOwner(name, uuid)
+  if not AH or not arConfig or arConfig.enabled == false or not ar or type(ssotConfig) ~= "table" then
+    if AH and arConfig and arConfig.enabled ~= false and ar and not arOwnerNoted then
+      print("AR is on. The owner fills in from the first player or from enrol.")
+      arOwnerNoted = true
+    end
+    return
+  end
+  if type(arConfig.ownerName) == "string" and arConfig.ownerName ~= ""
+    and type(arConfig.ownerUUID) == "string" and arConfig.ownerUUID ~= "" then return end
+  local changed
+  if name ~= nil or uuid ~= nil then changed = AH.adopt(arConfig, ssotConfig, name, uuid)
+  else changed = AH.claim(arConfig, ssotConfig, os.getComputerID(), peripheral.find("player_detector")) end
+  if changed then
+    if saveAR then pcall(saveAR) end
+    saveSsot()
+    print("AR owner is " .. tostring(arConfig.ownerName) .. ".")
+  elseif not arOwnerNoted then
+    print("AR is on. The owner fills in from the first player or from enrol.")
+    arOwnerNoted = true
+  end
+end
+if AH and arConfig and arConfig.enabled ~= false and not ar and not arMissingNoted then
+  print("No AR controller. Goggles stay blank.")
+  arMissingNoted = true
+end
+claimOwner()
+local function adoptOrigin(spot)
+  if not AH or not arConfig or not saveAR then return end
+  if AH.ensureOrigin(arConfig, spot) and pcall(saveAR) then
+    print("AR origin is " .. arConfig.origin.x .. " " .. arConfig.origin.y .. " " .. arConfig.origin.z .. ".")
+  end
+end
+adoptOrigin(state.hub and state.hub.state and state.hub.state.pos)
+local arShift, arLayerArmed = false, nil
 local arHub, arUntil, arDrawn = state.arHub, 0, false
 local enrolled=ssotConfig and ssotConfig.arControllers and ssotConfig.arControllers[tostring(arHub)]
 if not (enrolled and SSOT.arAllowed(ssotConfig,arHub,enrolled.name,enrolled.uuid)) then
@@ -469,6 +530,7 @@ local function request(id, m, fetched, receivedAt)
   if m.type == "ssot" then
     if ssot then
       local r, err = ssot.handle(id, m)
+      if r and r.ok and m.op == "enrol-claim" then adoptPaired() end
       if r and r.ok and m.op=="ar-control" then
         if not SSOT.arAllowed(ssotConfig,id,m.name,m.uuid) then
           r.ok,r.error=false,"AR authorization was revoked"
@@ -579,6 +641,7 @@ local function request(id, m, fetched, receivedAt)
     and type(m.hub.overrides) == "table" and type(m.hub.bores) == "table"
     and type(m.hub.progress) == "table" and type(m.hub.totals) == "table" then
     state.hub = { id = id, state = m.hub, updated = receivedAt }
+    adoptOrigin(m.hub.pos)
     arDirty = true
     local b = bot(id, "hub", "minearmy")
     b.lastSeen = receivedAt
@@ -708,6 +771,7 @@ local function draw3D()
         if cfg[key]~=arConfig[key] then arDirty=true return end
       end
       if not arConfig.enabled then arDirty=true return end
+      cfg.input={keys=true,touch=false,server=false}
       AH.render(device,snapshot,hudMem,cfg,ssotConfig)
     else V.ar(device,fleet,state.view3D~=false and arConfig~=nil and ssotConfig~=nil
       and SSOT.chatAllowed(ssotConfig,arConfig.ownerName,arConfig.ownerUUID),arMem,"Fleet") end
@@ -755,7 +819,7 @@ local function pickScreen()
 end
 local screen, touchable = pickScreen()
 local plannerHost
-if ssot and ssot.plan and ssotConfig and ssotConfig.planner == true and fs.exists("planner-host.lua") then
+if ssot and ssot.plan and ssotConfig and (ssotConfig.planner == nil or ssotConfig.planner == true) and fs.exists("planner-host.lua") then
   local loaded, Host = pcall(dofile, "planner-host.lua")
   if loaded and type(Host) == "table" and type(Host.attach) == "function" then
     local opened, host = pcall(Host.attach, { ssot = ssot, screen = screen, clock = now })
@@ -1113,7 +1177,7 @@ end
 local function network()
   local applicationEvents = { monitor_touch = true, mouse_click = true, mouse_scroll = true,
     char = true, key = true, chat = true, peripheral = true, peripheral_detach = true,
-    monitor_resize = true, term_resize = true }
+    monitor_resize = true, term_resize = true, playerClick = true, redstone = true }
   while true do
     local event = { os.pullEvent() }
     local ev, id, m, proto = table.unpack(event)
@@ -1147,6 +1211,7 @@ local function maintenanceLoop()
   end
 end
 
+local gesture = AH and AH.gestureState()
 local function worker()
   local ticks = 0
   draw()
@@ -1207,15 +1272,34 @@ local function worker()
       elseif (ev == "monitor_touch" or ev == "mouse_click") and not ui.dev then
         if plannerHost then plannerHost.touch(m, proto) draw()
         elseif touch(m, proto) then draw() end
-      elseif ev == "key" and plannerHost and not ui.dev then
-        plannerHost.key(id) draw()
+      elseif ev == "key" and not ui.dev then
+        if keys and (id == keys.leftShift or id == keys.rightShift) then arShift = true
+        else
+          local letter = arShift and not m and AH and keys and type(keys.getName)=="function"
+            and AH.layerKey("key", keys.getName(id), true)
+          if letter and arControls and arControls.key(letter) then
+            arLayerArmed, arDirty = letter, true
+            draw()
+          elseif plannerHost then plannerHost.key(id) draw() end
+        end
+      elseif ev == "key_up" and keys and (id == keys.leftShift or id == keys.rightShift) then
+        arShift = false
       elseif ev == "mouse_scroll" and not ui.dev then
         ui.scroll = ui.scroll + id
         draw()
-      elseif ev=="chat" and arControls and arControls.chat and not ui.dev then
-        arControls.chat:event(ev,id,m,proto,hidden)
-        arDirty=true
+      elseif ev=="chat" and not ui.dev then
+        claimOwner(id, proto)
+        if arControls and arControls.chat then
+          arControls.chat:event(ev,id,m,proto,hidden)
+          arDirty=true
+        end
+      elseif ev=="char" and not ui.dev and arLayerArmed and id==arLayerArmed then
+        arLayerArmed=nil
       elseif ev=="char" and arControls and arControls.key(id) and not ui.dev then
+        arDirty=true
+        draw()
+      elseif gesture and (ev=="playerClick" or ev=="redstone") and arConfig
+        and AH.feed(gesture, ev, id, arConfig, ssotConfig, function(letter) return arControls and arControls.key(letter) end) then
         arDirty=true
         draw()
       elseif ev == "char" and id == "d" and wh2 and not ui.dev then
@@ -1228,6 +1312,11 @@ local function worker()
       elseif ev == "peripheral" or ev == "peripheral_detach" then
         local prev = ar
         ar = peripheral.find("ar_controller")
+        if not ar and AH and arConfig and arConfig.enabled ~= false and not arMissingNoted then
+          print("No AR controller. Goggles stay blank.")
+          arMissingNoted = true
+        end
+        claimOwner()
         if prev and (not ar or peripheral.getName(prev) ~= peripheral.getName(ar)) then
           pcall(clearAR,prev)
           arDrawn, arMem.drawn = false, nil
@@ -1320,6 +1409,22 @@ local function fleetDevLoop()
       if not ok then note(tostring(err)) end
       draw()
     end
+  end
+end
+local alphaBoot
+if fs.exists("alpha-boot.lua") then
+  local okBoot, boot = pcall(dofile, "alpha-boot.lua")
+  if okBoot and type(boot) == "table" and type(boot.server) == "function" then
+    local ran, result = pcall(boot.server, {
+      ar = ar,
+      enabled = arConfig and arConfig.enabled,
+      noted = arMissingNoted,
+      cfg = ssotConfig or {},
+      dimension = arConfig and arConfig.dimension,
+    })
+    if ran then alphaBoot = result else print("Alpha features did not start.") end
+  else
+    print("Alpha features did not start.")
   end
 end
 local ok, err = pcall(parallel.waitForAny, network, worker, maintenanceLoop, refresh, fetchRequested, meshLoop, gpuLoop, arLoop, fleetDevLoop)

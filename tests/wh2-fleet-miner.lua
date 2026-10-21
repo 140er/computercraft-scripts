@@ -7,7 +7,7 @@ local function suite(test,read,mocks)
       ssot={enabled=true,server=0,secret="test-secret-123456",dimension=dim},
       nav={enabled=true,bounds={min={dim=dim,x=-2,y=63,z=-2},max={dim=dim,x=5,y=67,z=6}}},
       mining={enabled=false,home=home},wh2={enabled=true}}
-    if opted==false then cfg.wh2=nil end
+    if opted==false then cfg.wh2=nil cfg.nav.gpsFree=nil else cfg.nav.gpsFree=false end
     local m=mocks.miner(cfg)
     local e=m.env
     local now,revision,counter,epoch=10000,1,0,1
@@ -177,9 +177,10 @@ local function suite(test,read,mocks)
     return f
   end
 
-  test("fleet opt-in defaults off and does not load the fleet client",function()
+  test("fleet opt-in defaults on and does not rewrite a config that left wh2 out",function()
     local f=fixture(nil,false)
-    assert(not f.app.C.fleetOptIn and f.app.cfg.wh2.enabled==false and not f.app.C.fleet)
+    assert(f.app.C.fleetOptIn and f.app.cfg.wh2==nil)
+    assert(f.app.cfg.nav.gpsFree==nil)
     assert(f.e.textutils.unserialize(f.m.files["miner.cfg"]).wh2==nil,"startup rewrote local setup")
   end)
   test("fleet boot mines with remote settings and preserves ESTOP across refresh",function()

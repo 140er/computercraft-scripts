@@ -30,6 +30,14 @@ return function(test, equal)
   local D = "abs|minecraft:overworld|4|4|-2"
   local E = "abs|minecraft:overworld|0|4|-2"
 
+  test("an omitted storage flag starts the ledger", function()
+    local _, fs = disk(1000000, 0)
+    local created, err = Host.create({ fs = fs })
+    assert(created, err)
+    assert(created.enabled == true)
+    assert(Host.lines(created)[1] ~= "Storage ledger is off.")
+  end)
+
   test("storage ledger stays off until enabled", function()
     local full = host(1000000, 1000000, false, 1)
     equal(Host.admit(full, "scan"), { ok = true })

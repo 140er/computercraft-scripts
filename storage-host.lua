@@ -14,7 +14,7 @@ function M.create(opts)
   local policy, err = Ledger.parsePolicy(opts.policy or Ledger.defaults())
   if not policy then return nil, err end
   return {
-    enabled = opts.enabled == true,
+    enabled = opts.enabled == nil or opts.enabled == true,
     policy = policy,
     fs = opts.fs or {
       getCapacity = function() return "unlimited" end,

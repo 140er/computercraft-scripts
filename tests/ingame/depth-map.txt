@@ -1,0 +1,35 @@
+ssot | Disposable server under a fresh root (`C:\Work\mc-<pr>-<random>`), real
+ssot | Hold `C:\Work\gemini-input\p2\gateB.lock` while the server or the shared
+ssot | Use the real client for screenshots (F2) and video.
+ssot | Run several turtles at once, not one.
+ssot | Server log and CC logs.
+ssot | At least one real video clip per PR of its main flow.
+warehouse | Turtle unloaded and chunk unload.
+warehouse | Two requests at once.
+warehouse | Before and after item counts, read through RCON or inventory APIs, in a
+
+# No ssot, nav, mining, or warehouse scenario runs these items.
+# Build the warehouse room in the world. Test several sizes, including one
+# Use real quantities: full stacks, partial stacks and mixed modded items.
+# Sorting and smelting: dump a mixed mining load (ores, raw metals, food,
+# Crafting: request stained glass panes from sand and dye on the board.
+# Wizard: add a modded ore the system does not know. Answer the prompt on
+# Miner drop-off: a miner fills its inventory and delivers to the drop-off
+# Dev mode: toggle auto-charge and auto drop-off live, per turtle and
+# AR: the glasses show the shared positions and state from the server.
+# Full chests.
+# No fuel (turtle and furnace).
+# Furnace removed mid-job.
+# Server restart mid-craft and mid-smelt.
+# Two layout uploads by one operator to different fields. Reboot and resume
+# Crash after outbox save, after transmit, and after server commit. The client
+# Power loss at the charger.
+# Attacker: replayed request, captured secret, faked sender id, a fake server
+# Disk (H4, approved 2026-10-20): the real limits. Run once with a 1,000,000-byte server disk and
+# Event loss: a rednet burst during a save and during an HTTP call. No request
+# Faults: a commit lost after a real move, the GPS host down, an ender modem
+# Validator fuzzing: random and malformed messages against every validator.
+# Updates: version skew between server and clients, and an update
+# Soak: at least 2 hours with 4 turtles, logging save time and state size over
+# Real F2 screenshots of the room, the board and the wizard.
+# Failed attempts stay in the evidence with what went wrong.

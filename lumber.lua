@@ -148,8 +148,20 @@ end
 if not turtle then error("lumber.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
 if not cfg then
-  print("Not set up yet. First: lumber setup [radius]")
-  return
+  local found = false
+  for _ = 1, 4 do
+    turtle.turnLeft() turtle.turnLeft()
+    local ok, info = turtle.inspect()
+    turtle.turnLeft() turtle.turnLeft()
+    if ok and isChest(info) then found = true break end
+    turtle.turnRight()
+  end
+  if not found then print("WARNING: no chest found next to the turtle!") end
+  saveTable(CFG_FILE, { radius = RADIUS })
+  local h = fs.open("startup.lua", "w")
+  h.write('shell.run("lumber")\n')
+  h.close()
+  cfg = { radius = RADIUS }
 end
 local R = cfg.radius or RADIUS
 

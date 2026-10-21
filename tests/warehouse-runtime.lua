@@ -1,11 +1,11 @@
-local runtime=...
+local runtime, _, diskText = ...
 local id=os.getComputerID()
 if fs.exists("sandbox-result.json") then
   local h=assert(fs.open("sandbox-result.json","r")) local r=textutils.unserializeJSON(h.readAll()) h.close()
   if r and r.ok then while true do sleep(1) end end
 end
 local A,F=dofile("atomic.lua"),dofile("warehouse-fixture.lua")
-assert(fs.getCapacity("/")==1000000,"warehouse requires a one-megabyte disk")
+dofile("gate-disk.lua")(diskText)
 local client=dofile("ssot-client.lua").new({server=0,secret="test-secret-123456",timeout=3})
 local messages,pending,serial,published={}, {},0,{}
 local send=rednet.send

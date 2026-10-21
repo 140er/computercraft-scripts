@@ -6,7 +6,8 @@
 -- tells you what to build around it, checks what it can, asks the few numbers it
 -- needs (with GPS it fills in the coordinates) and runs the setup commands for you.
 --
---   install              the guided installer (it saves itself, so this works later too)
+--   install              the role installer (it saves itself, so this works later too)
+--   install classic      the old guided menu
 --   install <bot>        straight to that bot's guided setup
 --   install <bot> quick  only download the files, no questions
 -- Keys: arrows / Tab to move, Enter to press, Backspace = back. Or tap / click.
@@ -349,7 +350,7 @@ end
 
 local BOTS = {
   { id = "miner", name = "Mining turtle", hint = "Mine Army: digs ore for the hub", on = "turtle",
-    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "miner" },
+    files = { "miner.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "view-source.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "plug.lua" }, start = { "miner" },
     steps = join({
       { say = "Build this around the turtle:\n\n* A mining turtle (pickaxe) with a wireless or ender modem.\n* A chest next to it: behind it, or to its left or right.\n* Its hole goes IN FRONT of it (facing the chest is fine, it turns around). No hole yet? It digs the start itself and the rest of the shaft on its first trip.\n* 2 lava buckets in the turtle or the chest, and a spare empty bucket in the chest.",
         check = modemCheck },
@@ -409,7 +410,7 @@ local BOTS = {
       { run = function() return { "relay", "install" } end },
     } },
   { id = "roomsorter", name = "Storage Room turtle", hint = "sorts, smelts and fetches in a closed room", on = "turtle",
-    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua" }, start = { "roomsorter" },
+    files = { "roomsorter.lua", "store.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "warehouse-tasks.lua", "warehouse.lua", "plug.lua" }, start = { "roomsorter" },
     steps = {
       { say = "Build a closed room with a flat floor and ceiling (any size and shape), at least 3 high for furnaces. Build an INPUT chest and an OUTPUT chest into its walls, so you can reach them from outside. Best: both at floor height." },
       { say = "Put this turtle on the floor of the room, FACING THE INPUT CHEST, with some coal in it. A wireless modem is optional (for the pocket panel and the order computer).",
@@ -421,7 +422,7 @@ local BOTS = {
       { say = "Last step: put chests or barrels, furnaces / blast furnaces and coal in the input chest. The turtle builds its storage with them." },
     } },
   { id = "roomclient", name = "Storage order computer", hint = "order screen or stock board outside the room", on = "computer",
-    files = { "roomsorter.lua" },
+    files = { "roomsorter.lua", "plug.lua" },
     steps = {
       { ask = "mode", choices = { { "client", "Order screen / prompt" }, { "board", "Stock board on a monitor" } },
         q = "What should this computer be?" },
@@ -439,14 +440,14 @@ local BOTS = {
       { run = function() return { "sorter", "install" } end },
     } },
   { id = "lumber", name = "Lumberjack", hint = "tree farm: fells, replants, brings logs", on = "turtle",
-    files = { "lumber.lua" }, start = { "lumber" },
+    files = { "lumber.lua", "plug.lua" }, start = { "lumber" },
     steps = {
       { say = "Build this:\n\n* A felling turtle (axe), in the open, next to a chest (behind it is best).\n* Lava buckets in that chest as fuel (it never burns its own wood).\n* The space above the turtle free: it flies out through there.\n* A few saplings help it get going (optional).\n* A wireless modem for the pocket panel (optional)." },
       { ask = "radius", kind = "number", default = 48, q = "How far from its chest may it look for trees? (blocks)" },
       { run = function(c) return { "lumber", "setup", c.radius } end },
     } },
   { id = "farmer", name = "Farmer", hint = "crop farm: harvests and replants", on = "turtle",
-    files = { "farmer.lua" }, start = { "farmer" },
+    files = { "farmer.lua", "plug.lua" }, start = { "farmer" },
     steps = {
       { say = "Put the turtle on the ground at one CORNER of the field, at the height of the crops, with a chest BEHIND it. The field lies in front of it. Keep the block above it free. A hoe is best (it tills dried-out dirt)." },
       { say = "Fuel: lava buckets or coal in a chest UNDER the turtle (or in the chest behind it, unless that one is the storage room's input)." },
@@ -469,7 +470,7 @@ local BOTS = {
       { run = function(c) return { "farmer", "seed", c.seed } end, when = function(c) return c.seed ~= "none" end },
     } },
   { id = "lava", name = "Lava runner", hint = "fills buckets, stocks the bots' chests", on = "turtle",
-    files = { "lava.lua" }, start = { "lava" },
+    files = { "lava.lua", "plug.lua" }, start = { "lava" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a wireless or ender modem.\n* A chest BEHIND it with some empty buckets.\n* One lava bucket in it as fuel to start.\n* Lava: a dripstone cauldron farm in a corridor in front of it, and/or a lava pool somewhere.",
         check = modemCheck },
@@ -490,7 +491,7 @@ local BOTS = {
       { run = function(c) return { "lava", "pool", c.px, c.py, c.pz } end, when = function(c) return c.px end },
     }) },
   { id = "builder", name = "Builder", hint = "floors, walls, flat land, torches", on = "turtle",
-    files = { "builder.lua" }, start = { "builder" },
+    files = { "builder.lua", "plug.lua" }, start = { "builder" },
     steps = join({
       { say = "Build this:\n\n* A turtle with a pickaxe (and a wireless modem to order blocks and for the panel).\n* A supply chest next to it. Best: against the outside of the Storage Room's pickup chest, so what it orders lands there.\n* Some fuel in it." },
       { ask = "pos", choices = { { "gps", "GPS, or count from its home" }, { "type", "I'll type its coordinates" } },
@@ -504,7 +505,7 @@ local BOTS = {
       { say = "Give it jobs from the pocket panel (Bots tab, Builder), or type them, e.g.: builder floor x1 y1 z1 x2 y2 z2" },
     }) },
   { id = "buddy", name = "Buddy", hint = "a companion turtle you chat with (AI)", on = "turtle",
-    files = { "buddy.lua" }, start = { "buddy" },
+    files = { "buddy.lua", "plug.lua" }, start = { "buddy" },
     steps = {
       { say = "Buddy needs a language model: your own server (vLLM, Ollama, LM Studio, ...) that the Minecraft server can reach, or xAI's Grok (paid). http must be enabled in the CC config. A Chat Box on it lets you talk in game chat (optional)." },
       { ask = "brain", choices = { { "own", "My own model server" }, { "grok", "xAI Grok" } }, q = "Which brain?" },
@@ -519,7 +520,7 @@ local BOTS = {
       { run = function(c) return { "buddy", "setup", c.bname } end },
     } },
   { id = "factory", name = "Turtle factory", hint = "crafty turtle that builds new miners", on = "turtle",
-    files = { "factory.lua", "miner.lua" }, start = { "factory" },
+    files = { "factory.lua", "miner.lua", "plug.lua" }, start = { "factory" },
     steps = join({
       { say = "Around the factory (a crafty turtle with a wireless modem), outside the Storage Room:\n\n* FRONT: the room's pickup chest.\n* BELOW: a chest of its own for parts and coal.\n* ABOVE: the build spot, open to the sky.\n* A disk drive with a floppy right next to the build spot.\n\nThe Storage Room turtle needs a modem and a crafting table too.",
         check = modemCheck },
@@ -537,7 +538,7 @@ local BOTS = {
       { run = function() return { "factory", "disk" } end },
     }) },
   { id = "gpshost", name = "GPS host", hint = "one of 4 computers for positions + map", on = "computer",
-    files = { "gpshost.lua" },
+    files = { "gpshost.lua", "plug.lua" },
     steps = join({
       { say = "A GPS tower is 4 computers with modems (ender modems are easiest), a few blocks apart, NOT all at the same height and NOT in one line, e.g. an L of three and the fourth 3 higher. Keep the chunk loaded.",
         check = modemCheck },
@@ -545,14 +546,14 @@ local BOTS = {
     start = function(c) return { "gpshost", c.x, c.y, c.z } end,
     done = "Start it now: it saves its position and starts hosting again after every reboot. Do the same on the other three." },
   { id = "server", name = "Fleet server", hint = "fleet state, logs and offline code updates", on = "computer",
-    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua" }, start = { "server" },
+    files = { "server.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "warehouse-tasks.lua", "warehouse.lua", "store.lua", "plug.lua" }, start = { "server" },
     steps = {
       { say = "A dedicated computer with a wireless or ender modem. A monitor is optional. Keep its chunk loaded. No disk drive is needed. With http it caches the scripts from GitHub main; other computers can update through its modem.",
         check = modemCheck },
       { run = function() return { "server", "install" } end },
     } },
   { id = "panel", name = "Pocket panel", hint = "control everything from your pocket", on = "pocket",
-    files = { "panel.lua", "fleetview.lua" }, start = { "panel" },
+    files = { "panel.lua", "fleetview.lua", "plug.lua" }, start = { "panel" },
     steps = {
       { say = "Use an ADVANCED pocket computer with an ender modem (works anywhere) or a wireless modem (within range).",
         check = modemCheck },
@@ -563,17 +564,17 @@ local BOTS = {
     files = { "ar-role.lua", "hub.lua", "fleetview.lua", "ar-hud.lua", "chat-control.lua" },
     start = { "ar-role" },
     steps = {
-      { say = "Attach an ar_controller and link cc_ar goggles. Attach an AP chat_box for chat commands. AR and chat start disabled.",
+      { say = "Attach an ar_controller and link cc_ar goggles. AR turns on when the controller is attached. Chat commands stay off.",
         check = modemCheck },
       { run = function() return { "ar-role", "install" } end },
-      { say = "Use hub ar enable on to enable AR. Use hub chat allow UUID name for each verified player UUID, then hub chat enable on. Public !commands remain visible. AP hides commands prefixed with $." },
+      { say = "The first player, or an enrol record for this computer, becomes the AR owner. No hand-edited ar.cfg or ssot.cfg is required. Use hub chat enable on only if you want chat commands. With the goggles on, use the player detector, or a button on one side of the computer, to cycle the layers." },
     } },
   { id = "vworld", name = "World view", hint = "the hub map view", on = "computer",
     files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "map" },
     steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the map view." } } },
   { id = "pro", name = "Pro hub", hint = "the hub Pro view", on = "computer",
     files = { "hub.lua", "views.lua", "view-source.lua", "view-scene.lua", "directview.lua" }, start = { "hub", "pro" },
-    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view." } } },
+    steps = { { say = "Pair the view with the SSOT server. Configure views.cfg before enabling the Pro view. The bottom row HUD, TRT, ORE, and AIR toggles the AR layers by touch." } } },
   { id = "smartmine", name = "Simple tunnel miner", hint = "the old standalone miner, no hub", on = "turtle",
     files = { "smartmine.lua" },
     steps = {
@@ -585,7 +586,7 @@ local BOTS = {
     start = function(c) return { "smartmine", c.len, c.tunnels, c.gap } end,
     done = "It doesn't start by itself after a reboot: run it again when you want another tunnel." },
   { id = "store", name = "SSOT warehouse turtle", hint = "configured orders, drop poses and charging", on = "turtle",
-    files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua"},
+    files = {"store.lua","atomic.lua","ssot.lua","ssot-client.lua","nav.lua","mine-tasks.lua","warehouse-tasks.lua","warehouse.lua","plug.lua"},
     start = { "store" },
     done = "Run store server, store pose and store bounds. Survey routes and configure sites before store enable.",
     steps = {{say = "Pair this turtle with the SSOT server. Warehouse movement stays disabled until store enable."}} },
@@ -758,12 +759,19 @@ local function reset(ask)
   return true
 end
 
+local classic = args[1] == "classic"
+if classic then table.remove(args, 1) end
+
 local function roleRequested()
+  if classic then return false end
   if args[1] == "role" or args[1] == "roles" then return true end
-  local ok, on = pcall(function()
-    return settings ~= nil and settings.get ~= nil and settings.get("install.roles") == true
+  local ok, value = pcall(function()
+    if settings == nil or settings.get == nil then return nil end
+    return settings.get("install.roles")
   end)
-  return ok and on == true
+  if not ok or value == false then return false end
+  if args[1] == nil and (value == nil or value == true) then return true end
+  return value == true
 end
 
 if roleRequested() and args[1] ~= "reset" then

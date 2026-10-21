@@ -7,8 +7,8 @@ return function(test, read, mocks)
     env.write, env.printError = env.print, env.print
     env.shell = { run = function() return true end }
     env.http = { get = function(url)
-      local name = url:match("/([^/]+)%.lua%?")
-      local code = name and read(name .. ".lua")
+      local name = url:match("heads/[%w%-]+/([^?]+)")
+      local code = name and read(name)
       return code and { readAll = function() return code end, close = function() end }
     end }
     return m, env, assert(load(read("update.lua"), "=update", "t", env))("--module")

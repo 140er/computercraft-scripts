@@ -37,7 +37,7 @@ local function fixture(enabled, width, height, monitor)
   env.term.current = function() return native end
   env.keys = { backspace = 1, escape = 2, enter = 3, up = 4, down = 5 }
   env.settings = { get = function(key, default)
-    assert(key == "wh2.enabled" and default == false)
+    assert(key == "wh2.enabled" and default == true)
     return enabled == nil and default or enabled
   end }
   env.sleep = function() env.os.pullEvent("host_test_tick") end
@@ -130,7 +130,7 @@ local function fixture(enabled, width, height, monitor)
 end
 
 test("disabled host never loads fleet or config and board shows disabled", function()
-  local m = fixture()
+  local m = fixture(false)
   m.env.fs.open = function() error("Disabled host read private config") end
   local host = m.host.open()
   assert(not host.context.enabled and m.factories == 0)

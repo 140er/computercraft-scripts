@@ -202,6 +202,27 @@ end
 
 if not turtle then error("builder.lua only runs on a turtle", 0) end
 local cfg = loadTable(CFG_FILE)
+if not cfg and fs.exists("plug.lua") then
+  local ok, plug = pcall(dofile, "plug.lua")
+  if ok and type(plug) == "table" then
+    local home, how = plug.place({ gps = gps, peripheral = peripheral, rednet = rednet }, function(spec)
+      spec.title = "Builder"
+      return plug.ask(plug.termio(), spec)
+    end, "Builder")
+    local facing
+    local world = how == "discover" or how == "prompt"
+    if home then
+      facing = plug.ask(plug.termio(), {
+        kind = "choice", title = "Builder", question = "Which way does it face?", choices = plug.facings(),
+      })
+    end
+    if not home then home, facing, world = { x = 0, y = 0, z = 0 }, 0, false end
+    if facing then
+      saveTable(CFG_FILE, { home = home, facing = facing, world = world, dump = nil })
+      cfg = loadTable(CFG_FILE)
+    end
+  end
+end
 if not cfg then
   print("Not set up yet. First: builder setup")
   return

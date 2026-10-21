@@ -8,7 +8,7 @@ end
 selected["bundle-manifest.lua"]=true
 local files={}
 for file in pairs(selected) do
-  assert(file:match("^[%w_%-]+%.lua$"),"Invalid role file")
+  assert(file:match("^[%w_%-]+%.lua$") or file:match("^lib/stubs/[%w_%-]+%.lua$"),"Invalid role file")
   files[#files+1]=file
 end
 table.sort(files)

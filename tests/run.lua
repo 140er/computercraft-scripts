@@ -45,6 +45,7 @@ local function authorizeLegacyAR(m)
   end
   m.files["ssot.cfg"] = mocks.encode({ controllers = {}, chatNames = { owner }, chatUUIDs = { [owner] = uuid } })
   m.files["ar.cfg"] = mocks.encode({ enabled = false, ownerName = owner, ownerUUID = uuid })
+  m.files["views.cfg"] = mocks.encode({ enabled = false })
   m.env.dofile = function(path) return assert(load(read(path), "@" .. path, "t", m.env))() end
 end
 local function start(attached, code)
@@ -504,6 +505,7 @@ dofile("tests/a1-unit.lua")(test, equal)
 dofile("tests/t2-planner.lua")
 dofile("tests/b2-checks.lua")(test, equal)
 dofile("tests/h4d-unit.lua")
+dofile("tests/plug-checks.lua")(test, equal)
 
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
