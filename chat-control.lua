@@ -100,11 +100,18 @@ function M.new(cfg, callbacks, auth)
     else return false end
     local args = words(message)
     local action = table.remove(args, 1)
-    if not actions[action] and action ~= "confirm" then return false end
-    local time = now()
     local function reply(text)
       if callbacks.reply then pcall(callbacks.reply, username, text, hidden == true) end
     end
+    if action == "anchor" then
+      if #args ~= 1 then reply("Use $anchor <computer id>") return true, "rejected" end
+      local ok, accepted, detail = pcall(callbacks.execute, "anchor", args, id, username)
+      if not ok then reply("Command failed.") return true, "unavailable" end
+      reply(tostring(detail or (accepted and "Applied." or "Unavailable.")))
+      return true, accepted and "accepted" or "unavailable"
+    end
+    if not actions[action] and action ~= "confirm" then return false end
+    local time = now()
     if action == "confirm" then
       local request = pending[id]
       if not request or #args ~= 1 or args[1] ~= request.token or time > request.expires then

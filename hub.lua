@@ -303,7 +303,7 @@ end
 -- Orders that go through the fleet server (it passes them on, through other bots when a
 -- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
 -- turtle's own question (job, dir, files) go straight back.
-local ROUTED = { go = true, recall = true, update = true, rename = true }
+local ROUTED = { go = true, recall = true, update = true, rename = true, anchor = true }
 if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter
 local viewPending = {}
@@ -1270,10 +1270,16 @@ end
 
 local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
 local hudMem=AH and AH.memory("hub.ar-ids")
-local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+local arControls=AH and AH.controls(arConfig,saveAR,function(action,args,_,username)
   if action=="hub" then
     recallNow()
     return true,"Recall queued; awaiting turtle status."
+  end
+  if action=="anchor" then
+    if not fs.exists("anchor-radio.lua") then return false,"anchor unavailable" end
+    local loaded,Anchor=pcall(dofile,"anchor-radio.lua")
+    if not loaded or type(Anchor)~="table" then return false,"anchor unavailable" end
+    return Anchor.relay(function(id,_,message) send(id,message) end,peripheral.find("player_detector"),username,args,arConfig and arConfig.dimension)
   end
   local ok,why=arAuth.queue("recharge",nil,nil,selected)
   return ok,ok and "Recharge request queued; awaiting server acceptance." or why

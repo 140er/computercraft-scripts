@@ -375,7 +375,7 @@ function H.command(cfg,args,save,authCfg)
   return true,"Saved AR configuration"
 end
 function H.controls(cfg,save,dispatch,notify,authCfg)
-  local function execute(action,args)
+  local function execute(action,args,id,username)
     if action=="pro" or action=="xray" then
       if cfg.enabled~=true then return false,"Enable AR locally first." end
       if action=="xray" and not authorized(cfg,authCfg) then return false,"AR owner is not on the shared chat allowlist." end
@@ -387,7 +387,7 @@ function H.controls(cfg,save,dispatch,notify,authCfg)
       if not ok then cfg[key],cfg.xrayOres=old,ore return false,tostring(err) end
       return true,action.." "..(cfg[key] and "on" or "off")
     end
-    return dispatch(action)
+    return dispatch(action,args,id,username)
   end
   local chat
   if fs.exists("chat-control.lua") then

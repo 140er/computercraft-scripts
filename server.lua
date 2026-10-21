@@ -26,7 +26,7 @@ local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lu
   "planner-ops.lua", "planner-core.lua", "planner-enrol.lua", "planner-settings.lua", "dead.lua",
   "wh2-fleet.lua", "wh2-client.lua", "wh2-dispatch.lua", "wh2-locations.lua", "wh2-program.lua", "wh2-ar.lua", "wh2-dev.lua",
   "alpha-boot.lua", "ar-planner.lua", "strata.lua", "storage-host.lua", "storage-ledger.lua",
-  "storage-buffer.lua", "storage-view.lua", "storage-peer.lua" }
+  "storage-buffer.lua", "storage-view.lua", "storage-peer.lua", "anchor-radio.lua" }
 local BOTS = { minearmy = "miner", lumber = "lumber", farmer = "farmer", lava = "lava",
   builder = "builder", buddy = "buddy", roomsorter = "roomsorter", roomsorter_stock = "roomsorter",
   turtlefactory = "factory" }
@@ -193,6 +193,24 @@ elseif args[1] == "update" then
   if not fs.exists("update.lua") then shell.run("wget", BASE .. "update.lua", "update.lua") end
   shell.run("update")
   return
+elseif args[1] == "pos" then
+  local dim = args[2]
+  local function whole(n, lo, hi)
+    if type(n) ~= "number" or n ~= n or n == math.huge or n == -math.huge then return nil end
+    n = math.floor(n)
+    if n < lo or n > hi then return nil end
+    return n
+  end
+  local x = whole(tonumber(args[3]), -30000000, 30000000)
+  local y = whole(tonumber(args[4]), -2048, 2048)
+  local z = whole(tonumber(args[5]), -30000000, 30000000)
+  if type(dim) ~= "string" or not dim:match("^[%w_]+:[%w_/.-]+$") or not x or not y or not z then
+    print("Usage: server pos <dimension> <x> <y> <z>")
+    return
+  end
+  state.serverPos = { dim = dim, x = x, y = y, z = z }
+  print(save() and ("Server position saved: " .. dim .. " " .. x .. " " .. y .. " " .. z) or "Could not save server position.")
+  return
 end
 
 local function trimStatus(p)
@@ -326,9 +344,11 @@ local V = loadView()
 -- in between, and the other way round. Turtles do the same (see miner.lua).
 local function meshLoop()
   local relayed, count = {}, 0
+  local Anchor = fs.exists("anchor-radio.lua") and dofile("anchor-radio.lua") or nil
   modem.open(rednet.CHANNEL_REPEAT)
   while true do
     local _, side, ch, replyCh, msg = os.pullEvent("modem_message")
+    if Anchor then Anchor.answer(peripheral.wrap(side) or modem, ch, replyCh, msg, state.serverPos) end
     if ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
       and msg.nMessageID>=0 and msg.nMessageID<=2147483647 and msg.nMessageID%1==0
       and type(msg.nRecipient) == "number" and msg.nRecipient>=0 and msg.nRecipient<=2147483647
@@ -726,13 +746,19 @@ local function forgottenList() return state.hub and state.hub.state and state.hu
 
 local arMem = {} -- what the goggles show now (fleetview keeps it, to delete what is gone)
 local hudMem=AH and AH.memory("server.ar-ids")
-local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+local arControls=AH and AH.controls(arConfig,saveAR,function(action,args,_,username)
   if action=="hub" then
     local count=0
     for id,b in pairs(state.bots) do
       if b.kind=="miner" then deliver(id,"minearmy",{type="recall"}) count=count+1 end
     end
     return count>0,"Recall queued for "..count.." turtles; awaiting command acknowledgments."
+  end
+  if action=="anchor" then
+    if not fs.exists("anchor-radio.lua") then return false,"anchor unavailable" end
+    local loaded,Anchor=pcall(dofile,"anchor-radio.lua")
+    if not loaded or type(Anchor)~="table" then return false,"anchor unavailable" end
+    return Anchor.relay(deliver,peripheral.find("player_detector"),username,args,state.serverPos and state.serverPos.dim)
   end
   local ok,result=queueRecharge()
   return ok,ok and ("Recharge queued for "..result.." turtles; awaiting fuel-rise reports.") or result
