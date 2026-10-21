@@ -156,13 +156,55 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 ### state
 
-SO1 owns this API on `SO.mods.state`.
+SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
-`state.emit(key, value)` stores `value` under `key`. `key` is a string. `value` is a value `so-store` can save. The revision grows by 1.
+`state.emit(kind, data)` appends one event and folds it into the current state. `kind` is a string. `data` is a value `so-store` can save. The call returns true, or false and an error string. A false return changes nothing. The revision is the event sequence number. `emit(key, value)` is this same call.
 
-`state.get(key)` returns the stored value, or nil.
+`state.get(key)` returns the last value stored under that key, or nil.
 
-`state.view()` returns `{ rev = number, values = table }`. `values` is a shallow copy of the top table. The stub keeps this in memory only. SO1 saves it.
+`state.get(path)` also walks the machine registry. `machines`, `machines/<id>`, and `machines/<id>/<field>` read the registry. Dots work the same way as slashes.
+
+`state.view()` with no arguments returns `{ rev = number, values = table }`. `values` is a shallow copy of the top key table.
+
+`state.view(name, buildFn)` declares a named view. `buildFn` receives `{ rev, values, machines, jobs }` and returns the view data. The names `fleet`, `log`, `status`, and `turtle/<id>` stay built in.
+
+`state.view.get({ name = string })` returns one frame `{ t = "view.frame", name, rev, at, data }`. `rev` is the event sequence. `at` is utc milliseconds. This frame is in-process. It is not a rednet `view.frame`.
+
+`state.view.sub({ name = string, notify = function })` subscribes to that view. On a change, SO1 calls `notify(frame)`. The frame `rev` is greater than the previous frame for that subscriber. Two frames for one subscriber are at least 500 ms apart, so a subscriber gets at most 2 frames per second. `tick` sends a frame that was held back once the gap has passed.
+
+`state.history.page({ from = number, count = number })` returns `{ entries, next }`. `entries` is `{ seq, at, kind, data }` in ascending `seq`, starting after `from`. Omit `from` to start at the oldest retained event. `count` defaults to 20 and is clamped to 1..50. `next` is the last `seq` in this page when another page exists, and nil on the last page. Pass `next` as `from` to read the following page. `limit` is accepted as an alias of `count`.
+
+`state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
+
+`state.tick(now)` flushes held view frames. `now` is utc milliseconds. The server passes it once a second.
+
+#### Events
+
+Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` starts at 1. `at` is utc milliseconds.
+
+`kind` `machine` merges a registry row. `data` is `{ id, role, fp, seen, fuel, pose }`. `id` is the computer id. Fields left out stay as they were. Missing `seen` becomes the event time. Missing `fp` becomes the sha256 hex of that computer's paired key when the key is known.
+
+`kind` `pose` sets the turtle pose. `data` is `{ id, dim, x, y, z, facing }`.
+
+`kind` `job` appends a job. Any other `kind` stores `data` under that key for `get`.
+
+#### Views
+
+`fleet` is every machine row, sorted by id. Each row is `{ id, role, fp, seen, fuel, pose }`.
+
+`turtle/<id>` is one machine row, or nil when that id is unknown.
+
+`log` is the last 50 retained events, oldest first. Each entry is `{ seq, at, kind, data }`.
+
+`status` is `{ capacity, used, free, ratio, alerts, accepting }`. `ratio` is `used / capacity`. `alerts` contains `"disk"` when `ratio` is 0.8 or more. `accepting` is false in that case.
+
+#### Log files
+
+Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads the newest valid snapshot and applies later segment events. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
+
+When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
+
+SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, and `input`. SO6 owns wire `history.page`.
 
 ### cells
 
@@ -247,7 +289,7 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 
 SO0 owns `so-proto.lua`, `so-pair.lua`, `so-store.lua`, `so-server.lua`, and `tests/so/harness.lua`. It handles `pair`, `hello`, `ack`, and `err`.
 
-SO1 owns `so-mod-state.lua`. It handles no wire types. It owns `state.emit`, `state.get`, and `state.view`.
+SO1 owns `so-mod-state.lua` and `so-log.lua`. It handles no wire types. It owns `state.emit`, `state.get`, `state.view`, `state.job`, and `state.history.page`.
 
 SO2 owns `so-mod-beacon.lua`. It handles `beacon` on the server and writes fuel and journal through `state.emit`.
 
