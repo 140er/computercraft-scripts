@@ -170,6 +170,12 @@ S.run = function()
     else
       key = pair.key(msg.from)
     end
+    if msg.t == "pair" and key and not proto.macOk(key, msg) then
+      local by = sent[msg.from]
+      local slot = by and by[msg.rid]
+      if slot and slot.hs and os.epoch("utc") - slot.at <= memory
+        and proto.macOk(slot.hs, msg) then key = slot.hs end
+    end
     if not key or not proto.macOk(key, msg) then
       if msg.t == "pair" and pair.pending() then
         misses = misses + 1

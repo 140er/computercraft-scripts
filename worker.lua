@@ -12,6 +12,8 @@ local C = {
   rev = { forward = "back", back = "forward", up = "down", down = "up", turnLeft = "turnRight", turnRight = "turnLeft" },
   dx = { [0] = 0, [1] = 1, [2] = 0, [3] = -1 },
   dz = { [0] = -1, [1] = 0, [2] = 1, [3] = 0 },
+  tags = { "c:ores", "forge:ores", "minecraft:logs", "minecraft:leaves",
+    "minecraft:saplings", "minecraft:dirt", "c:chests", "forge:chests" },
   counted = { refuel = true, drop = true, dropDown = true, suck = true, suckDown = true },
 }
 
@@ -194,13 +196,32 @@ W.beacon = function()
     id = os.getComputerID(),
     fuel = W.fuelBeacon(),
     journal = W.journal.id,
+    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
   }))
 end
 
 W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
-  W.transmit(W.server, W.proto.build(key, "step.report", { lease = W.lease, results = results }))
+  local msg = W.proto.build(key, "step.report", {
+    lease = W.lease, results = results,
+    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
+    journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
+  })
+  while not W.proto.encode(msg) do
+    local longest, selected
+    for _, result in ipairs(results) do
+      local tags = result.data and result.data.tags
+      for tag in pairs(tags or {}) do
+        if (tag:match("^c:ores/") or tag:match("^forge:ores/"))
+          and (not longest or #tag > #longest) then longest, selected = tag, tags end
+      end
+    end
+    if not selected then break end
+    selected[longest] = nil
+  end
+  msg.mac = W.proto.sign(key, msg)
+  W.transmit(W.server, msg)
 end
 
 W.transmit = function(id, msg)
@@ -273,6 +294,22 @@ W.exec = function(step)
   if result.ok then
     if type(info) == "table" and type(info.name) == "string" then
       result.data = { name = info.name }
+      if type(info.tags) == "table" then
+        local tags, n = {}, 0
+        for _, tag in ipairs(C.tags) do
+          if info.tags[tag] == true then tags[tag], n = true, n + 1 end
+        end
+        for tag, present in pairs(info.tags) do
+          if present == true and type(tag) == "string" and n < 8
+            and (tag:match("^c:ores/") or tag:match("^forge:ores/")) then
+            tags[tag], n = true, n + 1
+          end
+        end
+        if n > 0 then result.data.tags = tags end
+      end
+      if type(info.state) == "table" and type(info.state.level) == "number" then
+        result.data.level = info.state.level
+      end
     end
     if C.moves[op] then
       W.apply(op)
