@@ -4,7 +4,9 @@ Rednet protocol name is `so`. The server hosts that protocol as `server`. One se
 
 Time is `os.epoch("utc")` in milliseconds. Do not use `os.time` or in-game days.
 
-Every rednet payload is a string from `so-proto.encode`. The string is at most 16384 bytes. A longer string is dropped. The decoded value is one table, the envelope.
+Every rednet payload is the table returned by `so-proto.encode`. `encode` checks the table and returns a copy. `decode` accepts a table and returns nil for anything else. A string payload is dropped. `so-proto.ser` is only the canonical bytes for the MAC.
+
+`rid` is at most 64 characters. `body` is at most 8 tables deep, counting the body table itself. The canonical form of the accepted envelope is at most 16384 bytes. A 1 MB string field or a deeper body is dropped. The server keeps answering later messages.
 
 ```lua
 { v = 1, t = "<type>", rid = "<request id>", from = <computer id>, at = <utc ms>, mac = "<hex>", body = {} }
@@ -20,15 +22,19 @@ The signed bytes are the canonical encoding of `{ v, t, rid, from, at, body }` w
 
 Canonical encoding is a Lua literal. String values use `%q`. Whole numbers use `%d`. Other numbers use `%.17g`. Booleans are `true` and `false`. Table keys are sorted by `type(key) .. ":" .. tostring(key)`. A cycle is an error. Two tables that differ only in key order encode to the same string.
 
-The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with the key derived from the code on screen and the sender id. Any other message is checked with the key saved for `from`. No key is a bad MAC.
+The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code is a bad MAC.
 
-After a good MAC, the server remembers the last 256 `rid` values per `from`. A repeated `rid` is dropped and logged as `so-server: replay from <id>`. The server does not answer. A bad MAC does not enter this window.
+`at` must be within 60000 ms of the receiver's `os.epoch("utc")`. A larger gap is dropped as `so-server: bad message from <id>`.
 
-`so-proto.request(target, t, body, timeout, tries)` sends to `target` and waits for a reply with the same `rid`. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`. The return is the reply envelope, or `nil` and `timeout` or `no key`.
+After a good MAC, the server remembers each `rid` for that `from` for 120000 ms. The window is the age of the rid, not a fixed count of entries. A repeated `rid` with no saved reply is dropped and logged as `so-server: replay from <id>`. The server does not answer. A bad MAC does not enter this window.
+
+The server keeps the encoded reply for each `(from, rid)` for 120000 ms. A later message with that same `from` and `rid` is sent the saved reply again. The handler does not run a second time.
+
+`so-proto.request(target, t, body, timeout, tries)` builds one message and sends that same table, with the same `rid`, on every try. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed, so the caller runs `request` in its own coroutine with `parallel.waitForAny`. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`. The return is the reply envelope, or `nil` and `timeout` or `no key`.
 
 A reply reuses the request `rid`. `from` on the reply is the computer that answered. The first `reply(t, body)` wins. Later calls do nothing.
 
-A payload that is not a string, or an envelope that fails `decode`, is dropped and logged as `so-server: bad message from <id>`. The same line is used when `from` does not match the rednet sender.
+A payload that is not a table, or an envelope that fails `decode`, is dropped and logged as `so-server: bad message from <id>`. The same line is used when `from` does not match the rednet sender.
 
 ## Message types
 
@@ -36,9 +42,11 @@ Send every message below through `so-proto`. Do not add a field here without edi
 
 ### pair
 
-The joining computer sends `pair` to the server. `body` is `{}`. The code is not a field.
+The joining computer sends `pair` to the server. `body.pub` is its X25519 public key, 64 lowercase hex characters. The code is not a field.
 
-The server answers `ack` when the MAC matches the code on its screen. It then clears that code. The same computer may send `pair` again with a new `rid` if it missed the ack. The saved key still verifies. A different computer needs a new code.
+The server answers `ack` when the MAC matches the live code. `body.ok` is `true`. `body.pub` is the server public key, 64 lowercase hex characters. `body.proof` is HMAC-SHA256, keyed by the 6-digit code, over the bytes `so-pair-v2\0`, then the client public key, then the server public key. Those public keys are the raw 32-byte values, not the hex text. `proof` is 64 lowercase hex characters. The server then clears the code.
+
+The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
 
 ### hello
 
@@ -71,6 +79,8 @@ The server sends `err` when no built-in handler and no module handler matches `t
 `body.code` is `unknown`. `body.text` is `unknown type`.
 
 `body.code` is `store` when the server could not save a new pair key. `body.text` is the store error.
+
+`body.code` is `pair` when `body.pub` is not a 32-byte key. `body.text` is `pub`.
 
 ### lease.batch
 
@@ -218,17 +228,34 @@ The SO0 stub returns nil from `pick` and `{}` from `steps`.
 
 ## Pairing and so-keys
 
-`pair.invite(screen)` draws a 6-digit code on `screen` and prints `Pair code: <digits>`. The code includes leading zeros. One successful pair from a new computer clears it.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and prints `Pair code: <digits>`. The code includes leading zeros. It works once and expires after 300000 ms. When it is spent or expired, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
 
-Both sides derive the same key.
+`pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 
 ```text
-sha256("so-pair-v1\0" .. serverId .. "\0" .. clientId .. "\0" .. code)
+sha256("so-pair-hs-v2\0" .. serverId .. "\0" .. clientId .. "\0" .. code)
 ```
 
-`serverId` and `clientId` are the decimal computer ids. The result is stored as 64 lowercase hex characters.
+`serverId` and `clientId` are the decimal computer ids. The result is 64 lowercase hex characters. It is not the stored machine key.
 
-`pair.join(code)` looks up `so` / `server`, sends `pair`, and saves the key after `ack`.
+Each side generates an X25519 key pair. The shared secret is `exchange(ourSecret, theirPublic)`. The stored machine key is sha256 of that 32-byte secret, written as 64 lowercase hex characters. A listener that records every pair message and knows the code cannot compute it.
+
+X25519 comes from ccryptolib, MIT, Copyright (c) 2023 Miguel Oliveira. `lib/ccryptolib/random.lua` is the upstream file except its load-time seed mix, which calls `os.clock` instead of `os.day` and `os.time`. The vendored files are:
+
+- `lib/ccryptolib/LICENSE`
+- `lib/ccryptolib/x25519.lua`
+- `lib/ccryptolib/random.lua`
+- `lib/ccryptolib/blake3.lua`
+- `lib/ccryptolib/chacha20.lua`
+- `lib/ccryptolib/config.lua`
+- `lib/ccryptolib/internal/util.lua`
+- `lib/ccryptolib/internal/hw.lua`
+- `lib/ccryptolib/internal/curve25519.lua`
+- `lib/ccryptolib/internal/fp.lua`
+- `lib/ccryptolib/internal/edwards25519.lua`
+- `lib/ccryptolib/internal/packing.lua`
+
+`pair.join(code)` looks up `so` / `server`, sends `pair`, checks `body.proof`, and saves the machine key after `ack`.
 
 Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<computer id>"] = "<64 hex>" } }`. On the server, the id is the paired machine. On the machine, the id is the server. The file budget is 200000 bytes.
 
