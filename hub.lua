@@ -300,9 +300,7 @@ local function oreFor(id)
   return o or hub.target
 end
 
--- Orders that go through the fleet server (it passes them on, through other bots when a
--- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
--- turtle's own question (job, dir, files) go straight back.
+-- Routed orders go through the fleet server while it answers.
 local ROUTED = { go = true, recall = true, update = true, rename = true, anchor = true }
 if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter
@@ -1275,12 +1273,7 @@ local arControls=AH and AH.controls(arConfig,saveAR,function(action,args,_,usern
     recallNow()
     return true,"Recall queued; awaiting turtle status."
   end
-  if action=="anchor" then
-    if not fs.exists("anchor-radio.lua") then return false,"anchor unavailable" end
-    local loaded,Anchor=pcall(dofile,"anchor-radio.lua")
-    if not loaded or type(Anchor)~="table" then return false,"anchor unavailable" end
-    return Anchor.relay(function(id,_,message) send(id,message) end,peripheral.find("player_detector"),username,args,arConfig and arConfig.dimension)
-  end
+  if action=="anchor" then return dofile("anchor-radio.lua").relay(function(i,_,m) send(i,m) end,peripheral.find("player_detector"),username,args,arConfig and arConfig.dimension) end
   local ok,why=arAuth.queue("recharge",nil,nil,selected)
   return ok,ok and "Recharge request queued; awaiting server acceptance." or why
 end,flash,arAuth.cfg)

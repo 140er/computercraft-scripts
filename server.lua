@@ -19,7 +19,7 @@ local BASE = "https://raw.githubusercontent.com/140er/computercraft-scripts/refs
 local STATE_FILE, CODE_DIR = "server.state", "server-code"
 local FILES = { "miner.lua", "hub.lua", "relay.lua", "smartmine.lua", "sorter.lua", "roomsorter.lua",
   "lumber.lua", "farmer.lua", "lava.lua", "builder.lua", "buddy.lua", "panel.lua", "factory.lua", "gpshost.lua",
-  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua",
+  "server.lua", "install.lua", "update.lua", "fleetview.lua", "atomic.lua", "ssot.lua", "ssot-client.lua", "nav.lua", "mine-tasks.lua", "mining.lua", "problems.lua",
   "warehouse-tasks.lua", "warehouse.lua", "store.lua", "ar-hud.lua", "chat-control.lua", "ar-role.lua",
   "role-adapter.lua", "store-role.lua", "view-role.lua", "bundle-manifest.lua",
   "views.lua", "view-source.lua", "view-scene.lua", "directview.lua",
