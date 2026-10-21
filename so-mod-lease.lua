@@ -123,6 +123,9 @@ S.send = function(id, steps, opts)
     id = tostring(id) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
     owner = opts.owner, pose = S.copyPose(opts.pose), expires = os.epoch("utc") + ms, status = "open",
   }
+  if opts.recover and #steps == 1 and steps[1].op == "inspectDown" then
+    lease.retryAt = os.epoch("utc") + 1000
+  end
   local wire, err = SO.proto.encode(SO.proto.build(key, "lease.batch", {
     lease = lease.id, expires = lease.expires, steps = lease.steps,
   }))
@@ -209,6 +212,15 @@ S.tick = function(now)
       row.open = nil
       lease.status = "expired"
       S.notify(lease, nil)
+    elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
+      lease.retryAt = now + 1000
+      local key = SO.pair.key(lease.turtleId)
+      if key then
+        local wire = SO.proto.encode(SO.proto.build(key, "lease.batch", {
+          lease = lease.id, expires = lease.expires, steps = lease.steps,
+        }))
+        if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
+      end
     end
     count = count + 1
     if count % 64 == 0 then sleep(0) end
