@@ -160,12 +160,18 @@ function Start-TestServer([string]$Label) {
     } while ([DateTime]::UtcNow -lt $deadline)
     throw 'Minecraft boot timeout.'
 }
-function Rcon([string]$Command) {
+. "$PSScriptRoot\turnon-loaded.ps1"
+function Send-Rcon([string]$Command) {
     $response = Invoke-TestRcon $rconPort $password $Command
     $record=$utf8.GetBytes("$([DateTime]::UtcNow.ToString('o')) > $Command`n$response`n")
     $stream=[IO.File]::Open("$Output\rcon.txt",[IO.FileMode]::Append,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
     try {$stream.Write($record,0,$record.Length)} finally {$stream.Dispose()}
     $response
+}
+function Rcon([string]$Command) {
+    Register-GatebComputerPlace $Command
+    if ($Command -match '(^| )computercraft turn-on ') { return Invoke-LoadedTurnOn $Command { param($Sent) Send-Rcon $Sent } }
+    Send-Rcon $Command
 }
 function Stop-TestServer {
     if ($script:process -and !$script:process.HasExited) {
