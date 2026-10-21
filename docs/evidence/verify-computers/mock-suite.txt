@@ -1,0 +1,706 @@
+PASS mock scheduler runs concurrent sleeps without starving slower loops
+PASS mock scheduler cancels timers and preserves independent event filters
+PASS no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+PASS goggles: HUD lines, ore icons, and frames that delete instead of clearing
+PASS fleetview draws teletext pixels with the right colours
+PASS shaft labels are raised, centered and readable with smaller turtle markers
+PASS attach, detach and reattach use peripheral events
+PASS new frames replace old positions and clamp branch width to reach
+PASS local coordinates, old miners and incomplete geometry are handled
+PASS key and dashboard touch toggles persist both states across restart
+PASS turtles at the shaft top need no extra position marker or path
+PASS LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+PASS controller failure stops 3D calls and leaves the dashboard running
+PASS real miner telemetry supplies world shafts and omits local positions
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+PASS world progress belongs to one shaft, including bore jobs and replacement turtles
+PASS legacy role progress stays available only to miners without world shafts
+PASS old miners with world telemetry use their shaft for reports and jobs
+PASS miner sends shaft identity and rejects unscoped progress from an old hub
+PASS a local-coordinate miner still accepts progress from a legacy hub
+PASS dashboard flags duplicate shafts and clears the warning when a claim changes
+PASS startup refuses a moved home even beside a chest and preserves tunnel state
+PASS home verification rounds GPS and allows local setups or unavailable GPS
+PASS GPS resync also checks vertical routes before declaring LOST
+PASS an underground restart may return home with GPS away from home
+PASS a failed turn never advances the saved heading or permits a move
+PASS turnFrom recovers both sides of an interrupted turn from tunnel geometry
+PASS recorded natural seals can be reopened after a reboot without allowing other rock
+PASS seal permission is consumed after digging and does not match a different block
+PASS failed movement after digging does not advance position, including falling blocks
+PASS known routes reject new natural rock during movement and digging retries
+PASS lava sources and flows use seals, while water never goes in the fuel bucket
+PASS lava that cannot be sealed blocks the route without a false LOST
+PASS fuel checkpoint recovers moves interrupted before or after physical movement
+PASS unlimited fuel needs GPS to resolve an interrupted move
+PASS hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS server captures broadcasts, polls legacy bots and persists registry and log
+PASS serialize mock rejects shared tables and cycles
+PASS server refuses to overwrite corrupt generations without a recoverable state
+PASS server bounds legacy requests when the shared validator is installed
+PASS view commands require pairing and fresh counters and only route observed air
+PASS server saves GPS status and hub assignments across restart
+PASS server trims unused status fields and copies shared coordinates without changing packets
+PASS server recovers interrupted saves and keeps a bounded central log
+PASS server mirrors main, serves chunks and hashes, and keeps good code on failure
+PASS server refreshes its code mirror periodically
+PASS update fetch downloads server chunks and reuses current code without retransmission
+PASS update fetch uses http without a server and reports unavailable sources
+PASS update fetch takes GitHub over a server copy that may be behind main
+PASS update fetch rejects corrupted server content and accepts a valid http copy
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS the newer hub state wins between the hub's file and the server's copy
+PASS server ESTOP replaces queued movement commands
+PASS server repeats an order until the miner confirms it, then gives up and logs
+PASS touchscreen: tap a miner, give it an order through the hub, switch tabs
+PASS miner confirms an order the server passes on
+PASS server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+PASS hub uses direct commands if a discovered server never answers
+PASS server records directed assignments and leaves developer commands alone
+PASS server ignores malformed hub mirrors and invalid transfers
+PASS capacity mock raises Out of space at write or close and counts partial bytes
+PASS server install guards startup writes and logs failures without replacing existing startup
+PASS four megabyte server mirrors the real repo once and serves matching root scripts
+PASS 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+PASS state and cache backups survive failed promotion and recover on restart
+PASS root scripts changed outside the server are not served with a stale hash
+PASS cache write failures at open, write, close and move keep old code and leave state writable
+PASS failed state writes preserve the only good state and persist errors after space returns
+PASS large status packets and old log text stay bounded across saves and restart
+PASS server clears AR and re-raises Terminated through parallel
+PASS legacy AR world geometry requires the shared owner allowlist
+PASS raw AR ownership claims cannot acquire a lease or change the view
+PASS hub suppresses AR until its first authenticated reply or the owner timeout
+PASS hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors and authenticated leases without replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+PASS a vanished turtle shows as missing and the fleet screen offers forget turtle
+PASS H3 HTTP wait preserves an exact register, command, ack and state burst
+PASS H3 maintenance recovers a dropped timer on the next unrelated event
+PASS H3 SSOT validation and atomic saves finish without yielding at four chunks
+PASS H3 watchdog wakes maintenance after its primary timer disappears during HTTP
+PASS H3 FIFO grants once and replays the durable result after restart
+PASS H3 collector stays listening while a view yields and overflow retries safely
+PASS H3 worker batches leave time for maintenance during a sustained backlog
+PASS H3 slow saves cannot hold the event pump for a whole watchdog interval
+PASS H3 failed HTTP completion releases callers and permits the same cache miss to retry
+PASS H3 a full queue retains the HTTP completion until the worker makes space
+PASS H3 serving and saving a large cached file never pulls an event inside a request
+PASS H3 a slow background fetch does not delay an unrelated cache miss
+PASS H3 queued hub mirrors cannot suppress a newer direct turtle status
+PASS H3 queue and HTTP progress survive lost private wake notifications
+PASS H3 200 requests during a slow save each get a reply or busy and the timer fires every second
+PASS hub profile stays off when ssot.cfg sets hubProfile false
+PASS hub and server ledgers use one policy with the hub budget
+PASS ids are minted from the holder and survive a restart
+PASS a full disk refuses a plan and still accepts the handover freeze
+PASS movement still reserves while the hub profile is on
+PASS handover keeps each id once and the codes still claim after a crash at every step
+PASS a server that already issues rejects the import
+PASS importing a different body for an id conflicts and keeps the first
+PASS paired-controller configuration and UUID chat allowlist fail closed
+PASS six adjacent directions reserve and commit with independent dimension occupancy
+PASS contention, wrong owner, wrong source, teleport, expiry and lease renewal
+PASS explicit calibration checks the prior pose, destination occupancy and pending token
+PASS offline occupancy and restart preserve both cells of uncertain moves
+PASS duplicate requests return the durable result and changed or stale replays fail
+PASS missing fields, bad types, cyclic, oversized and unauthorized packets do not mutate
+PASS sparse tri-state scans, stale deltas, paged snapshots and resident bound
+PASS a failed save returns the reply and the same handle stores the pose once the disk accepts it
+PASS encoded snapshot limits include credentials and request metadata
+PASS a vanished turtle frees its cells and leaves the map, the neighbour and active mining alone
+PASS a turtle that returns after expiry syncs onto a free cell
+PASS a slow turtle keeps its cells inside the silence window and a later request extends it
+PASS silence does not expire a started move when dead turtles are disabled
+PASS forget removes a missing turtle and leaves its mine quarantined
+PASS forget keeps a delivered order with its owner
+PASS deadAfterMs outside 10 seconds to 10 minutes is rejected
+PASS explicit calibration carries the pending token across a client failure
+PASS a full queue busy reply is retried with the same request id
+PASS client accepts bounded pages containing long block names
+PASS a finished move syncs the destination when commit is late and dead turtles are enabled
+PASS a late commit still stops movement when dead turtles are disabled
+PASS a failed recovery sync still stops the turtle
+PASS view map import is bounded and cannot turn unknown cells into walkable space
+PASS traffic retreats to known passing space and bounds an impossible dead end
+PASS walk finds the U route and never excavates a changed block
+PASS unknown exploration and authorized excavation have separate policies
+PASS all headings and six displacements keep the physical pose
+PASS search is bounded and ESTOP cancels at the next search batch
+PASS failed turns, fuel, entities and fluids never invent position or solid cells
+PASS GPS loss and relocation refuse recovery until explicit calibration
+PASS every move and turn checkpoint recovers or refuses ambiguous heading
+PASS manual movement cannot interleave and cancellation prevents the next move
+PASS no route, map limits and lost GPS stop without displacement
+PASS ESTOP survives reboot until an idle resume
+PASS a passing turtle does not become a permanent map obstacle
+PASS GPS loss after a physical move leaves a recoverable uncertain action
+PASS falling blocks and charging stations stop excavation without moving
+PASS an interrupted calibration retries its original prior pose after reboot
+PASS late and replayed movement commands cannot clear a newer ESTOP
+PASS a queued resume waits for the active move and a newer ESTOP cancels it
+PASS authenticated boot sync rejects commands from an older server epoch
+PASS position and frame shapes reject an unknown version and a relative absolute mix
+PASS fuel and six-face resolvers follow the confidence rules
+PASS player anchor floors the standing cell and radio needs four non-coplanar fixes
+N1 gate A counts: certain=5 fingerprint=5 lost=4 suspect=1 lost-or-suspect digs=0
+PASS no-GPS crashes at every move checkpoint recover certain or stay lost without digging
+PASS a lost or suspect pose and a disagreed GPS check dig nothing
+PASS player chat and radio anchor the turtle without reading GPS
+PASS server anchor and frame-merge keep relative cells out of abs until one idempotent merge
+PASS mining allocation, ownership, expiry, replay and restart
+PASS mining reserves fuel for the drop, charger and return before leaving home
+PASS six-face veins preserve loops, deepslate, tags, the spacing gap and exact home pose
+PASS crashes before and after traversal moves retain the queue and resume exactly
+PASS inventory and fuel interrupts preserve work and never drop without a chest
+PASS a dig followed by a failed move retains the air cell leading to the rest of the vein
+PASS an active owner renews after a scan outlasts the lease without dropping queued ore
+PASS hazards, protection and blocked home routes report bounded refusal
+PASS in-game mining commands save bounds and home without enabling mining
+PASS the opted-in miner worker executes the lease engine through its real boot adapter
+PASS lease v2 stays off unless the server flag is set
+PASS a leased cell is exclusive and a bad mac or corridor is rejected
+PASS overlapping observations replay to the same map in either order
+PASS outside observations tie-break by time, turtle and sequence, and a stale section becomes unknown
+PASS a killed server keeps the lease, and offline steps do not call it
+PASS an expired lease blocks movement until a return grant, and the journal budget sends the miner home
+PASS lost position cannot dig, and the journal is append-only
+PASS the mining worker skips lease renewals and new work when the offline gate says so
+PASS warehouse stock reservations, partial allocation, replay, bays and restart
+PASS mixed source, partial supply and nonstackable orders preserve exact inventories
+PASS physical pickup and delivery crashes reconcile without double delivery
+PASS full drop retains cargo and resumes after space is available
+PASS vertical interactions, partial drops and empty sources keep exact quantities
+PASS charging preserves an unfinished order and refuses a trip without return fuel
+PASS automatic low-fuel charging survives a crash and continues the same order
+PASS idle workers park away from shared access cells without touching stock
+PASS charging needs measured fuel rise and has a durable timeout
+PASS unavailable charging routes release the bay and competing bays time out
+PASS store commands and sorter aliases configure the opted-in worker without moving
+PASS create, edit, save and reload a plan
+PASS level slider changes the viewed level and keeps the other slice
+PASS issue and claim save the planned pose, role and settings
+PASS a neighbourhood that misses the chest is a wrong cell
+PASS map confidence stub and settings stub
+PASS monitor render at the section 5b sizes
+PASS host touch switches level and issues a code
+PASS dispatcher stores intents, blocks the cell, and claims through sync
+PASS plan-claim accepts a turtle that has no pairing secret
+PASS an unanchored plan keeps a relative frame until F3 entry
+PASS retiring a plan releases its intents in one revision
+PASS planner sources do not call satellite locating
+PASS fleet shared location and AR adapters
+PASS fleet domain registry contains every approved setting
+PASS fleet domain defaults and effective values have no shared mutable tables
+PASS fleet domain computers and uncoordinated turtles retain framed observations without moving occupancy
+PASS fleet domain settings inherit per key and preserve explicit false
+PASS fleet domain map and array settings replace whole values
+PASS fleet domain settings patches reject unknown and malformed values atomically
+PASS fleet domain global edits validate every computer override before committing
+PASS fleet domain operators use exact string keyed authorization
+PASS fleet domain stale settings edits do not change state or emit hints
+PASS fleet domain reports bind identity and copy framed occupancy and server time
+PASS fleet domain missing stale or string keyed occupancy never trusts the reported pose
+PASS fleet domain computers report false turtle fields and unlimited fuel remains a string
+PASS fleet domain record validation rejects invalid fields and inconsistent observations
+PASS fleet domain wire graphs reject cycles aliases metatables and nonfinite values
+PASS fleet domain fleet pages sort stable IDs and stay within the encoded byte limit
+PASS fleet domain settings fetches target the sender and omit registry metadata
+PASS fleet domain disabled requests and reads preserve absent subtrees
+PASS fleet domain saved state validates and reads after a module restart
+PASS fleet domain fleet and settings capacity limits reject additions without changing existing records
+PASS fleet domain settings enforce navigation geometry and collection bounds
+PASS fleet domain oversized effective settings fail atomically and snapshots fail explicitly
+PASS fleet domain unknown topics operations and malformed bodies cannot mutate state
+PASS fleet domain global settings reads exclude computer overrides
+PASS fleet domain fleet capacity rejection preserves readable saved state
+PASS fleet domain role inheritance uses enrollment instead of a reported role
+PASS fleet domain global controls exclude every role and computer override
+PASS fleet domain role controls read one bounded role view and reject mixed selectors
+PASS fleet domain scope and enrollment boundaries reject ambiguous identities
+PASS fleet domain role edits validate the actual enrolled computer combinations
+PASS fleet domain storage policy is global and requires measured capacity for an edit
+PASS fleet domain B1 and B2 settings enforce ranges and effective combinations
+PASS fleet domain unknown turtle measurements stay false and required fields never default to zero
+PASS fleet domain working states retain a job of the correct allocator kind
+PASS fleet domain occupancy keeps frame heading confidence source and anchor distinct
+PASS fleet domain the legacy occupancy adapter never invents confidence or a heading
+PASS fleet domain context epochs and saved versions remain numeric and explicit
+Fleet domain passed 36 checks
+PASS fresh settings save before apply and preserve false values
+PASS persisted cache cannot authorize startup or offline work
+PASS unknown offline startup reports server unavailable
+PASS failed fetch pauses until settings refresh succeeds
+PASS cache save failure never applies settings
+PASS corrupt cache leaves client available for status and reads
+PASS apply failure pauses even after the cache saves
+PASS raw hints cannot invalidate or apply settings
+PASS returned hints cannot invalidate settings
+PASS verified callback hints pause and queue one refresh
+PASS verified callback hint does not call RPC from dispatch
+PASS older verified hints do not pause a fresh client
+PASS settings older than a verified hint cannot resume work
+PASS a report revision pauses before the next action
+PASS queued calls block until worker and retain FIFO order
+PASS busy RPC preserves queued requests and order
+PASS queued calls retain rejection codes for management callers
+PASS three second ticks fetch settings and report the applied revision
+PASS disabled behavior preserves standalone mode and allows reads
+PASS reports coalesce to the newest bounded snapshot
+PASS a report queued during an active report is retained
+PASS busy synchronous refresh stays queued for the next tick
+PASS location selects by Manhattan distance then stable ID
+PASS false location selector chooses a server-known location
+PASS location skips unreachable sites and uses known route cost
+PASS location pagination pins its revision
+PASS a stale page restarts the read without mixing revisions
+PASS empty advancing pages fail instead of polling forever
+PASS malformed reply bodies pause without breaking the client
+PASS a settings record for another target never applies
+PASS class lookup returns exact rows and unknown for missing items
+PASS malformed class records cannot authorize a route
+PASS class reads always observe the current definition
+PASS unknown reporting uses the shared queue and exposes unavailable
+PASS failed location fetch also pauses autonomous work
+PASS missing RPC retains standalone mode with behavior off by default
+PASS legacy settings views save as version one without enabling offline work
+PASS unknown settings versions never save or apply
+PASS verified hints reject other operations topics and malformed revisions
+PASS computer reports keep unknown positions and non-applicable measurements false
+PASS turtle reports use tables for unknown measurements
+PASS reports preserve measured zero unlimited fuel and partial unknown measurements
+PASS invalid measurement tables never enter the outbound queue
+PASS active report states require their allocator job and idle forbids one
+PASS framed report poses retain heading confidence source and anchor
+PASS legacy navigation observations stay relative and never acquire an anchor
+PASS malformed and future pose versions never become legacy observations
+PASS location origins require a complete certain anchored framed pose
+PASS legacy navigation origins resolve only through a matching anchored server pose
+PASS location lookup never mixes frames dimensions or confidence
+PASS route cost uses the explicit legacy navigation projection with north zero
+PASS unavailable and invalid route costs fall back to other eligible locations
+PASS the shared worker keeps a yielded transport request ahead of later work
+PASS busy report retries preserve their first payload and retain the newer report
+PASS computer settings patches use the numeric local identity only at that scope
+wh2-fleet-client: 55 passed, 0 failed
+PASS fleet dev edits preserve scope and order
+PASS fleet programs start standalone and enforce live controls before native calls
+PASS warehouse uses shared charging settings and refuses disabled work
+PASS fleet opt-in defaults on and does not rewrite a config that left wh2 out
+PASS fleet boot mines with remote settings and preserves ESTOP across refresh
+PASS fleet reports confirmed navigation pose and occupied slots rather than item counts
+PASS a settings hint during digging pauses the next move and retains unfinished ore
+PASS an unavailable server and a known newer revision pause work without offline autonomy
+PASS a lost commit leaves the worker polling with both physical journals intact
+PASS idle miners poll settings within three seconds without a competing outbound worker
+PASS mesh can fetch startup settings and follows the effective mesh toggle
+PASS automatic drop-off uses shared sites and stops on a live toggle without losing its lock journal
+PASS auto-charge is independent of drop-off and adopts its live fuel target
+PASS free-slot and fullness thresholds independently trigger shared drop-off
+PASS live keep rules preserve stacks before the next drop
+PASS an inventory threshold reached by a dig stops its following move
+PASS a changed fuel limit stops the next physical action and a lower limit retains return fuel
+PASS a completed physical drop recovers its saved transfer without duplicating delivery
+PASS a reboot with a saved settings cache waits visibly for the server before resuming
+PASS a live charge timeout releases the bay and retains the mining traversal
+PASS short trips resume the saved strip and finish every allocated tunnel cell
+PASS live reach and vein limits retain the unfinished traversal until raised
+PASS fast mode finishes a queued vein before skipping new wall ore
+PASS a live trip duration returns home before another extraction
+PASS zero fuel thresholds still reserve the next move and its known return route
+PASS live navigation budgets refuse new exploration while preserving saved return routes
+PASS framed observations require reconciliation and service targets cross an explicit boundary
+PASS north remains heading zero in framed reports and legacy movement
+PASS unknown turtle measurements stay false while measured zero stays zero
+PASS waiting at home retains the mining job without reporting idle
+PASS server epoch zero is numeric after decimal migration and survives reboot
+PASS global and navigation disables stop the next extraction action without losing the job
+PASS missing and disabled shared locations never use local service configuration
+PASS automatic service selection skips an unreachable closer location
+PASS a shared location and legacy site disagreement blocks before movement or transfer
+PASS a full chest retains cargo and retries without claiming a successful drop
+PASS all-kept inventory blocks without a pointless service trip
+PASS live service toggles stop before the next drop and preserve the remaining cargo
+PASS a raised drop threshold cancels an active unload before its next item
+PASS a changed shared selector retargets the service before its next transfer
+PASS offline service workers stop with their cargo even if offline autonomy is requested
+PASS a charger without enough round-trip fuel cannot start a physical service action
+PASS global role and computer settings all stop extraction before its next native action
+PASS numeric command epochs work while decimal legacy commands convert once
+PASS a disabled shared location stops the next transfer without a local fallback
+PASS disabling auto-charge during a move returns home and releases the bay
+PASS unlimited fuel during charging releases the bay and reports both unlimited values
+PASS return-home can pause away from home without losing the unfinished vein
+PASS new service routes must be checked before extraction can make another move
+PASS layout stays off until wh2.enabled
+PASS a non-operator cannot edit a location
+PASS locations, bad facing, locks, and a busy remove
+PASS a room path must be adjacent observed air and end on the standing cell
+PASS an idle upload expires and leaves the room in place
+PASS two uploads are the operator limit
+PASS classes overlay wizard answers and keep layout defaults
+PASS a verified fixture becomes one location and a retired fixture leaves
+PASS frame conversion is idempotent and relative cells stay out of abs until anchored
+PASS schema-1 chunks report air and leave a missing cell unknown
+PASS an incomplete scan cannot be marked complete
+PASS layout raises warehouse caps and refuses item totals for a fingerprint line
+PASS projected sites share one lock id
+PASS miner reserves each displacement only when SSOT is enabled
+PASS miner navigation journals veins and recall cannot dig a changed tunnel
+PASS navigation bounds can be configured from the turtle command
+PASS a survey command requires navigation and preserves its world target
+PASS navigation boot retries only a missing GPS fix
+PASS the 27 scripts are the measured catalog and both shelves fit a million bytes
+PASS a second dofile returns the same mount and the same reserve
+PASS a failed slot write keeps the previous value and the same handle saves the next one
+PASS free space held at the reserve still stores a pose and answers reserve
+PASS server and update take script names from roles
+PASS a fleet mirror serves the miner program once and each role hello fits
+PASS AR HUD defaults, layers, dimension, diff, cleanup, SSOT decode
+PASS AR owner authorization, preserved hub keys, config persistence and restart cleanup
+PASS AR positions, honest hints, origin and layer keys
+PASS AR shared controller takeover, reacquisition, restart, replacement and stable frame
+PASS AR radius64, nearest ore priority, bounded map cache and revocation
+PASS AR 64-chunk traversal yields and keeps at most 256 nearest cells
+PASS chat defaults deny and usernames never authorize
+PASS chat confirms once, binds UUID and expires requests
+PASS AP public and stripped hidden tuples preserve visibility
+PASS AP confirmation text keeps the token instead of the action word
+PASS chat rejects confirmation replay after restart
+PASS chat settings validate UUIDs and configurable geometry
+PASS chat save failures keep authorization disabled
+PASS AR settings keep recovered backup after a failed promotion
+PASS AR settings preserve sole temp generation before a write failure
+PASS AR recovery retains more than 4096 IDs from interrupted frame unions
+PASS AR snapshot skips stone and hidden air before its ore budget
+PASS chat ignores the retired AR allowlist without shared authorization
+PASS chat requires the actual username to match the shared UUID entry
+PASS chat rate limit spans different commands and isolates UUIDs
+PASS hub chat authorization saves raw configuration and preserves it when promotion fails
+PASS server without SSOT configuration refuses AR hub claims and layer commands
+PASS AR hub enrolment requires paired secret and the enrolled allowlisted identity
+PASS recharge rejects legacy spoofed controllers and requires enrolled SSOT authorization
+PASS recharge delivery survives server restart and clears only on an authenticated receipt
+PASS offline recharge stays cancelled after targeted go and restart
+PASS offline recharge stays cancelled after broadcast go and restart
+PASS offline recharge stays cancelled after targeted recall and restart
+PASS offline recharge stays cancelled after broadcast recall and restart
+PASS offline recharge stays cancelled after targeted estop and restart
+PASS offline recharge stays cancelled after broadcast estop and restart
+PASS recharge command completion survives restart and rejects replay
+PASS confirmed recharge runs the real service and reports fuel rise
+PASS confirmed recharge runs the real service and reports no fuel rise
+PASS confirmed recharge runs the real service and reports cancellation by recall
+PASS confirmed recharge runs the real service and reports cancellation by go
+PASS recall from a saved mining pose walks home instead of pausing
+PASS update current bundle changes no scripts and does not reboot
+PASS installer preserves old roles and clean-installs every named role
+PASS failed bundle downloads preserve all installed scripts
+PASS release manifest rejects a valid script from another revision
+PASS failed commit rolls back every script and fresh entrypoint
+PASS restart rolls back an interrupted bundle before fetching
+PASS disk recovery entrypoint works when update.lua is missing
+PASS cached-only role deployment verifies server hashes
+PASS disk exhaustion leaves installed scripts intact
+PASS legacy data survives role update: buddy.memory
+PASS legacy data survives role update: room.recipes
+PASS legacy data survives role update: board.hist
+PASS legacy data survives role update: board.last
+PASS every role installs its exact manifest and removes stale files without touching data
+PASS legacy startup migration preserves client board delivery and calibrated arguments
+PASS current installer bootstraps the actual v1 updater through its file transport
+PASS actual v1 update CLI upgrades itself before role pruning without losing saved data
+PASS failed legacy updater bootstrap leaves all code and data unchanged
+PASS configured extensionless counter and warehouse journals survive role changes
+PASS configured state in every recoverable config survives cache pruning and role changes
+PASS an abandoned updater coroutine is recovered by a fresh updater after promotion
+PASS miner and store role closures exclude unrelated entrypoints and rendering
+PASS updates prune stale files and preserve the selected role and configured startup
+PASS role changes atomically replace startup and remove the previous role
+PASS failed role downloads leave stale files and state untouched
+PASS server cache is cleared on install, update, and role change even with data-like names
+PASS a failed cache prune restores cached code and user data byte for byte
+PASS interrupted stale removal restores nested files before fetching
+PASS interrupted staging is cleaned before a new role transaction
+PASS orphan cleanup preserves data and configured state with transaction-like names
+PASS configured data overlapping updater paths refuses installation without changing disk
+PASS an unclaimed backup stops cleanup without deleting the recovery copy
+PASS manifest declares deferred Ed25519 authentication separately from release checksums
+PASS unavailable roles fail before changing installed code or data
+PASS view movement is opt-in and rejects forged, distant and invalid commands
+PASS view movement rejects another command while its worker owns navigation
+PASS enabled view hubs coexist with the canonical hub
+PASS view hostname fallback preserves legacy and unrelated errors
+view-core checks passed
+DirectGPU signature and lifecycle checks passed
+snapshot paging, PR4 boundary and camera checks passed
+boundary validation, complete warehouse and moving fleet checks passed
+PASS a killed report write does not empty the previous result
+PASS scene readiness waits for the seeded iron cell
+Tom narrow and wide monitor controls passed
+view UI checks passed
+PASS view installer roles preserve existing order and boot the selected mode
+PASS view installer rejects bad pairing before writing config or startup
+PASS every role installs on an empty disk, then reinstalls and upgrades
+PASS full disk and a bad hash write nothing
+PASS role bundles fit a 1000000 byte disk with the installer kit
+PASS installer files list the same role scripts and never call gps.locate
+PASS fresh miner reaches install with north as heading 0 and no gps effect
+PASS this spot is home uses a relative frame and the nav headings
+PASS code and neighbour failures land on the error step and retry
+PASS disk full and hash mismatch retry the fetch
+PASS keyboard screens fit 39 by 13 and digits pick a role
+PASS copy codes expire, replay, and burn, and a neighbour gives the pose
+PASS enrol stays off until ssot.cfg says so, then a claim is single use
+PASS P0 measurement distinguishes errors and counts coroutine suspensions
+PASS wh2 craft stays disabled until the server flag is on
+PASS create is idempotent for operators and rejects everyone else
+PASS plans upload in pages, retry, and stop at the step and byte caps
+PASS claims, progress, reconcile, expiry and cancel keep observed totals
+PASS recipe tickets stay bounded and expire without touching jobs
+PASS the planner is deterministic and reports shortages, cycles and tags
+PASS the worker journals one event id and will not move stock without layout
+PASS factory keeps the legacy program unless wh2.enabled is true
+PASS Absent state validates and reads without creating subtrees
+PASS Unknown reports coalesce across workers and preserve the first observation
+PASS An answer atomically resolves its question and stamps the operator
+PASS Concurrent answers reject the stale editor without changing either record
+PASS Skipping is local and cannot close a durable question
+PASS Feature opt-in and configured operator IDs control writes
+PASS Only the verified body supplies operation arguments
+PASS Classes overlay layout defaults without changing other owners' state
+PASS Both topics page in sorted order within byte and record budgets
+PASS Later pages require pins and detect changes in either class owner
+PASS Queries select one stable ID and reject invalid cursors and revisions
+PASS Class capacity never evicts and still permits updates
+PASS Question capacity never evicts and still permits answers and duplicates
+PASS Every contract route and category round-trips
+PASS Malformed and oversized fields fail before publishing an answer
+PASS Resource and derived question IDs are bounded without truncation
+PASS Cycles, shared references, metatables, and sparse tables cannot become state
+PASS Saved state rejects malformed shapes and impossible resolved questions
+PASS Malformed saved roots are preserved and never normalized
+PASS Timestamp and revision exhaustion cannot publish partial changes
+PASS The module returns without saving, sending, yielding, or querying recipes
+21 wizard state tests passed
+PASS tests/wh2-wizard-state.lua
+PASS contract3 reports include version, question revision, and false draft
+PASS drafts persist partial fields and cannot become effective answers
+PASS a refreshed operator takes over and fences the prior editor
+PASS discard keeps the durable question and unknown answers stay resolved
+PASS set cannot bypass a pending question or consume an illegal false value
+PASS draft limits and malformed partial values reject without mutation
+PASS a legal large draft remains readable as a complete question
+PASS numeric authority epochs and required record versions reject legacy shapes
+8 wizard contract3 tests passed
+PASS tests/wh2-wizard-contract3.lua
+PASS pocket lists paged questions, skips locally, and restores skipped items
+PASS keyboard cooking selection uses authoritative type and commits only on save
+PASS cooking suggestions include later provider pages
+PASS monitor changes prior answers and fuel clears cooking recipe
+PASS stale edits and forbidden saves remain visible without losing the draft
+PASS missing client and provider fail visibly without raw transport or recipe guesses
+PASS touch and scroll reach questions beyond the first pocket page
+PASS remote recipe fragments use tickets, advance, and release
+PASS back releases a pending recipe ticket from the worker
+PASS hub opens the opt-in board through its actual event loop and keeps fleet keys out
+PASS panel opens the opt-in board and returns to its tabs
+PASS hub and panel leave the wizard off when wh2.enabled is false
+PASS hub and panel open the wizard when wh2.enabled is unset
+PASS empty and failed boot probes preserve the normal screen and later manual entry
+PASS new material selects cooking without overwriting a route picked during lookup
+PASS an open queue polls for later arrivals without reopening skipped items
+PASS accepted edits reach the local cache before display and disk failure keeps the prior value
+PASS reboot restores unacknowledged text and fields before uploading the draft
+PASS boot resumes an owned server draft even without the local cache
+PASS a conflict preserves local text until the operator explicitly takes over
+PASS discard clears the server draft and cache while keeping the open question
+PASS input class and destination category can be changed independently
+PASS an acknowledged draft is reconciled after a crash before the local acknowledgement
+PASS a resolved answer is reconciled after a crash before clearing the local draft
+PASS recipe suggestions reject the wrong ingredient and unsupported outputs
+PASS cooking suggestions use tag membership and preserve indexed capped alternatives
+PASS false recipe API fields stay invalid instead of acquiring defaults
+PASS malformed and sparse server pages fail before entering the queue
+PASS the real atomic cache recovers the last accepted input after a reboot
+PASS oversized text is rejected before it can poison the local cache
+Wizard board 30 passed, 0 failed
+PASS tests/wh2-wizard-board.lua
+PASS disabled host never loads fleet or config and board shows disabled
+PASS missing fleet fails visibly without raw transport fallback
+PASS private pinned config constructs one fleet client shared with board
+PASS absent, malformed, and unpinned config never starts fleet
+PASS injected shared client needs opt-in and the complete fleet interface
+PASS a stopped outbound worker fails visibly instead of leaving queued calls waiting
+PASS direct wizard command precedes discovery and runs one receiver and worker
+PASS direct disabled and missing dependency commands explain failure before discovery
+PASS queued board calls complete through the outer receiver while outbound work is suspended
+PASS factory failures stay unavailable and do not expose private config
+PASS missing authentication fails before constructing or transmitting a legacy client
+PASS an injected RPC uses the fleet constructor and preserves the pinned server
+PASS terminal and pocket order screens open wizard by key and touch and return
+PASS monitor button and command prompt open the board and return without stale typing
+Wizard host 14 passed, 0 failed
+PASS tests/wh2-wizard-host.lua
+Wizard scenario self-check passed. In-process assertions only. Gate A and Gate B remain separate.
+PASS tests/wh2-wizard-gate-selfcheck.lua
+PASS touch replays fresh-miner on every screen
+PASS touch replays home-frame on every screen
+PASS touch replays code-expired on every screen
+PASS touch replays code-replayed on every screen
+PASS touch replays code-burned on every screen
+PASS touch replays neighbour-missing on every screen
+PASS touch replays neighbour-unknown on every screen
+PASS touch replays disk-full on every screen
+PASS touch replays hash-mismatch on every screen
+PASS a miss, a gap and a typed edit do not change the install
+PASS clicks, the monitor and the keyboard pick the same button
+PASS touch stays off unless install.touch is true on a pointer
+PASS sha256 matches the empty and abc vectors
+SIZE one_gap_section=161
+PASS palette runs round-trip observed cells and leave gaps unknown
+SIZE uniform_4096=114
+PASS a solid section stays one run
+PASS negative coordinates use the same section index as schema 1 minus one
+PASS schema 1 migration keeps air, names and holes, and survives a crash
+SIZE migrated_payload=276 index=226 sections=2 largest=160
+PASS a second migration is a no-op and a different legacy is kept
+PASS a full disk refuses the new section and keeps the old one
+PASS a section stores 256 names and refuses the 257th
+PASS compact scans pass the old section and name caps and reload from files
+SIZE workload_sections=43 payload=57213 largest=4283 runs=10407 quarry_sections=15 quarry_cells=46848
+SIZE workload_allocated_estimate=65116
+PASS measured section payload for a quarry and branch workload
+PASS map modules do not call gps
+PASS strata flag defaults on and an explicit false stays off
+PASS relative frames without world y and other dimensions do not calibrate
+PASS abs and yAbs frames publish a frozen overworld baseline
+PASS predicted air is an estimate only and never a walk
+PASS flag off keeps observed names and hides prediction
+PASS sparse and rle codecs round trip and reject bad input
+PASS mining progress stays a proposal until the air is observed
+PASS committed moves and done journal entries coalesce on a straight line
+PASS a segment splits on a region boundary and an inspected face is observed
+PASS recalibration freezes the old baseline and keeps observed names
+PASS filler match is not an error and gravel never joins the class
+PASS prototype workload round trips observed air and stays near 9460 bytes
+PASS h4b1 slot and h1 digest stubs stay out of the live codecs
+PASS an omitted storage flag starts the ledger
+PASS storage ledger stays off until enabled
+PASS map writes return capacity at 80 percent of 1000000 bytes and control writes continue
+PASS control reserve blocks map growth while a move can still commit
+PASS decline then preview and commit keep a section that changed and drop only the matching set
+PASS a section pinned after the preview is skipped and an expired preview deletes nothing
+PASS forget preview rejects an unknown version and a corrupt item deletes nothing
+PASS storage policy rejects an unknown version and refuses to forget without an age
+PASS ledger growth uses the sample window and ignores a drop
+PASS the turtle buffer keeps every observation and stops new mining when it is full
+PASS a later observation that fits is kept after the stop notice
+PASS loading a buffer rejects an unknown version and does not drop saved observations
+PASS panel and glasses remind while the choice is still open
+PASS H4a H4b1 and H5 stubs classify writes, forget once, and pin unexpired keys
+PASS malformed storage messages do not throw or delete a section
+PASS flag defaults on, explicit false stays off, and a missing detector refuses
+PASS look vector and ray stop only on observed solid
+PASS chat samples match the keyboard events and the plan
+PASS here mode ignores the ray and headings follow north 0
+PASS relative level, undo, and a second planner
+PASS allowlist, hidden prefix, and other dimensions
+PASS samples are 4 Hz and frames are 2 Hz, redrawn on boot
+PASS drawing keeps the level band, the name, and the element cap
+PASS geo scan confirms a solid hit and demotes air
+PASS confirm delivers the copy code by whisper, toast, and HUD
+PASS T1 stub mints ids, builds poses, and defers every event
+PASS full planner is on unless planner.cfg sets enabled false
+PASS hub planning needs a server
+PASS scripted plan matches on the pocket, the hub, and the server
+PASS map touches differ by screen while the plan stays the same
+PASS Y slider, undo, and the pocket tool row
+PASS rejects bad tools, occupied cells, and huge areas
+PASS server applies locally and the hub addresses the server
+PASS a relative plan asks for frame merge and keeps its frame
+PASS ghost markers stay on this level and clip at the AR cap
+PASS keys and monitor touches reach the server adapter
+PASS registry bounds stay off the safety invariants
+PASS full inventory returns to drop off when compact and trash are off
+PASS full inventory compacts two partial stacks when compact is on
+PASS full inventory trashes a filtered item when compact cannot
+PASS a leg stays when fuel covers the way home and the reserve
+PASS a leg returns when fuel is short of the reserve
+PASS unlimited fuel does not send the turtle home
+PASS the reserve keeps the larger of the setting and the lease
+PASS bedrock marks the cell and reroutes inside the detour bound
+PASS bedrock returns without a mark when detour is off
+PASS bedrock returns when the detour is longer than the bound
+PASS lava is contained without entering the source
+PASS water and lava return and do not enter when fluid handling is off
+PASS flowing water is not plugged
+PASS contain stops at the fluid block bound
+PASS gravel retries under the bound and returns at the bound
+PASS gravel returns immediately when falling retry is off
+PASS a mob retries under the bound and then reroutes
+PASS a mob returns when retry and reroute are off
+PASS a dimension change is lost and does not dig
+PASS reanchor leaves a dimension change lost
+PASS pickup with a matching fingerprint and a resolved move is suspect
+PASS pickup with a mismatch or an unresolved move is lost
+PASS stuck backs off and then marks and skips the cell
+PASS stuck returns when backoff and skip are off
+PASS a corridor cell is not skipped
+PASS an expired lease waits instead of digging or going home
+PASS a return-only grant sends digging home
+PASS the journal at 80 percent sends new work home
+PASS a full journal waits and writes nothing
+PASS expired lease wins over the journal home rule
+PASS a suspect pose does not dig gravel
+PASS a lost pose does not start the trip home
+PASS the same problem seq does not grow the journal
+PASS score is the weighted reachability formula
+PASS quota leaves code, navigation, journal, staging, and the control reserve
+PASS validators reject an unknown version and a bad section key
+PASS peer storage stays off until the flag, the floppy key, and a mac are present
+PASS a failed reachability check stores nothing and a retry is idempotent
+PASS two store peers and one computer re-replicate, then an unreachable section is unknown
+PASS one holder cannot drop the local copy
+PASS a killed peer pins the local copy until a second holder verifies
+PASS miners hold extras only and hold none during an offline lease
+PASS a changed boot drops the verified count until the hash matches again
+PASS rebalance moves a replica toward the peer with more free space
+PASS small replicas share a batch file and a bad mac reads as unknown
+PASS malformed replica messages are rejected
+13 h4d tests passed
+PASS explicit config wins over a saved answer and over discovery
+PASS one discovery is kept and several discoveries ask
+PASS lookup uses the only host and asks when several answer
+PASS gps rounds a fix and ignores a miss
+PASS one peripheral name is used and several are a choice
+PASS a prompt accepts a tap or a digit and refuses a typed secret
+PASS a coordinate prompt keeps the typed block
+PASS fill does not discover when the config already has the value
+PASS a server secret comes from enrol and is not sent back on the wire
+PASS empty controller slots take the enrol key and a written secret stays
+388 tests passed

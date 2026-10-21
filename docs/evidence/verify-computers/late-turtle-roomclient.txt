@@ -1,0 +1,83 @@
+program returned: true  pcall err: nil
+capacity 1000000 free 491340
+    13750 atomic.lua
+     4250 dead.lua
+    48950 install.lua
+     6067 journal.lua
+    23597 lease.lua
+      202 lib/stubs/b1_h1.lua
+      381 lib/stubs/b1_h5.lua
+     1886 lib/stubs/b1_n1.lua
+     2140 lib/stubs/b1_w1.lua
+     4745 mine-tasks.lua
+    33966 nav.lua
+    17895 planner-core.lua
+     1211 planner-enrol.lua
+     5971 planner-ops.lua
+      867 planner-settings.lua
+    10633 plug.lua
+    12240 position.lua
+        0 result.txt
+   150013 roomsorter.lua
+      481 s1_b1.lua
+      867 s1_h4c.lua
+     1388 s1_i1.lua
+     3850 s1_t1.lua
+     6359 ssot-client.lua
+    23850 ssot-hub.lua
+    43180 ssot.lua
+       30 startup.lua
+       31 startup_real.lua
+    11897 store.lua
+    15465 update.lua
+    10515 warehouse-tasks.lua
+    19041 warehouse.lua
+    20085 wh2-client.lua
+     4058 wh2-dispatch.lua
+     8730 wh2-program.lua
+       69 wrap.cfg
+-- screen
+Looking for the storage turtle...                  
+No storage turtle found. Is it running roomsorter, 
+with a wireless modem, within ~64 blocks?          
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+-- monitor
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    
+                                    

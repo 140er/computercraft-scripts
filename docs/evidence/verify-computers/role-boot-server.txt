@@ -1,0 +1,72 @@
+program returned: false  pcall err: nil
+capacity 1000000 free 409375
+     5774 alpha-boot.lua
+    32245 ar-hud.lua
+    19080 ar-planner.lua
+    13750 atomic.lua
+     6849 chat-control.lua
+     4250 dead.lua
+    33148 fleetview.lua
+    48950 install.lua
+     6067 journal.lua
+    23597 lease.lua
+      202 lib/stubs/b1_h1.lua
+      381 lib/stubs/b1_h5.lua
+     1886 lib/stubs/b1_n1.lua
+     2140 lib/stubs/b1_w1.lua
+     2492 lib/stubs/h4d_dep.lua
+     4745 mine-tasks.lua
+    17895 planner-core.lua
+     1211 planner-enrol.lua
+     5752 planner-host.lua
+     1055 planner-map.lua
+     5971 planner-ops.lua
+      867 planner-settings.lua
+     3850 planner-view.lua
+    10633 plug.lua
+        0 result.txt
+      481 s1_b1.lua
+      867 s1_h4c.lua
+     1388 s1_i1.lua
+     3850 s1_t1.lua
+    62719 server.lua
+     2461 server.state
+     6359 ssot-client.lua
+    23850 ssot-hub.lua
+    43180 ssot.lua
+       30 startup.lua
+       20 startup_real.lua
+     2366 storage-buffer.lua
+     4885 storage-host.lua
+     7252 storage-ledger.lua
+    36269 storage-peer.lua
+     2024 storage-view.lua
+    45122 strata.lua
+    15465 update.lua
+    10515 warehouse-tasks.lua
+    20085 wh2-client.lua
+     5376 wh2-dev.lua
+     4058 wh2-dispatch.lua
+    30412 wh2-fleet.lua
+     8730 wh2-program.lua
+       71 wrap.cfg
+-- screen
+No AR controller. Goggles stay blank.              
+No player detector. AR planner is not drawing.     
+Strata did not start.                              
+Storage host did not start.                        
+No storage mac. Peer storage is not sealing.       
+No floppy key. Peer storage is not sealing.        
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
