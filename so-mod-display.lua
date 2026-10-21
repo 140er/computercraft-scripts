@@ -4,7 +4,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic" },
+  order = { "shop", "mining", "status", "generic", "lumber" },
   known = {},
   box = nil,
   saved = { roles = {} },
@@ -23,7 +23,7 @@ end
 
 D.roleOf = function(id)
   local role = D.saved.roles[tostring(id)]
-  if role == "shop" or role == "mining" or role == "status" then return role end
+  if role == "shop" or role == "mining" or role == "lumber" or role == "status" then return role end
   return "generic"
 end
 
@@ -107,6 +107,16 @@ D.compose = function(role, w, h)
   end
   local rows = type(picture.rows) == "table" and picture.rows or {}
   local buttons = type(picture.buttons) == "table" and picture.buttons or {}
+  if role == "generic" then
+    local found = false
+    for _, button in ipairs(buttons) do if button.id == "lumber" then found = true end end
+    if not found then
+      local copy = {}
+      for i, button in ipairs(buttons) do copy[i] = button end
+      copy[#copy + 1] = { id = "lumber", x = 1, y = 1, w = 6, label = "lumber" }
+      buttons = copy
+    end
+  end
   local sig = D.sig(rows, buttons)
   local slot = D.pictures[role]
   if not slot then
@@ -117,7 +127,7 @@ D.compose = function(role, w, h)
     slot.rev = slot.rev + 1
     slot.sig = sig
   end
-  local fitted = D.fit(picture, w, h)
+  local fitted = D.fit({ rows = rows, buttons = buttons }, w, h)
   fitted.rev = slot.rev
   fitted.role = role
   return fitted
@@ -266,7 +276,7 @@ D.load = function()
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
-      if role ~= "shop" and role ~= "mining" and role ~= "status" then return false end
+      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" then return false end
     end
     return true
   end)

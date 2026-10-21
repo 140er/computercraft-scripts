@@ -315,9 +315,30 @@ SO5 owns this API on `SO.mods.display`.
 
 `display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
-Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, and `generic`.
+Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, and `lumber`.
 
 The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
+
+### lumber
+
+`SO.mods.lumber` plans a tree farm for one paired worker with an axe. It is stopped until the operator configures it and sends `start`. It uses `so-plan.lua` and the pure helpers in `so-lumber-plan.lua`.
+
+The `lumber` display accepts these text commands:
+
+- `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
+- `saplings <x> <y> <z> <front|down>` sets the turtle access cell for the sapling chest.
+- `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
+- `start` begins work. `stop` parks after the current lease reports.
+
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart recovers the worker with a park lease before continuing from its reported pose.
+
+The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
+
+Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
+
+An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. Saplings stay in the turtle. A `hold` result parks and raises an alert. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned.
+
+The screen shows state, logs delivered, saplings carried, known and planted spots, fuel, and the last alert. Lost workers and range failures appear in red. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
