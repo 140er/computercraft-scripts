@@ -447,6 +447,7 @@ end)
 
 dofile("tests/miner_lost.lua")(test, equal, read, mocks)
 dofile("tests/miner_dirs.lua")(test, equal, read, mocks)
+dofile("tests/miner-ui-checks.lua")(test, equal, read, mocks)
 dofile("tests/server.lua")(test, equal, read, mocks)
 dofile("tests/h3-unit.lua")(test, equal, read, mocks)
 dofile("tests/ssot-unit.lua")

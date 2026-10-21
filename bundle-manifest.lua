@@ -207,7 +207,7 @@ return {
     ["lease.lua"]="64166637",
     ["lumber.lua"]="d28703cd",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="e5b6681c",
+    ["miner.lua"]="4ca339b3",
     ["mining.lua"]="ddb8ce8b",
     ["nav.lua"]="6c824656",
     ["panel.lua"]="923af549",
@@ -1238,5 +1238,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="a67d8aaa"
+  ["version"]="66492162"
 }

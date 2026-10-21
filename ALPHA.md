@@ -101,6 +101,10 @@ The ssot sandbox scenario has a known timeout on main. The scan is `ssot-runtime
 
 Gate B is not required for this branch. `tests/ingame/run.ps1` on alpha includes the main fix that loads every live jar. That came in with pull request 60, merge `5140e2c`.
 
+# Miner screen
+
+A miner turtle draws a status screen in the lumberjack shape. The screen is on unless `miner.cfg` sets `screen = false`. The keys are P, H, and Q.
+
 # Merges
 
 Each line is the merge commit on alpha.
