@@ -1,0 +1,221 @@
+-- display.lua - one client for a monitor or a pocket. The server picks the picture.
+
+local C = {
+  phase = "boot",
+  server = nil,
+  w = 1,
+  h = 1,
+  rows = {},
+  buttons = {},
+  typed = "",
+  attempt = 0,
+  timer = nil,
+  out = nil,
+  proto = dofile("so-proto.lua"),
+  store = dofile("so-store.lua"),
+}
+
+C.pair = dofile("so-pair.lua")
+C.pair.open(C.proto, C.store)
+
+C.output = function()
+  local mon = peripheral.find("monitor")
+  C.out = mon or term
+  local w, h = 1, 1
+  if C.out and C.out.getSize then w, h = C.out.getSize() end
+  if type(w) ~= "number" or w < 1 then w = 1 end
+  if type(h) ~= "number" or h < 1 then h = 1 end
+  C.w = math.floor(w)
+  C.h = math.floor(h)
+end
+
+C.waitSeconds = function(id, attempt)
+  local n = attempt
+  if type(n) ~= "number" or n < 1 then n = 1 end
+  n = math.floor(n)
+  local base = 30
+  if n <= 5 then
+    base = 1
+    local step = 1
+    while step < n do
+      base = base * 2
+      step = step + 1
+    end
+  end
+  local frac = ((id * 17 + n) % 50) / 100
+  local gap = base * (0.5 + frac)
+  if gap > 30 then gap = 30 end
+  return gap
+end
+
+C.arm = function(seconds)
+  if C.timer then os.cancelTimer(C.timer) end
+  C.timer = os.startTimer(seconds)
+end
+
+C.send = function(kind, body)
+  local key = C.pair.key(C.server)
+  if not key then return end
+  local msg = C.proto.build(key, kind, body)
+  local wire = C.proto.encode(msg)
+  if type(wire) ~= "table" then return end
+  rednet.send(C.server, wire, "so")
+end
+
+C.sendHello = function()
+  local body = { w = C.w, h = C.h }
+  local label = os.getComputerLabel()
+  if type(label) == "string" and label ~= "" then body.label = label end
+  C.send("hello", body)
+end
+
+C.sendSub = function()
+  C.send("view.sub", {})
+end
+
+C.paint = function(text, fg, bg)
+  local out = C.out
+  if out.blit and out.isColor and out.isColor() and #text > 0 then
+    if type(fg) ~= "string" or fg == "" then fg = "0" end
+    if type(bg) ~= "string" or bg == "" then bg = "f" end
+    if #fg == 1 then fg = string.rep(fg, #text) end
+    if #bg == 1 then bg = string.rep(bg, #text) end
+    fg = fg:sub(1, #text)
+    bg = bg:sub(1, #text)
+    if #fg == #text and #bg == #text then
+      out.blit(text, fg, bg)
+      return
+    end
+  end
+  if out.write then out.write(text) end
+end
+
+C.clipDraw = function()
+  local out = C.out
+  if not out then return end
+  if out.clear then out.clear() end
+  local n = #C.rows
+  if n > C.h then n = C.h end
+  for i = 1, n do
+    local row = C.rows[i]
+    local text = type(row) == "table" and type(row.text) == "string" and row.text or ""
+    if #text > C.w then text = text:sub(1, C.w) end
+    if out.setCursorPos then out.setCursorPos(1, i) end
+    local fg, bg = "0", "f"
+    if type(row) == "table" then fg, bg = row.fg, row.bg end
+    C.paint(text, fg, bg)
+  end
+  for i = 1, #C.buttons do
+    local b = C.buttons[i]
+    if type(b) == "table" and type(b.x) == "number" and type(b.y) == "number"
+      and b.y >= 1 and b.y <= C.h and b.x >= 1 and b.x <= C.w then
+      local label = type(b.label) == "string" and b.label or ""
+      local room = C.w - b.x + 1
+      if #label > room then label = label:sub(1, room) end
+      if out.setCursorPos then out.setCursorPos(b.x, b.y) end
+      if out.write then out.write(label) end
+    end
+  end
+  if C.phase == "stale" then C.drawStale() end
+end
+
+C.drawStale = function()
+  if C.w < 1 or C.h < 1 or not C.out then return end
+  local word = "stale"
+  if #word > C.w then word = word:sub(#word - C.w + 1) end
+  if C.out.setCursorPos then C.out.setCursorPos(C.w - #word + 1, C.h) end
+  if C.out.write then C.out.write(word) end
+end
+
+C.hit = function(x, y)
+  for i = #C.buttons, 1, -1 do
+    local b = C.buttons[i]
+    if type(b) == "table" and b.y == y and type(b.x) == "number" and type(b.w) == "number"
+      and x >= b.x and x < b.x + b.w then
+      return b
+    end
+  end
+end
+
+C.onFrame = function(msg)
+  local body = msg.body
+  if type(body) ~= "table" then return end
+  C.rows = type(body.rows) == "table" and body.rows or {}
+  C.buttons = type(body.buttons) == "table" and body.buttons or {}
+  C.phase = "live"
+  C.attempt = 0
+  C.clipDraw()
+  C.arm(10)
+end
+
+C.markStale = function()
+  if C.phase == "stale" then return end
+  C.phase = "stale"
+  C.attempt = 1
+  C.clipDraw()
+  C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
+end
+
+C.retry = function()
+  if not C.pair.key(C.server) then
+    C.phase = "boot"
+    C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
+    return
+  end
+  C.output()
+  C.sendHello()
+  C.sendSub()
+  C.attempt = C.attempt + 1
+  C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
+end
+
+C.ensureKey = function()
+  local modem = peripheral.find("modem")
+  if modem then rednet.open(peripheral.getName(modem)) end
+  C.server = rednet.lookup("so", "server")
+  if type(C.server) ~= "number" then return end
+  if C.pair.key(C.server) then return end
+  local digits = ""
+  while #digits < 6 do
+    local ev, ch = os.pullEvent()
+    if ev == "char" and type(ch) == "string" and ch:match("^%d$") then digits = digits .. ch end
+  end
+  C.pair.join(digits)
+end
+
+C.loop = function()
+  while true do
+    local ev, a, b, c = os.pullEvent()
+    if ev == "timer" and a == C.timer then
+      if C.phase == "stale" then C.retry() else C.markStale() end
+    elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then
+      local msg = C.proto.decode(b)
+      local key = C.pair.key(C.server)
+      if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then C.onFrame(msg) end
+    elseif ev == "monitor_touch" or ev == "mouse_click" then
+      local x, y = b, c
+      local button = C.hit(x, y)
+      if button and C.phase == "live" then
+        C.typed = ""
+        C.send("input", { id = button.id, x = x, y = y })
+      end
+    elseif ev == "char" and C.phase == "live" and type(a) == "string" and #C.typed < 64 then
+      C.typed = C.typed .. a
+    elseif ev == "key" and (a == 257 or a == 28) and C.phase == "live" and C.typed ~= "" then
+      local text = C.typed
+      C.typed = ""
+      C.send("input", { text = text, x = 1, y = 1 })
+    elseif ev == "monitor_resize" or ev == "term_resize" then
+      C.output()
+      C.sendHello()
+      C.clipDraw()
+    end
+  end
+end
+
+C.output()
+C.ensureKey()
+C.sendHello()
+C.sendSub()
+C.arm(10)
+C.loop()
