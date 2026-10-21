@@ -1,5 +1,5 @@
 local id=os.getComputerID()
-assert(config.get("standardsMode") and fs.getCapacity("/")==4000000)
+assert(config.get("standardsMode") and fs.getCapacity("/")==1000000)
 local networkFile=assert(fs.open("views-network","r"))
 local network=assert(tonumber(networkFile.readAll())) networkFile.close()
 if not peripheral.isPresent("left") then assert(periphemu.create("left","modem",network)) end

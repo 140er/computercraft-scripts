@@ -10,7 +10,7 @@ end
 
 local ok, err = pcall(function()
   assert(config.get("standardsMode") == true, "standardsMode disabled")
-  assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+  assert(fs.getCapacity("/") == 1000000, "wrong disk limit")
   if not peripheral.isPresent("left") then assert(periphemu.create("left", "modem", 1)) end
   local call = peripheral.call
   peripheral.call = function(name, method, ...)

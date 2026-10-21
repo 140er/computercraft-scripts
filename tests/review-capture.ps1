@@ -15,9 +15,9 @@ if ($viewScenario) {
 }
 New-Item -ItemType Directory -Force "$run\config", "$run\computer\0", $Output | Out-Null
 $utf8 = New-Object System.Text.UTF8Encoding($false)
-[IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":4000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false}', $utf8)
+[IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":1000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false}', $utf8)
 if ($Scenario -eq 'ar') {
-    [IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":4000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false,"defaultWidth":85,"defaultHeight":32}', $utf8)
+    [IO.File]::WriteAllText("$run\config\global.json", '{"standardsMode":true,"computerSpaceLimit":1000000,"checkUpdates":false,"keepOpenOnShutdown":false,"useHardwareRenderer":false,"useWebP":false,"defaultWidth":85,"defaultHeight":32}', $utf8)
 }
 if ($viewScenario) {
     foreach ($file in Get-ChildItem "$PSScriptRoot\..\*.lua") {

@@ -1,9 +1,10 @@
 program returned: true  pcall err: nil
-capacity 1000000 free 451262
+capacity 1000000 free 214426
        11 .fleet-role
     13750 atomic.lua
-    39768 bundle-manifest.lua
+    50953 bundle-manifest.lua
      4250 dead.lua
+    14129 enrol.lua
     48950 install.lua
      6067 journal.lua
     23597 lease.lua
@@ -11,6 +12,9 @@ capacity 1000000 free 451262
       381 lib/stubs/b1_h5.lua
      1886 lib/stubs/b1_n1.lua
      2140 lib/stubs/b1_w1.lua
+     1059 lib/stubs/layout_dep.lua
+    13491 mapsection.lua
+    16699 mapstore.lua
      4745 mine-tasks.lua
     33966 nav.lua
     17895 planner-core.lua
@@ -28,16 +32,24 @@ capacity 1000000 free 451262
      3850 s1_t1.lua
      6359 ssot-client.lua
     23850 ssot-hub.lua
-    43180 ssot.lua
+    43728 ssot.lua
        30 startup.lua
        24 startup_real.lua
     11897 store.lua
     15465 update.lua
     10515 warehouse-tasks.lua
     19041 warehouse.lua
+    21586 wh2-board.lua
     20085 wh2-client.lua
+    41160 wh2-craft.lua
      4058 wh2-dispatch.lua
+    30412 wh2-fleet.lua
+    52659 wh2-layout.lua
+     3851 wh2-locations.lua
      8730 wh2-program.lua
+    12121 wh2-wizard-adapter.lua
+     3246 wh2-wizard-host.lua
+    14690 wh2-wizard.lua
       103 wrap.cfg
 -- screen
 No map yet. Stand the turtle on the floor facing   
