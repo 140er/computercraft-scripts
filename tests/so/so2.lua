@@ -1,21 +1,40 @@
 local harness = dofile("tests/so/harness.lua")
-local proto = dofile("so-proto.lua")
 
 local S = {
   sources = {
     "so-proto.lua", "so-pair.lua", "so-store.lua", "so-server.lua",
     "so-mod-state.lua", "so-mod-cells.lua", "so-mod-display.lua", "so-mod-drops.lua",
   },
+  libs = {
+    "lib/ccryptolib/x25519.lua",
+    "lib/ccryptolib/random.lua",
+    "lib/ccryptolib/blake3.lua",
+    "lib/ccryptolib/chacha20.lua",
+    "lib/ccryptolib/config.lua",
+    "lib/ccryptolib/internal/util.lua",
+    "lib/ccryptolib/internal/hw.lua",
+    "lib/ccryptolib/internal/curve25519.lua",
+    "lib/ccryptolib/internal/fp.lua",
+    "lib/ccryptolib/internal/edwards25519.lua",
+    "lib/ccryptolib/internal/packing.lua",
+  },
 }
+
+S.installTree = function(machine)
+  for i = 1, #S.libs do
+    local path = S.libs[i]
+    local handle = assert(io.open(path, "rb"))
+    local data = handle:read("*a")
+    handle:close()
+    machine.files[path] = data
+  end
+end
 
 S.sent = function(machine, kind)
   local out = {}
   for i = 1, #machine.sent do
-    local row = machine.sent[i]
-    if type(row.payload) == "string" then
-      local msg = proto.decode(row.payload)
-      if msg and msg.t == kind then out[#out + 1] = msg end
-    end
+    local payload = machine.sent[i].payload
+    if type(payload) == "table" and payload.t == kind then out[#out + 1] = payload end
   end
   return out
 end
@@ -25,9 +44,13 @@ S.boot = function(opts)
   local net = harness.new()
   local server = net.machine({ id = 1, capacity = 16000000, modem = true })
   server.install(S.sources)
+  S.installTree(server)
   server.boot("so-server.lua")
   net.flush()
   assert(server.alive(), tostring(server.error))
+  server.env.os.queueEvent("key", 25, false)
+  net.flush()
+  assert(not server.error, tostring(server.error))
   local code
   for i = 1, #server.log do
     code = server.log[i]:match("Pair code: (%d%d%d%d%d%d)")
@@ -40,6 +63,7 @@ S.boot = function(opts)
     facing = opts.facing or 0, fuel = opts.fuel or 1000,
   })
   turtle.install({ "worker.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
+  S.installTree(turtle)
   turtle.files["so-code"] = code
   if opts.gps then
     local gps = opts.gps

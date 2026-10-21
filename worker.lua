@@ -184,26 +184,29 @@ W.hello = function()
   if type(label) == "string" and #label > 0 then body.label = label end
   local where = W.gpsFix()
   if where then body.gps = where end
-  local msg = W.proto.build(key, "hello", body)
-  rednet.send(W.server, W.proto.encode(msg), "so")
+  W.transmit(W.server, W.proto.build(key, "hello", body))
 end
 
 W.beacon = function()
   local key = W.pair.key(W.server)
   if not key then return end
-  local msg = W.proto.build(key, "beacon", {
+  W.transmit(nil, W.proto.build(key, "beacon", {
     id = os.getComputerID(),
     fuel = W.fuelBeacon(),
     journal = W.journal.id,
-  })
-  rednet.broadcast(W.proto.encode(msg), "so")
+  }))
 end
 
 W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
-  local msg = W.proto.build(key, "step.report", { lease = W.lease, results = results })
-  rednet.send(W.server, W.proto.encode(msg), "so")
+  W.transmit(W.server, W.proto.build(key, "step.report", { lease = W.lease, results = results }))
+end
+
+W.transmit = function(id, msg)
+  local wire = W.proto.encode(msg)
+  if not wire then return end
+  if id then rednet.send(id, wire, "so") else rednet.broadcast(wire, "so") end
 end
 
 W.paint = function()
@@ -220,7 +223,7 @@ W.paint = function()
 end
 
 W.accept = function(sender, payload)
-  if type(payload) ~= "string" or sender ~= W.server then return end
+  if sender ~= W.server then return end
   local msg = W.proto.decode(payload)
   if not msg or msg.from ~= sender then return end
   local key = W.pair.key(W.server)
