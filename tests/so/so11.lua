@@ -241,6 +241,13 @@ S.run = function()
     if g.start and n.time-g.start>=360000 and not g.killAt and server.context and not g.cutting then
       g.cutting=true
       g.before=snapshot() g.killAt=n.time g.killExpires=S.copy(g.expires)
+      g.killPositions,g.workLeft={},{}
+      for id,w in pairs(g.workers) do
+        g.killPositions[id]=S.copy(w.pos)
+        local job=id==4 and g.before.lumber or g.before.mine
+        local row=id~=4 and job.turtles[tostring(id)]
+        g.workLeft[id]=job.running and (id==4 and job.phase~="waiting" or id~=4 and row.state~="done")
+      end
       print("SO11 power cut in "..server.context.." at "..((n.time-g.start)/1000).."s")
       g.disk=S.copy(server.files)
       n.kill(server)
@@ -263,9 +270,9 @@ S.run = function()
     if second==360 and not g.killAt then record(7,false,"no active server call at minute 6") end
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then
       record(5,not S.diff(g.disk,server.files),"disk changed while powered off")
-      for id in pairs(g.workers) do
-        record(3,g.killExpires[id] and g.killExpires[id]<=n.time,"worker "..id.." lease did not expire during outage")
-        record(3,g.beacons[id]~=nil,"worker "..id.." did not beacon during outage")
+      for id,w in pairs(g.workers) do
+        record(3,g.beacons[id]~=nil or g.killExpires[id] and g.killExpires[id]>n.time,"worker "..id.." lost lease without beacon during outage")
+        record(3,not S.diff(g.killPositions[id],w.pos),"worker "..id.." moved during outage")
       end
       for id in pairs(g.displays) do record(4,g.stale[id],"display "..id.." never stale during outage") end
       g.bootAt=n.time g.server=n.boot(server)
@@ -286,9 +293,20 @@ S.run = function()
         g.pictures[id]=(n.time-g.bootAt)/1000
       end
     end
+    if g.killAt and not g.bootAt then
+      for id,w in pairs(g.workers) do
+        record(3,g.beacons[id]~=nil or g.killExpires[id] and g.killExpires[id]>n.time,"worker "..id.." lost lease without beacon during outage")
+        record(3,not S.diff(g.killPositions[id],w.pos),"worker "..id.." moved during outage")
+      end
+    end
+    if g.bootAt and n.time-g.bootAt>=5000 then
+      for id in pairs(g.workers) do
+        record(3,g.recover[id]~=nil and g.recover[id]<=5,"worker "..id.." recovery park within 5s")
+      end
+    end
     if g.bootAt and n.time-g.bootAt>=60000 then
       for id in pairs(g.workers) do
-        record(3,g.recover[id]~=nil and g.resumed[id]~=nil and g.resumed[id]<=60,"worker "..id.." recovery park then work within 60s")
+        record(3,not g.workLeft[id] or g.resumed[id]~=nil and g.resumed[id]<=60,"worker "..id.." unfinished work resumes within 60s")
       end
     end
     if g.bootAt and n.time-g.bootAt>=30000 then
@@ -305,7 +323,8 @@ S.run = function()
   record(7,g.killAt~=nil,"server never crashed")
   record(7,g.bootAt~=nil,"server never rebooted")
   for id in pairs(g.workers) do
-    record(3,g.recover[id]~=nil and g.resumed[id]~=nil and g.resumed[id]<=60,"worker "..id.." recovery park then work within 60s")
+    record(3,g.recover[id]~=nil and g.recover[id]<=5,"worker "..id.." recovery park within 5s")
+    record(3,not g.workLeft or not g.workLeft[id] or g.resumed[id]~=nil and g.resumed[id]<=60,"worker "..id.." unfinished work resumes within 60s")
   end
   for id in pairs(g.displays) do record(4,g.pictures[id]~=nil and g.pictures[id]<=30,"display "..id.." recovered within 30s") end
   record(4,picture(g.displays[5]):find("iron_ingot",1,true)~=nil,"shop stock restored")
@@ -334,7 +353,11 @@ S.run = function()
   record(6,g.logs>0,"logs delivered to wood chest")
   local count=0 for _ in pairs(g.digs) do count=count+1 end
   print("SO11 summary dug cells="..count.." ores delivered="..g.ores.." trees felled="..g.felled.." logs="..g.logs.." leases sent="..g.leases.." reports="..g.reports)
-  for id=2,4 do print("SO11 worker "..id.." recovery park="..tostring(g.recover[id]).."s work="..tostring(g.resumed[id]).."s beacon="..tostring(g.beacons[id]).."s") end
+  for id=2,4 do
+    local work=g.workLeft and not g.workLeft[id] and "idle" or tostring(g.resumed[id]).."s"
+    local beacon=g.beacons[id] and tostring(g.beacons[id]).."s" or "held lease"
+    print("SO11 worker "..id.." recovery park="..tostring(g.recover[id]).."s work="..work.." beacon="..beacon)
+  end
   for id=5,6 do print("SO11 display "..id.." recovery="..tostring(g.pictures[id]).."s") end
   local failures={}
   for message,at in pairs(g.failures) do failures[#failures+1]="check "..message.." at "..at.."s" end

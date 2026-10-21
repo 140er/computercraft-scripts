@@ -49,7 +49,11 @@ and listeners use `listener(sender, message)`.
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
   Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
-  `cleanup(inv, all)`, `travel(from, goal, point)` and `next(job, row, lookup, inv, fuel)`.
+  `cleanup(inv, all)`, `travel(from, goal, point)`, `next(job, row, lookup, inv, fuel)`,
+  `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
+  `lane` lists the shared shaft column and bottom spine through the furthest
+  assigned junction, plus an optional exit. `inLane` tests that geometry;
+  `lanePass` lists the cells crossed in the planned pass through its exit.
   `ores` is the supported ore-name set. The optional `ore` filter uses those names.
   `next` batches known straight travel and turns, ending at inspect or dig report
   boundaries. Multi-action results include `actions` with one-based `first` step indices.
@@ -119,6 +123,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   New jobs default to `ores = {}`, which accepts all ores. Completed routes
   unload remaining ore through the configured drop before parking.
+  A lane pass reserves its full route through the shaft and spine plus its exit in one
+  call. Intermediate batches retain the reservation until the worker leaves.
+  Saved rows include `lane = { cells, entered, target?, release? }` while holding the lane
+  and `laneWait = { at, passes }` while queued. Exit cleanup runs from tick;
+  rapid report bursts defer further planning to tick. Oldest waiters go first, then
+  lowest id; a waiter with three intervening grants has priority. Waiting rows
+  show `wait lane`. Side veins wait until the worker leaves the shared lane.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
@@ -129,6 +140,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
+  Restart recovery sends a stationary park using the saved frame without a
+  volatile lease pose or range proof. Its report rebuilds the world pose before
+  work resumes. Work leases still require the range and reservation checks.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
@@ -281,7 +295,7 @@ inside an active server call at minute six, preserves the disk, drops messages
 for two minutes and boots a fresh server. It records all seven checks and prints
 progress, lease and recovery totals before reporting failures. Run it alone with
 `lua5.2 tests/so/so11.lua`; it also runs at the end of `lua5.2 tests/run.lua` and
-adds about seven seconds in the recorded offline run. The harness adds `net.kill(machine)` and
+prints its elapsed time. The harness adds `net.kill(machine)` and
 `net.boot(machine)`, which returns a fresh machine with the same disk and id.
 Optional machine settings enable inventory drops, fluid handling, action time, directory
 listing, monitor size and server wait observations. Existing defaults stay the

@@ -1,6 +1,6 @@
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
-local S = { wired = false, pending = {}, known = {}, error = nil }
+local S = { wired = false, pending = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
 local unloadKeep = {
   ["minecraft:bucket"] = true, ["minecraft:lava_bucket"] = true,
   ["minecraft:water_bucket"] = true, ["minecraft:torch"] = true,
@@ -24,11 +24,14 @@ local function lookup(cell)
   return S.known[M.key(cell)]
 end
 local function mark(cell)
-  call("cells", "markDug", cell.x, cell.y, cell.z, cell.dim)
+  if not call("cells","isDug",cell.x,cell.y,cell.z,cell.dim) then
+    call("cells", "markDug", cell.x, cell.y, cell.z, cell.dim)
+  end
   S.known[M.key(cell)] = false
 end
 local function reservePose(id, row)
   local p = row.pose
+  if call("cells","owner",p.x,p.y,p.z,p.dim)==owner(id) then return true end
   local ok, err = call("cells", "reserve", owner(id), p.x, p.y, p.z, p.dim)
   if not ok then row.error = err or "standing cell unavailable" end
   return ok
@@ -90,6 +93,81 @@ local function trip(id, row, kind)
   end
   row.error = "drop neighbours held" return false
 end
+local function laneOrder(a,b)
+  local x,y=job.turtles[tostring(a)].laneWait,job.turtles[tostring(b)].laneWait
+  local xp,yp=x and x.passes or 0,y and y.passes or 0
+  if (xp>=3)~=(yp>=3) then return xp>=3 end
+  local xt,yt=x and x.at or math.huge,y and y.at or math.huge
+  if xt~=yt then return xt<yt end
+  return a<b
+end
+local function releaseBatch(id,row)
+  if row.lane then
+    if M.inLane(job,row.pose) then row.lane.entered=true
+    elseif row.lane.entered then
+      row.lane.release=true
+      reservePose(id,row)
+      return
+    end
+  end
+  local keep={[M.key(row.pose)]=true}
+  for _,cell in ipairs(row.lane and row.lane.cells or {}) do keep[M.key(cell)]=true end
+  for _,cell in ipairs(call("cells","list",owner(id),100000) or {}) do
+    if not keep[M.key(cell)] then call("cells","release",owner(id),cell.x,cell.y,cell.z,cell.dim) end
+  end
+  reservePose(id,row)
+end
+local function reserveBatch(id,row,action)
+  local needs=M.inLane(job,row.pose)
+  if action.kind~="scan" then
+    for _,cell in ipairs(action.cells or {}) do needs=needs or M.inLane(job,cell) end
+  end
+  local cells,seen={},{}
+  local function add(cell)
+    local key=M.key(cell)
+    if not seen[key] then cells[#cells+1]=cell seen[key]=true end
+  end
+  for _,cell in ipairs(action.cells or {}) do add(cell) end
+  local pass=needs and M.lanePass(job,row) or {}
+  if needs and not row.lane then
+    row.laneWait=row.laneWait or {at=os.epoch("utc"),passes=0}
+    local first=id
+    for other,peer in pairs(job.turtles) do
+      if tonumber(other)~=id and (peer.lane or M.inLane(job,peer.pose)) then return false,"held" end
+      if peer.laneWait and laneOrder(tonumber(other),first) then first=tonumber(other) end
+    end
+    if first~=id then return false,"held" end
+    for _,cell in ipairs(pass) do add(cell) end
+  elseif row.lane then
+    for _,cell in ipairs(pass) do
+      if call("cells","owner",cell.x,cell.y,cell.z,cell.dim)~=owner(id) then add(cell) end
+    end
+  end
+  local held=true
+  for _,cell in ipairs(cells) do
+    if call("cells","owner",cell.x,cell.y,cell.z,cell.dim)~=owner(id) then held=false break end
+  end
+  if not held then
+    local ok,err=call("cells","reserveMany",owner(id),cells)
+    if not ok then return false,err end
+  end
+  if needs and not row.lane then
+    local vein=row.veins and row.veins[#row.veins]
+    row.lane={cells=pass,entered=M.inLane(job,row.pose),
+      target=vein and row.goal and M.same(vein,row.goal) and SO.store.copy(vein) or nil}
+    row.laneWait=nil
+    for other,peer in pairs(job.turtles) do
+      if tonumber(other)~=id and peer.laneWait then peer.laneWait.passes=peer.laneWait.passes+1 end
+    end
+  elseif row.lane then
+    local retained={}
+    for _,cell in ipairs(row.lane.cells) do retained[M.key(cell)]=true end
+    for _,cell in ipairs(pass) do
+      if not retained[M.key(cell)] then row.lane.cells[#row.lane.cells+1]=cell retained[M.key(cell)]=true end
+    end
+  end
+  return true
+end
 local plan
 local function report(_, id, results, lease)
   local row = job.turtles[tostring(id)]
@@ -105,6 +183,7 @@ local function report(_, id, results, lease)
   local old = row.pose
   row.pose = P.toWorld(row.frame, facts.pose)
   row.inv, row.fuel = facts.inv or row.inv or {}, facts.fuel or row.fuel
+  local priorDug,nextDug=S.dugFacts[id] or {},{}
   for _, c in ipairs(facts.dug or {}) do
     local world = P.toWorld(row.frame, { x = c.x, y = c.y, z = c.z, f = 0 })
     if action and action.kind == "recover" and interrupted and interrupted.kind == "dig"
@@ -119,8 +198,11 @@ local function report(_, id, results, lease)
       end
       interrupted = nil
     end
-    mark(world)
+    local key=M.key(world)
+    if not priorDug[key] then mark(world) end
+    nextDug[key]=true
   end
+  if facts.dug then S.dugFacts[id]=nextDug end
   if action then
     local batchResults, cursor, batched = results, old, action.actions ~= nil
     for _, part in ipairs(action.actions or { action }) do
@@ -133,6 +215,7 @@ local function report(_, id, results, lease)
         action.cell = M.cell(cursor, dir)
       end
       cursor = P.replay(cursor, action.steps or {}, results)
+      if row.lane and M.inLane(job,cursor) then row.lane.entered=true end
       if action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
       elseif action.kind == "inspect" or action.kind == "scan" then
         local result = results[#results]
@@ -183,16 +266,26 @@ local function report(_, id, results, lease)
       end
     end
   end
-  call("cells", "releaseOwner", owner(id)) reservePose(id, row)
+  releaseBatch(id,row)
   if not M.same(old, row.pose) then row.lastMove = os.epoch("utc") end
   save()
-  if action and action.kind ~= "park" and action.kind ~= "recover" and job.running then plan(id,row) end
+  local now=os.epoch("utc")
+  if not S.burst.at or now-S.burst.at>50 then S.burst.n=0 end
+  S.burst.at,S.burst.n=now,S.burst.n+1
+  local limit,workers,lane=4,0,false
+  for _,peer in pairs(job.turtles) do workers=workers+1 lane=lane or peer.lane~=nil end
+  if lane and workers>1 then limit=2 end
+  if action and action.kind~="park" and action.kind~="recover" and job.running and S.burst.n<limit
+      and (not S.handoffAt or now-S.handoffAt>50) then plan(id,row) end
 end
 local function send(id, row, action)
   if #action.steps == 0 then return false end
   if not P.inRange(mod("lease"), id, action.cells or {}) then row.state, row.error = "range", "outside proven radio range" return false end
-  local ok, err = call("cells", "reserveMany", owner(id), action.cells or {})
-  if not ok then row.state, row.error = "waiting", err or "cells unavailable" return false end
+  local ok, err = reserveBatch(id,row,action)
+  if not ok then
+    row.state, row.error = row.laneWait and "wait lane" or "waiting", err or "cells unavailable"
+    return false
+  end
   row.inflight = action
   if not save() then row.inflight = nil return false end
   local lid, why = call("lease", "send", id, action.steps, { owner = "mine", pose = action.pose or row.pose, ms = 60000 })
@@ -221,6 +314,7 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  if row.lane and row.lane.release then return end
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
   if not job.running or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
@@ -291,7 +385,7 @@ plan = function(id,row)
       return
     end
   end
-  if row.fluid then
+  if row.fluid and not M.inLane(job,row.pose) then
     local target = row.fluid
     local known = S.known[M.key(target)]
     if known ~= nil and (known == false or (known.name ~= "minecraft:lava" and known.name ~= "minecraft:water")) then row.fluid=nil
@@ -304,8 +398,26 @@ plan = function(id,row)
       return
     end
   end
-  if row.scan then local action=scanAction(row) if action then if not send(id,row,action) then park(id,row,false) end return end end
-  if row.veins and #row.veins>0 then
+  if row.scan then
+    local action=scanAction(row)
+    if action then
+      if action.cell and M.inLane(job,action.cell) and not row.lane then
+        row.scan.index=row.scan.index+1 save() return
+      end
+      if not send(id,row,action) then
+        local held=action.cell and call("cells","owner",action.cell.x,action.cell.y,action.cell.z,job.dim)
+        if held and held~=owner(id) then row.scan.index=row.scan.index+1 save()
+        else park(id,row,false) end
+      end
+      return
+    end
+  end
+  while row.veins and row.veins[#row.veins] do
+    local cell=row.veins[#row.veins]
+    if row.goal and M.same(cell,row.goal) or not call("cells","isDug",cell.x,cell.y,cell.z,job.dim) then break end
+    table.remove(row.veins)
+  end
+  if row.veins and #row.veins>0 and (not M.inLane(job,row.pose) or row.lane and row.lane.target) then
     row.goal=row.veins[#row.veins]
     if M.same(row.pose,row.goal) then table.remove(row.veins) row.goal=nil scan(row,true) save() return end
   else
@@ -376,5 +488,21 @@ return {name="mine",handlers={},tick=function()
     lease.onReport("mine",report) display.screen("mining",render,input) S.wired=true
     for _,row in pairs(job.turtles) do row.recover=true row.state="recovering" end
   end
-  for id,row in pairs(job.turtles) do plan(tonumber(id),row) end
+  for id,row in pairs(job.turtles) do
+    if row.lane and row.lane.release and not row.recover then
+      local status=call("lease","status",tonumber(id))
+      if status and not status.open then
+        call("cells","releaseOwner",owner(tonumber(id)))
+        row.lane=nil
+        S.handoffAt=os.epoch("utc")
+        reservePose(tonumber(id),row)
+        save()
+        break
+      end
+    end
+  end
+  local ids={}
+  for id in pairs(job.turtles) do ids[#ids+1]=tonumber(id) end
+  table.sort(ids,laneOrder)
+  for _,id in ipairs(ids) do plan(id,job.turtles[tostring(id)]) end
 end}

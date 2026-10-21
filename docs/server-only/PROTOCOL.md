@@ -321,6 +321,29 @@ to its branch tip and parks. A missing or failed drop uses the existing retry de
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 
+The shared lane contains the shaft column between `home.y` and `bottom`, and
+its bottom spine through all assigned branch junctions. Before entering, a
+worker reserves its whole route through the lane and its planned exit with the batch cells in one
+`cells.reserveMany` call. A conflicting worker parks outside and retries each
+tick. Only the lane holder may dig the first shaft. A logical pass may span
+several batches of at most 16 steps; intermediate reports retain every lane
+reservation. After the worker leaves the lane, its next tick releases the
+reservation before another worker enters. Rapid report bursts defer additional
+planning to tick instead of yielding inside a report callback.
+Queued workers use oldest UTC wait time, then lowest id. A worker skipped by
+three grants has priority. The screen shows `wait lane` while blocked.
+The saved turtle row includes `lane = { cells, entered, target?, release? }` and
+`laneWait = { at, passes }`. `target` preserves an active vein crossing;
+new side veins wait until the worker leaves the lane. Returning from a vein
+reaches the branch depth before crossing wall cells, so filtered ores stay intact.
+Scans skip cells held
+by another owner. The bounded cache of already applied journal dug facts is
+memory-only and clears on restart.
+
+The pure helpers are `lane(job, exit)`, `inLane(job, pos)` and
+`lanePass(job, row)`. They return the lane cells plus optional exit, membership,
+and the entire planned pass through its first outside cell, respectively.
+
 Work uses batches of at most 16 steps. Known straight travel and consecutive
 turns share a lease. Travel can end with an inspect, whose result is read before
 planning more work. Dig has a separate report boundary, so a failed dig cannot
@@ -406,7 +429,12 @@ The `lumber` display accepts these text commands:
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
 - `start` begins work. `stop` parks after the current lease reports.
 
-The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart recovers the worker with a park lease before continuing from its reported pose.
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
+frame. It does not require a memory-only lease pose or range observation.
+The report sets the world pose to `P.toWorld(frame, lease.report.pose)` before
+work resumes. Recovery parks bypass the work range check; movement leases keep
+both range and reservation checks. A worker without a saved frame or an `add`
+anchor shows `waiting for reported pose`.
 
 The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
 
