@@ -62,3 +62,28 @@ function Invoke-LoadedTurnOn {
     } while ($true)
     throw "$body left '$last', wanted $($ids.Count)/$($ids.Count)"
 }
+
+function Test-ChunkNotFullReply([string]$Reply) {
+    $Reply -match 'position is not loaded'
+}
+
+function Wait-ChunkNotFull {
+    param(
+        [Parameter(Mandatory)][scriptblock]$Send,
+        [string]$Probe = 'data get block 32 66 4',
+        [int]$Seconds = 90,
+        [int]$Need = 2,
+        [int]$IntervalSec = 2
+    )
+    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+    $hits = 0
+    $last = ''
+    do {
+        $last = [string](& $Send $Probe)
+        if (Test-ChunkNotFullReply $last) { $hits++ } else { $hits = 0 }
+        if ($hits -ge $Need) { return $last }
+        if ([DateTime]::UtcNow -ge $deadline) { break }
+        if ($IntervalSec -gt 0) { Start-Sleep -Seconds $IntervalSec }
+    } while ($true)
+    throw "Loader-disabled target chunk stayed loaded. Last reply: $last"
+}

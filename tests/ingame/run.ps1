@@ -329,16 +329,16 @@ try {
         [IO.File]::WriteAllText("$probe\nav-probe", 'relocate', $utf8)
         Rcon 'computercraft turn-on 3' | Out-Null
         Wait-File "$probe\nav-loader-disabled.json"
+        $place = $GatebComputerAt['3']
+        if (-not $place) { throw 'Computer 3 has no recorded place, so its turn-on forceload ticket cannot be removed.' }
+        $drop = "forceload remove $($place.X) $($place.Z) $($place.X) $($place.Z)"
+        if ($place.Dim -ne 'minecraft:overworld') { $drop = "execute in $($place.Dim) run $drop" }
+        $removed = Rcon $drop
+        if ($removed -notmatch 'Unmarked') { throw "Turn-on forceload ticket was not removed. $removed" }
         Rcon 'gamerule spawnChunkRadius 0' | Out-Null
         Rcon 'setworldspawn -1000 64 -1000' | Out-Null
         Rcon 'forceload remove 32 0 47 15' | Out-Null
-        $deadline=[DateTime]::UtcNow.AddSeconds(90)
-        do {
-            $loaded=Rcon 'execute if loaded 32 66 4 run data get block 31 66 4'
-            if ($loaded -notmatch 'ComputerId:') { break }
-            Start-Sleep -Seconds 2
-        } while ([DateTime]::UtcNow -lt $deadline)
-        if ($loaded -match 'ComputerId:') { throw 'Loader-disabled target chunk stayed loaded.' }
+        Wait-ChunkNotFull { param($Command) Rcon $Command } | Out-Null
         [IO.File]::WriteAllText("$probe\nav-loader-disabled.continue", 'ready', $utf8)
         Start-Sleep -Seconds 3
         $boundary=Rcon 'data get block 31 66 4'
