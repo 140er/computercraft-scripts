@@ -83,13 +83,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
   `release(who, x, y, z, dim)`, `releaseOwner(who)`, `forgetOwner(who)`,
   `owner(x, y, z, dim)`, `isFree(x, y, z, dim)`, `markDug(x, y, z, dim)`,
-  `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()` and `tick(now)`.
+  `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()`,
+  `list(who, max)` and `tick(now)`. `list` returns up to `max` copied
+  `{ dim, x, y, z }` reservations, default 256.
   The optional dimension defaults to `minecraft:overworld`.
   Handler `cells.forget` requires a second, confirmed request.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
-  `remove(id)`, `fix(id)`, `note(id, blockName)` and `tick(now)`.
+  `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
+  `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
   Handler `drops.edit` edits points. Tick registers the generic screen.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
@@ -98,7 +101,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
-  The generic screen includes a `lumber` button, including with the drops screen.
+  The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
@@ -120,6 +123,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
+
+- [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
+  controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
+  Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
+  `drops` and `alerts` toggles. Switches save through `so-store` to `so-data/ar`.
+  Discovery runs at most every five seconds; changed scenes redraw at most once
+  per second. Failed controllers are dropped until discovery. Known server
+  dimensions filter world elements. See [AR](server-only/PROTOCOL.md#ar).
 
 ### Thin clients
 
@@ -198,6 +209,7 @@ blocks later saves until restart. Do not save inside tight loops.
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
+- `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
 
@@ -246,5 +258,4 @@ not run and which Minecraft or client checks remain unavailable in the PR.
   `so-mod-*.lua`, with the core server-only files and thin clients.
 - Lease state is memory-only. Planner recovery must use park leases and account
   for reservations that survived the restart.
-- SO3 mining and SO7 lumber are merged. Next is wave 5, SO9 installer and SO10 AR.
-  `so-mod-ar.lua` is still absent.
+- SO3 mining, SO7 lumber and SO10 AR are implemented. SO9 owns the installer.

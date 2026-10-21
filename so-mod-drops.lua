@@ -345,6 +345,14 @@ return {
   name = "drops",
   handlers = { ["drops.edit"] = S.onEdit },
   tick = S.tick,
+  list = function()
+    local out = {}
+    for i, point in ipairs(S.points) do
+      out[i] = S.pub(point)
+      out[i].broken = point.fails >= S.strikes
+    end
+    return out
+  end,
   pick = S.pick,
   steps = S.steps,
   add = S.add,
