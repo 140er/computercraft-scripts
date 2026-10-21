@@ -1,11 +1,4 @@
-local seconds, scenario = ...
-seconds = assert(tonumber(seconds))
-if scenario == "ssot" or scenario=="nav" or scenario=="mining" or scenario=="warehouse" then
-  local ok,err = pcall(assert(loadfile("ssot-driver.lua","t",_ENV)),scenario)
-  local h = assert(fs.open("sandbox-result.json","w"))
-  h.write(textutils.serializeJSON({ok=false,booted=false,errors={tostring(err or "driver stopped")},lines={}})) h.close()
-  while true do os.pullEvent() end
-end
+local seconds = assert(tonumber(...))
 local id = os.getComputerID()
 local role = ({ [0] = "server", "hub", "miner" })[id]
 local result = { ok = false, booted = false, errors = {}, lines = {}, rx = 0,
@@ -25,7 +18,7 @@ local function writeTable(path, value)
 end
 local ok, err = pcall(function()
   assert(config.get("standardsMode") == true, "standardsMode disabled")
-  assert(fs.getCapacity("/") == 4000000, "wrong disk limit")
+  assert(fs.getCapacity("/") == 1000000, "wrong disk limit")
   assert(periphemu.create("left", "modem", 1))
   -- Keep native modem transport. Only its wireless flag is absent in CraftOS-PC.
   local call = peripheral.call
@@ -49,7 +42,7 @@ local ok, err = pcall(function()
   gps.locate = function() return id * 2, 64, 0 end
   if id == 2 then
     assert(not turtle, "review fixture for native turtle support")
-    turtle = dofile("turtle.lua").idle()
+    turtle = dofile("turtle.lua")
     _G.turtle = turtle
     writeTable("miner.cfg", { home = { x = 4, y = 64, z = 0 }, facing = 0, spine = 1, chest = 2 })
     os.setComputerLabel("Sandbox-miner")
@@ -78,14 +71,6 @@ local ok, err = pcall(function()
   local get = http.get
   http.get = function(...)
     result.httpAttempts = result.httpAttempts + 1
-    local url=...
-    local file=type(url)=="string" and url:match("/([^/?]+)%?t=")
-    if (file=="atomic.lua" or file=="ssot.lua" or file=="ssot-client.lua" or file=="nav.lua"
-      or file=="mine-tasks.lua" or file=="mining.lua" or file=="warehouse-tasks.lua" or file=="warehouse.lua" or file=="store.lua") and fs.exists(file) then
-      local h=assert(fs.open(file,"r")) local bytes=h.readAll() h.close()
-      result.httpOK=result.httpOK+1
-      return {readAll=function() return bytes end,close=function() end}
-    end
     local response, why = get(...)
     if response then result.httpOK = result.httpOK + 1 end
     return response, why

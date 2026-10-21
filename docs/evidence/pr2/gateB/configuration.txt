@@ -1,9 +1,0 @@
-Test root: C:\Work\mc-ssot-pr1-2667666d
-Minecraft: localhost:62209
-computer_space_limit = 4000000
-	computer_threads = 1
-	modem_range = 64
-	modem_high_altitude_range = 384
-	modem_range_during_storm = 64
-	modem_high_altitude_range_during_storm = 384
-enderModemNerf = false
