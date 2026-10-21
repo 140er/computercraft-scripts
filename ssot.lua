@@ -224,7 +224,10 @@ function M.new(s, cfg, clock, epoch, save, map)
   cfg = cfg or {}
   local wh2=Wh2.open(cfg.wh2,M.pose)
   if hubEnabled(cfg) then hub().prepare(s, cfg, clock) end
-  local maxChunks = math.min(64, tonumber(cfg.maxChunks) or 64)
+  local explicitChunks = tonumber(cfg.maxChunks)
+  local maxChunks
+  if compact then maxChunks = explicitChunks
+  else maxChunks = math.min(64, explicitChunks or 64) end
   local pageBytes = math.max(1024, math.min(8192, tonumber(cfg.pageBytes) or 8192))
   local lease = math.max(1000, math.min(30000, tonumber(cfg.leaseMs) or 5000))
   assert(cfg.deadTurtles == nil or type(cfg.deadTurtles) == "boolean", "invalid deadTurtles")
@@ -260,6 +263,7 @@ function M.new(s, cfg, clock, epoch, save, map)
     return false
   end
   local function overChunkLimit(additions)
+    if maxChunks == nil or next(additions) == nil then return false end
     local count = 0
     if compact then count = map:sizes().sections
     else for _ in pairs(s.chunks) do count = count + 1 end end

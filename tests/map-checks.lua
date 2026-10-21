@@ -185,7 +185,7 @@ return function(test)
     assert(not refused and why == "palette limit")
   end)
 
-  test("compact scans pass the old name cap and reload from files", function()
+  test("compact scans pass the old section and name caps and reload from files", function()
     local box = mocks.new(false)
     local env = box.env
     env.sleep = function() end
@@ -248,8 +248,25 @@ return function(test)
     assert(refused and not refused.ok and refused.error == "name limit")
 
     local map = assert(Store.open(env.fs, { reserve = 0, root = "compact" }))
+    local api = session(true, map)
+    assert(send(api, "sync", { pose = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 } }, 1).ok)
+    n = 2
+    for cx = -2, 2 do
+      for cy = 2, 6 do
+        for cz = -2, 2 do
+          if n <= 66 then
+            local cell = { dim = "minecraft:overworld", x = cx * 16, y = cy * 16, z = cz * 16,
+              name = "mod:section" .. n }
+            local reply = send(api, "scan", { pose = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 },
+              revision = n - 2, cells = { cell } }, n)
+            assert(reply and reply.ok, reply and reply.error)
+            n = n + 1
+          end
+        end
+      end
+    end
     rev, counter = map:maxRevision(), 100
-    local api = S.new({ rev = rev }, { controllers = { ["1"] = secret }, compactSections = true },
+    api = S.new({ rev = rev }, { controllers = { ["1"] = secret }, compactSections = true },
       function() return 50000 end, "boot", function() return true end, map)
     assert(send(api, "sync", { pose = { dim = "minecraft:overworld", x = 8, y = 64, z = 8 } }, counter).ok)
     counter = counter + 1
@@ -372,6 +389,64 @@ return function(test)
       assert(found, label .. " dropped the kept chunk")
       assert(#snap("minecraft:overworld|1|4|1").cells == 0, label .. " stored a rejected chunk")
     end
+  end)
+
+  test("a map already over the cap still accepts an update to a stored section", function()
+    local box = mocks.new(false)
+    local env = box.env
+    env.sleep = function() end
+    env.dofile = function(path) return assert(loadfile(path, "t", env))() end
+    local S = env.dofile("ssot.lua")
+    local Store = env.dofile("mapstore.lua")
+    local secret = "test-secret-123456"
+    local pose = { dim = "minecraft:overworld", x = 0, y = 64, z = 0 }
+    local map = assert(Store.open(env.fs, { reserve = 0, root = "over-cap" }))
+    local function open(maxChunks, rev)
+      return S.new({ rev = rev or 0 }, {
+        controllers = { ["1"] = secret }, compactSections = true, maxChunks = maxChunks,
+      }, function() return 50000 end, "boot", function() return true end, map)
+    end
+    local n = 0
+    local function send(api, op, fields)
+      n = n + 1
+      local m = {
+        v = 1, type = "ssot", expect = "ssot_reply", op = op, rid = "over" .. n, counter = n,
+        boot = "turtle-1", secret = secret,
+      }
+      for k, v in pairs(fields) do m[k] = v end
+      return api.handle(1, m)
+    end
+    local function cell(x, z, name)
+      if name == nil then name = false end
+      return { dim = pose.dim, x = x, y = 64, z = z, name = name }
+    end
+    local api = open(nil, 0)
+    assert(send(api, "sync", { pose = pose }).ok)
+    local rev = 0
+    for _, spot in ipairs({
+      { 0, 0 }, { 16, 0 }, { 32, 0 }, { -16, 0 }, { -32, 0 },
+      { 0, 16 }, { 0, -16 }, { 0, 32 }, { 16, 16 },
+    }) do
+      local reply = send(api, "scan", { pose = pose, revision = rev, cells = { cell(spot[1], spot[2]) } })
+      assert(reply and reply.ok, reply and reply.error)
+      rev = reply.revision
+    end
+    api = open(8, map:maxRevision())
+    assert(send(api, "sync", { pose = pose }).ok)
+    local kept = send(api, "scan", { pose = pose, revision = rev, cells = { cell(0, 0, "minecraft:stone") } })
+    assert(kept and kept.ok, kept and kept.error)
+    local refused = send(api, "scan", { pose = pose, revision = rev, cells = { cell(16, -16) } })
+    assert(refused and refused.ok == false and refused.error == "resident chunk limit",
+      "new section reply=" .. tostring(refused and refused.error))
+    local page = send(api, "snapshot", { chunk = "minecraft:overworld|0|4|0" })
+    assert(page and page.ok)
+    local found = false
+    for _, entry in ipairs(page.cells) do
+      if entry[2] == "minecraft:stone" then found = true end
+    end
+    assert(found, "stored section lost the update")
+    page = send(api, "snapshot", { chunk = "minecraft:overworld|1|4|-1" })
+    assert(page and page.ok and #page.cells == 0, "stored a section past the cap")
   end)
 
   test("measured section payload for a quarry and branch workload", function()
