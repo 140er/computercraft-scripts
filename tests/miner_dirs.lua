@@ -170,7 +170,11 @@ return { st = st, getJob = getJob, openModem = openModem, cfg = cfg }
       rednet = { open = function() end, broadcast = function(m, p) sent[#sent + 1] = { m = m, p = p } end },
       print = function() end, turtle = {},
     }, { __index = _G })
-    assert(load(read("install.lua"), "=install.lua", "t", env))("reset", "now")
+    local baseline = assert(io.popen("git show main:install.lua", "r"))
+    local installCode = baseline:read("*a")
+    assert(baseline:close(), "git show main:install.lua failed")
+    assert(#installCode > 0, "empty installer baseline")
+    assert(load(installCode, "=install.lua", "t", env))("reset", "now")
     local left = {}
     for f in pairs(files) do left[#left + 1] = f end
     table.sort(left)
