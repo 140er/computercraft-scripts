@@ -1,0 +1,203 @@
+name: server-only checks
+
+on:
+  pull_request:
+    branches:
+      - server-only
+
+permissions:
+  contents: read
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require base server-only
+        id: base
+        run: |
+          set -euo pipefail
+          base="${{ github.base_ref }}"
+          if [ "$base" != "server-only" ]; then
+            echo fail > "$RUNNER_TEMP/base.result"
+            echo "PR base is $base"
+            exit 1
+          fi
+          echo pass > "$RUNNER_TEMP/base.result"
+
+      - name: Install Lua 5.2 and lupa
+        id: install
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y lua5.2 python3-pip
+          python3 -m pip install --break-system-packages lupa
+          python3 -c 'import lupa; lupa.lua52.LuaRuntime(encoding=None)'
+
+      - name: Fetch main for the test suite
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git branch -f main origin/main
+
+      - name: Run tests
+        id: tests
+        run: |
+          set +e
+          lua5.2 tests/run.lua > "$RUNNER_TEMP/tests.out" 2>&1
+          rc=$?
+          set -euo pipefail
+          cat "$RUNNER_TEMP/tests.out"
+          if [ -s "$RUNNER_TEMP/tests.out" ]; then
+            tail -n 1 "$RUNNER_TEMP/tests.out" > "$RUNNER_TEMP/tests.count"
+          else
+            echo "no test output" > "$RUNNER_TEMP/tests.count"
+          fi
+          if [ "$rc" -eq 0 ]; then
+            echo pass > "$RUNNER_TEMP/tests.result"
+          else
+            echo fail > "$RUNNER_TEMP/tests.result"
+            exit "$rc"
+          fi
+
+      - name: List changed Lua files
+        id: files
+        if: always() && steps.base.outcome == 'success'
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.lua' > "$RUNNER_TEMP/lua.files"
+
+      - name: luac5.2 -p
+        id: luac
+        if: always() && steps.install.outcome == 'success' && steps.files.outcome == 'success'
+        run: |
+          set -euo pipefail
+          fail=0
+          count=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            count=$((count + 1))
+            if luac5.2 -p "$f"; then
+              echo "PASS luac $f"
+            else
+              echo "FAIL luac $f"
+              fail=1
+            fi
+          done < "$RUNNER_TEMP/lua.files"
+          if [ "$count" -eq 0 ]; then
+            echo "PASS luac no Lua files changed"
+          fi
+          if [ "$fail" -eq 0 ]; then
+            echo pass > "$RUNNER_TEMP/luac.result"
+          else
+            echo fail > "$RUNNER_TEMP/luac.result"
+            exit 1
+          fi
+
+      - name: Cobalt locals
+        id: locals
+        if: always() && steps.install.outcome == 'success' && steps.files.outcome == 'success'
+        run: |
+          set -euo pipefail
+          files=()
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            files+=("$f")
+          done < "$RUNNER_TEMP/lua.files"
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "PASS cobaltlocals no Lua files changed"
+            echo pass > "$RUNNER_TEMP/locals.result"
+            exit 0
+          fi
+          set +e
+          python3 tools/cobaltlocals.py "${files[@]}" > "$RUNNER_TEMP/locals.out" 2>&1
+          tool_rc=$?
+          set -euo pipefail
+          cat "$RUNNER_TEMP/locals.out"
+          if python3 -c '
+          import sys
+          fail = False
+          seen = 0
+          tool_rc = int(sys.argv[2])
+          for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+              parts = line.split()
+              if len(parts) >= 3 and parts[1].isdigit() and parts[2] == "locals":
+                  seen += 1
+                  n = int(parts[1])
+                  if n >= 185:
+                      print("FAIL %s has %d locals" % (parts[0], n))
+                      fail = True
+                  else:
+                      print("PASS %s has %d locals" % (parts[0], n))
+              elif line.strip():
+                  print("FAIL " + line.rstrip())
+                  fail = True
+          if seen == 0:
+              print("FAIL cobaltlocals printed no counts")
+              fail = True
+          if tool_rc != 0:
+              fail = True
+          sys.exit(1 if fail else 0)
+          ' "$RUNNER_TEMP/locals.out" "$tool_rc"; then
+            echo pass > "$RUNNER_TEMP/locals.result"
+          else
+            echo fail > "$RUNNER_TEMP/locals.result"
+            exit 1
+          fi
+
+      - name: Test file scope
+        id: scope
+        if: always() && steps.base.outcome == 'success'
+        run: |
+          set +e
+          sh tools/check-scope.sh "${{ github.event.pull_request.base.sha }}" HEAD > "$RUNNER_TEMP/scope.out" 2>&1
+          rc=$?
+          set -euo pipefail
+          cat "$RUNNER_TEMP/scope.out"
+          if [ "$rc" -eq 0 ]; then
+            echo pass > "$RUNNER_TEMP/scope.result"
+          else
+            echo fail > "$RUNNER_TEMP/scope.result"
+            exit "$rc"
+          fi
+
+      - name: Job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          show() {
+            if [ -f "$1" ]; then
+              cat "$1"
+            else
+              echo skipped
+            fi
+          }
+          count="not run"
+          if [ -f "$RUNNER_TEMP/tests.count" ]; then
+            count=$(cat "$RUNNER_TEMP/tests.count")
+          fi
+          {
+            echo "## Server-only checks"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Base is server-only | $(show "$RUNNER_TEMP/base.result") |"
+            echo "| lua5.2 tests/run.lua | $(show "$RUNNER_TEMP/tests.result") |"
+            echo "| Test count | $count |"
+            echo "| luac5.2 -p | $(show "$RUNNER_TEMP/luac.result") |"
+            echo "| cobaltlocals under 185 | $(show "$RUNNER_TEMP/locals.result") |"
+            echo "| check-scope.sh | $(show "$RUNNER_TEMP/scope.result") |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          bad=0
+          for name in base tests luac locals scope; do
+            file="$RUNNER_TEMP/$name.result"
+            if [ ! -f "$file" ] || [ "$(cat "$file")" != "pass" ]; then
+              bad=1
+            fi
+          done
+          exit "$bad"
