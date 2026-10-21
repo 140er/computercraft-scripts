@@ -831,7 +831,7 @@ end
 
 -- ---------------------------------------------------------------- main loop
 
-local chatBox = peripheral.find("chatBox")
+local chatBox = peripheral.find("chat_box")
 local busy = false
 
 local function handle(text, who, reply)
@@ -866,10 +866,10 @@ local function chatLoop()
   if not chatBox then while true do os.pullEvent("chat_never") end end
   local trigger = cfg.name:lower()
   while true do
-    local _, user, message = os.pullEvent("chat")
+    local _, user, message, uuid, hidden = os.pullEvent("chat")
     local text = tostring(message or "")
-    -- only messages that start with its name: "buddy, come here" / "Buddy: hi"
-    if text:lower():sub(1, #trigger) == trigger then
+    if not (hidden == true and type(message) == "string" and message:match("^%$?anchor%s+%d+$"))
+      and text:lower():sub(1, #trigger) == trigger then
       text = text:sub(#trigger + 1):gsub("^[%s,:!]+", "")
       say(user, text, colours.lightBlue)
       handle(text ~= "" and text or "hi", user, function(answer)
