@@ -5,7 +5,7 @@ param(
     [ValidateSet('smoke','ssot','nav','mining','warehouse','ar','views','install','bench','planner','fleet','h4a')][string]$Scenario = 'smoke',
     [string]$Output = '',
     [string]$DataRoot = '',
-    [ValidateRange(100000, 64000000)][int]$Disk = 4000000
+    [ValidateRange(100000, 64000000)][int]$Disk = 1000000
 )
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell 5.1 has no $IsLinux. The body runs only on pwsh 6+.
@@ -132,7 +132,7 @@ try {
     New-Item -ItemType Directory -Force -Path "$run\rom" | Out-Null
     Copy-Item -LiteralPath (Join-Path $romSource 'bios.lua'), (Join-Path $romSource 'rom') -Destination "$run\rom" -Recurse
     $utf8 = New-Object System.Text.UTF8Encoding($false)
-    $diskLimit = if ($Scenario -eq 'install' -or $Scenario -eq 'h4a') { 1000000 } else { 4000000 }
+    $diskLimit = 1000000
     $config = @{
         standardsMode = $true; computerSpaceLimit = $diskLimit
         checkUpdates = $false; http_enable = $true; http_whitelist = @('*')
@@ -329,7 +329,7 @@ try {
                 passed = !$failed
                 emulator = 'CraftOS-PC 2.8.3'
                 computers = $roles
-                diskCapacity = 4000000
+                diskCapacity = 1000000
                 nativeTransport = 'CraftOS virtual modem rednet'
                 checks = $checks
                 limitations = @(
