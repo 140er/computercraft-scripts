@@ -15,6 +15,7 @@ function box.views(on) cfg.viewsControl = on and true or false end
 function box.estop(on) C.estop = on and true or nil end
 function box.estopped() return C.estop end
 function box.error(msg) st.lastError = msg and { msg = msg } or nil end
+function box.rawError() return st.lastError and st.lastError.msg end
 function box.fuelOk() return fuelOk(8) end
 function box.layer(y, branch, step, branchLen)
   st.job = st.job or {}
@@ -267,12 +268,19 @@ return ui
     equal(waiting.tone, "move")
     box.setStatus("Area full for diamond: all 4 layers dug within reach 96. Pick another ore or raise the reach")
     local full = ui.note()
-    equal(full.headline, "At home.")
-    equal(full.detail[1], "Area full for diamond: all 4")
-    equal(full.detail[2], "layers dug within reach 96...")
+    equal(full.headline, "This area is done.")
+    equal(full.tone, "done")
+    equal(full.marker, "lightBlue")
+    equal(full.detail[1], "All 4 layers dug within 96 blocks.")
+    equal(full.detail[2], nil)
+    box.setStatus("Area full for iron: all 3 layers dug within reach 40. Pick another ore or raise the reach")
+    equal(ui.note().detail[1], "All 3 layers dug within 40 blocks.")
     box.setStatus("Heading out: diamond at Y -58")
-    equal(ui.note().headline, "At home.")
-    equal(ui.note().detail[1], "Heading out: diamond at Y -58")
+    local going = ui.note()
+    equal(going.headline, "Heading out.")
+    equal(going.tone, "move")
+    equal(going.marker, "lightGray")
+    equal(going.detail[1], "Heading out: diamond at Y -58")
     assert(c.lime and c.orange and c.red)
   end)
 
@@ -453,6 +461,14 @@ return ui
     assert(wake(co) == "dead")
     x, y, z, found, phase = box.place()
     equal({ x, y, z, found, phase }, { 0, 64, -1, 4, "mining" })
+  end)
+
+  test("miner screen strips minecraft from the stuck line", function()
+    local _, ui, box = boot(6840)
+    box.setStatus("STUCK: Shaft: unbreakable (minecraft:bedrock)")
+    box.error("Shaft: unbreakable (minecraft:bedrock)")
+    equal(ui.note().detail[1], "Shaft: unbreakable (bedrock)")
+    equal(box.rawError(), "Shaft: unbreakable (minecraft:bedrock)")
   end)
 
   test("miner screen names the command ore when the job has none", function()
