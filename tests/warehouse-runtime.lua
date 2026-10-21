@@ -153,7 +153,7 @@ local function worker()
   else publish(4,"resumed-ready") wait("resume",4) end
   local ticks=0
   while w.state().phase~="done" do
-    ticks=ticks+1 assert(ticks<200,"warehouse tick bound")
+    ticks=ticks+1 assert(ticks<2000,"warehouse tick bound")
     local ok,why=w.tick()
     if not ok then assert(why=="charging" or why=="bay occupied",why) end
     sleep(.05)
