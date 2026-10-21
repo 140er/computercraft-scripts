@@ -123,6 +123,29 @@ if pendingViews then
   end
 end
 
+local graph = dofile("tests/f0-graph.lua")
+local function addDep(file, dep)
+  if not graph.read(dep) then return end
+  local list = dependencies[file]
+  if not list then
+    dependencies[file] = { dep }
+    return
+  end
+  for _, have in ipairs(list) do
+    if have == dep then return end
+  end
+  list[#list + 1] = dep
+end
+for _, spec in pairs(roles) do
+  if spec.entry and graph.read(spec.entry) then
+    for _, file in ipairs(graph.closure(spec.entry)) do
+      if graph.read(file) then
+        for _, dep in ipairs(graph.direct(file)) do addDep(file, dep) end
+      end
+    end
+  end
+end
+
 local files = {}
 for _, spec in pairs(roles) do
   if not spec.unavailable then
