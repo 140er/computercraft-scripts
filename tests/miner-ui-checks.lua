@@ -467,7 +467,9 @@ return ui
     local _, ui, box = boot(6840)
     box.setStatus("STUCK: Shaft: unbreakable (minecraft:bedrock)")
     box.error("Shaft: unbreakable (minecraft:bedrock)")
-    equal(ui.note().detail[1], "Shaft: unbreakable (bedrock)")
+    local stuck = ui.note()
+    equal(stuck.detail[1], "Shaft: unbreakable (bedrock)")
+    equal(stuck.detail[2], nil)
     equal(box.rawError(), "Shaft: unbreakable (minecraft:bedrock)")
   end)
 

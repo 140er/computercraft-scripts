@@ -255,7 +255,7 @@ return {
     ["lib/stubs/h4d_dep.lua"]="d97600b8",
     ["lumber.lua"]="4eee182d",
     ["mine-tasks.lua"]="85edae0a",
-    ["miner.lua"]="64712214",
+    ["miner.lua"]="1dfb00eb",
     ["mining.lua"]="ddb8ce8b",
     ["nav.lua"]="6c824656",
     ["panel.lua"]="9d4d1c4d",
@@ -1485,5 +1485,5 @@ return {
     ["file"]="bundle-manifest.sig",
     ["status"]="pending-h1h2"
   },
-  ["version"]="4564bf85"
+  ["version"]="08c7b8ce"
 }
