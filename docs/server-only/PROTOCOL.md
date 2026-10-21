@@ -191,12 +191,27 @@ A module returns one table.
   name = "state",
   handlers = { ["type.name"] = function(msg, reply) end },
   tick = function(now) end,
+  listen = { ["other-protocol"] = function(sender, message) end },
 }
 ```
 
 `msg` is the decoded envelope. `reply(t, body)` sends one reply. `now` is utc milliseconds. `tick` runs once each second from `os.startTimer(1)`. A late timer does not run the missed seconds. `tick` returns quickly.
 
 Built-in `pair` and `hello` run first. Module handlers for that same type run next, in file name order. All of them run. Unknown `t` gets `err`.
+
+`listen` is optional. For rednet protocols other than `so`, the server calls each matching listener in file name order inside `pcall`. A failed listener is logged and later listeners still run. The server sends `so` messages through authenticated dispatch only, even if a module declares `listen.so`. Listeners return without waiting. A listener records incoming data; cross-module calls still belong in handlers or `tick`.
+
+### shop
+
+`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, search text, order replies and trend samples in memory. Restarting the server clears them.
+
+The module finds the existing, unpaired Storage Room turtle through `rednet.lookup("roomsorter")` or the sender of a `roomsorter_stock` broadcast. It retries lookup every 10 seconds until found. Before discovery the screen shows `Storage room not found, still looking`.
+
+The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
+
+The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names without case sensitivity; spaces match underscores. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
+
+Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
 ### state
 
