@@ -4,6 +4,7 @@ These rules apply to every Codex (or other agent) session in this repo.
 
 ## Working mode
 
+For the server-only build, read docs/SERVER-ONLY-MAP.md first; explore only what it doesn't cover.
 - Work in poteto-mode. The skill files are on the Windows VM at
   `C:\Tools\pstack\skills\`. Read `poteto-mode\SKILL.md` and its
   `playbooks\` and `references\` before you start, and follow the playbook
