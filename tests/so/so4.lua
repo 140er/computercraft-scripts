@@ -56,7 +56,6 @@ local function boot(files)
   env.SO = { store = store, mods = {} }
   local cells = env.dofile("so-mod-cells.lua")
   env.SO.mods.cells = cells
-  probe.last, probe.longest = net.time, 0
   return cells, machine, net, probe
 end
 
