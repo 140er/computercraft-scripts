@@ -287,6 +287,61 @@ A `beacon` marks the authenticated sender lost, retains its journal id, and emit
 
 Lease records, callbacks, beacon journals, and observed ranges live in memory. A server restart clears them. Planners must recover reservations before sending new work after a restart.
 
+### mine
+
+`so-mod-mine.lua` plans work for paired workers. It starts stopped. Its job lives in
+`so-data/mine/job` through `so-store`. The job contains `dim`, `home`, `bottom`,
+`length`, `mode`, `ores`, `turtles`, and `progress`. `home` is the chest side of
+the shaft. The shaft is one block forward from it. Each turtle gets one branch
+at the bottom level. Branch junctions are four blocks apart in `thorough` mode
+and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
+
+The module registers `display.screen("mining", render, input)`. Send these text
+commands through that screen's `input.text`:
+
+- `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
+- `bottom <y>` and `length <n>` set the shaft bottom and branch length.
+- `mode thorough|fast` selects wall inspection or faster branches.
+- `ores diamond,iron,...` accepts the ore names from `miner.lua`.
+- `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
+- `remove <id>` removes a worker once its lease has closed.
+- `start` and `stop` control planning. An already sent batch finishes after stop.
+
+Adding a worker sends a recovery park lease. Startup also sends each saved worker
+one recovery park lease before planning. Reports supply the real journal pose,
+inventory, fuel, and dug cells. The planner maps these facts through the worker's
+frame. It keeps reservations under `mine:<id>`. Every entered, inspected, sealed,
+or dug cell must pass the range check and reservation check before dispatch.
+Lost and expired workers retain their reservations until a recovery report.
+The screen shows each worker's state, pose, fuel, ore count, and last error.
+Lost workers and workers outside their proven radio range appear in red.
+
+Work uses batches of at most 16 steps. Inspect, dig, and movement have separate
+report boundaries. A failed dig cannot authorize movement. Thorough mode checks
+branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
+`c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
+It scoops lava sources with an empty bucket before trying sealing blocks.
+It seals other lava and water before movement. Extra junk drops at the current
+position about every ten digs. One stack of suitable blocks stays for sealing.
+
+Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
+below the distance home plus 64 visit a fuel drop and refuel towards 2000.
+Trips return to the position where work stopped. Trips route around their chest. Full inventories unload before a fuel pickup.
+Ore unloading includes mined fuel items. Front drops use a free neighbour
+at the same height. Down drops use the cell above the chest. The drop module's
+numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
+-1, and `minecraft:the_end` as 1. Other dimensions wait with an alert.
+No usable drop point parks the worker with the drop module's hold alert.
+
+The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
+`{ level, branch, done }` through `SO.mods.state.emit` when available.
+`so-mine-plan.lua` owns the pure movement decisions, geometry, ore recognition,
+and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a batch
+description without network, storage, or server calls. `row.pose` and `row.goal`
+are world poses. `lookup(cell)` returns nil for unknown, false for air, or block
+data. The caller reserves `cells` before sending `steps` and applies the actual
+report rather than assuming the returned expected `pose`.
+
 ### cells
 
 SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. All one-cell calls accept an optional last `dim` string, defaulting to `minecraft:overworld`. The same coordinates in different dimensions are separate cells. `who` is a computer id or a lease string.
