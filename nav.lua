@@ -130,11 +130,7 @@ function M.open(cfg)
     end
     state.cells[k]=name
   end
-  local function sync(previous)
-    local ok,why,epoch
-    if previous then ok,why,epoch=cfg.client.calibrate(state.pose,previous)
-    else ok,why,epoch=cfg.client.resync(state.pose) end
-    if not ok then return false,why end
+  local function commitReady(epoch)
     local announced=epoch
     epoch=serverEpoch(epoch)
     if announced~=nil and epoch==nil then return false,"invalid server epoch" end
@@ -144,6 +140,26 @@ function M.open(cfg)
     end
     state.action=nil remember(state.pose,"minecraft:air") save() ready=true
     return true
+  end
+  local function sync(previous)
+    local ok,why,epoch
+    if previous then ok,why,epoch=cfg.client.calibrate(state.pose,previous)
+    else ok,why,epoch=cfg.client.resync(state.pose) end
+    if not ok then return false,why end
+    return commitReady(epoch)
+  end
+  local function publish()
+    if not gpsFree then return false,"offline positions are off" end
+    if state.pose.conf~="certain" then return false,"pose not certain" end
+    local last=state.journal and state.journal.last
+    local evidence=last and last.evidence and last.evidence.anchor
+    if type(evidence)~="table" then return false,"no anchor evidence" end
+    if cfg.client and cfg.client.anchor then
+      local ok,why,epoch=cfg.client.anchor(state.pose,evidence)
+      if not ok then return false,why end
+      return commitReady(epoch)
+    end
+    return sync()
   end
   local function proof(v)
     if v=="none" or v=="possible" or v=="unknown" then return v end
@@ -230,7 +246,15 @@ function M.open(cfg)
       state.journal.faces=Pos.rotate(faces,state.pose.h)
       closeMove(decision.cell=="to",decision.method,state.journal.faces)
       save()
-      return sync()
+      local ok,why=sync()
+      if ok then return true end
+      if why=="manual reconciliation required" and cfg.client and cfg.client.anchor
+        and state.journal.last and state.journal.last.kind=="anchor" then
+        local again,err=publish()
+        if again then return true end
+        return false,err or why
+      end
+      return false,why
     end
     state.pose.conf=decision.conf
     if decision.conf=="lost" then state.pose.src="reckoned" end
@@ -310,9 +334,12 @@ function M.open(cfg)
     if type(evidence.reference)~="string" or #evidence.reference>64 then
       state.journal.probe=false save() return false,"invalid anchor"
     end
+    local anchored,anchorEpoch=false,nil
     if cfg.client and cfg.client.anchor then
-      local ok,why=cfg.client.anchor(pos,evidence)
+      local ok,why,epoch=cfg.client.anchor(pos,evidence)
       if not ok then state.journal.probe=false save() return false,why or "anchor rejected" end
+      -- The anchor op already stored this cell. A following sync can still reject it and leave the turtle certain but unready.
+      anchored,anchorEpoch=true,epoch
     end
     local previous=A.copy(state.pose)
     state.journal.seq=state.journal.seq+1
@@ -332,6 +359,7 @@ function M.open(cfg)
     state.cells,state.trail={},{}
     state.action=nil
     save()
+    if anchored then return commitReady(anchorEpoch) end
     return sync()
   end
   function api.anchor(spec)
@@ -356,6 +384,7 @@ function M.open(cfg)
     if busy then return false,"navigation busy" end
     local fix=Pos.triangulate(points)
     if not fix then
+      if state.pose.conf=="certain" then return false,"weak sample" end
       state.pose.conf,state.pose.src="suspect","radio"
       ready=false
       save()
@@ -365,14 +394,40 @@ function M.open(cfg)
       reference="radio",h=state.pose.h})
   end
   function api.pose() return A.copy(state.pose) end
+  function api.reckoned()
+    local legs={}
+    local journal=state.journal
+    if type(journal)=="table" then
+      if type(journal.last)=="table" and journal.last.kind=="move" then legs[#legs+1]=A.copy(journal.last) end
+      if type(journal.open)=="table" and journal.open.kind=="move" then legs[#legs+1]=A.copy(journal.open) end
+    end
+    return {pose=A.copy(state.pose),legs=legs}
+  end
+  function api.publish() return publish() end
   function api.confirmed() return ready and state.action==nil end
   function api.fleetPose(p)
-    if not api.confirmed() or anchoredAt<=0 then return false end
-    p=p or state.pose
-    if not legacyPose(p) or not heading(p.h) or not inside(p,b) then return false end
-    -- GPS and the legacy journal establish this observation, not framed SSOT authority.
-    return {v=1,frame="abs",yAbs=true,dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h,
-      conf="certain",src=same(p,state.pose) and "gps" or "inherited",anchoredAt=anchoredAt}
+    if not gpsFree then
+      if not api.confirmed() or anchoredAt<=0 then return false end
+      p=p or state.pose
+      if not legacyPose(p) or not heading(p.h) or not inside(p,b) then return false end
+      -- GPS and the legacy journal establish this observation, not framed SSOT authority.
+      return {v=1,frame="abs",yAbs=true,dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h,
+        conf="certain",src=same(p,state.pose) and "gps" or "inherited",anchoredAt=anchoredAt}
+    end
+    if not api.confirmed() then return false end
+    local pose=state.pose
+    if not Pos.pos(pose) or pose.conf~="certain" or pose.frame~="abs" or pose.yAbs~=true
+      or not (pose.anchoredAt>0) or not heading(pose.h) or not inside(pose,b) then return false end
+    p=p or pose
+    if Pos.pos(p) then
+      if not same(p,pose) or p.conf~="certain" or p.frame~="abs" then return false end
+      return A.copy(pose)
+    end
+    if legacyPose(p) and heading(p.h) and inside(p,b) and p.dim==pose.dim then
+      return {v=1,frame="abs",yAbs=true,dim=p.dim,x=p.x,y=p.y,z=p.z,h=p.h,
+        conf="certain",src=same(p,pose) and pose.src or "inherited",anchoredAt=pose.anchoredAt}
+    end
+    return false
   end
   function api.legacyTarget(p)
     if type(p)~="table" or p.v~=1 or p.frame~="abs" or p.yAbs~=true or p.conf~="certain"
