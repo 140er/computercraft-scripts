@@ -1,11 +1,12 @@
 program returned: false  pcall err: nil
-capacity 1000000 free 389672
+capacity 1000000 free 234891
         6 .fleet-role
     32245 ar-hud.lua
     13750 atomic.lua
-    39768 bundle-manifest.lua
+    50953 bundle-manifest.lua
      6849 chat-control.lua
      4250 dead.lua
+    14129 enrol.lua
     33148 fleetview.lua
     48950 install.lua
      6067 journal.lua
@@ -14,6 +15,9 @@ capacity 1000000 free 389672
       381 lib/stubs/b1_h5.lua
      1886 lib/stubs/b1_n1.lua
      2140 lib/stubs/b1_w1.lua
+     1059 lib/stubs/layout_dep.lua
+    13491 mapsection.lua
+    16699 mapstore.lua
      4745 mine-tasks.lua
    104334 panel.lua
     17895 planner-core.lua
@@ -28,7 +32,7 @@ capacity 1000000 free 389672
      3850 s1_t1.lua
      6359 ssot-client.lua
     23850 ssot-hub.lua
-    43180 ssot.lua
+    43728 ssot.lua
        30 startup.lua
        19 startup_real.lua
     15465 update.lua
@@ -36,9 +40,12 @@ capacity 1000000 free 389672
      1564 wh2-ar.lua
     21586 wh2-board.lua
     20085 wh2-client.lua
+    41160 wh2-craft.lua
      5376 wh2-dev.lua
      4058 wh2-dispatch.lua
     30412 wh2-fleet.lua
+    52659 wh2-layout.lua
+     3851 wh2-locations.lua
      8730 wh2-program.lua
     23490 wh2-recipes.lua
     12121 wh2-wizard-adapter.lua
