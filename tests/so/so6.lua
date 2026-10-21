@@ -15,6 +15,7 @@ local function setup(extra)
     server.files[path] = f:read("*a")
     f:close()
   end
+  server.env.rednet.lookup = function() error("shop must not call rednet.lookup") end
   if extra then extra(server) end
   server.boot("so-server.lua")
   assert(server.alive(), tostring(server.error))
@@ -48,12 +49,16 @@ local function turtle(net, hosted)
   local t = net.machine({ id = 3, modem = true, turtle = true })
   t.spawn([[
 rednet.open("back")
-]] .. (hosted and 'rednet.host("roomsorter", "storage")\n' or '') .. [[
+dnsEnabled = ]] .. tostring(hosted) .. "\n" .. [[
+
 orders = 0
 stock = { ["minecraft:stone"] = 40, ["minecraft:dirt"] = 10 }
 while true do
   local ev, id, msg, protocol = os.pullEvent()
-  if ev == "rednet_message" and protocol == "roomsorter" then
+  if ev == "rednet_message" and protocol == "dns" and dnsEnabled
+      and type(msg) == "table" and msg.sType == "lookup" and msg.sProtocol == "roomsorter" then
+    rednet.send(id, { sType = "lookup response", sProtocol = "roomsorter", sHostname = "storage" }, "dns")
+  elseif ev == "rednet_message" and protocol == "roomsorter" then
     if msg.cmd == "stock" then
       rednet.send(id, { rid = msg.rid, totals = stock, state = "Sorting" }, protocol)
     elseif msg.cmd == "order" then
@@ -77,7 +82,7 @@ return function(test, equal)
   test("shop orders reach the storage turtle once and show its reply", function()
     local net, server, client, send, frame = setup()
     local t = turtle(net, true)
-    net.advance(10)
+    net.advance(11)
     local picture = frame()
     local buy
     for _, b in ipairs(picture.buttons) do
@@ -103,13 +108,50 @@ return function(test, equal)
     assert(server.alive() and t.alive())
   end)
 
+  test("shop broadcasts DNS lookup from tick without waiting", function()
+    local net, server, client, send, frame = setup()
+    local function lookups()
+      local count = 0
+      for _, sent in ipairs(server.sent) do
+        if sent.protocol == "dns" then
+          assert(sent.id == nil, "DNS lookup must be a broadcast")
+          equal(sent.payload, { sType = "lookup", sProtocol = "roomsorter" })
+          count = count + 1
+        end
+      end
+      return count
+    end
+    equal(lookups(), 1)
+    net.advance(9)
+    equal(lookups(), 1)
+    send("hello", { w = 120, h = 100 })
+    net.advance(1)
+    equal(lookups(), 2)
+    local t = turtle(net, false)
+    for _, message in ipairs({ "invalid", { sType = "lookup", sProtocol = "roomsorter" },
+        { sType = "lookup response", sProtocol = "other" } }) do
+      t.env.rednet.send(1, message, "dns")
+    end
+    net.flush()
+    assert(text(frame()):find("Storage room not found, still looking", 1, true))
+    t.env.rednet.send(1, { sType = "lookup response", sProtocol = "roomsorter" }, "dns")
+    net.flush()
+    client.env.rednet.send(1, { sType = "lookup response", sProtocol = "roomsorter" }, "dns")
+    net.flush()
+    net.advance(1)
+    assert(text(frame()):find("minecraft:stone", 1, true))
+    net.advance(10)
+    equal(lookups(), 2)
+    assert(not table.concat(server.log, "\n"):find("shop must not call rednet.lookup", 1, true))
+  end)
+
   test("shop discovers a turtle starting two minutes later", function()
     local net, _, _, _, frame = setup()
     assert(text(frame()):find("Storage room not found, still looking", 1, true))
     net.advance(120)
     assert(text(frame()):find("Storage room not found, still looking", 1, true))
     turtle(net, true)
-    net.advance(10)
+    net.advance(11)
     local shown = text(frame())
     assert(shown:find("Sorting", 1, true))
     assert(shown:find("minecraft:stone", 1, true))

@@ -60,6 +60,13 @@ S.broadcast = function(sender, message)
   if sender == S.turtle then S.stock(message) end
 end
 
+S.dns = function(sender, message)
+  if not S.turtle and type(message) == "table" and message.sType == "lookup response"
+      and message.sProtocol == "roomsorter" then
+    S.turtle = sender
+  end
+end
+
 S.sample = function(now)
   if S.sampleAt and now - S.sampleAt < 60000 then return end
   if next(S.totals) == nil and next(S.history) == nil then return end
@@ -143,7 +150,7 @@ S.tick = function(now)
   end
   if not S.turtle and (not S.lookupAt or now - S.lookupAt >= 10000) then
     S.lookupAt = now
-    S.turtle = rednet.lookup("roomsorter")
+    rednet.broadcast({ sType = "lookup", sProtocol = "roomsorter" }, "dns")
   end
   if S.turtle then
     if not S.stockAt or now - S.stockAt >= 10000 then
@@ -163,6 +170,6 @@ end
 return {
   name = "shop",
   handlers = {},
-  listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast },
+  listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast, dns = S.dns },
   tick = S.tick,
 }

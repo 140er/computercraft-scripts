@@ -205,7 +205,7 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 `so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, search text, order replies and trend samples in memory. Restarting the server clears them.
 
-The module finds the existing, unpaired Storage Room turtle through `rednet.lookup("roomsorter")` or the sender of a `roomsorter_stock` broadcast. It retries lookup every 10 seconds until found. Before discovery the screen shows `Storage room not found, still looking`.
+The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`.
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
