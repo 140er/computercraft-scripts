@@ -659,4 +659,61 @@ HELLO = reply
     local n = raw:byte(1) * 16777216 + raw:byte(2) * 65536 + raw:byte(3) * 256 + raw:byte(4)
     equal(code, string.format("%06d", n % 1000000))
   end)
+
+  test("five bad pair MACs burn the code and join can pin the server id", function()
+    local net, server = bootServer(16000000, true)
+    assert(server.alive(), tostring(server.error))
+    local code = pressP(net, server)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
+    local attacker = bootClient(net, 6)
+    attacker.spawn([[
+      proto = dofile("so-proto.lua")
+      BAD = proto.build("]] .. string.rep("ab", 32) .. [[", "pair", { pub = "]] .. string.rep("cd", 32) .. [[" })
+      READY = true
+    ]])
+    net.flush()
+    assert(attacker.env.READY == true, tostring(attacker.error))
+    local function poke()
+      attacker.env.rednet.send(server.id, attacker.env.BAD, "so")
+      net.flush()
+      assert(not server.error, tostring(server.error))
+    end
+    for _ = 1, 4 do poke() end
+    assert(tostring(server.screen[1]):find(code, 1, true), "code burned early: " .. tostring(server.screen[1]))
+    poke()
+    equal(server.screen[1], "Press P to pair")
+    local late = bootClient(net, 7)
+    late.spawn(string.format(JOIN, code))
+    net.advance(8)
+    assert(late.env.JOINED ~= true, "burned code still paired")
+
+    local fresh = pressP(net, server)
+    equal(server.screen[1], "Pair code: " .. fresh .. " server " .. tostring(server.id))
+    for _ = 1, 4 do poke() end
+    assert(tostring(server.screen[1]):find(fresh, 1, true), "new code burned early")
+    local pinned = bootClient(net, 8)
+    pinned.spawn(string.format([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      rednet.lookup = function() return 99 end
+      local trusted, trustedErr = pair.join(%q)
+      LOOKUP = trusted
+      LOOKUPERR = trustedErr
+      local ok, err = pair.join(%q, %d)
+      PINNED = ok
+      PINERR = err
+    ]], fresh, fresh, server.id))
+    net.advance(8)
+    assert(not pinned.error, tostring(pinned.error))
+    assert(pinned.env.LOOKUP == nil, "lookup was trusted")
+    assert(pinned.env.PINNED == true, tostring(pinned.env.PINERR))
+    equal(savedKey(server, pinned.id), savedKey(pinned, server.id))
+    local sentTo = {}
+    for i = 1, #pinned.sent do sentTo[pinned.sent[i].id] = true end
+    assert(sentTo[99] == true, "join(code) did not use lookup")
+    assert(sentTo[server.id] == true, "join(code, serverId) did not pin")
+    assert(server.alive(), tostring(server.error))
+  end)
 end
