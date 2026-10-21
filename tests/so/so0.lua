@@ -1,3 +1,4 @@
+error("TMP CI1 forced test failure")
 local harness = dofile("tests/so/harness.lua")
 
 local SOURCES = {

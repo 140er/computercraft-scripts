@@ -10,7 +10,6 @@ local baseline = assert(io.popen("git show main:hub.lua", "r"))
 local original = baseline:read("*a")
 assert(baseline:close(), "git show main:hub.lua failed")
 assert(#original > 0, "empty baseline")
-
 local passed, failed = 0, 0
 local function test(name, fn)
   local ok, err = pcall(fn)
