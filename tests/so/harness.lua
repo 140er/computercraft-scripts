@@ -161,6 +161,37 @@ local function attachTurtle(m, opts, world)
   }
 end
 
+-- The fake clock does not move during a busy wait, so the real timing
+-- loop would not finish. Record the call and skip that loop.
+local function noteRandom(m, result)
+  if m.randomWrapped or type(result) ~= "table" or type(result.initWithTiming) ~= "function" then return end
+  m.randomWrapped = true
+  m.randomLog = {}
+  m.randomOut = {}
+  local saved = {
+    initWithTiming = result.initWithTiming,
+    mix = result.mix,
+    random = result.random,
+    init = result.init,
+  }
+  result.initWithTiming = function()
+    m.randomLog[#m.randomLog + 1] = "initWithTiming"
+    if m.timingError then error("timing failed") end
+    if m.skipTiming == false then return saved.initWithTiming() end
+    return saved.init("skip")
+  end
+  result.mix = function(data)
+    m.randomLog[#m.randomLog + 1] = "mix:" .. tostring(data)
+    return saved.mix(data)
+  end
+  result.random = function(n)
+    local out = saved.random(n)
+    m.randomLog[#m.randomLog + 1] = "random:" .. tostring(n)
+    m.randomOut[#m.randomOut + 1] = out
+    return out
+  end
+end
+
 H.new = function()
   local net = {
     machines = {}, order = {}, hosts = {}, world = {}, time = 1700000000000,
@@ -234,6 +265,8 @@ H.new = function()
     local m = {
       id = opts.id, files = {}, log = {}, screen = {}, sent = {}, inbox = {},
       timers = {}, timerSeq = 0, cx = 1, cy = 1, capacity = opts.capacity or 16000000,
+      randomLog = {}, randomOut = {},
+      skipTiming = opts.skipTiming ~= false, timingError = opts.timingError == true,
     }
     local env = setmetatable({}, { __index = base })
     m.env = env
@@ -377,7 +410,9 @@ H.new = function()
       if not text then error("missing " .. tostring(path), 2) end
       local fn, err = load(text.readAll(), "@" .. path, "t", env)
       if not fn then error(err, 2) end
-      return fn()
+      local result = fn()
+      if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
+      return result
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {

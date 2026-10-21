@@ -513,4 +513,61 @@ HELLO = reply
     equal(hellos, 2)
     equal(countClient.env.GOT.rid, rid)
   end)
+
+  test("a fresh fake computer calls initWithTiming before its first random(32)", function()
+    local net = harness.new()
+    local machine = net.machine({ id = 8, capacity = 1000000 })
+    machine.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(machine)
+    machine.spawn([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      pair.invite()
+      DONE = true
+    ]])
+    net.flush()
+    assert(not machine.error, tostring(machine.error))
+    assert(machine.env.DONE == true, "invite did not finish")
+    local timing, mix, first32
+    for i = 1, #machine.randomLog do
+      local entry = machine.randomLog[i]
+      if entry == "initWithTiming" and not timing then timing = i end
+      if type(entry) == "string" and entry:sub(1, 4) == "mix:" and not mix then mix = entry:sub(5) end
+      if entry == "random:32" and not first32 then first32 = i end
+    end
+    assert(timing and first32 and timing < first32,
+      "initWithTiming before random(32), log: " .. table.concat(machine.randomLog, ","))
+    assert(type(mix) == "string", "mix missing")
+    local parts = {}
+    for part in mix:gmatch("[^|]+") do parts[#parts + 1] = part end
+    equal(#parts, 5)
+    equal(parts[1], tostring(net.time))
+    equal(parts[2], tostring(net.time / 1000))
+    assert(parts[3]:sub(1, 6) == "table:", parts[3])
+    equal(parts[5], tostring(machine.id))
+    assert(tonumber(parts[4]), "math.random missing: " .. tostring(parts[4]))
+
+    local noisy = net.machine({ id = 11, capacity = 1000000, timingError = true })
+    noisy.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(noisy)
+    noisy.spawn([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      local raw = pair.invite()
+      assert(type(raw) == "string" and #raw == 6, tostring(raw))
+      DONE = true
+    ]])
+    net.flush()
+    assert(not noisy.error, tostring(noisy.error))
+    assert(noisy.env.DONE == true, "invite failed after timing error")
+    local saw = false
+    for i = 1, #noisy.randomLog do
+      if noisy.randomLog[i] == "initWithTiming" then saw = true end
+    end
+    assert(saw, "timing failure was not attempted")
+  end)
 end
