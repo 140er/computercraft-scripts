@@ -316,6 +316,8 @@ inventory, fuel, and dug cells. The planner maps these facts through the worker'
 frame. It keeps reservations under `mine:<id>`. Every entered, inspected, sealed,
 or dug cell must pass the range check and reservation check before dispatch.
 Lost and expired workers retain their reservations until a recovery report.
+A completed route unloads remaining ore through the configured ore drop, returns
+to its branch tip and parks. A missing or failed drop uses the existing retry delay.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 

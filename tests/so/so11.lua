@@ -312,7 +312,7 @@ S.run = function()
   local function total(chest,predicate)
     local count=0 for _,item in ipairs(chest.inv) do if predicate(item.name) then count=count+item.count end end return count
   end
-  g.ores=total(g.chests.ore,function(name) return name=="minecraft:diamond" or name=="minecraft:raw_iron" end)
+  g.ores=total(g.chests.ore,function(name) return name=="minecraft:diamond" or name=="minecraft:raw_iron" or name=="example:rich_rock" end)
   g.logs=total(g.chests.wood,function(name) return name=="minecraft:oak_log" end)
   g.felled=0
   for _,p in ipairs(g.trees) do

@@ -318,6 +318,13 @@ plan = function(id,row)
     while row.route[row.index] and M.same(row.pose,row.route[row.index]) do row.index=row.index+1 end
     row.goal=row.route[row.index]
     if not row.goal then
+      for _, item in ipairs(row.inv) do
+        if not M.junk(item) and not unloadKeep[item.name] and P.fuelValue(item.name) == 0 then
+          if trip(id,row,"ore") then save() plan(id,row)
+          else park(id,row,false) end
+          return
+        end
+      end
       row.state="done" job.progress.done=(job.progress.done or 0)+1
       emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done}) save() park(id,row,false) return
     end

@@ -585,4 +585,20 @@ return function(test,equal)
     run(s,5) equal(picks,4) equal(alerts,1)
   end)
 
+  test("mine completed branch unloads its remaining ore before parking",function()
+    local s=setup()
+    digWorld(s)
+    s.turtle.inv[1]={name="minecraft:diamond",count=2}
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["-2,-1,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=-2,y=-1,z=0,side="down",kind="ore"}))
+    s.input("start")
+    run(s,200)
+    local diamonds=0
+    for _,item in ipairs(chest.inv) do if item.name=="minecraft:diamond" then diamonds=diamonds+item.count end end
+    equal(diamonds,2)
+    equal(persisted(s).turtles["2"].state,"done")
+    equal(persisted(s).progress.done,1)
+  end)
+
 end

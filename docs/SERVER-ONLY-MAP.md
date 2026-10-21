@@ -117,7 +117,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  New jobs default to `ores = {}`, which accepts all ores.
+  New jobs default to `ores = {}`, which accepts all ores. Completed routes
+  unload remaining ore through the configured drop before parking.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
@@ -280,7 +281,7 @@ inside an active server call at minute six, preserves the disk, drops messages
 for two minutes and boots a fresh server. It records all seven checks and prints
 progress, lease and recovery totals before reporting failures. Run it alone with
 `lua5.2 tests/so/so11.lua`; it also runs at the end of `lua5.2 tests/run.lua` and
-may add more than two minutes. The harness adds `net.kill(machine)` and
+adds about 28 seconds in the recorded offline run. The harness adds `net.kill(machine)` and
 `net.boot(machine)`, which returns a fresh machine with the same disk and id.
 Optional machine settings enable inventory drops, fluid handling, directory
 listing, monitor size and server wait observations. Existing defaults stay the
