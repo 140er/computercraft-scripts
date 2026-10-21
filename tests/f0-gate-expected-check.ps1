@@ -72,7 +72,7 @@ $both = Join-Path $base 'both'
 Reset-Dir $both
 foreach ($id in 1, 2, 3, 4) { Add-Result $both $id }
 Add-Bytes $both 6 1000001
-Add-Verdict $both 0
+Add-Verdict $both 6
 
 Assert-Accepted (Invoke-Done $overflow 'mining')
 Assert-Rejected (Invoke-Done $other 'mining') 'computer 0 missing its result'

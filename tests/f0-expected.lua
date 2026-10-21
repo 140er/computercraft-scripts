@@ -632,4 +632,15 @@ return {
     "wh2-locations.lua",
     "wh2-wizard.lua",
   },
+  gate = {
+    {
+      scenario = "mining",
+      owner = "F2h",
+      computer = 6,
+      ids = { 0, 1, 2, 3, 4, 6 },
+      limit = 1000000,
+      missing = "sandbox-result.json",
+      note = "hub.lua:29 makes the hub carry miner.lua and all of ssot.lua, and F2h owns the fix, not PR 103.",
+    },
+  },
 }

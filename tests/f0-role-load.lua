@@ -6,6 +6,71 @@
 -- tests/f0-expected.lua, when present, freezes the installer gaps. The
 -- release bundle and the root-module manifest are never allowlisted.
 
+if arg and arg[1] == "--gate" then
+  local expected = dofile("tests/f0-expected.lua")
+  local evidence = arg[2] or ""
+  local scenario = arg[3] or ""
+  local function readAll(path)
+    local handle = io.open(path, "rb")
+    if not handle then return "" end
+    local text = handle:read("*a") or ""
+    handle:close()
+    if text:sub(1, 3) == "\239\187\191" then text = text:sub(4) end
+    return text
+  end
+  local function hasFile(dir, name)
+    local handle = io.open(dir .. "\\" .. name, "rb")
+    if not handle then return false end
+    handle:close()
+    return true
+  end
+  local function bytesOf(dir)
+    local pipe = io.popen('cmd /c dir /s /b /a-d "' .. dir:gsub('"', "") .. '"')
+    if not pipe then return 0 end
+    local total = 0
+    for line in pipe:lines() do
+      line = line:gsub("\r", "")
+      local handle = io.open(line, "rb")
+      if handle then
+        total = total + (handle:seek("end") or 0)
+        handle:close()
+      end
+    end
+    pipe:close()
+    return total
+  end
+  local function names(text, id, missing)
+    local win = "computer\\" .. id .. "\\" .. missing
+    local unix = "computer/" .. id .. "/" .. missing
+    return text:find(win, 1, true) or text:find(unix, 1, true)
+  end
+  local verdict = readAll(evidence .. "\\verdict.txt")
+  local head = verdict:match("^[^\r\n]*") or ""
+  local records = type(expected.gate) == "table" and expected.gate or {}
+  for _, rec in ipairs(records) do
+    local ids = type(rec.ids) == "table" and rec.ids or {}
+    local only = rec.scenario == scenario and head == "FAIL"
+    if only then
+      for _, id in ipairs(ids) do
+        local present = hasFile(evidence .. "\\computers\\" .. id, rec.missing)
+        if id == rec.computer then
+          if present or not names(verdict, id, rec.missing) then only = false end
+        elseif not present or names(verdict, id, rec.missing) then
+          only = false
+        end
+      end
+      local size = bytesOf(evidence .. "\\computers\\" .. rec.computer)
+      if only and size > rec.limit then
+        print("gate " .. rec.scenario .. " EXPECTED")
+        print(rec.note)
+        os.exit(0)
+      end
+    end
+  end
+  print("gate " .. scenario .. " FAIL")
+  os.exit(1)
+end
+
 local graph = dofile("tests/f0-graph.lua")
 local manifest = dofile("bundle-manifest.lua")
 
