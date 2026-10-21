@@ -50,6 +50,33 @@ S.release = function()
   if type(cells.releaseOwner) == "function" then cells.releaseOwner(S.owner()) end
 end
 
+S.cellKey = function(p) return p.x .. "," .. p.y .. "," .. p.z end
+S.occupied = function(p)
+  local j = S.job
+  if p.y <= j.ground or (j.obstacles or {})[S.cellKey(p)] then return true end
+  for _, chest in pairs({ j.saplings, j.service and j.service.point }) do
+    if p.x == chest.x and p.y == chest.y and p.z == chest.z then return true end
+  end
+  return p.y == j.ground + 1 and j.spots[p.x .. "," .. p.z] ~= nil
+end
+S.noteBlocks = function(pending, results)
+  local at = pending.pose
+  local directions = { inspect = "forward", inspectUp = "up", inspectDown = "down",
+    dig = "forward", digUp = "up", digDown = "down" }
+  local known = S.job.obstacles or {}
+  S.job.obstacles = known
+  for i, step in ipairs(pending.steps) do
+    local result, dir = results[i], directions[step.op]
+    if dir then
+      local x, y, z = P.ahead(at, dir)
+      local key = S.cellKey({ x = x, y = y, z = z })
+      if step.op:match("^inspect") then known[key] = result.ok and result.data ~= nil or nil
+      elseif result.ok then known[key] = nil end
+    end
+    if result.ok then at = P.apply(at, step.op) end
+  end
+end
+
 S.send = function(steps, action, cells, recover, ms)
   local j, lease = S.job, S.module("lease")
   if not j.turtle or type(lease.send) ~= "function" or type(lease.status) ~= "function" then return false end
@@ -89,7 +116,7 @@ S.send = function(steps, action, cells, recover, ms)
     S.alert("lease " .. tostring(err))
     return false
   end
-  S.pending = { id = id, action = action, steps = steps }
+  S.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose }
   S.idlePark = action == "park" or action == "recover"
   if S.idlePark then S.parkAt = os.epoch("utc") end
   return true
@@ -198,6 +225,7 @@ S.report = function(id, turtleId, results, lease)
     S.alert("missing pose")
     return
   end
+  S.noteBlocks(pending, results)
   if report.inv then j.inv = report.inv end
   if report.fuel ~= nil then j.fuel = report.fuel end
   local action, result = pending.action, results[#results]
@@ -211,6 +239,9 @@ S.report = function(id, turtleId, results, lease)
     local block = result.ok and result.data or nil
     if not block then
       S.op(action.move, "motion", { j.turtle.pose, action.cell })
+    elseif j.service and j.service.stage == "travel" and j.service.access
+      and S.cellKey(action.cell) == S.cellKey(j.service.access) then
+      j.service.access, j.detour = nil, nil
     elseif action.cell.y > (j.ground or -math.huge) and L.canDig(block) then
       local dig = ({ up = "digUp", down = "digDown", forward = "dig" })[action.move]
       S.op(dig, "motion", { j.turtle.pose, action.cell })
@@ -220,7 +251,7 @@ S.report = function(id, turtleId, results, lease)
         and action.cell.x == scan.x and action.cell.y == scan.y and action.cell.z == scan.z then
         j.cursor = j.cursor + 1
       elseif action.move == "forward" then
-        local target = j.service and L.access(j.service.point) or scan
+        local target = j.service and (j.service.stage == "return" and j.service.back or j.service.access) or scan
         if target then
           j.detour = { dim = j.dim, x = target.x, y = j.turtle.pose.y + 1, z = target.z }
         else
@@ -333,7 +364,16 @@ end
 S.workService = function()
   local j, service = S.job, S.job.service
   if service.stage == "travel" then
-    if not S.move(L.access(service.point)) then return end
+    if not service.access or S.occupied(service.access) then
+      service.access = L.access(service.point, j.turtle.pose, S.occupied)
+      if not service.access then
+        j.blocked = "hold"
+        S.alert("no access to " .. service.kind .. " chest")
+        return
+      end
+      S.save()
+    end
+    if not S.move(service.access) then return end
     service.stage = service.kind == "wood" and "drop" or "suck"
     S.save()
   end

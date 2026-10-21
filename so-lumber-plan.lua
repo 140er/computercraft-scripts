@@ -44,11 +44,25 @@ function L.scan(area, ground, dim)
   return out
 end
 
-function L.access(point)
-  return {
-    dim = point.dim, x = point.x, y = point.y,
-    z = point.z, facing = point.facing or 0,
-  }
+function L.access(point, near, blocked)
+  local candidates = {}
+  if point.side == "down" then
+    candidates[1] = { dim = point.dim, x = point.x, y = point.y + 1, z = point.z }
+  else
+    for f, offset in ipairs({ {0, -1}, {1, 0}, {0, 1}, {-1, 0} }) do
+      candidates[#candidates + 1] = {
+        dim = point.dim, x = point.x + offset[1], y = point.y, z = point.z + offset[2],
+        facing = (f + 1) % 4,
+      }
+    end
+  end
+  local best
+  for _, cell in ipairs(candidates) do
+    if not blocked or not blocked(cell) then
+      if not best or (near and L.distance(cell, near) < L.distance(best, near)) then best = cell end
+    end
+  end
+  return best
 end
 
 function L.distance(a, b)

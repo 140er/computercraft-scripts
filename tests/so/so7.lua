@@ -11,7 +11,8 @@ local function libs(m)
     f:close()
   end
 end
-local function setup(saplings, fuel)
+local function setup(saplings, fuel, side)
+  side = side or "down"
   local n = H.new()
   local s = n.machine({ id = 1, modem = true })
   s.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-plan.lua",
@@ -37,6 +38,7 @@ local function setup(saplings, fuel)
     local dig, inspect = w.env.turtle[ops[1]], w.env.turtle[ops[2]]
     w.env.turtle[ops[1]] = function()
       local present, block = inspect()
+      assert(not present or block.name ~= "minecraft:chest", "worker tried to dig a chest")
       local ok = dig()
       if ok and present then
         digs[#digs + 1] = block.name
@@ -66,23 +68,41 @@ local function setup(saplings, fuel)
     for y = 1, 4 do n.world[spot[1]..","..y..","..spot[2]] = {
       name = "minecraft:"..spot[3].."_log", tags = {["minecraft:logs"]=true} } end
   end
-  n.world["-2,1,0"] = { name="minecraft:chest", inv = saplings and {{name="minecraft:oak_sapling",count=32},{name="minecraft:birch_sapling",count=32}} or {} }
-  local wood = { name="minecraft:chest", inv={} }
-  n.world["-3,1,0"] = wood
-  assert(s.env.SO.mods.drops.add({id="wood",dim=DIM,x=-3,y=2,z=0,side="down",kind="wood"}))
-  n.world["-4,1,0"] = { name="minecraft:chest", inv={{name="minecraft:coal",count=32}} }
-  assert(s.env.SO.mods.drops.add({id="fuel",dim=DIM,x=-4,y=2,z=0,side="down",kind="fuel"}))
+  local chests = {
+    saplings = { x=-2, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
+      name="minecraft:chest", inv=saplings and {{name="minecraft:oak_sapling",count=32},{name="minecraft:birch_sapling",count=32}} or {} },
+    wood = { x=side == "down" and -3 or -4, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
+      name="minecraft:chest", inv={} },
+    fuel = { x=side == "down" and -4 or -6, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
+      name="minecraft:chest", inv={{name="minecraft:coal",count=32}} },
+  }
+  if side == "front" then n.world["-5,2,-2"] = "minecraft:stone" end
+  for kind, chest in pairs(chests) do
+    n.world[chest.x..","..chest.y..","..chest.z] = chest
+    if kind ~= "saplings" then
+      assert(s.env.SO.mods.drops.add({id=kind,dim=DIM,x=chest.x,y=chest.y,z=chest.z,side=side,kind=kind}))
+    end
+  end
+  for _, op in ipairs({ "forward", "back", "up", "down" }) do
+    local move = w.env.turtle[op]
+    w.env.turtle[op] = function()
+      local ok = move()
+      local block = n.world[w.pos.x..","..w.pos.y..","..w.pos.z]
+      assert(type(block) ~= "table" or block.name ~= "minecraft:chest", "worker entered a chest")
+      return ok
+    end
+  end
   w.boot("worker.lua")
   n.flush()
   n.advance(1)
   assert(screens.lumber, "lumber screen not registered")
   local function command(text) screens.lumber.input({text=text,role="lumber",x=1,y=1}) end
   command("area 0 0 8 8 0")
-  command("saplings -2 2 0 down")
+  command("saplings "..chests.saplings.x.." "..chests.saplings.y.." "..chests.saplings.z.." "..side)
   command("add 2 -2 2 0 e")
   n.advance(2)
   command("start")
-  return {net=n,server=s,worker=w,screens=screens,events=events,digs=digs,burned=burned,wood=wood,command=command}
+  return {net=n,server=s,worker=w,screens=screens,events=events,digs=digs,burned=burned,wood=chests.wood,chests=chests,command=command}
 end
 local function delivered(g)
   local count = 0
@@ -100,6 +120,35 @@ local function run(g, untilFn, seconds)
   error("lumber did not finish: " .. H.encode(g.screens.lumber.render()))
 end
 return function(test, equal)
+  test("SO7 chest access faces the chest from the nearest unblocked neighbour", function()
+    local L=dofile("so-lumber-plan.lua")
+    local point={dim="minecraft:overworld",x=10,y=2,z=10,side="front"}
+    for _, pose in ipairs({
+      {dim=point.dim,x=10,y=2,z=9,facing=2}, {dim=point.dim,x=11,y=2,z=10,facing=3},
+      {dim=point.dim,x=10,y=2,z=11,facing=0}, {dim=point.dim,x=9,y=2,z=10,facing=1},
+    }) do equal(L.access(point,pose),pose) end
+    equal(L.access(point,{x=11,y=2,z=9},function(p) return p.z==9 or p.x==11 end),
+      {dim=point.dim,x=10,y=2,z=11,facing=0})
+    equal(L.access(point,nil,function() return true end),nil)
+    equal(L.access({dim=point.dim,x=10,y=1,z=10,side="down"}),{dim=point.dim,x=10,y=2,z=10})
+  end)
+  for _, side in ipairs({ "down", "front" }) do
+    test("SO7 real chest coordinates transfer wood, saplings and fuel from "..side, function()
+      local g=setup(true,40,side)
+      g.net.advance(90)
+      assert(#g.burned>0,"fuel was not taken from the chest cell")
+      run(g,function(v) return delivered(v)==16 end)
+      equal(delivered(g),16)
+      equal(g.chests.fuel.inv[1].count,0)
+      equal(g.chests.saplings.inv[1].count,0)
+      equal(g.chests.saplings.inv[2].count,0)
+      for _, spot in ipairs(TREES) do
+        equal(g.net.world[spot[1]..",1,"..spot[2]],"minecraft:"..spot[3].."_sapling")
+      end
+      for _, chest in pairs(g.chests) do equal(g.net.world[chest.x..","..chest.y..","..chest.z],chest) end
+      for _, name in ipairs(g.digs) do assert(name ~= "minecraft:chest" and name ~= "minecraft:stone",name) end
+    end)
+  end
   test("SO7 fells four trees, replants the farm and delivers every log", function()
     local g = setup(true)
     run(g, function(v) return delivered(v)==16 end)
