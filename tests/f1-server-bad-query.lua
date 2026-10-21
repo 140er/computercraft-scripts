@@ -32,6 +32,10 @@ return function(test, equal, read, mocks)
     m.sent = {}
     local send = env.rednet.send
     env.rednet.send = function(id, msg, proto)
+      if m.failRid and type(msg) == "table" and msg.rid == m.failRid then
+        m.failRid = nil
+        error("forced query failure")
+      end
       m.sent[#m.sent + 1] = { id = id, msg = decode(mocks.encode(msg)), proto = proto }
       send(id, msg, proto)
     end
@@ -66,6 +70,17 @@ return function(test, equal, read, mocks)
     local locations = m.request(ssot("wh2-get", "bad-loc", 2, { body = { wh2 = 1, topic = "locations" } }))
     assert(type(locations) == "table" and locations.rid == "bad-loc", "locations query killed the server")
     equal(locations.ok, false)
+    m.failRid = "explode"
+    local exploded = m.request(ssot("not-an-op", "explode", 3))
+    assert(type(exploded) == "table", "thrown request got no reply")
+    equal(exploded.type, "ssot_reply")
+    equal(exploded.v, 1)
+    equal(exploded.rid, "explode")
+    equal(exploded.ok, false)
+    equal(exploded.auth, "test-secret-123456")
+    equal(exploded.server, 99)
+    assert(type(exploded.error) == "string" and exploded.error:find("forced query failure", 1, true),
+      "thrown request was not answered\n" .. mocks.encode(exploded))
     local got = m.request({ type = "get", file = "update.lua", rid = "good-get" })
     assert(type(got) == "table" and got.type == "file" and got.file == "update.lua" and got.rid == "good-get",
       "valid get was not answered\n" .. mocks.encode(got))

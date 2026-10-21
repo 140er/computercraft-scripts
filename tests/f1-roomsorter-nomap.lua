@@ -33,5 +33,21 @@ return function(test, equal, read, mocks)
       if type(msg) == "table" and msg.rid == 10 then again = msg end
     end
     assert(type(again) == "table" and again.rid == 10, "turtle died after the first stock request")
+    m.tick()
+    local stock
+    for i = #m.messages, 1, -1 do
+      local msg = m.messages[i]
+      if type(msg) == "table" and msg.state == "No map yet" and msg.rid == nil then stock = msg end
+    end
+    assert(type(stock) == "table" and type(stock.totals) == "table", "no-map loop did not broadcast stock")
+    equal(stock.used, 0)
+    equal(stock.size, 0)
+    equal(stock.chests, 0)
+    equal(stock.furnaces, 0)
+    local hinted = false
+    for _, line in ipairs(m.output) do
+      if line:find("Hold Ctrl+T to stop, then run roomsorter scan", 1, true) then hinted = true end
+    end
+    assert(hinted, "no-map screen does not say how to stop and scan")
   end)
 end
