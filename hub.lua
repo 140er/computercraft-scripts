@@ -579,6 +579,7 @@ if wh2.enabled then
   local ok, host = pcall(require, "wh2-wizard-host")
   if ok then wh2.host = host.open({ role = "hub" }) wh2.context = wh2.host.context end
 end
+local fleetAuth
 local function openWh2(module)
   if not wh2.enabled or wh2.booting then return end
   local ok, extension = pcall(require, module)
@@ -1006,8 +1007,9 @@ local function draw(s)
   y = y + 2
   x = button(1, y, " 3D VIEW ", colors.white, colors.blue, function() s.world = true end)
   if ar or serverOwnsAR() then
-    button(x, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
+    x = button(x, y, view3D and " 3D: AAN " or " 3D: UIT ", colors.white, view3D and colors.green or colors.gray, toggle3D)
   end
+  if fleetAuth then button(x, y, " PLAN ", colors.black, colors.lime, function() wh2.active = fleetAuth.overlay() end) end
 
   -- Session timer
   y = y + 2
@@ -2093,6 +2095,19 @@ local function wh2Worker()
   while true do os.pullEvent("wh2_host_idle") end
 end
 
+if fs.exists("hub-authority.lua") then
+  local ok, mod = pcall(dofile, "hub-authority.lua")
+  if ok and type(mod) == "table" and mod.open then
+    ok, fleetAuth = pcall(mod.open)
+    if not ok or type(fleetAuth) ~= "table" then fleetAuth = nil end
+  end
+end
+if fleetAuth and args[1] == "plan" then wh2.active = fleetAuth.overlay() end
+local function fleetLoop()
+  if fleetAuth and fleetAuth.loop then return fleetAuth.loop() end
+  while true do os.pullEvent("fleet_auth_idle") end
+end
+
 local alphaBoot
 if fs.exists("alpha-boot.lua") then
   local ok, boot = pcall(dofile, "alpha-boot.lua")
@@ -2110,7 +2125,7 @@ if fs.exists("alpha-boot.lua") then
   end
 end
 
-parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop, viewLoop, viewRenderLoop, wh2Loop, wh2Worker)
+parallel.waitForAny(netLoop, uiLoop, devPairLoop, serverLoop, gpuLoop, arControlLoop, viewLoop, viewRenderLoop, wh2Loop, wh2Worker, fleetLoop)
 if directView then pcall(directView.close) end
 if ar and not arSuppressed then pcall(clearAR,ar) end
 term.native().setBackgroundColor(colors.black)

@@ -235,6 +235,7 @@ local BOT_PAGES = { "wood", "farm", "lava", "build", "buddy" }
 local IN_BOTS = { wood = true, farm = true, lava = true, build = true, buddy = true }
 local TAB_COLOR = { home = colors.blue, hub = colors.orange, store = colors.cyan, bots = colors.green, wood = colors.green,
   farm = colors.lime, lava = colors.red, build = colors.pink, buddy = colors.purple, map = colors.brown, three = colors.lightBlue, console = colors.gray }
+local plannerHook = fs.exists("planner-panel.lua") and dofile("planner-panel.lua").hook
 local ui = { tab = "home", selected = nil, scroll = 0, search = "", popup = nil, typing = false, turtleScroll = 0 }
 local wh2On = settings and settings.get and settings.get("wh2.enabled", true)
 local wh2 = {
@@ -2049,6 +2050,7 @@ local function draw()
   end
   term.setBackgroundColor(colors.black)
   term.clear()
+  if plannerHook then plannerHook(ui, TABS, TAB_COLOR) end
   -- Tabs
   local x = 1
   local tw = math.floor(W / #TABS)
