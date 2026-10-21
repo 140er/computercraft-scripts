@@ -1,0 +1,484 @@
+#!/bin/bash
+set -euo pipefail
+
+BIN=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$BIN/../../../.." && pwd)
+SUM=f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c
+URL=https://github.com/MCJack123/craftos2/releases/download/v2.8.3/CraftOS-PC.x86_64.AppImage
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/computercraft-sandbox/craftos-2.8.3-linux"
+IMAGE="$CACHE/CraftOS-PC.x86_64.AppImage"
+ROOTFS="$CACHE/squashfs-root"
+APP="$ROOTFS/AppRun"
+ROM_SRC="$ROOTFS/usr/share/craftos"
+EVIDENCE="$ROOT/docs/evidence/verify-computers"
+PLAN="$BIN/plan.lua"
+LIVE=100.91.208.60
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/computercraft-sandbox/verify-computers-run"
+RUNDIR=""
+EMUPID=""
+
+die() { echo "FAIL $*" >&2; exit 1; }
+
+refuse_live() {
+  if printf '%s' "$*" | grep -q "$LIVE"; then
+    die "refusing the live server $LIVE"
+  fi
+}
+
+owned_emu() {
+  local pid=$1
+  [ -n "$pid" ] || return 1
+  [ -d "/proc/$pid" ] || return 1
+  tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'AppRun'
+}
+
+remember_run() {
+  mkdir -p "$STATE"
+  if [ -n "${RUNDIR:-}" ]; then printf '%s\n' "$RUNDIR" > "$STATE/rundir.txt"; fi
+  if [ -n "${EMUPID:-}" ]; then printf '%s\n' "$EMUPID" > "$STATE/emulator.pid"; fi
+}
+
+cleanup() {
+  mkdir -p "$STATE"
+  local pid=""
+  if [ -n "${EMUPID:-}" ]; then
+    pid=$EMUPID
+  elif [ -f "$STATE/emulator.pid" ]; then
+    pid=$(cat "$STATE/emulator.pid" 2>/dev/null || true)
+  fi
+  if owned_emu "$pid"; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  fi
+  EMUPID=""
+  rm -f "$STATE/emulator.pid"
+  local rd="${RUNDIR:-}"
+  if [ -z "$rd" ] && [ -f "$STATE/rundir.txt" ]; then
+    rd=$(cat "$STATE/rundir.txt" 2>/dev/null || true)
+  fi
+  case "$rd" in
+    /tmp/*|/var/tmp/*) rm -rf "$rd" ;;
+  esac
+  RUNDIR=""
+  rm -f "$STATE/rundir.txt"
+}
+
+install_craftos() {
+  mkdir -p "$CACHE"
+  if [ ! -x "$APP" ]; then
+    if [ ! -f "$IMAGE" ]; then
+      echo "Downloading CraftOS-PC v2.8.3"
+      curl -fsSL -o "$IMAGE" "$URL"
+    fi
+    actual=$(sha256sum "$IMAGE" | awk '{print $1}')
+    if [ "$actual" != "$SUM" ]; then
+      die "CraftOS-PC checksum $actual"
+    fi
+    chmod +x "$IMAGE"
+    rm -rf "$ROOTFS"
+    (cd "$CACHE" && "$IMAGE" --appimage-extract > extract.log)
+  fi
+  [ -x "$APP" ] || die "CraftOS-PC AppRun missing"
+  actual=$(sha256sum "$IMAGE" | awk '{print $1}')
+  [ "$actual" = "$SUM" ] || die "CraftOS-PC checksum $actual"
+}
+
+write_config() {
+  local dir=$1 http=$2
+  lua5.2 - "$dir/config/global.json" "$http" <<'EOF'
+local path, http = arg[1], arg[2] == "1"
+local f = assert(io.open(path, "w"))
+f:write(string.format([[{
+  "standardsMode": true,
+  "computerSpaceLimit": 1000000,
+  "checkUpdates": false,
+  "http_enable": %s,
+  "http_whitelist": ["raw.githubusercontent.com", "github.com"],
+  "keepOpenOnShutdown": false,
+  "logErrors": true,
+  "clockSpeed": 20,
+  "abortTimeout": 17000
+}
+]], http and "true" or "false"))
+f:close()
+EOF
+  if grep -q "$LIVE" "$dir/config/global.json"; then
+    die "config names the live server"
+  fi
+}
+
+prepare_tree() {
+  local dir=$1 http=$2
+  mkdir -p "$dir/config" "$dir/computer/0" "$dir/rom"
+  cp "$ROM_SRC/bios.lua" "$dir/rom/bios.lua"
+  cp -a "$ROM_SRC/rom" "$dir/rom/rom"
+  write_config "$dir" "$http"
+  printf '%s\n' '{"isColor":true}' > "$dir/config/0.json"
+}
+
+copy_role() {
+  local dir=$1 role=$2
+  local bytes=0
+  local file
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    mkdir -p "$dir/computer/0/$(dirname "$file")"
+    cp "$ROOT/$file" "$dir/computer/0/$file"
+    local n
+    n=$(wc -c < "$ROOT/$file")
+    bytes=$((bytes + n))
+  done < <(lua5.2 "$PLAN" "$ROOT" files "$role")
+  if [ ! -f "$dir/computer/0/bundle-manifest.lua" ]; then
+    cp "$ROOT/bundle-manifest.lua" "$dir/computer/0/bundle-manifest.lua"
+    local n
+    n=$(wc -c < "$ROOT/bundle-manifest.lua")
+    bytes=$((bytes + n))
+  fi
+  printf '%s\n' "$role" > "$dir/computer/0/.fleet-role"
+  local rolebytes
+  rolebytes=$(wc -c < "$dir/computer/0/.fleet-role")
+  bytes=$((bytes + rolebytes))
+  echo "$bytes"
+}
+
+write_wrap_cfg() {
+  local path=$1 secs=$2 monitor=$3 turtle=$4 peer=${5:-0}
+  local pre=""
+  if [ "$turtle" = "1" ]; then pre="dofile('/verify/turtle-pre.lua')"; fi
+  lua5.2 - "$path" "$secs" "$monitor" "$pre" "$peer" <<'EOF'
+local path, secs, monitor, pre, peer = arg[1], tonumber(arg[2]), arg[3] == "1", arg[4], arg[5] == "1"
+local f = assert(io.open(path, "w"))
+f:write(string.format("{ secs = %d, monitor = %s, peer = %s, out = \"result\", pre = %q }\n",
+  secs, monitor and "true" or "false", peer and "true" or "false", pre))
+f:close()
+EOF
+}
+
+start_emu() {
+  local dir=$1
+  shift
+  export SDL_AUDIODRIVER=dummy SDL_VIDEODRIVER=dummy
+  "$APP" --headless --directory "$dir" --rom "$dir/rom" --mount-ro "/verify=$BIN" "$@" \
+    >"$dir/stdout.log" 2>"$dir/stderr.log" &
+  EMUPID=$!
+  remember_run
+}
+
+wait_file() {
+  local pid=$1 file=$2 limit=$3
+  local i=0
+  while [ "$i" -lt "$limit" ]; do
+    if [ -f "$file" ]; then
+      sleep 1
+      return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+stop_emu() {
+  if [ -n "${EMUPID:-}" ] && kill -0 "$EMUPID" 2>/dev/null; then
+    kill "$EMUPID" 2>/dev/null || true
+    wait "$EMUPID" 2>/dev/null || true
+  fi
+  EMUPID=""
+}
+
+install_role() {
+  local dir=$1 role=$2
+  local kind
+  kind=$(lua5.2 "$PLAN" "$ROOT" kind "$role")
+  local args=()
+  local word
+  while IFS= read -r word; do args+=("$word"); done < <(lua5.2 "$PLAN" "$ROOT" install "$role")
+  local code="shell.run("
+  local i
+  for i in "${!args[@]}"; do
+    if [ "$i" -gt 0 ]; then code="$code, "; fi
+    code="$code'${args[$i]}'"
+  done
+  code="$code); os.shutdown()"
+  if [ "$kind" = "turtle" ]; then
+    code="dofile('/verify/turtle-pre.lua'); $code"
+  fi
+  start_emu "$dir" --id 0 --exec "$code"
+  wait_file "$EMUPID" "$dir/computer/0/startup.lua" 45 || true
+  stop_emu
+}
+
+boot_disk() {
+  local dir=$1 secs=$2 monitor=$3 turtle=$4 limit=$5 peer=${6:-0}
+  if [ ! -f "$dir/computer/0/startup.lua" ]; then
+    return 1
+  fi
+  mv "$dir/computer/0/startup.lua" "$dir/computer/0/startup_real.lua"
+  printf '%s\n' 'shell.run("/verify/wrap.lua")' > "$dir/computer/0/startup.lua"
+  write_wrap_cfg "$dir/computer/0/wrap.cfg" "$secs" "$monitor" "$turtle" "$peer"
+  start_emu "$dir"
+  wait_file "$EMUPID" "$dir/computer/0/result.txt" "$limit" || true
+  stop_emu
+}
+
+record() {
+  local name=$1
+  local dest="$EVIDENCE/$name.txt"
+  if [ -f "$2" ]; then
+    cp "$2" "$dest"
+  else
+    echo "no result" > "$dest"
+  fi
+  echo "$dest"
+}
+
+judge_result() {
+  local result=$1 startup=$2 bytes=$3 expect=$4 extra=${5:-}
+  lua5.2 "$BIN/judge.lua" "$result" "$startup" "$bytes" "$expect" "$extra"
+}
+
+run_role() {
+  local scenario=$1 role=$2 expect=$3 secs=$4 http=$5 monitor=$6
+  local label="$scenario-$role"
+  local dir="$RUNDIR/$label"
+  local kind bytes
+  prepare_tree "$dir" "$http"
+  bytes=$(copy_role "$dir" "$role")
+  kind=$(lua5.2 "$PLAN" "$ROOT" kind "$role")
+  local turtle=0
+  if [ "$kind" = "turtle" ]; then turtle=1; fi
+  install_role "$dir" "$role"
+  if [ -f "$dir/computer/0/startup.lua" ]; then
+    boot_disk "$dir" "$secs" "$monitor" "$turtle" "$((secs + 20))"
+  fi
+  local result="$dir/computer/0/result.txt"
+  local startup="$dir/computer/0/startup_real.lua"
+  record "$label" "$result" >/dev/null
+  if [ -f "$dir/computer/0/server.state" ]; then
+    cp "$dir/computer/0/server.state" "$EVIDENCE/$label.state.txt"
+  fi
+  local extra=""
+  if [ -f "$dir/computer/0/server.state" ]; then extra="$dir/computer/0/server.state"; fi
+  local line
+  if [ -f "$startup" ]; then
+    line=$(judge_result "$result" "$startup" "$bytes" "$expect" "$extra" || true)
+  else
+    line="FAIL bytes=$bytes install did not write startup"
+  fi
+  echo "$role $line"
+  printf '%s\n' "$role $line" >> "$EVIDENCE/lines.txt"
+  case "$line" in
+    PASS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+seed_miner() {
+  local dir=$1 pending=$2
+  rm -f "$dir/computer/0/miner.cfg" "$dir/computer/0/miner.cfg.a" "$dir/computer/0/miner.cfg.b" \
+    "$dir/computer/0/miner.cfg.tmp" "$dir/computer/0/miner.cfg.bak" \
+    "$dir/computer/0/miner.state" "$dir/computer/0/miner.state.a" "$dir/computer/0/miner.state.b" \
+    "$dir/computer/0/miner.state.tmp" "$dir/computer/0/miner.state.bak"
+  lua5.2 - "$dir/computer/0/miner.cfg" "$dir/computer/0/miner.state" "$pending" <<'EOF'
+local cfg_path, state_path, pending = arg[1], arg[2], arg[3] == "1"
+local cfg = io.open(cfg_path, "w")
+cfg:write('{chest=2,facing=0,spine=0,home={x=0,y=64,z=0},ssot={enabled=true,server=7,secret="0123456789abcdef0123",dimension="minecraft:overworld"}}\n')
+cfg:close()
+if pending then
+  local st = io.open(state_path, "w")
+  st:write('{pending={d=0,fuel=10000},pos={x=0,y=64,z=0},h=0}\n')
+  st:close()
+end
+EOF
+}
+
+run_late() {
+  local dir="$RUNDIR/late-turtle-roomclient"
+  local bytes
+  prepare_tree "$dir" 0
+  bytes=$(copy_role "$dir" roomclient)
+  mkdir -p "$dir/computer/1"
+  printf '%s\n' '{"isColor":true}' > "$dir/config/1.json"
+  cp "$BIN/fake-turtle.lua" "$dir/computer/1/startup.lua"
+  printf '%s\n' '25' > "$dir/computer/1/delay"
+  install_role "$dir" roomclient
+  boot_disk "$dir" 40 1 0 60 1
+  record "late-turtle-roomclient" "$dir/computer/0/result.txt" >/dev/null
+  if [ -f "$dir/computer/1/turtle-up.txt" ]; then
+    cp "$dir/computer/1/turtle-up.txt" "$EVIDENCE/late-turtle-turtle-up.txt"
+  else
+    echo "turtle did not start" > "$EVIDENCE/late-turtle-turtle-up.txt"
+  fi
+  local line
+  if [ -f "$dir/computer/0/startup_real.lua" ]; then
+    line=$(judge_result "$dir/computer/0/result.txt" "$dir/computer/0/startup_real.lua" "$bytes" order || true)
+  else
+    line="FAIL bytes=$bytes install did not write startup"
+  fi
+  echo "roomclient $line"
+  printf '%s\n' "roomclient $line" >> "$EVIDENCE/lines.txt"
+  case "$line" in
+    PASS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_miner_case() {
+  local name=$1 pending=$2 expect=$3 secs=$4
+  local dir="$RUNDIR/$name-miner"
+  local bytes
+  prepare_tree "$dir" 0
+  bytes=$(copy_role "$dir" miner)
+  install_role "$dir" miner
+  seed_miner "$dir" "$pending"
+  boot_disk "$dir" "$secs" 0 1 "$((secs + 20))"
+  record "$name-miner" "$dir/computer/0/result.txt" >/dev/null
+  local line
+  if [ -f "$dir/computer/0/startup_real.lua" ]; then
+    line=$(judge_result "$dir/computer/0/result.txt" "$dir/computer/0/startup_real.lua" "$bytes" "$expect" || true)
+  else
+    line="FAIL bytes=$bytes install did not write startup"
+  fi
+  echo "miner $line"
+  printf '%s\n' "miner $line" >> "$EVIDENCE/lines.txt"
+  case "$line" in
+    PASS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+run_cache() {
+  local dir="$RUNDIR/ssot-cache-server"
+  local bytes
+  prepare_tree "$dir" 1
+  bytes=$(copy_role "$dir" server)
+  install_role "$dir" server
+  printf '%s\n' '{controllers={["5"]="0123456789abcdef0123"},maxChunks=64}' > "$dir/computer/0/ssot.cfg"
+  boot_disk "$dir" 40 0 0 70
+  record "ssot-cache-server" "$dir/computer/0/result.txt" >/dev/null
+  if [ -f "$dir/computer/0/server.state" ]; then
+    cp "$dir/computer/0/server.state" "$EVIDENCE/ssot-cache-server.state.txt"
+  fi
+  local line
+  if [ -f "$dir/computer/0/startup_real.lua" ]; then
+    line=$(judge_result "$dir/computer/0/result.txt" "$dir/computer/0/startup_real.lua" "$bytes" cache "${dir}/computer/0/server.state" || true)
+  else
+    line="FAIL bytes=$bytes install did not write startup"
+  fi
+  echo "server $line"
+  printf '%s\n' "server $line" >> "$EVIDENCE/lines.txt"
+  case "$line" in
+    PASS*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+cmd_doctor() {
+  install_craftos
+  command -v lua5.2 >/dev/null || die "lua5.2 missing"
+  cleanup
+  local ver
+  ver=$("$APP" --version 2>&1 | head -n 1)
+  echo "$ver"
+  echo "sha256 $SUM"
+  grep -m 1 "1.112.0" "$ROM_SRC/rom/help/changelog.md"
+  lua5.2 "$PLAN" "$ROOT" doctor
+  RUNDIR=$(mktemp -d)
+  remember_run
+  prepare_tree "$RUNDIR" 0
+  printf '%s\n' 'local h=fs.open("/out.txt","w") h.writeLine("capacity "..tostring(fs.getCapacity("/"))) h.writeLine("free "..tostring(fs.getFreeSpace("/"))) h.writeLine("standards "..tostring(fs.getCapacity("/")==1000000)) h.close() os.shutdown()' > "$RUNDIR/computer/0/startup.lua"
+  start_emu "$RUNDIR" --id 0
+  wait_file "$EMUPID" "$RUNDIR/computer/0/out.txt" 20 || true
+  stop_emu
+  if [ ! -f "$RUNDIR/computer/0/out.txt" ]; then
+    die "capacity probe wrote nothing"
+  fi
+  cat "$RUNDIR/computer/0/out.txt"
+  grep -q "capacity 1000000" "$RUNDIR/computer/0/out.txt" || die "capacity probe"
+  echo "doctor PASS"
+}
+
+cmd_mocks() {
+  (cd "$ROOT" && lua5.2 tests/run.lua)
+}
+
+cmd_run() {
+  local scenario=${1:-all}
+  local only=${2:-}
+  refuse_live "$@"
+  install_craftos
+  mkdir -p "$EVIDENCE"
+  : > "$EVIDENCE/lines.txt"
+  cleanup
+  RUNDIR=$(mktemp -d)
+  remember_run
+  local failed=0
+  {
+    echo "CraftOS-PC v2.8.3 sha256 $SUM"
+    echo "rom CC:Tweaked 1.112.0"
+    echo "ref $(git -C "$ROOT" rev-parse HEAD)"
+    echo "exempt none"
+  } > "$EVIDENCE/SUMMARY.txt"
+  if [ "$scenario" = "all" ] || [ "$scenario" = "mocks" ]; then
+    echo "== mocks"
+    if cmd_mocks > "$EVIDENCE/mock-suite.txt" 2>&1; then
+      echo "PASS mocks"
+      echo "mocks PASS" >> "$EVIDENCE/lines.txt"
+    else
+      echo "FAIL mocks"
+      echo "mocks FAIL" >> "$EVIDENCE/lines.txt"
+      failed=1
+    fi
+    tail -n 5 "$EVIDENCE/mock-suite.txt"
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "role-boot" ]; then
+    echo "== role-boot"
+    local role
+    while IFS= read -r role; do
+      if [ -n "$only" ] && [ "$only" != "$role" ]; then continue; fi
+      local secs
+      secs=$(lua5.2 "$PLAN" "$ROOT" secs "$role")
+      run_role role-boot "$role" fit "$secs" 0 0 || failed=1
+    done < <(lua5.2 "$PLAN" "$ROOT" roles)
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "no-server" ]; then
+    echo "== no-server"
+    run_miner_case no-server 0 stay 30 || failed=1
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "reboot-mid-move" ]; then
+    echo "== reboot-mid-move"
+    run_miner_case reboot-mid-move 1 stay 12 || failed=1
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "late-turtle" ]; then
+    echo "== late-turtle"
+    run_late || failed=1
+  fi
+  if [ "$scenario" = "all" ] || [ "$scenario" = "ssot-cache" ]; then
+    echo "== ssot-cache"
+    run_cache || failed=1
+  fi
+  {
+    echo
+    if [ "$failed" -eq 0 ]; then echo "VERIFY: PASS"; else echo "VERIFY: FAIL"; fi
+    echo
+    cat "$EVIDENCE/lines.txt"
+  } | tee -a "$EVIDENCE/SUMMARY.txt"
+  cleanup
+  if [ "$failed" -eq 0 ]; then exit 0; fi
+  exit 1
+}
+
+trap cleanup EXIT
+refuse_live "$@"
+case "${1:-}" in
+  doctor) cmd_doctor ;;
+  run) shift; cmd_run "$@" ;;
+  cleanup) cleanup; echo "cleanup PASS" ;;
+  *)
+    echo "Usage: verify-computers doctor | verify-computers run [scenario] [role] | verify-computers cleanup" >&2
+    exit 2
+    ;;
+esac
