@@ -58,7 +58,7 @@ The server answers `ack`.
 
 ### ack
 
-`body.ok` is `true`.
+`body.ok` is `true`. A reply to `drops.edit` also sets `body.id` to the point id.
 
 ### err
 
@@ -136,6 +136,20 @@ A display sends `input` to the server. It does not wait.
 
 `body.role` is the screen role. `body.id` is the button id, or absent for a bare click. `body.x` and `body.y` are 1-based character coordinates.
 
+### drops.edit
+
+A paired computer sends `drops.edit` to the server. The payload is the table from `so-proto.encode`. A string payload is dropped. The server answers `ack` or `err`.
+
+`body.op` is `add`, `remove`, or `fix`.
+
+For `add`, `body.id` is a string of letters, digits, underscore, and hyphen. `body.dim`, `body.x`, `body.y`, and `body.z` are integers. `body.side` is `front` or `down`. `body.kind` is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`.
+
+For `remove` and `fix`, `body.id` is that point id.
+
+`ack` has `body.ok` true and `body.id` set to the point id. A second `add` of the same id and the same fields is `ack` and does not create a second point. `remove` of an unknown id is `ack`.
+
+`err` uses `body.code` `full` and `body.text` `64 points` when the point would be the 65th. `body.code` `bad` and `body.text` `bad field` when a field is missing or not in the set. `body.code` `kind` and `body.text` `bad kind` for a kind outside the set. `body.code` `side` and `body.text` `bad side` for a side outside `front` and `down`, including `up`. `body.code` `exists` and `body.text` `id exists` when that id is already stored with different fields. `body.code` `missing` and `body.text` `missing point` when `fix` names no point. `body.code` `store` when the registry could not be saved. `body.text` is then the store error.
+
 ### history.page
 
 The caller sends `history.page` to the server.
@@ -202,13 +216,21 @@ The SO0 stub accepts the three arguments and does nothing with them.
 
 ### drops
 
-SO8 owns this API on `SO.mods.drops`.
+SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
-`drops.pick(want)` takes `want = { name = string, n = number }` and returns `{ name = string, n = number, slot = number }`, or nil when nothing matches.
+`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension and fewer than 3 inspect failures. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `alert` is `drops: hold <kind>`. That call also emits `drops.alert` with `{ kind, text }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
-`drops.steps(action)` takes `action = { name = string, n = number, where = "front" or "up" or "down" }` and returns a step list. The list may be empty.
+`drops.steps(point)` takes a point. Side `front` returns `{ { op = "inspect" }, { op = "drop" } }`. Side `down` returns `{ { op = "inspectDown" }, { op = "dropDown" } }`. A call with no string `id` returns `{}`, including `steps({ name = "minecraft:cobble", n = 1, where = "front" })`.
 
-The SO0 stub returns nil from `pick` and `{}` from `steps`.
+`drops.add(point)` takes `{ id, dim, x, y, z, side, kind }`. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
+
+`drops.remove(id)` returns true. A missing id returns true.
+
+`drops.fix(id)` sets the failure count to 0 and returns true, or returns false and `missing`.
+
+`drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
+
+The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
 
 ## Pairing and so-keys
 
@@ -288,7 +310,7 @@ SO6 owns `so-mod-history.lua`. It handles `history.page`.
 
 SO7 owns `so-turtle.lua`, the turtle program, not a server module. It receives `lease.batch` and sends `step.report` and `beacon`. It stores nothing it cannot rebuild from the next lease.
 
-SO8 owns `so-mod-drops.lua`. It handles no wire types. It owns `drops.pick` and `drops.steps`.
+SO8 owns `so-mod-drops.lua`. It handles `drops.edit`. It owns `drops.pick`, `drops.steps`, `drops.add`, `drops.remove`, `drops.fix`, and `drops.note`.
 
 SO9 owns `so-mod-fuel.lua`. It handles no wire types. It reads beacon fuel from `state` and decides when a turtle should refuel.
 
