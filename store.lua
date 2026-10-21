@@ -184,8 +184,16 @@ local function work()
   if args[1]=="calibrate" then
     assert(nav.calibrate(assert(tonumber(args[2]),"heading required"))) print("Warehouse pose calibrated") return
   end
+  if args[1]=="anchor" then
+    local ok,why=dofile("anchor-radio.lua").command(nav,args,{dim=cfg.dimension})
+    print(ok and "Anchor saved." or tostring(why))
+    return
+  end
   local recovered, why = nav.recover()
   if not recovered then print("Navigation: " .. tostring(why) .. ". The warehouse keeps running.") end
+  if cfg.autonomy==true and nav.pose().conf~="certain" and fs.exists("anchor-radio.lua") then
+    dofile("anchor-radio.lua").boot(nav,{modem=peripheral.find("modem",function(_,m) return m.isWireless() end)})
+  end
   if args[1]=="survey" then assert(nav.go(pose(2),"explore")) print("Route surveyed") return end
   if args[1]=="stock" then
     local r=request("wh-lock",{name=args[2]})
@@ -200,7 +208,8 @@ local function work()
   end
   assert(fleet or cfg.enabled==true,"warehouse disabled; configure it and run store enable")
   local workerOptions={nav=nav,client=client,home=cfg.pose,charger=not fleet and cfg.charger or nil,
-    targetFuel=cfg.targetFuel,chargeTimeout=cfg.chargeTimeout,settings=fleet and settings or nil,beforeAction=fleet and boundary or nil}
+    targetFuel=cfg.targetFuel,chargeTimeout=cfg.chargeTimeout,settings=fleet and settings or nil,beforeAction=fleet and boundary or nil,
+    autonomy=cfg.autonomy==true}
   worker=dofile("warehouse.lua").open(workerOptions)
   if args[1]=="charge" then assert(worker.charge(args[2],assert(tonumber(args[3])),tonumber(args[4]) or 60000)) end
   while true do
@@ -226,6 +235,14 @@ end
 parallel.waitForAny(work,function()
   while true do
     local id,m,proto=rednet.receive()
-    if fleet then fleet.dispatch(id,m,proto) else client.dispatch(id,m,proto) end
+    if proto=="minearmy" and type(m)=="table" and m.type=="anchor" and nav and fs.exists("anchor-radio.lua") then
+      dofile("anchor-radio.lua").accept(nav,m,id,cfg.server)
+      if m.cid then rednet.send(id,{type="cmd_ack",cid=m.cid,commandEpoch=m.commandEpoch},proto) end
+    elseif fleet then fleet.dispatch(id,m,proto) else client.dispatch(id,m,proto) end
+  end
+end,function()
+  while true do
+    local _,_,ch,_,msg,dist=os.pullEvent("modem_message")
+    if nav and fs.exists("anchor-radio.lua") then dofile("anchor-radio.lua").onModem(nav,ch,msg,dist) end
   end
 end)

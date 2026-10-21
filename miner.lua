@@ -252,6 +252,11 @@ end
 -- channel and this computer saves it as dev.key, but only if the pocket is within 3 blocks
 -- (so only someone standing next to it can pair) and it has no dev.key yet.
 local DEV_PAIR_CHANNEL = 16523
+local function anchorLib()
+  if C.anchorRadio ~= nil then return C.anchorRadio or nil end
+  C.anchorRadio = fs.exists("anchor-radio.lua") and dofile("anchor-radio.lua") or false
+  return C.anchorRadio or nil
+end
 local function devPairLoop()
   local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
   if not modem then while true do os.pullEvent("dev_never") end end
@@ -263,6 +268,8 @@ local function devPairLoop()
   if relayed then modem.open(rednet.CHANNEL_REPEAT) end
   while true do
     local _, _, ch, replyCh, msg, dist = os.pullEvent("modem_message")
+    local Anchor = C.nav and anchorLib()
+    if Anchor then Anchor.onModem(C.nav, ch, msg, dist) end
     if relayed and (not C.fleetOptIn or not C.fleetSettings or C.fleetSettings.mesh)
       and ch == rednet.CHANNEL_REPEAT and type(msg) == "table" and type(msg.nMessageID) == "number"
       and type(msg.nRecipient) == "number" and not relayed[msg.nMessageID] then
@@ -671,6 +678,7 @@ local BRANCH = (SPINE + 1) % 4
 local ROLE = DIRNAME[SPINE] .. (cfg.site and ("@" .. cfg.site) or "")
 local PROGRESS_KEY = not cfg.loc and ("shaft:" .. SHAFT.x .. "," .. SHAFT.z .. ":" .. ROLE) or ROLE
 
+if args[1] == "anchor" then C.anchorArgs = args end
 if args[1] == "home" then
   -- Manual recovery: the turtle is (back) on its home spot, facing its hole.
   -- Progress (tunnels, shaft) is kept.
@@ -686,7 +694,7 @@ if args[1] == "home" then
   return
 end
 
-local standaloneOre = args[1]~="nav" and args[1]~="mine" and args[1] and args[1]:lower()
+local standaloneOre = args[1]~="nav" and args[1]~="mine" and args[1]~="anchor" and args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
   print("Unknown ore: " .. standaloneOre)
   return
@@ -2804,7 +2812,8 @@ end
 
 function C.runFleetMining()
   local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,
-    fleet=C.fleet,beforeAction=C.fleetBoundary,cancelled=function() return recall or updateWanted end})
+    fleet=C.fleet,beforeAction=C.fleetBoundary,cancelled=function() return recall or updateWanted end,
+    autonomy=cfg.nav and cfg.nav.autonomy==true})
   C.mining=mining
   local shown
   while true do
@@ -2861,7 +2870,8 @@ function C.runMining()
     else print("Lease v2 unavailable. Mining continues without it. " .. tostring(wrapped)) end
   end
   local mining=dofile("mining.lua").open({nav=nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
-    service=cfg.warehouse,cancelled=function() return recall or updateWanted end,b1=b1})
+    service=cfg.warehouse,cancelled=function() return recall or updateWanted end,b1=b1,
+    autonomy=cfg.nav and cfg.nav.autonomy==true})
   C.mining=mining
   local checked=-1e9
   while true do
@@ -3578,7 +3588,7 @@ local function listener()
           pcall(rednet.send,a,{type="cmd_ack",cid=b.cid,commandEpoch=b.commandEpoch,ok=apply,error=why},PROTOCOL)
         end
         apply,valid=false,false
-      elseif b.type=="recharge" then valid,apply=false,false
+      elseif b.type=="recharge" or b.type=="anchor" then valid,apply=false,false
       elseif C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop" or b.type=="recharge")
         and (b.target==nil or b.target==os.getComputerID()) then
         local why
@@ -3594,6 +3604,13 @@ local function listener()
       end
       if valid and b.cid and (b.target == nil or b.target == os.getComputerID()) then
         pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid,commandEpoch=b.commandEpoch }, PROTOCOL)
+      end
+      if b.type=="anchor" and C.nav and (b.target==nil or b.target==os.getComputerID()) then
+        local Anchor=anchorLib()
+        if Anchor then
+          Anchor.accept(C.nav, b, a, cfg.ssot.server)
+          if b.cid then pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid, commandEpoch = b.commandEpoch }, PROTOCOL) end
+        end
       end
       if apply then
       if C.nav and b.type=="estop" and (b.target==nil or b.target==os.getComputerID()) then
@@ -3658,6 +3675,13 @@ if C.ssot then
           or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
       C.estop=C.nav.stopped()
       if C.fleetOptIn then C.openFleet() end
+      if C.anchorArgs then
+        local Anchor=dofile("anchor-radio.lua")
+        C.anchorRadio=Anchor
+        local saved,why=Anchor.command(C.nav,C.anchorArgs,{dim=cfg.ssot.dimension})
+        print(saved and "Anchor saved." or tostring(why))
+        return
+      end
       local ok,why
       if C.fleet then
         repeat
@@ -3675,6 +3699,10 @@ if C.ssot then
       else
         ok,why=C.bootNavigation()
         if not ok then print("Navigation: " .. tostring(why) .. ". The turtle keeps running.") end
+      end
+      if cfg.nav and cfg.nav.autonomy==true and C.nav.pose().conf~="certain" then
+        local Anchor=anchorLib()
+        if Anchor then Anchor.boot(C.nav,{modem=peripheral.find("modem",function(_,m) return m.isWireless() end)}) end
       end
       ui.hub=C.nav.controlState().kind=="recall" or C.nav.controlState().kind=="recharge"
       ui.sync()
