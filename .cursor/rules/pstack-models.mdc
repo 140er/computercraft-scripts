@@ -1,0 +1,24 @@
+---
+description: pstack per-role model choices (overrides skill defaults)
+alwaysApply: true
+---
+# pstack model configuration for Jeffrey (140er). One line per role.
+# Rules: Grok 4.7 only, never -fast, never Claude/GPT/Gemini (no credits). Normal effort by default; xhigh only for the hardest work.
+# budget: medium (high)
+feature, refactoring: grok-4.7-high
+bug-fix: grok-4.7-high
+perf-issue: grok-4.7-high
+hillclimb: grok-4.7-high
+judgment and prose: grok-4.7-high
+hardest tasks: grok-4.7-xhigh
+how explorer: grok-4.7
+how explainer: grok-4.7
+why investigators: grok-4.7
+why synthesizer: grok-4.7
+reflect tooling: grok-4.7
+reflect judgment, divergent, synthesizer: grok-4.7
+arena runners: grok-4.7
+arena cross-judge pool: grok-4.7
+swarm workers: grok-4.7
+architect runners: grok-4.7
+interrogate reviewers: grok-4.7-high
