@@ -97,6 +97,16 @@ function M.new(cfg)
     if ok then stopped=false end
     return ok,why,epoch
   end
+  function api.anchor(pose, evidence)
+    if moving then return false, "SSOT movement busy" end
+    local r, err = api.call("anchor", { pose = pose, evidence = evidence })
+    if not r or not r.ok then return false, err or "anchor rejected" end
+    journal.move = nil
+    local ok, why = store:save(journal)
+    synced = ok
+    if not ok then return false, why end
+    return true, nil, r.epoch
+  end
   local function move(from, to, execute)
     from, to = A.copy(from), A.copy(to)
     if not synced then

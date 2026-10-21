@@ -33,6 +33,7 @@ function M.open(cfg)
   local store=A.mount("/"):open(cfg.path or "mining.state",valid,{class="bulk",limit=250000})
   local state=store.value or {version=1,stack={},visited={},hazards={},progress=0,phase="home"}
   local api={}
+  local attempts,failCell,leaseUntil,problems,noteLease={},nil,nil,nil
   local function save(point)
     assert(store:save(state))
     if point and cfg.checkpoint then cfg.checkpoint(point) end
@@ -302,6 +303,7 @@ function M.open(cfg)
     end
     local ack,err=request("mine-progress",{token=state.task.token,progress=state.task.progress})
     if not ack then return false,err end
+    noteLease(r)
     if state.phase=="home" or state.phase=="done" then
       state.phase="resume"
       if cfg.fleet then state.tripStarted=os.epoch("utc") state.tripProgress=state.progress end
@@ -309,14 +311,108 @@ function M.open(cfg)
     save("lease-saved")
     return true
   end
+  function noteLease(reply)
+    local untilAt=reply and (reply.untilAt or reply.task and reply.task.untilAt)
+    if type(untilAt)~="number" or untilAt%1~=0 then untilAt=os.epoch("utc")+30000 end
+    leaseUntil=untilAt
+  end
+  local function fuelReserve()
+    local reserve=state.serviceReserve or 0
+    local v=options()
+    local margin=v and v.fuelMargin or cfg.fuelMargin or 0
+    if type(margin)~="number" or margin>reserve then
+      if type(margin)=="number" then return margin end
+    end
+    return reserve
+  end
+  local function frontCell(pose)
+    local step=vectors[pose.h]
+    if not step then return {x=pose.x,y=pose.y,z=pose.z} end
+    return {x=pose.x+step[1],y=pose.y+step[2],z=pose.z+step[3]}
+  end
+  local function react(moveError,cell)
+    problems=problems or dofile("problems.lua")
+    local pose=nav.pose()
+    local distance,why=nav.homeCost(cfg.home)
+    if distance==false and pose.conf~="lost" and pose.conf~="suspect" then return nil,"no home route: "..tostring(why) end
+    if distance==false then distance=nil end
+    local found,info=turtle.inspect()
+    local detected=turtle.detect()
+    local slots={}
+    for index=1,16 do
+      local item=turtle.getItemDetail(index)
+      slots[index]={name=item and item.name,count=turtle.getItemCount(index)}
+    end
+    local target=cell or frontCell(pose)
+    local sight={
+      blockName=found and info.name or nil,detected=detected==true,fuel=turtle.getFuelLevel(),leg=1,home=distance,
+      slots=slots,dim=cfg.home.dim,cell=target,placed=0,hasBlock=found and true or false,
+      moveError=moveError,sameCell=moveError and failCell and failCell.x==target.x and failCell.y==target.y and failCell.z==target.z or false,
+    }
+    if moveError=="unresolved move" then sight.fingerprint,sight.unresolved="unknown",true
+    elseif moveError and pose.conf=="lost" then sight.fingerprint,sight.unresolved="mismatch",false end
+    if moveError then failCell={x=target.x,y=target.y,z=target.z} else failCell=nil end
+    local reserve=fuelReserve()
+    local lease=state.task and problems.jobLease(state.task.token,leaseUntil,cfg.home,reserve) or false
+    local function remember(result)
+      if result and result.code then attempts[result.code]=result.attempts end
+    end
+    local host={
+      goHome=function(reason) api.interrupt(reason) return true end,
+      wait=function() return true end,
+      dig=function(result)
+        remember(result)
+        if pose.h==4 then turtle.digUp() elseif pose.h==5 then turtle.digDown() else turtle.dig() end
+        return true
+      end,
+      retry=function(action,result)
+        remember(result)
+        if action=="trash" then
+          local allow={}
+          for _,name in ipairs((options() or {}).trashItems or {}) do allow[name]=true end
+          for slot=1,16 do
+            local item=turtle.getItemDetail(slot)
+            if item and allow[item.name] then turtle.select(slot) turtle.drop() end
+          end
+        elseif action=="compact" then
+          for slot=1,16 do
+            local item=turtle.getItemDetail(slot)
+            if item then
+              turtle.select(slot)
+              for into=1,slot-1 do
+                local other=turtle.getItemDetail(into)
+                if other and other.name==item.name and other.count<64 then turtle.transferTo(into) end
+              end
+            end
+          end
+        elseif action=="attack" then turtle.attack()
+        elseif action=="backoff" then if sleep then sleep(1) end
+        elseif action=="contain" then turtle.place()
+        elseif action=="reanchor" and fs.exists("anchor-radio.lua") then
+          dofile("anchor-radio.lua").boot(nav,{modem=peripheral.find("modem",function(_,m) return m.isWireless() end)})
+        end
+        return true
+      end,
+      mark=function()
+        local frame=state.stack[#state.stack]
+        if frame then frame.next=(frame.next or 0)+1 save() end
+        return true
+      end,
+      clear=function() return true end,
+    }
+    return problems.handle({
+      sight=sight,settings=options() or {},pose=pose,now=os.epoch("utc"),lease=lease,journal=false,attempts=attempts,
+    },host)
+  end
   local function interruptReason()
     if cfg.cancelled and cfg.cancelled() then return "recall" end
-    local free=0
-    for slot=1,16 do if turtle.getItemCount(slot)==0 then free=free+1 end end
     local v=options()
-    if free<(v and v.minFreeSlots or 2) or v and (16-free)/16>=v.fullnessHigh then return "inventory full" end
     if v and state.tripStarted and os.epoch("utc")-state.tripStarted>=v.tripSeconds*1000 then return "trip time" end
     if v and state.progress-(state.tripProgress or 0)>=v.branchLength then return "trip length" end
+    if cfg.autonomy==true then return end
+    local free=0
+    for slot=1,16 do if turtle.getItemCount(slot)==0 then free=free+1 end end
+    if free<(v and v.minFreeSlots or 2) or v and (16-free)/16>=v.fullnessHigh then return "inventory full" end
     local fuel=turtle.getFuelLevel()
     local distance,why=nav.homeCost(cfg.home)
     if distance==false then return "no home route: "..tostring(why) end
@@ -362,6 +458,13 @@ function M.open(cfg)
     if not autonomous() then
       local r,why=request("mine-renew",{token=state.task.token})
       if not r then api.interrupt(why) return false,why end
+      noteLease(r)
+    end
+    if cfg.autonomy==true then
+      if state.task and (type(leaseUntil)~="number" or leaseUntil%1~=0) then leaseUntil=os.epoch("utc")+30000 end
+      local result,err=react()
+      if not result then return false,err end
+      if result.state~="clear" or nav.pose().conf~="certain" then return true end
     end
     if state.phase=="resume" then
       local target=#state.stack>0 and state.stack[#state.stack].pose or A.copy(state.task.entry)
@@ -386,7 +489,13 @@ function M.open(cfg)
         end
       end
       local ok,err=move("tunnel",to,function() return nav.step(2,"excavate") end)
-      if not ok then api.interrupt(err) end
+      if not ok then
+        if cfg.autonomy==true then
+          local result=react(err,to)
+          if result and result.state~="clear" then return true end
+        end
+        api.interrupt(err)
+      end
       return true
     end
     local v=options()
@@ -401,7 +510,7 @@ function M.open(cfg)
         local found,info=(d==4 and turtle.inspectUp or d==5 and turtle.inspectDown or turtle.inspect)()
         if found and (info.name=="minecraft:water" or info.name=="minecraft:lava") then
           local p=neighbor(nav.pose(),d) state.hazards[key(p)]=p
-          api.interrupt("fluid hazard") return true
+          if cfg.autonomy~=true then api.interrupt("fluid hazard") return true end
         end
         if cfg.yield then cfg.yield() elseif sleep then sleep(0) end
       end
@@ -416,6 +525,7 @@ function M.open(cfg)
         if not autonomous() then
           local renewed,why=request("mine-renew",{token=state.task.token})
           if not renewed then return false,why end
+          noteLease(renewed)
           local ack,err=request("mine-progress",{token=state.task.token,progress=state.progress})
           if not ack then return false,err end
         end
@@ -447,7 +557,13 @@ function M.open(cfg)
       if #state.stack>=768 then api.interrupt("vein budget") return false,"vein budget" end
       if v and #state.stack>=v.veinLimit then api.interrupt("vein limit") return true end
       local ok,err=move("push",to,function() return nav.step(d,"excavate") end)
-      if not ok then api.interrupt(err) end
+      if not ok then
+        if cfg.autonomy==true then
+          local result=react(err,to)
+          if result and result.state~="clear" then return true end
+        end
+        api.interrupt(err)
+      end
     else
       frame.next=d+1 save()
     end

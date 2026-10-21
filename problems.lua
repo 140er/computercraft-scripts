@@ -467,4 +467,112 @@ function M.decide(ctx)
   return result
 end
 
+function M.jobLease(id, untilAt, home, fuelReserve)
+  if type(id) ~= "string" or id == "" or not integer(untilAt) then return false end
+  local lease = { v = 2, id = id, untilAt = untilAt }
+  if type(home) == "table" and type(home.dim) == "string" then lease.home = { dim = home.dim } end
+  if integer(fuelReserve) then lease.fuelReserve = fuelReserve end
+  return lease
+end
+
+local function projectSettings(raw)
+  local settings = {}
+  if type(raw) == "table" then
+    for _, spec in ipairs(M.registry()) do
+      if raw[spec.key] ~= nil then settings[spec.key] = raw[spec.key] end
+    end
+    if raw.navMaxCells ~= nil then settings.navMaxCells = raw.navMaxCells end
+  end
+  return M.parse(settings)
+end
+
+local function problemsFrom(sight, attempts)
+  local out = {}
+  local function add(problem) out[#out + 1] = problem end
+  if type(sight.dim) == "string" then
+    add({ code = "dimension", dim = sight.dim, attempts = attempts.dimension or 0 })
+  end
+  if (sight.fingerprint == "match" or sight.fingerprint == "mismatch" or sight.fingerprint == "unknown")
+    and type(sight.unresolved) == "boolean" then
+    add({
+      code = "pickup", fingerprint = sight.fingerprint, unresolved = sight.unresolved,
+      attempts = attempts.pickup or 0,
+    })
+  end
+  if sight.fuel ~= nil and sight.leg ~= nil and sight.home ~= nil then
+    add({ code = "fuel", fuel = sight.fuel, leg = sight.leg, home = sight.home })
+  end
+  if type(sight.slots) == "table" then add({ code = "full_inventory", slots = sight.slots }) end
+  local name = sight.blockName
+  if name == "minecraft:lava" or name == "minecraft:water"
+    or name == "minecraft:flowing_lava" or name == "minecraft:flowing_water" then
+    add({
+      code = "fluid", name = name, placed = sight.placed, hasBlock = sight.hasBlock,
+      cell = sight.cell, source = sight.source,
+    })
+  end
+  if name == "minecraft:bedrock" and type(sight.cell) == "table" then
+    add({ code = "bedrock", cell = sight.cell, detour = sight.detour })
+  end
+  if FALLING[name] then add({ code = "gravel", name = name, attempts = attempts.gravel or 0 }) end
+  if sight.moveError ~= nil and sight.moveError ~= false and sight.sameCell == true and type(sight.cell) == "table" then
+    add({ code = "stuck", cell = sight.cell, attempts = attempts.stuck or 0, detour = sight.detour })
+  elseif sight.moveError ~= nil and sight.moveError ~= false and sight.blockName == nil and sight.detected == false then
+    add({ code = "mob", attempts = attempts.mob or 0, detour = sight.detour })
+  end
+  return out
+end
+
+local function clearResult()
+  return {
+    v = 1, code = false, state = "clear", decision = false, dig = false, move = false,
+    enter = false, action = false, conf = false, mark = false, reason = false,
+  }
+end
+
+local function apply(result, host, pose)
+  if result.dig and (type(pose) ~= "table" or pose.conf ~= "certain") then
+    return host.wait(result.reason, pose and pose.conf)
+  end
+  if result.decision == "return" then return host.goHome(result.reason) end
+  if result.decision == "wait" or result.state == "lost" or result.state == "suspect" then
+    return host.wait(result.reason, result.conf)
+  end
+  if result.decision == "reroute" or result.decision == "skip" then
+    return host.mark(result.mark, result.decision, result.reason)
+  end
+  if result.decision == "retry" and result.dig then return host.dig(result) end
+  if result.decision == "retry" then return host.retry(result.action, result) end
+  if result.decision == false then return host.clear() end
+  return false, "unhandled problem state"
+end
+
+function M.handle(input, host)
+  if type(input) ~= "table" or type(host) ~= "table" then return nil, "bad problem" end
+  local settings, settingsErr = projectSettings(input.settings)
+  if not settings then return nil, settingsErr end
+  local attempts = type(input.attempts) == "table" and input.attempts or {}
+  local sight = type(input.sight) == "table" and input.sight or {}
+  local result
+  for _, problem in ipairs(problemsFrom(sight, attempts)) do
+    local decided, err = M.decide({
+      now = input.now, settings = settings, pose = input.pose, lease = input.lease,
+      journal = false, problem = problem,
+    })
+    if not decided then return nil, err end
+    if decided.state ~= "clear" then result = decided break end
+  end
+  if not result then
+    result = clearResult()
+    if type(input.pose) == "table" and input.pose.conf == "lost" then
+      result = {
+        v = 1, code = false, state = "lost", decision = "wait", dig = false, move = false,
+        enter = false, action = false, conf = "lost", mark = false, reason = "lost",
+      }
+    end
+  end
+  apply(result, host, input.pose)
+  return result
+end
+
 return M

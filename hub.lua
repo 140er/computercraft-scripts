@@ -300,10 +300,7 @@ local function oreFor(id)
   return o or hub.target
 end
 
--- Orders that go through the fleet server (it passes them on, through other bots when a
--- turtle is far, repeats them until the turtle confirms, and logs them). Answers to a
--- turtle's own question (job, dir, files) go straight back.
-local ROUTED = { go = true, recall = true, update = true, rename = true }
+local ROUTED = { go = true, recall = true, update = true, rename = true, anchor = true }
 if viewsCfg.enabled == true then ROUTED.estop, ROUTED.view_move = true, true end
 local viewClient, viewSource, viewUI, directView, viewCounter
 local viewPending = {}
@@ -1270,11 +1267,12 @@ end
 
 local arMem = {} -- what the goggles show now (fleetview deletes what is gone)
 local hudMem=AH and AH.memory("hub.ar-ids")
-local arControls=AH and AH.controls(arConfig,saveAR,function(action)
+local arControls=AH and AH.controls(arConfig,saveAR,function(action,args,_,username)
   if action=="hub" then
     recallNow()
     return true,"Recall queued; awaiting turtle status."
   end
+  if action=="anchor" then return dofile("anchor-radio.lua").relay(function(i,_,m) send(i,m) end,peripheral.find("player_detector"),username,args,arConfig and arConfig.dimension) end
   local ok,why=arAuth.queue("recharge",nil,nil,selected)
   return ok,ok and "Recharge request queued; awaiting server acceptance." or why
 end,flash,arAuth.cfg)

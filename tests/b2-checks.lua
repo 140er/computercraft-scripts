@@ -376,4 +376,49 @@ return function(test, equal)
     equal(second.phase, "done")
     equal(head.committed, first.journal.committed)
   end)
+
+  local function hostOf(flags)
+    return {
+      goHome = function() flags.home = true return true end,
+      wait = function() flags.wait = true return true end,
+      dig = function() flags.dig = true return true end,
+      retry = function(action) flags.retry = action return true end,
+      mark = function() return true end,
+      clear = function() return true end,
+    }
+  end
+
+  test("handle sends gravel home when falling retry is off", function()
+    local flags = {}
+    local result, err = P.handle({
+      sight = { blockName = "minecraft:gravel" }, settings = {}, pose = pose("certain"),
+      now = 1000, lease = lease(), journal = false, attempts = {},
+    }, hostOf(flags))
+    assert(result, err)
+    equal(result.state, "return")
+    equal(result.dig, false)
+    equal(flags.home, true)
+  end)
+
+  test("handle returns a full inventory without trashing", function()
+    local flags = {}
+    local result, err = P.handle({
+      sight = { slots = occupied() }, settings = { filteredTrash = false, enabled = true },
+      pose = pose("certain"), now = 1000, lease = lease(), journal = false,
+    }, hostOf(flags))
+    assert(result, err)
+    equal(result.decision, "return")
+    equal(flags.retry, nil)
+  end)
+
+  test("handle waits on falling gravel when the pose is lost", function()
+    local flags = {}
+    local result, err = P.handle({
+      sight = { blockName = "minecraft:gravel" }, settings = { fallingRetry = true },
+      pose = pose("lost"), now = 1000, lease = lease(), journal = false,
+    }, hostOf(flags))
+    assert(result, err)
+    equal(flags.wait, true)
+    equal(flags.dig, nil)
+  end)
 end

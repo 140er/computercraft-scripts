@@ -32,6 +32,7 @@ function M.open(cfg)
   local disk=A.mount("/"):open(cfg.path or "warehouse.state",valid,{class="bulk",limit=64000})
   local state=disk.value or {version=1,phase="idle",line=1,cargo={},escrow={}}
   local api,confirmedLock={},nil
+  local attempts,walkFail,failCell,problems={},nil,nil,nil
   local function save(point)
     assert(disk:save(state))
     if point and cfg.checkpoint then cfg.checkpoint(point) end
@@ -96,7 +97,7 @@ function M.open(cfg)
       end
       if fuel<cost then return reject("insufficient fuel for service route") end
     end
-    local ok,why=nav.go(state.site.pose,"walk") if not ok then return reject(why) end
+    local ok,why=nav.go(state.site.pose,"walk") if not ok then walkFail=why return reject(why) end
     return nav.face(state.site.pose.h)
   end
   local function inventory()
@@ -167,22 +168,6 @@ function M.open(cfg)
     return true
   end
   function api.state() return A.copy(state) end
-  function api.cancelService()
-    if state.phase=="charge" then
-      state.charge.returning=true
-      state.charge.outcome="cancelled"
-      save()
-      local _,why=api.tick()
-      return state.phase=="done",why
-    end
-    if state.phase=="unload" then
-      local ok,why=release()
-      if not ok then return false,why end
-      state.phase,state.reason="done","cancelled"
-      save()
-    end
-    return true
-  end
   function api.bindService(site)
     reconcile()
     if state.phase~="unload" and state.phase~="charge" then return false,"no automatic service" end
@@ -255,6 +240,74 @@ function M.open(cfg)
       state.job=r.job state.home=A.copy(cfg.home or nav.pose()) state.phase="pickup" state.line=1 save("job-saved")
     end
     if state.phase=="done" then return false,state.reason or "done" end
+    if cfg.autonomy==true and not (state.phase=="charge" and state.charge and state.charge.returning) then
+      problems=problems or dofile("problems.lua")
+      local pose=nav.pose()
+      local distance=nav.homeCost(cfg.home or pose)
+      if distance==false then distance=nil end
+      local found,info=turtle.inspect()
+      local detected=turtle.detect()
+      local slots={}
+      for index=1,16 do
+        local item=turtle.getItemDetail(index)
+        slots[index]={name=item and item.name,count=turtle.getItemCount(index)}
+      end
+      local here={x=pose.x,y=pose.y,z=pose.z}
+      local sight={
+        blockName=found and info.name or nil,detected=detected==true,fuel=turtle.getFuelLevel(),
+        leg=1,home=distance,slots=slots,dim=(cfg.home or pose).dim,cell=here,placed=0,
+        hasBlock=found and true or false,moveError=walkFail,
+        sameCell=walkFail and failCell and failCell.x==here.x and failCell.y==here.y and failCell.z==here.z or false,
+      }
+      if walkFail then failCell=here else failCell=nil end
+      local now=clock()
+      local lease=false
+      if state.job and type(state.job.token)=="string" then
+        lease=problems.jobLease(state.job.token,now+30000,state.home or cfg.home,nil)
+      elseif state.phase=="charge" and state.charge and type(state.charge.queuedUntil)=="number" then
+        local untilAt=state.charge.queuedUntil
+        if untilAt<=now then untilAt=now+30000 end
+        lease=problems.jobLease(state.charge.name,untilAt,cfg.home,nil)
+      end
+      local function remember(result)
+        if result and result.code then attempts[result.code]=result.attempts end
+      end
+      local result,err=problems.handle({
+        sight=sight,settings=options() or {},pose=pose,now=now,lease=lease,journal=false,attempts=attempts,
+      },{
+        goHome=function(reason)
+          if state.phase=="unload" or state.phase=="charge" then api.cancelService(reason,false) end
+          local here=nav.pose()
+          if here and here.conf=="certain" then
+            local home=cfg.home or state.home
+            if home then nav.go(home,"walk") end
+          end
+          return true
+        end,
+        wait=function() return true end,
+        dig=function(result) remember(result) turtle.dig() return true end,
+        retry=function(action,result)
+          remember(result)
+          if action=="trash" then
+            local allow={}
+            for _,name in ipairs((options() or {}).trashItems or {}) do allow[name]=true end
+            for slot=1,16 do
+              local item=turtle.getItemDetail(slot)
+              if item and allow[item.name] then turtle.select(slot) turtle.drop() end
+            end
+          elseif action=="attack" then turtle.attack()
+          elseif action=="backoff" then if sleep then sleep(1) end
+          elseif action=="contain" then turtle.place()
+          end
+          return true
+        end,
+        mark=function() return true end,
+        clear=function() walkFail=nil return true end,
+      })
+      if not result then return false,err end
+      if result.state~="clear" or pose.conf~="certain" then return true end
+      walkFail=nil
+    end
     if state.phase=="charge" then
       local c=state.charge
       local v=options()
