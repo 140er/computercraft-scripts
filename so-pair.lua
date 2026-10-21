@@ -74,14 +74,16 @@ local function loadCrypto()
   S.rnd = require("ccryptolib.random")
   require("ccryptolib.config").usePeripherals(false)
   if not S.rnd.isInit() then
-    local mix = {
+    local material = table.concat({
       tostring(os.epoch("utc")),
       tostring(os.clock()),
       tostring({}),
       tostring(math.random(0, 16777215)),
       tostring(os.getComputerID()),
-    }
-    S.rnd.init(table.concat(mix, "|"))
+    }, "|")
+    -- Timing noise can fail. The mix string still seeds the generator.
+    pcall(S.rnd.initWithTiming)
+    if S.rnd.isInit() then S.rnd.mix(material) else S.rnd.init(material) end
   end
 end
 
