@@ -1,12 +1,14 @@
 return function(test, equal, read, mocks)
   local source = read("miner.lua")
 
-  local function loadUi(m)
+  local function loadUi(m, ...)
     local code = assert(source:match("^(.*)\nopenModem%(%)"))
     m.env.box = {}
-    return assert(load(code .. [[
+    local chunk = assert(load(code .. [[
 function box.status(s) status = s end
 function box.recall() return recall end
+function box.place() return pos.x, pos.y, pos.z, st.found, st.phase end
+function box.step(d) return move(d) end
 function box.pos(x, y, z) pos.x, pos.y, pos.z = x, y, z end
 function box.phase(p) st.phase = p end
 function box.views(on) cfg.viewsControl = on and true or false end
@@ -37,15 +39,16 @@ end
 function box.setStatus(s) setStatus(s) end
 function box.screen(flag) cfg.screen = flag end
 return ui
-]], "=miner.lua", "t", m.env))()
+]], "=miner.lua", "t", m.env))
+    return chunk(...)
   end
 
-  local function boot(fuel)
+  local function boot(fuel, ...)
     local m = mocks.miner({ home = { x = 0, y = 64, z = 0 }, facing = 0, spine = 1 })
     m.fuel = fuel or 6840
     m.env.keys = { q = 16, p = 25, h = 35, r = 19 }
     m.env.os.getComputerLabel = function() return "Miner 3" end
-    return m, loadUi(m), m.env.box
+    return m, loadUi(m, ...), m.env.box
   end
 
   local function makeTerm(w, h, color)
@@ -251,7 +254,25 @@ return ui
     equal(ui.note().id, "done")
     equal(ui.note().detail[1], "Waiting for orders.")
     box.setStatus("No hub found (staying home)")
-    equal(ui.note().detail[1], "No hub found (staying home).")
+    local absent = ui.note()
+    equal(absent.headline, "Waiting at home.")
+    equal(absent.tone, "move")
+    equal(absent.detail[1], "No hub found (staying home).")
+    equal(absent.marker, c.lightGray)
+    box.phase("home")
+    box.setStatus("Recalled, waiting for hub")
+    local waiting = ui.note()
+    equal(waiting.headline, "Waiting at home.")
+    equal(waiting.detail[1], "The hub called me back.")
+    equal(waiting.tone, "move")
+    box.setStatus("Area full for diamond: all 4 layers dug within reach 96. Pick another ore or raise the reach")
+    local full = ui.note()
+    equal(full.headline, "At home.")
+    equal(full.detail[1], "Area full for diamond: all 4")
+    equal(full.detail[2], "layers dug within reach 96...")
+    box.setStatus("Heading out: diamond at Y -58")
+    equal(ui.note().headline, "At home.")
+    equal(ui.note().detail[1], "Heading out: diamond at Y -58")
     assert(c.lime and c.orange and c.red)
   end)
 
@@ -333,7 +354,7 @@ return ui
     box.phase("mining")
     box.job({ ore = "diamond", y = -58, branchLen = 32 })
     equal(ui.key(m.env.keys.p), "redraw")
-    assert(ui.pause == true and box.recall() == true)
+    assert(ui.pause == true and box.recall() == false)
     assert(not box.estopped())
     equal(ui.key(m.env.keys.h), "redraw")
     assert(ui.home == true and box.recall() == true)
@@ -398,6 +419,52 @@ return ui
     ui.sync()
     assert(wake(co, "timer", 0) == "suspended")
     assert(ui.home == true and box.recall() == true)
+  end)
+
+  test("miner screen wraps a long detail onto the next row", function()
+    local _, ui, box = boot(6840)
+    box.phase("mining")
+    box.job({ ore = "diamond", y = -58, branchLen = 64 })
+    box.layer(-58, 13, 16, 64)
+    box.job({ ore = "diamond", y = -58, branchLen = 64 })
+    local note = ui.note()
+    equal(note.detail[1], "Branch 13 at Y -58, 16 of 64")
+    equal(note.detail[2], "blocks.")
+    local term = makeTerm(39, 13, true)
+    ui.paint(term, note)
+    equal(term.row(4):sub(4, 31), "Branch 13 at Y -58, 16 of 64")
+    equal(term.row(5):sub(4, 10), "blocks.")
+    equal(term.row(5):sub(11, 11), " ")
+  end)
+
+  test("miner screen pause stops the next move and keeps the find", function()
+    local m, ui, box = boot(6840)
+    box.phase("mining")
+    box.job({ ore = "diamond", y = -58, branchLen = 32 })
+    box.found(4)
+    equal(ui.key(m.env.keys.p), "redraw")
+    assert(ui.pause == true and box.recall() == false)
+    local co = coroutine.create(function() box.step(0) end)
+    assert(wake(co) == "suspended", "paused move kept walking")
+    local x, y, z, found, phase = box.place()
+    equal({ x, y, z, found, phase }, { 0, 64, 0, 4, "mining" })
+    equal(ui.key(m.env.keys.p), "redraw")
+    assert(ui.pause == false and box.recall() == false)
+    assert(wake(co) == "dead")
+    x, y, z, found, phase = box.place()
+    equal({ x, y, z, found, phase }, { 0, 64, -1, 4, "mining" })
+  end)
+
+  test("miner screen names the command ore when the job has none", function()
+    local _, ui, box = boot(6840, "diamond")
+    box.phase("home")
+    box.found(0)
+    box.setStatus("ERROR: no chest next to me. Put me on my home spot, Ctrl+T, type: miner home")
+    equal(ui.note().gems.empty, "No diamonds yet this trip.")
+    local _, bare, box2 = boot(6840)
+    box2.found(0)
+    box2.setStatus("ERROR: no chest next to me")
+    equal(bare.note().gems.empty, "No ores yet this trip.")
   end)
 
   test("miner screen is on unless screen is false", function()
