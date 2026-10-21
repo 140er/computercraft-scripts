@@ -54,6 +54,8 @@ A paired computer sends `hello` to the server.
 
 `body.role` is an optional string. `body.label` is an optional string.
 
+`body.w` and `body.h` are optional positive integers. They are the display size in character cells, from `getSize`. The display module reads them. It does not treat `body.role` as the screen assignment.
+
 The server answers `ack`.
 
 ### ack
@@ -104,27 +106,27 @@ The MAC still uses that turtle's paired key. The server can verify it. SO0 has n
 
 A display sends `view.get` to the server.
 
-`body.role` is the screen role string.
-
-The server answers `view.frame` when SO5 handles it.
+`body.role` is ignored. The server answers one `view.frame` for the role stored for that computer. That answer does not subscribe the display.
 
 ### view.sub
 
 A display sends `view.sub` to the server.
 
-`body.role` is the screen role string.
+`body` is `{}`. `body.role` is ignored. The server uses the role stored for that computer. A computer with no stored role is `generic`.
 
-SO5 then sends `view.frame` when that role's picture changes.
+SO5 sends the current `view.frame` when the display subscribes, and again every 4 seconds while the subscription lasts. It also sends a frame when the picture changes. A repeat may keep the same `rev`.
 
 ### view.frame
 
 The server sends `view.frame` to a display.
 
-`body.rev` is a number. It grows when the picture changes.
+`body.rev` is a number. It grows when the picture changes. A repeat of the same picture keeps the same `rev`.
+
+`body.role` is `shop`, `mining`, `status`, or `generic`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`.
 
-`body.buttons` is `{ id = string, x = number, y = number, w = number, label = string }`.
+`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, label = string }`. The list may be empty.
 
 `x` and `y` are 1-based character coordinates. `w` is the width in characters. A button is one row tall.
 
@@ -134,7 +136,9 @@ The server sends `view.frame` to a display.
 
 A display sends `input` to the server. It does not wait.
 
-`body.role` is the screen role. `body.id` is the button id, or absent for a bare click. `body.x` and `body.y` are 1-based character coordinates.
+`body.id` is the button id, or absent when the player submitted text. `body.text` is that text, or absent for a button. `body.x` and `body.y` are 1-based character coordinates.
+
+`body.role` is ignored. The server uses the role stored for that computer.
 
 ### history.page
 
@@ -196,9 +200,11 @@ The SO0 stub returns true from `reserve`, `release`, and `isFree`. `isDug` retur
 
 SO5 owns this API on `SO.mods.display`.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. `render` returns the `view.frame` body `{ rev, rows, buttons }`. `input` accepts `{ id, x, y, role }`.
+`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
-The SO0 stub accepts the three arguments and does nothing with them.
+Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, and `generic`.
+
+The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
 
 ### drops
 
