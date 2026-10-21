@@ -225,6 +225,15 @@ S.run = function()
       showCode()
     elseif ev == "rednet_message" and c == "so" then
       dispatch(a, b)
+    elseif ev == "rednet_message" then
+      for i = 1, #mods do
+        local listen = mods[i].listen
+        local handler = type(listen) == "table" and listen[c] or nil
+        if type(handler) == "function" then
+          local ok, err = pcall(handler, a, b)
+          if not ok then print("so-server: listen " .. mods[i].name .. " failed: " .. tostring(err)) end
+        end
+      end
     end
   end
 end
