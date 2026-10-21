@@ -295,6 +295,7 @@ Lease records, callbacks, beacon journals, and observed ranges live in memory. A
 the shaft. The shaft is one block forward from it. Each turtle gets one branch
 at the bottom level. Branch junctions are four blocks apart in `thorough` mode
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
+New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
 The module registers `display.screen("mining", render, input)`. Send these text
 commands through that screen's `input.text`:

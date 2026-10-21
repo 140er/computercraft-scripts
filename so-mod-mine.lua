@@ -7,7 +7,7 @@ local unloadKeep = {
 }
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
-  length = 64, mode = "thorough", ores = { "diamond" }, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
+  length = 64, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
 local function mod(name) return SO.mods and SO.mods[name] end
 local function call(name, fn, ...)
   local m = mod(name)

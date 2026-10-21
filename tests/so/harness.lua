@@ -66,7 +66,24 @@ local function attachTurtle(m, opts, world)
   local function dig(d)
     local name = world[key(d)]
     if not name then return false end
+    if opts.physics and type(name) == "table" and
+      (name.name == "minecraft:lava" or name.name == "minecraft:water" or name.name == "minecraft:chest") then return false end
     world[key(d)] = nil
+    if opts.drops then
+      local block = type(name) == "table" and name.name or name
+      local item = block == "minecraft:stone" and "minecraft:cobblestone" or block
+      if block == "minecraft:diamond_ore" then item = "minecraft:diamond" end
+      if block == "minecraft:iron_ore" then item = "minecraft:raw_iron" end
+      for i = 1, 16 do
+        if m.inv[i] and m.inv[i].name == item and m.inv[i].count < 64 then
+          m.inv[i].count = m.inv[i].count + 1
+          return true
+        end
+      end
+      for i = 1, 16 do
+        if not m.inv[i] then m.inv[i] = { name = item, count = 1 } return true end
+      end
+    end
     return true
   end
   local function move(d)
@@ -85,7 +102,14 @@ local function attachTurtle(m, opts, world)
   local function place(d)
     local item = m.inv[m.selected]
     if not item or item.count < 1 then return false end
-    if world[key(d)] then return false end
+    local block = world[key(d)]
+    if opts.physics and type(block) == "table" and (block.name == "minecraft:lava" or block.name == "minecraft:water") then
+      if item.name == "minecraft:bucket" and block.name == "minecraft:lava" and block.state and block.state.level == 0 then
+        item.name, world[key(d)] = "minecraft:lava_bucket", nil
+        return true
+      end
+      if item.name ~= "minecraft:cobblestone" and item.name ~= "minecraft:stone" then return false end
+    elseif block then return false end
     world[key(d)] = item.name
     item.count = item.count - 1
     if item.count < 1 then m.inv[m.selected] = nil end
@@ -285,9 +309,25 @@ H.new = function()
     error("advance did not settle", 0)
   end
 
+  net.kill = function(m)
+    m.killed, m.co, m.inbox, m.timers = true, nil, {}, {}
+  end
+
+  net.boot = function(m)
+    local files, program, opts = m.files, m.program, m.opts
+    for i = #net.order, 1, -1 do
+      if net.order[i] == m then table.remove(net.order, i) end
+    end
+    local fresh = net.machine(opts)
+    fresh.files = files
+    if net.onBoot then net.onBoot(fresh) end
+    fresh.boot(program)
+    return fresh
+  end
+
   net.machine = function(opts)
     local m = {
-      id = opts.id, files = {}, log = {}, screen = {}, sent = {}, inbox = {},
+      opts = opts, id = opts.id, files = {}, log = {}, screen = {}, sent = {}, inbox = {},
       timers = {}, timerSeq = 0, cx = 1, cy = 1, capacity = opts.capacity or 16000000,
       randomLog = {}, randomOut = {},
       skipTiming = opts.skipTiming ~= false, timingError = opts.timingError == true,
@@ -299,7 +339,8 @@ H.new = function()
       local ok, err
       if packed then ok, err = coroutine.resume(m.co, table.unpack(packed, 1, packed.n))
       else ok, err = coroutine.resume(m.co) end
-      if not ok then m.error = err end
+      if not ok and not m.killed then m.error = err end
+      if net.afterResume then net.afterResume(m) end
     end
     m.alive = function()
       return m.co ~= nil and coroutine.status(m.co) == "suspended" and not m.error
@@ -314,6 +355,7 @@ H.new = function()
       end
     end
     m.boot = function(path)
+      m.program = path
       local text = assert(m.files[path], "missing " .. tostring(path))
       local fn, err = load(text, "@" .. path, "t", env)
       if not fn then m.error = err return end
@@ -327,6 +369,11 @@ H.new = function()
       m.resume()
     end
 
+    env.pcall = function(fn, ...)
+      local result = table.pack(pcall(fn, ...))
+      if m.killed then error("machine killed", 0) end
+      return table.unpack(result, 1, result.n)
+    end
     env.fs = {
       exists = function(path) return m.files[path] ~= nil end,
       delete = function(path) m.files[path] = nil end,
@@ -340,6 +387,18 @@ H.new = function()
       makeDir = function() end,
       list = function(dir)
         local names = {}
+        if opts.directories then
+          local prefix = (dir == "/" or dir == "") and "" or dir .. "/"
+          local found = {}
+          for path in pairs(m.files) do
+            if path:sub(1, #prefix) == prefix then
+              local name = path:sub(#prefix + 1):match("^[^/]+")
+              if name and not found[name] then names[#names + 1], found[name] = name, true end
+            end
+          end
+          table.sort(names)
+          return names
+        end
         if dir ~= "/" and dir ~= "" then return names end
         for name in pairs(m.files) do
           if not name:find("/", 1, true) then names[#names + 1] = name end
@@ -392,13 +451,21 @@ H.new = function()
         end
         m.timers = keep
       end,
-      pullEvent = function()
+      pullEvent = function(filter)
+        if opts.guardServer and filter then
+          m.waits = m.waits or {}
+          m.waits[#m.waits + 1] = "filtered os.pullEvent in " .. (m.context or "server")
+        end
         local event = table.pack(coroutine.yield())
         if event[1] == "terminate" then error("Terminated", 0) end
         return table.unpack(event, 1, event.n)
       end,
     }
     env.sleep = function(seconds)
+      if opts.guardServer then
+        m.waits = m.waits or {}
+        m.waits[#m.waits + 1] = "sleep(" .. tostring(seconds) .. ") in " .. (m.context or "server")
+      end
       local id = env.os.startTimer(seconds)
       while true do
         local ev, a = env.os.pullEvent()
@@ -414,7 +481,7 @@ H.new = function()
       clear = function() m.screen = {} end,
       setCursorPos = function(x, y) m.cx, m.cy = x, y end,
       getCursorPos = function() return m.cx, m.cy end,
-      getSize = function() return 51, 19 end,
+      getSize = function() return opts.width or 51, opts.height or 19 end,
       isColor = function() return true end,
       setTextColor = function() end,
       setBackgroundColor = function() end,
@@ -436,12 +503,31 @@ H.new = function()
       if not fn then error(err, 2) end
       local result = fn()
       if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
+      if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
+        local function guard(fn, label)
+          return function(...)
+            local old = m.context
+            m.context = label
+            local values = table.pack(pcall(fn, ...))
+            m.context = old
+            if not values[1] then error(values[2], 0) end
+            return table.unpack(values, 2, values.n)
+          end
+        end
+        if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
+        for _, kind in ipairs({"handlers", "listen"}) do
+          for name, fn in pairs(result[kind] or {}) do
+            result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
+          end
+        end
+      end
       return result
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {
       find = function(kind)
         if kind == "modem" and m.modem then return m.modem end
+        if kind == "monitor" and opts.monitor then return env.term end
       end,
       getName = function(dev)
         if dev == m.modem then return "back" end
@@ -460,6 +546,10 @@ H.new = function()
         if net.hosts[protocol] then net.hosts[protocol][hostname] = nil end
       end,
       lookup = function(protocol, hostname)
+        if opts.guardServer then
+          m.waits = m.waits or {}
+          m.waits[#m.waits + 1] = "rednet.lookup in " .. (m.context or "server")
+        end
         local bucket = net.hosts[protocol]
         if not bucket then return nil end
         if hostname then return bucket[hostname] end
@@ -468,10 +558,22 @@ H.new = function()
         table.sort(ids)
         return table.unpack(ids)
       end,
+      receive = function(protocol, timeout)
+        if opts.guardServer then
+          m.waits = m.waits or {}
+          m.waits[#m.waits + 1] = "rednet.receive in " .. (m.context or "server")
+        end
+        local timer = timeout and env.os.startTimer(timeout)
+        while true do
+          local event, a, b, c = env.os.pullEvent()
+          if event == "rednet_message" and (not protocol or c == protocol) then return a, b, c end
+          if event == "timer" and a == timer then return nil end
+        end
+      end,
       send = function(id, payload, protocol)
         m.sent[#m.sent + 1] = { id = id, payload = payload, protocol = protocol }
         local dest = net.machines[id]
-        if dest then
+        if dest and not dest.killed then
           dest.inbox[#dest.inbox + 1] = table.pack("rednet_message", m.id, payload, protocol)
         end
       end,
@@ -479,7 +581,7 @@ H.new = function()
         m.sent[#m.sent + 1] = { id = nil, payload = payload, protocol = protocol }
         for i = 1, #net.order do
           local dest = net.order[i]
-          if dest.id ~= m.id then
+          if dest.id ~= m.id and not dest.killed then
             dest.inbox[#dest.inbox + 1] = table.pack("rednet_message", m.id, payload, protocol)
           end
         end

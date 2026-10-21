@@ -117,6 +117,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
+  New jobs default to `ores = {}`, which accepts all ores.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
@@ -271,7 +272,20 @@ before issuing new work after a server restart.
 `tests/so/harness.lua` runs the real worker on fake computers with rednet,
 clock events, separate disks, turtles and a shared block world.
 Any fake disk that loads `so-pair.lua` must also copy `lib/ccryptolib/`.
-The full suite takes roughly three minutes.
+The full suite takes roughly three minutes before SO11.
+
+SO11 runs the real server with every module, three paired workers, two paired
+screens and an unpaired Storage Room stub for twelve fake minutes. It cuts power
+inside an active server call at minute six, preserves the disk, drops messages
+for two minutes and boots a fresh server. It records all seven checks and prints
+progress, lease and recovery totals before reporting failures. Run it alone with
+`lua5.2 tests/so/so11.lua`; it also runs at the end of `lua5.2 tests/run.lua` and
+may add more than two minutes. The harness adds `net.kill(machine)` and
+`net.boot(machine)`, which returns a fresh machine with the same disk and id.
+Optional machine settings enable inventory drops, fluid handling, directory
+listing, monitor size and server wait observations. Existing defaults stay the
+same. SO11 treats every handler, listener or tick wait as a check 7 failure,
+including the cells module's accumulated `sleep(0)` burst yields.
 
 Add a suite as `tests/so/<name>.lua` and append this block at the very end of
 `tests/run.lua`. Change nothing above it:
