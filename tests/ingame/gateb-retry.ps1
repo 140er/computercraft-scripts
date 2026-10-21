@@ -77,6 +77,17 @@ function Invoke-GatebWrapped {
     Invoke-GatebRetry -Log $script:GatebRetryLog -Call { Invoke-GatebBoundCall }
 }
 
+function Complete-GatebFallback {
+    param(
+        [Parameter(Mandatory)][string]$HoldFile,
+        [Parameter(Mandatory)][string]$LockDir,
+        [Parameter(Mandatory)][string]$Owner,
+        [string]$Log = '',
+        [switch]$TakeLock
+    )
+    Invoke-GatebRetry -Log $Log -Call { Get-GatebHealthAttempt }
+}
+
 function Install-GatebRetry([string]$Log) {
     $script:GatebInvokeRaw = (Get-Command Invoke-Gateb -CommandType Function).ScriptBlock
     $script:GatebRetryLog = $Log
