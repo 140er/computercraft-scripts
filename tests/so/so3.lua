@@ -473,4 +473,28 @@ return function(test,equal)
     equal(s.turtle.pos, { x=3, y=-2, z=-3 })
   end)
 
+  test("mine ore trips retain buckets and torches and return after unloading", function()
+    local s = setup()
+    local kept = { "minecraft:bucket", "minecraft:lava_bucket", "minecraft:water_bucket", "minecraft:torch" }
+    for slot, name in ipairs(kept) do s.turtle.inv[slot] = { name=name, count=1 } end
+    for slot = 5, 15 do s.turtle.inv[slot] = { name="minecraft:diamond", count=64 } end
+    s.turtle.inv[16] = { name="minecraft:coal", count=64 }
+    local chest = { name="minecraft:chest", inv={} }
+    s.net.world["1,0,0"] = chest
+    assert(s.server.env.SO.mods.drops.add({ id="ore", dim=0, x=1, y=0, z=0, side="front", kind="ore" }))
+    s.input("start")
+    run(s, 100)
+    for slot, name in ipairs(kept) do
+      assert(s.turtle.inv[slot], name .. " was unloaded")
+      equal(s.turtle.inv[slot], { name=name, count=1 })
+    end
+    local totals = {}
+    for _, item in ipairs(chest.inv) do totals[item.name] = (totals[item.name] or 0) + item.count end
+    equal(totals, { ["minecraft:diamond"]=11*64, ["minecraft:coal"]=64 })
+    local row = persisted(s).turtles["2"]
+    equal(row.trip, nil)
+    equal(row.state, "done")
+    equal(s.turtle.pos, { x=3, y=-2, z=-5 })
+  end)
+
 end

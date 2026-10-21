@@ -1,6 +1,10 @@
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
 local S = { wired = false, pending = {}, known = {}, error = nil }
+local unloadKeep = {
+  ["minecraft:bucket"] = true, ["minecraft:lava_bucket"] = true,
+  ["minecraft:water_bucket"] = true, ["minecraft:torch"] = true,
+}
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, mode = "thorough", ores = { "diamond" }, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
@@ -204,7 +208,7 @@ plan = function(id,row)
       elseif t.kind == "ore" then
         local steps = {}
         for _, item in ipairs(row.inv) do
-          if not M.junk(item) then
+          if not M.junk(item) and not unloadKeep[item.name] then
             steps[#steps+1]={op="select",slot=item.slot}
             local drop = call("drops","steps",t.point) or {}
             for _, step in ipairs(drop) do steps[#steps+1]=step end
