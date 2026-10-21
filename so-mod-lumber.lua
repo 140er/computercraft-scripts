@@ -225,6 +225,15 @@ S.report = function(id, turtleId, results, lease)
     S.alert("missing pose")
     return
   end
+  local cells = S.module("cells")
+  if j.turtle.frame and type(cells.markDug) == "function" and type(cells.isDug) == "function" then
+    for _, cell in ipairs(report.dug or {}) do
+      local world = P.toWorld(j.turtle.frame, { x = cell.x, y = cell.y, z = cell.z, f = 0 })
+      if not cells.isDug(world.x, world.y, world.z, world.dim) then
+        cells.markDug(world.x, world.y, world.z, world.dim)
+      end
+    end
+  end
   S.noteBlocks(pending, results)
   if report.inv then j.inv = report.inv end
   if report.fuel ~= nil then j.fuel = report.fuel end

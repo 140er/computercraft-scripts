@@ -301,6 +301,7 @@ Optional machine settings enable inventory drops, fluid handling, action time, d
 listing, monitor size and server wait observations. Existing defaults stay the
 same. SO11 treats every handler, listener or tick wait as a check 7 failure,
 including the cells module's accumulated `sleep(0)` burst yields.
+SO11 scenario B uses length-48 mining branches and grown trees, cuts inside a server call at the first observed instant after 240 seconds with three open work leases, then checks four minutes of recovery after two minutes down, including lane exclusion and exactly-once interrupted dug reports.
 
 Add a suite as `tests/so/<name>.lua` and append this block at the very end of
 `tests/run.lua`. Change nothing above it:
