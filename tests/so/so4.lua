@@ -88,6 +88,21 @@ return function(test, equal)
     equal(c.counts().reserved[2], 2)
   end)
 
+  test("cells do not sleep on single calls after idle gaps", function()
+    local c, _, net, probe = boot()
+    local calls = {
+      function() assert(c.reserve("lease", 0, 0, 0)) end,
+      function() equal(c.isDug(0, 0, 0), false) end,
+      function() assert(c.markDug(0, 0, 0)) end,
+    }
+    for _, call in ipairs(calls) do
+      net.time = net.time + 3000
+      local before = probe.yields
+      call()
+      equal(probe.yields, before)
+    end
+  end)
+
   test("cells keep quiet owners for an hour", function()
     local c, _, net = boot()
     assert(c.reserve(42, 0, 0, 0))

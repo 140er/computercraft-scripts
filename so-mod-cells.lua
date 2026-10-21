@@ -5,8 +5,12 @@ local S = {
 }
 
 S.pause = function()
-  S.work = S.work + 1
   local now = os.epoch("utc")
+  if not S.last or now - S.last > 50 then
+    S.yielded, S.work = now, 0
+  end
+  S.last = now
+  S.work = S.work + 1
   if S.work >= 128 or now - S.yielded >= 1000 then
     sleep(0)
     S.work, S.yielded = 0, os.epoch("utc")
