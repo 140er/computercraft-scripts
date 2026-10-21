@@ -113,7 +113,7 @@ S.run = function()
     assert(m.alive(), tostring(m.error))
   end
   for id=2,4 do
-    local opts = {id=id,modem=true,turtle=true,drops=true,physics=true,capacity=1000000,
+    local opts = {id=id,modem=true,turtle=true,drops=true,physics=true,actionSeconds=0.4,capacity=1000000,
       x=id==4 and 18 or (id-2)*2,y=64,z=0,facing=id==4 and 1 or 0,fuel=10000}
     local w = n.machine(opts)
     w.install({"worker.lua","so-proto.lua","so-pair.lua","so-store.lua"}) S.libs(w)
@@ -212,7 +212,7 @@ S.run = function()
     d.inbox[#d.inbox+1]=table.pack("key",28) n.flush()
   end
   role(5,"mining")
-  for _, cmd in ipairs({"home 0 64 0 n","bottom 60","length 12","add 2 0 64 0 n","add 3 2 64 0 n","start"}) do text(5,cmd) end
+  for _, cmd in ipairs({"home 0 64 0 n","bottom 60","length 24","add 2 0 64 0 n","add 3 2 64 0 n","start"}) do text(5,cmd) end
   role(6,"lumber")
   for _, cmd in ipairs({"area 20 0 28 8 62","saplings 18 63 0 down","add 4 18 64 0 e","start"}) do text(6,cmd) end
   role(5,"shop") role(6,"status")

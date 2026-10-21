@@ -281,9 +281,9 @@ inside an active server call at minute six, preserves the disk, drops messages
 for two minutes and boots a fresh server. It records all seven checks and prints
 progress, lease and recovery totals before reporting failures. Run it alone with
 `lua5.2 tests/so/so11.lua`; it also runs at the end of `lua5.2 tests/run.lua` and
-adds about 28 seconds in the recorded offline run. The harness adds `net.kill(machine)` and
+adds about seven seconds in the recorded offline run. The harness adds `net.kill(machine)` and
 `net.boot(machine)`, which returns a fresh machine with the same disk and id.
-Optional machine settings enable inventory drops, fluid handling, directory
+Optional machine settings enable inventory drops, fluid handling, action time, directory
 listing, monitor size and server wait observations. Existing defaults stay the
 same. SO11 treats every handler, listener or tick wait as a check 7 failure,
 including the cells module's accumulated `sleep(0)` burst yields.

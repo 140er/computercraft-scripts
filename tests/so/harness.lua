@@ -587,7 +587,20 @@ H.new = function()
         end
       end,
     }
-    if opts.turtle then attachTurtle(m, opts, net.world) end
+    if opts.turtle then
+      attachTurtle(m, opts, net.world)
+      if opts.actionSeconds then
+        for _, name in ipairs({ "forward", "back", "up", "down", "turnLeft", "turnRight",
+          "dig", "digUp", "digDown", "inspect", "inspectUp", "inspectDown",
+          "place", "placeUp", "placeDown", "suck", "suckDown", "drop", "dropDown", "refuel" }) do
+          local action = env.turtle[name]
+          env.turtle[name] = function(...)
+            env.sleep(opts.actionSeconds)
+            return action(...)
+          end
+        end
+      end
+    end
     net.machines[m.id] = m
     net.order[#net.order + 1] = m
     return m
