@@ -1,11 +1,11 @@
--- so-proto.lua - encode, sign, and send "so" rednet messages.
--- The MAC covers the envelope with the mac field left out.
-
 local M = {}
 local S = {
   name = "so",
-  window = 256,
   limit = 16384,
+  skew = 60000,
+  memory = 120000,
+  ridMax = 64,
+  depthMax = 8,
   seq = 0,
   seen = {},
   keyFor = nil,
@@ -161,8 +161,50 @@ M.ser = function(v)
   return write(v)
 end
 
+local function checkedCopy(value, depthMax)
+  local state = { n = 0, bad = false, seen = {} }
+  local function walk(v, depth)
+    if state.bad then return nil end
+    local kind = type(v)
+    if kind == "string" then
+      if #v > S.limit then state.bad = true return nil end
+      state.n = state.n + #v + 2
+    elseif kind == "number" then
+      if v ~= v or v == math.huge or v == -math.huge then state.bad = true return nil end
+      state.n = state.n + 1
+    elseif kind == "boolean" then
+      state.n = state.n + 4
+    elseif kind == "table" then
+      if depth > depthMax or state.seen[v] then state.bad = true return nil end
+      state.seen[v] = true
+      state.n = state.n + 2
+      local out = {}
+      for key, item in pairs(v) do
+        local copiedKey = walk(key, depth + 1)
+        local copied = walk(item, depth + 1)
+        if state.bad then return nil end
+        out[copiedKey] = copied
+      end
+      state.seen[v] = nil
+      if state.n > S.limit then state.bad = true return nil end
+      return out
+    else
+      state.bad = true
+      return nil
+    end
+    if state.n > S.limit then state.bad = true return nil end
+    return v
+  end
+  local copy = walk(value, 1)
+  if state.bad or type(copy) ~= "table" then return nil end
+  local ok, text = pcall(M.ser, copy)
+  if not ok or type(text) ~= "string" or #text > S.limit then return nil end
+  return copy
+end
+
 M.encode = function(value)
-  return M.ser(value)
+  if type(value) ~= "table" then return nil end
+  return checkedCopy(value, S.depthMax + 1)
 end
 
 M.canonical = function(msg)
@@ -185,18 +227,29 @@ M.macOk = function(key, msg)
   return diff == 0
 end
 
-M.decode = function(text)
-  if type(text) ~= "string" or #text < 2 or #text > S.limit then return nil, "size" end
-  local fn, err = load("return " .. text, "=so", "t", {})
-  if not fn then return nil, err end
-  local ok, value = pcall(fn)
-  if not ok or type(value) ~= "table" then return nil, "decode" end
-  if value.v ~= 1 or type(value.t) ~= "string" or type(value.rid) ~= "string" or #value.rid < 1
+M.decode = function(value)
+  if type(value) ~= "table" then return nil, "type" end
+  if value.v ~= 1 or type(value.t) ~= "string" or #value.t < 1 or #value.t > S.limit
+    or type(value.rid) ~= "string" or #value.rid < 1 or #value.rid > S.ridMax
     or not whole(value.from) or not whole(value.at) or type(value.mac) ~= "string"
-    or type(value.body) ~= "table" then
+    or #value.mac ~= 64 or type(value.body) ~= "table" then
     return nil, "shape"
   end
-  return value
+  if math.abs(os.epoch("utc") - value.at) > S.skew then return nil, "time" end
+  local body = checkedCopy(value.body, S.depthMax)
+  if not body then return nil, "body" end
+  local copy = {
+    v = 1,
+    t = value.t,
+    rid = value.rid,
+    from = value.from,
+    at = value.at,
+    mac = value.mac,
+    body = body,
+  }
+  local ok, text = pcall(M.ser, copy)
+  if not ok or type(text) ~= "string" or #text > S.limit then return nil, "size" end
+  return copy
 end
 
 M.bind = function(keyFor)
@@ -218,18 +271,17 @@ M.build = function(key, t, body, rid)
 end
 
 M.fresh = function(msg)
+  local now = os.epoch("utc")
   local slot = S.seen[msg.from]
   if not slot then
-    slot = { ids = {}, order = {} }
+    slot = {}
     S.seen[msg.from] = slot
   end
-  if slot.ids[msg.rid] then return false end
-  slot.ids[msg.rid] = true
-  slot.order[#slot.order + 1] = msg.rid
-  if #slot.order > S.window then
-    local old = table.remove(slot.order, 1)
-    slot.ids[old] = nil
+  for rid, at in pairs(slot) do
+    if now - at > S.memory then slot[rid] = nil end
   end
+  if slot[msg.rid] then return false end
+  slot[msg.rid] = now
   return true
 end
 
@@ -238,17 +290,19 @@ M.request = function(target, t, body, timeout, tries)
   if not key then return nil, "no key" end
   local wait = timeout or 3
   if type(wait) ~= "number" or wait <= 0 then wait = 3 end
+  local msg = M.build(key, t, body)
+  local wire = M.encode(msg)
+  if not wire then return nil, "encode" end
   local left = tries or 1
   while left > 0 do
     left = left - 1
-    local msg = M.build(key, t, body)
-    rednet.send(target, M.encode(msg), S.name)
+    rednet.send(target, wire, S.name)
     local timer = os.startTimer(wait)
     local got
     while not got do
       local ev, a, b, c = os.pullEvent()
       if ev == "timer" and a == timer then break end
-      if ev == "rednet_message" and c == S.name and a == target and type(b) == "string" then
+      if ev == "rednet_message" and c == S.name and a == target and type(b) == "table" then
         local reply = M.decode(b)
         if reply and reply.rid == msg.rid and reply.from == target and M.macOk(key, reply) and M.fresh(reply) then
           got = reply
