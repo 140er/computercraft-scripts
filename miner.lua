@@ -482,58 +482,6 @@ if not cfg then
   print("Not set up yet. First: miner setup (see: miner setup help)")
   return
 end
-if args[1]=="service" then
-  cfg.warehouse=cfg.warehouse or {enabled=false}
-  if args[2]=="enable" or args[2]=="disable" then
-    assert(args[2]=="disable" or cfg.mining and cfg.mining.enabled==true and cfg.warehouse.drop and cfg.warehouse.charger,"configure mining, drop and charger first")
-    cfg.warehouse.enabled=args[2]=="enable"
-  elseif args[2]=="drop" or args[2]=="charger" then
-    assert(type(args[3])=="string" and #args[3]>0 and #args[3]<=64,"site name required") cfg.warehouse[args[2]]=args[3]
-  elseif args[2]=="fuel" then
-    local n=tonumber(args[3]) assert(n and n%1==0 and n>=1 and n<=100000,"fuel target must be 1 through 100000") cfg.warehouse.targetFuel=n
-  else error("Use miner service drop <site>, charger <site>, fuel <target>, enable or disable",0) end
-  saveTable(CFG_FILE,cfg) print("Mining service saved") return
-end
-if args[1]=="nav" and args[2]=="traffic" then
-  assert(args[3]=="on" or args[3]=="off","traffic on or off required")
-  cfg.nav=cfg.nav or {} cfg.nav.traffic=args[3]=="on" saveTable(CFG_FILE,cfg) return
-end
-if args[1]=="mine" then
-  cfg.mining=cfg.mining or {}
-  if args[2]=="enable" or args[2]=="disable" then
-    assert(args[2]=="disable" or cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true and cfg.mining.home,
-      "configure SSOT, navigation and mining home first")
-    cfg.mining.enabled=args[2]=="enable" saveTable(CFG_FILE,cfg) print("Mining "..args[2].."d") return
-  elseif args[2]=="home" then
-    local p={dim=assert(cfg.ssot and cfg.ssot.dimension),h=assert(DIRS[args[6]],"home heading required")}
-    p.x,p.y,p.z=tonumber(args[3]),tonumber(args[4]),tonumber(args[5])
-    assert(dofile("ssot.lua").pose(p),"integer home coordinates required")
-    cfg.mining.home=p saveTable(CFG_FILE,cfg) print("Mining home saved") return
-  elseif args[2]=="bounds" then
-    local v={} for i=1,6 do v[i]=assert(tonumber(args[i+3]),"six coordinates required") end
-    C.mineZone={min={dim=args[3],x=v[1],y=v[2],z=v[3]},max={dim=args[3],x=v[4],y=v[5],z=v[6]},spacing=tonumber(args[10]) or 3}
-    assert(dofile("mine-tasks.lua").zone(C.mineZone,dofile("ssot.lua").pose),"invalid mine bounds")
-  else error("Use miner mine bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> [spacing], home <x> <y> <z> <heading>, enable or disable",0) end
-end
-if args[1]=="nav" and args[2]=="bounds" then
-  local dim=assert(args[3],"dimension required")
-  local v={}
-  for i=1,6 do v[i]=assert(tonumber(args[i+3]),"six integer coordinates required") assert(v[i]%1==0) end
-  assert(v[1]<=v[4] and v[2]<=v[5] and v[3]<=v[6],"bounds are reversed")
-  cfg.nav=cfg.nav or {}
-  cfg.nav.bounds={min={dim=dim,x=v[1],y=v[2],z=v[3]},max={dim=dim,x=v[4],y=v[5],z=v[6]}}
-  saveTable(CFG_FILE,cfg)
-  print("Navigation bounds saved. Set nav.enabled=true in miner.cfg to enable.")
-  return
-end
-if args[1]=="nav" and args[2]=="calibrate" then
-  assert(cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true,"enable SSOT and navigation before calibration")
-  C.navCalibration=assert(DIRS[args[3]],"heading required")
-elseif args[1]=="nav" and args[2]=="survey" then
-  assert(cfg.ssot and cfg.ssot.enabled==true and cfg.nav and cfg.nav.enabled==true,"enable SSOT and navigation before surveying")
-  C.navSurvey={dim=cfg.ssot.dimension,x=tonumber(args[3]),y=tonumber(args[4]),z=tonumber(args[5])}
-  assert(dofile("ssot.lua").pose(C.navSurvey),"integer survey coordinates required")
-elseif args[1]=="nav" then error("Use miner nav bounds <dimension> <minX> <minY> <minZ> <maxX> <maxY> <maxZ> or miner nav calibrate <heading>",0) end
 local HOME = cfg.home
 -- The way its chest is (behind, left or right of the home spot; older setups: behind)
 cfg.chest = cfg.chest or OPP[cfg.facing]
@@ -587,7 +535,7 @@ if args[1] == "home" then
   return
 end
 
-local standaloneOre = args[1]~="nav" and args[1]~="mine" and args[1] and args[1]:lower()
+local standaloneOre = args[1] and args[1]:lower()
 if standaloneOre and not ORES[standaloneOre] then
   print("Unknown ore: " .. standaloneOre)
   return
@@ -610,12 +558,6 @@ st.total = st.total or {}
 local pos = st.pos
 
 local function save() saveTable(STATE_FILE, st) end
-if type(cfg.ssot) == "table" and cfg.ssot.enabled == true then
-  assert(not cfg.loc and type(cfg.ssot.dimension) == "string", "SSOT needs GPS and a dimension")
-  C.ssot = dofile("ssot-client.lua").new(cfg.ssot)
-  C.netEvent = "miner_network"
-end
-C.netEvent = C.netEvent or "rednet_message"
 local function worldShaft()
   if not cfg.loc then return { x = SHAFT.x, y = HOME.y, z = SHAFT.z, bottom = st.shaft } end
 end
@@ -881,17 +823,6 @@ end
 -- next move: after a reboot recover() checks which of the two is right.
 local function face(d)
   if d >= 4 then return end
-  if C.nav then
-    local ok,why=C.nav.face(d)
-    st.h=C.nav.pose().h save()
-    if not ok and why=="cancelled" and C.estop then
-      setStatus("ESTOP")
-      while C.estop do sleep(.1) end
-      return face(d)
-    end
-    if not ok then error("Turn refused: " .. tostring(why),0) end
-    return
-  end
   while st.h ~= d do
     st.turnFrom = st.h
     local ok, why
@@ -1146,28 +1077,14 @@ local function applyMove(d)
   known.put(nil, "minecraft:air") -- where it stands now is open
 end
 
-function C.navMove(d,inVein,policy)
-  st.navPending={d=d,vein=inVein} save()
-  local ok,why=C.nav.step(d,policy)
-  local p=C.nav.pose()
-  if p.x~=pos.x or p.y~=pos.y or p.z~=pos.z then
-    if inVein=="pop" then st.vein[#st.vein]=nil elseif inVein then st.vein[#st.vein+1]=d end
-  end
-  pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
-  st.navPending=nil save()
-  return ok,why
-end
-local function rawMove(d, inVein, backward)
-  if C.nav then return C.navMove(d,inVein,"explore") end
-  if C.ssotMoving then return false, "SSOT movement busy" end
+-- One step, with the fuel trick so a reboot mid-move does not lose the position.
+local function rawMove(d, inVein)
   local mv = turtle.forward
-  if backward then mv = turtle.back
-  elseif d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
+  if d == UP then mv = turtle.up elseif d == DOWN then mv = turtle.down else face(d) end
   -- inVein: true = step into a vein (push), "pop" = step back out (pop). Saved together
   -- with the move, so a reboot right after the move can't leave the vein list wrong.
-  local function execute()
   st.pending = { d = d, fuel = turtle.getFuelLevel(), vein = inVein }
-  if not backward or C.ssot then st.turnFrom = nil end
+  st.turnFrom = nil -- a move only starts after the last turn is done
   save()
   local ok, why = mv()
   if ok then
@@ -1177,15 +1094,6 @@ local function rawMove(d, inVein, backward)
   end
   st.pending = nil
   save()
-  return ok, why
-  end
-  if not C.ssot then return execute() end
-  C.ssotMoving = true
-  local from = { dim = cfg.ssot.dimension, x = pos.x, y = pos.y, z = pos.z }
-  local to = { dim = from.dim, x = pos.x + DX[d], y = pos.y + DY[d], z = pos.z + DZ[d] }
-  local success, ok, why = pcall(C.ssot.move, from, to, execute)
-  C.ssotMoving = false
-  if not success then error(ok, 0) end
   return ok, why
 end
 
@@ -1216,7 +1124,6 @@ end
 
 -- Safe movement: never step into lava (seal it first), dig where needed.
 local function move(d, inVein, checkRoute)
-  if C.nav then return C.navMove(d,inVein,st.phase=="returning" and "walk" or "excavate") end
   local lavaTries = 0
   for attempt = 1, C.RETRY do
     local info = inspect(d)
@@ -1417,13 +1324,6 @@ local function goHome(reason)
   st.phase = "returning"
   save()
   setStatus("Going home: " .. (reason or ""))
-  if C.nav then
-    local ok,why=C.nav.go({dim=cfg.ssot.dimension,x=HOME.x,y=HOME.y,z=HOME.z},"walk")
-    local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h save()
-    if not ok then error("Safe return refused: " .. tostring(why),0) end
-    st.vein={} st.phase="home" save()
-    return
-  end
   unwindVein()
   if st.job and st.job.bore then B.back() end -- tunnel: back to the shaft along the tunnel
   if pos.y < HOME.y - 2 then dropJunk() end
@@ -2018,7 +1918,7 @@ local function request(msg, replyType, timeout)
   local timer = os.startTimer(timeout or 4)
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == C.netEvent and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == replyType then
+    if ev == "rednet_message" and a == hubId and c == PROTOCOL and type(b) == "table" and b.type == replyType then
       return b
     elseif ev == "timer" and a == timer then
       hubId = nil
@@ -2113,42 +2013,6 @@ local function groundBlock(info)
   if NATURAL[info.name] or FALLING[info.name] or isOre(info) then return true end
   for _, t in ipairs(GROUND_TAGS) do if hasTag(info, t) then return true end end
   return false
-end
-function C.navCanExcavate(info)
-  if cfg.mining and cfg.mining.enabled then
-    C.miningModule=C.miningModule or dofile("mining.lua")
-    return C.miningModule.excavatable(info,cfg.mining.targets)
-  end
-  return not isLiquid(info) and not isUnbreakable(info) and groundBlock(info)
-end
-
-function C.runMining()
-  local mining=dofile("mining.lua").open({nav=C.nav,client=C.ssot,home=cfg.mining.home,targets=cfg.mining.targets,
-    service=cfg.warehouse,cancelled=function() return recall or updateWanted end})
-  while true do
-    local state=mining.state()
-    if state.phase=="home" and cfg.warehouse and cfg.warehouse.enabled==true and not recall and not C.estop then
-      local ok,why=mining.service()
-      if ok then
-        if state.reason=="complete" then ok,why=mining.finish() else ok,why=mining.start() end
-      end
-      if not ok then setStatus(tostring(why)) sleep(5) end
-    elseif state.phase=="home" and state.reason=="complete" then
-      local ok,why=mining.finish() if not ok then setStatus(tostring(why)) sleep(5) end
-    elseif not recall and not C.estop then
-      local ok,why=mining.start()
-      if ok then
-        repeat
-          ok,why=mining.tick()
-          local p=C.nav.pose() pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h
-          st.phase=mining.state().phase=="return" and "returning" or "mining" save()
-          setStatus("Mining "..tostring(why or mining.state().phase))
-          sleep(0)
-        until not ok
-      end
-      setStatus("Mining "..tostring(why)) sleep(5)
-    else setStatus("Mining paused") sleep(1) end
-  end
 end
 
 C.PILLAR = 8      -- marker pillar height
@@ -2255,11 +2119,6 @@ local function calibrateAtHome()
 end
 
 local function recover()
-  if C.nav then
-    if st.job then setTargets(st.job.targets,st.job) end
-    if pos.x~=HOME.x or pos.y~=HOME.y or pos.z~=HOME.z then goHome("reboot") end
-    return
-  end
   if st.phase == "home" then verifyHome() end
   local turnFrom = st.turnFrom -- before calibrateAtHome turns around
   if calibrateAtHome() then
@@ -2716,13 +2575,18 @@ local function listener()
       if dir == "up" then ok, why = rawMove(UP) elseif dir == "down" then ok, why = rawMove(DOWN)
       elseif dir == "forward" then ok, why = rawMove(st.h)
       else
-        ok, why = rawMove(OPP[st.h], nil, true)
+        local d = OPP[st.h] -- back: without turning around
+        st.pending = { d = d, fuel = turtle.getFuelLevel() }
+        save()
+        ok, why = turtle.back()
+        if ok then applyMove(d) end
+        st.pending = nil
+        save()
       end
       if ok then lostFix(dir) end
       return ok, why
     end,
     busy = function()
-      if C.ssot then return "Manual driving is disabled while SSOT is enabled" end
       if st.phase == "lost" then
         if not st.lostAt then return "Still climbing to the surface, try again in a moment" end
         lostFix()
@@ -2737,22 +2601,12 @@ local function listener()
   }
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == C.netEvent and c == PROTOCOL and type(b) == "table" and (not C.nav or a==cfg.ssot.server) then
-      local apply,valid=true,true
-      if C.nav and (b.type=="go" or b.type=="recall" or b.type=="estop")
-        and (b.target==nil or b.target==os.getComputerID()) then
-        local why
-        apply,why=C.nav.control(b.type,type(b.commandEpoch)=="string" and tonumber(b.commandEpoch) or nil,b.cid)
-        valid=why~="invalid command"
-        C.estop=C.nav.stopped()
+    if ev == "rednet_message" and c == PROTOCOL and type(b) == "table" then
+      -- An order passed on by the fleet server: confirm it, or it keeps sending it
+      if b.cid and (b.target == nil or b.target == os.getComputerID()) then
+        pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid }, PROTOCOL)
       end
-      if valid and b.cid and (b.target == nil or b.target == os.getComputerID()) then
-        pcall(rednet.send, a, { type = "cmd_ack", cid = b.cid,commandEpoch=b.commandEpoch }, PROTOCOL)
-      end
-      if apply then
-      if C.nav and b.type=="estop" and (b.target==nil or b.target==os.getComputerID()) then
-        C.estop=true
-      elseif (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
+      if (b.type == "recall" or b.type == "go") and (b.target == nil or b.target == os.getComputerID()) then
         if b.from then hubId = b.from end
         recall = (b.type == "recall")
         publish(true)
@@ -2765,7 +2619,6 @@ local function listener()
       elseif b.type == "dev" then -- the pocket panel's console
         devCommand(b, "miner.log", "miner", function(r) rednet.send(a, r, PROTOCOL) end, hooks)
       end
-      end
     end
   end
 end
@@ -2773,7 +2626,6 @@ end
 local function heartbeat()
   while true do
     sleep(3)
-    if C.nav and C.nav.resumePending() then C.estop=false end
     publish(true)
   end
 end
@@ -2781,59 +2633,4 @@ end
 openModem()
 if not radio then print("No wireless modem: hub/dashboard will not work.") end
 turtle.select(1)
-if C.ssot then
-  C.ssotWorker = function()
-    if cfg.nav and cfg.nav.enabled==true then
-      assert(not st.pending and not st.turnFrom,"Resolve the legacy movement journal before navigation boot")
-      C.nav=dofile("nav.lua").open({pose={dim=cfg.ssot.dimension,x=pos.x,y=pos.y,z=pos.z,h=st.h},
-        bounds=cfg.nav.bounds,client=C.ssot,canExcavate=C.navCanExcavate,traffic=cfg.nav.traffic==true,
-        observe=function()
-          local x,y,z=gps.locate(2)
-          if x then return {dim=cfg.ssot.dimension,x=math.floor(x+.5),y=math.floor(y+.5),z=math.floor(z+.5)} end
-        end,
-        cancelled=function() return C.estop or not (cfg.mining and cfg.mining.enabled) and st.phase~="returning" and st.phase~="home" and (recall or updateWanted) end})
-      C.estop=C.nav.stopped()
-      local ok,why
-      if C.navCalibration~=nil then ok,why=C.nav.calibrate(C.navCalibration) else ok,why=C.nav.recover() end
-      assert(ok,why)
-      recall=C.nav.controlState().kind=="recall"
-      local p=C.nav.pose()
-      if st.navPending and (p.x~=pos.x or p.y~=pos.y or p.z~=pos.z) then
-        if st.navPending.vein=="pop" then st.vein[#st.vein]=nil
-        elseif st.navPending.vein then st.vein[#st.vein+1]=st.navPending.d end
-      end
-      pos.x,pos.y,pos.z,st.h=p.x,p.y,p.z,p.h st.navPending=nil save()
-      if C.navCalibration~=nil then print("Navigation pose calibrated") return end
-      if C.navSurvey then
-        assert(C.nav.go(C.navSurvey,"explore"))
-        local q=C.nav.pose() pos.x,pos.y,pos.z,st.h=q.x,q.y,q.z,q.h save()
-        print("Navigation route surveyed") return
-      end
-      if C.mineZone then
-        local r,why=C.ssot.call("mine-config",{zone=C.mineZone})
-        assert(r and r.ok,why) print("Mine zones saved: "..r.count) return
-      end
-      if cfg.mining and cfg.mining.enabled then C.runMining() return end
-      worker()
-      return
-    end
-    assert(not st.pending and not st.turnFrom, "Resolve the miner movement journal before SSOT boot")
-    local x, y, z = gps.locate(2)
-    assert(x and x % 1 == 0 and y % 1 == 0 and z % 1 == 0, "SSOT boot needs an observed GPS pose")
-    pos.x, pos.y, pos.z = x, y, z
-    assert(C.ssot.resync({ dim = cfg.ssot.dimension, x = x, y = y, z = z }))
-    save()
-    worker()
-  end
-  C.ssotReceive = function()
-    while true do
-      local _, sender, packet, protocol = os.pullEvent("rednet_message")
-      if not C.ssot.dispatch(sender, packet, protocol) then
-        os.queueEvent(C.netEvent, sender, packet, protocol)
-      end
-    end
-  end
-  parallel.waitForAny(C.ssotReceive, C.ssotWorker, listener, heartbeat, devPairLoop)
-else
-  parallel.waitForAny(worker, listener, heartbeat, devPairLoop)
-end
+parallel.waitForAny(worker, listener, heartbeat, devPairLoop)

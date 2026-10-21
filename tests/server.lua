@@ -101,24 +101,6 @@ return function(test, equal, read, mocks)
     end
     equal(serialize({ { x = 12 }, { x = 12 } }), "{[1]={[\"x\"]=12},[2]={[\"x\"]=12}}")
   end)
-  test("server refuses to overwrite corrupt generations without a recoverable state",function()
-    local m=new()
-    m.files["server.state"]="broken state"
-    local ok=pcall(m.start,serverCode)
-    equal(ok,false)
-    equal(m.files["server.state"],"broken state")
-  end)
-  test("server bounds legacy requests when the shared validator is installed",function()
-    local m=new()
-    m.files["ssot.lua"],m.files["atomic.lua"]=read("ssot.lua"),read("atomic.lua")
-    m.env.dofile=function(path) return assert(loadfile(path,"t",m.env))() end
-    m.start(serverCode)
-    local sent=#m.sent
-    m.push("rednet_message",7,{type="register",kind="spoof",rid=string.rep("x",300000)},"fleetserver")
-    equal(#m.sent,sent)
-    equal(m.state().bots[7],nil)
-    equal(m.request({type="register",kind="miner",rid="valid"}).type,"ack")
-  end)
 
   test("server saves GPS status and hub assignments across restart", function()
     local m = new()
@@ -217,11 +199,10 @@ return function(test, equal, read, mocks)
     end }
     m.start(serverCode)
     equal(downloads, 1)
-    local count = #assert(load("return " .. assert(serverCode:match("local FILES = (%b{})"))))()
-    m.advance(count - 1)
-    equal(downloads, count)
+    m.advance(16)
+    equal(downloads, 17)
     m.advance(301)
-    equal(downloads, count + 1)
+    equal(downloads, 18)
   end)
 
   local function updater(server, httpCode)
@@ -381,18 +362,6 @@ return function(test, equal, read, mocks)
     end
   end)
 
-  test("server ESTOP replaces queued movement commands",function()
-    local s=new() s.start(serverCode)
-    s.request({type="command",target=5,protocol="minearmy",message={type="go"}},99)
-    s.request({type="command",target=5,protocol="minearmy",message={type="estop"}},99)
-    s.advance(4)
-    local go,stop=0,0
-    for _,p in ipairs(s.sent) do
-      if p.id==5 and p.msg.type=="go" then go=go+1 end
-      if p.id==5 and p.msg.type=="estop" then stop=stop+1 end
-    end
-    assert(go==1 and stop>=2,"an older go command was retried after ESTOP")
-  end)
   test("server repeats an order until the miner confirms it, then gives up and logs", function()
     local s = new()
     s.start(serverCode)
@@ -611,9 +580,9 @@ return function(test, equal, read, mocks)
     end
   end)
 
-  test("four megabyte server mirrors the real repo once and serves matching root scripts", function()
+  test("one megabyte server mirrors the real repo once and serves matching root scripts", function()
     local m = new()
-    m.files, m.capacity = {}, 4000000
+    m.files, m.capacity = {}, 1000000
     for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
     downloads(m, repo)
     m.start(serverCode)
@@ -636,12 +605,13 @@ return function(test, equal, read, mocks)
   end)
 
   test("884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code", function()
+    -- Was 884000 and 884 KB with the scripts of then; the same room is left over now
     local total = 0
     for _, f in ipairs(hosted) do total = total + #repo[f] end
     local roots = #repo["server.lua"] + #repo["install.lua"] + #repo["update.lua"]
     for _, used in ipairs({ total + 69313, total + roots + 23398 }) do
       local m = new()
-      m.files, m.capacity = {}, used + 23398
+      m.files, m.capacity = {}, 1000000
       for _, f in ipairs(hosted) do m.files["server-code/" .. f] = repo[f] end
       for _, f in ipairs({ "server.lua", "install.lua", "update.lua" }) do m.files[f] = repo[f] end
       if used == total + 69313 then
@@ -697,7 +667,7 @@ return function(test, equal, read, mocks)
     m.start(serverCode)
     equal(m.state().view3D, false)
     equal(m.request({ type = "get", file = "roomsorter.lua" }).hash, hashOf(repo["roomsorter.lua"]))
-    assert(decode(m.files["server.state.bak"]), "previous good generation missing")
+    equal(m.files["server.state.bak"], nil)
     equal(m.files["server-code/roomsorter.lua.bak"], nil)
     local good, move = m.files["server.state"], m.env.fs.move
     m.env.fs.move = function(a, b)

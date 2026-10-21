@@ -1,8 +1,0 @@
-{
-    "fuelInterrupt":  true,
-    "inventoryInterrupt":  true,
-    "ok":  true,
-    "leases":  3,
-    "turtles":  3,
-    "restart":  true
-}

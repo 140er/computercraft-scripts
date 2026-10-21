@@ -19,7 +19,6 @@ local STATS_FILE = "sorter.stats"
 local LOG_FILE = "sorter.log"
 
 local args = { ... }
-if args[1]=="ssot" then shell.run("store",table.unpack(args,2)) return end
 if args[1] == "update" then
   -- latest version from GitHub (update.lua does the work, fetched here if missing)
   if not fs.exists("update.lua") then

@@ -1,6 +1,0 @@
-Real Minecraft F2 frames, H.264, 1280x720, 21 encoded frames, 14.52 seconds, 90030 bytes.
-All frames decoded with FFmpeg 8.1.2. The PNGs and clip retain Minecraft screenshot chat messages.
-Fuel rose from 113 to 157 in charge-capture.json. The turtle moved from x=47 to x=48 at y=65,z=32.
-Encoder source: https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip
-Archive SHA256: db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec
-The archive hash matched its published .sha256 file before extraction.

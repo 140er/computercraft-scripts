@@ -1,7 +1,0 @@
-PASS server computer reboot keeps the map service reachable
-PASS timeout never calls a physical movement
-PASS late commit is rejected and started occupancy requires reconciliation
-PASS malformed, oversize and unpaired clients leave the server responsive
-PASS 10000 sparse observations persist and snapshots stay within 8 KiB
-PASS resident chunk limit rejects a ninth chunk without evicting observations
-PASS real server disk fill refuses mutations and preserves the acknowledged map

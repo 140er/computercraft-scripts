@@ -754,7 +754,7 @@ end
 
 -- ---------------------------------------------------------------- main loop
 
-local chatBox = peripheral.find("chatBox")
+local chatBox = peripheral.find("chat_box") or peripheral.find("chatBox")
 local busy = false
 
 local function handle(text, who, reply)
