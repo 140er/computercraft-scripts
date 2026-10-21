@@ -84,7 +84,7 @@ return function(test, equal)
     net.flush()
     assert(not server.error, tostring(server.error))
     local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
-    equal(server.screen[1], "Pair code: " .. code)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
     local client = net.machine({ id = 2, capacity = 1000000, modem = true })
     client.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
     installTree(client)
@@ -334,7 +334,7 @@ HELLO = reply
     net.flush()
     assert(not server.error, tostring(server.error))
     local code = assert(latestCode(server), "pair code missing")
-    equal(server.screen[1], "Pair code: " .. code)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
     return code
   end
 
@@ -512,5 +512,208 @@ HELLO = reply
     end
     equal(hellos, 2)
     equal(countClient.env.GOT.rid, rid)
+  end)
+
+  test("a fresh fake computer calls initWithTiming before its first random(32)", function()
+    local net = harness.new()
+    local machine = net.machine({ id = 8, capacity = 1000000 })
+    machine.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(machine)
+    machine.spawn([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      pair.invite()
+      DONE = true
+    ]])
+    net.flush()
+    assert(not machine.error, tostring(machine.error))
+    assert(machine.env.DONE == true, "invite did not finish")
+    local timing, mix, first32
+    for i = 1, #machine.randomLog do
+      local entry = machine.randomLog[i]
+      if entry == "initWithTiming" and not timing then timing = i end
+      if type(entry) == "string" and entry:sub(1, 4) == "mix:" and not mix then mix = entry:sub(5) end
+      if entry == "random:32" and not first32 then first32 = i end
+    end
+    assert(timing and first32 and timing < first32,
+      "initWithTiming before random(32), log: " .. table.concat(machine.randomLog, ","))
+    assert(type(mix) == "string", "mix missing")
+    local parts = {}
+    for part in mix:gmatch("[^|]+") do parts[#parts + 1] = part end
+    equal(#parts, 5)
+    equal(parts[1], tostring(net.time))
+    equal(parts[2], tostring(net.time / 1000))
+    assert(parts[3]:sub(1, 6) == "table:", parts[3])
+    equal(parts[5], tostring(machine.id))
+    assert(tonumber(parts[4]), "math.random missing: " .. tostring(parts[4]))
+
+    local noisy = net.machine({ id = 11, capacity = 1000000, timingError = true })
+    noisy.install({ "so-proto.lua", "so-pair.lua", "so-store.lua" })
+    installTree(noisy)
+    noisy.spawn([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      local raw = pair.invite()
+      assert(type(raw) == "string" and #raw == 6, tostring(raw))
+      DONE = true
+    ]])
+    net.flush()
+    assert(not noisy.error, tostring(noisy.error))
+    assert(noisy.env.DONE == true, "invite failed after timing error")
+    local saw = false
+    for i = 1, #noisy.randomLog do
+      if noisy.randomLog[i] == "initWithTiming" then saw = true end
+    end
+    assert(saw, "timing failure was not attempted")
+  end)
+
+  test("a retried pair message gets the saved ack", function()
+    local net, server = bootServer(16000000, true)
+    assert(server.alive(), tostring(server.error))
+    local code = pressP(net, server)
+    local client = bootClient(net, 2)
+    local send = server.env.rednet.send
+    local skipped = false
+    server.env.rednet.send = function(id, payload, protocol)
+      local decoded = server.env.SO.proto.decode(payload)
+      if not skipped and decoded and decoded.t == "ack" then
+        skipped = true
+        return
+      end
+      return send(id, payload, protocol)
+    end
+    client.spawn(string.format([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      local ok, err = pair.join(%q)
+      JOINED = ok
+      JOINERR = err
+    ]], code))
+    net.flush()
+    net.advance(7)
+    assert(skipped, "first ack was not dropped")
+    assert(not client.error, tostring(client.error))
+    assert(client.env.JOINED == true, "retry got " .. tostring(client.env.JOINERR))
+    equal(server.screen[1], "Press P to pair")
+    assert(not logtext(server):find("bad mac", 1, true), logtext(server))
+    local wire
+    local sentPair = 0
+    for i = 1, #client.sent do
+      local payload = client.sent[i].payload
+      if type(payload) == "table" and payload.t == "pair" then
+        sentPair = sentPair + 1
+        wire = payload
+      end
+    end
+    equal(sentPair, 2)
+    local key = savedKey(server, client.id)
+    equal(key, savedKey(client, server.id))
+    local before = acks(server)
+    client.env.rednet.send(server.id, wire, "so")
+    net.flush()
+    equal(acks(server), before + 1)
+    equal(savedKey(server, client.id), key)
+    assert(not logtext(server):find("bad mac", 1, true), logtext(server))
+    local function resign()
+      local hs = client.env.pair.derive(code, server.id, client.id)
+      return client.env.proto.build(hs, "pair", wire.body, wire.rid)
+    end
+    net.advance(112)
+    client.env.rednet.send(server.id, resign(), "so")
+    net.flush()
+    equal(acks(server), before + 2)
+    equal(savedKey(server, client.id), key)
+    net.advance(3)
+    client.env.rednet.send(server.id, resign(), "so")
+    net.flush()
+    equal(acks(server), before + 2)
+    assert(logtext(server):find("so-server: bad mac from 2", 1, true), logtext(server))
+    assert(server.alive(), tostring(server.error))
+  end)
+
+  test("the pair code comes from ccryptolib random bytes", function()
+    local net, server = bootServer(16000000, true, function(srv)
+      srv.env.math = setmetatable({ random = function() return 0 end }, { __index = srv.env.math })
+    end)
+    assert(server.alive(), tostring(server.error))
+    server.env.os.queueEvent("key", 25, false)
+    net.flush()
+    assert(not server.error, tostring(server.error))
+    local code = assert(logtext(server):match("Pair code: (%d%d%d%d%d%d)"), "pair code missing")
+    local raw
+    local nout = 0
+    for i = 1, #server.randomLog do
+      local entry = server.randomLog[i]
+      if type(entry) == "string" and entry:sub(1, 7) == "random:" then
+        nout = nout + 1
+        if entry == "random:4" then raw = server.randomOut[nout] end
+      end
+    end
+    assert(type(raw) == "string" and #raw == 4, "no random(4), log: " .. table.concat(server.randomLog, ","))
+    local n = raw:byte(1) * 16777216 + raw:byte(2) * 65536 + raw:byte(3) * 256 + raw:byte(4)
+    equal(code, string.format("%06d", n % 1000000))
+  end)
+
+  test("five bad pair MACs burn the code and join can pin the server id", function()
+    local net, server = bootServer(16000000, true)
+    assert(server.alive(), tostring(server.error))
+    local code = pressP(net, server)
+    equal(server.screen[1], "Pair code: " .. code .. " server " .. tostring(server.id))
+    local attacker = bootClient(net, 6)
+    attacker.spawn([[
+      proto = dofile("so-proto.lua")
+      BAD = proto.build("]] .. string.rep("ab", 32) .. [[", "pair", { pub = "]] .. string.rep("cd", 32) .. [[" })
+      READY = true
+    ]])
+    net.flush()
+    assert(attacker.env.READY == true, tostring(attacker.error))
+    local function poke()
+      attacker.env.rednet.send(server.id, attacker.env.BAD, "so")
+      net.flush()
+      assert(not server.error, tostring(server.error))
+    end
+    for _ = 1, 4 do poke() end
+    assert(tostring(server.screen[1]):find(code, 1, true), "code burned early: " .. tostring(server.screen[1]))
+    poke()
+    equal(server.screen[1], "Press P to pair")
+    local late = bootClient(net, 7)
+    late.spawn(string.format(JOIN, code))
+    net.advance(8)
+    assert(late.env.JOINED ~= true, "burned code still paired")
+
+    local fresh = pressP(net, server)
+    equal(server.screen[1], "Pair code: " .. fresh .. " server " .. tostring(server.id))
+    for _ = 1, 4 do poke() end
+    assert(tostring(server.screen[1]):find(fresh, 1, true), "new code burned early")
+    local pinned = bootClient(net, 8)
+    pinned.spawn(string.format([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      rednet.lookup = function() return 99 end
+      local trusted, trustedErr = pair.join(%q)
+      LOOKUP = trusted
+      LOOKUPERR = trustedErr
+      local ok, err = pair.join(%q, %d)
+      PINNED = ok
+      PINERR = err
+    ]], fresh, fresh, server.id))
+    net.advance(8)
+    assert(not pinned.error, tostring(pinned.error))
+    assert(pinned.env.LOOKUP == nil, "lookup was trusted")
+    assert(pinned.env.PINNED == true, tostring(pinned.env.PINERR))
+    equal(savedKey(server, pinned.id), savedKey(pinned, server.id))
+    local sentTo = {}
+    for i = 1, #pinned.sent do sentTo[pinned.sent[i].id] = true end
+    assert(sentTo[99] == true, "join(code) did not use lookup")
+    assert(sentTo[server.id] == true, "join(code, serverId) did not pin")
+    assert(server.alive(), tostring(server.error))
   end)
 end

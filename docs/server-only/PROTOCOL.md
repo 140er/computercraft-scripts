@@ -22,7 +22,7 @@ The signed bytes are the canonical encoding of `{ v, t, rid, from, at, body }` w
 
 Canonical encoding is a Lua literal. String values use `%q`. Whole numbers use `%d`. Other numbers use `%.17g`. Booleans are `true` and `false`. Table keys are sorted by `type(key) .. ":" .. tostring(key)`. A cycle is an error. Two tables that differ only in key order encode to the same string.
 
-The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code is a bad MAC.
+The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. A retry of a pair `rid` that still has a saved reply is checked with the handshake key stored beside that reply. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code and no saved handshake key for that `rid` is a bad MAC.
 
 `at` must be within 60000 ms of the receiver's `os.epoch("utc")`. A larger gap is dropped as `so-server: bad message from <id>`.
 
@@ -46,7 +46,7 @@ The joining computer sends `pair` to the server. `body.pub` is its X25519 public
 
 The server answers `ack` when the MAC matches the live code. `body.ok` is `true`. `body.pub` is the server public key, 64 lowercase hex characters. `body.proof` is HMAC-SHA256, keyed by the 6-digit code, over the bytes `so-pair-v2\0`, then the client public key, then the server public key. Those public keys are the raw 32-byte values, not the hex text. `proof` is 64 lowercase hex characters. The server then clears the code.
 
-The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
+The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. The server keeps that handshake key for 120000 ms next to the saved reply, so the retry still verifies after the code is cleared. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
 
 ### hello
 
@@ -212,7 +212,7 @@ The SO0 stub returns nil from `pick` and `{}` from `steps`.
 
 ## Pairing and so-keys
 
-The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and prints `Pair code: <digits>`. The code includes leading zeros. It works once and expires after 300000 ms. When it is spent or expired, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
 
 `pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 
@@ -239,7 +239,7 @@ X25519 comes from ccryptolib, MIT, Copyright (c) 2023 Miguel Oliveira. `lib/ccry
 - `lib/ccryptolib/internal/edwards25519.lua`
 - `lib/ccryptolib/internal/packing.lua`
 
-`pair.join(code)` looks up `so` / `server`, sends `pair`, checks `body.proof`, and saves the machine key after `ack`.
+`pair.join(code)` looks up `so` / `server`. `pair.join(code, serverId)` sends to `serverId` and does not call `rednet.lookup`. Both send `pair`, check `body.proof`, and save the machine key after `ack`.
 
 Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<computer id>"] = "<64 hex>" } }`. On the server, the id is the paired machine. On the machine, the id is the server. The file budget is 200000 bytes.
 
