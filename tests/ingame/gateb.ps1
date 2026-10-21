@@ -80,22 +80,11 @@ function Invoke-Reclaim([string]$Lock) {
     if ((Get-Content "$Lock\owner.txt" -Raw -ErrorAction SilentlyContinue) -eq $text) { Remove-Item -LiteralPath $Lock -Recurse -Force }
     $problems.Add("Reclaimed $(Split-Path $Lock -Leaf) from dead run $deadStamp (pid $deadPid). This is a note, not a failure.")
 }
+. "$PSScriptRoot\gateb-retry.ps1"
 function Wait-NoHold {
     $deadline = [DateTime]::UtcNow.AddSeconds($LockTimeoutSec)
     while ($true) {
-        $health = $null
-        $last = $null
-        foreach ($delay in @(0, 2, 2, 2)) {
-            if ($delay -gt 0) { Start-Sleep -Seconds $delay }
-            try {
-                $health = Get-GatebHealth
-                $last = $null
-                break
-            } catch {
-                $last = $_
-            }
-        }
-        if ($last) { throw $last }
+        $health = Invoke-GatebRetry -Log (Join-Path $Output 'gatebd-wait.log') -Call { Get-GatebHealth }
         $held = (Test-Path $holdFile) -or ($health.PSObject.Properties['hold'] -and $health.hold)
         if (!$held) { return $health }
         if ([DateTime]::UtcNow -gt $deadline) { throw "A gate B hold stayed active for $LockTimeoutSec s." }
