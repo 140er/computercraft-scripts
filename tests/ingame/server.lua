@@ -20,6 +20,30 @@ end,function()
           chunks=chunks+1
           for _ in pairs(ch.cells or {}) do cells=cells+1 end
         end
+        -- compactSections clears ssot.map chunks and keeps the cells in map/.
+        if chunks==0 and fs.exists("map/index") then
+          local Section=dofile("mapsection.lua")
+          local index=assert(fs.open("map/index","r"))
+          local text=index.readAll() index.close()
+          local lines={}
+          for line in (text.."\n"):gmatch("([^\n]*)\n") do lines[#lines+1]=line end
+          if lines[#lines]=="" then lines[#lines]=nil end
+          local count=lines[1]=="CCS2IDX" and tonumber(lines[4]) or 0
+          for n=1,count do
+            local row=lines[4+n]
+            local id,slot
+            if row then id,slot=row:match("^[^\t]+\t(%d+)\t([ab])\t") end
+            local file=id and fs.open("map/"..slot.."/"..id,"rb")
+            if file then
+              local raw=file.readAll() file.close()
+              local section=Section.decode(raw)
+              if section then
+                chunks=chunks+1
+                for _,run in ipairs(section.runs) do cells=cells+run.n end
+              end
+            end
+          end
+        end
         for _,slot in ipairs({"ssot.map.a","ssot.map.b","ssot.control.a","ssot.control.b"}) do
           if fs.exists(slot) then bytes=bytes+fs.getSize(slot) end
         end
