@@ -131,6 +131,43 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
   text and resize events, and retries when its frame becomes stale.
 
+## Installer roles and files
+
+[install.lua](../install.lua) installs only server-only roles. Its top-level
+`ROLES` table is the single source of truth for downloads. Programs export no
+new module API. [update.lua](../update.lua) runs `install.lua update`.
+See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
+
+- Every role includes `install.lua`, `update.lua`, `so-proto.lua`, `so-pair.lua`
+  and `so-store.lua`. It also includes all of `lib/ccryptolib/`, namely
+  `random.lua`, `config.lua`, `chacha20.lua`, `blake3.lua`, `x25519.lua`,
+  `internal/packing.lua`, `internal/util.lua`, `internal/hw.lua`,
+  `internal/edwards25519.lua`, `internal/curve25519.lua`, `internal/fp.lua`
+  and `LICENSE`. `cc.expect` is supplied by CC:Tweaked ROM.
+- Worker adds `worker.lua`. Only turtles install this role.
+- Display adds `display.lua`. Pockets install this role. Computers can choose it.
+- Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
+  `so-lumber-plan.lua` and every root `so-mod-*.lua`. Current modules are cells,
+  display, drops, lease, lumber, mine, shop and state. Only a regular computer
+  with at least 16000000 bytes of capacity can install this role.
+
+`/.so-role` contains the plain role name. `startup.lua` runs installer recovery,
+then the role program. A fresh server install writes `so-server.cfg` as the
+plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
+The installer uses GPS or manual coordinates and a dimension prompt.
+Updates do not replace this config or any runtime state.
+
+All downloads stage in `/.so-new/<path>`. A failed fetch or compile removes
+staging without changing installed files. `/.so-old/manifest` records target
+paths and whether they existed before the swap. Old copies move under
+`/.so-old/` before staged copies move into place. Recovery restores backups and
+removes newly introduced targets unless `/.so-new/committed` exists. That marker
+means every target was moved and recovery only finishes cleanup. The next
+installer invocation and installed startup both recover before continuing.
+`install reset` requires `yes` and deletes everything except `install.lua`
+and `/rom`, including pairing keys. SO9 tests check role coverage, dependency
+closure, client size, download validation, crash recovery and state preservation.
+
 ## One event loop
 
 `so-server.lua` checks disk capacity before loading libraries. It creates `SO`,
@@ -241,10 +278,7 @@ not run and which Minecraft or client checks remain unavailable in the PR.
 
 ## Open gaps
 
-- `install.lua` lists no `so-*` files yet. SO9 must add `lib/ccryptolib/`,
-  `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`, `so-lumber-plan.lua` and every
-  `so-mod-*.lua`, with the core server-only files and thin clients.
 - Lease state is memory-only. Planner recovery must use park leases and account
   for reservations that survived the restart.
-- SO3 mining and SO7 lumber are merged. Next is wave 5, SO9 installer and SO10 AR.
+- SO3 mining, SO7 lumber and SO9 installer are implemented. SO10 AR remains.
   `so-mod-ar.lua` is still absent.
