@@ -42,12 +42,33 @@ end
 local function scan(row, vein)
   row.scan = { index = job.mode == "fast" and not vein and 5 or 1, facing = row.pose.facing }
 end
+local function dropFailure(id, row, kind, point)
+  local key = point and point.id or ("hold:" .. kind)
+  local retry = row.dropRetry
+  if not retry or retry.key ~= key then retry = { key = key, tries = 0 } row.dropRetry = retry end
+  retry.tries = retry.tries + 1
+  if retry.tries >= 3 then
+    if not retry.alerted then
+      emit("mine.alert", { id = id, text = kind == "ore" and "ore chest full" or "fuel chest empty" })
+      retry.alerted = true
+    end
+    row.state, row.error = "hold", kind == "ore" and "ore chest full" or "fuel chest empty"
+    retry.after = os.epoch("utc") + 60000
+  end
+end
 local function trip(id, row, kind)
   local near = SO.store.copy(row.pose)
   near.dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 })[job.dim]
   if near.dim == nil then row.error = "drop dimension unsupported" return false end
   local picked = call("drops", "pick", kind, near)
-  if not picked or not picked.point then row.error = picked and picked.alert or "drops: hold " .. kind row.state = "hold" return false end
+  if not picked or not picked.point then
+    dropFailure(id, row, kind)
+    row.error = picked and picked.alert or "drops: hold " .. kind
+    row.state = "hold"
+    if row.dropRetry.alerted then row.error = row.error .. " " .. (kind == "ore" and "ore chest full" or "fuel chest empty") end
+    save()
+    return false
+  end
   local point = SO.store.copy(picked.point)
   point.dim = job.dim
   local candidates = {}
@@ -101,42 +122,65 @@ local function report(_, id, results, lease)
     mark(world)
   end
   if action then
-    if action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
-    elseif action.kind == "inspect" or action.kind == "scan" then
-      local result = results[#results]
-      S.known[M.key(action.cell)] = result.ok and result.data or false
-      if action.kind == "scan" then
-        row.scan.index = row.scan.index + 1
-        if result.ok and result.data and (result.data.name == "minecraft:lava" or result.data.name == "minecraft:water") then row.fluid = action.cell end
-        if result.ok and M.ore(result.data) and not call("cells", "isDug", action.cell.x, action.cell.y, action.cell.z, job.dim)
-          and (row.veinCount or 0) < 64 then
-          row.veins = row.veins or {}
-          local duplicate = false
-          for _, v in ipairs(row.veins) do if M.same(v, action.cell) then duplicate = true end end
-          if not duplicate then row.veins[#row.veins+1] = action.cell end
-        end
+    local batchResults, cursor, batched = results, old, action.actions ~= nil
+    for _, part in ipairs(action.actions or { action }) do
+      action = part
+      results = {}
+      for i = 1, #(action.steps or batchResults) do results[i] = batchResults[(action.first or 1) + i - 1] end
+      if batched and action.cell then
+        local op = action.steps[1].op
+        local dir = op:find("Up",1,true) and "up" or op:find("Down",1,true) and "down" or op == "up" and "up" or op == "down" and "down" or "forward"
+        action.cell = M.cell(cursor, dir)
       end
-    elseif action.kind == "dig" then
-      if results[1].ok then
-        mark(action.cell) row.dug = (row.dug or 0) + 1
-        if action.ore then row.ores = (row.ores or 0)+1 row.veinCount = (row.veinCount or 0)+1 emit("mine.ore", { id = id, name = action.ore, count = 1 }) row.scanAfter = true
-          if row.veinCount >= 64 then row.veins = { action.cell } end
+      cursor = P.replay(cursor, action.steps or {}, results)
+      if action.kind == "recover" then row.recover, row.error = false, nil row.state = job.running and "mining" or "stopped"
+      elseif action.kind == "inspect" or action.kind == "scan" then
+        local result = results[#results]
+        S.known[M.key(action.cell)] = result.ok and result.data or false
+        if action.kind == "scan" then
+          row.scan.index = row.scan.index + 1
+          if result.ok and result.data and (result.data.name == "minecraft:lava" or result.data.name == "minecraft:water") then row.fluid = action.cell end
+          if result.ok and M.ore(result.data, job.ores) and not call("cells", "isDug", action.cell.x, action.cell.y, action.cell.z, job.dim)
+            and (row.veinCount or 0) < 64 then
+            row.veins = row.veins or {}
+            local duplicate = false
+            for _, v in ipairs(row.veins) do if M.same(v, action.cell) then duplicate = true end end
+            if not duplicate then row.veins[#row.veins+1] = action.cell end
+          end
         end
-      else S.known[M.key(action.cell)] = nil row.error = results[1].err end
-    elseif action.kind == "seal" then S.known[M.key(action.cell)] = nil
-    elseif action.kind == "move" then
-      if results[1].ok then
-        S.known[M.key(action.cell)] = nil
-        S.known[M.key(old)] = nil
-        scan(row, row.scanAfter)
-        row.scanAfter = nil
-      else S.known[M.key(action.cell)] = nil row.error = results[1].err end
-    elseif action.kind == "cleanup" then
-      row.cleanup = #M.cleanup(row.inv,false) > 0
-      if not row.cleanup then row.cleaned = row.dug or 0 end
-    elseif action.kind == "unload" then row.trip.stage = "out"
-    elseif action.kind == "refuel" then
-      if type(row.fuel) == "number" and row.fuel >= 2000 then row.trip.stage = "back" end
+      elseif action.kind == "dig" then
+        if results[1].ok then
+          mark(action.cell) row.dug = (row.dug or 0) + 1
+          if action.ore then row.ores = (row.ores or 0)+1 row.veinCount = (row.veinCount or 0)+1 emit("mine.ore", { id = id, name = action.ore, count = 1 }) row.scanAfter = true
+            if row.veinCount >= 64 then row.veins = { action.cell } end
+          end
+        else S.known[M.key(action.cell)] = nil row.error = results[1].err end
+      elseif action.kind == "seal" then S.known[M.key(action.cell)] = nil
+      elseif action.kind == "move" then
+        if results[1].ok then
+          S.known[M.key(action.cell)] = false
+          S.known[M.key(old)] = false
+          scan(row, row.scanAfter)
+          row.scanAfter = nil
+        else S.known[M.key(action.cell)] = nil row.error = results[1].err end
+      elseif action.kind == "cleanup" then
+        row.cleanup = #M.cleanup(row.inv,false) > 0
+        if not row.cleanup then row.cleaned = row.dug or 0 end
+      elseif action.kind == "unload" or action.kind == "refuel" then
+        local failed = false
+        for i, step in ipairs(action.steps) do
+          local result = results[i]
+          if step.op == "inspect" or step.op == "inspectDown" then
+            if not result.ok then call("drops", "note", row.trip.point.id, nil) end
+          elseif step.op == "drop" or step.op == "dropDown" or step.op == "suck" or step.op == "suckDown" then
+            if not result.ok then failed = true end
+          end
+        end
+        if failed then dropFailure(id, row, row.trip.kind, row.trip.point)
+        else row.dropRetry, row.error = nil, nil end
+        if action.kind == "unload" then row.trip.stage = "out"
+        elseif type(row.fuel) == "number" and row.fuel >= 2000 then row.trip.stage = "back" end
+      end
     end
   end
   call("cells", "releaseOwner", owner(id)) reservePose(id, row)
@@ -180,6 +224,9 @@ plan = function(id,row)
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
   if not job.running or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
+  if row.dropRetry and row.dropRetry.after and os.epoch("utc") < row.dropRetry.after then
+    park(id,row,false) return
+  end
   row.inv = row.inv or {}
   local clean = M.cleanup(row.inv,false)
   if not row.trip and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
@@ -212,7 +259,7 @@ plan = function(id,row)
             steps[#steps+1]={op="select",slot=item.slot}
             local drop = call("drops","steps",t.point) or {}
             for _, step in ipairs(drop) do steps[#steps+1]=step end
-            if #steps>=12 then break end
+            break
           end
         end
         if #steps==0 then t.stage="back" else send(id,row,{kind="unload",steps=steps,cells={}}) return end
@@ -232,7 +279,7 @@ plan = function(id,row)
             save()
             return
           end
-          steps={{op="select",slot=slot},{op=t.point.side=="down" and "suckDown" or "suck",n=64}}
+          steps={{op=t.point.side=="down" and "inspectDown" or "inspect"},{op="select",slot=slot},{op=t.point.side=="down" and "suckDown" or "suck",n=64}}
         end
         send(id,row,{kind="refuel",steps=steps,cells={}}) return
       end

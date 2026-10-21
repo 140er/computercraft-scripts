@@ -497,4 +497,92 @@ return function(test,equal)
     equal(s.turtle.pos, { x=3, y=-2, z=-5 })
   end)
 
+  test("mine batches known shaft travel and stops at an unknown inspect", function()
+    local M = dofile("so-mine-plan.lua")
+    local row = { pose={dim="minecraft:overworld",x=0,y=0,z=0,facing=0}, goal={x=0,y=-10,z=0} }
+    local action = M.next({}, row, function(c) if c.y > -10 then return false end end, {}, 4000)
+    equal(#action.steps, 10)
+    equal(action.steps[10].op, "inspectDown")
+    equal(#action.cells, 10)
+    for i=1,9 do equal(action.steps[i].op, "down") end
+  end)
+  test("mine ore filters leave diamond walls and follow iron reports", function()
+    local s = setup()
+    digWorld(s)
+    s.input("ores iron")
+    s.net.world["1,-2,-3"] = "minecraft:diamond_ore"
+    s.net.world["-1,-2,-3"] = "minecraft:iron_ore"
+    s.net.world["-2,-2,-3"] = "minecraft:iron_ore"
+    s.input("start") run(s,150)
+    equal(s.net.world["1,-2,-3"], "minecraft:diamond_ore")
+    equal(s.net.world["-1,-2,-3"], nil)
+    equal(s.net.world["-2,-2,-3"], nil)
+    equal(persisted(s).turtles["2"].ores, 2)
+  end)
+  test("mine empty and missing ore filters accept all ores", function()
+    local M = dofile("so-mine-plan.lua")
+    equal(M.ore({name="minecraft:deepslate_diamond_ore"}, {}), true)
+    equal(M.ore({name="minecraft:deepslate_diamond_ore"}), true)
+    equal(M.ore({name="mod:deposit", tags={["c:ores/iron"]=true}}, {"iron"}), true)
+    equal(M.ore({name="minecraft:deepslate_diamond_ore"}, {"iron"}), false)
+  end)
+  for _, kind in ipairs({"ore", "fuel"}) do
+    test("mine " .. kind .. " chest failures park and retry after sixty seconds", function()
+      local s = setup({fuel=kind == "fuel" and 30 or 4000})
+      if kind == "ore" then
+        for slot=1,16 do s.turtle.inv[slot]={name="minecraft:diamond",count=64} end
+      end
+      s.net.world["1,0,0"]={name="minecraft:chest",inv={}}
+      assert(s.server.env.SO.mods.drops.add({id=kind,dim=0,x=1,y=0,z=0,side="front",kind=kind}))
+      local attempts, alerts, parks = 0, 0, 0
+      s.turtle.env.turtle[kind == "ore" and "drop" or "suck"] = function() attempts=attempts+1 return false,"blocked" end
+      local send = s.server.env.SO.mods.lease.send
+      s.server.env.SO.mods.lease.send = function(id,steps,opts)
+        if opts.ms == 600000 then parks=parks+1 end
+        return send(id,steps,opts)
+      end
+      s.server.env.SO.mods.state={emit=function(name,data)
+        if name=="mine.alert" then
+          equal(data,{id=2,text=kind=="ore" and "ore chest full" or "fuel chest empty"})
+          alerts=alerts+1
+        end
+      end}
+      s.input("start") run(s,5)
+      equal(attempts,3) equal(alerts,1) assert(parks>0)
+      local row=persisted(s).turtles["2"]
+      equal(row.state,"hold")
+      assert(row.dropRetry.after)
+      local shown=false
+      for _, line in ipairs(s.render().rows) do if line.text:find(row.error,1,true) then shown=true end end
+      assert(shown)
+      run(s,54) equal(attempts,3)
+      run(s,5) equal(attempts,4) equal(alerts,1)
+    end)
+  end
+
+  test("mine inspect ends the batch before ore changes the plan", function()
+    local M = dofile("so-mine-plan.lua")
+    local row={pose={dim="minecraft:overworld",x=0,y=0,z=0,facing=0},goal={x=0,y=-20,z=0}}
+    local known={}
+    local action=M.next({},row,function(c) return known[M.key(c)] end,{},4000)
+    equal(#action.steps,1) equal(action.steps[1].op,"inspectDown")
+    known["0,-1,0"]={name="minecraft:iron_ore"}
+    action=M.next({},row,function(c) return known[M.key(c)] end,{},4000)
+    equal(action.kind,"dig") equal(action.ore,"minecraft:iron_ore")
+    action=M.next({},row,function() return false end,{},4000)
+    equal(#action.steps,16) equal(action.pose.y,-16)
+  end)
+  test("mine missing drop backs off and emits one alert", function()
+    local s=setup()
+    for slot=1,16 do s.turtle.inv[slot]={name="minecraft:diamond",count=64} end
+    local picks, alerts=0,0
+    local pick=s.server.env.SO.mods.drops.pick
+    s.server.env.SO.mods.drops.pick=function(...) picks=picks+1 return pick(...) end
+    s.server.env.SO.mods.state={emit=function(name) if name=="mine.alert" then alerts=alerts+1 end end}
+    s.input("start") run(s,5)
+    equal(picks,3) equal(alerts,1)
+    run(s,54) equal(picks,3)
+    run(s,5) equal(picks,4) equal(alerts,1)
+  end)
+
 end

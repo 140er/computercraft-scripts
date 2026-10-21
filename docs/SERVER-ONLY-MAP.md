@@ -47,10 +47,12 @@ and listeners use `listener(sender, message)`.
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
 
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
-  Calls are `key(p)`, `same(a, b)`, `ore(d)`, `junk(d)`, `distance(a, b)`,
+  Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
   `cleanup(inv, all)`, `travel(from, goal, point)` and `next(job, row, lookup, inv, fuel)`.
-  `ores` is the supported ore-name set.
+  `ores` is the supported ore-name set. The optional `ore` filter uses those names.
+  `next` batches known straight travel and turns, ending at inspect or dig report
+  boundaries. Multi-action results include `actions` with one-based `first` step indices.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
   `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
@@ -115,6 +117,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
+  Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
+  Three failures at one drop emit `mine.alert { id, text }`, show the error,
+  and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
   Only `tick(now)` is exported beyond module metadata; no wire handlers.
