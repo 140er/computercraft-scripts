@@ -570,4 +570,61 @@ HELLO = reply
     end
     assert(saw, "timing failure was not attempted")
   end)
+
+  test("a retried pair message gets the saved ack", function()
+    local net, server = bootServer(16000000, true)
+    assert(server.alive(), tostring(server.error))
+    local code = pressP(net, server)
+    local client = bootClient(net, 2)
+    local send = server.env.rednet.send
+    local skipped = false
+    server.env.rednet.send = function(id, payload, protocol)
+      local decoded = server.env.SO.proto.decode(payload)
+      if not skipped and decoded and decoded.t == "ack" then
+        skipped = true
+        return
+      end
+      return send(id, payload, protocol)
+    end
+    client.spawn(string.format([[
+      proto = dofile("so-proto.lua")
+      store = dofile("so-store.lua")
+      pair = dofile("so-pair.lua")
+      pair.open(proto, store)
+      local ok, err = pair.join(%q)
+      JOINED = ok
+      JOINERR = err
+    ]], code))
+    net.flush()
+    net.advance(7)
+    assert(skipped, "first ack was not dropped")
+    assert(not client.error, tostring(client.error))
+    assert(client.env.JOINED == true, "retry got " .. tostring(client.env.JOINERR))
+    equal(server.screen[1], "Press P to pair")
+    assert(not logtext(server):find("bad mac", 1, true), logtext(server))
+    local wire
+    local sentPair = 0
+    for i = 1, #client.sent do
+      local payload = client.sent[i].payload
+      if type(payload) == "table" and payload.t == "pair" then
+        sentPair = sentPair + 1
+        wire = payload
+      end
+    end
+    equal(sentPair, 2)
+    local key = savedKey(server, client.id)
+    equal(key, savedKey(client, server.id))
+    local before = acks(server)
+    client.env.rednet.send(server.id, wire, "so")
+    net.flush()
+    equal(acks(server), before + 1)
+    equal(savedKey(server, client.id), key)
+    assert(not logtext(server):find("bad mac", 1, true), logtext(server))
+    net.advance(121)
+    client.env.rednet.send(server.id, wire, "so")
+    net.flush()
+    equal(acks(server), before + 1)
+    assert(logtext(server):find("so-server: bad mac from 2", 1, true), logtext(server))
+    assert(server.alive(), tostring(server.error))
+  end)
 end
