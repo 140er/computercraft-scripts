@@ -1,0 +1,23 @@
+Paused for Jeffrey's requested T3 restart. No active test process remains.
+
+Branch codex/so-feat-shop-touch, implementation commit 64ade2a.
+Locally merged #174 into #176 as requested. One PR into server-only is still required; no PR has been created.
+The branch must not be merged by this agent. Never touch the live server or RCON.
+
+The touch UI, keyboard capability, isolated order status, docs, generator and fixtures are committed.
+Focused checks passed 69 tests. The plain cc-test run ended with 554 passes and one clock-fixture failure before it reached the new appended touch tests.
+The fixture now sends a real stock message through the shop listener instead of setting the old sampleAt field. All seven UI5a tests pass after the fix.
+
+On continue, run plain cc-test and keep the turn alive with short foreground polls.
+The new cc-test --part mode cannot start on this worktree because tools/test_parts.py is absent. scripts/test-emulator is absent too. Record this prerequisite issue; do not silently claim emulator coverage.
+Review the completed full-suite log, save evidence, then create the requested PR with gh pr create --base server-only. The draft body is /tmp/shop-pr-body.txt. Complete its verification section first.
+Register the PR with mcp__t3_code__link_pull_request and verify list_thread_pull_requests. #174 and #176 are already linked.
+Return the PR URL, full head SHA and results. Do not watch or merge the PR.
+
+Gate A failed in the prescribed legacy sandbox. Reports are saved here. Its Windows task and sandbox directories are removed.
+Gate B belongs to the orchestrator and has not been run for this head. tests/review-capture.ps1 is absent.
+Mock terminal captures in this folder use 40 stock items and are not Minecraft screenshots.
+
+Source is unchanged since the implementation commit apart from the corrected tests/ui/ui5a.lua fixture.
+The full suite rewrote two disk-guard evidence files; those generated changes were restored.
+See /tmp/shop-touch-resume.md for the longer note and /tmp/ui-focused.lua for the focused test driver.

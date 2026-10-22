@@ -1,0 +1,21 @@
+luac5.2 -p: PASS for all changed Lua files against origin/server-only, plus the new touch tests.
+python3 tools/cobaltlocals.py: PASS for those files; maximum 48 locals, below 185.
+python3 -I docs/ui/mockup-gen.py --fixtures: regenerated shop and order fixtures plus 29x12, 26x20 and 100x38 shop fixtures.
+Focused UI, client navigation, legacy fallback and touch shop tests: 69 passed, 0 failed.
+Raw terminal captures use the mock renderer with 40 stock items. They are not Minecraft screenshots.
+
+Gate A: FAIL in the prescribed Windows sandbox runner.
+The runner starts legacy server/hub/miner roles. Server reports missing server.state and exceeds its 1 MB disk. Hub reports No such program. Miner passes.
+Saved reports are sandbox.txt and sandbox-{server,hub,miner}.json.
+The Windows task directory and sandbox run were removed after copying the reports.
+tests/review-capture.ps1 is absent from this checkout.
+
+Gate B: not run for this head. The orchestrator owns the frozen server-only Gate B run.
+No live Minecraft server or RCON was used.
+
+Plain cc-test completed on local-2 with 554 passed and 1 failed.
+The failure was UI5a's shop-clock fixture. It set sampleAt directly, while the shop now displays the latest stock receipt time.
+The fixture now delivers a stock broadcast through the public listener. All 7 UI5a clock and daily tests pass after that fix.
+A full rerun is still required after the requested T3 restart. No full-suite pass is claimed.
+
+The updated cc-test --part shop --lua-only command could not start because this worktree lacks tools/test_parts.py. scripts/test-emulator is also absent. part-check.txt preserves the missing-module error. The short clock check used lua5.2 with a 30-second timeout.
