@@ -7,6 +7,7 @@ package is required. Pixel comparisons use ImageMagick.
 
 ```sh
 python3 tools/gateb/run.py --full FULL_SHA --worlds 2
+python3 tools/gateb/run.py --full CLOCK_BUILD_SHA --worlds 2 --tick-rate 80
 python3 tools/gateb/run.py --changed BASE..SHA
 python3 tools/gateb/run.py --checks C3,C5 --sha FULL_SHA --worlds 1
 python3 tools/gateb/run.py --changed BASE..SHA --checks C13 --plan
@@ -74,7 +75,8 @@ reports blocked if the runtime cannot provide six-role installation evidence
 without starting another client.
 File-copy preparation never counts as a normal HTTP installation.
 
-C3 reads actual received button rectangles and injects native mouse or monitor
+C3 saves a real client overview after login. That image is context and does not
+supply visual pass credit. C3 reads actual received button rectangles and injects native mouse or monitor
 input. Successful queuing alone never establishes navigation success. Optional
 `client_views.wall` and `client_views.pocket` console commands place the client
 for native photos of each role, such as `C3-pocket-mining.png`. Missing camera

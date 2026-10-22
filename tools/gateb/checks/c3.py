@@ -19,6 +19,7 @@ def run(ctx):
     try:
         if not ctx.wait(lambda: ctx.frame("pocket"), 180):
             raise Blocked("Pocket did not become available after client login")
+        ctx.screenshot("C3-client-overview.png")
         if getattr(ctx, "linked_install", None):
             ctx.linked_install()
         for name in ("pocket", "wall"):

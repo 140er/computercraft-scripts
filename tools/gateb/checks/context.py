@@ -297,6 +297,7 @@ class Context:
                 if self.frame(name).get("role") == role: return self.frame(name)
             except Blocked:
                 continue
+        self.record(f"navigation-{name}-{role}.json", {"requested_role": role, "last_frame": self.frame(name)})
         raise Blocked(f"No visible navigation route from {name} to {role}")
 
     def game_clock(self):
