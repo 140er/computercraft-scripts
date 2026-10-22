@@ -129,10 +129,10 @@ return function(test,equal)
       local bad=job();bad[missing]=nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,'configure area and turtle')
     end
   end)
-  test('UI2b gather keeps missing timers stale and uses delivered totals',function()
+  test('UI2b gather keeps missing timers and daily counters stale',function()
     local j=job();j.nextRound=nil;local s=screen(j);s.render(57,24)
     local m=s.state.gather()
-    equal(m.tiles[2][2],'96');equal(m.tiles[6],{'NEXT GROW','-','no timer','c'})
+    equal(m.tiles[2],{'LOGS TODAY','-','no daily source','c'});equal(m.tiles[6],{'NEXT GROW','-','no timer','c'})
     j.nextRound=999000;equal(s.state.gather().tiles[6][2],'0:00')
   end)
 end
