@@ -275,6 +275,8 @@ SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
 `state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
 
+`state.canStart()` returns true below 80% disk use. At 80% or more it returns false and `"disk >=80%; free space"`. It reads current capacity and free space on every call and writes nothing. Mining and lumber call it before `start` changes their jobs. A missing guard refuses start too. Recovery, stop and ongoing work remain available.
+
 `state.tick(now)` flushes held view frames. `now` is utc milliseconds. The server passes it once a second.
 
 #### Events

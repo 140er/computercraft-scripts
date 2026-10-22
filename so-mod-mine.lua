@@ -526,7 +526,11 @@ local function input(event)
     local status=call("lease","status",num(2))
     if status and status.open then S.error="turtle has open lease" return end
     call("cells","releaseOwner",owner(num(2))) job.turtles[tostring(num(2))]=nil
-  elseif cmd=="start" then job.running=true
+  elseif cmd=="start" then
+    local ok, err = call("state", "canStart")
+    if not ok then S.error = err or "disk guard unavailable" return end
+    S.error = nil
+    job.running=true
   elseif cmd=="stop" then job.running=false
   else S.error="invalid mining command" return end
   save()

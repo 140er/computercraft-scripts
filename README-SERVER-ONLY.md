@@ -20,6 +20,11 @@ computer_space_limit = 16000000
 ```
 
 A larger value also works. A 1 MB or 8 MB disk cannot run the server.
+
+Mining and lumber refuse `start` when the server disk is 80% full or more.
+The screen shows `disk >=80%; free space`. Free space and submit `start` again.
+Existing jobs and recovery continue, so disk use can still grow. Dug marks remain
+on disk across jobs and have no automatic pruning or total byte limit.
 Workers and displays download less than 800 KB each.
 
 Servers and displays use all attached modems and detect modem changes without a

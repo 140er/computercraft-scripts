@@ -558,6 +558,11 @@ S.input = function(ev)
   end
   if words[1] == "stop" and #words == 1 then j.running = false
   elseif words[1] == "start" and #words == 1 then
+    local state = S.module("state")
+    local ok, err = false, "disk guard unavailable"
+    if type(state.canStart) == "function" then ok, err = state.canStart() end
+    if not ok then S.admission = err return end
+    S.admission = nil
     if not j.area or not j.turtle or not j.ground then S.alert("configure area and turtle") return end
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     S.recover = true
@@ -614,7 +619,7 @@ S.render = function(w)
   row("Saplings " .. tostring(S.count(L.isSapling)))
   row("Spots " .. known .. " planted " .. planted)
   row("Fuel " .. tostring(j.fuel or "?"))
-  row("Alert " .. tostring(j.alert or "-"), j.blocked ~= nil)
+  row(S.admission or ("Alert " .. tostring(j.alert or "-")), S.admission ~= nil or j.blocked ~= nil)
   if j.blocked then row("Fix cause, then type start", true) end
   return { rows = rows, buttons = { { id = "generic", x = 1, y = 8, w = 7, label = "generic" } } }
 end
