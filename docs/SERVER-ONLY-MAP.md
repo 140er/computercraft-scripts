@@ -193,6 +193,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   using the saved server id if discovery fails. They show `waiting for server`
   until an authenticated reply arrives. Only unpaired boots prompt for a code;
   that prompt keeps retrying discovery while accepting digits and Enter.
+  Drop and suck operations on every side require an adjacent inventory. Missing
+  inventories return `no inventory` and leave items in the turtle.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws

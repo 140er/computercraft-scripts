@@ -159,7 +159,6 @@ return function(test, equal)
     local full = S.counts(8, 2)
     local fueled = S.counts(8, 1)
     local placed = S.counts(7, 1)
-    local dropped = S.counts(5, 1)
     S.lease(server, {
       lease = "wide",
       expires = net.time + 60000,
@@ -201,8 +200,8 @@ return function(test, equal)
     equal(results[12], { ok = true, counts = fueled })
     equal(results[13], { ok = true, counts = fueled })
     equal(results[14], { ok = true, counts = placed })
-    equal(results[15], { ok = true, counts = dropped })
-    equal(results[16], { ok = true, data = { name = "minecraft:cobblestone" }, counts = dropped })
+    equal(results[15], { ok = false, err = "no inventory", counts = placed })
+    equal(results[16], { ok = true, data = { name = "minecraft:cobblestone" }, counts = placed })
     equal(turtle.pos.x, 0)
     equal(turtle.pos.y, 0)
     equal(turtle.pos.z, 0)

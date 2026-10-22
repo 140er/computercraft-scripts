@@ -14,7 +14,9 @@ local C = {
   dz = { [0] = -1, [1] = 0, [2] = 1, [3] = 0 },
   tags = { "c:ores", "forge:ores", "minecraft:logs", "minecraft:leaves",
     "minecraft:saplings", "minecraft:dirt", "c:chests", "forge:chests" },
-  counted = { refuel = true, drop = true, dropDown = true, suck = true, suckDown = true },
+  transfers = { drop = "front", dropUp = "top", dropDown = "bottom",
+    suck = "front", suckUp = "top", suckDown = "bottom" },
+  counted = { refuel = true, drop = true, dropUp = true, dropDown = true, suck = true, suckUp = true, suckDown = true },
 }
 
 local W = {}
@@ -280,6 +282,11 @@ W.exec = function(step)
   local fn = turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
+    return result
+  end
+  local side = C.transfers[op]
+  if side and not peripheral.hasType(side, "inventory") then
+    result.err = "no inventory"
     return result
   end
   local ok, info

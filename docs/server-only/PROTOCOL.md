@@ -113,11 +113,15 @@ The server sends `lease.batch` to a turtle.
 
 A step is a table.
 
-`op` is one of `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckDown`, `drop`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
+`op` is one of `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
 
 `slot` is optional. It is an integer from 1 to 16. `select` uses it. Other ops use the already selected slot.
 
-`n` is an optional integer. `refuel`, `drop`, `dropDown`, `suck`, and `suckDown` use it as a count.
+`n` is an optional integer. `refuel`, `drop`, `dropUp`, `dropDown`, `suck`, `suckUp`, and `suckDown` use it as a count.
+
+Drop and suck operations require `peripheral.hasType(side, "inventory")` on the
+target side. Otherwise the worker returns `ok = false, err = "no inventory"`
+without calling the turtle transfer operation. Drops into open space are refused.
 
 ### step.report
 
