@@ -109,7 +109,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and `notify` for views, and `from`, `count` or `limit` for history.
   `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
   or more and show `disk >=80%; free space`. Existing work, recovery and stop
-  remain available. No wire handlers. Built-in views are `fleet`, `turtle/<id>`,
+  remain available. Authenticated `hello` registers turtles and displays through
+  `machine` events, on first contact, role or journal changes, fuel changes of
+  at least 100 or crossing zero, and after 60 seconds. Built-in views are `fleet`, `turtle/<id>`,
   `log` and `status`.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`

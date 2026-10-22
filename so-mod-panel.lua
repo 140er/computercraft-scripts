@@ -21,8 +21,20 @@ P.refresh = function()
       end
     end
   end
-  P.alerts = {}
+  P.fleet = nil
   local state = SO.mods.state
+  local machines = state and type(state.get) == "function" and state.get("machines") or {}
+  local count, lost = 0, 0
+  for id, row in pairs(machines or {}) do
+    if row.role == nil or row.role == "worker" or row.role == "turtle" then
+      count = count + 1
+      local lease = SO.mods.lease
+      local status = lease and lease.status and lease.status(tonumber(id)) or {}
+      if status.lost then lost = lost + 1 end
+    end
+  end
+  if count > 0 then P.fleet = "TURTLES " .. (count-lost) .. " ok, " .. lost .. " lost" end
+  P.alerts = {}
   local view = state and state.view
   local meta = type(view) == "table" and getmetatable(view)
   if type(view) == "function" or (meta and type(meta.__call) == "function") then
@@ -100,6 +112,7 @@ P.render = function(w, h, session)
       c.button(cols[i].x,h,cols[i].w,label,({"alert-prev","panel-back","alert-next"})[i],"7",1)
     end
   else
+    if P.fleet then c.put(2,2,P.fleet:sub(1,w-2)) end
     local cols = U.grid(w,h)
     if h < 19 and #cols == 1 then
       P.block(c,"mining",1,3,w,h,true)
