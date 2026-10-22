@@ -14,3 +14,4 @@ ui3a.lua           22 locals (deepest at function line 67) ok
 ui3b.lua           37 locals (deepest at function line 143) ok
 ui3c.lua           19 locals (deepest at function line 36) ok
 ui5a.lua           24 locals (deepest at function line 196) ok
+so-mod-drops.lua   27 locals (deepest at function line 389) ok
