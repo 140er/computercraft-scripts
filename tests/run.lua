@@ -478,39 +478,6 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/so11.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui0.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui1.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui2a.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui2c.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui2b.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui2d.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui3a.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui3c.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui3b.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui5b.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
-dofile("tests/ui/ui5a.lua")(test, equal, read, mocks)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
 
 test("server modules share the shell program environment", function()
   local H = dofile("tests/so/harness.lua")
@@ -561,8 +528,6 @@ print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED")
 if failed > 0 then os.exit(1) end
 
 dofile("tests/so/worker-boot.lua")(test, equal)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
 dofile("tests/so/server-net.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
@@ -598,8 +563,6 @@ dofile("tests/so/lumber-loops.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
 dofile("tests/so/disk-guard.lua")(test)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
 
 dofile("tests/so/lumber-deliver.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
@@ -620,8 +583,6 @@ dofile("tests/so/minor-ui.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
 dofile("tests/so/mine-dead.lua")(test, equal)
-print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
-if failed > 0 then os.exit(1) end
 dofile("tests/so/worker-discard.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
@@ -634,5 +595,38 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/dug-retirement.lua")(test, equal)
 dofile("tests/so/dug-display.lua")(test, equal)
 dofile("tests/so/dug-mine.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui0.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui1.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2a.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2c.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2d.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3a.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3c.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui5b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui5a.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
