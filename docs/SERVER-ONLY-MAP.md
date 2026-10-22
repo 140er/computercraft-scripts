@@ -130,6 +130,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
   Tick registers the shop screen, discovers storage and polls stock.
+  Render callbacks use `render(w, h)`. The Big Tiles list opens an item with
+  `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
+  List controls are `prev`, `next`, `clear`, `search` and `status` for BACK.
+  Submitted text resets paging. The kit-free renderer retains the legacy list.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
