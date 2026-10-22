@@ -61,8 +61,8 @@ return function(test, equal)
   end)
   test("UI2c touch fixtures match at compact pocket and large sizes",function()
     local s=setup()
-    for _,case in ipairs({{29,12,"shop-compact"},{26,20,"shop-pocket"},{100,38,"shop-large"}}) do
-      local diff=R.diff("tests/ui/fixtures/"..case[3]..".txt",capture(s.state.layout(model(),case[1],case[2]),case[1],case[2]))
+    for _,case in ipairs({{29,12,"tests/ui/fixtures/shop-compact.txt"},{26,20,"tests/ui/fixtures/shop-pocket.txt"},{100,38,"tests/ui/fixtures/shop-large.txt"}}) do
+      local diff=R.diff(case[3],capture(s.state.layout(model(),case[1],case[2]),case[1],case[2]))
       assert(#diff==0,table.concat(diff,"\n"))
     end
   end)
