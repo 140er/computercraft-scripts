@@ -107,7 +107,7 @@ def main(home, suite_lock):
                             result = {'pid':process.pid, 'existing':False}
                     elif q['op'] == 'signal':
                         if key in children:
-                            os.killpg(children[key].pid, signal.SIGTERM)
+                            os.killpg(children[key].pid, signal.SIGKILL if q.get('force') else signal.SIGTERM)
                         result = True
                     else:
                         raise RuntimeError('Unknown keeper operation')

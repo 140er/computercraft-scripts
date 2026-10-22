@@ -536,6 +536,11 @@ class Runtime:
                 keeper.call(self.home,{'op':'signal','key':key})
                 deadline=time.monotonic()+15
                 while key in self.status() and time.monotonic()<deadline: time.sleep(.1)
+                if key in self.status():
+                    keeper.call(self.home,{'op':'signal','key':key,'force':True})
+                    deadline=time.monotonic()+5
+                    while key in self.status() and time.monotonic()<deadline: time.sleep(.1)
+                    if key in self.status(): raise RuntimeError('Client process could not be stopped')
         return {'run':name,'client':'stopped'}
 
     def client(self, name, action):

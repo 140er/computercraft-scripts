@@ -57,7 +57,8 @@ def client_action(runtime,name,action):
                     shutil.copy2(source/filename,client/filename)
         # Choose and spawn the display while holding the pool allocation lock.
         with locked(runtime.home/'displays.lock'):
-            used=[p.read_text() for p in (runtime.home/'runs').glob('*/display')]
+            active=runtime.status()
+            used=[p.read_text() for p in (runtime.home/'runs').glob('*/display') if p.parent.name+':xvfb' in active]
             display=next((':'+str(n) for n in range(110,150) if ':'+str(n) not in used and not Path(f'/tmp/.X{n}-lock').exists()),None)
             if display is None: raise RuntimeError('No free Xvfb display')
             (run/'display').write_text(display)
