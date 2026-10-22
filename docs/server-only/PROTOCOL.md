@@ -282,7 +282,7 @@ Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` s
 
 #### Log files
 
-Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads the newest valid snapshot and applies later segment events. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
+Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads snapshot `n` from the recovered `latest` pointer, or `n-1` if `n` is invalid, and applies later segment events. After `latest` saves, cleanup deletes older numbered snapshots and their `.tmp` and `.bak` files. Startup repeats this cleanup. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
 
 When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
 
