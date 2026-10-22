@@ -100,4 +100,46 @@ return function(test,equal)
     equal(b.ar.elements["hud:turtles:value"][4],model(b.mods.display).tiles[1].value)
     equal(b.ar.elements["hud:turtles:bar"][1],0xFFFF6B5E-2^32)
   end)
+  test("AR counts two mining leases, one lumber lease and a paired idle worker after real reports",function()
+    local F=dofile("tests/so/worker-fixture.lua")
+    local a=F.setup(nil,{"so-mod-state.lua","so-log.lua","so-mod-lease.lua","so-ui.lua",
+      "so-mod-display.lua","so-mod-ar.lua"})
+    local mods=a.s.env.SO.mods
+    local workers={[2]=a.t}
+    for id=3,5 do
+      assert(a.s.env.SO.pair.remember(id,string.rep("a",64)))
+      local w=a.n.machine({id=id,modem=true,turtle=true,capacity=1000000})
+      for path,data in pairs(a.t.files) do
+        if path~="so-journal" and not path:match("^so%-journal%.") then w.files[path]=data end
+      end
+      w.boot("worker.lua");a.n.flush();workers[id]=w
+    end
+    local elements={}
+    local ar={update=function() end,delete=function(id) elements[id]=nil end}
+    for _,method in ipairs({"drawText3D","drawLine3D","drawRect2D","drawText2D"}) do
+      ar[method]=function(id,...) elements[id]={...} end
+    end
+    a.s.env.peripheral.find=function(kind) if kind=="ar_controller" then return ar end end
+    a.n.advance(131)
+    for id=2,4 do
+      local owner=id==4 and "lumber" or "mine"
+      local pose={dim="minecraft:overworld",x=id,y=64,z=0,facing=1}
+      assert(mods.lease.send(id,{{op="turnRight"}},{owner=owner,pose=pose}))
+      a.n.flush();a.n.advance(1)
+      assert(mods.lease.status(id).seen>=a.n.time-1000)
+    end
+    for id=2,4 do
+      local owner=id==4 and "lumber" or "mine"
+      local pose={dim="minecraft:overworld",x=id,y=64,z=0,facing=1}
+      assert(mods.lease.send(id,{{op="inspectDown"}},{owner=owner,pose=pose}))
+    end
+    mods.display.tick(a.n.time);mods.ar.tick(a.n.time)
+    equal(model(mods.display).tiles[1].value,"4")
+    equal(elements["hud:turtles:value"][4],"4")
+    equal(elements["hud:turtles:bar"][1],0xFF3DDC84-2^32)
+    equal(mods.lease.status(5).open,nil)
+    for id=2,4 do assert(mods.lease.status(id).open) end
+    for _,w in pairs(workers) do assert(w.alive(),tostring(w.error)) end
+    F.check(a)
+  end)
 end

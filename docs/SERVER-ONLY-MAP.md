@@ -372,6 +372,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. Alerts expire after five minutes, renewed
   by new events. First controller attachment clears old elements when supported.
+  World labels use size 0.5 and short text, with nearby labels stacked. Only
+  the nearest 16 turtle labels and eight drop labels per kind are drawn, using
+  the server position. Boxes and arrows remain. The HUD counts all registered
+  workers like status, including paired idle workers; its bar marks lost leases.
   Dug-storage requests remain visible until a player decides, including with
   the optional event-alert layer off. Decision notices last 30 seconds.
   See [AR](server-only/PROTOCOL.md#ar).

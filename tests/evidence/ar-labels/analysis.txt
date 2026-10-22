@@ -1,0 +1,32 @@
+Inputs inspected
+C13-goggles-overview-all-on.png and C13-server-registry.png from build 0f73a4e.
+The former shows AR 0 ok; the latter shows server TURTLES 3 and 3 ok.
+docs/gemini-review/evidence/ccar-signatures.txt supplies the peripheral signature.
+
+CC:AR 0.2.1 units
+Inspected ARControllerPeripheral and ARText3D from the local test client's jar with CFR 0.152.
+Jar SHA-256 is 479a5ebb06ee7be7c0c13279369e373bf628474daf1b7101fb5eb9f95aaa6ec2.
+drawText3D takes id, colour, x, y, z, xRot, yRot, size, text, centered.
+ARText3D.render scales all font axes by size * 0.03. Its centered font height is 9 pixels.
+Size 3 gives a font height of 0.81 blocks. Size 0.5 gives 0.135 blocks.
+A 0.25-block vertical gap leaves space between nearby labels at the chosen scale.
+CC:AR exposes no wearer coordinates in the documented peripheral API. Nearest label selection uses the configured server position, with element id as the fallback when coordinates are unavailable.
+
+Count mechanism
+Both so-mod-display.lua D.gather and so-mod-ar.lua A.scene read state.get("machines").
+Both accept absent role, worker or turtle. They did not use different registries.
+The status total includes every worker and its ok count excludes lease.status(id).lost.
+The previous AR ok count also excluded stale registry timestamps and out-of-range positions.
+Lease reports update lease.seen and emit pose events, which do not refresh machine.seen.
+Therefore active workers with old machine timestamps could give server 3 ok and AR 0 ok.
+The deterministic before.txt regression reproduces that discrepancy with three workers.
+The HUD now shows the registered total, matching the status tile's value. Its bar uses the same lost-lease check as status. World-label staleness uses the newer machine or lease timestamp.
+PR #175 supplies registration on hello, including paired idle workers. No second worker registry or job-count fallback is needed.
+
+Stack compatibility
+Combining #175 with #177 caused MORE and the clock to overwrite the panel fleet header on a 26-column display. Two inherited hello-visible tests reproduced it. The fleet text now occupies the row above panel navigation. Those tests and the panel fixtures pass.
+
+Verification limits
+The full Lua suite and worker integration harness are offline evidence.
+Gate A CraftOS-PC screenshots are not established for this head. The inherited legacy sandbox targets server/hub/miner and a 1 MB server, rather than the server-only roles. Its prior failed run is retained in tests/evidence/ui-padding/sandbox.txt. tests/review-capture.ps1 is absent.
+Gate B goggles validation was not run for this head. The orchestrator owns the frozen server-only test run. No Minecraft server or RCON was contacted.
