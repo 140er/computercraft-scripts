@@ -1,0 +1,16 @@
+luac5.2 -p on all 10 changed Lua files: PASS
+PASS tests/run.lua append-only (0 new lines)
+PASS no test file deleted
+PASS check-scope
+so-mod-display.lua   29 locals (deepest at function line 302) ok
+so-mod-drops.lua   27 locals (deepest at function line 389) ok
+so-mod-mine.lua    58 locals (deepest at function line 675) ok
+so-mod-panel.lua   20 locals (deepest at function line 55) ok
+so-ui.lua          26 locals (deepest at function line 119) ok
+screen-nav.lua     28 locals (deepest at function line 49) ok
+ui1.lua            40 locals (deepest at function line 52) ok
+ui2a.lua           34 locals (deepest at function line 62) ok
+ui2d.lua           39 locals (deepest at function line 82) ok
+ui3b.lua           37 locals (deepest at function line 143) ok
+worker install files: 124883 bytes, under 1000000
+display install files: 117606 bytes, under 1000000

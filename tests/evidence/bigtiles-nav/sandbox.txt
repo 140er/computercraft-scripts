@@ -1,0 +1,20 @@
+Sandbox: local source=C:\Users\labadmin\work\bigtiles-nav-20261022 seconds=30 standardsMode=true disk=1000000
+Artifacts: C:\Users\LabAdmin\AppData\Local\computercraft-sandbox\runs\3d07e1ecdfb44eeab29d1c32466d03d3
+server: FAIL booted=True errors=1 disk_free=-154933 rx=29 http_ok=18/18
+  last:                     ?  ??Sandbox-miner
+  last:                      ???? ? ? ??
+  last:                        ?? ?N
+  last:  <    >    ^    v    +    -    A    o
+  error: /driver.lua:9: missing server.state
+hub: FAIL booted=True errors=1 disk_free=819939 rx=45 http_ok=0/0
+  last: Sandbox-mine -        Waiting for ord 64     inf 15
+  last: IN TURTLES NOW
+  last: nothing
+  last: Tap a turtle = only that one. 1-7 ore c custom s st
+  error: No such program
+miner: PASS booted=True errors=0 disk_free=888371 rx=18 http_ok=0/0
+  last: Unloading
+  last: Waiting for orders
+  last: Unloading
+  last: Waiting for orders
+Sandbox FAIL
