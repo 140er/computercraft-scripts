@@ -205,7 +205,10 @@ return function(test,equal)
     assert(entry and entry.label=='PANEL','panel role remains reachable with a custom generic screen')
     s.tap(2,entry.id);equal(s.frame(2,57,24).role,'panel');equal(s.saved.roles['2'],'panel')
     local f=s.frame(2,57,24);local targets={}
-    for _,b in ipairs(f.buttons) do targets[b.id]=b end
+    for _,b in ipairs(f.buttons) do
+      targets[b.id]=b
+      if b.id:match('^order:') then assert(b.w>=8,'monitor quantity button minimum width') end
+    end
     assert(targets['mining:start'].x < targets['lumber:start'].x)
     assert(targets['lumber:start'].x < targets['order:16'].x)
     s.frame(3);s.tap(3,'panel')

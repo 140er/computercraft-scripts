@@ -58,12 +58,15 @@ P.shop = function(c, session, x, y, w, height, compact)
   c.put(x+(loaded and 10 or math.min(10,math.max(1,w-10))),y,loaded and "search:" or "not loaded")
   if loaded then c.search(x+1,y+1,w-2," " .. (session.panel.search or "") .. "_","search")
   else c.fill(x+1,y+1,w-2,1,"c") end
-  for i,col in ipairs(U.grid(w,height,3)) do
-    local n = ({1,16,64})[i]
-    if loaded then c.button(x+col.x-1,y+(compact and 2 or 3),col.w,tostring(n),"order:"..n,"a",compact and 1 or 3)
+  local stacked = w < 26 and height >= 19 and not compact
+  local cols = U.grid(w,height,3)
+  for i,n in ipairs({1,16,64}) do
+    local col = stacked and {x=1,w=w} or cols[i]
+    local top = y + (compact and 2 or 3) + (stacked and (i-1)*4 or 0)
+    if loaded then c.button(x+col.x-1,top,col.w,tostring(n),"order:"..n,"a",compact and 1 or 3)
     else
-      c.fill(x+col.x-1,y+(compact and 2 or 3),col.w,compact and 1 or 3,"c")
-      c.center(x+col.x-1,col.w,y+(compact and 2 or 4),tostring(n))
+      c.fill(x+col.x-1,top,col.w,compact and 1 or 3,"c")
+      c.center(x+col.x-1,col.w,top+(compact and 0 or 1),tostring(n))
     end
   end
 end
