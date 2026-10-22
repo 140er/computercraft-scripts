@@ -233,6 +233,9 @@ add(c, "Smallest monitor 1x1 at scale 0.5")
 
 import argparse
 from pathlib import Path
+import runpy
+
+map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fixtures", type=Path)
@@ -245,9 +248,11 @@ if args.fixtures:
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
+    map_mockup["write"](Canvas, args.fixtures, fixtures=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
+map_mockup["write"](Canvas, Path("."))
 # font table
 ft = []
 for ch in "0123456789%-:/":

@@ -1,0 +1,21 @@
+PASS map scene glyphs, colours and controls at 26x20
+PASS map scene glyphs, colours and controls at 29x12
+PASS map scene glyphs, colours and controls at 57x24
+PASS map scene glyphs, colours and controls at 164x81
+PASS map and MAP navigation follow the kit header on row 2 at 26x20
+PASS map and MAP navigation follow the kit header on row 2 at 29x12
+PASS map snapshots copy mining and lumber world data
+PASS local monitor map controls keep a separate session
+PASS map renders complete large frames inside the protocol limit
+PASS map uses bounded dug scans at maximum manual zoom
+PASS all-level dug scans skip empty shaft heights and retain the frame budget
+PASS map view state and scan caches belong to each display
+PASS map heading arrows use worker state and lost range colours
+PASS real display client opens and controls the map at 26x20
+PASS real display client opens and controls the map at 29x12
+PASS real display client opens and controls the map at 57x24
+PASS display MAP and BACK use drawn targets at 26x20
+PASS display MAP and BACK use drawn targets at 29x12
+PASS display MAP and BACK use drawn targets at 57x24
+PASS display MAP and BACK use drawn targets at 15x10
+20 passed 0 failed

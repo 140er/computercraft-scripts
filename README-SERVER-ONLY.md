@@ -98,6 +98,28 @@ Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and
 pair the machine again after a reset.
 
+## Map
+
+Tap `MAP` in the header of any display or panel. `BACK` returns to the screen
+that opened it. The map fits the configured mine, farm, drops and turtles on
+entry with all levels projected. `FIT` restores that view after using `+`, `-` or the four pan buttons.
+Each display keeps its own view until the server restarts.
+
+North is up, x increases to the right and z increases downward. Grey cells are
+planned shaft, spine and branches. Light grey cells are known dug blocks. `H`
+marks the shaft and `@` marks the server. Turtles use `^ > v <` for heading,
+with their id beside them when it fits. Busy turtles are green, idle turtles
+amber, lost or out-of-range turtles coral, and finished turtles blue.
+Chest letters include `O` for ore, `F` for fuel, `W` for wood and `S` for
+saplings. The farm outline is green. Broken drop points are coral.
+
+The bottom button cycles `MINE`, `SURFACE` and `ALL`. Mine selects the job's
+bottom y level. Surface selects the server's y level, or the farm ground when
+there is no server position. All projects the scene and scans dug blocks at the mine bottom, tunnel roof,
+surface, farm ground, and known chest and turtle levels. Dug blocks appear progressively, with at
+most 256 cell reads per frame. At coarse zoom, several blocks share one cell.
+Turtles draw above landmarks and cells. Only the server's dimension is shown.
+
 ## Drop points
 
 Open `MORE` from status, pocket glance or the panel header for the generic

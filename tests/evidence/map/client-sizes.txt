@@ -1,0 +1,2 @@
+worker install sources 124901 bytes; PASS under 1 MB
+display install sources 117624 bytes; PASS under 1 MB

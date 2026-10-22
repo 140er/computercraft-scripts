@@ -194,7 +194,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
-  and `input`. Built-in screens are `generic` and `status`.
+  and `input`. Built-in screens are `generic` and `status`. With the map module, every
+  Big Tiles header has a drawn MAP target. `map` and `map-back` navigate on
+  paired displays and the local monitor.
   Button id `status` returns any screen to status. Generic screens with their
   own `lumber` and `ar` buttons keep them. The drops list has its own navigation
   (MINING, LUMBER, SHOP, AR, PANEL) and suppresses header injection; older generic screens retain
@@ -215,6 +217,19 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
   the legacy status renderer for older partial installations.
+- [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
+  from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
+  `lumber.mapView()`, registry workers, lease range/state and drop points.
+  `render(w, h, session)` keeps fit, centre, blocks per cell, level and a bounded
+  dug-cell scan in `session.map`. Rendering uses at most 256 `cells.isDug`
+  calls, limited to known tunnel, surface, farm, chest and turtle levels.
+  Scan caches replace on complete passes and reset on view changes.
+  Mine geometry uses screen-cell intersections, independent of route length.
+  MAP appears at the right of each Big Tiles header when this module is loaded.
+  Map and navigation read the kit header row, including the padded row 2.
+  BACK restores `session.mapReturn`, or status after restart. Local monitor
+  navigation uses its own session. No client or saved-file format changes.
+  See [map](server-only/PROTOCOL.md#map).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
   `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. MORE in its
@@ -245,7 +260,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
-  Calls are `tick(now)`, `dugProtection(protect)` and `forgetDug(sectionPaths)`;
+  Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)` and `mapView()`;
   no wire handlers. Protection covers the running mine and saved worker routes.
   `forgetDug` clears block lookup entries for a set of retired section paths.
   Tick registers `display.screen("mining", render, input)` and
@@ -257,6 +272,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
+  `mapView()` returns copied geometry fields and worker poses/states for the map.
   New jobs require `home` before `start`; saved homes remain configured. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
   lease through `lease.cancelPark`, releasing the lane and reservations. Stale
@@ -313,6 +329,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
+  `mapView()` returns copied dimension, area, ground, sapling chest and turtle
+  pose/state fields for the map.
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
   the text command path. SETUP pages configuration commands; its BACK returns
   to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
@@ -533,7 +551,7 @@ Do not save inside tight loops.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
 - `so-drops` holds drop points and failure counts.
 - `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
-  Roles include `panel`. Old files without `far` remain valid.
+  Roles include `panel` and `map`. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
 - `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
   Recent ore uses UTC-second buckets `{ total, counts = { [epochMs] = count } }`.

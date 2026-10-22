@@ -128,7 +128,7 @@ Preview (the same glyphs as Unicode sextants, close to how CC draws them):
 
 ## 7. Surfaces
 
-Displays (monitor roles): status, mining, lumber, shop with its order page, drops (generic), ar, plus the
+Displays (monitor roles): status, mining, lumber, shop with its order page, drops (generic), ar, map, plus the
 alert and outage states.
 Server: its own terminal (normal and pairing), and a monitor attached to the server, which shows the status
 screen locally without rednet.
@@ -155,6 +155,48 @@ status sizes offer MINING, LUMBER, SHOP and MORE.
 Compact mining rows show the worker id, full x,y,z position, then state.
 Below 26 columns, mining navigation wraps into two rows.
 AR goggles: section 7.2.
+
+### 7.0 Top-down map
+
+A teal `MAP` button occupies the right four cells of every Big Tiles header
+when the server map module is installed. It works from status, panel, the drop
+editor and every job screen. The map's `BACK` restores the opening screen.
+Header state moves left when space allows and hides when the header is full.
+The other navigation controls retain their positions.
+
+The map uses the rows below the kit header through H-3. North is up, x increases right and z increases
+down. The header reads `MAP` and `N ^ 1:<blocks per cell>`. The bottom rows are:
+
+| Row | Drawn controls |
+| --- | --- |
+| H-2 | BACK, FIT, +, - |
+| H-1 | ^, <, v, > |
+| H | MINE y / SURFACE y / ALL |
+
+Controls are one row tall with the kit's four-column grid and palette. They
+remain readable at 26x20, 29x12 and 15x10. Large screens devote every extra
+row and column to the map. There is no helper copy on the screen.
+
+Planned shaft, spine and branches use panel grey `7`; known dug cells use `8`.
+The farm outline is green `d`, shaft `H` and server `@` are teal `9`, and chest
+letters are purple `a`, coral `e` when broken. Letters include O ore, F fuel,
+W wood and S saplings. Turtle arrows `^ > v <` draw last. Busy is green `d`,
+idle amber `1`, lost/range/stale coral `e`, and done blue `b`. Ids appear beside
+arrows at one block per cell when space is clear. Symbols use dark ink `f`.
+
+Fit covers configured geometry, drops and turtle poses in the server dimension.
+Zoom and pan disable automatic fitting; FIT restores it. Each display session
+owns its view and progressive dug raster. The initial level is ALL. Mine selects the job bottom y.
+Surface uses server y or farm ground. ALL projects markers and scans dug blocks at known mine, surface, farm, chest
+and turtle levels. Up to 256 cell reads run per frame. Geometry work
+is proportional to the viewport. A coarse cell can contain multiple blocks;
+landmarks and turtles draw above dug cells and planned passages.
+
+`mockup-gen.py` calls `map-mockup.py` to generate `map-26x20`, `map-29x12`
+and `map-57x24` fixtures. See [map mockups](map-mockups.md).
+Their scene has two assigned mine branches, two turtles, a dug vein cell, ore,
+fuel, wood and sapling chests, a farm outline and the server. Tests compare all
+text and background cells and check state colours and controls separately.
 
 ### 7.1 Display mockups
 

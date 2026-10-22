@@ -869,4 +869,10 @@ S.dugProtection = function(protect)
   return true
 end
 
-return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection }
+S.mapView = function()
+  local j = S.job
+  return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),
+    turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),
+      state=j.blocked or (j.running and "lumber" or "idle")}}
+end
+return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }

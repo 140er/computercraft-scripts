@@ -727,7 +727,7 @@ when the drops module supplies the generic screen.
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids. Old files without `far` remain valid.
 The default role is `generic`, except a 26x20 display without a saved role
-uses `status` when the kit is installed. Saved roles, including `panel`, take precedence. Both settings
+uses `status` when the kit is installed. Saved roles, including `panel` and `map`, take precedence. Both settings
 survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
@@ -741,6 +741,58 @@ NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capabl
 outputs repaint the timer once a second. Outputs without palette support retain
 the legacy bottom-right stale marker and repaint on retries. The retry schedule
 still uses jittered exponential backoff capped at 30 seconds.
+
+### map
+
+`so-mod-map.lua` is installed only on the server. It registers
+`display.screen("map", render, input)` during tick. It adds no wire type.
+The saved display role may be `map`; older role and far settings remain valid.
+The display composer draws a teal `MAP` button at the right of every Big Tiles
+header while the map screen is registered. Input `map` remembers the drawn role
+in `session.mapReturn`. Input `map-back` restores that role, or status after a
+restart. This also works on the server's local monitor.
+
+`mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
+branches, turtles }`. `branches` covers assigned branches and progress.
+`turtles[id]` has `{ pose, state, dim }` in world coordinates.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtle }`.
+The optional turtle has `{ id, pose, state }`. These getters do not save or
+advance jobs. The map calls them from tick, together with registry, lease and
+drop APIs. Registry workers without a job also appear when their pose is known.
+Numeric drop dimensions are normalized to world dimension strings.
+
+`render(w, h, session)` stores its state under `session.map`. `fit` starts true.
+`x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
+`level` starts as `all` and cycles through `mine`, `surface`, `all`.
+Mine selects the job bottom; surface selects server y, farm ground or mine home.
+All projects every scene marker. Dug scans sample the mine bottom and its next
+block, mine home, surface, farm ground, and known chest and turtle y levels.
+The map is north-up with x horizontal and z vertical. It filters to the server
+dimension, or the configured job dimension when the server position is absent.
+
+Geometry tests intersections per screen cell. Route length and branch count do
+not increase frame work. Dug scans call `cells.isDug` at most 256 times per
+render and retain a viewport-sized raster. A completed scan replaces old marks.
+View changes reset the scan. Changing tracked levels restarts the scan while
+retaining its visible raster until a new pass completes. Empty shaft heights
+are skipped. At coarse zoom, any found dug block marks its
+projected cell. New dug blocks appear as the scan advances. Rendering never
+calls sleep. Existing cell reads may use `SO.breathe` during bulk work.
+
+Planned passages use panel grey `7`; dug cells use light grey `8`; the farm
+outline uses green `d`. `H` marks the shaft in teal `9`. Chest letters use
+purple `a` or coral `e` when broken. `@` marks the server in teal. Turtles draw
+last as `^ > v <`, with an id to the right at one block per cell when it fits.
+Busy uses green `d`, idle amber `1`, lost/range/stale coral `e`, and done blue `b`.
+Markers at the same projected cell overlap; turtles take precedence.
+
+Drawn inputs are `map-fit`, `map-in`, `map-out`, `map-n`, `map-w`, `map-s`,
+`map-e` and `map-level`. Zoom ranges from 1 to 4096 blocks per cell. Panning
+moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
+the padded kit. Controls occupy the bottom three rows at every
+size, including 26x20 and 29x12. The header shows north and blocks per cell.
+The remaining rows expand with the display. All view and scan state clears on
+server restart and remains independent per paired display or local monitor.
 
 ### panel
 

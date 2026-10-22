@@ -1,0 +1,49 @@
+57x24 Map, projected levels 57x24
+ MAP                                             N ^ 1:1 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                v3                       
+                                                         
+                                                         
+                                                         
+                              >2 O                       
+                                                         
+                                                         
+                                                         
+                            H                            
+                                                         
+                                                         
+                       F W S@                            
+                                                         
+                                                         
+                                                         
+     BACK           FIT            +              -      
+      ^              <             v              >      
+                           ALL                           
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff7777bbfffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff78fffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff77dd7afffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdddff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdfdff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdddff9ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+77777777777777f9999999999999f77777777777777f7777777777777
+77777777777777f7777777777777f77777777777777f7777777777777
+777777777777777777777777777777777777777777777777777777777

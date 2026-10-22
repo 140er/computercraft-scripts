@@ -1,0 +1,48 @@
+part: display; suites: tests/so/display-client.lua, tests/so/dug-display.lua
+part: generated 36 input files; private cwd /tmp/cc-part-p5uqv4th
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.062s)
+Evidence: /tmp/craftos-evidence-tjtautu2
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.29s)
+Evidence: /tmp/craftos-evidence-91zz8h6n
+cc-test: using local-2 slot
+PASS display re-pairs after server key loss 26x20
+PASS display re-pairs after server key loss 29x12
+PASS forged display repair hint keeps valid key and authenticated frames recover
+PASS display wrong code then right code without reboot
+PASS display discovers a server that starts after boot
+PASS paired display boots before server and recovers after restart
+PASS display clears a no-server code and accepts another after discovery
+PASS display clears a timed-out code and accepts a new invitation
+PASS display echoes commands without covering buttons 26x20
+PASS display echoes commands without covering buttons 29x12
+PASS dug consent: drawn allow on generic at 26x20
+PASS dug consent: drawn keep on generic at 26x20
+PASS dug consent: drawn allow on status at 26x20
+PASS dug consent: drawn keep on status at 26x20
+PASS dug consent: drawn allow on mining at 26x20
+PASS dug consent: drawn keep on mining at 26x20
+PASS dug consent: drawn allow on lumber at 26x20
+PASS dug consent: drawn keep on lumber at 26x20
+PASS dug consent: drawn allow on shop at 26x20
+PASS dug consent: drawn keep on shop at 26x20
+PASS dug consent: drawn allow on ar at 26x20
+PASS dug consent: drawn keep on ar at 26x20
+PASS dug consent: drawn allow on generic at 29x12
+PASS dug consent: drawn keep on generic at 29x12
+PASS dug consent: drawn allow on status at 29x12
+PASS dug consent: drawn keep on status at 29x12
+PASS dug consent: drawn allow on mining at 29x12
+PASS dug consent: drawn keep on mining at 29x12
+PASS dug consent: drawn allow on lumber at 29x12
+PASS dug consent: drawn keep on lumber at 29x12
+PASS dug consent: drawn allow on shop at 29x12
+PASS dug consent: drawn keep on shop at 29x12
+PASS dug consent: drawn allow on ar at 29x12
+PASS dug consent: drawn keep on ar at 29x12
+PASS dug consent: only the current drawn button coordinates can authorize retirement
+PASS dug consent: all displays see the same decision and AR keeps the pending alert
+part: 36 passed, 0 failed, 0 undeclared reads; Lua CPU 10.319s
+part: local Lua wall 10.550s (excludes slot queue)

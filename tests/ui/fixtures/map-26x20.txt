@@ -1,0 +1,41 @@
+26x20 Map, projected levels 26x20
+ MAP              N ^ 1:1 
+                          
+                          
+                          
+                 v3       
+                          
+                          
+                          
+               >2 O       
+                          
+                          
+                          
+             H            
+                          
+                          
+        F W S@            
+                          
+ BACK   FIT     +     -   
+  ^      <      v     >   
+           ALL            
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffff7777bbfffffff
+fffffffffffff7ffffffffffff
+fffffffffffff78fffffffffff
+fffffffffffff7ffffffffffff
+fffffffffffff77dd7afffffff
+fffffffffffff7ffffffffffff
+ffffffffdddff7ffffffffffff
+ffffffffdfdff7ffffffffffff
+ffffffffdddff9ffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffafafa9ffffffffffff
+ffffffffffffffffffffffffff
+777777f999999f77777f777777
+777777f777777f77777f777777
+77777777777777777777777777
