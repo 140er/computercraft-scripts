@@ -1,12 +1,23 @@
-6a3fd6cff3a590acce7abe26d6aef3a267375475
+6175ac8c33320cb31e0cbcf9190c3fde95c1910c
 0f73a4ea74815bc21158585a498da446f5072034
+Lua syntax: 15 changed Lua files
+PASS luac5.2 -p
+install.lua        37 locals (deepest at function line 186) ok
+so-mod-display.lua   30 locals (deepest at function line 182) ok
+so-mod-drops.lua   27 locals (deepest at function line 389) ok
+so-mod-lumber.lua   34 locals (deepest at function line 288) ok
+so-mod-map.lua     56 locals (deepest at function line 76) ok
+so-mod-mine.lua    58 locals (deepest at function line 675) ok
+so-mod-panel.lua   20 locals (deepest at function line 55) ok
+so-ui.lua          26 locals (deepest at function line 119) ok
+run.lua            37 locals (deepest at function line 381) ok
+map.lua            31 locals (deepest at function line 282) ok
+screen-nav.lua     28 locals (deepest at function line 49) ok
+ui1.lua            40 locals (deepest at function line 52) ok
+ui2a.lua           34 locals (deepest at function line 62) ok
+ui2d.lua           39 locals (deepest at function line 82) ok
+ui3b.lua           37 locals (deepest at function line 143) ok
 PASS tests/run.lua append-only (3 new lines)
 PASS no test file deleted
 PASS check-scope
-so-mod-map.lua     53 locals (deepest at function line 68) ok
-so-mod-display.lua   29 locals (deepest at function line 333) ok
-so-mod-mine.lua    58 locals (deepest at function line 675) ok
-so-mod-lumber.lua   34 locals (deepest at function line 288) ok
-install.lua        37 locals (deepest at function line 186) ok
-map.lua            31 locals (deepest at function line 214) ok
-run.lua            37 locals (deepest at function line 381) ok
+PASS whitespace check with fixed-width fixture padding allowed

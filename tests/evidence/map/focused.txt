@@ -6,6 +6,7 @@ PASS map snapshots copy mining and lumber world data
 PASS local monitor map controls keep a separate session
 PASS map renders complete large frames inside the protocol limit
 PASS map uses bounded dug scans at maximum manual zoom
+PASS all-level dug scans skip empty shaft heights and retain the frame budget
 PASS map view state and scan caches belong to each display
 PASS map heading arrows use worker state and lost range colours
 PASS real display client opens and controls the map at 26x20
@@ -48,4 +49,4 @@ PASS UI0 outage matches the fixture without a server and retries continue
 PASS UI0 stale repaint preserves inverted digits and button labels
 PASS UI0 capture round-trips every spec glyph including inverted sextants
 PASS UI0 generator preserves section 7.1 and reproduces every fixture
-49 passed 0 failed
+50 passed 0 failed

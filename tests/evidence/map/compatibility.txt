@@ -1,0 +1,13 @@
+Map implementation: 6175ac8c33320cb31e0cbcf9190c3fde95c1910c
+Padding #177: a14e6c27440153cc2ae9dd831f834bab0e520bc6
+Quirks #174: d6f7abd1e540d388e898aaaec494844cc809a8f6
+padding #177: PASS clean merge
+f10e09140385b666679f3940c51ea893ae615cb3
+quirks #174: PASS clean merge
+8f529b786d8a700b303b1c18c0af6a571c11d072
+The padding tree was exported to a temporary directory. Padding was not merged into this branch.
+Map fixtures were regenerated using the combined generator and padded Canvas.
+timeout 60s lua5.2 /tmp/map-focused.lua tests/so/map.lua tests/so/screen-nav.lua tests/ui/ui0.lua
+PASS 52 focused checks in the combined tree. See combined-padding.txt.
+Map and navigation follow the kit header row. Padding row 2 works at 26x20 and 29x12.
+The temporary combined tree was removed after validation.

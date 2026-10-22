@@ -1,0 +1,54 @@
+PASS map scene glyphs, colours and controls at 26x20
+PASS map scene glyphs, colours and controls at 29x12
+PASS map scene glyphs, colours and controls at 57x24
+PASS map scene glyphs, colours and controls at 164x81
+PASS map and MAP navigation follow the kit header on row 2 at 26x20
+PASS map and MAP navigation follow the kit header on row 2 at 29x12
+PASS map snapshots copy mining and lumber world data
+PASS local monitor map controls keep a separate session
+PASS map renders complete large frames inside the protocol limit
+PASS map uses bounded dug scans at maximum manual zoom
+PASS all-level dug scans skip empty shaft heights and retain the frame budget
+PASS map view state and scan caches belong to each display
+PASS map heading arrows use worker state and lost range colours
+PASS real display client opens and controls the map at 26x20
+PASS real display client opens and controls the map at 29x12
+PASS real display client opens and controls the map at 57x24
+PASS display MAP and BACK use drawn targets at 26x20
+PASS display MAP and BACK use drawn targets at 29x12
+PASS display MAP and BACK use drawn targets at 57x24
+PASS display MAP and BACK use drawn targets at 15x10
+PASS Big Tiles visible navigation graph at 26x20
+PASS Big Tiles visible navigation graph at 29x12
+PASS Big Tiles visible navigation graph at 15x10
+PASS Big Tiles visible navigation graph at 36x10
+PASS Big Tiles visible navigation graph at 39x19
+PASS Big Tiles visible navigation graph at 51x19
+PASS Big Tiles visible navigation graph at 57x24
+PASS Big Tiles visible navigation graph at 82x40
+PASS Big Tiles visible navigation graph at 100x38
+PASS Big Tiles visible navigation graph at 164x81
+PASS drop editor remains clickable at 26x20
+PASS visible mining navigation at 26x20
+PASS visible lumber navigation at 26x20
+PASS visible shop navigation at 26x20
+PASS visible status navigation at 26x20
+PASS visible ar navigation at 26x20
+PASS drop editor remains clickable at 29x12
+PASS visible mining navigation at 29x12
+PASS visible lumber navigation at 29x12
+PASS visible shop navigation at 29x12
+PASS visible status navigation at 29x12
+PASS visible ar navigation at 29x12
+PASS UI0 old and compact frames draw identical cells and tall buttons hit their rectangle
+PASS UI0 kit frames keep last-row navigation after a duplicate resize
+PASS UI0 three-row buttons include every row and exclude adjacent cells
+PASS UI0 palette and scale send exactly one resized hello and restore stock colours
+UI0 tiled frame body 6834 bytes
+PASS UI0 tiled 164x81 frame fits the real serializer without losing cells
+PASS UI0 far persists beside roles and a failed save leaves scale unchanged
+PASS UI0 outage matches the fixture without a server and retries continue
+PASS UI0 stale repaint preserves inverted digits and button labels
+PASS UI0 capture round-trips every spec glyph including inverted sextants
+PASS UI0 generator preserves section 7.1 and reproduces every fixture
+52 passed 0 failed
