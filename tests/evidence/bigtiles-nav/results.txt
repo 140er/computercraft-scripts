@@ -1,0 +1,18 @@
+Base: origin/server-only at 0f73a4ea74815bc21158585a498da446f5072034
+Plain cc-test: PASS, 549 tests, local-2 slot.
+Initial plain cc-test: 548 passed, 1 failed. MORE overwrote the panel clock.
+The corrected panel header preserves Amsterdam time; the full rerun passed.
+Focused navigation, fixtures, persistence, positions and clock: 80 passed, 0 failed.
+Combined tree with #174: conflict-free merge; 93 passed, 0 failed.
+luac5.2 -p: all 10 changed Lua files passed.
+python3 tools/cobaltlocals.py: maximum 58 locals, below 185.
+sh tools/check-scope.sh origin/server-only HEAD: PASS; tests/run.lua unchanged.
+python3 -I docs/ui/mockup-gen.py --fixtures tests/ui/fixtures: regenerated fixtures.
+UI0 generator and fixture checks: PASS.
+Client install source sizes: worker 124883 bytes; display 117606 bytes.
+Gate A: not established. The Windows legacy sandbox runner failed.
+It expects legacy server/hub/miner roles and server.state. Its server copy exceeds 1 MB.
+Sandbox reports are saved; the Windows task directory and run were removed.
+Headless screenshot runner tests/review-capture.ps1 is absent.
+Gate B: not run for this head; the orchestrator owns the frozen server-only Gate B run.
+No live Minecraft server or RCON was accessed.

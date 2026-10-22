@@ -85,11 +85,13 @@ pair the machine again after a reset.
 
 ## Drop points
 
-The generic display has a drop-point editor. Use `kind` and `side` to cycle
-values, the dimension and coordinate buttons to adjust the draft, and `add`
-to save it. Existing points have `fix` and `remove` buttons. Use `prev` and
-`next` to page through the list. All controls fit a 26x20 pocket or 29x12 monitor,
-with the bottom row left for typed input.
+Open `MORE` from status, pocket glance or the panel header for the generic
+drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
+to cycle values, the dimension and coordinate buttons to adjust the draft,
+and `ADD` to save it. Select a point in the list for `FIX` or `REMOVE`. Use
+`PREV` and `NEXT` to page through the list. The editor's `BACK` returns to the
+list, whose `BACK` returns to status. All controls fit a 26x20 pocket or 29x12
+monitor. Big Tiles use the full display height; typing opens local input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
 Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
 -1 Nether, 1 End. Set each drop point to the chest's own coordinates. With
@@ -112,9 +114,13 @@ requests and field definitions.
 
 ## Mining
 
-The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
-above the drop editor. These links and each screen's `generic` return button
-fit a 26x20 pocket or 29x12 monitor.
+The drop-point list has `MINING`, `LUMBER`, `SHOP`, `AR` and `PANEL` buttons.
+Links wrap across rows on small displays. Mining and lumber each have `SETUP`
+and `BACK`. Setup's `BACK` returns to its main page; main-page `BACK` returns
+to status. Shop item tiles open the order page, whose `BACK` returns to the
+list. AR's `BACK` returns to status. Panel has `MORE` for the drop-point list
+and `GLANCE` for status. Every screen is reachable by visible buttons at
+26x20 and 29x12. Compact mining rows show the full x,y,z position before state.
 
 The server stores dug marks in compact 16x16x16 sections. At 1 MB of section
 files, every display shows a request to forget old areas, with `allow` and

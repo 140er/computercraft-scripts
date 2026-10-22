@@ -38,7 +38,7 @@ end
 D.setRole = function(id, role)
   local name = tostring(id)
   local old = D.saved.roles[name]
-  local want = nil
+  local want = U and role or nil
   if role ~= "generic" then
     if not D.known[role] then return end
     want = role
@@ -217,9 +217,9 @@ D.compose = function(role, w, h, session)
       { id = "lumber", x = 1, y = 1, w = 6, label = "lumber" },
       { id = "ar", x = 8, y = 1, w = 2, label = "ar" },
     }) do
-      if not found[button.id] and not (found.new and found.status) then copy[#copy + 1] = button end
+      if not found[button.id] and not (found.new and found.status) and not found.list then copy[#copy + 1] = button end
     end
-    if D.screens.panel and not found.panel and w >= 39 then
+    if D.screens.panel and not found.panel and not found.list and w >= 39 then
       copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
     end
     buttons = copy
@@ -448,6 +448,7 @@ D.statusFrame = function(session, w, h, now)
         end
       end
     end
+    c.button(1, h-1, w, "MORE", "generic", "7", 1)
     c.fill(1, h, w, 1, "7")
     c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 3) .. "  >  PANEL")
     c.hit("prev", 1, h, 3, 1)
@@ -712,7 +713,7 @@ D.load = function()
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
-      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" and role ~= "panel" then return false end
+      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" and role ~= "panel" and role ~= "generic" then return false end
     end
     if v.far ~= nil then
       if type(v.far) ~= "table" then return false end

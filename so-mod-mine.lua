@@ -694,7 +694,7 @@ local function layout(m, w, h, setup)
     local cols = U.grid(w,h)
     local tall = h >= 19 and #cols >= 3
     local buttonHeight = tall and 3 or 1
-    local buttonY = tall and h-3 or h
+    local buttonY = tall and h-3 or w < 26 and h-1 or h
     local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-3)/6)))
     if tall then
       for i,t in ipairs(m.tiles) do
@@ -711,10 +711,12 @@ local function layout(m, w, h, setup)
     end
     local listY = tall and 3+tileRows*6 or 9
     if listY < buttonY then
-      c.fill(1,listY,w,1,"7"); c.put(2,listY,"TURTLE  STATE      POS          FUEL  ORE")
+      c.fill(1,listY,w,1,"7"); c.put(2,listY,w < 39 and "TURTLE  POS  STATE" or "TURTLE  STATE      POS          FUEL  ORE")
       for i,row in ipairs(m.turtles) do
         if listY+i < buttonY then
-          c.listRow(listY+i,string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore),row.stripe)
+          local text = w < 39 and string.format("#%s %s %s",row.id,row.pos,row.state)
+            or string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore)
+          c.listRow(listY+i,text,row.stripe)
         end
       end
     end
@@ -722,7 +724,13 @@ local function layout(m, w, h, setup)
     local available, x = math.max(0,w-3), 1
     for i,b in ipairs(buttons) do
       local width = math.floor(available/(5-i))
-      c.button(x,buttonY,width,b[1],b[2],b[3],buttonHeight)
+      local y = buttonY
+      if w < 26 then
+        local cols = U.grid(w,h,2)
+        local col = cols[(i-1)%2+1]
+        x, width, y = col.x, col.w, buttonY+math.floor((i-1)/2)
+      end
+      c.button(x,y,width,b[1],b[2],b[3],buttonHeight)
       x, available = x+width+1, available-width
     end
   end

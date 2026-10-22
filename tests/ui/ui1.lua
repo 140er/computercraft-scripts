@@ -200,7 +200,7 @@ return function(test,equal)
     local b=capture(frame(2,15,10),15,10).picture();assert(a.text[3]~=b.text[3])
     for _,role in ipairs({'mining','lumber','shop','generic'}) do
       local d,s,f,t=server();d.screen(role,function() return {rows={{text=role,fg='0',bg='f'}}} end)
-      f(2);t(2,role);equal(s.saved.roles['2'],role~='generic' and role or nil)
+      f(2);t(2,role);equal(s.saved.roles['2'],role)
     end
   end)
   test('UI1 old renderers receive size and revisions remain independent',function()

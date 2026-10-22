@@ -136,6 +136,24 @@ Panel: on server-only the handheld panel is the pocket's **panel mode** (start a
 alerts, pairing help). Main's panel.lua stays main-only. The `panel` role also works on any monitor, so a
 touch panel can hang by the server.
 Pocket: **glance mode** (3 tiles, paged) and panel mode. Switch with the nav row.
+MORE opens the generic drop-point list from glance, status and the panel header.
+A new pocket defaults to glance. Other new displays open the drop-point list.
+An explicit generic selection survives reconnects and restarts on every size.
+
+Navigation uses drawn buttons at every supported size, including 26x20 and 29x12.
+The drop-point list has MINING, LUMBER, SHOP, AR and PANEL links. They wrap into
+two rows below 39 columns and three below 26. ADD NEW opens the draft editor.
+Its BACK returns to the list, whose BACK returns to status.
+Mining and lumber have SETUP and BACK buttons. SETUP has a BACK to its main page.
+Shop item tiles open the order page. Its BACK returns to the item list, whose
+BACK returns to status. AR has BACK to status. Panel ALERTS and PAIR have BACK
+to panel; GLANCE returns to status and MORE opens the drop-point list.
+The 15x10 status page has separate NEXT and MORE buttons. At 39x19, status
+offers MINING, SHOP and MORE; lumber is reached through MORE. Other non-pocket
+status sizes offer MINING, LUMBER, SHOP and MORE.
+
+Compact mining rows show the worker id, full x,y,z position, then state.
+Below 26 columns, mining navigation wraps into two rows.
 AR goggles: section 7.2.
 
 ### 7.1 Display mockups
@@ -262,7 +280,7 @@ Pocket, glance mode  (26x20)
          🬖🬀 ▌ 🬳🬷🬏         
         🬍🬋🬃🬇🬌  🬉          
  +12 / 10 min             
-                          
+           MORE           
  <  glance 1/3  >  PANEL  
 ```
 Background layer (blit letters, see palette):
@@ -285,13 +303,13 @@ bbbbbbbbbbbbbbbbbbbbbbbbbb
 bbbbbbbbbbbbbbbbbbbbbbbbbb
 bbbbbbbbbbbbbbbbbbbbbbbbbb
 bbbbbbbbbbbbbbbbbbbbbbbbbb
-ffffffffffffffffffffffffff
+77777777777777777777777777
 77777777777777777777777777
 ```
 
 Pocket, panel mode  (26x20)
 ```text
- PANEL              22:14 
+ PANEL  MORE        22:14 
                           
  MINING   stopped         
                           
@@ -661,8 +679,8 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
       🬋🬋🬀      
  0 lost        
                
-   tap: next   
-               
+     NEXT      
+     MORE      
 ```
 
 
