@@ -50,7 +50,8 @@ to wire `SO.now` to `store.clock`, plus a running server exposing that function.
 C7 measures elapsed tick-clock time, never Minecraft calendar time or nominal
 wall time multiplied by requested TPS. Mining results report real and game
 observation seconds separately. The runner restores 20 TPS after a check.
-The 7.5-minute C7 duration at 80 TPS is a target, not a measured result.
+A complete C7 window still fails if a worker loss or another failed assertion
+occurred before the end, even when the final snapshot is healthy.
 
 ## Fixtures and evidence
 
