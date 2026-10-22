@@ -72,6 +72,41 @@ local function last(t,kind)
   for i=#t.c.sent,1,-1 do local p=t.c.sent[i].payload if p.t==kind then return p end end
 end
 return function(test,equal)
+  for _, size in ipairs({{26,20,false},{29,12,true}}) do
+    test("display re-pairs after server key loss " .. size[1] .. "x" .. size[2], function()
+      local t = setup(size[1], size[2], size[3]); pair(t)
+      local old = t.c.files["so-keys"]
+      t.s.env.os.queueEvent("terminate"); t.n.flush()
+      t.s.co, t.s.inbox, t.s.timers = nil, {}, {}
+      for path in pairs(t.s.files) do
+        if path:match("^so%-keys") then t.s.files[path] = nil end
+      end
+      t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(45)
+      assert(t.face.text():find("Old key kept", 1, true), t.face.text())
+      assert(t.own.text():find("Old key kept", 1, true), t.own.text())
+      assert(t.face.text():find("Code:", 1, true), t.face.text())
+      equal(t.c.files["so-keys"], old)
+      typeText(t, "000000"); t.n.advance(15)
+      equal(t.c.files["so-keys"], old, "failed pairing replaced key")
+      assert(t.face.text():find("Code:", 1, true), t.face.text())
+      typeText(t, code(t)); t.n.advance(2)
+      assert(t.c.files["so-keys"] ~= old, "new pairing did not replace key")
+      assert(not t.face.text():find("Old key kept", 1, true), t.face.text())
+      assert(last(t, "view.sub"))
+    end)
+  end
+  test("forged display repair hint keeps valid key and authenticated frames recover", function()
+    local t = setup(26,20,false); pair(t)
+    local old = t.c.files["so-keys"]
+    event(t, "rednet_message", 77, {t="pair.required",from=77}, "so")
+    assert(not t.face.text():find("Old key kept", 1, true))
+    event(t, "rednet_message", 1, {t="pair.required",from=1}, "so")
+    assert(t.face.text():find("Old key kept", 1, true))
+    equal(t.c.files["so-keys"], old)
+    t.n.advance(5)
+    equal(t.c.files["so-keys"], old)
+    assert(not t.face.text():find("Old key kept", 1, true), t.face.text())
+  end)
   test("display wrong code then right code without reboot",function()
     local t=setup(29,12,true)
     assert(t.face.text():find("press P",1,true),t.face.text())
