@@ -21,7 +21,7 @@ def run(ctx):
     before = ctx.count_items("wood", "_log")
     ctx.lumber()
     rows = ctx.sample("C6-samples.jsonl", ctx.game_seconds(600),
-                      lambda rs: len(rs[-1]["lumber"].get("spots", {})) >= 4 and ctx.count_items("wood", "_log") > before)
+                      lambda rs: sum(bool(s.get("plantedAt")) for s in rs[-1]["lumber"].get("spots", {}).values()) >= 4 and ctx.count_items("wood", "_log") > before)
     dug = set()
     for r in rows:
         frame = r["lumber"].get("turtle", {}).get("frame")
