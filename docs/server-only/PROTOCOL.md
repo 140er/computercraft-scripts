@@ -504,7 +504,8 @@ Button id `generic` returns that display to the generic screen. Button id
 for legacy generic screens. The drops list has `new` and `status` buttons, so
 it suppresses that injection and reaches the other roles through ADD NEW.
 Generic screens at least 39 columns wide also gain a PANEL header button
-unless they already have one. This keeps panel mode reachable on monitors
+when the panel screen is loaded, unless they already have one.
+This keeps panel mode reachable on monitors
 when the drops module supplies the generic screen.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`

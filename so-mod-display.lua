@@ -173,7 +173,7 @@ D.compose = function(role, w, h, session)
     }) do
       if not found[button.id] and not (found.new and found.status) then copy[#copy + 1] = button end
     end
-    if not found.panel and w >= 39 then
+    if D.screens.panel and not found.panel and w >= 39 then
       copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
     end
     buttons = copy

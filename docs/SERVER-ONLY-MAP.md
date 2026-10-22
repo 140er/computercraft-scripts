@@ -134,7 +134,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   own `lumber` and `ar` buttons keep them. The drops list reaches those roles
   through ADD NEW and suppresses header injection; older generic screens retain
   the fallback buttons. Generic screens at least 39 columns wide gain a PANEL
-  header button when they do not already provide one.
+  header button when the panel screen is loaded and they do not already provide one.
   Render signatures and revisions are isolated by role and size. Status also
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
