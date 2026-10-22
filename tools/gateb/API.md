@@ -71,3 +71,28 @@ for a stopped test server distribution, `snapshot` for a stopped world,
 `java`, and `client_source` for an installed test client. Defaults refer to the
 existing local Gate B test distribution. The live reference config is never a
 write destination. Snapshot import refuses a world with an active session lock.
+
+The API commit was pushed before implementation. Additional driver operations:
+
+- `{"op":"frame","computer":2}` returns the latest passively observed,
+  authenticated `view.frame` body, including the original button rectangles.
+  Lua snippets on that display can read `GATEB_FRAME`. Snippets run in the role
+  environment; server snippets can access `SO`.
+- `{"op":"helpers","enabled":false}` removes all queued bridge requests and
+  suspends polling. Re-enable with `enabled:true`, then reboot the computers.
+  This does not change force loads; use `forceload remove all` separately.
+- Turtle results include `facing` from native blockstate. File reads use the
+  host filesystem and work while a computer is off or unloaded.
+
+Fixtures include ore, fuel, wood, saplings, storage_output, storage_stock, ar and
+wall. Chest entries include `side`. `mine.home` is `[x,y,z,"s"]`;
+`mine.bottom`, `length` and `starts` describe the prepared snapshot.
+`farm.area` is `[x1,z1,x2,z2]`, `ground` is the soil Y coordinate and
+`dig_cells` names the tree roots. The snapshot retains existing durable job
+state; drivers must explicitly configure and stop jobs before checks.
+
+Pocket computer 3 is in GateBTester's saved inventory. CC:Tweaked only ticks it
+when that player connects. Headless pocket terminal/input/Lua calls are
+unavailable until client login. The fixture manifest sets `requires_client:true`.
+Client screenshots alone do not prove C3 or C13 positioning or goggles behavior.
+There is no unpaired probe in an imported snapshot unless prepared explicitly.
