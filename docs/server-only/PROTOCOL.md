@@ -586,18 +586,34 @@ All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
-- `turtles` draws a box, heading arrow and name or `#id` with fuel for each
-  machine with a pose in `state.get("machines")`. A machine unseen for two
-  minutes is grey. Otherwise a lost lease is red, an open lease is cyan, and
-  an idle machine is white.
-- `leases` draws one bounding outline per `mine:<id>` or `lumber:<id>` owner
-  with reservations from `cells.list`. It includes all that owner's cells in
-  the server dimension, rather than the default 256-cell page.
-- `drops` draws a small box and `kind id` label per `drops.list()` point.
-  Broken points are red.
-- `alerts` draws up to eight state keys ending in `.alert` at the top left.
-  Retained state history orders alerts newest first, including repeated alerts.
-  Keys absent from retained history use their first observation order.
+- `turtles` draws a twelve-edge box, heading arrow and size-3 `#<id> <STATE>`
+  label for each machine with a pose. State comes from the machine registry and
+  `lease.status`, with `lease.inRange` checked when available. Two minutes
+  unseen takes precedence and uses stale. Lost or out-of-range turtles use
+  coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
+  is exempt. Working, mining, running and lumber states use green. Other open
+  leases use teal; idle turtles use white. The HUD counts registered workers,
+  excluding lost, out-of-range and stale turtles from its ok count.
+- `leases` draws one blue bounding outline per reservation owner from
+  `cells.counts().reserved` and `cells.list(owner, math.huge)`. It includes all
+  that owner's cells in the server dimension, even without a registered machine.
+  Older modules without counts retain the mine and lumber owner lookup.
+- `drops` draws a small box and uppercase `KIND id` label per point.
+  Broken points use coral; other points use white.
+- The HUD has three 40-pixel tiles for TURTLES ok, ALERTS count and DISK percent.
+  Each has a translucent backing, white text and a four-pixel state bar.
+  Turtle problems, active alerts and disk use of at least 80 percent use coral;
+  healthy tiles use green. Unknown disk use is stale.
+- `alerts` shows the newest active `.alert` value in a coral banner for five
+  seconds after observation. Retained history detects repeated identical
+  alerts; without history a changed serialized value renews the banner.
+  Expiry deletes the banner while the HUD keeps the active alert-key count.
+  The switch hides the banner without hiding the HUD count. Controllers without
+  `drawRect2D` retain a text-only alert instead of the timed banner.
+
+World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
+`FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`, stale
+`FF4A5468` and white `FFF2F4F8`. HUD backing is `C00E1626`.
 
 Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
 map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
