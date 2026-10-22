@@ -472,9 +472,10 @@ Drop points (generic)  (57x24)
                                                          
                                                          
                                                          
-                                                         
+   MINING         LUMBER          SHOP           AR      
                                                          
 ```
+The navigation row was added on Jeffrey's request.
 
 Alert takeover (5 s), coral background, ink text  (57x24)
 ```text

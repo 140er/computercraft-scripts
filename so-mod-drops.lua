@@ -312,7 +312,7 @@ end
 
 S.listSize = function(count, w, h)
   local compact = w < 39 or h < 16
-  local actionY = compact and h-2 or math.min(math.max(11, count+6), h-3)
+  local actionY = compact and h-3 or math.min(math.max(11, count+6), h-6)
   local capacity = math.max(1, actionY-5)
   return { compact = compact, actionY = actionY, capacity = capacity,
     pages = math.max(1, math.ceil(count/capacity)) }
@@ -332,11 +332,6 @@ S.layout = function(model, w, h)
       C.put(1, y, field .. " " .. tostring(d[field]))
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
-    end
-    local nav = {'mining','lumber','shop','ar'}
-    for i,id in ipairs(nav) do
-      local col = cols[(i-1)%2+1]
-      C.button(col.x, 2+math.floor((i-1)/2), col.w, id:upper(), id, '7', 1)
     end
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
@@ -368,6 +363,13 @@ S.layout = function(model, w, h)
   for i,b in ipairs(actions) do
     local col = cols[(i-1)%#cols+1]
     C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
+  end
+  local nav = {'mining', 'lumber', 'shop', 'ar'}
+  local navCols = U.grid(w, h, 4)
+  if w == 57 then navCols = {{x=1,w=13},{x=15,w=14},{x=30,w=14},{x=45,w=13}} end
+  for i, id in ipairs(nav) do
+    local col = navCols[i]
+    C.button(col.x, h-navHeight+1, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
   end
   return C.frame()
 end

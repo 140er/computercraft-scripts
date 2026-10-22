@@ -610,7 +610,12 @@ and state, with green or coral state stripes. A row tap selects the point for
 FIX and REMOVE. The default is the first broken point, or the first point if
 none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
 existing draft editor with kind, side, dimension and coordinate controls.
-That page also offers MINING, LUMBER, SHOP and AR navigation. Its BACK returns
+The list offers MINING, LUMBER, SHOP and AR on its bottom row. SHOP uses purple;
+the other buttons use slate. At 57x24 they occupy rows 22 through 24 with
+widths 13, 14, 14 and 13 and one-column gaps. Other sizes use the grid rule,
+with one-row navigation in compact layouts. The editor keeps ADD and BACK.
+The display module still injects its legacy LUMBER and AR header buttons
+into the editor. Its BACK returns
 to the list. The list's BACK returns to status. Gather copies module state
 before the private pure layout builds the requested display size.
 
