@@ -13,7 +13,7 @@ local function tree(machine)
     machine.files[path] = file:read("*a") file:close()
   end
 end
-local function miners(test, equal, bottom)
+local function miners(equal, bottom)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(FILES) tree(server)
@@ -32,7 +32,16 @@ local function miners(test, equal, bottom)
   local transmit = lease.send
   lease.send = function(id, steps, opts)
     local at = workers[id] and workers[id].pos
-    if at and #steps > 1 and steps[1].op == "down" and #steps < 16 then clipped = clipped + 1 end
+    local descending = at and #steps < math.min(16, at.y - bottom)
+    for _, step in ipairs(steps) do descending = descending and step.op == "down" end
+    if descending then
+      clipped = clipped + 1
+      local row = server.env.SO.store.read("so-data/mine/job").value.turtles[tostring(id)]
+      assert(row.lane and #row.lane.cells > #steps, "cut descent lost its full lane pass")
+      for _, cell in ipairs(row.lane.cells) do
+        equal(cells.owner(cell.x, cell.y, cell.z, cell.dim), "mine:" .. id)
+      end
+    end
     if opts.owner == "mine" and at then
       local pose = { dim = DIM, x = at.x, y = at.y, z = at.z, facing = workers[id].heading }
       for _, step in ipairs(steps) do
@@ -94,8 +103,8 @@ local function miners(test, equal, bottom)
 end
 
 return function(test, equal)
-  test("range-batch Gate B C5 two miners reach their branches", function() miners(test, equal, 48) end)
-  test("range-batch two miners extend range down a deep known shaft", function() miners(test, equal, 16) end)
+  test("range-batch Gate B C5 two miners reach their branches", function() miners(equal, 48) end)
+  test("range-batch two miners extend range down a deep known shaft", function() miners(equal, 16) end)
 
   test("range-batch supply travel extends proof in both directions", function()
     local job = { dim = DIM, home = { x = 0, y = 64, z = 0, facing = 0 }, bottom = 16,
@@ -122,6 +131,39 @@ return function(test, equal)
       assert(M.same(row.pose, row.goal), "supply trip did not reach " .. stage)
     end
     assert(cuts > 0, "supply trip never cut a batch")
+  end)
+
+  test("range-batch lumber supply crosses the initial radius and returns", function()
+    local fixture = dofile("tests/so/lumber-fixture.lua")()
+    local job, radius = fixture.job, 16
+    local function distance(p) return math.sqrt(p.x * p.x + (p.y - 2) ^ 2 + p.z * p.z) end
+    fixture.mods.lease.inRange = function(_, p) return distance(p) <= radius + 8 end
+    fixture.mods.cells.reserveMany = function(_, cells)
+      assert(P.inRange(fixture.mods.lease, 2, cells), "lumber reserved an unsafe work cell")
+      return true
+    end
+    job.service = { kind = "wood", stage = "travel", resume = "waiting",
+      point = { x = 60, y = 1, z = 0, side = "down" },
+      back = { dim = DIM, x = 0, y = 2, z = 0, facing = 1 } }
+    local arrived = false
+    for tick = 1, 800 do
+      fixture.tick(tick)
+      local queued = fixture.queued()
+      if queued then
+        local results = {}
+        for i, step in ipairs(queued.steps) do
+          results[i] = { ok = not step.op:match("^inspect") }
+        end
+        fixture.report(false, results)
+        radius = math.max(radius, distance(job.turtle.pose))
+      end
+      assert(job.blocked == nil, tostring(job.alert))
+      arrived = arrived or job.turtle.pose.x == 60
+      if not job.service then break end
+    end
+    assert(arrived and not job.service, "lumber supply trip did not complete")
+    equal(job.turtle.pose.x, 0)
+    assert(radius >= 60, "lumber reports did not extend the range")
   end)
 
   test("range-batch keeps atomic actions and stops at the first unsafe action", function()

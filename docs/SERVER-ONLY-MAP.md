@@ -45,7 +45,10 @@ and listeners use `listener(sender, message)`.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
   `replay(startPose, steps, results)`, `path(from, to, opts)`, `chunk(steps, n)`,
-  `inRange(lease, id, cells)`, `fuelValue(name)` and `free(inv)`.
+  `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)` and `free(inv)`.
+  `rangeBatch` returns the longest prefix within range of complete `action.actions`,
+  rebuilding its steps, cells and final pose. It returns the original action when
+  all cells fit, or nil when no complete action fits. Atomic actions stay whole.
   `park` is a ten-minute `inspectDown` lease template. Renew it with less than
   one minute remaining. Paths assume success; callers reserve cells and split
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
@@ -127,6 +130,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
+  Range starts at 16 and only grows with known world poses or successful reports.
+  Work may extend eight blocks beyond that proof.
   Reports release lease-owned cells; silence leaves reservations in place.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
@@ -261,6 +266,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   cells. Failed targets are skipped until movement. Ore unloads exclude junk.
   A lane pass reserves its full route through the shaft and spine plus its exit in one
   call. Intermediate batches retain the reservation until the worker leaves.
+  Mining and supply batches stop at the furthest complete action within proven
+  range plus eight blocks. Only the sent prefix enters `inflight`; the next
+  report extends the proof before the remaining route is planned.
   Saved rows include `lane = { cells, entered, target?, release? }` while holding the lane
   and `laneWait = { at, passes }` while queued. Exit cleanup runs from tick;
   rapid report bursts defer further planning to tick. Oldest waiters go first, then

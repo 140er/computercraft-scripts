@@ -371,7 +371,7 @@ step is `inspectDown`. It returns true when cancelled or already closed, otherwi
 false and `"turtle has open lease"`. Cancellation releases reservations owned by
 the lease and ignores later reports without calling the planner callback.
 
-`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
+`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. Range starts at 16 blocks. Known poses and successful batch reports can only increase it, including the first observation.
 
 The server position comes from the plain `so-server.cfg` table `{ pos = { dim, x, y, z } }`, read through `so-store`. Without it, the module tries `gps.locate(2)`. Without either position, every range check returns true and the module logs that once at load.
 
@@ -949,6 +949,16 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 `P.path(from, to, opts)` returns `{ steps, cells, pose }`. It turns and moves to the target cell in axis order `opts.order`, default `"yxz"`. An order must contain x, y, and z once each. With `opts.dig = true`, each move follows `dig`, `digUp`, or `digDown` as appropriate. `cells` lists every entered cell with its dimension. `pose` is the final pose. The path assumes success and does not avoid obstacles or reserve cells. Callers split steps into batches of at most 16. `P.chunk(steps, n)` returns the first n steps and the remainder as two arrays.
 
 `P.inRange(lease, id, cells)` calls `lease.inRange(id, cell)` for every cell and returns false if any check fails. It returns true if the lease module or its range function is missing.
+
+`P.rangeBatch(lease, id, action)` returns the action unchanged when all its cells
+pass `P.inRange`. Otherwise it returns the longest prefix of complete entries in
+`action.actions` whose cells pass, or nil if no action fits. The returned batch
+contains only that prefix's `steps`, `cells`, `actions` and final `pose`. Atomic
+actions without `actions` are accepted whole or refused. Mining applies this
+before reserving and saving a lease, including supply travel. A shortened batch
+keeps the full shaft and spine lane pass reserved until the worker exits it.
+Intermediate reports extend the range before planning the remaining travel.
+Lumber uses the same check with atomic actions and moves one cell per travel lease.
 
 `P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. A single `inspectDown` step marks a stationary park lease in the worker journal.
 If it expires, the worker stays put and beacons every 30 seconds. An expired

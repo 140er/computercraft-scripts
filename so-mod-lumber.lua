@@ -132,7 +132,7 @@ S.send = function(steps, action, cells, recover, ms)
       cells[#cells + 1] = { dim = j.dim, x = at.x, y = at.y, z = at.z }
     end
   end
-  if not recover and not P.inRange(lease, j.turtle.id, cells) then
+  if not recover and not P.rangeBatch(lease, j.turtle.id, { steps = steps, cells = cells }) then
     j.blocked = "out of range"
     S.idlePark, S.parkAt = nil, nil
     S.alert("out of range")

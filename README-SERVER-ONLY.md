@@ -6,6 +6,13 @@ from the server. Displays show frames from the server and send input back.
 The `main` branch has separate bots such as miner, hub and roomsorter.
 This installer offers only server, worker and display roles.
 
+Each turtle starts with a proven radio range of 16 blocks from the server.
+Nearby reports never reduce it. Known world poses and successful batch reports
+can extend it. Work stays within that range plus eight blocks. Mining and supply
+travel shorten long batches at that boundary, then use the next report to extend
+the range and continue. Shaft and spine reservations stay held across those
+batches. Lumber travel advances one cell per lease.
+
 ## Requirements
 
 Install CC:Tweaked 1.120.2. Advanced Peripherals and cc_ar are optional.

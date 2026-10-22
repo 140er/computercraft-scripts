@@ -67,7 +67,7 @@ end
 S.observe = function(row, pose)
   local distance = S.distance(pose)
   if distance then
-    if not row.posed or distance > row.range then row.range = distance end
+    if distance > row.range then row.range = distance end
     row.posed = true
   end
 end

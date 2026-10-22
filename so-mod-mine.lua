@@ -354,7 +354,8 @@ local function report(_, id, results, lease)
 end
 local function send(id, row, action)
   if #action.steps == 0 then return false end
-  if not P.inRange(mod("lease"), id, action.cells or {}) then row.state, row.error = "range", "outside proven radio range" return false end
+  action = P.rangeBatch(mod("lease"), id, action)
+  if not action then row.state, row.error = "range", "outside proven radio range" return false end
   local ok, err = reserveBatch(id,row,action)
   if not ok then
     row.state, row.error = row.laneWait and "wait lane" or "waiting", err or "cells unavailable"
