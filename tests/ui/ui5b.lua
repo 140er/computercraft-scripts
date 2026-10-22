@@ -20,7 +20,7 @@ return function(test, equal)
     e.SO.mods.display = display
     local drops = e.dofile('so-mod-drops.lua'); drops.tick()
     local calls = {}
-    for _, role in ipairs({'mining','lumber','shop','ar'}) do
+    for _, role in ipairs({'mining','lumber','shop','ar','panel'}) do
       display.screen(role, function() return {rows={},buttons={}} end,
         function() calls[role] = (calls[role] or 0)+1 end)
     end
@@ -34,12 +34,13 @@ return function(test, equal)
     end
     display.handlers.hello({from=2,body={w=57,h=24}})
     display.handlers.hello({from=3,body={w=57,h=24}})
-    for i, role in ipairs({'mining','lumber','shop','ar'}) do
+    for i, role in ipairs({'mining','lumber','shop','ar','panel'}) do
       tap(2,'generic')
       local found = {}
       for _, b in ipairs(frame(2).buttons) do found[b.id]=b end
+      for _, button in ipairs(frame(2).buttons) do assert(button.y > 1, 'header injection') end
       local b = assert(found[role],role)
-      equal({b.x,b.y,b.w,b.h},({{1,22,13,3},{15,22,14,3},{30,22,14,3},{45,22,13,3}})[i])
+      equal({b.x,b.y,b.w,b.h},({{1,22,11,3},{13,22,11,3},{25,22,11,3},{37,22,10,3},{48,22,10,3}})[i])
       local before = saves
       tap(2,role)
       equal(frame(2).role,role)
@@ -54,6 +55,6 @@ return function(test, equal)
     local found = {}
     for _, b in ipairs(render(57,24).buttons) do found[b.id]=true end
     assert(found.add and found.list)
-    for _, role in ipairs({'mining','lumber','shop','ar'}) do assert(not found[role],role) end
+    for _, role in ipairs({'mining','lumber','shop','ar','panel'}) do assert(not found[role],role) end
   end)
 end

@@ -182,7 +182,7 @@ c.fill(0, 2, 57, 1, "7"); c.text(1, 2, "ID  KIND     WHERE          SIDE   STATE
 rows = [("1  ore      10,64,-2       front  ok","d"),("2  fuel     12,64,-2       front  ok","d"),("3  wood     -4,64,10       front  ok","d"),("4  saplings -6,64,10       front  ok","d"),("5  any       0,64,4        down   broken","e")]
 for i, (t, bg) in enumerate(rows): c.fill(0, 3+i, 1, 1, bg); c.text(1, 3+i, t)
 c.button(0, 10, 13, "FIX #5", "9"); c.button(14, 10, 13, "REMOVE"); c.button(28, 10, 14, "ADD NEW"); c.button(43, 10, 14, "BACK")
-c.button(0, 21, 13, "MINING"); c.button(14, 21, 14, "LUMBER"); c.button(29, 21, 14, "SHOP", "a"); c.button(44, 21, 13, "AR")
+c.button(0, 21, 11, "MINING"); c.button(12, 21, 11, "LUMBER"); c.button(24, 21, 11, "SHOP", "a"); c.button(36, 21, 10, "AR"); c.button(47, 21, 10, "PANEL")
 add(c, "Drop points (generic)")
 M[-1] += "\nThe navigation row was added on Jeffrey's request."
 

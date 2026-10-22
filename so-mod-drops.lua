@@ -364,9 +364,9 @@ S.layout = function(model, w, h)
     local col = cols[(i-1)%#cols+1]
     C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
   end
-  local nav = {'mining', 'lumber', 'shop', 'ar'}
-  local navCols = U.grid(w, h, 4)
-  if w == 57 then navCols = {{x=1,w=13},{x=15,w=14},{x=30,w=14},{x=45,w=13}} end
+  local nav = {'mining', 'lumber', 'shop', 'ar', 'panel'}
+  local navCols = U.grid(w, h, #nav)
+  if w == 57 then navCols = {{x=1,w=11},{x=13,w=11},{x=25,w=11},{x=37,w=10},{x=48,w=10}} end
   for i, id in ipairs(nav) do
     local col = navCols[i]
     C.button(col.x, h-navHeight+1, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
@@ -387,7 +387,7 @@ end
 
 S.input = function(ev)
   if type(ev) ~= "table" or type(ev.id) ~= "string" then return end
-  if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" then
+  if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" or ev.id == "panel" then
     S.editing = false return
   end
   if ev.id == "new" then S.editing = true return end

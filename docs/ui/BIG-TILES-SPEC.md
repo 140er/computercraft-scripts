@@ -472,7 +472,7 @@ Drop points (generic)  (57x24)
                                                          
                                                          
                                                          
-   MINING         LUMBER          SHOP           AR      
+  MINING      LUMBER       SHOP         AR       PANEL   
                                                          
 ```
 The navigation row was added on Jeffrey's request.
