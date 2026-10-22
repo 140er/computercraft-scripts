@@ -1,7 +1,7 @@
 # Gate B driver
 
-Run from the repository root with Python 3. The runtime from `codex/gateb-runtime`
-provides `tools/gateb/world.py` and its API v1. Until it lands, pass
+Run from the repository root with Python 3. The merged runtime provides
+`tools/gateb/world.py` and its API v1. An alternate checkout can be selected with
 `--runtime-dir /path/to/runtime-checkout/tools/gateb`. No third-party Python
 package is required. Pixel comparisons use ImageMagick.
 
@@ -47,7 +47,8 @@ Only C5, C6, C7 and C8 use the requested tick rate. C9, C10, C11 and C14 stay at
 20 TPS, as do the remaining checks. Speed changes require the requested commit
 to wire `SO.now` to `store.clock`, plus a running server exposing that function.
 C7 measures elapsed tick-clock time, never Minecraft calendar time or nominal
-wall time multiplied by requested TPS. The runner restores 20 TPS after a check.
+wall time multiplied by requested TPS. Mining results report real and game
+observation seconds separately. The runner restores 20 TPS after a check.
 The 7.5-minute C7 duration at 80 TPS is a target, not a measured result.
 
 ## Fixtures and evidence

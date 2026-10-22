@@ -155,6 +155,12 @@ class CriterionTests(unittest.TestCase):
         rows[-1]["epoch"] = 132
         self.assertEqual(load("C5").evaluate(analyze(rows,[4,5])).status, "fail")
 
+    def test_mining_reports_actual_clock_and_real_observation_time(self):
+        rows = [{"epoch": 100, "game_ms": 1000}, {"epoch": 110, "game_ms": 37000}]
+        stats = analyze(rows, (4, 5), 80)
+        self.assertEqual(stats["observed_wall_seconds"], 10)
+        self.assertEqual(stats["observed_game_seconds"], 36)
+
     def test_outage_requires_actual_motion(self):
         data = copy.deepcopy(PASS["C10"]); data["movement_recovery_seconds"] = {"4":1,"5":1}
         self.assertEqual(load("C10").evaluate(data).status, "fail")

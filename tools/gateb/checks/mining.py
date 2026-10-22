@@ -29,7 +29,11 @@ def analyze(rows, miners, tick_rate=20):
         if left is not None and granted is None and b.get("lane"):
             granted = row["epoch"]
             granted_clock = row.get("game_ms", row["epoch"] * 1000 * tick_rate / 20)
-    return {"range_samples": len(ranges), "collisions": len(collisions), "errors": sorted(set(errors)),
+    elapsed = max(0, rows[-1]["epoch"] - rows[0]["epoch"]) if rows else 0
+    game_elapsed = ((rows[-1]["game_ms"] - rows[0]["game_ms"]) / 1000
+                    if rows and all("game_ms" in r for r in (rows[0], rows[-1])) else elapsed * tick_rate / 20)
+    return {"observed_wall_seconds": round(elapsed, 3), "observed_game_seconds": round(game_elapsed, 3),
+            "range_samples": len(ranges), "collisions": len(collisions), "errors": sorted(set(errors)),
             "completed_miners": sorted(branches), "lane_left_epoch": left, "lane_granted_epoch": granted,
             "handoff_game_seconds": None if granted is None else max(0, granted_clock-left_clock) / 1000}
 

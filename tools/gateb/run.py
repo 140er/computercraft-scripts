@@ -95,6 +95,8 @@ def write_report(report, output):
     for r in report["checks"]:
         findings = "; ".join(r["findings"]) or load(r["check"]).TITLE
         findings = findings.replace("|", "\\|").replace("\n", " ")
+        if "observed_game_seconds" in r["metrics"]:
+            findings += f"; sampled {r['metrics']['observed_wall_seconds']:.2f} real seconds / {r['metrics']['observed_game_seconds']:.2f} game seconds"
         target = f"{r['check']}/{r['check']}-result.json"
         lines.append(f"| {r['check']} | {r['status'].title()} | {r['wall_seconds']:.2f}s at {r['tick_rate']:g} TPS. {findings}. [Evidence]({target}) |")
     if report["unselected"]:
