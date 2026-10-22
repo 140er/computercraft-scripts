@@ -584,6 +584,8 @@ D.localTick = function(now)
           event.id="dismiss"
         elseif drawn == "status" and event.id == "next" then
           m.session.page=(m.session.page or 0)+1
+        elseif drawn == "status" and event.id == "prev" then
+          m.session.page=(m.session.page or 0)-1
         elseif drawn == "status" and event.id == "alerts" then
           m.session.takeover=D.model.alerts[#D.model.alerts]
           m.session.showAlerts=m.session.takeover ~= nil
@@ -593,6 +595,7 @@ D.localTick = function(now)
         end
         local screen=D.screens[drawn]
         event.role=drawn
+        event.session=m.session
         if screen then screen.input(event) end
       end
       m.frame = D.compose(m.role,w,h,m.session)

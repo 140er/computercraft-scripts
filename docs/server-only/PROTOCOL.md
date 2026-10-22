@@ -456,7 +456,8 @@ returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`,
 and clips the picture to the `hello` size. `input` accepts
 `{ id, x, y, role, session }` and optional `text`. The session is the same table
 passed to render; it is never sent on the wire. `role` is the screen that was
-showing. Existing callbacks can ignore the added session argument and field.
+showing. Local monitor input receives its own session through the same field.
+Existing callbacks can ignore the added session argument and field.
 
 Frame signatures and revisions are kept per role and size. Status additionally
 keeps revisions, tile paging and alert state per display session. Panel revisions

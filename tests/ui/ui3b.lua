@@ -248,6 +248,23 @@ return function(test,equal)
     end)
     for _,button in ipairs(s.frame(2,57,24).buttons) do assert(button.y>1) end
   end)
+  test('UI3b server local monitor panel forwards controls once',function()
+    local s=setup();local target=R.capture(57,24)
+    target.setTextScale=function() end
+    s.env.peripheral={find=function() return target end,getName=function() return 'left' end}
+    s.display.tick(0)
+    local d=private(s.display.handlers.hello,'D')
+    local function touch(id)
+      local button
+      for _,b in ipairs(d.monitor.frame.buttons) do if b.id==id then button=b end end
+      assert(button,'missing local button '..id)
+      s.display.monitorTouch('left',button.x,button.y);s.display.tick(0)
+    end
+    touch('generic');touch('panel');equal(d.monitor.role,'panel')
+    local n=#s.calls;touch('mining:start');equal(#s.calls,n+1);equal(s.calls[#s.calls],{'mining','start'})
+    touch('lumber:stop');equal(#s.calls,n+2);equal(s.calls[#s.calls],{'lumber','stop'})
+    touch('pair');touch('panel-back');touch('status');equal(d.monitor.role,'status')
+  end)
   test('UI3b panel installs only on the server',function()
     local f=assert(io.open('install.lua'));local source=f:read('*a');f:close()
     local roles=assert(load('return '..source:match('local ROLES = (.-)\nlocal BASE'),'roles','t',{}))()
