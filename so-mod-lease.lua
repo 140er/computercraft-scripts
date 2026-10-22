@@ -44,7 +44,7 @@ S.journalSeen = function(row, pose, journal)
   if type(journal) == "string" and journal ~= row.journal and not p then
     row.pose, row.poseAt = nil, nil
   end
-  if p then row.pose, row.poseAt = p, os.epoch("utc") end
+  if p then row.pose, row.poseAt = p, SO.now() end
   if type(journal) == "string" then row.journal = journal end
 end
 
@@ -95,7 +95,7 @@ S.anchorSend = function(id, row)
   local wire = SO.proto.encode(SO.proto.build(key, "worker.anchor", row.anchor.body))
   if not wire then return false, "anchor" end
   local ok, sent = pcall(rednet.send, id, wire, "so")
-  row.anchor.after = os.epoch("utc") + 1000
+  row.anchor.after = SO.now() + 1000
   return ok and sent ~= false
 end
 
@@ -146,14 +146,15 @@ S.send = function(id, steps, opts)
   end
   S.seq = S.seq + 1
   local lease = {
-    id = tostring(id) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
-    owner = opts.owner, pose = S.copyPose(opts.pose), expires = os.epoch("utc") + ms, status = "open",
+    id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
+    owner = opts.owner, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
   if opts.recover and #steps == 1 and steps[1].op == "inspectDown" then
-    lease.retryAt = os.epoch("utc") + 1000
+    lease.retryAt = SO.now() + 1000
   end
   local wire, err = SO.proto.encode(SO.proto.build(key, "lease.batch", {
-    lease = lease.id, expires = lease.expires, steps = lease.steps,
+    lease = lease.id, ttl = math.max(0, lease.expires - SO.now()),
+    expires = os.epoch("utc") + math.max(0, lease.expires - SO.now()), steps = lease.steps,
   }))
   if not wire then return nil, err end
   row.open = lease
@@ -209,7 +210,7 @@ S.report = function(msg)
   end
   if count ~= #lease.steps then return end
   row.open = nil
-  row.seen = os.epoch("utc")
+  row.seen = SO.now()
   row.lost = false
   lease.report = S.facts(body)
   row.uncertain = lease.report.uncertain
@@ -230,7 +231,7 @@ end
 S.beacon = function(msg)
   local row = S.row(msg.from)
   row.lost = true
-  row.seen = os.epoch("utc")
+  row.seen = SO.now()
   row.uncertain = msg.body.uncertain == true or nil
   if row.uncertain then row.pose, row.poseAt = nil, nil row.journal = msg.body.journal
   else S.journalSeen(row, msg.body.pose, msg.body.journal) end
@@ -240,7 +241,7 @@ end
 S.hello = function(msg)
   local row = S.row(msg.from)
   row.lost = false
-  row.seen = os.epoch("utc")
+  row.seen = SO.now()
   local journal = msg.body.journal
   if type(journal) == "table" then
     row.uncertain = journal.uncertain == true or nil
@@ -256,7 +257,7 @@ S.hello = function(msg)
 end
 
 S.tick = function(now)
-  now = now or os.epoch("utc")
+  now = now or SO.now()
   local count = 0
   for id, row in pairs(S.turtles) do
     if row.anchor and now >= row.anchor.after then S.anchorSend(id, row) end
@@ -270,7 +271,8 @@ S.tick = function(now)
       local key = SO.pair.key(lease.turtleId)
       if key then
         local wire = SO.proto.encode(SO.proto.build(key, "lease.batch", {
-          lease = lease.id, expires = lease.expires, steps = lease.steps,
+          lease = lease.id, ttl = math.max(0, lease.expires - now),
+          expires = os.epoch("utc") + math.max(0, lease.expires - now), steps = lease.steps,
         }))
         if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
       end

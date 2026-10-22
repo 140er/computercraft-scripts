@@ -51,7 +51,7 @@ local function setup(monitor, padded)
     saplings={x=-1,y=64,z=2}}
   local store=m.env.dofile("so-store.lua")
   m.files["so-server.cfg"]=H.encode({pos={dim="minecraft:overworld",x=0,y=64,z=2}})
-  m.env.SO={store=store,proto=m.env.dofile("so-proto.lua"),pair={key=function() return "key" end},mods={
+  m.env.SO={ now = function() return m.env.os.epoch("utc") end,store=store,proto=m.env.dofile("so-proto.lua"),pair={key=function() return "key" end},mods={
     mine={mapView=function() return mine end},lumber={mapView=function() return scene.lumber end},
     state={get=function() return scene.machines end},
     cells={isDug=function(x,y,z)

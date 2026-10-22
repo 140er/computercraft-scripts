@@ -54,7 +54,7 @@ local function boot(files)
     end
     return handle
   end
-  env.SO = { store = store, mods = {}, breathe = breathe }
+  env.SO = { now = function() return env.os.epoch("utc") end, store = store, mods = {}, breathe = breathe }
   local cells = env.dofile("so-mod-cells.lua")
   env.SO.mods.cells = cells
   return cells, machine, net, probe

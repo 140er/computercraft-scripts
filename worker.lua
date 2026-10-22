@@ -22,6 +22,7 @@ local C = {
 }
 
 local W = {}
+W.now = function() return math.floor(os.clock() * 1000 + 0.5) end
 
 W.proto = dofile("so-proto.lua")
 W.pair = dofile("so-pair.lua")
@@ -273,7 +274,7 @@ W.transmit = function(id, msg)
 end
 
 W.paint = function()
-  local age = W.seen and math.max(0, math.floor((os.epoch("utc") - W.seen) / 1000))
+  local age = W.seen and math.max(0, math.floor((W.now() - W.seen) / 1000))
   local seen = age and (age < 60 and age .. "s ago" or math.floor(age / 60) .. "m ago") or "-"
   term.clear()
   term.setCursorPos(1, 1)
@@ -339,9 +340,20 @@ W.accept = function(sender, payload)
   if not key or not W.proto.macOk(key, msg) then return end
   if not W.proto.fresh(msg) then return end
   W.repair, W.codeText, W.pairError = nil, nil, nil
-  W.seen = os.epoch("utc")
+  W.seen = W.now()
   if msg.t == "worker.anchor" then W.reanchor(msg.body)
-  elseif msg.t == "lease.batch" then W.queued = msg end
+  elseif msg.t == "lease.batch" then
+    local body = msg.body
+    if type(body) ~= "table" then return end
+    local ttl = body.ttl
+    if ttl == nil and type(body.expires) == "number" then ttl = math.max(0, body.expires - os.epoch("utc")) end
+    if type(ttl) ~= "number" or ttl ~= ttl or ttl < 0 or ttl == math.huge then return end
+    msg.deadline = W.now() + ttl
+    if W.queued and W.queued.body.lease == body.lease then
+      msg.deadline = math.min(msg.deadline, W.queued.deadline)
+    end
+    W.queued = msg
+  end
 end
 
 W.breathe = function(seconds)
@@ -479,11 +491,12 @@ W.startBatch = function(msg)
   end
   W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
   W.mode = "idle"
-  W.lease = body.lease
-  W.expires = body.expires
+  local deadline = msg.deadline
+  if W.lease == body.lease and W.expires then deadline = math.min(deadline, W.expires) end
+  W.lease, W.expires = body.lease, deadline
   local results = {}
   for i = 1, n do
-    if os.epoch("utc") >= W.expires then
+    if W.now() >= W.expires then
       W.refuse(results, i, n)
       break
     end
@@ -494,7 +507,7 @@ W.startBatch = function(msg)
     W.paint()
     W.markPending(op)
     W.breathe(C.pause)
-    if os.epoch("utc") >= W.expires then
+    if W.now() >= W.expires then
       W.refuse(results, i, n)
       break
     end
@@ -509,7 +522,7 @@ W.startBatch = function(msg)
     W.paint()
     return
   end
-  if W.expires and os.epoch("utc") >= W.expires then
+  if W.expires and W.now() >= W.expires then
     W.enterFast()
   else
     W.mode = "idle"
@@ -524,7 +537,7 @@ W.enterFast = function()
     W.beacon()
     return
   end
-  local now = os.epoch("utc")
+  local now = W.now()
   W.mode = "fast"
   W.stepName = "beacon"
   W.fastStart = now
@@ -538,7 +551,7 @@ end
 W.enterSlow = function()
   W.mode = "slow"
   W.stepName = W.journal.uncertain and "pose uncertain" or "slow"
-  W.nextPing = os.epoch("utc") + C.slowGap
+  W.nextPing = W.now() + C.slowGap
   W.paint()
 end
 
@@ -589,7 +602,7 @@ W.backOne = function()
 end
 
 W.arm = function()
-  local now = os.epoch("utc")
+  local now = W.now()
   local pause = C.pause
   if W.mode == "back" then return pause end
   if W.mode == "fast" then
@@ -619,7 +632,7 @@ W.arm = function()
 end
 
 W.onWake = function()
-  local now = os.epoch("utc")
+  local now = W.now()
   if W.mode == "idle" then
     if not W.seen or now - W.seen >= 30000 then W.hello() end
     if W.expires and now >= W.expires then W.enterFast() end
@@ -708,7 +721,7 @@ W.boot = function()
   end
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
-  W.pair.open(W.proto, store)
+  W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
   W.resolvePending()

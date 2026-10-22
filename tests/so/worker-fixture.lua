@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 local F = {}
-F.setup = function(opts, modules)
-  local n = H.new()
+F.setup = function(opts, modules, rate)
+  local n = H.new({tickRate=rate})
   local s = n.machine({ id = 1, modem = true })
   local t = n.machine(opts or { id = 2, modem = true, turtle = true, capacity = 1000000 })
   for _, m in ipairs({s, t}) do

@@ -6,7 +6,7 @@ local function boot()
   m.install({"so-store.lua","so-mod-state.lua","so-mod-display.lua","so-mod-ar.lua","so-ui.lua"})
   m.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=64,z=0}})
   local e, b = m.env, {points={},status={}}
-  e.SO = {store=e.dofile("so-store.lua"),proto={ser=H.encode},mods={}}
+  e.SO = { now = function() return e.os.epoch("utc") end,store=e.dofile("so-store.lua"),proto={ser=H.encode},mods={}}
   local mods = e.SO.mods
   mods.state = e.dofile("so-mod-state.lua")
   mods.lease = {status=function(id) return b.status[id] or {} end,inRange=function() return true end}

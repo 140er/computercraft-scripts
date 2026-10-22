@@ -63,9 +63,9 @@ local function reservePose(id, row)
 end
 local function park(id, row, recover)
   if recover or row.state ~= "wait lane" then row.laneWait = nil end
-  if not recover and row.parkUntil and os.epoch("utc") < row.parkUntil - 60000 then return end
+  if not recover and row.parkUntil and SO.now() < row.parkUntil - 60000 then return end
   local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose })
-  if lid then S.pending[id] = { kind = recover and "recover" or "park" } row.parkUntil = os.epoch("utc") + P.park.ms
+  if lid then S.pending[id] = { kind = recover and "recover" or "park" } row.parkUntil = SO.now() + P.park.ms
   else row.error = err end
 end
 local function scan(row, vein)
@@ -83,7 +83,7 @@ local function dropFailure(id, row, kind, point)
     end
     row.laneWait = nil
     row.state, row.error = "hold", kind == "ore" and "ore chest full" or "fuel chest empty"
-    retry.after = os.epoch("utc") + 60000
+    retry.after = SO.now() + 60000
   end
 end
 local function homeRoute(row)
@@ -190,7 +190,7 @@ local function reserveBatch(id,row,action)
   local leaving=row.yield and row.yield.stage=="out"
   local pass=needs and (row.yield and (leaving and row.yield.path or row.yield.pass) or M.lanePass(job,row)) or {}
   if needs and not row.lane then
-    row.laneWait=row.laneWait or {at=os.epoch("utc"),passes=0}
+    row.laneWait=row.laneWait or {at=SO.now(),passes=0}
     local first=id
     for other,peer in pairs(job.turtles) do
       local parked=peer.yield and peer.yield.stage=="wait"
@@ -233,7 +233,7 @@ local function releaseLane(id,row)
   call("cells","releaseOwner",owner(id))
   row.lane,row.laneWait=nil,nil
   reservePose(id,row)
-  S.handoffAt=os.epoch("utc")
+  S.handoffAt=SO.now()
 end
 local function yieldPath(id,row,returnMoves)
   local queue,head,seen,parents={row.pose},1,{[M.key(row.pose)]=true},{}
@@ -264,7 +264,7 @@ local function beginYield(id,row)
   local path=yieldPath(id,row) or {row.pose}
   row.yield={path=path,cursor=2,stage="out",state=row.state,error=row.error,
     action=row.blockedAction,pass=SO.store.copy(row.lane and row.lane.cells or M.lanePass(job,row)),
-    after=row.dropRetry and (row.dropRetry.after or 0) or os.epoch("utc")+60000}
+    after=row.dropRetry and (row.dropRetry.after or 0) or SO.now()+60000}
   for _,cell in ipairs(path) do row.yield.pass[#row.yield.pass+1]=cell end
 end
 local function rerouteYield(id,row,action)
@@ -277,7 +277,7 @@ local function rerouteYield(id,row,action)
   end
   local path=#(action.cells or {})>0 and yieldPath(id,row,#prefix-1)
   y.path,y.cursor=prefix,#prefix+1
-  if y.stage=="back" then y.retryAfter=os.epoch("utc")+60000 end
+  if y.stage=="back" then y.retryAfter=SO.now()+60000 end
   y.stage="out"
   for i=2,#(path or {}) do
     y.path[#y.path+1]=path[i] y.pass[#y.pass+1]=path[i]
@@ -401,9 +401,9 @@ local function report(_, id, results, lease)
     end
   end
   releaseBatch(id,row)
-  if not M.same(old, row.pose) then row.lastMove = os.epoch("utc") end
+  if not M.same(old, row.pose) then row.lastMove = SO.now() end
   save()
-  local now=os.epoch("utc")
+  local now=SO.now()
   if not S.burst.at or now-S.burst.at>50 then S.burst.n=0 end
   S.burst.at,S.burst.n=now,S.burst.n+1
   local limit,workers,lane=4,0,false
@@ -449,9 +449,9 @@ local function yieldLane(id,row)
   if y.stage=="wait" then
     row.laneWait=nil
     local ready=y.action and P.rangeBatch(mod("lease"),id,y.action)
-      or not y.action and os.epoch("utc")>=y.after
+      or not y.action and SO.now()>=y.after
     local fuel=type(row.fuel)~="number" or row.fuel<0 or row.fuel>=#y.path-1
-    if not ready or not fuel or not job.running or os.epoch("utc")<(y.retryAfter or 0) then
+    if not ready or not fuel or not job.running or SO.now()<(y.retryAfter or 0) then
       park(id,row,false) return true
     end
     y.stage="back" target=y.path[y.cursor]
@@ -503,7 +503,7 @@ plan = function(id,row)
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
   if not job.running or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
-  if row.dropRetry and row.dropRetry.after and os.epoch("utc") < row.dropRetry.after then
+  if row.dropRetry and row.dropRetry.after and SO.now() < row.dropRetry.after then
     park(id,row,false) return
   end
   row.inv = row.inv or {}
@@ -893,13 +893,13 @@ return {name="mine",handlers={},mapView=mapView,dugProtection=dugProtection,forg
   end
   for id,row in pairs(job.turtles) do
     if row.state ~= "wait lane" or row.recover or not job.running
-      or (row.dropRetry and row.dropRetry.after and os.epoch("utc") < row.dropRetry.after) then row.laneWait=nil end
+      or (row.dropRetry and row.dropRetry.after and SO.now() < row.dropRetry.after) then row.laneWait=nil end
     if row.lane and row.lane.release and not row.recover then
       local status=call("lease","status",tonumber(id))
       if status and not status.open then
         call("cells","releaseOwner",owner(tonumber(id)))
         row.lane=nil
-        S.handoffAt=os.epoch("utc")
+        S.handoffAt=SO.now()
         reservePose(tonumber(id),row)
         save()
         break

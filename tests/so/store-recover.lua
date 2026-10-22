@@ -108,7 +108,7 @@ return function(test)
   test("logging resumes after nearly full disk is freed without reboot", function()
     for _, partial in ipairs({false,true}) do
       local m = machine()
-      run(m, [[SO={store=dofile("so-store.lua"), mods={}}
+      run(m, [[SO={now=function() return os.epoch("utc") end,store=dofile("so-store.lua"), mods={}}
         state=dofile("so-mod-state.lua")
         assert(state.emit("value", 1))]])
       local function used()

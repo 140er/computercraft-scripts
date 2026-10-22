@@ -4,7 +4,7 @@ local function boot()
   local m = H.new().machine({id=1,capacity=16000000})
   m.install({'so-store.lua','so-ui.lua','so-mod-drops.lua','so-mod-ar.lua','so-mod-display.lua'})
   local e=m.env
-  e.SO={mods={},store=e.dofile('so-store.lua'),proto={ser=H.encode},pair={key=function() return 'key' end}}
+  e.SO={ now = function() return e.os.epoch("utc") end,mods={},store=e.dofile('so-store.lua'),proto={ser=H.encode},pair={key=function() return 'key' end}}
   local screens={}
   e.SO.mods.display={screen=function(role,render,input) screens[role]={render=render,input=input} end}
   local drops=e.dofile('so-mod-drops.lua');local ar=e.dofile('so-mod-ar.lua')

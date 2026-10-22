@@ -15,6 +15,7 @@ local function client(w, h)
   local env = setmetatable({}, { __index = _G })
   env.os = setmetatable({
     epoch = function() return state.now end,
+    clock = function() return state.now / 1000 end,
     getComputerID = function() return 2 end,
     getComputerLabel = function() return "screen" end,
     startTimer = function(seconds)
@@ -59,7 +60,7 @@ end
 local function server(saved)
   local proto = dofile("so-proto.lua")
   local state = { saved = saved or { roles = {} }, sends = {} }
-  local env = setmetatable({ SO = { mods = {}, proto = proto, pair = { key = function() return "key" end } } }, { __index = _G })
+  local env = setmetatable({ os={epoch=function() return 0 end}, SO = {now=function() return 0 end, mods = {}, proto = proto, pair = { key = function() return "key" end } } }, { __index = _G })
   env.SO.store = { store = function(_, valid)
     assert(valid(state.saved))
     return { value = state.saved, save = function(value)

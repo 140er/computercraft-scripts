@@ -234,10 +234,18 @@ local function noteRandom(m, result)
   end
 end
 
-H.new = function()
+H.new = function(options)
+  options = options or {}
+  local rate = options.tickRate or 1
+  assert(type(rate) == "number" and rate > 0 and rate < math.huge, "tickRate")
   local net = {
     machines = {}, order = {}, hosts = {}, world = {}, time = 1700000000000,
   }
+
+  local epochBase = net.time
+  net.tickRate = rate
+  net.utc = function() return epochBase + (net.time - epochBase) / rate end
+  net.advanceReal = function(seconds) return net.advance(seconds * rate) end
 
   local function used(files)
     local n = 0
@@ -326,6 +334,7 @@ H.new = function()
       randomLog = {}, randomOut = {},
       skipTiming = opts.skipTiming ~= false, timingError = opts.timingError == true,
     }
+    local bootAt = net.time
     local env = setmetatable({}, { __index = base })
     m.env = env
     m.resume = function(packed)
@@ -427,10 +436,11 @@ H.new = function()
     }
     env.os = {
       epoch = function(kind)
+        if kind == "ingame" then return 108000000 + (net.time - epochBase) * 72 end
         if kind ~= nil and kind ~= "utc" and kind ~= "local" then error("epoch", 2) end
-        return net.time
+        return math.floor(net.utc())
       end,
-      clock = function() return net.time / 1000 end,
+      clock = function() return (net.time - bootAt) / 1000 end,
       getComputerID = function() return m.id end,
       getComputerLabel = function() return "m" .. tostring(m.id) end,
       queueEvent = function(...) m.inbox[#m.inbox + 1] = table.pack(...) end,

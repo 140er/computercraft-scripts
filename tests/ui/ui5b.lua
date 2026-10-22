@@ -4,7 +4,7 @@ return function(test, equal)
     local m = H.new().machine({id=1,capacity=16000000})
     m.install({'so-store.lua','so-ui.lua','so-mod-drops.lua','so-mod-display.lua'})
     local e = m.env
-    e.SO = {mods={},store=e.dofile('so-store.lua'),proto={ser=H.encode},pair={key=function() return 'key' end}}
+    e.SO = { now = function() return e.os.epoch("utc") end,mods={},store=e.dofile('so-store.lua'),proto={ser=H.encode},pair={key=function() return 'key' end}}
     local saves = 0
     local store = e.SO.store.store
     e.SO.store.store = function(path, ...)

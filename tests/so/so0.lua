@@ -545,7 +545,7 @@ HELLO = reply
     for part in mix:gmatch("[^|]+") do parts[#parts + 1] = part end
     equal(#parts, 5)
     equal(parts[1], tostring(net.time))
-    equal(parts[2], tostring(net.time / 1000))
+    equal(parts[2], tostring(machine.env.os.clock()))
     assert(parts[3]:sub(1, 6) == "table:", parts[3])
     equal(parts[5], tostring(machine.id))
     assert(tonumber(parts[4]), "math.random missing: " .. tostring(parts[4]))

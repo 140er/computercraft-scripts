@@ -27,7 +27,7 @@ end
 local function server()
   local s = {now=0, values={}, machines={}, saved={roles={['2']='status',['3']='status'}},sends={}}
   local proto = dofile('so-proto.lua')
-  local env = setmetatable({SO={proto=proto,pair={key=function() return string.rep('01',32) end},mods={}}},{__index=_G})
+  local env = setmetatable({SO={now=function() return s.now end,proto=proto,pair={key=function() return string.rep('01',32) end},mods={}}},{__index=_G})
   env.os=setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.SO.proto=assert(loadfile('so-proto.lua','t',env))()
   env.fs={getCapacity=function() return 16000000 end,getFreeSpace=function() return 13900000 end}

@@ -270,7 +270,7 @@ return function(test, equal)
     local queued, callback = {}, nil
     local env = setmetatable({ os = { epoch = function() return 0 end },
       fs = { exists = function() return false end, makeDir = function() end, list = function() return {} end },
-      SO = { store = { copy = dofile("so-store.lua").copy,
+      SO = {now=function() return 0 end, store = { copy = dofile("so-store.lua").copy,
         store = function(path) return { value = path == "so-data/mine/job" and job or nil, save = function() return true end } end },
         mods = { state = { emit = function() end }, display = { screen = function() end }, lease = {
           inRange = function() return true end,

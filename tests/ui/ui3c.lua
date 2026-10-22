@@ -6,7 +6,7 @@ local function boot()
   local m = H.new().machine({ id = 1, capacity = 16000000 })
   m.install({ "so-store.lua", "so-mod-ar.lua", "so-mod-cells.lua" })
   local e, b = m.env, { machines = {}, values = {}, entries = {}, points = {}, cells = {}, status = {}, outside = {} }
-  e.SO = { store = e.dofile("so-store.lua"), proto = { ser = H.encode }, mods = {} }
+  e.SO = { now = function() return e.os.epoch("utc") end, store = e.dofile("so-store.lua"), proto = { ser = H.encode }, mods = {} }
   local mods = e.SO.mods
   mods.state = { get = function() return b.machines end, view = function() return { values = b.values } end }
   mods.lease = { status = function(id) return b.status[id] end, inRange = function(id) return not b.outside[id] end }

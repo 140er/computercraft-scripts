@@ -1,12 +1,12 @@
 local S = {
   reservations = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
-  clock = 0, work = 0, yielded = os.epoch("utc"), events = {}, confirmations = {}, serial = 0,
+  clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
 }
 
 S.pause = function()
-  local now = os.epoch("utc")
+  local now = SO.now()
   if not S.last or now - S.last > 50 then
     S.yielded, S.work = now, 0
   end
@@ -14,7 +14,7 @@ S.pause = function()
   S.work = S.work + 1
   if S.work >= 128 or now - S.yielded >= 1000 then
     SO.breathe()
-    S.work, S.yielded = 0, os.epoch("utc")
+    S.work, S.yielded = 0, SO.now()
   end
 end
 
@@ -87,7 +87,7 @@ S.measure = function(path)
 end
 
 S.touch = function(path, section)
-  local now = os.epoch("utc")
+  local now = SO.now()
   S.used[path], S.versions[path] = now, S.clock
   if S.sizes[path] > 0 and now - section.value.used >= 60000 then
     section.value.used, section.dirty = now, true
@@ -218,7 +218,7 @@ S.markDug = function(x, y, z, dim)
   if not section then return false, err end
   if not S.bit(section.value.bits, index) then
     section.value.bits, section.dirty = S.bit(section.value.bits, index, true), true
-    section.value.used = os.epoch("utc")
+    section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] + 1, S.dug + 1
   end
@@ -247,7 +247,7 @@ S.forget = function(x, y, z, dim)
   end
   if S.bit(section.value.bits, index) then
     section.value.bits, section.dirty = S.bit(section.value.bits, index, false), true
-    section.value.used = os.epoch("utc")
+    section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] - 1, S.dug - 1
   end
@@ -295,7 +295,7 @@ S.onForget = function(msg, reply)
   if type(body) ~= "table" or not S.whoValid(body.who) or not S.whoValid(msg.from) then
     reply("err", { code = "bad", text = "bad owner" }) return
   end
-  local now, pending = os.epoch("utc"), S.confirmations[msg.from]
+  local now, pending = SO.now(), S.confirmations[msg.from]
   if body.confirm == nil then
     S.serial = S.serial + 1
     local token = tostring(now) .. ":" .. tostring(S.serial)
@@ -428,7 +428,7 @@ S.retirement = function()
     return { id = S.request.id, status = "pending", bytes = S.request.bytes,
       count = #S.request.candidates, reclaim = S.request.reclaim, text = S.request.text }
   end
-  if S.notice and os.epoch("utc") < S.notice.untilAt then return SO.store.copy(S.notice) end
+  if S.notice and SO.now() < S.notice.untilAt then return SO.store.copy(S.notice) end
 end
 
 S.checkRetirement = function(now)
@@ -486,12 +486,12 @@ S.decideRetirement = function(id, choice)
     or ("Forgot marks for " .. forgotten .. " old areas. Freed " .. S.amount(freed) .. ".")
   if err then text = text .. " Storage error; retry later." end
   S.notice = { status = choice == "keep" and "kept" or "allowed", text = text,
-    untilAt = os.epoch("utc") + 30000 }
+    untilAt = SO.now() + 30000 }
   return true
 end
 
 S.tick = function(now)
-  now = now or os.epoch("utc")
+  now = now or SO.now()
   if S.policyDirty then
     local ok, err = S.savePolicy(S.policy)
     if not ok then return false, err end
@@ -507,7 +507,7 @@ S.tick = function(now)
     end
   end
   for sender, pending in pairs(S.confirmations) do
-    if (now or os.epoch("utc")) > pending.untilAt then S.confirmations[sender] = nil end
+    if (now or SO.now()) > pending.untilAt then S.confirmations[sender] = nil end
   end
   local state = SO.mods.state
   if not S.view and type(state) == "table" then
