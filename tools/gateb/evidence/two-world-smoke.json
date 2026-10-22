@@ -1,0 +1,83 @@
+{
+  "timings": {
+    "clone_smoke-1792704237753440312-1": 0.796,
+    "clone_smoke-1792704237753441925-2": 1.778,
+    "serve_smoke-1792704237753441925-2": 30.308,
+    "serve_smoke-1792704237753440312-1": 30.663,
+    "serve_warm_smoke-1792704237753440312-1": 0.001,
+    "install_smoke-1792704237753440312-1": 2.09,
+    "serve_warm_smoke-1792704237753441925-2": 0.001,
+    "install_smoke-1792704237753441925-2": 1.882
+  },
+  "checks": {
+    "smoke-1792704237753440312-1": {
+      "terminal_status": true,
+      "turtle_pos": [
+        -5,
+        64,
+        3
+      ],
+      "turtle_facing": "south",
+      "installed_computers": [
+        "10",
+        "2",
+        "5",
+        "4",
+        "1",
+        "6",
+        "3"
+      ]
+    },
+    "smoke-1792704237753441925-2": {
+      "terminal_status": true,
+      "turtle_pos": [
+        -5,
+        64,
+        3
+      ],
+      "turtle_facing": "south",
+      "installed_computers": [
+        "10",
+        "2",
+        "5",
+        "4",
+        "1",
+        "6",
+        "3"
+      ]
+    }
+  },
+  "errors": [],
+  "template_reused": true,
+  "sha": "d6530a01a1f186475ba1bda938a283090d3e8806",
+  "resources": [
+    {
+      "run": "smoke-1792704237753440312-1",
+      "pid": 950797,
+      "rss_kib": 2506544,
+      "port": 25603
+    },
+    {
+      "run": "smoke-1792704237753441925-2",
+      "pid": 950798,
+      "rss_kib": 2645152,
+      "port": 25604
+    }
+  ],
+  "shutdown": {
+    "smoke-1792704237753440312-1": {
+      "run": "smoke-1792704237753440312-1",
+      "stopped": true,
+      "pid": 950797,
+      "returncode": 0,
+      "at": 1792704322.3399758
+    },
+    "smoke-1792704237753441925-2": {
+      "run": "smoke-1792704237753441925-2",
+      "stopped": true,
+      "pid": 950798,
+      "returncode": 0,
+      "at": 1792704324.9986124
+    }
+  }
+}
