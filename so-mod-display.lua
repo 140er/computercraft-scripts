@@ -108,13 +108,23 @@ D.compose = function(role, w, h)
   local rows = type(picture.rows) == "table" and picture.rows or {}
   local buttons = type(picture.buttons) == "table" and picture.buttons or {}
   if role == "generic" then
-    local copy, found = {}, {}
-    for i, button in ipairs(buttons) do copy[i], found[button.id] = button, true end
-    for _, button in ipairs({
-      { id = "lumber", x = 1, y = 1, w = 6, label = "lumber" },
-      { id = "ar", x = 8, y = 1, w = 2, label = "ar" },
-    }) do
-      if not found[button.id] then copy[#copy + 1] = button end
+    local shifted = { { text = "", fg = "0", bg = "f" }, { text = "", fg = "0", bg = "f" } }
+    for i, row in ipairs(rows) do shifted[i + 2] = row end
+    rows = shifted
+    local copy = {
+      { id = "mining", x = 1, y = 1, w = 6, label = "mining" },
+      { id = "lumber", x = 8, y = 1, w = 6, label = "lumber" },
+      { id = "shop", x = 15, y = 1, w = 4, label = "shop" },
+      { id = "status", x = 1, y = 2, w = 6, label = "status" },
+      { id = "ar", x = 8, y = 2, w = 2, label = "ar" },
+    }
+    for _, button in ipairs(buttons) do
+      if not D.known[button.id] then
+        local moved = {}
+        for key, value in pairs(button) do moved[key] = value end
+        moved.y = button.y + 2
+        copy[#copy + 1] = moved
+      end
     end
     buttons = copy
   end

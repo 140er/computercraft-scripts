@@ -140,7 +140,7 @@ The server sends `view.frame` to a display.
 
 `body.rev` is a number. It grows when the picture changes. A repeat of the same picture keeps the same `rev`.
 
-`body.role` is `shop`, `mining`, `status`, or `generic`. It is the screen that was drawn.
+`body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`.
 
@@ -414,7 +414,10 @@ SO5 owns this API on `SO.mods.display`.
 
 `display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
-Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, `lumber`, and `ar`.
+Button id `generic` returns that display to the generic screen. Every destination
+has a visible `generic` button on 26x20 pockets and 29x12 monitors. The generic
+screen reserves two top rows for `mining`, `lumber`, `shop`, `status`, and `ar`.
+Registered generic content, including the drop editor, starts two rows lower.
 
 The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
 

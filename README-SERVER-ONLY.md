@@ -73,6 +73,11 @@ requests and field definitions.
 
 ## Mining
 
+The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
+above the drop editor. These links and each screen's `generic` return button
+fit a 26x20 pocket or 29x12 monitor. The drop editor's controls still need a
+wider screen.
+
 Open the `mining` display screen. Submit these text commands:
 
 ```text
