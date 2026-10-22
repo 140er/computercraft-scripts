@@ -2,7 +2,7 @@ local H = dofile("tests/so/harness.lua")
 local function setup(saved)
   local net=H.new()
   local server=net.machine({id=1,modem=true})
-  server.install({"so-server.lua","so-store.lua","so-pair.lua","so-proto.lua","so-mod-lease.lua",
+  server.install({"so-server.lua","so-store.lua","so-mod-state.lua","so-pair.lua","so-proto.lua","so-mod-lease.lua",
     "so-mod-cells.lua","so-mod-display.lua","so-mod-drops.lua","so-mod-mine.lua","so-mine-plan.lua","so-plan.lua"})
   for _,name in ipairs({"x25519","random","blake3","chacha20","config","internal/util","internal/hw",
     "internal/curve25519","internal/fp","internal/edwards25519","internal/packing"}) do
@@ -46,6 +46,10 @@ end
 return function(test,equal)
   test("mine requires home and clears command errors",function()
     local s=setup()
+    local canStart=s.mods.state.canStart
+    s.mods.state.canStart=function() return false,"disk >=80%; free space" end
+    s.input("start") assert(contains(s,"disk >=80%; free space"))
+    s.mods.state.canStart=canStart
     s.input("start") assert(contains(s,"set home before start"))
     s.input("length 4") assert(not contains(s,"set home before start"))
     assert(not s.job().running)
@@ -53,6 +57,16 @@ return function(test,equal)
     s.input("ores diamond, iron") equal(s.job().ores,{"diamond","iron"})
     s.input("ores diamond, unknown") assert(contains(s,"unknown ore"))
     s.input("stop") assert(not contains(s,"unknown ore"))
+  end)
+  test("mine start fails closed without its disk guard",function()
+    local s=setup()
+    s.input("home 0 0 0 n")
+    for _,state in ipairs({false,{}}) do
+      s.mods.state=state or nil
+      s.input("start")
+      assert(contains(s,"disk guard unavailable"))
+      assert(not s.job().running)
+    end
   end)
   test("mine removes an unloaded recovery holder and releases reservations",function()
     local pose={dim="minecraft:overworld",x=0,y=-1,z=-1,facing=0}

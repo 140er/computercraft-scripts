@@ -366,7 +366,7 @@ commands through that screen's `input.text`:
 - `remove <id>` removes a worker after its lease closes or cancels its stationary
   recovery or park inspection. It releases the worker's lane and reservations.
   Movement and digging leases still prevent removal.
-- `start` requires a configured `home`. Existing saved homes remain configured.
+- `start` checks the disk guard before requiring a configured `home`. Existing saved homes remain configured.
   `stop` lets an already sent batch finish. A valid command clears the prior command error.
 
 Adding a worker sends a recovery park lease. Startup also sends each saved worker

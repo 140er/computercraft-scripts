@@ -567,9 +567,9 @@ local function input(event)
     call("cells","releaseOwner",owner(num(2))) job.turtles[tostring(num(2))]=nil
     S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
-    if job.homeSet == false or not job.home then S.error="set home before start" return end
     local ok, err = call("state", "canStart")
     if not ok then S.error = err or "disk guard unavailable" return end
+    if job.homeSet == false or not job.home then S.error="set home before start" return end
     S.error = nil
     job.running=true
   elseif cmd=="stop" then job.running=false
