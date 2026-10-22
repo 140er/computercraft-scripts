@@ -24,20 +24,12 @@ H.encode = function(value)
     if kind ~= "table" then error("bad type", 0) end
     if seen[v] then error("cycle", 0) end
     seen[v] = true
-    local keys = {}
-    for key in pairs(v) do keys[#keys + 1] = key end
-    for i = 2, #keys do
-      local key = keys[i]
-      local rank = type(key) .. ":" .. tostring(key)
-      local j = i - 1
-      while j >= 1 do
-        local other = keys[j]
-        if (type(other) .. ":" .. tostring(other)) <= rank then break end
-        keys[j + 1] = other
-        j = j - 1
-      end
-      keys[j + 1] = key
+    local keys, ranks = {}, {}
+    for key in pairs(v) do
+      keys[#keys + 1] = key
+      ranks[key] = type(key) .. ":" .. tostring(key)
     end
+    table.sort(keys, function(a, b) return ranks[a] < ranks[b] end)
     local parts = {}
     for i = 1, #keys do parts[i] = "[" .. write(keys[i]) .. "]=" .. write(v[keys[i]]) end
     seen[v] = nil
