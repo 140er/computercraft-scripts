@@ -871,7 +871,16 @@ local function forgetDug(paths)
     if visited % 128 == 0 then SO.breathe() end
   end
 end
-return {name="mine",handlers={},dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+local function mapView()
+  local view = {dim=job.dim,home=SO.store.copy(job.home),homeSet=job.homeSet,bottom=job.bottom,
+    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={}}
+  for id,row in pairs(job.turtles) do
+    view.branches=math.max(view.branches,(row.branch or 0)+1)
+    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim}
+  end
+  return view
+end
+return {name="mine",handlers={},mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end

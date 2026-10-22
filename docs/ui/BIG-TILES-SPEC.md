@@ -128,7 +128,7 @@ Preview (the same glyphs as Unicode sextants, close to how CC draws them):
 
 ## 7. Surfaces
 
-Displays (monitor roles): status, mining, lumber, shop with its order page, drops (generic), ar, plus the
+Displays (monitor roles): status, mining, lumber, shop with its order page, drops (generic), ar, map, plus the
 alert and outage states.
 Server: its own terminal (normal and pairing), and a monitor attached to the server, which shows the status
 screen locally without rednet.
@@ -155,6 +155,47 @@ status sizes offer MINING, LUMBER, SHOP and MORE.
 Compact mining rows show the worker id, full x,y,z position, then state.
 Below 26 columns, mining navigation wraps into two rows.
 AR goggles: section 7.2.
+
+### 7.0 Top-down map
+
+A teal `MAP` button occupies the right four cells of every Big Tiles header
+when the server map module is installed. It works from status, panel, the drop
+editor and every job screen. The map's `BACK` restores the opening screen.
+Header state moves left when space allows and hides when the header is full.
+The other navigation controls retain their positions.
+
+The map uses rows 2 through H-3. North is up, x increases right and z increases
+down. The header reads `MAP` and `N ^ 1:<blocks per cell>`. The bottom rows are:
+
+| Row | Drawn controls |
+| --- | --- |
+| H-2 | BACK, FIT, +, - |
+| H-1 | ^, <, v, > |
+| H | MINE y / SURFACE y / ALL |
+
+Controls are one row tall with the kit's four-column grid and palette. They
+remain readable at 26x20, 29x12 and 15x10. Large screens devote every extra
+row and column to the map. There is no helper copy on the screen.
+
+Planned shaft, spine and branches use panel grey `7`; known dug cells use `8`.
+The farm outline is green `d`, shaft `H` and server `@` are teal `9`, and chest
+letters are purple `a`, coral `e` when broken. Letters include O ore, F fuel,
+W wood and S saplings. Turtle arrows `^ > v <` draw last. Busy is green `d`,
+idle amber `1`, lost/range/stale coral `e`, and done blue `b`. Ids appear beside
+arrows at one block per cell when space is clear. Symbols use dark ink `f`.
+
+Fit covers configured geometry, drops and turtle poses in the server dimension.
+Zoom and pan disable automatic fitting; FIT restores it. Each display session
+owns its view and progressive dug raster. The initial level is ALL. Mine selects the job bottom y.
+Surface uses server y or farm ground. ALL projects markers and scans dug blocks
+between bottom and surface. Up to 256 cell reads run per frame. Geometry work
+is proportional to the viewport. A coarse cell can contain multiple blocks;
+landmarks and turtles draw above dug cells and planned passages.
+
+`mockup-gen.py` generates `map-26x20`, `map-29x12` and `map-57x24` fixtures.
+Their scene has two assigned mine branches, two turtles, a dug vein cell, ore,
+fuel, wood and sapling chests, a farm outline and the server. Tests compare all
+text and background cells and check state colours and controls separately.
 
 ### 7.1 Display mockups
 
@@ -681,6 +722,139 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
                
      NEXT      
      MORE      
+```
+
+Map, projected levels 26x20  (26x20)
+```text
+ MAP              N ^ 1:1 
+                          
+                          
+                          
+                 v3       
+                          
+                          
+                          
+               >2 O       
+                          
+                          
+                          
+             H            
+                          
+                          
+        F W S@            
+                          
+ BACK   FIT     +     -   
+  ^      <      v     >   
+           ALL            
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffff7777bbfffffff
+fffffffffffff7ffffffffffff
+fffffffffffff78fffffffffff
+fffffffffffff7ffffffffffff
+fffffffffffff77dd7afffffff
+fffffffffffff7ffffffffffff
+ffffffffdddff7ffffffffffff
+ffffffffdfdff7ffffffffffff
+ffffffffdddff9ffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffafafa9ffffffffffff
+ffffffffffffffffffffffffff
+777777f999999f77777f777777
+777777f777777f77777f777777
+77777777777777777777777777
+```
+
+Map, projected levels 29x12  (29x12)
+```text
+ MAP                 N ^ 1:2 
+                             
+                v            
+                             
+               >O            
+                             
+              H              
+                             
+           FWS@              
+ BACK    FIT      +      -   
+   ^      <       v      >   
+             ALL             
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777777
+fffffffffffffffffffffffffffff
+ffffffffffffff77bffffffffffff
+ffffffffffffff8ffffffffffffff
+ffffffffffffff7daffffffffffff
+fffffffffffddf7ffffffffffffff
+fffffffffffddf9ffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffaaa9ffffffffffffff
+7777777f999999f7777777f777777
+7777777f777777f7777777f777777
+77777777777777777777777777777
+```
+
+Map, projected levels 57x24  (57x24)
+```text
+ MAP                                             N ^ 1:1 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                v3                       
+                                                         
+                                                         
+                                                         
+                              >2 O                       
+                                                         
+                                                         
+                                                         
+                            H                            
+                                                         
+                                                         
+                       F W S@                            
+                                                         
+                                                         
+                                                         
+     BACK           FIT            +              -      
+      ^              <             v              >      
+                           ALL                           
+```
+Background layer (blit letters, see palette):
+```text
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff7777bbfffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff78fffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffff77dd7afffffffffffffffffffffff
+ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdddff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdfdff7ffffffffffffffffffffffffffff
+fffffffffffffffffffffffdddff9ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+77777777777777f9999999999999f77777777777777f7777777777777
+77777777777777f7777777777777f77777777777777f7777777777777
+777777777777777777777777777777777777777777777777777777777
 ```
 
 

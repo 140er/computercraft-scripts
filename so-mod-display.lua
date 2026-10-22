@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },
@@ -29,7 +29,7 @@ end
 
 D.roleOf = function(id)
   local role = D.saved.roles[tostring(id)]
-  if role == "shop" or role == "mining" or role == "lumber" or role == "status" or role == "ar" or role == "panel" then return role end
+  if D.known[role] then return role end
   local session = D.sessions[id]
   if U and role == nil and session and session.w == 26 and session.h == 20 then return "status" end
   return "generic"
@@ -223,6 +223,37 @@ D.compose = function(role, w, h, session)
       copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
     end
     buttons = copy
+  end
+  if U and role ~= "map" and D.screens.map and w >= 15 then
+    local copy, targets = {}, {}
+    for i,row in ipairs(rows) do copy[i]=row end
+    local row = rows[1] or {text=""}
+    local fitted = D.fit({rows={row},buttons={}},w,1).rows[1]
+    local text = fitted.text .. string.rep(" ",w)
+    local fg,bg = "",""
+    if fitted.runs then
+      for _,run in ipairs(fitted.runs) do
+        fg,bg=fg..string.rep(run[2],run[1]),bg..string.rep(run[3],run[1])
+      end
+    else
+      fg = #(fitted.fg or "0")==1 and string.rep(fitted.fg or "0",w) or fitted.fg
+      bg = #(fitted.bg or "f")==1 and string.rep(fitted.bg or "f",w) or fitted.bg
+    end
+    fg,bg=fg..string.rep("0",w),bg..string.rep("7",w)
+    local head,first,last = text:sub(1,w):gsub(" +$",""),nil,nil
+    for a,b in head:gmatch("()  +()") do first,last=a,b end
+    if first and #head>=w-1 then
+      text=head:sub(1,first-1)..string.rep(" ",w-first+1)
+      if last-first>=6 then
+        local tail=head:sub(last)
+        text=text:sub(1,last-6)..tail..string.rep(" ",w)
+      end
+    end
+    copy[1] = {text=text:sub(1,w-4).." MAP", fg=fg:sub(1,w-4).."ffff",
+      bg=bg:sub(1,w-4).."9999"}
+    for _,b in ipairs(buttons) do targets[#targets+1]=b end
+    targets[#targets+1] = {id="map",x=w-3,y=1,w=4,h=1,label=""}
+    rows,buttons=copy,targets
   end
   if banner then
     local combined, controls = {}, {}
@@ -545,7 +576,12 @@ D.onInput = function(msg)
     elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
   end
   local screen = D.screens[drawn]
-  if id == "status" then
+  if id == "map" and D.screens.map then
+    session.mapReturn = drawn
+    D.setRole(msg.from, "map")
+  elseif id == "map-back" and drawn == "map" then
+    D.setRole(msg.from, session.mapReturn or "status")
+  elseif id == "status" then
     D.setRole(msg.from, "status")
   elseif drawn == "generic" and type(id) == "string" and D.known[id] then
     D.setRole(msg.from, id)
@@ -676,6 +712,11 @@ D.localTick = function(now)
         elseif drawn == "status" and event.id == "alerts" then
           m.session.takeover=D.model.alerts[#D.model.alerts]
           m.session.showAlerts=m.session.takeover ~= nil
+        elseif event.id == "map" and D.screens.map then
+          m.session.mapReturn=drawn
+          m.role="map"
+        elseif event.id == "map-back" and drawn == "map" then
+          m.role=m.session.mapReturn or "status"
         elseif event.id == "status" or event.id == "generic"
           or ((drawn == "status" or drawn == "generic") and D.known[event.id]) then
           m.role=event.id
@@ -713,7 +754,7 @@ D.load = function()
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
-      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" and role ~= "panel" and role ~= "generic" then return false end
+      if not D.known[role] then return false end
     end
     if v.far ~= nil then
       if type(v.far) ~= "table" then return false end
