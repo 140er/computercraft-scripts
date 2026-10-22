@@ -36,7 +36,11 @@ class Context:
         command = ["python3", str(getattr(self, "runtime_dir", Path(__file__).resolve().parents[1]) / "world.py"), *map(str, args)]
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
         if completed.returncode:
-            raise Blocked(f"Runtime command {args[0]} failed; see runtime availability")
+            try:
+                reason = json.loads(completed.stdout).get("error", "Runtime request failed")
+            except (ValueError, AttributeError):
+                reason = "Runtime process failed without an API v1 error"
+            raise Blocked(f"Runtime {args[0]} failed: {sanitize(str(reason))[:500]}")
         try:
             return json.loads(completed.stdout)["result"]
         except (ValueError, KeyError):

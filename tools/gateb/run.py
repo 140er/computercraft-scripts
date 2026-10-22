@@ -228,6 +228,12 @@ def main(argv=None):
             with ThreadPoolExecutor(max_workers=len(worlds)) as pool:
                 for future in as_completed([pool.submit(worker, world) for world in worlds]):
                     future.result()
+        except (Blocked, OSError, subprocess.TimeoutExpired) as error:
+            for check in selected:
+                if check not in finished:
+                    results.append(Result(check, commit, "blocked", datetime.now(timezone.utc).isoformat(),
+                                          0, rates[check], [str(error)], {}, [], ""))
+            raise
         finally:
             for world in created:
                 try: cli.cli("stop", world)

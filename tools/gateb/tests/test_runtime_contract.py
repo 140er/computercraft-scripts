@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import run
@@ -22,6 +23,13 @@ class ContractTests(unittest.TestCase):
             ctx.type_text("wall","diamond")
         self.assertEqual([q["event"] for q in runtime.requests], ["char"]*7+["key"])
         self.assertEqual(runtime.requests[-1]["args"], [257,False])
+
+    def test_runtime_block_preserves_the_actionable_reason(self):
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(object(),"test",{},temp,"a"*40)
+            with patch("checks.context.subprocess.run",return_value=SimpleNamespace(returncode=1,stdout='{"ok":false,"error":"Template preparation did not finish"}')):
+                with self.assertRaisesRegex(Blocked,"Template preparation did not finish"):
+                    ctx.cli("clone","test")
 
     def test_tick_clock_does_not_use_minecraft_calendar(self):
         class Runtime:
