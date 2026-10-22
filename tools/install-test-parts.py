@@ -20,6 +20,7 @@ if "parser.add_argument('--part')" in source:
         raise SystemExit('cc-test adapter was edited; refusing to overwrite it')
     source = backup.read_text()
 changes = [
+    ("    parser.add_argument('--slot',", "    parser.add_argument('--shards', type=int, default=1)\n    parser.add_argument('--slot',"),
     ("    branch = git('branch', '--show-current').decode().strip() or 'detached'", "    branch = 'part' if (root / 'tests/part-manifest.lua').is_file() else (git('branch', '--show-current').decode().strip() or 'detached')"),
     ("def snapshot(root):\n", """def snapshot(root):
     if (root / 'tests/part-manifest.lua').is_file():
@@ -47,6 +48,22 @@ changes = [
             parser.error(str(error))
         import atexit
         atexit.register(part_temporary.cleanup)
+    if not 1 <= options.shards <= 64:
+        parser.error('--shards must be between 1 and 64')
+    if options.shards > 1 and options.part:
+        parser.error('--shards cannot be combined with --part')
+    full_tools = (root / 'tools/test_suite.py').is_file() and (root / 'tests/suite.lua').is_file()
+    if options.shards > 1 and not full_tools:
+        parser.error('this checkout has no full-suite sharding tools')
+    if not options.part and full_tools:
+        sys.path.insert(0, str(root / 'tools'))
+        from test_suite import prepare_full, dispatch
+        if options.shards > 1:
+            return dispatch(root, options.shards, scheduler=str(Path(__file__).resolve()),
+                            slot=options.slot, args=args)
+        full_temporary, root = prepare_full(root)
+        import atexit
+        atexit.register(full_temporary.cleanup)
     os.chdir(root)
 """),
     ("['timeout', '20m', 'lua5.2'", "['timeout', str(options.part_timeout) + 's' if options.part else '20m', 'lua5.2'"),

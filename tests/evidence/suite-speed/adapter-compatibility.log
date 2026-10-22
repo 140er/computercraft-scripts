@@ -1,0 +1,2 @@
+cc-test: using local-1 slot
+PASS older checkout keeps its original full-suite path; slot and process calls were mocked

@@ -919,9 +919,10 @@ local function suite(test, equal)
     equal(#reboot.inbox,0)
   end)
   test("SO11 new mining jobs accept every ore by default",function() equal(S.defaultOres(),{}) end)
-  local g=S.run()
+  local g
   for check=1,7 do
     test("SO11 integration check "..check,function()
+      g = g or S.run()
       local failures={}
       for _,message in ipairs(g.failureList) do if message:match("^check "..check..":") then failures[#failures+1]=message end end
       assert(#failures==0,table.concat(failures,"\n"))
@@ -929,9 +930,10 @@ local function suite(test, equal)
   end
   test("SO11 B retries an unreported recovery park with a fresh envelope",S.recoveryRetry)
   test("SO11 B lumber recovery marks journal digs exactly once",S.lumberDug)
-  local busy=S.runBusy()
+  local busy
   for check=1,7 do
     test("SO11 B integration check "..check,function()
+      busy = busy or S.runBusy()
       local failures={}
       for _,message in ipairs(busy.failureList) do
         if message:match("^check "..check..":") then failures[#failures+1]=message end

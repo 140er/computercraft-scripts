@@ -1,0 +1,31 @@
+{
+  "baseline_checks": 617,
+  "sequential_checks": 617,
+  "sharded_checks": 617,
+  "identical_check_multisets": true,
+  "slots": {
+    "shard-1": [
+      "local-2"
+    ],
+    "shard-2": [
+      "local-2"
+    ],
+    "shard-3": [
+      "win"
+    ],
+    "shard-4": [
+      "local-2"
+    ]
+  },
+  "busy_retries": {
+    "shard-1": 0,
+    "shard-2": 12,
+    "shard-3": 16,
+    "shard-4": 6
+  },
+  "wall_seconds": {
+    "baseline": 348.57,
+    "final_plain": 351.87,
+    "sharded": 361.46
+  }
+}

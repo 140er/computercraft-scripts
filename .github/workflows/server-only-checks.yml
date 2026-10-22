@@ -48,7 +48,7 @@ jobs:
         id: tests
         run: |
           set +e
-          lua5.2 tests/run.lua > "$RUNNER_TEMP/tests.out" 2>&1
+          scripts/test-suite --shards 4 --output "$RUNNER_TEMP/shards" > "$RUNNER_TEMP/tests.out" 2>&1
           rc=$?
           set -euo pipefail
           cat "$RUNNER_TEMP/tests.out"
@@ -62,6 +62,17 @@ jobs:
           else
             echo fail > "$RUNNER_TEMP/tests.result"
             exit "$rc"
+          fi
+
+      - name: Luacheck globals
+        id: lint
+        if: always() && steps.install.outcome == 'success'
+        run: |
+          if python3 tools/suite-selftest.py && lua5.2 tools/luacheck.lua; then
+            echo pass > "$RUNNER_TEMP/lint.result"
+          else
+            echo fail > "$RUNNER_TEMP/lint.result"
+            exit 1
           fi
 
       - name: List changed Lua files
@@ -187,14 +198,15 @@ jobs:
             echo "| Check | Result |"
             echo "| --- | --- |"
             echo "| Base is server-only | $(show "$RUNNER_TEMP/base.result") |"
-            echo "| lua5.2 tests/run.lua | $(show "$RUNNER_TEMP/tests.result") |"
+            echo "| Full suite, four shards | $(show "$RUNNER_TEMP/tests.result") |"
             echo "| Test count | $count |"
+            echo "| luacheck globals | $(show "$RUNNER_TEMP/lint.result") |"
             echo "| luac5.2 -p | $(show "$RUNNER_TEMP/luac.result") |"
             echo "| cobaltlocals under 185 | $(show "$RUNNER_TEMP/locals.result") |"
             echo "| check-scope.sh | $(show "$RUNNER_TEMP/scope.result") |"
           } >> "$GITHUB_STEP_SUMMARY"
           bad=0
-          for name in base tests luac locals scope; do
+          for name in base tests lint luac locals scope; do
             file="$RUNNER_TEMP/$name.result"
             if [ ! -f "$file" ] || [ "$(cat "$file")" != "pass" ]; then
               bad=1
