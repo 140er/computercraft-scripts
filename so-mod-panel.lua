@@ -149,19 +149,10 @@ P.input = function(event)
       if target and type(target.input) == "function" then target.input({id=cmd,role=role}) end
     else
       local amount = (id or ""):match("^order:(%d+)$")
-      local target = P.screens.shop
-      if (amount == "1" or amount == "16" or amount == "64") and target
-          and type(target.input)=="function" and type(target.render)=="function" then
-        target.input({text=panel.search,role="shop"})
-        local frame = target.render(57,24)
-        for _,button in ipairs(frame.buttons or {}) do
-          local name = button.id:match("^item:(.+)$")
-          if name then
-            target.input({id="item:"..name,role="shop"})
-            target.input({id="order:"..amount..":"..name,role="shop"})
-            break
-          end
-        end
+      local shop = SO.mods.shop
+      if (amount == "1" or amount == "16" or amount == "64") and P.screens.shop
+          and shop and type(shop.order) == "function" then
+        shop.order(panel.search, tonumber(amount))
       end
     end
     P.refresh()

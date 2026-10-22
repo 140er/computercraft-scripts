@@ -1,12 +1,13 @@
 local R = dofile('tests/ui/render.lua')
 local H = dofile('tests/so/harness.lua')
-local function screen(job)
+local function screen(job, noDaily)
   local s = {saved=0, released=0, events={}, persisted=H.encode(job)}
   local env = setmetatable({SO={mods={},store={store=function()
     return {value=job,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.os = {epoch=function() return 1000000 end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
+  if not noDaily then env.SO.mods.daily={today=function() return {logs=96} end} end
   env.SO.mods.lease={status=function() return {} end}
   env.SO.mods.state={canStart=function() return true end,emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
   env.SO.mods.cells={releaseOwner=function() s.released=s.released+1 end}
@@ -40,7 +41,7 @@ local function capture(frame,w,h)
   return out
 end
 return function(test,equal)
-  test('UI2b lumber matches the unchanged M fixture',function()
+  test('UI2b lumber matches the M fixture',function()
     local s=screen(job())
     s.state.recover=false
     local frame=s.render(57,24)
@@ -131,7 +132,7 @@ return function(test,equal)
     end
   end)
   test('UI2b gather keeps missing timers and daily counters stale',function()
-    local j=job();j.nextRound=nil;local s=screen(j);s.render(57,24)
+    local j=job();j.nextRound=nil;local s=screen(j,true);s.render(57,24)
     local m=s.state.gather()
     equal(m.tiles[2],{'LOGS TODAY','-','no daily source','c'});equal(m.tiles[6],{'NEXT GROW','-','no timer','c'})
     j.nextRound=999000;equal(s.state.gather().tiles[6][2],'0:00')

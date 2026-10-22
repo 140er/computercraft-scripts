@@ -548,11 +548,16 @@ plan = function(id,row)
 end
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
-local page = "main"
+local defaultView = { page = "main" }
+local function view(session)
+  if not U or type(session) ~= "table" then return defaultView end
+  session.mining = session.mining or { page = "main" }
+  return session.mining
+end
 local function input(event)
   if type(event.text) ~= "string" then
-    if event.id == "setup" then page = "setup" return
-    elseif event.id == "mine-back" then page = "main" return
+    if event.id == "setup" then view(event.session).page = "setup" return
+    elseif event.id == "mine-back" then view(event.session).page = "main" return
     elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
   end
   if type(event.text)~="string" then return end
@@ -723,9 +728,9 @@ local function layout(m, w, h, setup)
   end
   return c.frame()
 end
-local function render(w,h)
+local function render(w,h,session)
   if not U then return legacyRender(w) end
-  return layout(gather(),w or 57,h or 24,page == "setup")
+  return layout(gather(),w or 57,h or 24,view(session).page == "setup")
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do

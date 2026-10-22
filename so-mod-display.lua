@@ -496,6 +496,21 @@ D.once = function(msg, reply)
   reply("view.frame", body)
 end
 
+D.consent = function(event, role, w, h, session)
+  local cells = SO.mods.cells
+  if not cells or type(cells.decideRetirement) ~= "function" then return end
+  local frame = D.compose(role, w, h, session)
+  for _, button in ipairs(frame.buttons) do
+    if button.id == event.id and button.label == event.id:match("^dug%.(%a+)/")
+      and #button.label == button.w and event.y == button.y
+      and event.x >= button.x and event.x < button.x + button.w then
+      local choice, token = event.id:match("^dug%.(%a+)/(.+)$")
+      cells.decideRetirement(token, choice)
+      return
+    end
+  end
+end
+
 D.onInput = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.whole(body.x) or not D.whole(body.y) then return end
@@ -508,18 +523,10 @@ D.onInput = function(msg)
     return
   end
   if id and id:match("^dug%.") then
-    local session, cells = D.sessions[msg.from], SO.mods.cells
-    if not session or not session.w or not cells or type(cells.decideRetirement) ~= "function" then return end
-    local frame = D.compose(D.drawn(msg.from), session.w, session.h, session)
-    for _, button in ipairs(frame.buttons) do
-      if button.id == id and button.label == id:match("^dug%.(%a+)/")
-        and #button.label == button.w and body.y == button.y and body.x >= button.x and body.x < button.x + button.w then
-        local choice, token = id:match("^dug%.(%a+)/(.+)$")
-        cells.decideRetirement(token, choice)
-        if session.sub then D.sendFrame(msg.from, os.epoch("utc"), true) end
-        return
-      end
-    end
+    local session = D.sessions[msg.from]
+    if not session or not session.w then return end
+    D.consent(body, D.drawn(msg.from), session.w, session.h, session)
+    if session.sub then D.sendFrame(msg.from, D.now(), true) end
     return
   end
   local drawn = D.drawn(msg.from)
@@ -653,7 +660,9 @@ D.localTick = function(now)
       local w,h = m.target.getSize()
       local event = m.pending
       m.pending = nil
-      if event then
+      if event and event.id:match("^dug%.") then
+        D.consent(event, m.role, w, h, m.session)
+      elseif event then
         local drawn = m.role
         if drawn == "status" and (m.session.showAlerts or now < (m.session.alertUntil or 0)) then
           m.session.showAlerts=false

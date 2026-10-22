@@ -1,0 +1,26 @@
+Base: origin/server-only at 0f73a4ea74815bc21158585a498da446f5072034.
+
+cc-test
+Automatically selected local-1. Exit 0. All 540 tests passed.
+Full output: full-suite.txt.
+
+Focused offline UI checks
+UI0, UI2a, UI2b, UI2c, UI3a and UI3b. All 49 tests passed.
+Includes fixture generation, isolated display state, one panel order per tap,
+local allow/keep taps and rejection of a queued stale consent button.
+Full output: focused.txt.
+
+luac5.2 -p so-mod-shop.lua so-mod-panel.lua so-mod-mine.lua so-mod-display.lua tests/ui/ui2a.lua tests/ui/ui2b.lua tests/ui/ui2c.lua tests/ui/ui3a.lua tests/ui/ui3b.lua
+Exit 0.
+
+python3 tools/cobaltlocals.py so-mod-shop.lua so-mod-panel.lua so-mod-mine.lua so-mod-display.lua tests/ui/ui2a.lua tests/ui/ui2b.lua tests/ui/ui2c.lua tests/ui/ui3a.lua tests/ui/ui3b.lua
+Exit 0. Highest count is 56, below 185. Full output: locals.txt.
+
+python3 -I docs/ui/mockup-gen.py --fixtures tests/ui/fixtures
+Exit 0. UI0 also verifies generated fixtures and spec mockups.
+
+sh tools/check-scope.sh origin/server-only HEAD
+Exit 0. tests/run.lua is unchanged. No test files deleted. Output: scope.txt.
+
+No CraftOS-PC sandbox or Gate B rerun. Jeffrey authorized offline checks plus
+plain cc-test for these UX fixes. No live server or RCON was accessed.

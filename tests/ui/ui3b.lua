@@ -50,6 +50,9 @@ local function setup()
   end,function(e)
     if e.text then s.query=e.text else s.calls[#s.calls+1]={'shop',e.id} end
   end)
+  env.SO.mods.shop={order=function(search,count)
+    if search:lower()=='iron' then s.calls[#s.calls+1]={'shop','order:'..count..':minecraft:iron_ingot'} end
+  end}
   local p = assert(loadfile('so-mod-panel.lua','t',env))()
   env.SO.mods.panel=p;p.tick(0)
   s.display,s.panel,s.env=d,p,env
@@ -124,9 +127,8 @@ return function(test,equal)
     for _,role in ipairs({'mining','lumber'}) do for _,cmd in ipairs({'start','stop'}) do
       local n=#s.calls;s.tap(2,role..':'..cmd);equal(#s.calls,n+1);equal(s.calls[#s.calls],{role,cmd})
     end end
-    local n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n+2)
-    equal(s.calls[n+1],{'shop','item:minecraft:iron_ingot'})
-    equal(s.calls[n+2],{'shop','order:16:minecraft:iron_ingot'})
+    local n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n+1)
+    equal(s.calls[n+1],{'shop','order:16:minecraft:iron_ingot'})
     s.tap(2,nil,'missing');n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n)
   end)
   test('UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast',function()
@@ -199,7 +201,47 @@ return function(test,equal)
       s.env.SO.mods.shop=shop;shop.tick(0)
       shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}})
       s.panel.tick(0);s.frame(2);s.tap(2,'panel');s.tap(2,nil,'IRON')
-      local n=#sends;s.tap(2,'order:'..amount);equal(#sends,n+1)
+      local sessions={{id=3},{id=4},{}}
+      local screen=s.display.screen('shop')
+      local totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}
+      for i=1,20 do totals['minecraft:gold_'..i]=i end
+      shop.listen.roomsorter_stock(9,{totals=totals})
+      local function press(session,id)
+        local frame=screen.render(57,24,session)
+        local button
+        for _,b in ipairs(frame.buttons) do if b.id==id then button=b end end
+        assert(button,'missing shop button '..id)
+        screen.input({id=id,x=button.x,y=button.y,session=session})
+      end
+      screen.input({text='gold',session=sessions[1]})
+      press(sessions[1],'next')
+      local selected
+      for _,b in ipairs(screen.render(57,24,sessions[1]).buttons) do
+        if b.id:match('^item:') then selected=b.id;break end
+      end
+      press(sessions[1],selected)
+      screen.input({text='iron',session=sessions[2]})
+      screen.input({text='gold',session=sessions[3]})
+      local before={}
+      for i,session in ipairs(sessions) do
+        before[i]=session.id and private(s.display.handlers.hello,'D').compose('shop',57,24,session) or screen.render(57,24,session)
+      end
+      local panelFrame=s.frame(2)
+      local orderButton
+      for _,b in ipairs(panelFrame.buttons) do if b.id=='order:'..amount then orderButton=b end end
+      assert(orderButton,'missing panel order button')
+      local n=#sends
+      s.display.handlers.input({from=2,body={id=orderButton.id,x=orderButton.x,y=orderButton.y}})
+      equal(#sends,n+1)
+      for i,session in ipairs(sessions) do
+        local after=session.id and private(s.display.handlers.hello,'D').compose('shop',57,24,session) or screen.render(57,24,session)
+        -- Order feedback changes globally; navigation and search stay on each display.
+        equal(after.buttons,before[i].buttons)
+        for y=1,14 do equal(after.rows[y],before[i].rows[y]) end
+      end
+      press(sessions[1],'items')
+      assert(table.concat(capture(screen.render(57,24,sessions[1]),57,24).picture().text,'\n'):find('page 2/',1,true))
+      assert(table.concat(capture(screen.render(57,24,sessions[3]),57,24).picture().text,'\n'):find('page 1/',1,true))
       local sent=sends[#sends]
       equal(sent.id,9);equal(sent.protocol,'roomsorter');equal(sent.body.cmd,'order')
       equal(sent.body.text,'minecraft:iron_ingot');equal(sent.body.n,amount)

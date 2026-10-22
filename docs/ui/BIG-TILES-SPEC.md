@@ -369,10 +369,10 @@ Lumber, room monitor  (57x24)
  LUMBER                                          running 
  ! out of saplings: replanting paused                    
  TREES READY        LOGS TODAY          SAPLINGS         
-       🬖🬋🬏                                    🬖🬋🬏        
-        🬖🬀                 🬋🬋🬃                ▌ ▌        
-       🬍🬋🬃                                    🬈🬋🬀        
- of 4 spots         no daily source     chest empty      
+       🬖🬋🬏               🬖🬋🬏🬞🬋                🬖🬋🬏        
+        🬖🬀               🬈🬋▌🬛🬋🬏               ▌ ▌        
+       🬍🬋🬃               🬇🬅 🬈🬋🬀               🬈🬋🬀        
+ of 4 spots         logs delivered      chest empty      
                                                          
  TURTLE             FUEL                NEXT GROW        
         🬵             🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏        🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏   

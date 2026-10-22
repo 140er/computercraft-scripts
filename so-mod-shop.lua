@@ -9,7 +9,7 @@ local S = {
   totals = {},
   history = {},
   state = "waiting for stock",
-  search = {},
+  views = {},
   heardAt = nil,
   selectedAt = nil,
   staleAfter = 300000,
@@ -94,8 +94,24 @@ S.row = function(text)
   return { text = text, fg = "0", bg = "f" }
 end
 
+S.view = function(client)
+  local key = type(client) == "table" and (client.id or client) or client or 0
+  if not S.views[key] then S.views[key] = { search = "", page = 1 } end
+  return S.views[key]
+end
+
+S.order = function(search, count)
+  if type(search) ~= "string" or (count ~= 1 and count ~= 16 and count ~= 64) then return end
+  local query, best = search:lower():gsub("%s+", "_"), nil
+  for name, stock in pairs(S.totals) do
+    if name:lower():find(query, 1, true) and (not best or stock > S.totals[best]
+        or (stock == S.totals[best] and name < best)) then best = name end
+  end
+  if best then S.request("order", best, count) end
+end
+
 S.legacy = function(w, h, clientId)
-  local search = S.search[clientId or 0] or ""
+  local search = S.view(clientId).search
   local picture = {
     rows = {},
     buttons = {
@@ -141,8 +157,6 @@ end
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 
-S.page = 1
-S.selected = nil
 S.capacity = function(w, h)
   local cols = U.grid(w, h)
   if w == 57 and h == 24 then cols = {{x=1,w=18},{x=20,w=19},{x=40,w=18}} end
@@ -151,8 +165,9 @@ S.capacity = function(w, h)
 end
 
 S.gather = function(client)
-  local search = S.search[client or 0] or ""
-  local m = { found = S.turtle ~= nil, search = search, page = S.page, items = {},
+  local view = S.view(client)
+  local search = view.search
+  local m = { found = S.turtle ~= nil, search = search, page = view.page, items = {},
     order = table.concat(S.orders, "; "), time = "-" }
   if S.sampleAt then
     m.time = U and U.clock(S.sampleAt).hm or "-"
@@ -168,7 +183,7 @@ S.gather = function(client)
       bg = count == 0 and "e" or (count <= 16 or delta < 0) and "1" or "b" }
     if count == 0 then item.sub = "empty"
     elseif count <= 16 and delta < 0 then item.sub = "v low" end
-    if name == S.selected then m.selected = item end
+    if name == view.selected then m.selected = item end
     if name:lower():find(query, 1, true) then m.items[#m.items + 1] = item end
   end
   table.sort(m.items, function(a, b)
@@ -244,40 +259,42 @@ S.layout = function(m, w, h)
 end
 
 S.render = function(w, h, session)
-  local client = type(session) == "table" and session.id or session
+  local client = session
   if not U then return S.legacy(w, h, client) end
   w, h = w or 57, h or 24
   local _, _, capacity = S.capacity(w,h)
   local m = S.gather(client)
-  S.page = math.max(1,math.min(S.page,math.max(1,math.ceil(#m.items/capacity))))
-  S.pageCapacity = capacity
-  m.page = S.page
+  local view = S.view(client)
+  view.page = math.max(1,math.min(view.page,math.max(1,math.ceil(#m.items/capacity))))
+  view.capacity = capacity
+  m.page = view.page
   return S.layout(m,w,h)
 end
 
 S.input = function(event)
+  local client = event.session or event.from
+  local view = S.view(client)
   if type(event.text) == "string" then
-    S.search[event.from or 0] = (event.text == " " or event.text == "*") and "" or event.text
-    S.page, S.selected = 1, nil
+    view.search = (event.text == " " or event.text == "*") and "" or event.text
+    view.page, view.selected = 1, nil
     return
   end
-  if event.id == "clear" then S.search[event.from or 0] = ""; S.page, S.selected = 1, nil; return end
+  if event.id == "clear" then view.search = ""; view.page, view.selected = 1, nil; return end
   if type(event.id) ~= "string" then return end
   if U then
-    if event.id == "items" then S.selected = nil return end
-    if event.id == "clear" then S.search[event.from or 0], S.page, S.selected = "", 1, nil return end
+    if event.id == "items" then view.selected = nil return end
     if event.id == "next" or event.id == "prev" then
-      local pages = math.max(1,math.ceil(#S.gather(event.from or (event.session and event.session.id)).items/(S.pageCapacity or 1)))
-      S.page = math.max(1,math.min(pages,S.page + (event.id == "next" and 1 or -1)))
+      local pages = math.max(1,math.ceil(#S.gather(client).items/(view.capacity or 1)))
+      view.page = math.max(1,math.min(pages,view.page + (event.id == "next" and 1 or -1)))
       return
     end
     local item = event.id:match("^item:(.+)$")
-    if item and S.totals[item] ~= nil then S.selected = item return end
+    if item and S.totals[item] ~= nil then view.selected = item return end
   end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
   if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil
-      and (not U or S.selected == name) then
+      and (not U or view.selected == name) then
     S.request("order", name, count)
   end
 end
@@ -320,4 +337,5 @@ return {
   handlers = {},
   listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast, dns = S.dns },
   tick = S.tick,
+  order = S.order,
 }
