@@ -97,6 +97,10 @@ class Runtime:
             raise ValueError('Invalid run name')
         return self.home / 'runs' / name
 
+    def lock_path(self, name):
+        self.run(name)
+        return self.home/'locks'/f'{name}.lock'
+
     def state(self, name):
         return json.loads((self.run(name) / 'run.json').read_text())
 
@@ -263,7 +267,7 @@ class Runtime:
         (disk/'startup.lua').write_text('if shell.run("/install.lua", "recover") then shell.run("/gateb-bridge.lua") end\n')
 
     def clone(self, name):
-        with locked(self.home/'template.lock'), locked(self.home/'locks'/f'{name}.lock'):
+        with locked(self.home/'template.lock'), locked(self.lock_path(name)):
             target = self.run(name)
             if target.exists():
                 raise RuntimeError('Run already exists')
@@ -271,16 +275,19 @@ class Runtime:
                 raise RuntimeError('Build the template first')
             manifest=json.loads((self.home/'template/manifest.json').read_text())
             if not manifest.get('prepared'): raise RuntimeError('Template preparation did not finish')
-            copytree(self.home/'template', target)
-            port = self.allocate_port(name)
-            with (target/'server.properties').open('a') as handle:
-                handle.write(f'\nserver-port={port}\n')
-            atomic(target/'run.json',{'version':1,'name':name,'port':port})
+            try:
+                copytree(self.home/'template', target)
+                port = self.allocate_port(name)
+                with (target/'server.properties').open('a') as handle:
+                    handle.write(f'\nserver-port={port}\n')
+                atomic(target/'run.json',{'version':1,'name':name,'port':port})
+            except Exception:
+                shutil.rmtree(target,ignore_errors=True);raise
             return {'run':name,'path':str(target),'port':port}
 
     def serve(self, name, timeout=180):
         run = self.run(name);state=self.state(name)
-        with locked(self.home/'locks'/f'{name}.lock'):
+        with locked(self.lock_path(name)):
             self.ensure_keeper()
             if name in self.status():
                 pid=self.status()[name]
@@ -342,7 +349,7 @@ class Runtime:
         raise RuntimeError('Server did not stop cleanly; process retained for inspection')
 
     def reset(self, name):
-        with locked(self.home/'locks'/f'{name}.lock'):
+        with locked(self.lock_path(name)):
             running=name in self.status();self.stop(name)
             run=self.run(name)
             shutil.rmtree(run/'world');copytree(self.home/'template/world',run/'world')
@@ -449,7 +456,7 @@ class Runtime:
             unavailable=[cid for cid,comp in self.manifest(name)['computers'].items() if comp['role'] in ('server','display','worker') and (name not in self.status() or (comp.get('requires_client') and name+':client' not in self.status()))]
             if unavailable: raise RuntimeError('HTTP install needs running computers; connect the client for pockets: '+','.join(unavailable))
         try:
-            with locked(self.home/'locks'/f'{name}.lock'):
+            with locked(self.lock_path(name)):
                 for cid,comp in self.manifest(name)['computers'].items():
                     role=comp['role']
                     if role not in ('server','display','worker'): continue

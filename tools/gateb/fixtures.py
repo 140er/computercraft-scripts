@@ -30,6 +30,13 @@ def clean_disks(runtime, name):
         shutil.rmtree(disk/'so-data',ignore_errors=True)
         shutil.rmtree(disk/'.gateb',ignore_errors=True)
         if comp['name']=='probe':
+            from world import installer_manifest
+            source=runtime.computer_disk(name,'wall')
+            for relative in installer_manifest(source,'display'):
+                target=disk/relative;target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(source/relative,target)
+            for metadata in ('.so-files','.so-revision'):
+                shutil.copy2(source/metadata,disk/metadata)
             for path in disk.glob('so-keys*'): path.unlink()
         runtime.instrument(disk,comp['role'])
     server=runtime.computer_disk(name,'server')
@@ -41,9 +48,15 @@ def prepare(runtime, name):
     proof=[]
     def command(text):
         result=runtime.command(name,text)
+        deadline=time.monotonic()+15
+        while 'not loaded' in result['output'].lower() and time.monotonic()<deadline:
+            time.sleep(.1);result=runtime.command(name,text)
+        if any(error in result['output'].lower() for error in ('not loaded','unknown or incomplete command','expected whitespace','incorrect argument','unknown block type')):
+            raise RuntimeError('Native fixture command failed: '+text)
         proof.append({'command':text,'output':result['output']})
         return result['output']
     manifest=runtime.manifest(name)
+    command('forceload add -32 -64 31 31')
     for cid in manifest['computers']:
         command('computercraft shutdown #'+cid)
     # Remove the native old turtle blocks before filling fresh mining branches.
@@ -82,6 +95,8 @@ def prepare(runtime, name):
     for cid,comp in manifest['computers'].items():
         if comp['role']!='fixture' and not comp.get('requires_client'):
             command('computercraft turn-on #'+cid)
+    command('forceload remove all')
+    command('forceload add '+' '.join(map(str,manifest['forceload'])))
     command('save-all flush')
     atomic(runtime.run(name)/'fixture-proof.json',{'at':time.time(),'commands':proof})
     return manifest
