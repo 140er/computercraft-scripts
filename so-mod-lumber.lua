@@ -481,13 +481,16 @@ end
 
 S.input = function(ev)
   if type(ev) ~= "table" then return end
-  if ev.text == nil then
+  local text = ev.text
+  if text == nil then
     if ev.id == "setup" then S.setup, S.setupPage = true, 0 return end
     if ev.id == "setup-next" then S.setupPage = (S.setupPage or 0) + 1 return end
     if ev.id == "lumber-back" then S.setup = false return end
+    if ev.id ~= "start" and ev.id ~= "stop" then return end
+    text = ev.id
   end
   local words = {}
-  for word in tostring(ev.text or ev.id or ""):gmatch("%S+") do words[#words + 1] = word end
+  for word in tostring(text):gmatch("%S+") do words[#words + 1] = word end
   local j = S.job
   local function integer(i)
     local n = tonumber(words[i])
