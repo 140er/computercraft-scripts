@@ -4,6 +4,7 @@ local setup = dofile("tests/so/minor-ui-fixture.lua")
 return function(test, equal)
   test("generic frames keep revisions per client size and page", function()
     local net = H.new()
+    net.time = 0
     local m = net.machine({id=1})
     m.install({"so-store.lua", "so-mod-display.lua"})
     m.env.SO = {mods={}, store=m.env.dofile("so-store.lua"), pair={key=function() return "key" end},
@@ -52,6 +53,7 @@ return function(test, equal)
 
   test("shop searches belong to each display and dead rooms are rediscovered", function()
     local net = H.new()
+    net.time = 0
     local m = net.machine({id=1})
     m.install({"so-mod-shop.lua"})
     local render, input
@@ -62,13 +64,40 @@ return function(test, equal)
     input({from=2,text="stone"}) input({from=3,text="dirt"})
     equal(render(26,19,2).rows[2].text,"Search: stone")
     equal(render(29,11,3).rows[2].text,"Search: dirt")
-    shop.tick(300000)
+    net.time=300000
+    shop.tick(net.time)
     assert(render(26,19,2).rows[3].text:find("not found",1,true))
     shop.listen.dns(91,{sType="lookup response",sProtocol="roomsorter"})
-    shop.tick(310000)
+    net.time=310000
+    shop.tick(net.time)
     equal(m.sent[#m.sent].id,91)
     shop.listen.roomsorter_stock(90,{totals={wrong=100}})
     shop.listen.roomsorter(91,{rid=m.sent[#m.sent].payload.rid,totals={stone=2}})
+    assert(render(26,19,2).rows[3].text:find("stone",1,true))
+  end)
+
+  test("shop DNS answers do not substitute for stock and valid stock renews discovery", function()
+    local net=H.new()
+    net.time=0
+    local m=net.machine({id=1})
+    m.install({"so-mod-shop.lua"})
+    local render
+    m.env.SO={mods={display={screen=function(_, r) render=r end}}}
+    local shop=m.env.dofile("so-mod-shop.lua")
+    shop.tick(0)
+    shop.listen.dns(90,{sType="lookup response",sProtocol="roomsorter"})
+    net.time=299000
+    shop.tick(net.time)
+    assert(not render(26,19,2).rows[3])
+    net.time=300000
+    shop.tick(net.time)
+    assert(render(26,19,2).rows[3].text:find("not found",1,true))
+    shop.listen.roomsorter_stock(91,{totals={stone=1}})
+    net.time=599000
+    shop.listen.roomsorter_stock(91,{totals={stone=2}})
+    shop.tick(net.time)
+    net.time=600000
+    shop.tick(net.time)
     assert(render(26,19,2).rows[3].text:find("stone",1,true))
   end)
 
@@ -103,5 +132,16 @@ return function(test, equal)
     mod.tick(302000)
     assert(elements["alert:mine.alert"],"repeated alert must refresh its expiry")
     equal(clears,1)
+    values["mine.alert"]=nil
+    mod.tick(303000)
+    equal(elements["alert:mine.alert"],nil,"removed state clears the drawn alert")
+    values["mine.alert"]={text="old snapshot"}
+    entries[3]={seq=3,at=0,kind="mine.alert"}
+    mod=m.env.dofile("so-mod-ar.lua")
+    mod.tick(304000)
+    equal(elements["alert:mine.alert"],nil,"old history must stay expired after boot")
+    ar.clear=nil
+    mod=m.env.dofile("so-mod-ar.lua")
+    assert(pcall(mod.tick,305000),"controller without clear remains supported")
   end)
 end

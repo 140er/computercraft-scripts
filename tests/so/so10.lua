@@ -53,7 +53,7 @@ return function(test, equal)
       for i = 1, 12 do assert(b.ar.elements["lease:" .. owner .. ":" .. i]) end
     end
     assert(b.ar.elements["alert:drops.alert"])
-    equal(b.ar.clears, 0)
+    equal(b.ar.clears, 1)
   end)
   test("AR layer switches delete outlines on the next frame and persist", function()
     local b = boot(true)
@@ -160,7 +160,7 @@ return function(test, equal)
     get()
     equal(frame.role, "ar")
   end)
-  test("AR removes departed turtles and uses clear only without delete", function()
+  test("AR removes departed turtles and clears on attach and falls back to clear without delete", function()
     local b = boot(true)
     b.tick(1000)
     b.machines[2] = nil
@@ -169,7 +169,7 @@ return function(test, equal)
     b.ar.delete = nil
     b.machines[3].fuel = 1
     b.tick(3000)
-    equal(b.ar.clears, 1)
+    equal(b.ar.clears, 2)
     equal(b.ar.frames, 3)
   end)
 end

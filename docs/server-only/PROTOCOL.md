@@ -178,6 +178,10 @@ The server sends `view.frame` to a display.
 
 `body.rev` is a number. It grows when the picture changes. A repeat of the same picture keeps the same `rev`.
 
+Frame signatures and revisions are tracked per role and client. Unchanged
+frames wait for the four-second keepalive even when other displays have different
+sizes or pages.
+
 `body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`.
@@ -243,13 +247,13 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 ### shop
 
-`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, search text, order replies and trend samples in memory. Restarting the server clears them.
+`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, per-display search text, order replies and trend samples in memory. Restarting the server clears them.
 
-The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`.
+The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`. After five minutes without a stock reply or stock broadcast from the selected turtle, it clears stale stock and resumes discovery. DNS replies and order replies do not extend that deadline. The legacy room has no server-only configuration or pairing record to select a preferred turtle; discovery uses the first DNS or stock responder.
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
-The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names without case sensitivity; spaces match underscores. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
+The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names for that display without case sensitivity; spaces match underscores. The visible `clear` button, a lone space, or `*` clears that display's filter. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
@@ -620,7 +624,10 @@ boolean values. A failed save leaves the current switches unchanged.
   Broken points are red.
 - `alerts` draws up to eight state keys ending in `.alert` at the top left.
   Retained state history orders alerts newest first, including repeated alerts.
-  Keys absent from retained history use their first observation order.
+  Keys absent from retained history use their first observation order. Alerts
+  expire five minutes after the event timestamp, or first observation when no
+  timestamp is available. Repeated events renew the deadline. Expired snapshot
+  values stay hidden until a new event arrives.
 
 Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
 map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
@@ -628,9 +635,10 @@ map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
 
 Tick discovers controllers at most once every five seconds without waiting.
 It compares scenes and draws changes at most once per second. Stable element
-ids let it delete removed elements with `ar.delete`; it clears each frame only
-when delete is missing. Each frame ends with one `ar.update()`. Colours are
-signed ARGB integers. Drawing errors drop that controller until later discovery.
+ids let it delete removed elements with `ar.delete`. On first attachment it calls
+`ar.clear()` when available to remove elements left before server boot. Later
+frames clear only when delete is missing. Each frame ends with one `ar.update()`.
+Colours are signed ARGB integers. Drawing errors drop that controller until later discovery.
 The layers do not draw item icons.
 
 ## Plan helpers

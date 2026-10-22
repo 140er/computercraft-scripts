@@ -9,7 +9,10 @@ local S = {
   totals = {},
   history = {},
   state = "waiting for stock",
-  search = "",
+  search = {},
+  heardAt = nil,
+  selectedAt = nil,
+  staleAfter = 300000,
   orders = {},
   latestOrder = nil,
   registered = false,
@@ -29,6 +32,7 @@ end
 
 S.stock = function(message)
   if type(message.totals) == "table" then
+    S.heardAt = os.epoch("utc")
     local totals = {}
     for name, count in pairs(message.totals) do
       if type(name) == "string" and type(count) == "number" and count >= 0
@@ -56,7 +60,7 @@ end
 
 S.broadcast = function(sender, message)
   if type(message) ~= "table" or type(message.totals) ~= "table" then return end
-  if not S.turtle then S.turtle = sender end
+  if not S.turtle then S.turtle = sender S.selectedAt = os.epoch("utc") end
   if sender == S.turtle then S.stock(message) end
 end
 
@@ -64,6 +68,7 @@ S.dns = function(sender, message)
   if not S.turtle and type(message) == "table" and message.sType == "lookup response"
       and message.sProtocol == "roomsorter" then
     S.turtle = sender
+    S.selectedAt = os.epoch("utc")
   end
 end
 
@@ -89,21 +94,25 @@ S.row = function(text)
   return { text = text, fg = "0", bg = "f" }
 end
 
-S.render = function()
+S.render = function(w, h, clientId)
+  local search = S.search[clientId or 0] or ""
   local picture = {
     rows = {},
-    buttons = { { id = "generic", x = 1, y = 1, w = 7, label = "generic" } },
+    buttons = {
+      { id = "generic", x = 1, y = 1, w = 7, label = "generic" },
+      { id = "clear", x = 9, y = 1, w = 5, label = "clear" },
+    },
   }
   local rows, buttons = picture.rows, picture.buttons
-  rows[1] = S.row("        Storage: " .. S.state)
-  rows[2] = S.row("Search: " .. S.search)
+  rows[1] = S.row("              Storage: " .. S.state)
+  rows[2] = S.row("Search: " .. search)
   if not S.turtle then
     rows[#rows + 1] = S.row("Storage room not found, still looking")
     return picture
   end
   for i = 1, #S.orders do rows[#rows + 1] = S.row("Order: " .. S.orders[i]) end
   local items = {}
-  local query = S.search:lower():gsub("%s+", "_")
+  local query = search:lower():gsub("%s+", "_")
   for name, count in pairs(S.totals) do
     if name:lower():find(query, 1, true) then items[#items + 1] = { name = name, count = count } end
   end
@@ -131,9 +140,10 @@ end
 
 S.input = function(event)
   if type(event.text) == "string" then
-    S.search = event.text
+    S.search[event.from or 0] = (event.text == " " or event.text == "*") and "" or event.text
     return
   end
+  if event.id == "clear" then S.search[event.from or 0] = "" return end
   if type(event.id) ~= "string" then return end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
@@ -147,6 +157,14 @@ S.tick = function(now)
   if not S.registered and type(display) == "table" and type(display.screen) == "function" then
     display.screen("shop", S.render, S.input)
     S.registered = true
+  end
+  if S.turtle and now - (S.heardAt or S.selectedAt or now) >= S.staleAfter then
+    S.turtle, S.heardAt, S.selectedAt, S.stockAt, S.lookupAt = nil, nil, nil, nil, nil
+    S.totals, S.history = {}, {}
+    S.state = "waiting for stock"
+    for rid, pending in pairs(S.pending) do
+      if pending.kind == "stock" then S.pending[rid] = nil end
+    end
   end
   if not S.turtle and (not S.lookupAt or now - S.lookupAt >= 10000) then
     S.lookupAt = now
