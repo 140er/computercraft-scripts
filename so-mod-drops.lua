@@ -310,6 +310,14 @@ S.gather = function()
     editing = S.editing, page = S.page or 1 }
 end
 
+S.listSize = function(count, w, h)
+  local compact = w < 39 or h < 16
+  local actionY = compact and h-2 or math.min(math.max(11, count+6), h-3)
+  local capacity = math.max(1, actionY-5)
+  return { compact = compact, actionY = actionY, capacity = capacity,
+    pages = math.max(1, math.ceil(count/capacity)) }
+end
+
 S.layout = function(model, w, h)
   local C = U.canvas(w, h)
   if model.editing then
@@ -336,11 +344,9 @@ S.layout = function(model, w, h)
   end
   C.header("DROP POINTS", #model.points .. " points")
   C.fill(1, 3, w, 1, '7'); C.put(2, 3, "ID  KIND     WHERE          SIDE   STATE")
-  local compact = w < 39 or h < 16
+  local size = S.listSize(#model.points, w, h)
+  local compact, actionY, capacity, pages = size.compact, size.actionY, size.capacity, size.pages
   local navHeight = compact and 1 or 3
-  local actionY = compact and h-2 or math.min(math.max(11, #model.points+6), h-3)
-  local capacity = math.max(1, actionY-5)
-  local pages = math.max(1, math.ceil(#model.points/capacity))
   local page = math.min(model.page or 1, pages)
   local first = (page-1)*capacity+1
   local selectedRow
@@ -368,7 +374,11 @@ end
 
 S.render = function(w, h)
   if not U then return S.legacyRender() end
-  local frame = S.layout(S.gather(), w or 57, h or 24)
+  w, h = w or 57, h or 24
+  local model = S.gather()
+  model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
+  S.page = model.page
+  local frame = S.layout(model, w, h)
   frame.rev = S.rev
   return frame
 end

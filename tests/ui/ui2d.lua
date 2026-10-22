@@ -68,6 +68,8 @@ return function(test,equal)
       ui.input({id='next'})
     end
     local n=0;for _ in pairs(seen) do n=n+1 end;equal(n,64)
+    ui.render(57,24);ui.input({id='prev'})
+    local first=ui.render(57,24).buttons[1].id;equal(first,'select:p33')
     ui.input({id='select:p64'});ui.input({id='remove'});equal(#d.list(),63)
   end)
   test('UI2d AR tile toggles once and survives reload',function()
