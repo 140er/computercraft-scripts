@@ -86,11 +86,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [so-mod-state.lua](../so-mod-state.lua), `state`, folds events into registry,
   jobs and views. Calls are `emit(kind, data)`, `get(path)`, `job(data)`,
-  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`,
+  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`,
   `history.page(q)` and `tick(now)`. `view` is a callable table.
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
-  No wire handlers. Built-in views are `fleet`, `turtle/<id>`, `log` and `status`.
+  `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
+  or more and show `disk >=80%; free space`. Existing work, recovery and stop
+  remain available. No wire handlers. Built-in views are `fleet`, `turtle/<id>`,
+  `log` and `status`.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
@@ -340,6 +343,8 @@ Do not save inside tight loops.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
+  Section files have no aggregate disk bound or automatic pruning. Owner release
+  removes reservations only. Marks remain available for recovery across jobs.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a

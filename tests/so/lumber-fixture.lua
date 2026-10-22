@@ -7,7 +7,7 @@ local function setup(phase, fuel, inv)
   local callback, render, input, queued, events, serial = nil, nil, nil, nil, {}, 0
   local env = setmetatable({ os = { epoch = function() return 0 end }, SO = { store = { store = function() return { value = job, save = function() return true end } end }, mods = {
     cells = { reserveMany = function() return true end, releaseOwner = function() end },
-    state = { emit = function(kind, data) events[#events + 1] = { kind = kind, data = data } end },
+    state = { emit = function(kind, data) events[#events + 1] = { kind = kind, data = data } end, canStart = function() return true end },
     drops = { pick = function(kind) return { point = { id = 1, x = 250, y = 1, z = 0, side = 'down', kind = kind } } end },
     display = { screen = function(_, r, i) render, input = r, i end },
     lease = { status = function() return { open = queued ~= nil, pos = job.turtle.pose, range = 10000 } end,

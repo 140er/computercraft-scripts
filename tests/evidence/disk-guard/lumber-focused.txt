@@ -1,0 +1,13 @@
+PASS SO7 chest access faces the chest from the nearest unblocked neighbour
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from down
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from front
+PASS SO7 fells four trees, replants the farm and delivers every log
+PASS SO7 an empty sapling chest raises one alert and still fells all trees
+PASS SO7 a server restart mid-round recovers the worker pose and finishes
+PASS SO7 low fuel uses the fuel chest without burning harvested logs
+PASS SO7 a fuel trip during felling returns to the interrupted trunk height
+PASS SO7 range failures stop movement and show a red alert
+PASS SO7 another owner's reservation prevents the worker entering the cell
+PASS SO7 the generic lumber button opens the lumber screen
+PASS SO7 saved frame recovers on the first tick without lease memory
+12 lumber tests passed

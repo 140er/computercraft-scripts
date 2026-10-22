@@ -1,6 +1,6 @@
 local H = dofile("tests/so/harness.lua")
 local S = {}
-S.files = {"so-server.lua","so-store.lua","so-pair.lua","so-proto.lua","so-mod-lease.lua","so-mod-cells.lua","so-mod-display.lua","so-mod-drops.lua","so-mod-mine.lua","so-mine-plan.lua","so-plan.lua"}
+S.files = {"so-server.lua","so-store.lua","so-mod-state.lua","so-pair.lua","so-proto.lua","so-mod-lease.lua","so-mod-cells.lua","so-mod-display.lua","so-mod-drops.lua","so-mod-mine.lua","so-mine-plan.lua","so-plan.lua"}
 local function tree(m)
   for _, name in ipairs({ "x25519", "random", "blake3", "chacha20", "config", "internal/util",
     "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing" }) do
@@ -418,7 +418,7 @@ return function(test,equal)
   test("mine bounds a vein to 64 blocks and emits ore and progress events", function()
     local s = setup()
     local events = {}
-    s.server.env.SO.mods.state = { emit=function(kind, data)
+    s.server.env.SO.mods.state = { canStart=s.server.env.SO.mods.state.canStart, emit=function(kind, data)
       events[#events+1] = { kind=kind, data=data }
       return true
     end }
@@ -578,7 +578,7 @@ return function(test,equal)
         if opts.ms == 600000 then parks=parks+1 end
         return send(id,steps,opts)
       end
-      s.server.env.SO.mods.state={emit=function(name,data)
+      s.server.env.SO.mods.state={canStart=s.server.env.SO.mods.state.canStart,emit=function(name,data)
         if name=="mine.alert" then
           equal(data,{id=2,text=kind=="ore" and "ore chest full" or "fuel chest empty"})
           alerts=alerts+1
@@ -607,7 +607,7 @@ return function(test,equal)
       local attempts, alerts = 0, 0
       local suck = s.turtle.env.turtle.suck
       s.turtle.env.turtle.suck = function(n) attempts=attempts+1 return suck(n) end
-      s.server.env.SO.mods.state = {emit=function(name)
+      s.server.env.SO.mods.state = {canStart=s.server.env.SO.mods.state.canStart,emit=function(name)
         if name=="mine.alert" then alerts=alerts+1 end
       end}
       s.input("start") run(s,100)
@@ -649,7 +649,7 @@ return function(test,equal)
     local picks, alerts=0,0
     local pick=s.server.env.SO.mods.drops.pick
     s.server.env.SO.mods.drops.pick=function(...) picks=picks+1 return pick(...) end
-    s.server.env.SO.mods.state={emit=function(name) if name=="mine.alert" then alerts=alerts+1 end end}
+    s.server.env.SO.mods.state={canStart=s.server.env.SO.mods.state.canStart,emit=function(name) if name=="mine.alert" then alerts=alerts+1 end end}
     s.input("start") run(s,5)
     equal(picks,3) equal(alerts,1)
     run(s,54) equal(picks,3)
