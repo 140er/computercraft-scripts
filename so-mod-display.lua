@@ -250,7 +250,7 @@ D.gather = function()
   local machines = state and type(state.get) == "function" and state.get("machines") or {}
   local turtles, lost, leases = 0, 0, 0
   for id, machine in pairs(machines or {}) do
-    if machine.role == "worker" or machine.role == "turtle" then
+    if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtles = turtles + 1
       local status = lease and type(lease.status) == "function" and lease.status(tonumber(id)) or {}
       if status.lost then lost = lost + 1 end
