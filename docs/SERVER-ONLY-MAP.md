@@ -300,14 +300,20 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
 4. The P key opens pairing. The one-second timer expires reply-cache entries,
    refreshes the pairing prompt and calls every `tick(now)` in filename order.
    It rearms after the ticks; missed seconds do not produce catch-up ticks.
+   If any event arrives more than 3 s (`os.clock`) after the last tick, the
+   loop logs, ticks and starts a fresh timer, so a lost timer cannot stop
+   planning.
 
 Handlers, listeners and ticks run inside `pcall`; a failure logs and the loop
 continues. Never wait inside them. `sleep(0)`, `sleep(n)`, `rednet.lookup`,
 `rednet.receive` and filtered `os.pullEvent` calls consume unrelated events
-while this single coroutine waits. That can discard reports, beacons or keys.
-Yield only during a real burst of work, never on the first call. Copy
-`so-mod-cells.lua`'s `S.pause` pattern, which resets after an idle gap and yields
-only after accumulated work or elapsed burst time.
+while this single coroutine waits. That can discard reports, beacons, keys or
+the tick timer itself (Gate B C7). To yield during a long burst, call
+`SO.breathe()`: it queues a marker and re-queues every event it pulls before
+the marker, so nothing is lost. Yield only during a real burst of work, never
+on the first call. Copy `so-mod-cells.lua`'s `S.pause` pattern, which resets
+after an idle gap and breathes only after accumulated work or elapsed burst
+time. `tests/so/tick-stall.lua` fails if any `so-mod-*.lua` calls `sleep`.
 
 ## Wire names
 
@@ -385,8 +391,8 @@ prints its elapsed time. The harness adds `net.kill(machine)` and
 `net.boot(machine)`, which returns a fresh machine with the same disk and id.
 Optional machine settings enable inventory drops, fluid handling, action time, directory
 listing, monitor size and server wait observations. Existing defaults stay the
-same. SO11 treats every handler, listener or tick wait as a check 7 failure,
-including the cells module's accumulated `sleep(0)` burst yields.
+same. SO11 treats every handler, listener or tick wait as a check 7 failure.
+`SO.breathe()` does not count as a wait.
 SO11 scenario B uses length-48 mining branches and grown trees, cuts inside a server call at the first observed instant after 240 seconds with three open work leases, then checks four minutes of recovery after two minutes down, including lane exclusion and exactly-once interrupted dug reports.
 
 Add a suite as `tests/so/<name>.lua` and append this block at the very end of

@@ -28,6 +28,17 @@ S.run = function()
   if not proto or not store or not pair then return end
   pair.open(proto, store)
   SO = { mods = {}, proto = proto, pair = pair, store = store }
+  -- Yield once without losing events. sleep(0) drops every event that is
+  -- not its own timer, including the tick timer and rednet messages.
+  -- Handlers, listeners and ticks must yield only through this.
+  SO.breathe = function()
+    os.queueEvent("so-breathe")
+    for _ = 1, 256 do
+      local packed = table.pack(os.pullEventRaw())
+      if packed[1] == "so-breathe" then return end
+      os.queueEvent(table.unpack(packed, 1, packed.n))
+    end
+  end
   local mods = {}
   local names = fs.list("/")
   table.sort(names)
@@ -233,25 +244,29 @@ S.run = function()
   end
   showPrompt()
   local pairKey = (type(keys) == "table" and keys.p) or 25
-  local timer = os.startTimer(1)
+  local timer, ticked
+  local function tick()
+    if view.mode == "code" and not pair.pending() then showPrompt() end
+    local now = os.epoch("utc")
+    for _, by in pairs(sent) do
+      for rid, slot in pairs(by) do
+        if now - slot.at > memory then by[rid] = nil end
+      end
+    end
+    for i = 1, #mods do
+      local fn = mods[i].tick
+      if type(fn) == "function" then
+        local ok, err = pcall(fn, now)
+        if not ok then print("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
+      end
+    end
+    timer, ticked = os.startTimer(1), os.clock()
+  end
+  timer, ticked = os.startTimer(1), os.clock()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
-      if view.mode == "code" and not pair.pending() then showPrompt() end
-      local now = os.epoch("utc")
-      for _, by in pairs(sent) do
-        for rid, slot in pairs(by) do
-          if now - slot.at > memory then by[rid] = nil end
-        end
-      end
-      for i = 1, #mods do
-        local tick = mods[i].tick
-        if type(tick) == "function" then
-          local ok, err = pcall(tick, now)
-          if not ok then print("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
-        end
-      end
-      timer = os.startTimer(1)
+      tick()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
       openModems()
     elseif ev == "key" and a == pairKey and not b then
@@ -267,6 +282,13 @@ S.run = function()
           if not ok then print("so-server: listen " .. mods[i].name .. " failed: " .. tostring(err)) end
         end
       end
+    end
+    -- A lost tick timer would stop planning for good while messages still
+    -- arrive. os.clock counts game ticks like timers do, so server lag
+    -- does not trip this.
+    if os.clock() - ticked > 3 then
+      print("so-server: no tick for 3 s; rearming the tick timer")
+      tick()
     end
   end
 end

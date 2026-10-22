@@ -30,7 +30,8 @@ local function boot(files)
   local function elapsed()
     probe.longest = math.max(probe.longest, net.time - probe.last)
   end
-  env.sleep = function()
+  env.sleep = function() error("cells must yield through SO.breathe, not sleep", 0) end
+  local function breathe()
     elapsed()
     probe.yields = probe.yields + 1
     probe.last = net.time
@@ -53,7 +54,7 @@ local function boot(files)
     end
     return handle
   end
-  env.SO = { store = store, mods = {} }
+  env.SO = { store = store, mods = {}, breathe = breathe }
   local cells = env.dofile("so-mod-cells.lua")
   env.SO.mods.cells = cells
   return cells, machine, net, probe

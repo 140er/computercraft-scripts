@@ -12,7 +12,7 @@ S.pause = function()
   S.last = now
   S.work = S.work + 1
   if S.work >= 128 or now - S.yielded >= 1000 then
-    sleep(0)
+    SO.breathe()
     S.work, S.yielded = 0, os.epoch("utc")
   end
 end

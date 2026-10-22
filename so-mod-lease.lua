@@ -263,7 +263,7 @@ S.tick = function(now)
       end
     end
     count = count + 1
-    if count % 64 == 0 then sleep(0) end
+    if count % 64 == 0 then SO.breathe() end
   end
 end
 
