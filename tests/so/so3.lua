@@ -214,6 +214,22 @@ return function(test,equal)
     equal(count,14*64)
     equal(s.net.world["0,-1,0"].inv[1].count,64)
   end)
+  test("mine refused cleanup unloads ore and excess junk at the chest",function()
+    local s=setup()
+    for i=1,16 do s.turtle.inv[i]={name=i<=2 and "minecraft:cobblestone" or "minecraft:diamond",count=64} end
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["1,0,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=1,y=0,z=0,side="front",kind="ore"}))
+    s.input("start") run(s,150)
+    local ore,junk=0,0
+    for _,item in ipairs(chest.inv) do
+      if item.name=="minecraft:diamond" then ore=ore+item.count end
+      if item.name=="minecraft:cobblestone" then junk=junk+item.count end
+    end
+    equal(ore,14*64) equal(junk,64)
+    equal(s.turtle.inv[1].count,64)
+    assert(s.turtle.pos.y<0,"mining did not resume after refused cleanup")
+  end)
   test("mine range refusal sends no movement outside proven range",function()
     local s=setup() local lease=s.server.env.SO.mods.lease
     lease.inRange=function(_,p) return p.y>=0 end

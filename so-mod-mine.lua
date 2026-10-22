@@ -275,7 +275,12 @@ local function report(_, id, results, lease)
           row.scanAfter = nil
         else S.known[M.key(action.cell)] = nil row.error = results[1].err end
       elseif action.kind == "cleanup" then
-        row.cleanup = #M.cleanup(row.inv,false) > 0
+        for i, step in ipairs(action.steps) do
+          if step.op == "dropDown" and not results[i].ok and results[i].err == "no inventory" then
+            row.cleanupBlocked = true
+          end
+        end
+        row.cleanup = not row.cleanupBlocked and #M.cleanup(row.inv,false) > 0
         if not row.cleanup then row.cleaned = row.dug or 0 end
       elseif action.kind == "unload" or action.kind == "refuel" then
         local failed = false
@@ -356,7 +361,7 @@ plan = function(id,row)
   end
   row.inv = row.inv or {}
   local clean = M.cleanup(row.inv,false)
-  if not row.trip and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
+  if not row.trip and not row.cleanupBlocked and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
     send(id,row,{kind="cleanup",steps=clean,cells={}}) return
   end
   if not row.trip then
@@ -382,9 +387,14 @@ plan = function(id,row)
         local turn = M.turn(row.pose,t.stand.facing)
         send(id,row,{kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) return
       elseif t.kind == "ore" then
-        local steps = {}
+        local steps, junkSlots = {}, {}
+        if row.cleanupBlocked then
+          for _, step in ipairs(M.cleanup(row.inv,false)) do
+            if step.op == "select" then junkSlots[step.slot] = true end
+          end
+        end
         for _, item in ipairs(row.inv) do
-          if not M.junk(item) and not unloadKeep[item.name] then
+          if (not M.junk(item) or junkSlots[item.slot]) and not unloadKeep[item.name] then
             steps[#steps+1]={op="select",slot=item.slot}
             local drop = call("drops","steps",t.point) or {}
             for _, step in ipairs(drop) do steps[#steps+1]=step end

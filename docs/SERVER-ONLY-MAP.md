@@ -142,7 +142,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  New jobs default to `ores = {}`, which accepts all ores. Completed routes
+  New jobs default to `ores = {}`, which accepts all ores. A refused junk cleanup
+  sets `cleanupBlocked` on that worker and sends excess junk through the next ore
+  unload, retaining one suitable sealing stack. Completed routes
   unload remaining ore through the configured drop before parking.
   A lane pass reserves its full route through the shaft and spine plus its exit in one
   call. Intermediate batches retain the reservation until the worker leaves.

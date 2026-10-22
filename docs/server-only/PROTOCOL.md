@@ -377,8 +377,10 @@ A fresh ten-block shaft therefore cannot be dug in two leases with this worker.
 Thorough mode checks branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
 `c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
 It scoops lava sources with an empty bucket before trying sealing blocks.
-It seals other lava and water before movement. Extra junk drops at the current
-position about every ten digs. One stack of suitable blocks stays for sealing.
+It seals other lava and water before movement. About every ten digs, extra junk
+drops into an inventory below the current position. If no inventory is present, cleanup stops retrying
+and the next ore trip deposits excess junk too. One stack of suitable blocks
+stays for sealing.
 
 Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
 below the mine route home plus 64 visit a fuel drop and refuel towards 2000,

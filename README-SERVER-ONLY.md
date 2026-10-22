@@ -176,5 +176,7 @@ The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 
 Workers refuse drop and suck steps unless the target is an inventory. A missing
-chest returns `no inventory` and keeps the items in the turtle. This also refuses
-mining junk drops into open space; they need an inventory below the turtle.
+chest returns `no inventory` and keeps the items in the turtle. Mining cleanup
+uses an inventory below the turtle when present. After a refused cleanup, excess
+junk travels to the ore chest with the next unload;
+one suitable stack stays for sealing.
