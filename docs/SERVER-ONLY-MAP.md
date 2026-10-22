@@ -162,8 +162,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Only `tick(now)` is exported beyond module metadata; no wire handlers.
   Tick registers `display.screen("lumber", render, input)` and
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
-  Screen callbacks are `render()` and `input(event)`; reports use
+  Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
+  The Big Tiles screen gathers job state into a pure layout. START and STOP use
+  the text command path. SETUP pages configuration commands; its BACK returns
+  to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
+  Logs are delivered totals, not daily totals. Calls without a size retain
+  the legacy rows for older callers.
   Restart recovery sends a stationary park using the saved frame without a
   volatile lease pose or range proof. Its report rebuilds the world pose before
   work resumes. Work leases still require the range and reservation checks.

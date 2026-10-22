@@ -512,7 +512,14 @@ Search rows are three blocks apart at soil height plus two. Probes find logs at 
 
 An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. Saplings stay in the turtle. A `hold` result parks and raises an alert. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned.
 
-The screen shows state, logs delivered, saplings carried, known and planted spots, fuel, and the last alert. Lost workers and range failures appear in red. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
+The screen callback accepts `render(w, h)` and draws Big Tiles from job state.
+It shows eligible spots, delivered logs, carried saplings, turtle phase, fuel,
+and the next scan countdown. A missing countdown uses a stale tile. The logs
+tile uses the delivered total because no daily total exists. START and STOP
+use the text commands above. SETUP lists the area, ground, sapling chest, turtle
+and their text commands, with NEXT on small screens. Its BACK button returns
+to lumber; the main BACK has
+id `status`. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
