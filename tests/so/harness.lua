@@ -496,32 +496,39 @@ H.new = function()
         return assert(load("return " .. text, "=state", "t", {}))()
       end,
     }
-    env.dofile = function(path)
+    env.loadfile = function(path, mode, target)
       local text = env.fs.open(path, "r")
-      if not text then error("missing " .. tostring(path), 2) end
-      local fn, err = load(text.readAll(), "@" .. path, "t", env)
-      if not fn then error(err, 2) end
-      local result = fn()
-      if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
-      if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
-        local function guard(fn, label)
-          return function(...)
-            local old = m.context
-            m.context = label
-            local values = table.pack(pcall(fn, ...))
-            m.context = old
-            if not values[1] then error(values[2], 0) end
-            return table.unpack(values, 2, values.n)
+      if not text then return nil, "missing " .. tostring(path) end
+      local source = text.readAll()
+      text.close()
+      local fn, err = load(source, "@" .. path, mode or "bt", target or env)
+      if not fn then return nil, err end
+      return function(...)
+        local result = fn(...)
+        if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
+        if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
+          local function guard(fn, label)
+            return function(...)
+              local old = m.context
+              m.context = label
+              local values = table.pack(pcall(fn, ...))
+              m.context = old
+              if not values[1] then error(values[2], 0) end
+              return table.unpack(values, 2, values.n)
+            end
+          end
+          if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
+          for _, kind in ipairs({"handlers", "listen"}) do
+            for name, fn in pairs(result[kind] or {}) do
+              result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
+            end
           end
         end
-        if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
-        for _, kind in ipairs({"handlers", "listen"}) do
-          for name, fn in pairs(result[kind] or {}) do
-            result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
-          end
-        end
+        return result
       end
-      return result
+    end
+    env.dofile = function(path)
+      return assert(env.loadfile(path))()
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {

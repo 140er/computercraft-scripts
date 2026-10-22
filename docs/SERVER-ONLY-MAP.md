@@ -206,7 +206,8 @@ validation, crash recovery and state preservation.
 ## One event loop
 
 `so-server.lua` checks disk capacity before loading libraries. It creates `SO`,
-loads root `so-mod-*.lua` files in sorted filename order, then opens the modem
+loads root `so-mod-*.lua` files in sorted filename order with the server program
+environment so they share `SO`, then opens the modem
 and hosts rednet protocol `so` as `server`. Missing or invalid modules are skipped.
 
 One coroutine waits on an unfiltered `os.pullEvent()`:
