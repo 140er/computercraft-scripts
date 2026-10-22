@@ -14,6 +14,7 @@ return function(test, equal, read)
     local m = H.new().machine({ id = 99, capacity = cap or 16000000 })
     local e, disk, dirs = m.env, {}, { [""] = true }
     m.files, m.dirs, m.calls, m.runs = disk, dirs, 0, {}
+    m.urls, m.remote, m.sha = {}, {}, string.rep("a", 40)
     local function norm(p) return p:gsub("^/+", ""):gsub("/+$", "") end
     e.fs = {
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
@@ -68,16 +69,29 @@ return function(test, equal, read)
     e.gps = { locate = function(timeout) equal(timeout, 2); return 1, 2, 3 end }
     e.read = function() return "" end
     e.shell = { run = function(...) m.runs[#m.runs + 1] = { ... }; return true end }
+    e.textutils.unserializeJSON = function(body)
+      if body ~= "branch-json" then error("bad JSON") end
+      return { commit = { sha = m.sha } }
+    end
     e.http = { get = function(url, headers, binary)
+      m.urls[#m.urls + 1] = url
+      if url == "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only" then
+        if m.apiError then error("HTTP disabled") end
+        if m.apiFail then return nil, "API unavailable" end
+        return { getResponseCode = function() return m.apiStatus or 200 end,
+          readAll = function() return m.apiBody or "branch-json" end, close = function() end }
+      end
       m.calls = m.calls + 1
       equal(headers, nil); equal(binary, true)
-      local path = assert(url:match("^https://raw%.githubusercontent%.com/140er/computercraft%-scripts/refs/heads/server%-only/(.*)$"))
+      local ref, path = url:match("^https://raw%.githubusercontent%.com/140er/computercraft%-scripts/([^/]+)/(.*)$")
+      if ref == "refs" then path = path:match("^heads/server%-only/(.*)$") end
+      assert(path, url)
       if m.failAt == m.calls then return nil, "not found" end
-      local body = m.badPath == path and (m.badBody or "") or read(path)
+      local body = m.badPath == path and (m.badBody or "") or m.remote[path] or read(path)
       return { getResponseCode = function() return m.status or 200 end,
         readAll = function() return body end, close = function() end }
     end }
-    m.run = function(command) return assert(load(source, "@install.lua", "t", e))(command) end
+    m.run = function(command) return assert(load(m.source or source, "@install.lua", "t", e))(command) end
     return m
   end
   local function installed(role)
@@ -353,5 +367,70 @@ return function(test, equal, read)
       shell = { run = function(...) args = { ... } end },
     }))()
     equal(args[1], "install.lua"); equal(args[2], "update"); equal(#args, 2)
+  end)
+  test("SO9 first update uses the new installer list and removes retired role files", function()
+    local m = installed("server")
+    m.files["so-mod-retired.lua"] = "return {name='retired'}"
+    m.remote["install.lua"] = source:gsub('"so%-plan%.lua", ', '')
+      :gsub('"so%-mod%-shop%.lua", ', '"so-mod-added.lua", ')
+    m.remote["so-mod-added.lua"] = "return {name='added'}"
+    m.run("update")
+    equal(m.files["so-mod-added.lua"], m.remote["so-mod-added.lua"])
+    equal(m.files["so-plan.lua"], nil)
+    equal(m.files["so-mod-shop.lua"], nil)
+    equal(m.files["so-mod-retired.lua"], nil)
+    equal(m.files["so-server.cfg"], "position")
+    equal(m.files["so-keys"], "secret")
+    equal(m.files["install.lua"], m.remote["install.lua"])
+    m.source = m.files["install.lua"]
+    m.remote["install.lua"] = source
+    m.run("update")
+    equal(m.files["so-mod-added.lua"], nil)
+    equal(m.files["so-plan.lua"], read("so-plan.lua"))
+  end)
+  test("SO9 trims saved role whitespace and pins every raw request to one SHA", function()
+    local m = installed("worker")
+    m.files[".so-role"] = " \tworker\r\n"
+    m.run("update")
+    equal(m.files[".so-role"], "worker")
+    equal(m.files[".so-revision"], m.sha)
+    equal(m.urls[1], "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only")
+    equal(m.urls[2], "https://raw.githubusercontent.com/140er/computercraft-scripts/" .. m.sha .. "/install.lua")
+    for i = 2, #m.urls do
+      assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true), m.urls[i])
+    end
+    equal(m.files["worker.lua"], read("worker.lua"))
+  end)
+  test("SO9 API failures use only the saved commit or leave the install unchanged", function()
+    for _, mode in ipairs({ "offline", "exception", "status", "json", "sha" }) do
+      for _, saved in ipairs({ false, true }) do
+        local m = installed("display")
+        if mode == "offline" then m.apiFail = true
+        elseif mode == "exception" then m.apiError = true
+        elseif mode == "status" then m.apiStatus = 403
+        elseif mode == "json" then m.apiBody = "broken"
+        else m.sha = "refs/heads/server-only" end
+        local sha = string.rep("b", 40)
+        if saved then m.files[".so-revision"] = sha end
+        local before = snapshot(m)
+        m.run("update")
+        if saved then
+          equal(m.files[".so-revision"], sha)
+          equal(m.files["display.lua"], read("display.lua"))
+          for i = 2, #m.urls do assert(m.urls[i]:find("/" .. sha .. "/", 1, true)) end
+        else
+          unchanged(m, before)
+          equal(m.calls, 0)
+        end
+      end
+    end
+  end)
+  test("SO9 a failed pinned download never retries from a branch", function()
+    local m = installed("worker")
+    local before = snapshot(m)
+    m.failAt = 3
+    m.run("update")
+    unchanged(m, before)
+    for i = 2, #m.urls do assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true)) end
   end)
 end
