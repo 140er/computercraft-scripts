@@ -101,4 +101,14 @@ return function(test,equal)
     equal(m.tiles[4][2],'1');equal(m.tiles[5][2],'640');equal(m.tiles[5][3],'#3')
     equal(m.turtles[2].stripe,'1');equal(m.turtles[3].stripe,'e');equal(m.alert,'ore chest full')
   end)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    test('UI2a compact mining keeps full worker coordinates at '..size[1]..'x'..size[2],function()
+      local s=setup()
+      s.job.turtles={['2']={state='mining',pose={x=-5,y=64,z=-123},fuel=812,ores=14},
+        ['3']={state='wait lane',pose={x=-7,y=64,z=456},fuel=640,ores=9}}
+      local text=table.concat(capture(s.render(size[1],size[2]),size[1],size[2]).picture().text,'\n')
+      for _,pos in ipairs({'-5,64,-123','-7,64,456'}) do assert(text:find(pos,1,true),'clipped '..pos) end
+    end)
+  end
+
 end

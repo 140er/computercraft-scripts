@@ -1,0 +1,42 @@
+FAIL Big Tiles visible navigation graph at 26x20
+  tests/so/screen-nav.lua:68: no visible MORE button on status at 26x20
+FAIL Big Tiles visible navigation graph at 29x12
+  tests/so/screen-nav.lua:68: no visible MINING button on generic at 29x12
+FAIL Big Tiles visible navigation graph at 15x10
+  tests/so/screen-nav.lua:68: no visible MORE button on status at 15x10
+FAIL Big Tiles visible navigation graph at 36x10
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 36x10
+FAIL Big Tiles visible navigation graph at 39x19
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 39x19
+FAIL Big Tiles visible navigation graph at 51x19
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 51x19
+FAIL Big Tiles visible navigation graph at 57x24
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 57x24
+FAIL Big Tiles visible navigation graph at 82x40
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 82x40
+FAIL Big Tiles visible navigation graph at 100x38
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 100x38
+FAIL Big Tiles visible navigation graph at 164x81
+  tests/so/screen-nav.lua:68: no visible MORE button on panel at 164x81
+PASS drop editor remains clickable at 26x20
+PASS visible mining navigation at 26x20
+PASS visible lumber navigation at 26x20
+PASS visible shop navigation at 26x20
+PASS visible status navigation at 26x20
+PASS visible ar navigation at 26x20
+PASS drop editor remains clickable at 29x12
+PASS visible mining navigation at 29x12
+PASS visible lumber navigation at 29x12
+PASS visible shop navigation at 29x12
+PASS visible status navigation at 29x12
+PASS visible ar navigation at 29x12
+PASS UI2a mining mockup matches both fixture layers
+FAIL UI2a compact mining keeps full worker coordinates at 26x20
+  tests/ui/ui2a.lua:48: clipped -5,64,-123
+FAIL UI2a compact mining keeps full worker coordinates at 29x12
+  tests/ui/ui2a.lua:48: clipped -5,64,-123
+PASS UI2a text commands retain job effects on both pages
+PASS UI2a buttons share start and stop commands and save once per tap
+PASS UI2a setup navigation and every size keep bounds and contrast
+PASS UI2a gather uses mining facts and leaves daily ore stale
+17 passed, 12 failed
