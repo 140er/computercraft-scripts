@@ -1,6 +1,6 @@
 57x24 Drop points (generic)
- DROP POINTS                                    5 points 
                                                          
+ DROP POINTS                                    5 points 
  ID  KIND     WHERE          SIDE   STATE                
  1  ore      10,64,-2       front  ok                    
  2  fuel     12,64,-2       front  ok                    
@@ -23,8 +23,8 @@
                                                          
   MINING      LUMBER       SHOP         AR       PANEL   
                                                          
-777777777777777777777777777777777777777777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777777777f
 777777777777777777777777777777777777777777777777777777777
 dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 dffffffffffffffffffffffffffffffffffffffffffffffffffffffff

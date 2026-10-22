@@ -1,6 +1,6 @@
 29x12 Panel pairing ready S
- PANEL                 01:00 
                              
+ PANEL                 01:00 
  PAIR NEW CLIENT             
                              
                              
@@ -11,8 +11,8 @@
           NEW CODE           
                              
             BACK             
-77777777777777777777777777777
 fffffffffffffffffffffffffffff
+f777777777777777777777777777f
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff

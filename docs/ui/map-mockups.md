@@ -1,7 +1,7 @@
 Map, projected levels 26x20  (26x20)
 ```text
- MAP              N ^ 1:1 
                           
+ MAP              N ^ 1:1 
                           
                           
                  v3       
@@ -23,8 +23,8 @@ Map, projected levels 26x20  (26x20)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 fffffffffffff7777bbfffffff
@@ -47,8 +47,8 @@ ffffffffffffffffffffffffff
 
 Map, projected levels 29x12  (29x12)
 ```text
- MAP                 N ^ 1:2 
                              
+ MAP                 N ^ 1:2 
                 v            
                              
                >O            
@@ -62,8 +62,8 @@ Map, projected levels 29x12  (29x12)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777777
 fffffffffffffffffffffffffffff
+f777777777777777777777777777f
 ffffffffffffff77bffffffffffff
 ffffffffffffff8ffffffffffffff
 ffffffffffffff7daffffffffffff
@@ -78,8 +78,8 @@ fffffffffffaaa9ffffffffffffff
 
 Map, projected levels 57x24  (57x24)
 ```text
- MAP                                             N ^ 1:1 
                                                          
+ MAP                                             N ^ 1:1 
                                                          
                                                          
                                                          
@@ -105,8 +105,8 @@ Map, projected levels 57x24  (57x24)
 ```
 Background layer (blit letters, see palette):
 ```text
-777777777777777777777777777777777777777777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

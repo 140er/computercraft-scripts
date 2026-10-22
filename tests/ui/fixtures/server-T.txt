@@ -1,11 +1,14 @@
 51x19 Server terminal, normal
+                                                   
  SO SERVER #1                              up 3h12 
                                                    
- TURTLES      DISPLAYS     DISK         ALERTS     
-    🬋🬋🬏           🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
-    🬇🬋🬐          🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
-    🬋🬋🬀           🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
- ok           fresh        2.1 MB       see log    
+                                                   
+  TURTLES     DISPLAYS     DISK         ALERTS     
+     🬋🬋🬏          🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
+     🬇🬋🬐         🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
+     🬋🬋🬀          🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
+  ok          fresh        2.1 MB       see log    
+                                                   
                                                    
  LOG                                               
  21:14:02 lease 2-961 reported ok                  
@@ -14,22 +17,19 @@
  21:14:11 mine: #3 wait lane                       
                                                    
                                                    
-                                                   
-                                                   
-                                                   
  [P] pair a client     [L] full log                
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fffffffffffffffffffffffffffffffffffffffffffffffffff
 777777777777777777777777777777777777777777777777777
-fffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-fffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777777777777777777777777777777777777777777
-fffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff

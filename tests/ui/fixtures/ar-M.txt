@@ -1,21 +1,21 @@
 57x24 AR layer switches (1 = on, 0 = off)
+                                                         
  AR GOGGLES                                 1 controller 
                                                          
- TURTLES            LEASES              DROPS            
-       🬞🬓                  🬞🬓                 🬖🬋🬏        
-        ▌                   ▌                 ▌ ▌        
-       🬇🬌                  🬇🬌                 🬈🬋🬀        
- layer on           layer on            layer off        
                                                          
- ALERTS                                                  
-       🬞🬓           tap a tile to switch its layer       
-        ▌                                                
-       🬇🬌                                                
- layer on                                                
+  TURTLES           LEASES              DROPS            
+        🬞🬓                 🬞🬓                 🬖🬋🬏        
+         ▌                  ▌                 ▌ ▌        
+        🬇🬌                 🬇🬌                 🬈🬋🬀        
+  layer on          layer on            layer off        
                                                          
                                                          
                                                          
-                                                         
+  ALERTS                                                 
+        🬞🬓                                               
+         ▌                                               
+        🬇🬌                                               
+  layer on                                               
                                                          
                                                          
                                                          
@@ -23,24 +23,24 @@
                           BACK                           
                                                          
                                                          
-777777777777777777777777777777777777777777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfdddddddddddddddddddfcccccccccccccccccc
-ddddddddddddddddddfdddddddddddddddddddfcccccccccccccccccc
-ddddddddddddddddddfdddddddddddddddddddfcccccccccccccccccc
-ddddddddddddddddddfdddddddddddddddddddfcccccccccccccccccc
-ddddddddddddddddddfdddddddddddddddddddfcccccccccccccccccc
+f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
+fdddddddddddddddddfdddddddddddddddddddfcccccccccccccccccf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddfffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 777777777777777777777777777777777777777777777777777777777

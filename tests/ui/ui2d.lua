@@ -77,7 +77,7 @@ return function(test,equal)
     e.SO.store.store=function(...) local b=store(...);local save=b.save;b.save=function(v) n=n+1;return save(v) end;return b end
     local ar=e.dofile('so-mod-ar.lua');ar.tick(0);screens.ar.input({id='drops'});equal(n,1)
     local reloaded=e.dofile('so-mod-ar.lua');reloaded.tick(0)
-    assert(capture(screens.ar.render(57,24),57,24).picture().text[7]:find('layer off',1,true))
+    assert(capture(screens.ar.render(57,24),57,24).picture().text[9]:find('layer off',1,true))
   end)
   test('UI2d layouts fit all sizes and respect contrast',function()
     local _,_,screens,s,a=boot();assert(s.layout and a.layout,'pure layouts')
@@ -105,7 +105,7 @@ return function(test,equal)
     local function tap(id) display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
     display.handlers.hello({from=2,body={w=57,h=24}})
     for _,role in ipairs({'mining','lumber','shop','ar'}) do tap('generic');local nav={};for _,b in ipairs(frame().buttons) do nav[b.id]=true end;assert(nav[role],role);tap(role);equal(frame().role,role);tap('status');equal(frame().role,'status') end
-    tap('generic');tap('list');local f=frame();assert(f.rows[1].text:find('DROP POINTS',1,true))
+    tap('generic');tap('list');local f=frame();assert(f.rows[2].text:find('DROP POINTS',1,true))
     local found={};for _,b in ipairs(f.buttons) do found[b.id]=true;assert(b.y>1) end
     assert(found.status and found.new);tap('status');equal(frame().role,'status');tap('generic')
     display.screen('generic',function() return {rows={},buttons={}} end);f=frame();found={};for _,b in ipairs(f.buttons) do found[b.id]=true end

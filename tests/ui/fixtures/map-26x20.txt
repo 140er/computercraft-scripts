@@ -1,6 +1,6 @@
 26x20 Map, projected levels 26x20
- MAP              N ^ 1:1 
                           
+ MAP              N ^ 1:1 
                           
                           
                  v3       
@@ -19,8 +19,8 @@
  BACK   FIT     +     -   
   ^      <      v     >   
            ALL            
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 fffffffffffff7777bbfffffff

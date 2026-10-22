@@ -473,24 +473,24 @@ D.statusFrame = function(session, w, h, now)
   end
   if w == 26 and h == 20 then
     local indices = {1,3,4,2,5,6,7,8,9}
-    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 3))
+    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
     local c = U.canvas(w, h)
     c.header("FLEET", copy.time)
-    for i = 1, 3 do
-      local index = indices[page * 3 + i]
+    for i = 1, 2 do
+      local index = indices[page * 2 + i]
       local tile = copy.tiles[index]
       if tile then
-        local y = 2 + (i - 1) * 6
-        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg)
+        local y = 4 + (i - 1) * 8
+        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
         if index == 9 then
-          c.fill(1, y + 1, w, 3, tile.bg)
-          c.center(1, w, y + 2, "new client:")
+          c.fill(3, y + 2, w-4, 3, tile.bg)
+          c.center(3, w-4, y + 3, "new client:")
         end
       end
     end
     c.button(1, h-1, w, "MORE", "generic", "7", 1)
     c.fill(1, h, w, 1, "7")
-    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 3) .. "  >  PANEL")
+    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 2) .. "  >  PANEL")
     c.hit("prev", 1, h, 3, 1)
     c.hit("next", 15, h, 3, 1)
     c.hit("panel", 19, h, 7, 1)
@@ -659,10 +659,10 @@ D.terminal = function(model, view, w, h)
     local bottom = 7
     for i, index in ipairs({1,7,6,3}) do
       local col = cols[(i-1)%#cols+1]
-      local y = 3 + math.floor((i-1)/#cols)*6
+      local y = 4 + math.floor((i-1)/#cols)*8
       local t = model.tiles[index]
-      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg) end
-      bottom = math.max(bottom,y+4)
+      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg,7) end
+      bottom = math.max(bottom,y+6)
     end
     first = bottom+3
     C.fill(1,first-1,w,1,"7"); C.put(2,first-1,"LOG")

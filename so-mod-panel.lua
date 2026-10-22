@@ -16,7 +16,7 @@ P.refresh = function()
       P.states[role] = "stopped"
       if role ~= "shop" then
         local frame = screen.render(57, 24)
-        local header = frame and frame.rows and frame.rows[1]
+        local header = frame and frame.rows and frame.rows[2] or frame and frame.rows and frame.rows[1]
         if header and header.text and header.text:find("running", 1, true) then P.states[role] = "running" end
       end
     end
@@ -105,10 +105,10 @@ P.render = function(w, h, session)
     if session.panel.pairBusy and not SO.pair.pending() then session.panel.pairBusy = nil end
     if session.panel.pairBusy then c.center(1,w,5,"CODE IN USE") end
     if invitation then
-      c.fill(1,4,w,4,"9")
-      c.big(1,4,w,invitation.code,"9")
+      c.fill(2,4,w-2,4,"9")
+      c.big(2,4,w-2,invitation.code,"9")
       local left = math.max(0,math.ceil((invitation.expires-P.now())/1000))
-      c.center(1,w,7,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
+      c.center(2,w-2,7,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
     end
     if session.id and SO.pair.key(session.id) and type(SO.pairCode) == "function" then
       c.button(1,h < 12 and h-1 or h-3,w,"NEW CODE","pair-code","9",h < 12 and 1 or 3)
@@ -131,26 +131,27 @@ P.render = function(w, h, session)
       c.button(cols[i].x,h,cols[i].w,label,({"alert-prev","panel-back","alert-next"})[i],"7",1)
     end
   else
-    if P.fleet then c.put(2,2,P.fleet:sub(1,w-2)) end
+    local top = P.fleet and h >= 12 and 4 or 3
+    if top == 4 then c.put(2,3,P.fleet:sub(1,w-2)) end
     local cols = U.grid(w,h)
     if h < 19 and #cols == 1 then
-      P.block(c,"mining",1,3,w,h,true)
-      P.block(c,"lumber",1,5,w,h,true)
-      P.shop(c,session,1,7,w,h,true)
+      P.block(c,"mining",1,top,w,h,true)
+      P.block(c,"lumber",1,top+2,w,h,true)
+      P.shop(c,session,1,top+4,w,h,true)
     elseif #cols >= 3 then
-      P.block(c,"mining",cols[1].x,3,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,3,cols[2].w,h)
-      P.shop(c,session,cols[3].x,3,cols[3].w,h)
+      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
+      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
+      P.shop(c,session,cols[3].x,top,cols[3].w,h)
     elseif #cols == 2 then
-      P.block(c,"mining",cols[1].x,3,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,3,cols[2].w,h)
-      P.shop(c,session,1,9,w,h)
+      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
+      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
+      P.shop(c,session,1,top+6,w,h)
     else
-      P.block(c,"mining",1,3,w,h)
-      P.block(c,"lumber",1,8,w,h)
-      P.shop(c,session,1,13,w,h)
+      P.block(c,"mining",1,top,w,h)
+      P.block(c,"lumber",1,top+5,w,h)
+      P.shop(c,session,1,top+10,w,h)
     end
-    c.button(8,1,6,"MORE","generic","7",1)
+    c.button(8,2,6,"MORE","generic","7",1)
     c.fill(1,h,w,1,"7")
     if w >= 26 then
       c.put(2,h,"GLANCE  ALERTS  PAIR")

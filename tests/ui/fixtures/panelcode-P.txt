@@ -1,6 +1,6 @@
 26x20 Panel pairing code P
- PANEL              01:00 
                           
+ PANEL              01:00 
  PAIR NEW CLIENT          
     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
@@ -19,13 +19,13 @@
          NEW CODE         
                           
            BACK           
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
-99999999999999999999999999
-99999999999999999999999999
-99999999999999999999999999
-99999999999999999999999999
+f999999999999999999999999f
+f999999999999999999999999f
+f999999999999999999999999f
+f999999999999999999999999f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

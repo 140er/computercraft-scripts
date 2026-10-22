@@ -397,11 +397,11 @@ S.layout = function(model, w, h)
     end
     for i, field in ipairs({"dim", "x", "y", "z"}) do
       local y = i + 4
-      C.put(1, y, field .. " " .. tostring(d[field]))
+      C.put(2, y, (field .. " " .. tostring(d[field])):sub(1,math.max(0,w-2)))
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
     end
-    C.put(1, h-1, model.message or "")
+    C.put(2, h-1, (model.message or ""):sub(1,math.max(0,w-2)))
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
     return C.frame()

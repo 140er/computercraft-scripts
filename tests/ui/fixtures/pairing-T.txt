@@ -1,6 +1,6 @@
 51x19 Server terminal, pairing
- SO SERVER #1                              pairing 
                                                    
+ SO SERVER #1                              pairing 
                                                    
       PAIR CODE  (type it on the new client)       
                                                    
@@ -18,8 +18,8 @@
                                                    
                                                    
  [P] new code     [Esc] cancel                     
-777777777777777777777777777777777777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
 999999999999999999999999999999999999999999999999999
 999999999999999999999999999999999999999999999999999
 999999999999999999999999999999999999999999999999999

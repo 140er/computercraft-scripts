@@ -114,7 +114,7 @@ return function(test,equal)
   test('UI3b glance pages cover all tiles independently and wrap both ways',function()
     local s=setup();s.frame(2);s.frame(3)
     local seen={}
-    for page=1,3 do
+    for page=1,5 do
       local out=capture(s.frame(2),26,20)
       for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
         local fg,bg=cell[2],cell[3]
@@ -123,13 +123,13 @@ return function(test,equal)
           (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','glance contrast '..fg..'/'..bg)
       end end
       local text=out.picture().text
-      for _,y in ipairs({2,8,14}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
-      assert(text[20]:find('glance '..page..'/3',1,true));s.tap(2,'next')
+      for _,y in ipairs({5,13}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
+      assert(text[20]:find('glance '..page..'/5',1,true));s.tap(2,'next')
     end
     for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS','PAIR'}) do assert(seen[label],label) end
-    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/3',1,true))
-    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 3/3',1,true))
-    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/3',1,true))
+    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/5',1,true))
+    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 5/5',1,true))
+    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/5',1,true))
   end)
   test('UI3b panel fixture matches and controls dispatch once per tap',function()
     local s=setup();s.now=(21*60+14)*60000;s.frame(2);s.tap(2,'panel');s.tap(2,nil,'iron')

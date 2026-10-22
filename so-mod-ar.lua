@@ -50,29 +50,23 @@ A.layout = function(model, w, h)
   C.header("AR GOGGLES", model.count .. (model.count == 1 and " controller" or " controllers"))
   local cols = U.grid(w,h,w < 39 and 2 or nil)
   if h < 16 then
-    local compactCols = U.grid(w,h,2)
     for i,layer in ipairs(A.order) do
-      local col = compactCols[(i-1)%2+1]
-      local y = 3+math.floor((i-1)/2)*3
+      local y = i + 3
       local on = model.layers[layer]
-      C.fill(col.x,y,col.w,2,on and 'd' or 'c')
-      C.put(col.x,y,layer:upper():sub(1,col.w))
-      C.center(col.x,col.w,y+1,on and '1' or '0')
-      C.hit(layer,col.x,y,col.w,2)
+      C.put(2,y,(layer:upper() .. " " .. (on and '1' or '0')):sub(1,math.max(0,w-2)))
+      C.hit(layer,2,y,math.max(0,w-2),1)
     end
-    C.put(1,9,"tap a tile to switch its layer")
     C.button(1,h,w,"BACK","status",'7',1)
   else
     for i,layer in ipairs(A.order) do
       local col=cols[(i-1)%#cols+1]
-      local y=3+math.floor((i-1)/#cols)*6
+      local height = h >= 24 and 7 or 6
+      local y=4+math.floor((i-1)/#cols)*(height+1)
       local on=model.layers[layer]
       C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
-      C.hit(layer,col.x,y,col.w,5)
+      C.hit(layer,col.x,y,col.w,height)
     end
-    if #cols == 2 then C.put(2,15,"tap a tile to switch its layer")
-    else C.put(cols[2] and cols[2].x+1 or 1,10,"tap a tile to switch its layer") end
-    C.button(1,h-3,w,"BACK","status")
+    C.button(1,h >= 24 and h-3 or h-2,w,"BACK","status")
   end
   return C.frame()
 end
@@ -227,11 +221,11 @@ A.scene = function(now)
   }
   local hudTop = retirement and 12 or 0
   for i, tile in ipairs(tiles) do
-    local id, x = "hud:" .. tile[1], (i - 1) * 40
-    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 40, 28)
-    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 40, 4)
-    put(id .. ":label", "drawText2D", A.white, x + 2, 24 + hudTop, tile[2], false)
-    put(id .. ":value", "drawText2D", A.white, x + 2, 34 + hudTop, tile[3], false)
+    local id, x = "hud:" .. tile[1], 4 + (i - 1) * 64
+    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 56, 30)
+    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 56, 4)
+    put(id .. ":label", "drawText2D", A.white, x + 4, 26 + hudTop, tile[2], false)
+    put(id .. ":value", "drawText2D", A.white, x + 4, 36 + hudTop, tile[3], false)
   end
   return scene, machines
 end

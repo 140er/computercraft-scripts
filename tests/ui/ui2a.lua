@@ -49,7 +49,7 @@ return function(test,equal)
       s.input({id=id,x=button.x,y=button.y,session=session})
     end
     press(a,'setup')
-    assert(capture(s.render(57,24,a),57,24).picture().text[1]:find('SETUP',1,true))
+    assert(capture(s.render(57,24,a),57,24).picture().text[2]:find('SETUP',1,true))
     equal(s.render(57,24,b),main)
     equal(s.render(57,24),main)
     press(a,'mine-back');equal(s.render(57,24,a),main)
@@ -82,7 +82,7 @@ return function(test,equal)
         s.input({id=setupPage and 'setup' or 'mine-back'})
         local w,h=unpack(size);local f=s.render(w,h);local out=capture(f,w,h)
         if #f.buttons>0 then equal(f.buttons[#f.buttons].id,setupPage and 'mine-back' or 'status') end
-        if w==57 then assert(out.picture().text[1]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
+        if w==57 then assert(out.picture().text[2]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
           local fg,bg=cell[2],cell[3]
           if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
