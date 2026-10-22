@@ -17,6 +17,8 @@ local C = {
   transfers = { drop = "front", dropUp = "top", dropDown = "bottom",
     suck = "front", suckUp = "top", suckDown = "bottom" },
   counted = { refuel = true, drop = true, dropUp = true, dropDown = true, suck = true, suckUp = true, suckDown = true },
+  discard = { front = { "front", "inspect", "drop" }, up = { "top", "inspectUp", "dropUp" },
+    down = { "bottom", "inspectDown", "dropDown" } },
 }
 
 local W = {}
@@ -371,6 +373,21 @@ W.breathe = function(seconds)
   end
 end
 
+W.discard = function(step)
+  local side = C.discard[step.side or "down"]
+  if not side then return false, "bad side" end
+  if peripheral.hasType(side[1], "inventory") then return false, "inventory present" end
+  local exists, block = turtle[side[2]]()
+  if exists ~= true and (exists ~= false or block ~= "No block to inspect") then
+    return false, "cell unknown"
+  end
+  if exists and (type(block) ~= "table" or (block.name ~= "minecraft:air"
+    and block.name ~= "minecraft:cave_air" and block.name ~= "minecraft:void_air")) then
+    return false, "cell occupied"
+  end
+  return turtle[side[3]](step.n)
+end
+
 W.exec = function(step)
   local result = { ok = false, counts = W.counts() }
   if type(step) ~= "table" or type(step.op) ~= "string" then
@@ -378,7 +395,7 @@ W.exec = function(step)
     return result
   end
   local op = step.op
-  local fn = turtle[op]
+  local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
     return result

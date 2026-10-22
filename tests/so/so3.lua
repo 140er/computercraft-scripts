@@ -54,7 +54,7 @@ return M
     return turtle
   end
   local turtle=add(2)
-  input({text="bottom -2"}) input({text="length 3"})
+  input({text="home 0 0 0 n"}) input({text="bottom -2"}) input({text="length 3"})
   return {net=net,server=server,turtle=turtle,turtles=turtles,add=add,input=function(text) input({text=text}) end,render=function() return render() end}
 end
 local function run(s, seconds)
@@ -202,7 +202,7 @@ return function(test,equal)
     equal(s.turtle.pos.y, -2)
     assert(chest.inv[1].count < 64)
   end)
-  test("mine inventory unloads kept items and deposits extra junk",function()
+  test("mine cleanup refuses an inventory and keeps junk out of the ore chest",function()
     local s=setup()
     s.net.world["0,-1,0"]={name="mod:crate",inv={}}
     for i=1,16 do s.turtle.inv[i]={name=i<=2 and "minecraft:cobblestone" or "minecraft:diamond",count=64} end
@@ -212,23 +212,63 @@ return function(test,equal)
     local chest=s.net.world["1,0,0"] local count=0
     for _,item in ipairs(chest.inv) do assert(item.name~="minecraft:cobblestone") count=count+item.count end
     equal(count,14*64)
-    equal(s.net.world["0,-1,0"].inv[1].count,64)
+    equal(#s.net.world["0,-1,0"].inv,0)
   end)
-  test("mine refused cleanup unloads ore and excess junk at the chest",function()
+  test("mine saved cleanup refusal retries safely without unloading junk",function()
     local s=setup()
     for i=1,16 do s.turtle.inv[i]={name=i<=2 and "minecraft:cobblestone" or "minecraft:diamond",count=64} end
     local chest={name="minecraft:chest",inv={}}
     s.net.world["1,0,0"]=chest
     assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=1,y=0,z=0,side="front",kind="ore"}))
-    s.input("start") run(s,150)
+    local disk=persisted(s) disk.turtles["2"].cleanupBlocked=true disk.running=true
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.server=s.net.boot(s.server)
+    run(s,150)
     local ore,junk=0,0
     for _,item in ipairs(chest.inv) do
       if item.name=="minecraft:diamond" then ore=ore+item.count end
       if item.name=="minecraft:cobblestone" then junk=junk+item.count end
     end
-    equal(ore,14*64) equal(junk,64)
+    equal(ore,14*64) equal(junk,0)
     equal(s.turtle.inv[1].count,64)
     assert(s.turtle.pos.y<0,"mining did not resume after refused cleanup")
+  end)
+  test("mine discards tunnel junk into open cells and unloads only ore",function()
+    local s=setup() digWorld(s)
+    s.turtle.inv[1]={name="minecraft:cobblestone",count=64}
+    s.turtle.inv[2]={name="minecraft:cobbled_deepslate",count=64}
+    s.turtle.inv[3]={name="minecraft:diamond",count=8}
+    for x=0,3 do
+      for z=-5,-1 do
+        s.net.world[x..",-3,"..z]="minecraft:stone"
+        s.net.world[x..",-1,"..z]="minecraft:stone"
+      end
+    end
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["1,0,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=1,y=0,z=0,side="front",kind="ore"}))
+    local discarded=0
+    for _,spec in ipairs({{"drop","forward"},{"dropUp","up"},{"dropDown","down"}}) do
+      local original=s.turtle.env.turtle[spec[1]]
+      local dir=spec[2]
+      s.turtle.env.turtle[spec[1]]=function(n)
+        local item=s.turtle.inv[s.turtle.selected]
+        if item and item.name~="minecraft:diamond" then
+          local pose=s.turtle.pos
+          local c=dofile("so-mine-plan.lua").cell({x=pose.x,y=pose.y,z=pose.z,facing=s.turtle.heading},dir)
+          assert(not s.net.world[c.x..","..c.y..","..c.z],"discard entered an occupied cell")
+          assert(pose.y<0,"cleanup did not use the mine tunnel")
+          discarded=discarded+item.count
+        end
+        return original(n)
+      end
+    end
+    s.input("start") run(s,180)
+    equal(discarded,64)
+    local ore=0
+    for _,item in ipairs(chest.inv) do equal(item.name,"minecraft:diamond") ore=ore+item.count end
+    equal(ore,8)
+    equal(persisted(s).turtles["2"].state,"done")
   end)
   test("mine range refusal sends no movement outside proven range",function()
     local s=setup() local lease=s.server.env.SO.mods.lease
@@ -412,7 +452,7 @@ return function(test,equal)
     equal(M.sealable({name="minecraft:gravel"}), false)
     local cleanup = M.cleanup({ {slot=1,name="minecraft:flint",count=1},
       {slot=2,name="minecraft:cobblestone",count=64}, {slot=3,name="minecraft:cobblestone",count=64} })
-    equal(cleanup, { {op="select",slot=1}, {op="dropDown"}, {op="select",slot=3}, {op="dropDown"} })
+    equal(cleanup, { {op="select",slot=1}, {op="discard",side="down"}, {op="select",slot=3}, {op="discard",side="down"} })
   end)
 
   test("mine bounds a vein to 64 blocks and emits ore and progress events", function()
@@ -788,12 +828,19 @@ return function(test,equal)
       s.server.env.SO.mods.cells.releaseOwner("mine:"..id)
     end
     disk.running=true
-    disk.turtles["5"].laneWait={at=s.net.time-2000,passes=0}
-    for id=3,4 do disk.turtles[tostring(id)].laneWait={at=s.net.time-1000,passes=0} end
     assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
     s.server=s.net.boot(s.server)
     local cells=s.server.env.SO.mods.cells
     local reserve=cells.reserveMany
+    assert(cells.reserve("fixture",0,0,-1))
+    local lease=s.server.env.SO.mods.lease
+    local status=lease.status
+    local blocked={[2]=true,[3]=true,[4]=true}
+    lease.status=function(id)
+      local row=status(id)
+      if blocked[id] and not row.open then row.open="fixture" end
+      return row
+    end
     local grants,last={},nil
     cells.reserveMany=function(who,list)
       local ok,err=reserve(who,list)
@@ -803,6 +850,11 @@ return function(test,equal)
       end
       return ok,err
     end
+    run(s,3)
+    blocked[3],blocked[4]=nil,nil
+    run(s,3)
+    blocked[2]=nil
+    assert(cells.releaseOwner("fixture"))
     run(s,240)
     equal(grants,{5,3,4,2})
   end)
