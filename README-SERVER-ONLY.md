@@ -69,9 +69,19 @@ pair the machine again after a reset.
 
 The generic display has a drop-point editor. Use `kind` and `side` to cycle
 values, the dimension and coordinate buttons to adjust the draft, and `add`
-to save it. Existing points have `fix` and `remove` buttons.
+to save it. Existing points have `fix` and `remove` buttons. Use `prev` and
+`next` to page through the list. All controls fit a 26x20 pocket or 29x12 monitor,
+with the bottom row left for typed input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
-Sides are `front` and `down`. Drop-point dimensions are integers.
+Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
+-1 Nether, 1 End. Use the chest's block coordinates.
+
+On the generic screen, type `1250 64 -900` and press Enter to set the draft,
+then tap `add`. Type `-1 1250 64 -900` to also set the dimension. To add
+immediately, type `add ore 1250 64 -900 front 0`. The command is
+`add <kind> <x> <y> <z> [front|down] [dim]`; omitted fields keep the draft's
+side and dimension. Coordinates and dimension must be integers. Invalid input
+shows an error and leaves the draft unchanged.
 
 The server chooses the nearest usable point in the same dimension, then falls
 back to `any`. Without a usable point the worker holds. Three failed inspections
@@ -84,8 +94,7 @@ requests and field definitions.
 
 The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
 above the drop editor. These links and each screen's `generic` return button
-fit a 26x20 pocket or 29x12 monitor. The drop editor's controls still need a
-wider screen.
+fit a 26x20 pocket or 29x12 monitor.
 
 Open the `mining` display screen. Submit these text commands:
 

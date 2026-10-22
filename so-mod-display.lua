@@ -94,15 +94,15 @@ D.fit = function(picture, w, h)
   return { rows = rows, buttons = buttons }
 end
 
-D.compose = function(role, w, h)
+D.compose = function(role, w, h, clientId)
   local screen = D.screens[role]
   local picture
   if screen then
-    local ok, got = pcall(screen.render)
+    local ok, got = pcall(screen.render, w, role == "generic" and math.max(1, h - 2) or h, clientId)
     if ok and type(got) == "table" then picture = got end
   end
   if not picture then
-    if role ~= "generic" and D.screens.generic then return D.compose("generic", w, h) end
+    if role ~= "generic" and D.screens.generic then return D.compose("generic", w, h, clientId) end
     picture = { rows = { { text = "display", fg = "0", bg = "f" } }, buttons = {} }
   end
   local rows = type(picture.rows) == "table" and picture.rows or {}
@@ -156,7 +156,7 @@ D.sendFrame = function(id, now, force)
   local key = SO.pair.key(id)
   if not key then return end
   local role = D.drawn(id)
-  local body = D.compose(role, session.w, session.h)
+  local body = D.compose(role, session.w, session.h, id)
   local slot = D.pictures[body.role]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
@@ -248,7 +248,7 @@ D.once = function(msg, reply)
   local session = D.session(msg.from)
   local w = session.w or 1
   local h = session.h or 1
-  reply("view.frame", D.compose(D.drawn(msg.from), w, h))
+  reply("view.frame", D.compose(D.drawn(msg.from), w, h, msg.from))
 end
 
 D.onInput = function(msg)
@@ -269,7 +269,7 @@ D.onInput = function(msg)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
     D.setRole(msg.from, "generic")
   end
-  local event = { id = id, x = body.x, y = body.y, role = drawn }
+  local event = { from = msg.from, id = id, x = body.x, y = body.y, role = drawn }
   if text ~= nil then event.text = text end
   if screen then pcall(screen.input, event) end
   local session = D.sessions[msg.from]
