@@ -1,0 +1,4 @@
+usage: cc-test [-h] [--part PART] [--lua-only] [--part-timeout PART_TIMEOUT]
+               [--slot {local,pc,local-1,local-2,win,pc-1,pc-2,pc-3,pc-4}]
+               ...
+cc-test: error: unknown part: unknown-module; use a root module or tests/so/<suite>.lua

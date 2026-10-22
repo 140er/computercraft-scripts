@@ -1,0 +1,15 @@
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-gl6z40z1
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-0tg4qw4r
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-b0dnmb9j
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-u8earkyr
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-jqgoqkzi
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-vxqnq5n4
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-nsgjzjsj
+PASS graph closure, excluded source, concurrent private directories, swallowed load/require/lines/input violations

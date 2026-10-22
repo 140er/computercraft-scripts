@@ -1,0 +1,3 @@
+CraftOS-PC v2.8.3
+Built with: cli webp png mixer print_pdf
+Copyright (c) 2019-2024 JackMacWindows. Licensed under the MIT License.

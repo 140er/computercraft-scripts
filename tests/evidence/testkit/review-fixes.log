@@ -1,0 +1,22 @@
+part: so-mod-daily.lua; suites: tests/parts/so-mod-daily.lua
+part: generated 40 input files; private cwd /tmp/cc-part-6u1siylg
+CAUGHT scratch implementation break: so-mod-daily.lua
+part: so-mod-panel.lua; suites: tests/parts/so-mod-panel.lua
+part: generated 42 input files; private cwd /tmp/cc-part-2hy38v9b
+CAUGHT scratch implementation break: so-mod-panel.lua
+PASS both review module-selection counterexamples fail; checkout source untouched
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-o4vxno5c
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-yg8vmtb2
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-4jq8uquj
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-yoy86v0e
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-94rjxyjq
+part: tests/so/example.lua; suites: tests/so/example.lua
+part: generated 2 input files; private cwd /tmp/cc-part-j_8jhltk
+part: example.lua; suites: tests/so/example.lua
+part: generated 5 input files; private cwd /tmp/cc-part-bemzbdtl
+PASS graph closure, excluded source, concurrent private directories, swallowed load/require/lines/input violations

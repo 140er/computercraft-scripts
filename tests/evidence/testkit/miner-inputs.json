@@ -1,0 +1,13 @@
+{
+  "suites": [
+    "tests/parts/so-mod-mine.lua"
+  ],
+  "inputs": [
+    "so-mine-plan.lua",
+    "so-mod-mine.lua",
+    "so-plan.lua",
+    "so-ui.lua",
+    "tests/mocks.lua",
+    "tests/parts/so-mod-mine.lua"
+  ]
+}

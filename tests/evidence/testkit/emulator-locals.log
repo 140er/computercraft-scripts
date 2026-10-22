@@ -1,0 +1,3 @@
+integration.lua    21 locals (deepest at function line 12) ok
+ar-mock.lua        17 locals (deepest at function line 20) ok
+mock-test.lua       3 locals (deepest at function line 0) ok

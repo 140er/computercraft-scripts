@@ -1,0 +1,16 @@
+part: so-mine-plan.lua; suites: tests/parts/so-mine-plan.lua
+part: generated 6 input files; private cwd /tmp/cc-part-lr36j5p9
+cc-test: using local-2 slot
+PASS mine supply follows shaft and spine facing 0
+PASS mine supply follows shaft and spine facing 1
+PASS mine supply follows shaft and spine facing 2
+PASS mine supply follows shaft and spine facing 3
+PASS mine supply retraces dug vein cells before entering the branch
+PASS mine supply leaves an unfinished shaft upward and refuses a chest in the corridor
+PASS mine supply bounds an unknown vein search and reuses known access
+PASS mine long supply passes reserve the shared corridor without yielding
+part: 8 passed, 0 failed, 0 undeclared reads; Lua CPU 0.015s
+part: local Lua wall 0.018s (excludes slot queue)
+real 0.13
+user 0.11
+sys 0.01
