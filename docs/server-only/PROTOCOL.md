@@ -594,10 +594,10 @@ boolean values. A failed save leaves the current switches unchanged.
   is exempt. Working, mining, running and lumber states use green. Other open
   leases use teal; idle turtles use white. The HUD counts registered workers,
   excluding lost, out-of-range and stale turtles from its ok count.
-- `leases` draws one blue bounding outline per reservation owner from
-  `cells.counts().reserved` and `cells.list(owner, math.huge)`. It includes all
-  that owner's cells in the server dimension, even without a registered machine.
-  Older modules without counts retain the mine and lumber owner lookup.
+- `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
+  owner derived from the machine registry using `cells.list(owner, math.huge)`.
+  It includes all that owner's cells in the server dimension. Scene gathering
+  does not call `cells.counts()`, whose reservation scan can sleep in a tick.
 - `drops` draws a small box and uppercase `KIND id` label per point.
   Broken points use coral; other points use white.
 - The HUD has three 40-pixel tiles for TURTLES ok, ALERTS count and DISK percent.

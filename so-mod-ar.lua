@@ -140,11 +140,8 @@ A.scene = function(now)
     end
   end
   if A.layers.leases then
-    local counts = A.call("cells", "counts")
-    local owners = counts and counts.reserved or {}
-    if not counts then
-      for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
-    end
+    local owners = {}
+    for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
     for owner in pairs(owners) do
       local bounds
       for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do

@@ -59,13 +59,12 @@ return function(test, equal)
     local b = boot(); b.machine(2, "working")
     b.cells["mine:2"] = { { x = 0, y = 1, z = 2 }, { x = 8, y = 3, z = 4 } }
     b.cells["lumber:2"] = { { x = 10, y = 1, z = 2 } }
-    b.cells["lease:orphan"] = { { x = 20, y = 1, z = 2 } }
     b.points = { { id = 3, kind = "ore", x = 2, y = 3, z = 4 },
       { id = 4, kind = "fuel", x = 5, y = 3, z = 4, broken = true } }
     b.tick(1000)
     local n = 0
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
-    equal(n, 36)
+    equal(n, 24)
     equal(b.ar.elements["lease:mine:2:2"][2], 9)
     for _, row in ipairs({ { 3, C.white, "ORE 3" }, { 4, C.coral, "FUEL 4" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
