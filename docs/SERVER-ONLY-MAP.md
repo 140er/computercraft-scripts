@@ -274,6 +274,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   rapid report bursts defer further planning to tick. Oldest waiters go first, then
   lowest id; a waiter with three intervening grants has priority. Waiting rows
   show `wait lane`. Side veins wait until the worker leaves the shared lane.
+  A range-blocked or held worker retreats through known free cells to leave the
+  lane, then releases its pass and queue entry while retaining its occupied cell.
+  Saved `yield = { path, cursor, stage, state, error, action?, pass, after, retryAfter? }`
+  resumes the old pose and facing before normal work once the range check passes
+  or the hold retry is due, with fuel for the return. Retreat reserves fuel for
+  both directions and searches at most 512 known cells, without digging. Failed
+  escape moves invalidate their target and try another known exit; failed returns
+  retreat again and wait a minute before another return attempt.
+  Without a safe retreat, the worker releases the pass and keeps its physical
+  cell protected. A turtle that cannot physically move can still obstruct that cell.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
   its fuel covers the saved return route, the paused position's route home, and 64 more moves.

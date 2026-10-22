@@ -13,6 +13,14 @@ travel shorten long batches at that boundary, then use the next report to extend
 the range and continue. Shaft and spine reservations stay held across those
 batches. Lumber travel advances one cell per lease.
 
+A range-blocked or held miner retreats through known free cells to leave the
+shared lane, then releases its lane reservation and queue entry. It keeps its
+occupied cell reserved and returns to its previous pose before resuming work.
+Retreat requires fuel for both directions. Failed escape moves try another known
+exit, and a worker without return fuel stays out of the queue.
+If it cannot retreat safely, it releases the pass but still protects its physical
+cell. Another turtle cannot pass through a physically immobile turtle.
+
 ## Requirements
 
 Install CC:Tweaked 1.120.2. Advanced Peripherals and cc_ar are optional.

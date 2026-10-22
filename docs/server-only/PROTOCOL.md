@@ -424,6 +424,17 @@ A finished worker recovered away from its branch tip, for example one moved by
 hand or saved after an older worker backed along its path, travels back to the
 tip before it parks.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
+A confirmed worker blocked by range or a hold retreats to a known free cell
+outside the shaft and spine before parking. Retreat uses no digging and checks
+range, fuel for both directions and reservations. Failed escape moves invalidate
+their target and try another known exit. Return attempts require enough fuel;
+failed returns retreat again and wait a minute before retrying. After leaving, it releases its lane pass and queue
+entry while retaining its occupied cell. The saved yield path returns it to its
+old pose and facing before work resumes. Range blocks retry when the original
+action fits; other holds retry after a minute. No safe retreat releases the pass
+but keeps the physically occupied cell protected. Unknown or lost poses still
+require recovery before movement or reservation release.
+
 Lost workers and workers outside their proven radio range appear in red.
 
 The shared lane contains the shaft column between `home.y` and `bottom`, and

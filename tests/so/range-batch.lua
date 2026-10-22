@@ -13,7 +13,7 @@ local function tree(machine)
     machine.files[path] = file:read("*a") file:close()
   end
 end
-local function miners(equal, bottom)
+local function miners(equal, bottom, supplyBlock)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(FILES) tree(server)
@@ -28,9 +28,16 @@ local function miners(equal, bottom)
   end
   server.env.SO.mods.mine.tick()
   local function command(text) input({ text = text }) end
-  local workers, reached, clipped = {}, {}, 0
+  local workers, reached, clipped, blocked, loaded, obstructed, drained = {}, {}, 0, false, false, false, false
+  local realRange = lease.inRange
+  if supplyBlock then
+    lease.inRange = function(id, pose) return (id ~= 5 or pose.x ~= -5 or pose.z ~= 5 or pose.y >= 64) and realRange(id, pose) end
+    net.world["-4,64,4"] = { name = "minecraft:chest", inv = {} }
+    assert(server.env.SO.mods.drops.add({ id = "ore", dim = 0, x = -4, y = 64, z = 4, side = "front", kind = "ore" }))
+  end
   local transmit = lease.send
   lease.send = function(id, steps, opts)
+    if supplyBlock and id == 4 and reached[4] and not blocked then return nil, "waiting for shaft blocker" end
     local at = workers[id] and workers[id].pos
     local descending = at and #steps < math.min(16, at.y - bottom)
     for _, step in ipairs(steps) do descending = descending and step.op == "down" end
@@ -65,16 +72,34 @@ local function miners(equal, bottom)
     for _, op in ipairs({ "up", "down", "forward", "back" }) do
       local move = worker.env.turtle[op]
       worker.env.turtle[op] = function()
+        local before = worker.pos
+        if supplyBlock == "obstructed" and worker.id == 5 and blocked and not obstructed
+            and before.x == -5 and before.y == 64 and before.z == 5 then
+          local target = P.apply({ dim = DIM, x = before.x, y = before.y, z = before.z, facing = worker.heading }, op)
+          if target.y == 64 and (target.x ~= -5 or target.z ~= 5) then
+            net.world[target.x .. "," .. target.y .. "," .. target.z] = "minecraft:stone"
+            obstructed = true
+            return false, "Movement obstructed"
+          end
+        end
         local ok, err = move()
         if ok then
           local p = worker.pos
+          if supplyBlock == "fuel-short" and worker.id == 5 and p.x == -5 and p.y == 64 and p.z == 5 then
+            worker.fuel = 1
+          elseif supplyBlock == "fuel" and worker.id == 5 and blocked and not drained
+              and (p.x ~= -5 or p.y ~= 64 or p.z ~= 5) then
+            worker.fuel, drained = 0, true
+          end
           equal(cells.owner(p.x, p.y, p.z, DIM), "mine:" .. worker.id)
           for id, other in pairs(workers) do
             if id ~= worker.id then
               assert(p.x ~= other.pos.x or p.y ~= other.pos.y or p.z ~= other.pos.z, "workers collided")
             end
           end
-          if p.y == bottom and p.x ~= -5 then reached[worker.id] = true end
+          if p.y == bottom and p.x ~= -5 then
+            reached[worker.id] = true
+          end
         end
         return ok, err
       end
@@ -83,7 +108,7 @@ local function miners(equal, bottom)
   command("home -5 64 4 s") command("bottom " .. bottom) command("length 16")
   for y = bottom, 63 do net.world["-5," .. y .. ",5"] = "minecraft:stone" end
   command("start")
-  local stalled, worst = {}, 0
+  local stalled, worst, tripAt, supplied, tripMs = {}, 0, nil, false, nil
   for _ = 1, 1200 do
     net.advance(0.25)
     assert(not server.error, tostring(server.error))
@@ -93,18 +118,81 @@ local function miners(equal, bottom)
       local row = job.turtles[tostring(id)]
       stalled[id] = row.state == "range" and (stalled[id] or 0) + 1 or 0
       worst = math.max(worst, stalled[id])
-      assert(stalled[id] <= 3, "miner " .. id .. " stuck in range at " .. row.pose.y)
+      if not supplyBlock or id ~= 5 then
+        assert(stalled[id] <= 3, "miner " .. id .. " stuck in range at " .. row.pose.y)
+      elseif row.state == "range" or supplyBlock == "fuel-short" and row.state == "hold" then
+        if not blocked then equal({ row.pose.x, row.pose.y, row.pose.z }, { -5, 64, 5 }) end
+        blocked = true
+        if not loaded and supplyBlock ~= "fuel-short" then
+          for slot = 1, 15 do workers[4].inv[slot] = { name = "minecraft:raw_iron", count = 1 } end
+          loaded = true
+        end
+      end
     end
-    if reached[4] and reached[5] then break end
+    if supplyBlock == "fuel-short" then
+      local peer = job.turtles["5"]
+      if peer.yield and peer.yield.stage == "wait" then
+        equal({ peer.pose.x, peer.pose.y, peer.pose.z }, { -5, 64, 5 })
+        equal(workers[5].fuel, 1)
+        assert(not peer.lane and not peer.laneWait, "fuel hold retained the full lane")
+        equal(#cells.list("mine:5"), 1)
+        print("range-batch: escape requires fuel for the return and keeps only the occupied cell")
+        return
+      end
+    elseif supplyBlock then
+      local row = job.turtles["4"]
+      if row.trip then tripAt = tripAt or net.time end
+      if tripAt then assert(net.time - tripAt < 120000, "ore trip stuck behind the range-blocked miner") end
+      supplied = #net.world["-4,64,4"].inv >= 15 and not row.trip
+      if supplied then
+        tripMs = net.time - tripAt
+        local peer = job.turtles["5"]
+        assert(peer.yield and peer.yield.stage == "wait", "blocked miner did not wait outside the lane")
+        assert(not M.inLane(job, peer.pose) and not peer.lane and not peer.laneWait, "blocked miner retained lane priority")
+        break
+      end
+    elseif reached[4] and reached[5] then break end
+  end
+  if supplyBlock then
+    assert(blocked and supplied, "range-blocked peer prevented the ore trip")
+    lease.inRange = realRange
+    if supplyBlock == "obstructed" then assert(obstructed, "escape obstruction was not exercised") end
+    if supplyBlock == "fuel" then
+      assert(drained, "escape did not drain fuel at the refuge")
+      net.advance(5)
+      local peer = server.env.SO.store.read("so-data/mine/job").value.turtles["5"]
+      assert(peer.yield and peer.yield.stage == "wait" and not peer.lane and not peer.laneWait,
+        "worker without return fuel reacquired the lane")
+      equal(#cells.list("mine:5"), 1)
+      workers[5].fuel = 10000
+      assert(lease.cancelPark(5, "mine"))
+      assert(lease.send(5, { { op = "inspectDown" } }, { owner = "mine", pose = peer.pose }))
+      net.flush()
+    end
+    for _ = 1, 1200 do
+      net.advance(0.25)
+      assert(not server.error, tostring(server.error))
+      for _, worker in pairs(workers) do assert(not worker.error, tostring(worker.error)) end
+      if reached[5] then break end
+    end
+    print("range-batch C7: ore trip completed in " .. tripMs / 1000 .. "s past blocked miner; miner resumed after range restored")
   end
   assert(reached[4] and reached[5], "both miners must reach their branches")
   if bottom < 48 then assert(clipped > 0, "known shaft descent did not exercise a cut batch") end
-  print("range-batch bottom " .. bottom .. ": both branches reached; max range ticks " .. worst .. "; cut descents " .. clipped)
+  if not supplyBlock then
+    print("range-batch bottom " .. bottom .. ": both branches reached; max range ticks " .. worst .. "; cut descents " .. clipped)
+  end
 end
 
 return function(test, equal)
   test("range-batch Gate B C5 two miners reach their branches", function() miners(equal, 48) end)
   test("range-batch two miners extend range down a deep known shaft", function() miners(equal, 16) end)
+
+  test("range-batch C7 blocked shaft worker yields for an ore trip and resumes", function() miners(equal, 48, true) end)
+
+  test("range-batch C7 replans an obstructed escape for an ore trip", function() miners(equal, 48, "obstructed") end)
+  test("range-batch C7 waits for return fuel before reacquiring the lane", function() miners(equal, 48, "fuel") end)
+  test("range-batch retreat keeps fuel for its return", function() miners(equal, 48, "fuel-short") end)
 
   test("range-batch supply travel extends proof in both directions", function()
     local job = { dim = DIM, home = { x = 0, y = 64, z = 0, facing = 0 }, bottom = 16,
