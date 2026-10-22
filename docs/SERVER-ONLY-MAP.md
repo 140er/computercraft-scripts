@@ -110,6 +110,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
   Handler `drops.edit` edits points. Tick registers the generic screen.
+  The Big Tiles list selects the first broken point by default, or the first
+  point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
+  opens the draft editor and navigation to mining, lumber, shop and AR. BACK
+  returns the list to status and the editor to the list. Long lists have paging.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
@@ -119,7 +123,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `render(w, h)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
-  The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
+  Button id `status` returns any screen to status. Generic screens with their
+  own `lumber` and `ar` buttons keep them. The drops list reaches those roles
+  through ADD NEW and suppresses header injection; older generic screens retain
+  the fallback buttons.
   Render signatures and revisions are isolated by role and size. Status also
   isolates paging and alert takeover state per display session. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
@@ -177,7 +184,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
   controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
   Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
-  `drops` and `alerts` toggles. Switches save through `so-store` to `so-data/ar`.
+  `drops` and `alerts` toggles. The screen shows controller count, on/off tiles
+  and BACK to status. Small screens use compact tiles. Switches save through
+  `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. See [AR](server-only/PROTOCOL.md#ar).
@@ -380,6 +389,12 @@ size-specific revisions, source gathering and server-only kit installation.
 `status-T.txt` uses four 12-column tiles and a log, with status navigation on the
 bottom three rows. Pocket parity covers rows 1 through 19; UI-3b owns row 20.
 
+
+UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
+selected drop actions, draft editing, all 64 points through paging, AR switch
+persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
+Screen gather and pure layout helpers are private; public module APIs, saved
+files and client role lists are unchanged.
 
 ## Open gaps
 
