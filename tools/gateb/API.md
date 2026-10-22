@@ -120,3 +120,8 @@ three workers, refills supply chests, plants the oak fixture and saves cleanly.
 `prepared:true` in the manifest records completed native preparation. Cloning
 refuses an unfinished template. The unpaired `probe` is a normal display-role
 computer at `[-8,64,0]`; it uses the same installer as other computers.
+
+`farm.dig_cells` enumerates every native log and leaf cell placed by template
+preparation, including canopy cells beyond the four roots. C8 has no predefined
+low-fuel fault fixture. Such a check must supply and verify its own native setup
+or report blocked. The runtime does not silently alter check requirements.

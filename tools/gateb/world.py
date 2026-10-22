@@ -252,7 +252,7 @@ class Runtime:
         value = {'version':1,'dimension':'minecraft:overworld','computers':comps,'fixtures':fixtures,
                  'wall':{'from':[-3,64,-1],'to':[-1,65,-1],'size':[3,2]},
                  'mine':{'home':[-5,64,4,'s'],'facing':'south','bottom':48,'length':16,'starts':{cid:{'pos':comps[cid]['pos'],'facing':comps[cid]['facing']} for cid in ('4','5') if cid in comps}},
-                 'farm':{'area':[5,5,9,9],'ground':63,'dig_cells':[[x,64,z] for x,z in ((5,5),(9,5),(5,9),(9,9))],'species':'minecraft:oak'},
+                 'farm':{'area':[5,5,9,9],'ground':63,'dig_cells':sorted({(x,y,z) for rx,rz in ((5,5),(9,5),(5,9),(9,9)) for x,y,z in ([(rx,y,rz) for y in range(64,69)]+[(x,y,z) for x in range(rx-1,rx+2) for y in range(67,70) for z in range(rz-1,rz+2)])}),'species':'minecraft:oak'},
                  'forceload':[-16,-64,31,31],'prepared':False,'source':'copied saved Gate B snapshot'}
         return validate_manifest(value)
 
