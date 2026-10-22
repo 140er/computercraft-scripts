@@ -1,5 +1,7 @@
 -- so-mod-display.lua - one role per paired display, and the frames it is sent.
 
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local D = {
   path = "so-display",
   gap = 4000,
@@ -11,7 +13,11 @@ local D = {
   screens = {},
   sessions = {},
   pictures = {},
+  alertVersions = {},
+  alertSequence = 0,
 }
+
+D.now = function() return os.epoch and os.epoch("utc") or 0 end
 
 D.whole = function(n)
   return type(n) == "number" and n % 1 == 0 and n > 0
@@ -58,7 +64,7 @@ D.far = function(id, on)
   return true
 end
 
-D.palette = {
+D.palette = U and U.palette or {
   [0] = 0xF2F4F8, 0xFFC24B, 0xE57FD8, 0x99B2F2,
   0xDEDE6C, 0x7FCC19, 0xF2B2CC, 0x1F2B45,
   0x8A97B5, 0x2DD4BF, 0xB69CFF, 0x5AB0FF,
@@ -141,15 +147,17 @@ D.fit = function(picture, w, h)
   return { rows = rows, buttons = buttons }
 end
 
-D.compose = function(role, w, h)
+D.compose = function(role, w, h, session)
   local screen = D.screens[role]
   local picture
   if screen then
-    local ok, got = pcall(screen.render)
+    local ok, got
+    if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, h, D.now())
+    else ok, got = pcall(screen.render, w, h) end
     if ok and type(got) == "table" then picture = got end
   end
   if not picture then
-    if role ~= "generic" and D.screens.generic then return D.compose("generic", w, h) end
+    if role ~= "generic" and D.screens.generic then return D.compose("generic", w, h, session) end
     picture = { rows = { { text = "display", fg = "0", bg = "f" } }, buttons = {} }
   end
   local rows = type(picture.rows) == "table" and picture.rows or {}
@@ -166,10 +174,13 @@ D.compose = function(role, w, h)
     buttons = copy
   end
   local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
-  local slot = D.pictures[role]
+  local pictureKey = role .. ":" .. w .. "x" .. h
+  local pictures = role == "status" and session and (session.pictures or {}) or D.pictures
+  if role == "status" and session then session.pictures = pictures end
+  local slot = pictures[pictureKey]
   if not slot then
     slot = { rev = 0, sig = "" }
-    D.pictures[role] = slot
+    pictures[pictureKey] = slot
   end
   if sig ~= slot.sig then
     slot.rev = slot.rev + 1
@@ -194,9 +205,10 @@ D.sendFrame = function(id, now, force)
   local key = SO.pair.key(id)
   if not key then return end
   local role = D.drawn(id)
-  local body = D.compose(role, session.w, session.h)
+  if U and role == "status" then D.model = D.gather() end
+  local body = D.compose(role, session.w, session.h, session)
   body.scale = D.saved.far[tostring(id)] and 1 or 0.5
-  local slot = D.pictures[body.role]
+  local slot = (body.role == "status" and session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
   if not due then return end
@@ -223,7 +235,78 @@ D.register = function(role, render, input)
   D.screens[role] = { render = render, input = input }
 end
 
-D.statusRender = function()
+D.gather = function()
+  local model = { time = os.date and os.date("!%H:%M", math.floor(D.now() / 1000)) or "",
+    alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
+  local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
+  local view = {}
+  if state then
+    local fn, meta = state.view, type(state.view) == "table" and getmetatable(state.view)
+    if type(fn) == "function" or (meta and type(meta.__call) == "function") then
+      local ok, got = pcall(fn)
+      if ok and type(got) == "table" then view = got end
+    end
+  end
+  local machines = state and type(state.get) == "function" and state.get("machines") or {}
+  local turtles, lost, leases = 0, 0, 0
+  for id, machine in pairs(machines or {}) do
+    if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
+      turtles = turtles + 1
+      local status = lease and type(lease.status) == "function" and lease.status(tonumber(id)) or {}
+      if status.lost then lost = lost + 1 end
+      if status.open then leases = leases + 1 end
+    end
+  end
+  local keys = {}
+  for key, value in pairs(view.values or {}) do
+    if type(key) == "string" and key:match("%.alert$") and value then keys[#keys + 1] = key end
+  end
+  table.sort(keys)
+  for _, key in ipairs(keys) do
+    local value = view.values[key]
+    local text = type(value) == "table" and tostring(value.text or value.reason or key) or tostring(value)
+    local identity = key .. ":" .. SO.proto.ser(value)
+    local version = D.alertVersions[key]
+    if not version or version.key ~= identity then
+      D.alertSequence = D.alertSequence + 1
+      version = {key = identity, sequence = D.alertSequence}
+      D.alertVersions[key] = version
+    end
+    model.alerts[#model.alerts + 1] = { key = identity, sequence = version.sequence, text = text,
+      detail = type(value) == "table" and value.detail or nil, sub = type(value) == "table" and value.sub or nil }
+  end
+  table.sort(model.alerts, function(a, b) return a.sequence < b.sequence end)
+  model.alert = model.alerts[#model.alerts] and model.alerts[#model.alerts].text
+  local displays, stale = 0, 0
+  for _, session in pairs(D.sessions) do
+    if session.w then displays = displays + 1; if D.now() - session.sent > 10000 then stale = stale + 1 end end
+  end
+  local points = drops and type(drops.list) == "function" and drops.list() or {}
+  local broken = 0
+  for _, point in ipairs(points) do if point.broken then broken = broken + 1 end end
+  local capacity = fs and fs.getCapacity and fs.getCapacity("/")
+  local free = fs and fs.getFreeSpace and fs.getFreeSpace("/")
+  local ratio = type(capacity) == "number" and capacity > 0 and type(free) == "number" and (capacity-free)/capacity
+  local disk = ratio and tostring(math.floor(ratio*100)) .. "%" or "-"
+  local diskSub = ratio and string.format("%.1f of %.0f MB",(capacity-free)/1000000,capacity/1000000) or "no source"
+  model.okShort, model.lostShort = tostring(turtles-lost) .. " ok", tostring(lost) .. " lost"
+  model.tiles = {
+    {label="TURTLES",value=tostring(turtles),sub=model.okShort .. ", " .. model.lostShort,bg=lost > 0 and "e" or "d"},
+    {label="LEASES",value=tostring(leases),sub="open now",bg="b"},
+    {label="ALERTS",value=tostring(#model.alerts),sub=model.alert or "none",bg=#model.alerts > 0 and "e" or "d"},
+    {label="ORE TODAY",value="-",sub="no source",bg="c"},
+    {label="LOGS TODAY",value="-",sub="no source",bg="c"},
+    {label="DISK",value=disk,sub=diskSub,bg=ratio and (ratio >= 0.8 and "e" or "d") or "c"},
+    {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
+    {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
+    {label="PAIR",value="",sub="press P on server",bg="9"},
+  }
+  model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
+  for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
+  return model
+end
+
+D.legacyStatus = function()
   local rows = { { text = "status", fg = "0", bg = "f" } }
   local state = SO.mods.state
   local view
@@ -256,6 +339,34 @@ D.statusRender = function()
   }
 end
 
+D.statusRender = function(w, h)
+  if not U then return D.legacyStatus() end
+  return U.status(D.model or { tiles = {}, time = "" }, w, h)
+end
+
+D.statusFrame = function(session, w, h, now)
+  local model = D.model
+  session.alertSeen = session.alertSeen or {}
+  local newest
+  for _, alert in ipairs(model.alerts) do
+    if not session.alertSeen[alert.key] then
+      session.alertSeen[alert.key] = true
+      newest = alert
+    end
+  end
+  if newest and (not session.alertAt or now - session.alertAt >= 30000) then
+    session.alertAt, session.alertUntil, session.takeover = now, now + 5000, newest
+  end
+  local copy = {}
+  for k, v in pairs(model) do copy[k] = v end
+  copy.page = session.page or 0
+  if session.takeover and (session.showAlerts or now < (session.alertUntil or 0)) then
+    copy.takeover = session.takeover
+    return U.alert(copy, w, h)
+  end
+  return U.status(copy, w, h)
+end
+
 D.genericRender = function()
   local buttons = {}
   for i = 1, #D.order do
@@ -274,20 +385,22 @@ D.hello = function(msg)
   local session = D.session(msg.from)
   session.w = body.w
   session.h = body.h
-  if session.sub then D.sendFrame(msg.from, os.epoch("utc"), true) end
+  if session.sub then D.sendFrame(msg.from, D.now(), true) end
 end
 
 D.subscribe = function(msg)
   local session = D.session(msg.from)
   session.sub = true
-  if session.w then D.sendFrame(msg.from, os.epoch("utc"), true) end
+  if session.w then D.sendFrame(msg.from, D.now(), true) end
 end
 
 D.once = function(msg, reply)
   local session = D.session(msg.from)
   local w = session.w or 1
   local h = session.h or 1
-  local body = D.compose(D.drawn(msg.from), w, h)
+  local role = D.drawn(msg.from)
+  if U and role == "status" then D.model = D.gather() end
+  local body = D.compose(role, w, h, session)
   body.scale = D.saved.far[tostring(msg.from)] and 1 or 0.5
   reply("view.frame", body)
 end
@@ -304,6 +417,17 @@ D.onInput = function(msg)
     return
   end
   local drawn = D.drawn(msg.from)
+  local session = D.session(msg.from)
+  if drawn == "status" then
+    if session.showAlerts or (session.alertUntil and D.now() < session.alertUntil) then
+      session.alertUntil, session.showAlerts = 0, false
+      id = "dismiss"
+    elseif id == "alerts" then
+      session.takeover = D.model and D.model.alerts[#D.model.alerts]
+      session.showAlerts = session.takeover ~= nil
+    elseif id == "next" then session.page = (session.page or 0) + 1
+    elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
+  end
   local screen = D.screens[drawn]
   if drawn == "generic" and type(id) == "string" and D.known[id] then
     D.setRole(msg.from, id)
@@ -314,7 +438,7 @@ D.onInput = function(msg)
   if text ~= nil then event.text = text end
   if screen then pcall(screen.input, event) end
   local session = D.sessions[msg.from]
-  if session and session.sub then D.sendFrame(msg.from, os.epoch("utc"), true) end
+  if session and session.sub then D.sendFrame(msg.from, D.now(), true) end
 end
 
 D.tick = function(now)

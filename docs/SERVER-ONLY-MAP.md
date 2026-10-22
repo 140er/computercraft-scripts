@@ -62,6 +62,16 @@ and listeners use `listener(sender, message)`.
   `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
   and `distance(a, b)`.
 
+- [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
+  `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
+  `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
+  columns and a tile-row count. Glyph returns three blit rows with inverted cells.
+  Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
+  `tile`, `button`, `listRow`, `search` and `frame`. Coordinates are one-based.
+  `frame()` returns compact rows, rectangular buttons and the palette.
+  See [display](server-only/PROTOCOL.md#display) for the status model.
+
 ### Server modules
 
 All modules return `{ name, handlers, tick, ... }`. Call another module only
@@ -106,10 +116,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   clipped frames. Calls are `screen(role, render, input)`, `far(id, on)` and `tick(now)`.
   `far` saves a per-computer flag and returns success plus an optional save error.
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
-  `render()` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
+  `render(w, h)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
   The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
+  Render signatures and revisions are isolated by role and size. Status also
+  isolates paging and alert takeover state per display session. Gather runs in
+  handlers or ticks and reads state, leases, drops, sessions and server disk use.
+  Ore and log totals have no source and use stale tiles. A missing kit retains
+  the legacy status renderer for older partial installations.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
@@ -187,7 +202,7 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
 - Worker adds `worker.lua`. Only turtles install this role.
 - Display adds `display.lua`. Pockets install this role. Computers can choose it.
 - Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
-  `so-lumber-plan.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`.
+  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`.
   Current modules are ar, cells, display, drops, lease, lumber, mine, shop and
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
@@ -346,6 +361,13 @@ expected and actual values. Sextants use the spec ink/background rules to undo
 inverted cells. `sextant(bits)` converts a six-bit pixel value to Unicode.
 `python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes all fifteen fixture
 files without changing the normal mockups.md and font.txt output mode.
+
+UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status fixtures,
+alert takeover timing and dismissal, contrast, clipping, XS paging, role buttons,
+size-specific revisions, source gathering and server-only kit installation.
+`status-T.txt` uses four 12-column tiles and a log, with status navigation on the
+bottom three rows. Pocket parity covers rows 1 through 19; UI-3b owns row 20.
+
 
 ## Open gaps
 

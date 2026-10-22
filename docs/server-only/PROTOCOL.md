@@ -423,7 +423,43 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 SO5 owns this API on `SO.mods.display`.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render(w, h)` is called with the target display size and returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+
+Frame signatures and revisions are kept per role and size. Status additionally
+keeps revisions, XS tile paging and alert state per display session. Every status
+frame carries the Big Tiles palette and that display's scale. Existing renderers
+may ignore the size arguments. Older partial installs without `so-ui.lua` retain
+the legacy status renderer.
+
+The server-only `so-ui.lua` kit exports `palette`, `font`, `size(w, h)`,
+`grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
+`status(model, w, h)` and `alert(model, w, h)`. Sizes are P, T, M, L, XS or
+`generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
+Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
+Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
+`fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`, `big(x,y,w,text,bg)`,
+`hit(id,x,y,w,h)`, `header(name,right?,bg?)`, `alert(text)`,
+`tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
+`listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
+Frame returns compact runs, buttons with height and the palette.
+
+The pure status layout takes `model.tiles`, ordered turtles, leases, alerts,
+ore, logs, disk, displays, drops and pairing. Each tile is
+`{ label, value, sub, bg }`. The model also has `time`, optional `alert`,
+`alerts`, `log`, `terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
+Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
+the count to the length of `alerts`. Gathering stays in display handler and tick
+paths. It reads state view `.alert` keys, registered worker machines, lease
+status, drop points, display sessions and the server root disk. Ore and log
+totals have no source and show `-` on stale tiles.
+
+Alert identity is the state key plus its serialized value. Each display sees
+at most one takeover for each identity and at most one in 30 seconds. The
+coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
+stay in the alert bar and do not trigger a delayed takeover. The alert bar
+opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
+select mining, lumber, shop or generic. Pocket navigation row 20 is reserved.
+No saved data or wire type changes are required.
 
 Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, `lumber`, and `ar`.
 
