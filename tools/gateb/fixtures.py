@@ -77,7 +77,7 @@ def prepare(runtime, name):
         command(f'data get block {xyz} LeftUpgrade')
         command(f'data get block {xyz} RightUpgrade')
         manifest['computers'][cid].update(pos=pos,facing=facing)
-    for name,fixture in manifest['fixtures'].items():
+    for fixture_name,fixture in manifest['fixtures'].items():
         if fixture['kind']!='chest': continue
         xyz=' '.join(map(str,fixture['pos']))
         command(f'setblock {xyz} minecraft:chest')

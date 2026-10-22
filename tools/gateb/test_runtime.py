@@ -68,6 +68,21 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn((4,69,4),cells)
         self.assertNotIn((7,64,7),cells)
 
+    def test_native_fixture_commands_keep_the_run_name(self):
+        from fixtures import prepare
+        manifest={'computers':{str(cid):{'role':'worker','pos':[-21,48,z]} for cid,z in ((4,17),(5,21),(6,25))},
+                  'fixtures':{'ore':{'kind':'chest','pos':[-4,64,4]}},'mine':{},'forceload':[-16,-64,31,31]}
+        positions={'-5 64 3':'4','-7 64 3':'5','3 64 7':'6'}
+        def command(name,text):
+            self.assertEqual(name,'one')
+            for pos,cid in positions.items():
+                if text==f'data get block {pos} ComputerId': return {'output':'has the following block data: '+cid}
+            return {'output':'command complete'}
+        with patch.object(self.runtime,'manifest',return_value=manifest),patch.object(self.runtime,'command',side_effect=command):
+            result=prepare(self.runtime,'one')
+        self.assertTrue(result['prepared'])
+        self.assertTrue((self.runtime.run('one')/'fixture-proof.json').exists())
+
     def test_ports_are_unique_under_concurrency_and_skip_bound_socket(self):
         with socket.socket() as occupied:
             occupied.bind(('127.0.0.1',0));port=occupied.getsockname()[1]
@@ -148,6 +163,17 @@ class NBTTests(unittest.TestCase):
             self.assertEqual(next(nbt.computers(temp))[0],4)
 
 
+
+
+class AdmissionTests(unittest.TestCase):
+    def test_parallel_guard_boundaries(self):
+        from keeper import admit
+        gib=1024*1024
+        admit(3*gib,8*gib+1,7.99,True)
+        admit(3*gib,3*gib,20,False)
+        with self.assertRaisesRegex(RuntimeError,'load1=8.00'): admit(3*gib,9*gib,8,True)
+        with self.assertRaisesRegex(RuntimeError,'MemAvailable=8.00'): admit(3*gib,8*gib,0,True)
+        with self.assertRaisesRegex(RuntimeError,'at least 3'): admit(3*gib,3*gib-1,0,False)
 
 
 class BridgeTests(unittest.TestCase):
