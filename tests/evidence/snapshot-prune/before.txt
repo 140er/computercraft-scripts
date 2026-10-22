@@ -1,0 +1,10 @@
+checkpoint retains only the two usable snapshots
+lua5.2: tests/so/snapshot-prune.lua:34: stale snapshot so-data/snap/000000
+stack traceback:
+	[C]: in function 'assert'
+	tests/so/snapshot-prune.lua:34: in function 'retained'
+	tests/so/snapshot-prune.lua:43: in function 'fn'
+	/tmp/storage-baseline.lua:15: in function 'test'
+	tests/so/snapshot-prune.lua:40: in function <tests/so/snapshot-prune.lua:3>
+	/tmp/storage-baseline.lua:15: in main chunk
+	[C]: in ?

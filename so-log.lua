@@ -36,6 +36,17 @@ H.wipe = function(path)
   if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
 end
 
+H.pruneSnaps = function(n)
+  for _, name in ipairs(fs.list("so-data/snap")) do
+    local digits = name:match("^(%d%d%d%d%d%d)$")
+      or name:match("^(%d%d%d%d%d%d)%.tmp$")
+      or name:match("^(%d%d%d%d%d%d)%.bak$")
+    if digits and tonumber(digits) < n - 1 then
+      fs.delete(C.snap .. name)
+    end
+  end
+end
+
 H.liveBytes = function(path)
   local pick = path
   if not fs.exists(pick) then pick = path .. ".bak" end
@@ -200,6 +211,7 @@ H.checkpoint = function(S, payload)
   local pointed, perr = latest.save({ n = n, seq = S.seq, first = drop })
   if not pointed then return false, perr end
   S.snapN = n
+  H.pruneSnaps(n)
   while S.first < drop do
     S.sizes[S.first] = nil
     H.wipe(H.segPath(S.first))
@@ -231,6 +243,7 @@ H.load = function(S)
   H.dirs()
   local latest = H.readBox(S.store, C.latest, H.validLatest, 8000)
   if latest then
+    H.pruneSnaps(latest.value.n)
     S.snapN = latest.value.n
     local box = H.readBox(S.store, H.snapPath(S.snapN), H.validSnap, 900000)
     if not box and S.snapN > 1 then

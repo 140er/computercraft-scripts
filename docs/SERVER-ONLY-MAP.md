@@ -294,7 +294,10 @@ blocks later saves until restart. Do not save inside tight loops.
 - `so-data/log/<segment>` holds events. `so-data/snap/<snapshot>` and
   `so-data/snap/latest` hold folded state and its snapshot pointer.
   Segments are at most 64 KB, retained segment bytes at most 1 MB, and snapshots
-  occur every 2000 events or when retention needs one. New jobs stop at 80% disk use.
+  occur every 2000 events or when retention needs one. After saving `latest`,
+  cleanup removes snapshots older than `n-1`, including `.tmp` and `.bak` files.
+  Startup repeats cleanup using the recovered pointer. Snapshots `n` and `n-1`
+  remain available for loading. New jobs stop at 80% disk use.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
