@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Run product integration with the pinned pack ROM and a documented older native core."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def choose(explicit, paths, label):
+    candidates = [Path(explicit).expanduser()] if explicit else [Path(p) for p in paths if p]
+    for path in candidates:
+        if path.is_file():
+            return path.resolve()
+    raise ValueError(label + ' missing; see docs/testing/craftos-pc.md')
+
+
+def slot_lock():
+    held = os.environ.get('CC_TEST_EMULATOR_SLOT')
+    if held:
+        if held not in ('local-1', 'local-2'):
+            raise ValueError('Linux emulator needs a reserved local slot: ' + held)
+        return None, held + ' (parent reserved)'
+    if os.name == 'nt':
+        import ctypes
+        from ctypes import wintypes
+        create = ctypes.windll.kernel32.CreateFileW
+        create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                           wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        create.restype = wintypes.HANDLE
+        handle = create(r'C:\Tools\cc-test\slot.lock', 0xC0000000, 0, None, 4, 0, None)
+        if handle == wintypes.HANDLE(-1).value:
+            raise BlockingIOError('Windows cc-test slot busy')
+        return lambda: ctypes.windll.kernel32.CloseHandle(wintypes.HANDLE(handle)), 'win'
+    import fcntl
+    for name, slot in [('test-suite.lock', 'local-1'), ('test-suite-local-2.lock', 'local-2')]:
+        path = Path.home() / 'work' / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handle = path.open('a')
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return handle.close, slot
+        except BlockingIOError:
+            handle.close()
+    raise BlockingIOError('Local cc-test slots busy; retry when a local slot is free')
+
+
+def extract_rom(jar, dest, expected):
+    digest = hashlib.sha256(jar.read_bytes()).hexdigest()
+    if digest != expected:
+        raise ValueError('Pack jar SHA-256 mismatch: ' + digest)
+    hashes = {}
+    with zipfile.ZipFile(jar) as archive:
+        metadata = archive.read('META-INF/neoforge.mods.toml').decode()
+        if not re.search(r'version\s*=\s*"1\.120\.2"', metadata):
+            raise ValueError('Jar metadata is not CC:Tweaked 1.120.2')
+        prefix = 'data/computercraft/lua/'
+        for member in archive.namelist():
+            if not member.startswith(prefix) or member.endswith('/'):
+                continue
+            relative = member[len(prefix):]
+            if '..' in Path(relative).parts or Path(relative).is_absolute():
+                raise ValueError('Unsafe ROM member')
+            data = archive.read(member)
+            target = dest / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            hashes[relative] = hashlib.sha256(data).hexdigest()
+    actual = {p.relative_to(dest).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in dest.rglob('*') if p.is_file()}
+    if actual != hashes:
+        raise ValueError('Extracted ROM differs from jar')
+    first = (dest / 'rom/help/whatsnew.md').read_text().splitlines()[0]
+    if first != 'New features in CC: Tweaked 1.120.2':
+        raise ValueError('Pack ROM version text mismatch: ' + first)
+    canonical = ''.join(f'{name}\0{hashes[name]}\n' for name in sorted(hashes))
+    return dict(jar=str(jar), jar_sha256=digest, version='1.120.2', version_text=first,
+                files=hashes, tree_sha256=hashlib.sha256(canonical.encode()).hexdigest(),
+                all_extracted_bytes_match=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--craftos', default=os.environ.get('CRAFTOS_PC'))
+    parser.add_argument('--cc-jar', default=os.environ.get('CRAFTOS_CC_JAR'))
+    parser.add_argument('--evidence', type=Path)
+    parser.add_argument('--timeout', type=float, default=25)
+    args = parser.parse_args()
+    if not 1 <= args.timeout <= 300:
+        parser.error('--timeout must be 1..300 seconds')
+    evidence = args.evidence or Path(tempfile.mkdtemp(prefix='craftos-evidence-'))
+    if evidence.exists() and any(evidence.iterdir()):
+        parser.error('--evidence must be new or empty')
+    evidence.mkdir(parents=True, exist_ok=True)
+    evidence = evidence.resolve()
+    began = time.monotonic()
+    report = dict(status='FAIL', exact_native_core=False, platform=platform.platform())
+    release, process = None, None
+    try:
+        manifest = json.loads((ROOT / 'tests/craftos/versions.json').read_text())
+        report['required'] = manifest['target']
+        report['compatibility'] = 'CC:Tweaked 1.120.2 pack ROM on CraftOS-PC 2.8.3 / 1.112.0 native core'
+        home = Path.home()
+        cache = Path(os.environ.get('LOCALAPPDATA', str(home))) / 'computercraft-sandbox/craftos-2.8.3'
+        executable = choose(args.craftos, [shutil.which('craftos'),
+            home / 'work/craftos-so-evaluation/squashfs-root/AppRun',
+            cache / 'CraftOS-PC_console.exe'], 'CraftOS-PC 2.8.3')
+        name = 'cc-tweaked-1.21.1-forge-1.120.2.jar'
+        jar = choose(args.cc_jar, [home / 'work/gateb-modpack/server/mods' / name,
+            home / 'work/mc-serverfiles/mods' / name, home / 'work/so-craftos-evaluation' / name], 'Pack CC:Tweaked jar')
+        report['rom'] = extract_rom(jar, evidence / 'rom', manifest['target']['cc_jar_sha256'])
+        (evidence / 'rom-hashes.json').write_text(json.dumps(report['rom'], indent=2) + '\n')
+        release, report['slot'] = slot_lock()
+        if os.name != 'nt':
+            memory = next(int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines()
+                          if line.startswith('MemAvailable:'))
+            if memory < 2000000:
+                raise ValueError('Less than 2 GB available; use Windows with its slot lock')
+        env = dict(os.environ, SDL_AUDIODRIVER='dummy', SDL_VIDEODRIVER='dummy')
+        version = subprocess.run([str(executable), '--version'], capture_output=True, text=True, timeout=10, env=env)
+        (evidence / 'version.txt').write_text(version.stdout + version.stderr)
+        if version.returncode or not version.stdout.startswith('CraftOS-PC v2.8.3\n'):
+            raise ValueError('Executable must be pinned CraftOS-PC 2.8.3')
+        lua = choose(os.environ.get('CRAFTOS_LUA'), [shutil.which('lua5.2'), Path(r'C:\Tools\lua52\lua52.exe')], 'Lua 5.2')
+        units = subprocess.run([str(lua), 'tests/craftos/mock-test.lua'], cwd=ROOT, capture_output=True, text=True, timeout=10)
+        (evidence / 'lua.log').write_text(units.stdout + units.stderr)
+        if units.returncode:
+            raise ValueError('AR mock contract regression failed')
+        run = evidence / 'data'
+        (run / 'config').mkdir(parents=True)
+        (run / 'config/global.json').write_text(json.dumps(dict(standardsMode=True,
+            computerSpaceLimit=16000000, checkUpdates=False, http_enable=False,
+            http_websocket_enabled=False, keepOpenOnShutdown=False, logErrors=True)))
+        for computer in range(3):
+            disk = run / 'computer' / str(computer)
+            disk.mkdir(parents=True)
+            for source in [*ROOT.glob('so-*.lua'), ROOT / 'display.lua']:
+                shutil.copyfile(source, disk / source.name)
+            shutil.copytree(ROOT / 'lib', disk / 'lib')
+            shutil.copyfile(ROOT / 'tests/craftos/integration.lua', disk / 'startup.lua')
+            shutil.copyfile(ROOT / 'tests/craftos/ar-mock.lua', disk / 'ar-mock.lua')
+            shutil.copyfile(ROOT / 'tests/craftos/native-shims.lua', disk / 'native-shims.lua')
+            if computer == 0:
+                keys = '{keys={["1"]="' + '11' * 32 + '",["2"]="' + '22' * 32 + '"}}'
+            else:
+                keys = '{keys={["0"]="' + ('11' if computer == 1 else '22') * 32 + '"}}'
+            (disk / 'so-keys').write_text('{schema=1,generation=1,value=' + keys + '}')
+            (disk / 'so-server.cfg').write_text('{pos={dim="minecraft:overworld",x=0,y=64,z=0}}')
+        command = [str(executable), '--gui', '--rom', str(evidence / 'rom'), '--directory', str(run), '--id', '0']
+        report['command'] = command
+        with (evidence / 'stdout.log').open('wb') as stdout, (evidence / 'stderr.log').open('wb') as stderr:
+            process = subprocess.Popen(command, stdout=stdout, stderr=stderr, env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            deadline = time.monotonic() + args.timeout
+            paths = [run / 'computer' / str(i) / 'integration-result.json' for i in range(3)]
+            while not all(path.exists() for path in paths):
+                if process.poll() is not None:
+                    raise ValueError('Emulator exited before all reports: ' + str(process.returncode))
+                if time.monotonic() >= deadline:
+                    raise ValueError('Integration timed out')
+                time.sleep(0.1)
+            report['computers'] = [json.loads(path.read_text()) for path in paths]
+        if not all(item['ok'] for item in report['computers']):
+            raise ValueError('Integration assertions failed; inspect computer reports')
+        report.update(status='PASS', reason='Pack-ROM product server/protocol/display and peripheral contracts passed')
+        code = 0
+    except BlockingIOError as error:
+        report['reason'], code = str(error), 75
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        report['reason'], code = str(error), 1
+    finally:
+        if process and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        if release:
+            release()
+        report['elapsed_seconds'] = round(time.monotonic() - began, 3)
+        (evidence / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
+    print(f"Emulator {report['status']}: {report['reason']} ({report['elapsed_seconds']}s)")
+    print(f'Evidence: {evidence}')
+    return code
+
+
+if __name__ == '__main__':
+    sys.exit(main())

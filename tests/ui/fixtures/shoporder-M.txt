@@ -1,11 +1,14 @@
 57x24 Shop order page
- SHOP > IRON INGOT                                       
                                                          
- IN STOCK                                                
+ SHOP > IRON INGOT                                       
+ stock 21:14                                             
+                                                         
+  IN STOCK                                               
                       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                       
                        ▌  🬖🬀🬳🬷🬏▌ ▌                       
                       🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀                       
- ^ +60 per hour                                          
+  ^ +60 per hour                                         
+                                                         
                                                          
                                                          
                                                          
@@ -13,32 +16,29 @@
                                                          
                                                          
                                                          
- Order: 16 iron_ingot ok (2 s ago)                       
                                                          
                                                          
-                                                         
-                                                         
-                                                         
-                                                         
+ stock 21:14                                             
+ Order: delivered                                        
                                                          
                           BACK                           
                                                          
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
 aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

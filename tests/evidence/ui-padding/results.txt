@@ -1,0 +1,11 @@
+Base: b2f82c8 (origin/server-only), rebased from fd53311 (PR #176).
+Kept commits: 6cee69c, 6fe9297 and a14e6c2 from the old branch, plus one rebase follow-up commit.
+cc-test --slot local: PASS, 613 tests, local-1 slot, exit 0. The local slot was forced because the UI0 generator check only runs on POSIX. The log has no "SKIP UI0" line, and "UI0 generator preserves section 7.1 and reproduces every fixture" passed. Log: full-suite.txt.
+python3 -I docs/ui/mockup-gen.py --fixtures: all 26 fixtures regenerated, including the map, touch shop and panel pairing fixtures. Section 7.1 of BIG-TILES-SPEC.md and map-mockups.md come from the same generator run.
+luac5.2 -p: PASS for all 17 changed Lua files.
+python3 tools/cobaltlocals.py: maximum 64 locals, below 185.
+Scope check against origin/server-only: PASS, tests/run.lua unchanged, no deleted tests.
+Client files are unchanged by this branch (worker.lua and display.lua are not in the diff).
+The compat-174-* files, sandbox.txt and sandbox-reports.zip are from the old base, before the rebase.
+Gate A: not rerun for this head. Gate B: not run; the orchestrator owns Gate B.
+No live server or RCON was accessed.

@@ -1,0 +1,12 @@
+Rebased map-only commits with git rebase --onto origin/server-only fd53311 codex/so-feat-map.
+Base: 0dcec246e1388a9207024d6dbb177ca194e9d4b8
+Only conflict: tests/run.lua. Kept the upstream file byte-for-byte and appended the three map-test lines.
+PASS consent validator and local-monitor consent routing unchanged from the base.
+PASS #176 local navigation retained alongside MAP and map-back.
+Padding #177 was not merged.
+
+e2419a5 test(map): declare fixture dependencies for part runs
+d457a3a test(map): save full-suite and padding compatibility evidence
+713dcfd fix(map): follow the kit header and scan tracked levels
+11126f4 wip: checkpoint map validation before the T3 restart
+f364f0c feat(display): add a top-down map with per-display controls

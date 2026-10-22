@@ -1,0 +1,22 @@
+part: miner; suites: tests/parts/so-mod-mine.lua
+part: generated 6 input files; private cwd /tmp/cc-part-guee_ljs
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.063s)
+Evidence: /tmp/craftos-evidence-fl0mu16j
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.314s)
+Evidence: /tmp/craftos-evidence-xc4ixwcf
+cc-test: using local-2 slot
+PASS mining refuses start without its disk guard or configured home
+PASS uncertain workers cannot receive a mining batch
+PASS radio range refusal sends only a stationary park
+PASS a completed branch is counted once when recovery revisits it
+PASS disk failure stops a mining job
+PASS retirement refuses recovery and protects a confirmed worker pose
+PASS expired reports keep the worker in recovery
+part: 7 passed, 0 failed, 0 undeclared reads; Lua CPU 0.015s
+part: local Lua wall 0.018s (excludes slot queue)
+real 24.63
+user 2.46
+sys 0.24

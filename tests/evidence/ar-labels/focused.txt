@@ -1,0 +1,41 @@
+PASS AR labels are compact and nearby drops and turtles have separate heights
+PASS AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+PASS AR turtle total agrees with fleet and status for working and paired idle turtles
+PASS AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+PASS UI3c turtle labels and twelve box edges use known state colours
+PASS UI3c lease owners have one blue outline and drops have short labels
+PASS UI3c AR frame with 200 reservations does not sleep or yield
+PASS UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars
+PASS UI3c HUD label ranges stay padded and separated with consent and alerts
+PASS UI3c alert banner expires after five seconds and retains the HUD count
+PASS UI3c repeated history alerts renew the banner without changing the count
+PASS UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+PASS AR fleet frame has turtle labels, reservation outlines and drop labels
+PASS AR layer switches delete outlines on the next frame and persist
+PASS AR throttles frames and discovery and skips unchanged scenes
+PASS AR without a controller loads and ticks without drawing
+PASS AR drops a failing controller and rediscovers it later
+PASS cells.list and drops.list return detached copies
+PASS AR filters dimensions, ages turtles and limits alerts to the newest eight
+PASS display exposes the AR role on the drops generic screen and retains it
+PASS AR removes departed turtles and clears on attach and falls back to clear without delete
+PASS hello registers an idle paired turtle in fleet, status, terminal and panel
+PASS hello throttles unchanged and small fuel updates but records journal and significant fuel changes
+PASS paired display hello registers a display without adding a turtle
+PASS worker screen fits 39x13 and shows id, connection and elapsed seen time
+PASS UI3b roleless pockets default to status and glance matches all twenty fixture rows
+PASS UI3b explicit generic selection survives a display module restart at both compact sizes
+PASS UI3b client input height keeps full Big Tiles pocket navigation
+PASS UI3b glance pages cover all tiles independently and wrap both ways
+PASS UI3b panel fixture matches and controls dispatch once per tap
+PASS UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast
+PASS UI3b missing modules have disabled blocks and no action targets
+PASS UI3b real mining and lumber inputs save once per control tap
+PASS UI3b real shop orders the best match exactly once for each quantity
+PASS UI3b monitor role persists and subscribed revisions stay per panel session
+PASS UI3b alert list pages through all state alerts and pairing help returns
+PASS UI3b partial installs without the kit keep the legacy role picker
+PASS UI3b custom generic headers stay clear when panel is not loaded
+PASS UI3b server local monitor panel forwards controls once
+PASS UI3b panel installs only on the server
+40 passed, 0 failures

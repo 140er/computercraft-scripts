@@ -1,0 +1,21 @@
+Command: python3 formal/verify_lease.py --source <temporary>/so-mod-lease.lua
+Mutation: remove S.send open-lease guard from the real source
+Exit code: 1
+/usr/bin/lua5.2: PROPERTY dispatch trace=send_a,send_b foreign=wrong-id batch=1 grace=11000 actual=2-2 expected=nil
+stack traceback:
+	[C]: in function 'error'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:49: in function 'equal'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:68: in function 'run'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:129: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:137: in function 'visit'
+	...raft-scripts/codex-so-testkit/formal/lease_orderings.lua:142: in main chunk
+	[C]: in ?
+
+Temporary implementation removed after this run.

@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },
@@ -16,6 +16,14 @@ local D = {
   alertVersions = {},
   alertSequence = 0,
 }
+
+if U then
+  local probe = U.canvas(15,3)
+  probe.header("MAP", "")
+  for y,row in ipairs(probe.frame().rows) do
+    if row.text:find("MAP",1,true) then D.headerRow=y break end
+  end
+end
 
 D.now = function() return os.epoch and os.epoch("utc") or 0 end
 
@@ -29,7 +37,7 @@ end
 
 D.roleOf = function(id)
   local role = D.saved.roles[tostring(id)]
-  if role == "shop" or role == "mining" or role == "lumber" or role == "status" or role == "ar" or role == "panel" then return role end
+  if D.known[role] then return role end
   local session = D.sessions[id]
   if U and role == nil and session and session.w == 26 and session.h == 20 then return "status" end
   return "generic"
@@ -38,7 +46,7 @@ end
 D.setRole = function(id, role)
   local name = tostring(id)
   local old = D.saved.roles[name]
-  local want = nil
+  local want = U and role or nil
   if role ~= "generic" then
     if not D.known[role] then return end
     want = role
@@ -217,12 +225,44 @@ D.compose = function(role, w, h, session)
       { id = "lumber", x = 1, y = 1, w = 6, label = "lumber" },
       { id = "ar", x = 8, y = 1, w = 2, label = "ar" },
     }) do
-      if not found[button.id] and not (found.new and found.status) then copy[#copy + 1] = button end
+      if not found[button.id] and not (found.new and found.status) and not found.list then copy[#copy + 1] = button end
     end
-    if D.screens.panel and not found.panel and w >= 39 then
+    if D.screens.panel and not found.panel and not found.list and w >= 39 then
       copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
     end
     buttons = copy
+  end
+  if U and role ~= "map" and D.screens.map and w >= 15 then
+    local copy, targets = {}, {}
+    for i,row in ipairs(rows) do copy[i]=row end
+    local headerRow = D.headerRow
+    local row = rows[headerRow] or {text=""}
+    local fitted = D.fit({rows={row},buttons={}},w,1).rows[1]
+    local text = fitted.text .. string.rep(" ",w)
+    local fg,bg = "",""
+    if fitted.runs then
+      for _,run in ipairs(fitted.runs) do
+        fg,bg=fg..string.rep(run[2],run[1]),bg..string.rep(run[3],run[1])
+      end
+    else
+      fg = #(fitted.fg or "0")==1 and string.rep(fitted.fg or "0",w) or fitted.fg
+      bg = #(fitted.bg or "f")==1 and string.rep(fitted.bg or "f",w) or fitted.bg
+    end
+    fg,bg=fg..string.rep("0",w),bg..string.rep("7",w)
+    local head,first,last = text:sub(1,w):gsub(" +$",""),nil,nil
+    for a,b in head:gmatch("()  +()") do first,last=a,b end
+    if first and #head>=w-1 then
+      text=head:sub(1,first-1)..string.rep(" ",w-first+1)
+      if last-first>=6 then
+        local tail=head:sub(last)
+        text=text:sub(1,last-6)..tail..string.rep(" ",w)
+      end
+    end
+    copy[headerRow] = {text=text:sub(1,w-4).." MAP", fg=fg:sub(1,w-4).."ffff",
+      bg=bg:sub(1,w-4).."9999"}
+    for _,b in ipairs(buttons) do targets[#targets+1]=b end
+    targets[#targets+1] = {id="map",x=w-3,y=headerRow,w=4,h=1,label=""}
+    rows,buttons=copy,targets
   end
   if banner then
     local combined, controls = {}, {}
@@ -433,23 +473,24 @@ D.statusFrame = function(session, w, h, now)
   end
   if w == 26 and h == 20 then
     local indices = {1,3,4,2,5,6,7,8,9}
-    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 3))
+    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
     local c = U.canvas(w, h)
     c.header("FLEET", copy.time)
-    for i = 1, 3 do
-      local index = indices[page * 3 + i]
+    for i = 1, 2 do
+      local index = indices[page * 2 + i]
       local tile = copy.tiles[index]
       if tile then
-        local y = 2 + (i - 1) * 6
-        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg)
+        local y = 4 + (i - 1) * 8
+        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
         if index == 9 then
-          c.fill(1, y + 1, w, 3, tile.bg)
-          c.center(1, w, y + 2, "new client:")
+          c.fill(3, y + 2, w-4, 3, tile.bg)
+          c.center(3, w-4, y + 3, "new client:")
         end
       end
     end
+    c.button(1, h-1, w, "MORE", "generic", "7", 1)
     c.fill(1, h, w, 1, "7")
-    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 3) .. "  >  PANEL")
+    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 2) .. "  >  PANEL")
     c.hit("prev", 1, h, 3, 1)
     c.hit("next", 15, h, 3, 1)
     c.hit("panel", 19, h, 7, 1)
@@ -474,6 +515,7 @@ D.hello = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.acceptSize(body.w, body.h) then return end
   local session = D.session(msg.from)
+  session.keyboard = body.keyboard == true
   session.w = body.w
   session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
@@ -496,6 +538,21 @@ D.once = function(msg, reply)
   reply("view.frame", body)
 end
 
+D.consent = function(event, role, w, h, session)
+  local cells = SO.mods.cells
+  if not cells or type(cells.decideRetirement) ~= "function" then return end
+  local frame = D.compose(role, w, h, session)
+  for _, button in ipairs(frame.buttons) do
+    if button.id == event.id and button.label == event.id:match("^dug%.(%a+)/")
+      and #button.label == button.w and event.y == button.y
+      and event.x >= button.x and event.x < button.x + button.w then
+      local choice, token = event.id:match("^dug%.(%a+)/(.+)$")
+      cells.decideRetirement(token, choice)
+      return
+    end
+  end
+end
+
 D.onInput = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.whole(body.x) or not D.whole(body.y) then return end
@@ -508,18 +565,10 @@ D.onInput = function(msg)
     return
   end
   if id and id:match("^dug%.") then
-    local session, cells = D.sessions[msg.from], SO.mods.cells
-    if not session or not session.w or not cells or type(cells.decideRetirement) ~= "function" then return end
-    local frame = D.compose(D.drawn(msg.from), session.w, session.h, session)
-    for _, button in ipairs(frame.buttons) do
-      if button.id == id and button.label == id:match("^dug%.(%a+)/")
-        and #button.label == button.w and body.y == button.y and body.x >= button.x and body.x < button.x + button.w then
-        local choice, token = id:match("^dug%.(%a+)/(.+)$")
-        cells.decideRetirement(token, choice)
-        if session.sub then D.sendFrame(msg.from, os.epoch("utc"), true) end
-        return
-      end
-    end
+    local session = D.sessions[msg.from]
+    if not session or not session.w then return end
+    D.consent(body, D.drawn(msg.from), session.w, session.h, session)
+    if session.sub then D.sendFrame(msg.from, D.now(), true) end
     return
   end
   local drawn = D.drawn(msg.from)
@@ -537,8 +586,15 @@ D.onInput = function(msg)
     elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
   end
   local screen = D.screens[drawn]
-  if id == "status" then
+  if id == "map" and D.screens.map then
+    session.mapReturn = drawn
+    D.setRole(msg.from, "map")
+  elseif id == "map-back" and drawn == "map" then
+    D.setRole(msg.from, session.mapReturn or "status")
+  elseif id == "status" then
     D.setRole(msg.from, "status")
+  elseif drawn == "panel" and id == "shop" then
+    D.setRole(msg.from, "shop")
   elseif drawn == "generic" and type(id) == "string" and D.known[id] then
     D.setRole(msg.from, id)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
@@ -603,10 +659,10 @@ D.terminal = function(model, view, w, h)
     local bottom = 7
     for i, index in ipairs({1,7,6,3}) do
       local col = cols[(i-1)%#cols+1]
-      local y = 3 + math.floor((i-1)/#cols)*6
+      local y = 4 + math.floor((i-1)/#cols)*8
       local t = model.tiles[index]
-      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg) end
-      bottom = math.max(bottom,y+4)
+      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg,7) end
+      bottom = math.max(bottom,y+6)
     end
     first = bottom+3
     C.fill(1,first-1,w,1,"7"); C.put(2,first-1,"LOG")
@@ -653,7 +709,9 @@ D.localTick = function(now)
       local w,h = m.target.getSize()
       local event = m.pending
       m.pending = nil
-      if event then
+      if event and event.id:match("^dug%.") then
+        D.consent(event, m.role, w, h, m.session)
+      elseif event then
         local drawn = m.role
         if drawn == "status" and (m.session.showAlerts or now < (m.session.alertUntil or 0)) then
           m.session.showAlerts=false
@@ -666,12 +724,18 @@ D.localTick = function(now)
         elseif drawn == "status" and event.id == "alerts" then
           m.session.takeover=D.model.alerts[#D.model.alerts]
           m.session.showAlerts=m.session.takeover ~= nil
+        elseif event.id == "map" and D.screens.map then
+          m.session.mapReturn=drawn
+          m.role="map"
+        elseif event.id == "map-back" and drawn == "map" then
+          m.role=m.session.mapReturn or "status"
         elseif event.id == "status" or event.id == "generic"
           or ((drawn == "status" or drawn == "generic") and D.known[event.id]) then
           m.role=event.id
         end
         local screen=D.screens[drawn]
         event.role=drawn
+        if drawn == "panel" and event.id == "shop" then m.role = "shop" end
         event.session=m.session
         if screen then screen.input(event) end
       end
@@ -703,7 +767,7 @@ D.load = function()
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
-      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" and role ~= "panel" then return false end
+      if not D.known[role] then return false end
     end
     if v.far ~= nil then
       if type(v.far) ~= "table" then return false end

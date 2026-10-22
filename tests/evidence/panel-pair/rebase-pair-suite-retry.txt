@@ -1,0 +1,26 @@
+part: panel-pair; suites: tests/so/panel-pair.lua
+part: generated 40 input files; private cwd /tmp/cc-part-ngjh_tiv
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.05s)
+Evidence: /tmp/craftos-evidence-w6l419eu
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.049s)
+Evidence: /tmp/craftos-evidence-qerqb2ug
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.065s)
+Evidence: /tmp/craftos-evidence-gaism1ir
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.39s)
+Evidence: /tmp/craftos-evidence-6fqqkuqe
+cc-test: using local-2 slot
+PASS panel pairing button, big digits and single use at 26x20
+PASS panel expiry and code privacy at 26x20
+PASS panel pairing button, big digits and single use at 29x12
+PASS panel expiry and code privacy at 29x12
+PASS panel pairing fixtures
+PASS repeat panel requests preserve five bad attempt limit
+part: 6 passed, 0 failed, 0 undeclared reads; Lua CPU 7.675s
+part: local Lua wall 7.740s (excludes slot queue)

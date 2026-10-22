@@ -1,0 +1,7 @@
+FAIL AR labels are compact and nearby drops and turtles have separate heights
+stdin:3: expected "O", got "ORE ore_left"
+FAIL AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+tests/so/ar-labels.lua:62: assertion failed!
+FAIL AR turtle total agrees with fleet and status for working and paired idle turtles
+stdin:3: expected "3", got "0 ok"
+3 failures

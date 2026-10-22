@@ -1,0 +1,3 @@
+cc-test --part ar --lua-only failed before running tests.
+ModuleNotFoundError: No module named 'test_parts'
+Focused iteration used Lua 5.2 and the repository's test harness instead.

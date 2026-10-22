@@ -11,7 +11,8 @@ local function install(machine, files)
   end
 end
 
-local function setup(w, h, prepare)
+local function setup(w, h, prepare, monitor)
+  monitor = monitor or w==29
   local net = H.new()
   local server = net.machine({id=1, modem=true})
   install(server, {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
@@ -23,7 +24,7 @@ local function setup(w, h, prepare)
   server.boot("so-server.lua")
   net.flush()
   assert(not server.error, tostring(server.error))
-  local client = net.machine({id=2, modem=true, monitor=w==29, width=w, height=h, capacity=1000000})
+  local client = net.machine({id=2, modem=true, monitor=monitor, width=w, height=h, capacity=1000000})
   install(client, {"display.lua", "so-proto.lua", "so-pair.lua", "so-store.lua"})
   client.env.term.write = function(text)
     local x, y = client.cx or 1, client.cy or 1
@@ -49,11 +50,16 @@ local function setup(w, h, prepare)
   local function button(label)
     local picture = frame()
     for _, b in ipairs(picture.buttons) do
-      if b.label==label and b.x>=1 and b.y>=1 and b.y<=h and b.x+b.w-1<=w and #b.label<=b.w then
-        assert((client.screen[b.y] or ""):sub(b.x,b.x+#label-1)==label, label .. " is overwritten")
+      local lines={}
+      for y=b.y,b.y+(b.h or 1)-1 do lines[#lines+1]=(client.screen[y] or ""):sub(b.x,b.x+b.w-1) end
+      local text=table.concat(lines,"\n")
+      if (b.label==label or text:find(label,1,true)) and b.x>=1 and b.y>=1
+          and b.y+(b.h or 1)-1<=h and b.x+b.w-1<=w and #label<=b.w then
+        assert(text:find(label,1,true), label .. " is overwritten")
         for _, other in ipairs(picture.buttons) do
-          if other~=b and other.y==b.y then
-            assert(b.x+b.w<=other.x or other.x+other.w<=b.x, label .. " overlaps another button")
+          if other~=b then
+            assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y+(b.h or 1)<=other.y
+              or other.y+(other.h or 1)<=b.y, label .. " overlaps another button")
           end
         end
         return b
@@ -63,8 +69,8 @@ local function setup(w, h, prepare)
   end
   local function press(label)
     local b = button(label)
-    client.inbox[#client.inbox+1] = table.pack(w==29 and "monitor_touch" or "mouse_click",
-      w==29 and "monitor" or 1, b.x, b.y)
+    client.inbox[#client.inbox+1] = table.pack(monitor and "monitor_touch" or "mouse_click",
+      monitor and "monitor" or 1, b.x, b.y)
     net.flush()
   end
   local function typeText(text)

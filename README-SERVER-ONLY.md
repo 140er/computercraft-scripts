@@ -6,6 +6,21 @@ from the server. Displays show frames from the server and send input back.
 The `main` branch has separate bots such as miner, hub and roomsorter.
 This installer offers only server, worker and display roles.
 
+Each turtle starts with a proven radio range of 16 blocks from the server.
+Nearby reports never reduce it. Known world poses and successful batch reports
+can extend it. Work stays within that range plus eight blocks. Mining and supply
+travel shorten long batches at that boundary, then use the next report to extend
+the range and continue. Shaft and spine reservations stay held across those
+batches. Lumber travel advances one cell per lease.
+
+A range-blocked or held miner retreats through known free cells to leave the
+shared lane, then releases its lane reservation and queue entry. It keeps its
+occupied cell reserved and returns to its previous pose before resuming work.
+Retreat requires fuel for both directions. Failed escape moves try another known
+exit, and a worker without return fuel stays out of the queue.
+If it cannot retreat safely, it releases the pass but still protects its physical
+cell. Another turtle cannot pass through a physically immobile turtle.
+
 ## Requirements
 
 Install CC:Tweaked 1.120.2. Advanced Peripherals and cc_ar are optional.
@@ -55,7 +70,11 @@ It tries GPS for two seconds. If GPS does not answer, enter the server's
 
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
-Press P again for each additional client. Keep any leading zeros in the code.
+An already-paired display can also open PANEL, PAIR and press NEW CODE.
+Its panel and the server terminal show the code and time left. Other displays
+cannot see that invitation. Pressing NEW CODE again keeps the pending code.
+After use or expiry, press NEW CODE for the next client.
+Keep any leading zeros in the code.
 Displays show the pairing prompt and digits on the monitor and computer terminal.
 Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when
@@ -83,13 +102,37 @@ Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and
 pair the machine again after a reset.
 
+## Map
+
+Tap `MAP` in the header of any display or panel. `BACK` returns to the screen
+that opened it. The map fits the configured mine, farm, drops and turtles on
+entry with all levels projected. `FIT` restores that view after using `+`, `-` or the four pan buttons.
+Each display keeps its own view until the server restarts.
+
+North is up, x increases to the right and z increases downward. Grey cells are
+planned shaft, spine and branches. Light grey cells are known dug blocks. `H`
+marks the shaft and `@` marks the server. Turtles use `^ > v <` for heading,
+with their id beside them when it fits. Busy turtles are green, idle turtles
+amber, lost or out-of-range turtles coral, and finished turtles blue.
+Chest letters include `O` for ore, `F` for fuel, `W` for wood and `S` for
+saplings. The farm outline is green. Broken drop points are coral.
+
+The bottom button cycles `MINE`, `SURFACE` and `ALL`. Mine selects the job's
+bottom y level. Surface selects the server's y level, or the farm ground when
+there is no server position. All projects the scene and scans dug blocks at the mine bottom, tunnel roof,
+surface, farm ground, and known chest and turtle levels. Dug blocks appear progressively, with at
+most 256 cell reads per frame. At coarse zoom, several blocks share one cell.
+Turtles draw above landmarks and cells. Only the server's dimension is shown.
+
 ## Drop points
 
-The generic display has a drop-point editor. Use `kind` and `side` to cycle
-values, the dimension and coordinate buttons to adjust the draft, and `add`
-to save it. Existing points have `fix` and `remove` buttons. Use `prev` and
-`next` to page through the list. All controls fit a 26x20 pocket or 29x12 monitor,
-with the bottom row left for typed input.
+Open `MORE` from status, pocket glance or the panel header for the generic
+drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
+to cycle values, the dimension and coordinate buttons to adjust the draft,
+and `ADD` to save it. Select a point in the list for `FIX` or `REMOVE`. Use
+`PREV` and `NEXT` to page through the list. The editor's `BACK` returns to the
+list, whose `BACK` returns to status. All controls fit a 26x20 pocket or 29x12
+monitor. Big Tiles use the full display height; typing opens local input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
 Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
 -1 Nether, 1 End. Set each drop point to the chest's own coordinates. With
@@ -112,9 +155,13 @@ requests and field definitions.
 
 ## Mining
 
-The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
-above the drop editor. These links and each screen's `generic` return button
-fit a 26x20 pocket or 29x12 monitor.
+The drop-point list has `MINING`, `LUMBER`, `SHOP`, `AR` and `PANEL` buttons.
+Links wrap across rows on small displays. Mining and lumber each have `SETUP`
+and `BACK`. Setup's `BACK` returns to its main page; main-page `BACK` returns
+to status. Shop item tiles open the order page, whose `BACK` returns to the
+list. AR's `BACK` returns to status. Panel has `MORE` for the drop-point list
+and `GLANCE` for status. Every screen is reachable by visible buttons at
+26x20 and 29x12. Compact mining rows show the full x,y,z position before state.
 
 The server stores dug marks in compact 16x16x16 sections. At 1 MB of section
 files, every display shows a request to forget old areas, with `allow` and
@@ -209,13 +256,30 @@ role on that turtle. It uses the legacy plain-rednet storage protocols and
 does not pair with this server.
 
 The server discovers the Storage Room turtle and polls stock automatically.
-Until discovery the shop screen says `Storage room not found, still looking`.
-Type text to filter item names on that display. Matching ignores case and treats
-spaces as underscores. Tap `clear`, or submit a lone space or `*`, to clear it.
-After five minutes without stock, the server clears stale stock and looks for
-a Storage Room turtle again. Rooms use the legacy unpaired protocol; there is
-no saved room selector, so isolate competing storage networks.
-Item buttons order 1, 16 or 64 items. Replies appear as `Order:` lines. Orders are not retried automatically and time out after two minutes.
+Until discovery the shop screen says `Storage room not found`.
+Tap a category, use `A-Z` to jump to a letter, and sort by `STOCK` or `NAME`.
+Categories come from item IDs. Unknown items appear under `OTHER`.
+Tap an item, then `ORDER 1`, `ORDER 16` or `ORDER 64`. BACK returns to the
+same list page. List BACK returns to status, where MORE opens navigation.
+The whole flow works by touch on monitors and pockets, without a search field.
+Small screens use short quantity labels and a category picker.
+
+Each display keeps its own category, letter, sort, page, selection and order
+status. An order sends once. Quantity buttons stay inactive until you return
+to the list and select an item again. `Order: sent` means the request went out
+or the room accepted it. `Order: delivered` requires an explicit delivery reply.
+The current legacy room replies when it queues an order, so it stays `sent`.
+Refusals and unanswered orders show `failed`. Orders time out after two minutes
+and are never retried automatically.
+
+Stock older than 30 seconds shows `STALE STOCK`. After five minutes without
+stock, the server clears the list and discovers storage again. Rooms use the
+legacy unpaired protocol; isolate competing storage networks.
+Keyboard-equipped panels retain typed quick search. Monitor panels show a SHOP
+button that opens the touch shop. Clients report keyboard availability in hello.
+Older clients that omit it get the touch panel.
+The shop also fits the padded kit from #177, whose header occupies row 2. It
+measures the header and tile extent and adjusts paging to the available space.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 

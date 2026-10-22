@@ -1,0 +1,3 @@
+The restart checkpoint and squash-merge rebase are complete.
+See rebase-results.txt for the current head validation. The full suite passes 585 tests, and shop, panel and touch part tests pass with pack-ROM checks.
+Only shop commits were replayed onto the merged server-only base. The orchestrator merges the PR.

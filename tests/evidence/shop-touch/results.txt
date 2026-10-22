@@ -1,0 +1,27 @@
+Historical validation before the squash-merge rebase. Current results are in rebase-results.txt.
+
+Touch shop validation after the T3 restart.
+Source under test: be135d8e1a7b5d3990299c9ea261b421a7e3c6aa.
+Stack: #176 at fd53311882d7adfbe3e66f4950377727d88b0ecd, with #174 at d6f7abd1e540d388e898aaaec494844cc809a8f6 merged locally.
+
+Plain cc-test: PASS, 563 tests, local-2 slot. Exit code 0.
+An earlier resumed run was terminated by the T3 interruption after 108 passes. It had no final result. full-suite-interrupted.txt preserves it. The complete rerun is full-suite-final.txt.
+The pre-restart run had one outdated clock fixture. That fixture now supplies a stock broadcast through the public listener; the complete rerun includes the corrected test.
+Focused normal-kit UI, clock, navigation, legacy fallback and shop checks: 76 passed, 0 failed.
+Temporary combined tree with #177 at a14e6c27440153cc2ae9dd831f834bab0e520bc6: 30 passed, 0 failed. The kit header stays on row 2. See padding-compatibility.txt for the exact combination and padding-combined.txt for results.
+The temporary combined worktree was removed. Padding was not merged into this branch.
+
+luac5.2 -p: PASS for all changed Lua files against origin/server-only and the new touch tests.
+python3 tools/cobaltlocals.py: PASS, maximum 48 locals, below 185.
+sh tools/check-scope.sh origin/server-only HEAD: PASS, tests/run.lua has only three appended lines, no test files deleted.
+python3 -I docs/ui/mockup-gen.py --fixtures: regenerated fixtures. The full suite confirms the generator and fixtures match the spec.
+Client disk size stays below 1 MB in the paired-client touch tests.
+Full-suite generated changes to the two disk-guard captures were restored.
+
+Gate A: not established. The prescribed Windows sandbox failed on its legacy server/hub/miner setup. Server lacked server.state and exceeded 1 MB; hub reported No such program; miner passed. Saved reports are sandbox.txt and sandbox-{server,hub,miner}.json.
+tests/review-capture.ps1 is absent. Text captures here are mock terminal output, not real gameplay screenshots.
+Gate B: not run for this head. Real-server and gameplay tests remain with the orchestrator.
+The Windows task directory and exact sandbox run directory were removed after reports were copied.
+No live server or RCON was used.
+
+The updated cc-test --part command cannot start in this worktree because tools/test_parts.py is absent. scripts/test-emulator is absent too. part-check.txt records this prerequisite issue. No emulator coverage is claimed from these Lua tests.

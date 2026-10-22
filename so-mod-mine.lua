@@ -187,13 +187,15 @@ local function reserveBatch(id,row,action)
     if not seen[key] then cells[#cells+1]=cell seen[key]=true end
   end
   for _,cell in ipairs(action.cells or {}) do add(cell) end
-  local pass=needs and M.lanePass(job,row) or {}
+  local leaving=row.yield and row.yield.stage=="out"
+  local pass=needs and (row.yield and (leaving and row.yield.path or row.yield.pass) or M.lanePass(job,row)) or {}
   if needs and not row.lane then
     row.laneWait=row.laneWait or {at=os.epoch("utc"),passes=0}
     local first=id
     for other,peer in pairs(job.turtles) do
-      if tonumber(other)~=id and (peer.lane or M.inLane(job,peer.pose)) then return false,"held" end
-      if peer.laneWait and laneOrder(tonumber(other),first) then first=tonumber(other) end
+      local parked=peer.yield and peer.yield.stage=="wait"
+      if tonumber(other)~=id and (peer.lane or M.inLane(job,peer.pose) and not parked) then return false,"held" end
+      if not leaving and peer.laneWait and laneOrder(tonumber(other),first) then first=tonumber(other) end
     end
     if first~=id then return false,"held" end
     for _,cell in ipairs(pass) do add(cell) end
@@ -226,6 +228,60 @@ local function reserveBatch(id,row,action)
     end
   end
   return true
+end
+local function releaseLane(id,row)
+  call("cells","releaseOwner",owner(id))
+  row.lane,row.laneWait=nil,nil
+  reservePose(id,row)
+  S.handoffAt=os.epoch("utc")
+end
+local function yieldPath(id,row,returnMoves)
+  local queue,head,seen,parents={row.pose},1,{[M.key(row.pose)]=true},{}
+  while queue[head] and head<=512 do
+    local p=queue[head] head=head+1
+    if not M.inLane(job,p) then
+      local path={p}
+      while parents[M.key(p)] do p=parents[M.key(p)] table.insert(path,1,p) end
+      if type(row.fuel)~="number" or row.fuel<0 or row.fuel>=2*(#path-1)+(returnMoves or 0) then return path end
+      return nil
+    end
+    for _,dir in ipairs({"forward","back","up","down","right","left"}) do
+      local pose=p
+      if dir=="right" or dir=="left" then
+        pose=P.apply(p,dir=="right" and "turnRight" or "turnLeft") dir="forward"
+      end
+      local cell=M.cell(pose,dir)
+      local key,held=M.key(cell),call("cells","owner",cell.x,cell.y,cell.z,cell.dim)
+      if not seen[key] and lookup(cell)==false and (not held or held==owner(id))
+          and P.inRange(mod("lease"),id,{cell}) then
+        seen[key],parents[key]=true,p queue[#queue+1]=cell
+      end
+    end
+  end
+end
+local function beginYield(id,row)
+  row.laneWait=nil
+  local path=yieldPath(id,row) or {row.pose}
+  row.yield={path=path,cursor=2,stage="out",state=row.state,error=row.error,
+    action=row.blockedAction,pass=SO.store.copy(row.lane and row.lane.cells or M.lanePass(job,row)),
+    after=row.dropRetry and (row.dropRetry.after or 0) or os.epoch("utc")+60000}
+  for _,cell in ipairs(path) do row.yield.pass[#row.yield.pass+1]=cell end
+end
+local function rerouteYield(id,row,action)
+  local y=row.yield
+  for _,cell in ipairs(action.cells or {}) do S.known[M.key(cell)]=nil end
+  local prefix={}
+  for _,cell in ipairs(y.path) do
+    prefix[#prefix+1]=cell
+    if M.same(cell,row.pose) then break end
+  end
+  local path=#(action.cells or {})>0 and yieldPath(id,row,#prefix-1)
+  y.path,y.cursor=prefix,#prefix+1
+  if y.stage=="back" then y.retryAfter=os.epoch("utc")+60000 end
+  y.stage="out"
+  for i=2,#(path or {}) do
+    y.path[#y.path+1]=path[i] y.pass[#y.pass+1]=path[i]
+  end
 end
 local plan
 local function report(_, id, results, lease)
@@ -310,6 +366,10 @@ local function report(_, id, results, lease)
           scan(row, row.scanAfter)
           row.scanAfter = nil
         else S.known[M.key(action.cell)] = nil row.error = results[1].err end
+      elseif action.kind == "yield" and row.yield then
+        for _,result in ipairs(results) do
+          if not result.ok then rerouteYield(id,row,action) break end
+        end
       elseif action.kind == "cleanup" then
         row.cleanup = #M.cleanup(row.inv,false) > 0
         for i, step in ipairs(action.steps) do
@@ -354,7 +414,14 @@ local function report(_, id, results, lease)
 end
 local function send(id, row, action)
   if #action.steps == 0 then return false end
-  if not P.inRange(mod("lease"), id, action.cells or {}) then row.state, row.error = "range", "outside proven radio range" return false end
+  local proposed=action
+  action = P.rangeBatch(mod("lease"), id, action)
+  if not action then
+    row.state,row.error,row.blockedAction="range","outside proven radio range",proposed
+    row.laneWait=nil
+    return false
+  end
+  if not row.yield then row.blockedAction=nil end
   local ok, err = reserveBatch(id,row,action)
   if not ok then
     row.state, row.error = row.laneWait and "wait lane" or "waiting", err or "cells unavailable"
@@ -366,6 +433,42 @@ local function send(id, row, action)
   if not lid then row.inflight = nil row.error = why return false end
   row.parkUntil = nil
   S.pending[id] = action return true
+end
+local function yieldLane(id,row)
+  local y=row.yield
+  row.state,row.error=y.state,y.error
+  local target=y.path[y.cursor]
+  if target and M.same(row.pose,target) then
+    y.cursor=y.cursor+(y.stage=="back" and -1 or 1)
+    target=y.path[y.cursor]
+  end
+  if y.stage=="out" and not target then
+    y.stage,y.cursor="wait",#y.path-1
+    releaseLane(id,row) save()
+  end
+  if y.stage=="wait" then
+    row.laneWait=nil
+    local ready=y.action and P.rangeBatch(mod("lease"),id,y.action)
+      or not y.action and os.epoch("utc")>=y.after
+    local fuel=type(row.fuel)~="number" or row.fuel<0 or row.fuel>=#y.path-1
+    if not ready or not fuel or not job.running or os.epoch("utc")<(y.retryAfter or 0) then
+      park(id,row,false) return true
+    end
+    y.stage="back" target=y.path[y.cursor]
+  end
+  if y.stage=="back" and not target then
+    local turn=M.turn(row.pose,y.path[1].facing)
+    if turn then send(id,row,{kind="yield",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) return true end
+    row.yield,row.blockedAction=nil,nil
+    save()
+    return false
+  end
+  if target then
+    local action=P.path(row.pose,target)
+    action.kind="yield"
+    if not send(id,row,action) then park(id,row,false) end
+  end
+  return true
 end
 local function scanAction(row)
   local n = row.scan.index
@@ -394,6 +497,9 @@ plan = function(id,row)
   end
   if not row.frame then row.recover = true park(id,row,true) return end
   if row.lane and row.lane.release then return end
+  if not row.yield and (row.state=="range" or row.state=="hold")
+      and (row.lane or M.inLane(job,row.pose)) then beginYield(id,row) save() end
+  if row.yield and yieldLane(id,row) then return end
   if not reservePose(id,row) then row.state = "waiting" park(id,row,false) return end
   if not P.inRange(mod("lease"),id,{row.pose}) then row.state,row.error="range","outside proven radio range" park(id,row,false) return end
   if not job.running or row.state == "done" then row.state = row.state == "done" and "done" or "stopped" park(id,row,false) return end
@@ -548,11 +654,16 @@ plan = function(id,row)
 end
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
-local page = "main"
+local defaultView = { page = "main" }
+local function view(session)
+  if not U or type(session) ~= "table" then return defaultView end
+  session.mining = session.mining or { page = "main" }
+  return session.mining
+end
 local function input(event)
   if type(event.text) ~= "string" then
-    if event.id == "setup" then page = "setup" return
-    elseif event.id == "mine-back" then page = "main" return
+    if event.id == "setup" then view(event.session).page = "setup" return
+    elseif event.id == "mine-back" then view(event.session).page = "main" return
     elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
   end
   if type(event.text)~="string" then return end
@@ -689,13 +800,13 @@ local function layout(m, w, h, setup)
     local cols = U.grid(w,h)
     local tall = h >= 19 and #cols >= 3
     local buttonHeight = tall and 3 or 1
-    local buttonY = tall and h-3 or h
-    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-3)/6)))
+    local buttonY = tall and h-3 or w < 26 and h-1 or h
+    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-4)/7)))
     if tall then
       for i,t in ipairs(m.tiles) do
         local col = cols[(i-1)%#cols+1]
         local row = math.floor((i-1)/#cols)
-        if row < tileRows then c.tile(col.x,3+row*6,col.w,unpack(t)) end
+        if row < tileRows then c.tile(col.x,4+row*7,col.w,t[1],t[2],t[3],t[4],6) end
       end
     else
       for i,t in ipairs(m.tiles) do
@@ -704,12 +815,14 @@ local function layout(m, w, h, setup)
         end
       end
     end
-    local listY = tall and 3+tileRows*6 or 9
+    local listY = tall and 4+tileRows*7 or 9
     if listY < buttonY then
-      c.fill(1,listY,w,1,"7"); c.put(2,listY,"TURTLE  STATE      POS          FUEL  ORE")
+      c.fill(1,listY,w,1,"7"); c.put(2,listY,w < 39 and "TURTLE  POS  STATE" or "TURTLE  STATE      POS          FUEL  ORE")
       for i,row in ipairs(m.turtles) do
         if listY+i < buttonY then
-          c.listRow(listY+i,string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore),row.stripe)
+          local text = w < 39 and string.format("#%s %s %s",row.id,row.pos,row.state)
+            or string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore)
+          c.listRow(listY+i,text,row.stripe)
         end
       end
     end
@@ -717,15 +830,21 @@ local function layout(m, w, h, setup)
     local available, x = math.max(0,w-3), 1
     for i,b in ipairs(buttons) do
       local width = math.floor(available/(5-i))
-      c.button(x,buttonY,width,b[1],b[2],b[3],buttonHeight)
+      local y = buttonY
+      if w < 26 then
+        local cols = U.grid(w,h,2)
+        local col = cols[(i-1)%2+1]
+        x, width, y = col.x, col.w, buttonY+math.floor((i-1)/2)
+      end
+      c.button(x,y,width,b[1],b[2],b[3],buttonHeight)
       x, available = x+width+1, available-width
     end
   end
   return c.frame()
 end
-local function render(w,h)
+local function render(w,h,session)
   if not U then return legacyRender(w) end
-  return layout(gather(),w or 57,h or 24,page == "setup")
+  return layout(gather(),w or 57,h or 24,view(session).page == "setup")
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do
@@ -752,7 +871,16 @@ local function forgetDug(paths)
     if visited % 128 == 0 then SO.breathe() end
   end
 end
-return {name="mine",handlers={},dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+local function mapView()
+  local view = {dim=job.dim,home=SO.store.copy(job.home),homeSet=job.homeSet,bottom=job.bottom,
+    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={}}
+  for id,row in pairs(job.turtles) do
+    view.branches=math.max(view.branches,(row.branch or 0)+1)
+    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim}
+  end
+  return view
+end
+return {name="mine",handlers={},mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end

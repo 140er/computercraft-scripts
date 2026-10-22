@@ -16,13 +16,25 @@ P.refresh = function()
       P.states[role] = "stopped"
       if role ~= "shop" then
         local frame = screen.render(57, 24)
-        local header = frame and frame.rows and frame.rows[1]
+        local header = frame and frame.rows and frame.rows[2] or frame and frame.rows and frame.rows[1]
         if header and header.text and header.text:find("running", 1, true) then P.states[role] = "running" end
       end
     end
   end
-  P.alerts = {}
+  P.fleet = nil
   local state = SO.mods.state
+  local machines = state and type(state.get) == "function" and state.get("machines") or {}
+  local count, lost = 0, 0
+  for id, row in pairs(machines or {}) do
+    if row.role == nil or row.role == "worker" or row.role == "turtle" then
+      count = count + 1
+      local lease = SO.mods.lease
+      local status = lease and lease.status and lease.status(tonumber(id)) or {}
+      if status.lost then lost = lost + 1 end
+    end
+  end
+  if count > 0 then P.fleet = "TURTLES " .. (count-lost) .. " ok, " .. lost .. " lost" end
+  P.alerts = {}
   local view = state and state.view
   local meta = type(view) == "table" and getmetatable(view)
   if type(view) == "function" or (meta and type(meta.__call) == "function") then
@@ -54,6 +66,11 @@ end
 
 P.shop = function(c, session, x, y, w, height, compact)
   local loaded = P.states.shop ~= "not loaded"
+  if not session.keyboard then
+    if loaded then c.button(x, y, w, "SHOP", "shop", "a", compact and 3 or 5)
+    else c.fill(x, y, w, compact and 3 or 5, "c"); c.center(x, w, y + 1, "SHOP") end
+    return
+  end
   c.put(x+1,y,"SHOP")
   c.put(x+(loaded and 10 or math.min(10,math.max(1,w-10))),y,loaded and "search:" or "not loaded")
   if loaded then c.search(x+1,y+1,w-2," " .. (session.panel.search or "") .. "_","search")
@@ -80,9 +97,23 @@ P.render = function(w, h, session)
   local page = session.panel.page
   if page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
-    local y = h < 12 and 4 or 5
-    for _,line in ipairs({"Press P on the server", "then type the code on", "the new client."}) do
-      for start=1,#line,math.max(1,w-2) do c.put(2,y,line:sub(start,start+math.max(1,w-2)-1));y=y+1 end
+    local invitation = session.panel.invitation
+    if invitation and (P.now() >= invitation.expires or SO.pair.pending() ~= invitation.code) then
+      session.panel.invitation = nil
+      invitation = nil
+    end
+    if session.panel.pairBusy and not SO.pair.pending() then session.panel.pairBusy = nil end
+    if session.panel.pairBusy then c.center(1,w,5,"CODE IN USE") end
+    if invitation then
+      c.fill(2,4,w-2,4,"9")
+      c.big(2,4,w-2,invitation.code,"9")
+      local left = math.max(0,math.ceil((invitation.expires-P.now())/1000))
+      c.center(2,w-2,7,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
+    end
+    if session.id and SO.pair.key(session.id) and type(SO.pairCode) == "function" then
+      c.button(1,h < 12 and h-1 or h-3,w,"NEW CODE","pair-code","9",h < 12 and 1 or 3)
+    else
+      c.put(2,5,"Press P on the server")
     end
     c.button(1,h,w,"BACK","panel-back","7",1)
   elseif page == "alerts" then
@@ -100,24 +131,27 @@ P.render = function(w, h, session)
       c.button(cols[i].x,h,cols[i].w,label,({"alert-prev","panel-back","alert-next"})[i],"7",1)
     end
   else
+    local top = P.fleet and h >= 12 and 4 or 3
+    if top == 4 then c.put(2,3,P.fleet:sub(1,w-2)) end
     local cols = U.grid(w,h)
     if h < 19 and #cols == 1 then
-      P.block(c,"mining",1,3,w,h,true)
-      P.block(c,"lumber",1,5,w,h,true)
-      P.shop(c,session,1,7,w,h,true)
+      P.block(c,"mining",1,top,w,h,true)
+      P.block(c,"lumber",1,top+2,w,h,true)
+      P.shop(c,session,1,top+4,w,h,true)
     elseif #cols >= 3 then
-      P.block(c,"mining",cols[1].x,3,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,3,cols[2].w,h)
-      P.shop(c,session,cols[3].x,3,cols[3].w,h)
+      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
+      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
+      P.shop(c,session,cols[3].x,top,cols[3].w,h)
     elseif #cols == 2 then
-      P.block(c,"mining",cols[1].x,3,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,3,cols[2].w,h)
-      P.shop(c,session,1,9,w,h)
+      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
+      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
+      P.shop(c,session,1,top+6,w,h)
     else
-      P.block(c,"mining",1,3,w,h)
-      P.block(c,"lumber",1,8,w,h)
-      P.shop(c,session,1,13,w,h)
+      P.block(c,"mining",1,top,w,h)
+      P.block(c,"lumber",1,top+5,w,h)
+      P.shop(c,session,1,top+10,w,h)
     end
+    c.button(8,2,6,"MORE","generic","7",1)
     c.fill(1,h,w,1,"7")
     if w >= 26 then
       c.put(2,h,"GLANCE  ALERTS  PAIR")
@@ -136,9 +170,13 @@ P.input = function(event)
   if not session then return end
   session.panel = session.panel or {search="",page="main"}
   local panel,id = session.panel,event.id
-  if type(event.text) == "string" then panel.search = event.text:sub(1,256);return end
+  if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
   if id == "panel-back" then panel.page="main"
   elseif id == "pair" or id == "alerts" then panel.page=id
+  elseif id == "pair-code" and panel.page == "pair" and event.from == session.id
+      and SO.pair.key(event.from) and type(SO.pairCode) == "function" then
+    panel.invitation = SO.pairCode(event.from)
+    panel.pairBusy = panel.invitation == nil
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
   elseif panel.page == "main" then
@@ -149,19 +187,10 @@ P.input = function(event)
       if target and type(target.input) == "function" then target.input({id=cmd,role=role}) end
     else
       local amount = (id or ""):match("^order:(%d+)$")
-      local target = P.screens.shop
-      if (amount == "1" or amount == "16" or amount == "64") and target
-          and type(target.input)=="function" and type(target.render)=="function" then
-        target.input({text=panel.search,role="shop"})
-        local frame = target.render(57,24)
-        for _,button in ipairs(frame.buttons or {}) do
-          local name = button.id:match("^item:(.+)$")
-          if name then
-            target.input({id="item:"..name,role="shop"})
-            target.input({id="order:"..amount..":"..name,role="shop"})
-            break
-          end
-        end
+      local shop = SO.mods.shop
+      if (amount == "1" or amount == "16" or amount == "64") and P.screens.shop and session.keyboard
+          and shop and type(shop.order) == "function" then
+        shop.order(panel.search, tonumber(amount))
       end
     end
     P.refresh()

@@ -1,0 +1,32 @@
+Kit header row 2. Browse, letters, selection and sent-order frames must retain it.
+PASS Big Tiles visible navigation graph at 26x20
+PASS Big Tiles visible navigation graph at 29x12
+PASS Big Tiles visible navigation graph at 15x10
+PASS Big Tiles visible navigation graph at 36x10
+PASS Big Tiles visible navigation graph at 39x19
+PASS Big Tiles visible navigation graph at 51x19
+PASS Big Tiles visible navigation graph at 57x24
+PASS Big Tiles visible navigation graph at 82x40
+PASS Big Tiles visible navigation graph at 100x38
+PASS Big Tiles visible navigation graph at 164x81
+PASS drop editor remains clickable at 26x20
+PASS visible mining navigation at 26x20
+PASS visible lumber navigation at 26x20
+PASS visible shop navigation at 26x20
+PASS visible status navigation at 26x20
+PASS visible ar navigation at 26x20
+PASS drop editor remains clickable at 29x12
+PASS visible mining navigation at 29x12
+PASS visible lumber navigation at 29x12
+PASS visible shop navigation at 29x12
+PASS visible status navigation at 29x12
+PASS visible ar navigation at 29x12
+PASS touch shop browse and one order at 29x12
+PASS touch shop browse and one order at 26x20
+PASS touch shop browse and one order at 57x24
+PASS touch shop browse and one order at 100x38
+PASS touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+PASS touch shop reports failures missing room and stale stock
+30 tests, 0 failed

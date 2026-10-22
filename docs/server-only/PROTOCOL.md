@@ -78,7 +78,9 @@ A paired computer sends `hello` to the server.
 three rows tall, so `body.h` is one less than the physical height there.
 Optional `body.fullH` advertises the physical height. The Big Tiles server uses
 that height and kit frames fill every row, including pocket glance navigation.
-Kit-free frames retain the local input row. The display module reads these sizes.
+Kit-free frames retain the local input row. `body.keyboard` is true only when the
+client draws on its own terminal. Every monitor client reports false. Missing
+flags use touch panel controls. The display module reads these sizes.
 It does not treat `body.role` as the screen assignment.
 
 A turtle also sends these fields.
@@ -273,12 +275,32 @@ The module finds the existing, unpaired Storage Room turtle through DNS or the s
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
-The Big Tiles screen uses `render(w, h)`. It lists items sorted by descending count, with item name as the tie breaker. Submitted text filters names without case sensitivity; spaces match underscores. A new search resets to page 1. Buttons `prev` and `next` stop at the ends, `clear` empties the search, and `status` returns to status. The `search` box accepts typed text. The header shows the latest stock sample time in UTC, or `-` before sampling.
+The Big Tiles screen uses `render(w, h, session)`. Stock is shared; category,
+letter, sort, page, selection and order feedback belong to the display session.
+It draws category tabs derived from item IDs, an A-Z letter picker, STOCK and
+NAME sort buttons, item tiles and paging. Small screens open a category picker.
+No shop search field is drawn. Submitted text remains a compatible name filter;
+spaces match underscores, and a lone space or `*` clears it. Category taps clear
+that filter. Count sort descends by stock and breaks ties by item ID. Name sort
+uses the displayed name and then item ID. The stock time uses Amsterdam time.
+Stock older than 30 seconds shows STALE STOCK.
 
-Tapping `item:<itemName>` opens an order page with an IN STOCK tile and buttons `order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`. Button `items` returns to the list. Tiles are blue normally, amber for falling stock or counts of 16 or fewer, and coral when empty. Trend rates estimate the hourly change from the oldest sample using the retained minute-sample intervals. The latest order reply lines share one status line. Without `so-ui.lua`, the legacy list and its order buttons remain available.
+Tapping `item:<itemName>` opens an IN STOCK tile and quantity buttons
+`order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`.
+`items` returns to the same list page; `status` returns from the list to status.
+Tiles keep the existing blue, amber, empty and trend states. Stale tiles use gray.
+Without `so-ui.lua`, the legacy list and its direct order buttons remain available.
 
-An order button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows reply text with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
-The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names for that display without case sensitivity; spaces match underscores. The visible `clear` button, a lone space, or `*` clears that display's filter. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
+An order sends `{ cmd = "order", text = itemName, n = count, rid = number }`
+on `roomsorter` once. Quantity buttons then become inactive until the user
+returns to the list and selects an item again. Replies match sender and request
+ID. Each reply updates only the initiating display's latest order. The status is
+sent after dispatch and on a Getting or Crafting reply, delivered only after an
+explicit Delivered or sent-to-output-chest reply, and failed on refusal or a
+two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is
+the final observable state there. The screen never infers delivery from stock
+changes and never retries orders. `shop.order(search, count)` remains a direct
+one-order API for keyboard panel quick orders and leaves shop displays unchanged.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
@@ -371,7 +393,7 @@ step is `inspectDown`. It returns true when cancelled or already closed, otherwi
 false and `"turtle has open lease"`. Cancellation releases reservations owned by
 the lease and ignores later reports without calling the planner callback.
 
-`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
+`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. Range starts at 16 blocks. Known poses and successful batch reports can only increase it, including the first observation.
 
 The server position comes from the plain `so-server.cfg` table `{ pos = { dim, x, y, z } }`, read through `so-store`. Without it, the module tries `gps.locate(2)`. Without either position, every range check returns true and the module logs that once at load.
 
@@ -424,6 +446,18 @@ A finished worker recovered away from its branch tip, for example one moved by
 hand or saved after an older worker backed along its path, travels back to the
 tip before it parks.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
+A confirmed worker blocked by range or a hold retreats to a known free cell
+outside the shaft and spine before parking. Retreat uses no digging and checks
+range, fuel for both directions and reservations. Failed escape moves invalidate
+their target and try another known exit. Return attempts require enough fuel;
+failed returns retreat again and wait a minute before retrying. After leaving, it releases its lane pass and queue
+entry while retaining its occupied cell. The saved yield path returns it to its
+old pose and facing before work resumes. Range blocks retry when the original
+action fits; other holds retry after a minute. No safe retreat releases the pass
+but keeps the physically occupied cell protected. Other passes use normal cell
+reservations instead of a global veto from that parked worker. Unknown or lost poses still
+require recovery before movement or reservation release.
+
 Lost workers and workers outside their proven radio range appear in red.
 
 The shared lane contains the shaft column between `home.y` and `bottom`, and
@@ -638,7 +672,10 @@ and clips the picture to the `hello` size. `input` accepts
 `{ from, id, x, y, role, session }` and optional `text`. The session is the same table
 passed to render; it is never sent on the wire. `role` is the screen that was
 showing. Local monitor input receives its own session through the same field.
-The session includes client `id`. Kit-free render callbacks receive the client
+The session includes client `id` and `keyboard`, true only when hello reports
+`body.keyboard == true`. Monitor clients report false. A missing flag uses touch
+controls. Monitor panels open the shop with a SHOP button; keyboard panels retain
+typed quick search and quantities. Kit-free render callbacks receive the client
 ID as their third argument. Their generic content height excludes two navigation
 rows for mining, lumber, shop, status and AR. Every kit-free destination has a
 visible generic return button on 26x20 pockets and 29x12 monitors.
@@ -715,7 +752,7 @@ when the drops module supplies the generic screen.
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids. Old files without `far` remain valid.
 The default role is `generic`, except a 26x20 display without a saved role
-uses `status` when the kit is installed. Saved roles, including `panel`, take precedence. Both settings
+uses `status` when the kit is installed. Saved roles, including `panel` and `map`, take precedence. Both settings
 survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
@@ -729,6 +766,58 @@ NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capabl
 outputs repaint the timer once a second. Outputs without palette support retain
 the legacy bottom-right stale marker and repaint on retries. The retry schedule
 still uses jittered exponential backoff capped at 30 seconds.
+
+### map
+
+`so-mod-map.lua` is installed only on the server. It registers
+`display.screen("map", render, input)` during tick. It adds no wire type.
+The saved display role may be `map`; older role and far settings remain valid.
+The display composer draws a teal `MAP` button at the right of every Big Tiles
+header while the map screen is registered. Input `map` remembers the drawn role
+in `session.mapReturn`. Input `map-back` restores that role, or status after a
+restart. This also works on the server's local monitor.
+
+`mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
+branches, turtles }`. `branches` covers assigned branches and progress.
+`turtles[id]` has `{ pose, state, dim }` in world coordinates.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtle }`.
+The optional turtle has `{ id, pose, state }`. These getters do not save or
+advance jobs. The map calls them from tick, together with registry, lease and
+drop APIs. Registry workers without a job also appear when their pose is known.
+Numeric drop dimensions are normalized to world dimension strings.
+
+`render(w, h, session)` stores its state under `session.map`. `fit` starts true.
+`x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
+`level` starts as `all` and cycles through `mine`, `surface`, `all`.
+Mine selects the job bottom; surface selects server y, farm ground or mine home.
+All projects every scene marker. Dug scans sample the mine bottom and its next
+block, mine home, surface, farm ground, and known chest and turtle y levels.
+The map is north-up with x horizontal and z vertical. It filters to the server
+dimension, or the configured job dimension when the server position is absent.
+
+Geometry tests intersections per screen cell. Route length and branch count do
+not increase frame work. Dug scans call `cells.isDug` at most 256 times per
+render and retain a viewport-sized raster. A completed scan replaces old marks.
+View changes reset the scan. Changing tracked levels restarts the scan while
+retaining its visible raster until a new pass completes. Empty shaft heights
+are skipped. At coarse zoom, any found dug block marks its
+projected cell. New dug blocks appear as the scan advances. Rendering never
+calls sleep. Existing cell reads may use `SO.breathe` during bulk work.
+
+Planned passages use panel grey `7`; dug cells use light grey `8`; the farm
+outline uses green `d`. `H` marks the shaft in teal `9`. Chest letters use
+purple `a` or coral `e` when broken. `@` marks the server in teal. Turtles draw
+last as `^ > v <`, with an id to the right at one block per cell when it fits.
+Busy uses green `d`, idle amber `1`, lost/range/stale coral `e`, and done blue `b`.
+Markers at the same projected cell overlap; turtles take precedence.
+
+Drawn inputs are `map-fit`, `map-in`, `map-out`, `map-n`, `map-w`, `map-s`,
+`map-e` and `map-level`. Zoom ranges from 1 to 4096 blocks per cell. Panning
+moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
+the padded kit. Controls occupy the bottom three rows at every
+size, including 26x20 and 29x12. The header shows north and blocks per cell.
+The remaining rows expand with the display. All view and scan state clears on
+server restart and remains independent per paired display or local monitor.
 
 ### panel
 
@@ -752,10 +841,19 @@ which defines the best match. A search with no match sends no order. This uses
 the existing shop search and selection state, shared with full shop screens.
 
 `status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
-`alert-next` wrapping pages. `pair` shows instructions to press P on the server
-and type its code on the new client. `panel-back` returns to the main panel.
+`alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
+button is NEW CODE. Only a paired display with a matching session ID can
+request it through authenticated `input`. The server-local `SO.pairCode(id)`
+returns `{ code, expires }` for that requester, or nil if another display or
+the terminal owns a pending invitation. It calls the same invitation path as P.
+Repeated requests from the owner preserve the code, expiry and bad-attempt count.
+The session holds the invitation. Its own signed `view.frame` shows six kit
+big digits and remaining minutes and seconds. No invitation enters shared
+screen data or broadcast frames. Other displays keep the normal pair page.
+Use, expiry, five bad attempts or terminal cancellation restore that page.
+`panel-back` returns to the main panel.
 At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
-screens use compact controls. Pairing and job planning are unchanged.
+screens use compact controls. The pairing handshake and job planning are unchanged.
 
 ### lumber
 
@@ -893,23 +991,32 @@ All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
-- `turtles` draws a twelve-edge box, heading arrow and size-3 `#<id> <STATE>`
-  label for each machine with a pose. State comes from the machine registry and
+- `turtles` draws a twelve-edge box and heading arrow for each worker with a
+  pose. Its short `#<id>` label uses size 0.5. State comes from the machine registry and
   `lease.status`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
   is exempt. Working, mining, running and lumber states use green. Other open
-  leases use teal; idle turtles use white. The HUD counts registered workers,
-  excluding lost, out-of-range and stale turtles from its ok count.
+  leases use teal; idle turtles use white. Last contact uses the newer registry
+  or lease timestamp, including work reports.
 - `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
   owner derived from the machine registry using `cells.list(owner, math.huge)`.
   It includes all that owner's cells in the server dimension. Scene gathering
   does not call `cells.counts()`, whose reservation scan can breathe during a burst.
-- `drops` draws a small box and uppercase `KIND id` label per point.
-  Broken points use coral; other points use white.
-- The HUD has three 40-pixel tiles for TURTLES ok, ALERTS count and DISK percent.
+- `drops` draws a small box per point and a size-0.5 label with the first letter
+  of its kind, such as O or F. Broken points use coral; other points use white.
+- World labels sit above their blocks and stack 0.25 blocks apart when their
+  horizontal positions are within two blocks. Labels use at most eight characters.
+  The nearest 16 turtle labels and eight drop labels per kind remain visible,
+  ordered by distance from the configured server position, then element id.
+  Without server coordinates, element id determines the order. Boxes and arrows
+  remain visible when their labels exceed these limits.
+- The HUD has three padded 56-pixel tiles for TURTLES total, ALERTS count and DISK percent.
   Each has a translucent backing, white text and a four-pixel state bar.
-  Turtle problems, active alerts and disk use of at least 80 percent use coral;
+  TURTLES uses the same machine registry and role filter as the status screen,
+  including paired idle workers. Its bar uses the status screen's lost-lease
+  check rather than treating an old registry timestamp as a missing turtle.
+  Lost turtles, active alerts and disk use of at least 80 percent use coral;
   healthy tiles use green. Unknown disk use is stale.
 - `alerts` shows the newest active `.alert` value in a coral banner for five
   seconds after observation. Retained history detects repeated identical
@@ -950,6 +1057,16 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 
 `P.inRange(lease, id, cells)` calls `lease.inRange(id, cell)` for every cell and returns false if any check fails. It returns true if the lease module or its range function is missing.
 
+`P.rangeBatch(lease, id, action)` returns the action unchanged when all its cells
+pass `P.inRange`. Otherwise it returns the longest prefix of complete entries in
+`action.actions` whose cells pass, or nil if no action fits. The returned batch
+contains only that prefix's `steps`, `cells`, `actions` and final `pose`. Atomic
+actions without `actions` are accepted whole or refused. Mining applies this
+before reserving and saving a lease, including supply travel. A shortened batch
+keeps the full shaft and spine lane pass reserved until the worker exits it.
+Intermediate reports extend the range before planning the remaining travel.
+Lumber uses the same check with atomic actions and moves one cell per travel lease.
+
 `P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. A single `inspectDown` step marks a stationary park lease in the worker journal.
 If it expires, the worker stays put and beacons every 30 seconds. An expired
 work lease still starts fast beacons and backtracking along the last 32 moves.
@@ -958,7 +1075,7 @@ work lease still starts fast beacons and backtracking along the last 32 moves.
 
 ## Pairing and so-keys
 
-The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. A paired display can also create an invitation through the panel NEW CODE button. Re-pairing an id that already has a key needs a fresh invitation.
 
 `pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 

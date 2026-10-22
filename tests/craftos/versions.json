@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "observed": "2026-10-22",
+  "target": {
+    "minecraft": "1.21.1",
+    "neoforge": "21.1.259",
+    "cc_tweaked": "1.120.2",
+    "cc_jar_sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f"
+  },
+  "craftos_pc": {
+    "version": "2.8.3",
+    "cc_tweaked": "1.112.0",
+    "exact_compatible": false,
+    "release": "https://github.com/MCJack123/craftos2/releases/tag/v2.8.3",
+    "linux_appimage_sha256": "f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c",
+    "windows_portable_sha256": "caf74fa9d6fcce44c940bf77ff789378fa34a4ebb0b608c57f885a0b0aebac37"
+  },
+  "source_roots": [
+    "~/work/mc-pack/muddedmincecraft-20261019-newmods.mrpack!modrinth.index.json",
+    "~/work/gateb-modpack/{server,client}/mods",
+    "~/work/mc-serverfiles/mods"
+  ],
+  "mods": [
+    {
+      "jar": "cc-tweaked-1.21.1-forge-1.120.2.jar",
+      "sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "computercraft",
+          "version": "1.120.2",
+          "displayName": "CC: Tweaked",
+          "displayURL": "https://tweaked.cc",
+          "updateJSONURL": "https://api.modrinth.com/updates/cc-tweaked/forge_updates.json",
+          "credits": "Created by Daniel Ratcliffe (@DanTwoHundred)",
+          "authors": "Daniel Ratcliffe, Aaron Mills, SquidDev",
+          "description": "CC: Tweaked is a fork of ComputerCraft, adding programmable computers, turtles and more to Minecraft.\n"
+        }
+      ],
+      "source": "https://github.com/cc-tweaked/CC-Tweaked/issues"
+    },
+    {
+      "jar": "cc_ar-0.2.1.jar",
+      "sha256": "479a5ebb06ee7be7c0c13279369e373bf628474daf1b7101fb5eb9f95aaa6ec2",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "cc_ar",
+          "version": "0.2.1",
+          "displayName": "CC: AR(Neoforge port)",
+          "authors": "R1FoM (original author: kito1z)",
+          "description": "Augmented Reality addon for CC: Tweaked"
+        }
+      ],
+      "source": null
+    },
+    {
+      "jar": "directgpu-1.0.25-neoforge-1.21.1.jar",
+      "sha256": "e8fc0f284058a6813ce7b39f43a3b97137da0017e479c60a12039797f8ac5ed7",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "directgpu",
+          "version": "1.0.25-neoforge-1.21.1",
+          "displayName": "DirectGPU",
+          "authors": "Tom",
+          "description": "DirectGPU NeoForge 1.21.1 port."
+        }
+      ],
+      "source": null
+    },
+    {
+      "jar": "AdvancedPeripherals-1.21.1-0.7.62b.jar",
+      "sha256": "9c1a0c5d75894c910fe73f825d2ff6a8c6a4f5b4052c40b969ac19d4c5da6a6e",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "advancedperipherals",
+          "version": "0.7.62b",
+          "displayName": "Advanced Peripherals",
+          "displayURL": "https://docs.intelligence-modding.de/",
+          "authors": "Srendi",
+          "description": "Advanced Peripherals provides multiple extensions for ComputerCraft in form of Peripherals, Pocket Upgrades, Turtles or new gear.\nIt also integrates with multiple third party mods.\n"
+        }
+      ],
+      "source": "https://github.com/Seniorendi/AdvancedPeripherals/issues"
+    },
+    {
+      "jar": "toms-peripherals-1.21-1.3.1.jar",
+      "sha256": "c7a493b70177a4fb55f97a805b67d71ca781cedc2df11d2d421e223be382c76a",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "toms_peripherals",
+          "version": "1.3.1",
+          "displayName": "Tom's Peripherals",
+          "updateJSONURL": "https://raw.githubusercontent.com/tom5454/Toms-Peripherals/main/version-check.json",
+          "displayURL": "https://www.curseforge.com/minecraft/mc-mods/toms-peripherals",
+          "logoFile": "icon.png",
+          "credits": "tom5454",
+          "authors": "tom5454",
+          "description": "\n"
+        }
+      ],
+      "source": "https://www.curseforge.com/minecraft/mc-mods/toms-peripherals"
+    },
+    {
+      "jar": "classicperipherals-neoforge-1.21.1-0.6.5.jar",
+      "sha256": "6bfbd8a63324f2fba0a16a6a2e3aaaee037436e82904405ce1261e05c9c96c94",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "classicperipherals",
+          "version": "0.6.5",
+          "displayName": "Classic Peripherals",
+          "displayURL": "https://github.com/Ale32bit/ClassicPeripherals/",
+          "logoFile": "icon.png",
+          "credits": "",
+          "authors": "AlexDevs",
+          "description": "Classic Peripherals is a mod that adds a bunch of peripherals to CC: Tweaked."
+        }
+      ],
+      "source": "https://github.com/Ale32bit/ClassicPeripherals/issues"
+    },
+    {
+      "jar": "turtlematic-forge-1.21.1-1.4.10.jar",
+      "sha256": "b2ad8b255ed81c268d664062aefc626e1f5867466d57dd166874255698ea42cc",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "turtlematic",
+          "version": "1.4.10",
+          "displayName": "Turtlematic",
+          "displayURL": "https://github.com/SirEdvin/Turtlematic/",
+          "logoFile": "pack.png",
+          "authors": "SirEdvin",
+          "description": "CC:T addon, that makes turtles great again!\n"
+        }
+      ],
+      "source": "https://github.com/SirEdvin/Turtlematic/issues"
+    },
+    {
+      "jar": "turtlematicfix-1.0.0.jar",
+      "sha256": "e67929626fafce1d4e05a6d9dde332749a3f89378b18e124df5b507ea099de3a",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "turtlematicfix",
+          "version": "1.0.0",
+          "displayName": "Turtlematic MP Creative Fix",
+          "description": "Fixes Turtlematic/Broccolium creative-tab crash on multiplayer clients (registries resolved from client connection when no integrated server)."
+        }
+      ],
+      "source": null
+    },
+    {
+      "jar": "turtlebattery-0.3.0.jar",
+      "sha256": "335c8b31c0821186e092b36e68d5325642f8ab85175fce727c5314294962e246",
+      "metadata": "META-INF/neoforge.mods.toml",
+      "mods": [
+        {
+          "modId": "turtlebattery",
+          "version": "0.3.0",
+          "displayName": "Turtle Battery",
+          "description": "Power CC Tweaked turtles with Forge Energy items and neighboring energy sources, including Superb Warfare charging stations in range. Turtles with an ender modem keep their chunk loaded."
+        }
+      ],
+      "source": null
+    }
+  ],
+  "pack_rom": {
+    "version": "1.120.2",
+    "version_text": "New features in CC: Tweaked 1.120.2",
+    "file_count": 220,
+    "tree_sha256": "87743e59ef2001af8fa15db152783abfc25b3faada77dda279389ee2db021855",
+    "selection": "exact CC:Tweaked jar ROM; older native core accepted explicitly by user"
+  },
+  "source_check": {
+    "master_commit": "2844cba6184e7e2590910d6c2c33697b9b5ff9fd",
+    "master_cc_tweaked": "1.116.1",
+    "source": "https://github.com/MCJack123/craftos2/blob/2844cba6184e7e2590910d6c2c33697b9b5ff9fd/src/util.hpp"
+  }
+}

@@ -69,7 +69,7 @@ U.grid = function(w, h, columns)
     local right = math.floor(i * available / n + 0.5)
     cols[i] = { x = left + i, w = right - left }
   end
-  return cols, math.max(0, math.floor((h - 6) / 6))
+  return cols, math.max(0, math.floor((h - 6) / 8))
 end
 U.glyph = function(ch, ink, bg)
   local glyph, rows = assert(U.font[ch], 'unknown glyph'), {}
@@ -138,25 +138,29 @@ U.canvas = function(w, h, bg)
     C.buttons[#C.buttons + 1] = { id = id, x = x, y = y, w = right - x + 1, h = bottom - y + 1, label = '' }
   end
   C.header = function(name, right, background)
-    C.fill(1, 1, w, 1, background or '7')
-    C.put(2, 1, name:sub(1, math.max(0, w - 2)))
-    C.put(w - #(right or '') , 1, right or '')
+    C.fill(2, 2, math.max(0,w-2), 1, background or '7')
+    C.put(2, 2, name:sub(1, math.max(0, w - 2)))
+    C.put(w - #(right or '') , 2, right or '')
   end
   C.alert = function(text)
     if not text or text == '' then return end
-    C.fill(1, 2, w, 1, 'e'); C.put(2, 2, text:sub(1, math.max(0, w - 2)))
-    C.hit('alerts', 1, 2, w, 1)
+    C.fill(2, 3, math.max(0,w-2), 1, 'e'); C.put(2, 3, text:sub(1, math.max(0, w - 2)))
+    C.hit('alerts', 2, 3, math.max(0,w-2), 1)
   end
-  C.tile = function(x, y, width, label, value, sub, background)
-    C.fill(x, y, width, 5, background)
-    C.put(x + 1, y, label:sub(1, math.max(0, width - 2)))
-    C.big(x, y + 1, width, value, background)
-    C.put(x + 1, y + 4, (sub or ''):sub(1, math.max(0, width - 2)))
+  C.tile = function(x, y, width, label, value, sub, background, height)
+    local right = math.min(w - 1, x + width - 1)
+    x = math.max(2, x)
+    width, height = math.max(0, right - x + 1), height or (h >= 24 and 7 or 6)
+    C.fill(x, y, width, height, background)
+    C.put(x + 1, y + 1, label:sub(1, math.max(0, width - 2)))
+    C.big(x + 1, y + 2, math.max(0, width - 2), value, background)
+    if height >= 7 then C.put(x + 1, y + 5, (sub or ''):sub(1, math.max(0, width - 2))) end
   end
   C.button = function(x, y, width, label, id, background, height)
     height, background = height or 3, background or '7'
     C.fill(x, y, width, height, background)
-    C.center(x, width, y + math.floor(height / 2), label)
+    local inset = #label <= width-2 and 1 or 0
+    C.center(x + inset, math.max(0,width - 2*inset), y + math.floor(height / 2), label)
     C.hit(id, x, y, width, height)
   end
   C.listRow = function(y, text, state)
@@ -187,50 +191,45 @@ end
 U.status = function(model, w, h)
   local C, size = U.canvas(w, h), U.size(w, h)
   local tiles = model.tiles
-  local draw = function(index, x, y, width, sub)
+  C.header((size == 'P' or size == 'XS') and 'FLEET' or 'STATUS', size == 'XS' and 'ok' or model.time or 'ok')
+  local function draw(index, x, y, width, height)
     local t = tiles[index]
-    C.tile(x, y, width, t.label, t.value, sub or t.sub, t.bg)
+    if not t then return end
+    C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height)
     if index == 9 then
-      C.fill(x, y + 1, width, 3, t.bg)
-      C.center(x, width, y + 2, 'new client:')
-      C.put(x + 1, y + 4, t.sub:sub(1, width - 1))
+      local left, right = math.max(2,x), math.min(w-1,x+width-1)
+      C.fill(left+1,y+2,math.max(0,right-left-1),3,t.bg)
+      C.center(left+1,math.max(0,right-left-1),y+3,'new client:')
     end
   end
-  C.header((size == 'P' or size == 'XS') and 'FLEET' or 'STATUS',
-    size == 'P' and model.time or size == 'M' and (model.time .. '  ok') or 'ok')
   if size == 'P' then
-    for i, index in ipairs({1,3,4}) do draw(index, 1, 2 + (i - 1) * 6, w, index == 4 and model.oreShort or nil) end
+    for i,index in ipairs({1,3}) do draw(index,1,4+(i-1)*8,w,7) end
+    C.button(1,h-1,w,'MORE','generic','7',1)
   elseif size == 'XS' then
-    local index = (model.page or 0) % #tiles + 1
-    draw(index, 1, 3, w, index == 1 and model.lostShort or nil)
-    C.fill(1, 9, w, 2, '7'); C.center(1,w,9,'tap: next'); C.hit('next',1,1,w,h)
-  elseif size == 'T' then
-    for i, index in ipairs({1,7,6,3}) do draw(index, (i - 1) * 13 + 1, 3, 12, (model.terminalSubs or {})[i]) end
-    C.fill(1,9,w,1,'7'); C.put(2,9,'LOG')
-    for i, line in ipairs(model.log or {}) do if i <= 6 then C.put(2,9+i,line:sub(1,w-2)) end end
-    for i, label in ipairs({'MINING','LUMBER','SHOP','MORE'}) do
-      C.button((i-1)*13+1,h-2,12,label,({'mining','lumber','shop','generic'})[i],i == 3 and 'a' or '7')
-    end
-    C.alert(model.alert and ('! ' .. model.alert) or nil)
+    draw((model.page or 0) % #tiles+1,1,3,w,6)
+    C.button(1,h-1,w,'NEXT','next','7',1)
+    C.button(1,h,w,'MORE','generic','7',1)
   else
-    C.alert(model.alert and ('! ' .. model.alert .. (size == 'M' and '          tap for alerts' or '')) or nil)
-    local cols, count = U.grid(w,h,size == 'M' and 3 or size == 'L' and 2 or nil)
-    if size == 'M' then cols = {{x=1,w=18},{x=20,w=19},{x=40,w=18}}; count = 3 end
-    if size == 'L' then count = 2 end
-    local indices = size == 'L' and {1,3,4,6} or {1,2,3,4,5,6,7,8,9}
-    for i, index in ipairs(indices) do
-      local r, col = math.floor((i-1)/#cols), cols[(i-1)%#cols+1]
-      if r < count then
-        draw(index, col.x, 4+r*6, col.w, size == 'L' and (index == 1 and model.okShort or index == 4 and model.oreShort or nil) or nil)
-      end
+    C.alert(model.alert and ('! '..model.alert) or nil)
+    local cols = U.grid(w,h,size == 'T' and 4 or size == 'L' and 2 or nil)
+    local indices = size == 'T' and {1,7,6,3} or size == 'L' and {1,3,4,6} or {1,2,3,4,5,6,7,8,9}
+    local wanted = math.ceil(#indices/#cols)
+    local navHeight = h >= 19 and h-7 >= wanted*8 and 3 or 1
+    local navY = h-navHeight+1
+    local height = navY-4 >= wanted*8-1 and 7 or 6
+    local count = math.max(0,math.floor((navY-3)/(height+1)))
+    for i,index in ipairs(indices) do
+      local row,col = math.floor((i-1)/#cols),cols[(i-1)%#cols+1]
+      if row < count then draw(index,col.x,4+row*(height+1),col.w,height) end
+    end
+    if size == 'T' then
+      C.fill(2,12,w-2,1,'7'); C.put(2,12,'LOG')
+      for i,line in ipairs(model.log or {}) do if 12+i < navY then C.put(2,12+i,line:sub(1,w-2)) end end
     end
     local labels = size == 'L' and {'MINING','SHOP','MORE'} or {'MINING','LUMBER','SHOP','MORE'}
-    local buttons = U.grid(w,h,#labels)
-    for i, label in ipairs(labels) do
-      local col = buttons[i]
-      if size == 'M' then col = ({{x=1,w=13},{x=15,w=14},{x=30,w=14},{x=45,w=13}})[i] end
-      if size == 'L' then col = ({{x=1,w=12},{x=14,w=12},{x=27,w=13}})[i] end
-      C.button(col.x,h-2,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7')
+    for i,col in ipairs(U.grid(w,h,#labels)) do
+      local label=labels[i]
+      C.button(col.x,navY,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7',navHeight)
     end
   end
   return C.frame()

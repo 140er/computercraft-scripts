@@ -1,0 +1,16 @@
+part: server; suites: tests/so/server-net.lua
+part: generated 21 input files; private cwd /tmp/cc-part-jtzq8uj_
+cc-test: using local-2 slot
+PASS server and display pair with a wired modem before wireless
+PASS server opens a wireless modem attached after boot and after detach
+PASS display opens a wireless modem attached after boot and after detach
+PASS server boots without modems and pairs after a wireless attachment
+PASS hostname collision keeps server running and identifies the other host
+PASS paired display boots with other host and uses its saved server
+PASS paired display boots with no host and uses its saved server
+PASS paired display boots with backup keys and uses its saved server
+part: 8 passed, 0 failed, 0 undeclared reads; Lua CPU 0.607s
+part: local Lua wall 0.613s (excludes slot queue)
+real 0.74
+user 0.72
+sys 0.02

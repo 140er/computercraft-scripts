@@ -1,0 +1,34 @@
+part: shop-touch; suites: tests/ui/shop-touch.lua
+part: generated 35 input files; private cwd /tmp/cc-part-4sheqluj
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.403s)
+Evidence: /tmp/craftos-evidence-whpwfdp5
+cc-test: using local-2 slot
+PASS touch shop browse and one order at 29x12
+PASS touch shop browse and one order at 26x20
+PASS touch shop browse and one order at 57x24
+PASS touch shop browse and one order at 100x38
+PASS touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+PASS touch shop reports failures missing room and stale stock
+part: 8 passed, 0 failed, 0 undeclared reads; Lua CPU 1.087s
+part: local Lua wall 1.094s (excludes slot queue)

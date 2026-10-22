@@ -47,15 +47,15 @@ return function(test, equal)
     equal(b.ar.frames, 1)
     for id, row in ipairs(cases) do
       local key = "turtle:" .. id
-      equal(b.ar.elements[key][1], row[2]); equal(b.ar.elements[key][7], 3)
-      equal(b.ar.elements[key][8], "#" .. id .. " " .. row[3])
+      equal(b.ar.elements[key][1], row[2]); assert(b.ar.elements[key][7] <= 0.5)
+      equal(b.ar.elements[key][8], "#" .. id)
       for edge = 1, 12 do
         equal(b.ar.methods[key .. ":box:" .. edge], "drawLine3D")
         equal(b.ar.elements[key .. ":box:" .. edge][1], row[2])
       end
     end
   end)
-  test("UI3c lease owners have one blue outline and drops have uppercase labels", function()
+  test("UI3c lease owners have one blue outline and drops have short labels", function()
     local b = boot(); b.machine(2, "working")
     b.cells["mine:2"] = { { x = 0, y = 1, z = 2 }, { x = 8, y = 3, z = 4 } }
     b.cells["lumber:2"] = { { x = 10, y = 1, z = 2 } }
@@ -66,7 +66,7 @@ return function(test, equal)
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
     equal(n, 24)
     equal(b.ar.elements["lease:mine:2:2"][2], 9)
-    for _, row in ipairs({ { 3, C.white, "ORE 3" }, { 4, C.coral, "FUEL 4" } }) do
+    for _, row in ipairs({ { 3, C.white, "O" }, { 4, C.coral, "F" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
       for i = 1, 12 do equal(b.ar.elements["drop:" .. row[1] .. ":box:" .. i][1], row[2]) end
     end
@@ -91,20 +91,39 @@ return function(test, equal)
     for edge = 1, 12 do equal(b.ar.elements["lease:mine:2:" .. edge][1], C.blue) end
     equal(b.ar.elements["lease:mine:2:2"][2], 201)
   end)
-  test("UI3c HUD has three forty pixel tiles with backing and four pixel bars", function()
-    local b = boot(); b.machine(2, "working"); b.machine(3, "lost")
+  test("UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars", function()
+    local b = boot(); b.machine(2, "working"); b.machine(3, "lost"); b.status[3] = {lost=true}
     b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(1000)
     for i, id in ipairs({ "turtles", "alerts", "disk" }) do
       local key = "hud:" .. id
       equal(b.ar.methods[key .. ":backing"], "drawRect2D")
-      equal(b.ar.elements[key .. ":backing"], { C.backing, (i - 1) * 40, 18, 40, 28 })
-      equal(b.ar.elements[key .. ":bar"], { i == 3 and C.green or C.coral, (i - 1) * 40, 18, 40, 4 })
+      equal(b.ar.elements[key .. ":backing"], { C.backing, 4 + (i - 1) * 64, 18, 56, 30 })
+      equal(b.ar.elements[key .. ":bar"], { i == 3 and C.green or C.coral, 4 + (i - 1) * 64, 18, 56, 4 })
       equal(b.ar.elements[key .. ":label"][4], id:upper())
     end
-    equal(b.ar.elements["hud:turtles:value"][4], "1 ok")
+    equal(b.ar.elements["hud:turtles:value"][4], "2")
     equal(b.ar.elements["hud:alerts:value"][4], "1")
     equal(b.ar.elements["hud:disk:value"][4], "13%")
     b.free = 1600000; b.tick(2000); equal(b.ar.elements["hud:disk:bar"][1], C.coral)
+  end)
+  test("UI3c HUD label ranges stay padded and separated with consent and alerts", function()
+    local b = boot()
+    b.env.SO.mods.cells.retirement = function() return {text="Dug storage full",status="pending"} end
+    b.values["mine.alert"] = {text="CHEST FULL"}; b.tick(1000)
+    local right = 0
+    for _,id in ipairs({"turtles","alerts","disk"}) do
+      local tile = b.ar.elements["hud:"..id..":backing"]
+      local label = b.ar.elements["hud:"..id..":label"]
+      local value = b.ar.elements["hud:"..id..":value"]
+      assert(label[2] >= tile[2]+4 and label[2] >= right+8)
+      right = label[2]+#label[4]*6
+      assert(right <= tile[2]+tile[4]-4)
+      equal(value[2],label[2]); assert(value[3] >= label[3]+10)
+      assert(value[3]+8 <= tile[3]+tile[5]-4)
+      local banner = b.ar.elements["alert:backing"]
+      assert(tile[3] >= banner[3]+banner[5]+4)
+      assert(banner[3] >= b.ar.elements["alert:dug-storage"][3]+8)
+    end
   end)
   test("UI3c alert banner expires after five seconds and retains the HUD count", function()
     local b = boot(); b.tick(1000); b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(2000)

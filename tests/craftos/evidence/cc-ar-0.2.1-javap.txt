@@ -1,0 +1,341 @@
+Compiled from "ARControllerPeripheral.java"
+public class com.kito1z.cc_ar.blocks.blockentities.ARControllerPeripheral implements dan200.computercraft.api.peripheral.IPeripheral {
+  private final com.kito1z.cc_ar.common.ElementsContainer container;
+
+  private final java.util.function.Supplier<com.kito1z.cc_ar.common.ARContainerIdentifier> identifierSupplier;
+
+  private final boolean isTurtleUpgrade;
+
+  private int attachedComputerId;
+
+  public com.kito1z.cc_ar.blocks.blockentities.ARControllerPeripheral(com.kito1z.cc_ar.common.ElementsContainer, java.util.function.Supplier<com.kito1z.cc_ar.common.ARContainerIdentifier>, boolean);
+    Code:
+       0: aload_0
+       1: invokespecial #1                  // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: iconst_m1
+       6: putfield      #7                  // Field attachedComputerId:I
+       9: aload_0
+      10: aload_1
+      11: putfield      #13                 // Field container:Lcom/kito1z/cc_ar/common/ElementsContainer;
+      14: aload_0
+      15: aload_2
+      16: putfield      #17                 // Field identifierSupplier:Ljava/util/function/Supplier;
+      19: aload_0
+      20: iload_3
+      21: putfield      #21                 // Field isTurtleUpgrade:Z
+      24: return
+
+  public int getAttachedComputerId();
+    Code:
+       0: aload_0
+       1: getfield      #7                  // Field attachedComputerId:I
+       4: ireturn
+
+  private com.kito1z.cc_ar.common.ElementsContainer validateContainer();
+    Code:
+       0: aload_0
+       1: getfield      #13                 // Field container:Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: areturn
+
+  public java.lang.String getType();
+    Code:
+       0: ldc           #25                 // String ar_controller
+       2: areturn
+
+  public void attach(dan200.computercraft.api.peripheral.IComputerAccess);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokeinterface #27,  1           // InterfaceMethod dan200/computercraft/api/peripheral/IComputerAccess.getID:()I
+       7: putfield      #7                  // Field attachedComputerId:I
+      10: return
+
+  public void detach(dan200.computercraft.api.peripheral.IComputerAccess);
+    Code:
+       0: return
+
+  public boolean equals(dan200.computercraft.api.peripheral.IPeripheral);
+    Code:
+       0: aload_1
+       1: instanceof    #8                  // class com/kito1z/cc_ar/blocks/blockentities/ARControllerPeripheral
+       4: ifeq          27
+       7: aload_1
+       8: checkcast     #8                  // class com/kito1z/cc_ar/blocks/blockentities/ARControllerPeripheral
+      11: astore_2
+      12: aload_2
+      13: getfield      #13                 // Field container:Lcom/kito1z/cc_ar/common/ElementsContainer;
+      16: aload_0
+      17: getfield      #13                 // Field container:Lcom/kito1z/cc_ar/common/ElementsContainer;
+      20: if_acmpne     27
+      23: iconst_1
+      24: goto          28
+      27: iconst_0
+      28: ireturn
+
+  public void drawLine3D(java.lang.String, int, double, double, double, double, double, double);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #37                 // class com/kito1z/cc_ar/client/elements/ARLine3D
+       7: dup
+       8: aload_1
+       9: new           #39                 // class org/joml/Vector3f
+      12: dup
+      13: dload_3
+      14: d2f
+      15: dload         5
+      17: d2f
+      18: dload         7
+      20: d2f
+      21: invokespecial #41                 // Method org/joml/Vector3f."<init>":(FFF)V
+      24: new           #39                 // class org/joml/Vector3f
+      27: dup
+      28: dload         9
+      30: d2f
+      31: dload         11
+      33: d2f
+      34: dload         13
+      36: d2f
+      37: invokespecial #41                 // Method org/joml/Vector3f."<init>":(FFF)V
+      40: iload_2
+      41: invokespecial #44                 // Method com/kito1z/cc_ar/client/elements/ARLine3D."<init>":(Ljava/lang/String;Lorg/joml/Vector3f;Lorg/joml/Vector3f;I)V
+      44: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      47: pop
+      48: return
+
+  public void drawLine2D(java.lang.String, int, double, int, int, int, int);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #53                 // class com/kito1z/cc_ar/client/elements/ArLine2D
+       7: dup
+       8: aload_1
+       9: iload_2
+      10: iload         5
+      12: iload         6
+      14: iload         7
+      16: iload         8
+      18: dload_3
+      19: d2f
+      20: invokespecial #55                 // Method com/kito1z/cc_ar/client/elements/ArLine2D."<init>":(Ljava/lang/String;IIIIIF)V
+      23: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      26: pop
+      27: return
+
+  public void drawItemIcon2D(java.lang.String, int, int, java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #58                 // class com/kito1z/cc_ar/client/elements/ARItemIcon2D
+       7: dup
+       8: aload_1
+       9: iload_2
+      10: iload_3
+      11: aload         4
+      13: invokespecial #60                 // Method com/kito1z/cc_ar/client/elements/ARItemIcon2D."<init>":(Ljava/lang/String;IILjava/lang/String;)V
+      16: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      19: pop
+      20: return
+
+  public void drawItemIcon3D(java.lang.String, double, double, double, double, double, double, java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #63                 // class com/kito1z/cc_ar/client/elements/ARItemGhost3D
+       7: dup
+       8: aload_1
+       9: dload_2
+      10: dload         4
+      12: dload         6
+      14: dload         8
+      16: d2f
+      17: dload         10
+      19: d2f
+      20: dload         12
+      22: d2f
+      23: aload         14
+      25: invokespecial #65                 // Method com/kito1z/cc_ar/client/elements/ARItemGhost3D."<init>":(Ljava/lang/String;DDDFFFLjava/lang/String;)V
+      28: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      31: pop
+      32: return
+
+  public void drawText2D(java.lang.String, int, int, int, java.lang.String, boolean);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #68                 // class com/kito1z/cc_ar/client/elements/ARText2D
+       7: dup
+       8: aload_1
+       9: iload_3
+      10: iload         4
+      12: iload_2
+      13: aload         5
+      15: iload         6
+      17: invokespecial #70                 // Method com/kito1z/cc_ar/client/elements/ARText2D."<init>":(Ljava/lang/String;IIILjava/lang/String;Z)V
+      20: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      23: pop
+      24: return
+
+  public void drawText3D(java.lang.String, int, double, double, double, double, double, double, java.lang.String, boolean);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #73                 // class com/kito1z/cc_ar/client/elements/ARText3D
+       7: dup
+       8: aload_1
+       9: iload_2
+      10: dload_3
+      11: dload         5
+      13: dload         7
+      15: dload         9
+      17: d2f
+      18: dload         11
+      20: d2f
+      21: dload         13
+      23: d2f
+      24: aload         15
+      26: iload         16
+      28: invokespecial #75                 // Method com/kito1z/cc_ar/client/elements/ARText3D."<init>":(Ljava/lang/String;IDDDFFFLjava/lang/String;Z)V
+      31: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      34: pop
+      35: return
+
+  public void drawRect2D(java.lang.String, int, int, int, int, int);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: new           #78                 // class com/kito1z/cc_ar/client/elements/ARRect2D
+       7: dup
+       8: aload_1
+       9: iload_2
+      10: iload_3
+      11: iload         4
+      13: iload         5
+      15: iload         6
+      17: invokespecial #80                 // Method com/kito1z/cc_ar/client/elements/ARRect2D."<init>":(Ljava/lang/String;IIIII)V
+      20: invokevirtual #47                 // Method com/kito1z/cc_ar/common/ElementsContainer.put:(Lcom/kito1z/cc_ar/client/elements/ARElement;)Lcom/kito1z/cc_ar/client/elements/ARElement;
+      23: pop
+      24: return
+
+  public void delete(java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: aload_1
+       5: invokevirtual #83                 // Method com/kito1z/cc_ar/common/ElementsContainer.remove:(Ljava/lang/Object;)Ljava/lang/Object;
+       8: pop
+       9: return
+
+  public void clear();
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: invokevirtual #87                 // Method com/kito1z/cc_ar/common/ElementsContainer.clear:()V
+       7: return
+
+  public void setLabel(java.lang.String);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: aload_1
+       5: putfield      #90                 // Field com/kito1z/cc_ar/common/ElementsContainer.label:Ljava/lang/String;
+       8: return
+
+  public dan200.computercraft.api.lua.LuaTable<?, ?> getAllElements();
+    Code:
+       0: new           #94                 // class java/util/HashMap
+       3: dup
+       4: invokespecial #96                 // Method java/util/HashMap."<init>":()V
+       7: astore_1
+       8: aload_0
+       9: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+      12: aload_1
+      13: invokedynamic #97,  0             // InvokeDynamic #0:accept:(Ljava/util/Map;)Ljava/util/function/BiConsumer;
+      18: invokevirtual #101                // Method com/kito1z/cc_ar/common/ElementsContainer.forEach:(Ljava/util/function/BiConsumer;)V
+      21: new           #105                // class dan200/computercraft/api/lua/ObjectLuaTable
+      24: dup
+      25: aload_1
+      26: invokespecial #107                // Method dan200/computercraft/api/lua/ObjectLuaTable."<init>":(Ljava/util/Map;)V
+      29: areturn
+
+  public void setAnchor(java.lang.String, double, double);
+    Code:
+       0: aload_0
+       1: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+       4: aload_1
+       5: invokevirtual #110                // Method com/kito1z/cc_ar/common/ElementsContainer.get:(Ljava/lang/Object;)Ljava/lang/Object;
+       8: checkcast     #113                // class com/kito1z/cc_ar/client/elements/ARElement
+      11: astore        6
+      13: aload         6
+      15: instanceof    #53                 // class com/kito1z/cc_ar/client/elements/ArLine2D
+      18: ifeq          37
+      21: aload         6
+      23: checkcast     #53                 // class com/kito1z/cc_ar/client/elements/ArLine2D
+      26: astore        7
+      28: aload         7
+      30: dload_2
+      31: dload         4
+      33: invokevirtual #115                // Method com/kito1z/cc_ar/client/elements/ArLine2D.setAnchor:(DD)V
+      36: return
+      37: new           #119                // class java/lang/RuntimeException
+      40: dup
+      41: ldc           #121                // String Element is not 2D
+      43: invokespecial #123                // Method java/lang/RuntimeException."<init>":(Ljava/lang/String;)V
+      46: athrow
+
+  public void update();
+    Code:
+       0: aload_0
+       1: getfield      #21                 // Field isTurtleUpgrade:Z
+       4: ifeq          30
+       7: aload_0
+       8: getfield      #7                  // Field attachedComputerId:I
+      11: iconst_m1
+      12: if_icmpeq     30
+      15: new           #126                // class com/kito1z/cc_ar/common/ARContainerIdentifier
+      18: dup
+      19: aload_0
+      20: getfield      #7                  // Field attachedComputerId:I
+      23: invokespecial #128                // Method com/kito1z/cc_ar/common/ARContainerIdentifier."<init>":(I)V
+      26: astore_1
+      27: goto          43
+      30: aload_0
+      31: getfield      #17                 // Field identifierSupplier:Ljava/util/function/Supplier;
+      34: invokeinterface #131,  1          // InterfaceMethod java/util/function/Supplier.get:()Ljava/lang/Object;
+      39: checkcast     #126                // class com/kito1z/cc_ar/common/ARContainerIdentifier
+      42: astore_1
+      43: new           #48                 // class com/kito1z/cc_ar/common/ElementsContainer
+      46: dup
+      47: invokespecial #136                // Method com/kito1z/cc_ar/common/ElementsContainer."<init>":()V
+      50: astore_2
+      51: aload_2
+      52: aload_0
+      53: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+      56: invokevirtual #137                // Method com/kito1z/cc_ar/common/ElementsContainer.putAll:(Ljava/util/Map;)V
+      59: aload_2
+      60: aload_0
+      61: invokevirtual #33                 // Method validateContainer:()Lcom/kito1z/cc_ar/common/ElementsContainer;
+      64: getfield      #90                 // Field com/kito1z/cc_ar/common/ElementsContainer.label:Ljava/lang/String;
+      67: putfield      #90                 // Field com/kito1z/cc_ar/common/ElementsContainer.label:Ljava/lang/String;
+      70: aload_2
+      71: invokestatic  #140                // Method java/lang/System.currentTimeMillis:()J
+      74: invokevirtual #146                // Method com/kito1z/cc_ar/common/ElementsContainer.setVersion:(J)V
+      77: getstatic     #150                // Field com/kito1z/cc_ar/common/ElementsServer.ELEMENTS:Ljava/util/Map;
+      80: aload_1
+      81: aload_2
+      82: invokeinterface #156,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      87: pop
+      88: return
+
+  private static void lambda$getAllElements$0(java.util.Map, java.lang.String, com.kito1z.cc_ar.client.elements.ARElement);
+    Code:
+       0: aload_0
+       1: aload_2
+       2: invokevirtual #161                // Method com/kito1z/cc_ar/client/elements/ARElement.getId:()Ljava/lang/String;
+       5: aload_2
+       6: invokevirtual #165                // Method com/kito1z/cc_ar/client/elements/ARElement.getName:()Ljava/lang/String;
+       9: invokeinterface #156,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      14: pop
+      15: return
+}

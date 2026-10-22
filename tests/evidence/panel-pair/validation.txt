@@ -1,0 +1,23 @@
+Panel pairing validation
+
+Plain cc-test: exit 0, 559 tests passed, selected the Windows slot.
+Focused panel-pair tests: 6 passed.
+The tests click the drawn buttons on 26x20 pockets and 29x12 monitors,
+read all six big digits from the client screen, enter them on a new display,
+and verify single use, repeat requests, expiry, owner privacy, signed frames
+and the five-bad-attempt limit. Four generated fixtures match.
+
+python3 -I docs/ui/mockup-gen.py --fixtures: passed.
+luac5.2 -p on every changed Lua file against origin/server-only: passed.
+python3 tools/cobaltlocals.py on the same files: passed, maximum 59, below 185.
+sh tools/check-scope.sh origin/server-only HEAD: passed.
+
+CraftOS-PC tests/sandbox/run.ps1 on the Windows test VM: failed.
+The legacy server has negative free disk space and lacks server.state.
+The hub reports No such program. The miner passes.
+The same failures are saved in tests/evidence/bigtiles-nav/sandbox.txt from #176.
+The sandbox runs server.lua, hub.lua and miner.lua, not the server-only programs.
+Gate A is incomplete. tests/review-capture.ps1 is absent from this checkout.
+Gate B was not run here. The orchestrator owns the frozen server-only Gate B run.
+No live server or RCON was used.
+The sandbox process stopped. Its reports were copied here and its remote files removed.

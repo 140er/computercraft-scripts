@@ -4,6 +4,7 @@ local A = {
   layers = { turtles = true, leases = true, drops = true, alerts = true },
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000,
+  labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
   white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
   teal = 0xFF2DD4BF - 2^32, backing = 0xC00E1626 - 2^32,
@@ -50,29 +51,23 @@ A.layout = function(model, w, h)
   C.header("AR GOGGLES", model.count .. (model.count == 1 and " controller" or " controllers"))
   local cols = U.grid(w,h,w < 39 and 2 or nil)
   if h < 16 then
-    local compactCols = U.grid(w,h,2)
     for i,layer in ipairs(A.order) do
-      local col = compactCols[(i-1)%2+1]
-      local y = 3+math.floor((i-1)/2)*3
+      local y = i + 3
       local on = model.layers[layer]
-      C.fill(col.x,y,col.w,2,on and 'd' or 'c')
-      C.put(col.x,y,layer:upper():sub(1,col.w))
-      C.center(col.x,col.w,y+1,on and '1' or '0')
-      C.hit(layer,col.x,y,col.w,2)
+      C.put(2,y,(layer:upper() .. " " .. (on and '1' or '0')):sub(1,math.max(0,w-2)))
+      C.hit(layer,2,y,math.max(0,w-2),1)
     end
-    C.put(1,9,"tap a tile to switch its layer")
     C.button(1,h,w,"BACK","status",'7',1)
   else
     for i,layer in ipairs(A.order) do
       local col=cols[(i-1)%#cols+1]
-      local y=3+math.floor((i-1)/#cols)*6
+      local height = h >= 24 and 7 or 6
+      local y=4+math.floor((i-1)/#cols)*(height+1)
       local on=model.layers[layer]
       C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
-      C.hit(layer,col.x,y,col.w,5)
+      C.hit(layer,col.x,y,col.w,height)
     end
-    if #cols == 2 then C.put(2,15,"tap a tile to switch its layer")
-    else C.put(cols[2] and cols[2].x+1 or 1,10,"tap a tile to switch its layer") end
-    C.button(1,h-3,w,"BACK","status")
+    C.button(1,h >= 24 and h-3 or h-2,w,"BACK","status")
   end
   return C.frame()
 end
@@ -88,7 +83,9 @@ A.input = function(event)
 end
 A.turtle = function(machine, status, now, inRange)
   local state = tostring(machine.state or "idle"):lower():gsub("_", " ")
-  if now - (machine.seen or 0) >= 120000 then return A.grey, "STALE" end
+  local seen = machine.seen or 0
+  if status.seen then seen = math.max(seen, status.seen) end
+  if now - seen >= 120000 then return A.grey, "STALE" end
   if status.lost or inRange == false or state == "lost" or state == "range" or state == "out of range" then
     return A.red, status.lost and "LOST" or (inRange == false and "OUT OF RANGE" or state:upper())
   end
@@ -100,6 +97,7 @@ A.turtle = function(machine, status, now, inRange)
 end
 A.scene = function(now)
   local scene = {}
+  local labels = {}
   local function put(id, method, ...) scene[id] = { method = method, args = { ... } } end
   local retirement = A.call("cells", "retirement")
   if retirement then
@@ -107,8 +105,13 @@ A.scene = function(now)
       retirement.text .. (retirement.status == "pending" and " Choose allow or keep on a display." or ""), false)
   end
   local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
-  local function label(id, color, p, text)
-    put(id, "drawText3D", color, p.x + 0.5, p.y + 1.6, p.z + 0.5, 0, 0, 3, text, true)
+  local function label(id, color, p, text, kind, group)
+    local origin, distance = A.config.pos, 0
+    if origin and origin.x and origin.y and origin.z then
+      distance = (p.x - origin.x)^2 + (p.y - origin.y)^2 + (p.z - origin.z)^2
+    end
+    labels[#labels + 1] = { id = id, color = color, x = p.x + 0.5, y = p.y + 1.25,
+      z = p.z + 0.5, text = text:sub(1, 8), kind = kind, group = group, distance = distance }
   end
   local function box(id, color, x, y, z, u, v, w)
     local corners = { { x, z }, { u, z }, { u, w }, { x, w } }
@@ -120,27 +123,27 @@ A.scene = function(now)
     end
   end
   local machines = A.call("state", "get", "machines") or {}
-  local okCount, turtleCount = 0, 0
+  local lostCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose
     local status = A.call("lease", "status", tonumber(id) or id) or {}
-    local color, text = A.turtle(machine, status, now, p and A.call("lease", "inRange", tonumber(id) or id, p))
+    local color = A.turtle(machine, status, now, p and A.call("lease", "inRange", tonumber(id) or id, p))
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtleCount = turtleCount + 1
-      if color ~= A.red and color ~= A.grey then okCount = okCount + 1 end
-    end
-    if A.layers.turtles and p and A.sameDim(p.dim) then
-      local key = "turtle:" .. id
-      label(key, color, p, "#" .. id .. " " .. text)
-      box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
-      local d = A.dirs[p.facing or p.f or 0]
-      if d then
-        local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
-        local tx, tz = x + d[1] * 1.5, z + d[2] * 1.5
-        line(key .. ":heading", color, x, y, z, tx, y, tz)
-        for k, sign in ipairs({ -1, 1 }) do
-          line(key .. ":heading:" .. k, color, tx, y, tz,
-            tx - d[1] * 0.5 + sign * d[2] * 0.5, y, tz - d[2] * 0.5 - sign * d[1] * 0.5)
+      if status.lost then lostCount = lostCount + 1 end
+      if A.layers.turtles and p and A.sameDim(p.dim) then
+        local key = "turtle:" .. id
+        label(key, color, p, "#" .. id, "turtle", "turtle")
+        box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
+        local d = A.dirs[p.facing or p.f or 0]
+        if d then
+          local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
+          local tx, tz = x + d[1] * 1.5, z + d[2] * 1.5
+          line(key .. ":heading", color, x, y, z, tx, y, tz)
+          for k, sign in ipairs({ -1, 1 }) do
+            line(key .. ":heading:" .. k, color, tx, y, tz,
+              tx - d[1] * 0.5 + sign * d[2] * 0.5, y, tz - d[2] * 0.5 - sign * d[1] * 0.5)
+          end
         end
       end
     end
@@ -169,8 +172,28 @@ A.scene = function(now)
       if A.sameDim(p.dim) then
         local key, color = "drop:" .. p.id, p.broken and A.red or A.white
         box(key .. ":box", color, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
-        label(key, color, p, p.kind:upper() .. " " .. p.id)
+        label(key, color, p, p.kind:sub(1, 1):upper(), "drop", "drop:" .. p.kind)
       end
+    end
+  end
+  table.sort(labels, function(a, b) return a.distance < b.distance or a.distance == b.distance and a.id < b.id end)
+  local placed, counts = {}, {}
+  for _, row in ipairs(labels) do
+    local count = counts[row.group] or 0
+    if count < A.labelLimits[row.kind] then
+      counts[row.group] = count + 1
+      local moved
+      repeat
+        moved = false
+        for _, other in ipairs(placed) do
+          if (row.x - other.x)^2 + (row.z - other.z)^2 <= 4 and math.abs(row.y - other.y) < A.labelGap then
+            row.y = other.y + A.labelGap
+            moved = true
+          end
+        end
+      until not moved
+      placed[#placed + 1] = row
+      put(row.id, "drawText3D", row.color, row.x, row.y, row.z, 0, 0, A.labelScale, row.text, true)
     end
   end
   local alertCount = 0
@@ -221,17 +244,17 @@ A.scene = function(now)
   local free = fs and fs.getFreeSpace and fs.getFreeSpace("/")
   local ratio = type(capacity) == "number" and capacity > 0 and type(free) == "number" and (capacity - free) / capacity
   local tiles = {
-    { "turtles", "TURTLES", okCount .. " ok", okCount == turtleCount and A.green or A.red },
+    { "turtles", "TURTLES", tostring(turtleCount), lostCount == 0 and A.green or A.red },
     { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.green },
     { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.green) or A.grey },
   }
   local hudTop = retirement and 12 or 0
   for i, tile in ipairs(tiles) do
-    local id, x = "hud:" .. tile[1], (i - 1) * 40
-    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 40, 28)
-    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 40, 4)
-    put(id .. ":label", "drawText2D", A.white, x + 2, 24 + hudTop, tile[2], false)
-    put(id .. ":value", "drawText2D", A.white, x + 2, 34 + hudTop, tile[3], false)
+    local id, x = "hud:" .. tile[1], 4 + (i - 1) * 64
+    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 56, 30)
+    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 56, 4)
+    put(id .. ":label", "drawText2D", A.white, x + 4, 26 + hudTop, tile[2], false)
+    put(id .. ":value", "drawText2D", A.white, x + 4, 36 + hudTop, tile[3], false)
   end
   return scene, machines
 end

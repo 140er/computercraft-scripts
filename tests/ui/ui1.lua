@@ -116,8 +116,33 @@ return function(test,equal)
     end
     local c=U.canvas(20,10);c.listRow(2,'ready','d');c.search(2,3,12,'iron','find');c.tile(1,5,12,'LONG','123456','fallback','b')
     local out=capture(c.frame(),20,10).picture()
-    assert(out.text[7]:find('123456',1,true));equal(out.bg[3]:sub(2,13),string.rep('0',12))
-    equal(U.size(51,19),'T');local cols,rows=U.grid(100,38);equal(#cols,5);equal(rows,5)
+    assert(out.text[8]:find('123456',1,true));equal(out.bg[3]:sub(2,13),string.rep('0',12))
+    equal(U.size(51,19),'T');local cols,rows=U.grid(100,38);equal(#cols,5);equal(rows,4)
+  end)
+  test('UI1 padded tiles keep titles and full big values inside their rows',function()
+    for _,height in ipairs({6,7}) do
+      local c=U.canvas(26,20)
+      c.tile(1,4,26,'TURTLES','12345','0 ok, 0 lost','d',height)
+      local out=capture(c.frame(),26,20).picture()
+      assert(out.text[4]:match('^%s*$'))
+      assert(out.text[5]:find('TURTLES',1,true))
+      assert(out.text[4+height-1]:match('^%s*$'))
+      for y=4,4+height-1 do
+        equal(out.bg[y]:sub(1,1),'f');equal(out.bg[y]:sub(26),'f')
+        assert(out.text[y]:sub(1,2)=='  ')
+      end
+      local expected=U.canvas(26,20);expected.big(3,6,22,'12345','d')
+      local digits=capture(expected.frame(),26,20).picture()
+      for y=6,8 do equal(out.text[y],digits.text[y]) end
+      if height==7 then assert(out.text[9]:find('0 ok, 0 lost',1,true)) end
+    end
+    for _,size in ipairs({{26,20},{29,12},{57,24},{100,38},{164,81}}) do
+      local f=U.status(model(),size[1],size[2])
+      assert(f.rows[1].text=='')
+      local text=table.concat((function() local rows={} for _,r in ipairs(f.rows) do rows[#rows+1]=r.text end return rows end)(),'\n')
+      assert(text:find('TURTLES',1,true))
+      if size[2]>=38 then assert(text:find('3 ok, 0 lost',1,true));assert(text:find('press P on server',1,true)) end
+    end
   end)
   test('UI1 gathering reads real sources and leaves unsupported totals stale',function()
     local d,s,frame=server()
@@ -125,8 +150,8 @@ return function(test,equal)
     local got=frame(2)
     equal(got.palette,U.palette);equal(got.scale,0.5)
     local text=capture(got,57,24).picture().text
-    assert(text[8]:find('1 ok, 1 lost',1,true));assert(text[14]:find('no source',1,true))
-    assert(text[20]:find('1 broken',1,true));assert(text[14]:find('2.1 of 16 MB',1,true))
+    assert(text[5]:find('TURTLES',1,true));assert(text[12]:find('ORE TODAY',1,true))
+    assert(text[19]:find('DROPS',1,true));assert(text[12]:find('DISK',1,true))
     assert(d.far(2,true));equal(frame(2).scale,1)
   end)
   test('UI1 roleless machine rows count turtles, open leases and lost workers',function()
@@ -146,7 +171,7 @@ return function(test,equal)
     for y=4,8 do
       for x=1,38 do equal(got.cells[y][x],expected.cells[y][x]) end
     end
-    assert(got.picture().text[8]:find('1 ok, 1 lost',1,true))
+    assert(got.picture().text[5]:find('TURTLES',1,true))
   end)
   test('UI1 takeover expires at five seconds, dismisses and throttles per session',function()
     local _,s,frame,tap=server()
@@ -192,15 +217,15 @@ return function(test,equal)
     frame(2,39,19)
     equal(frame(3,15,10).rev,first.rev)
     s.now=35000
-    assert(capture(frame(2),57,24).picture().text[2]:find('newest',1,true))
+    assert(capture(frame(2),57,24).picture().text[3]:find('newest',1,true))
   end)
   test('UI1 XS cycles tiles and status buttons select their roles',function()
     local _,_,frame,tap=server()
     local a=capture(frame(2,15,10),15,10).picture();tap(2,'next')
-    local b=capture(frame(2,15,10),15,10).picture();assert(a.text[3]~=b.text[3])
+    local b=capture(frame(2,15,10),15,10).picture();assert(a.text[4]~=b.text[4])
     for _,role in ipairs({'mining','lumber','shop','generic'}) do
       local d,s,f,t=server();d.screen(role,function() return {rows={{text=role,fg='0',bg='f'}}} end)
-      f(2);t(2,role);equal(s.saved.roles['2'],role~='generic' and role or nil)
+      f(2);t(2,role);equal(s.saved.roles['2'],role)
     end
   end)
   test('UI1 old renderers receive size and revisions remain independent',function()

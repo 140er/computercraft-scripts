@@ -1,0 +1,117 @@
+Mock terminal capture, 40 stock items
+                                                                                                    
+ SHOP                                                                                   stock 01:16 
+     ALL           ORES          WOOD           FOOD         BLOCKS         TOOLS          OTHER    
+               A-Z                             STOCK                             NAME               
+                                                                                                    
+  DIAMOND PICKAXE    LAPIS LAZULI        COBBLESTONE          COOKED BEEF         ENDER PEARL       
+       🬚🬋🬃🬞🬋              🬚🬋🬃🬋🬋🬏               🬚🬋🬃🬖🬋🬏              🬚🬋🬃🬖🬋🬏              🬚🬋🬃🬖🬋🬏       
+       🬂🬂🬓🬛🬋🬏             🬂🬂🬓🬇🬋🬐               🬂🬂🬓 🬖🬀              🬂🬂🬓 🬖🬀              🬂🬂🬓 🬖🬀       
+       🬈🬋🬀🬈🬋🬀             🬈🬋🬀🬋🬋🬀               🬈🬋🬀🬍🬋🬃              🬈🬋🬀🬍🬋🬃              🬈🬋🬀🬍🬋🬃       
+  - steady           - steady            - steady             - steady            - steady          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  IRON SHOVEL        OAK SAPLING         ACACIA LOG           GOLD INGOT          IRON INGOT        
+       🬚🬋🬃🬖🬋🬏             🬚🬋🬃🬖🬋🬏               🬚🬋🬃🬞🬓               🬚🬋🬃🬞🬓               🬚🬋🬃🬞🬓        
+       🬂🬂🬓 🬖🬀             🬂🬂🬓 🬖🬀               🬂🬂🬓 ▌               🬂🬂🬓 ▌               🬂🬂🬓 ▌        
+       🬈🬋🬀🬍🬋🬃             🬈🬋🬀🬍🬋🬃               🬈🬋🬀🬇🬌               🬈🬋🬀🬇🬌               🬈🬋🬀🬇🬌        
+  - steady           - steady            - steady             - steady            - steady          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  IRON SWORD         OAK PLANKS          SPRUCE LOG           WHITE WOOL          BIRCH LOG         
+       🬚🬋🬃🬞🬓              🬚🬋🬃🬞🬓                🬚🬋🬃🬞🬓               🬚🬋🬃🬞🬓               🬚🬋🬃🬖🬋🬏       
+       🬂🬂🬓 ▌              🬂🬂🬓 ▌                🬂🬂🬓 ▌               🬂🬂🬓 ▌               🬂🬂🬓▌ ▌       
+       🬈🬋🬀🬇🬌              🬈🬋🬀🬇🬌                🬈🬋🬀🬇🬌               🬈🬋🬀🬇🬌               🬈🬋🬀🬈🬋🬀       
+  - steady           - steady            - steady             - steady            - steady          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+           <                        1/3                       >                       BACK          
+                                                                                                    
+Selected item
+                                                                                                    
+ SHOP > IRON INGOT                                                                                  
+ stock 01:16                                                                                        
+                                                                                                    
+  IN STOCK                                                                                          
+                                               🬚🬋🬃🬞🬓                                                
+                                               🬂🬂🬓 ▌                                                
+                                               🬈🬋🬀🬇🬌                                                
+  - steady                                                                                          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+             ORDER 1                          ORDER 16                         ORDER 64             
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ stock 01:16                                                                                        
+                                                                                                    
+                                                                                                    
+                                                BACK                                                
+                                                                                                    
+One order sent, quantities inactive
+                                                                                                    
+ SHOP > IRON INGOT                                                                                  
+ stock 01:16                                                                                        
+                                                                                                    
+  IN STOCK                                                                                          
+                                               🬚🬋🬃🬞🬓                                                
+                                               🬂🬂🬓 ▌                                                
+                                               🬈🬋🬀🬇🬌                                                
+  - steady                                                                                          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                1                                16                               64                
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ stock 01:16                                                                                        
+ Order: sent 16                                                                                     
+                                                                                                    
+                                                BACK                                                
+                                                                                                    

@@ -378,9 +378,11 @@ end
 
 S.listSize = function(count, w, h)
   local compact = w < 39 or h < 16
-  local actionY = compact and h-3 or math.min(math.max(11, count+6), h-6)
+  local navColumns = w < 26 and 2 or w < 39 and 3 or 5
+  local navRows = compact and math.ceil(5/navColumns) or 1
+  local actionY = compact and h-navRows-1 or math.min(math.max(11, count+6), h-6)
   local capacity = math.max(1, actionY-5)
-  return { compact = compact, actionY = actionY, capacity = capacity,
+  return { compact = compact, actionY = actionY, capacity = capacity, navColumns = navColumns, navRows = navRows,
     pages = math.max(1, math.ceil(count/capacity)) }
 end
 
@@ -395,11 +397,11 @@ S.layout = function(model, w, h)
     end
     for i, field in ipairs({"dim", "x", "y", "z"}) do
       local y = i + 4
-      C.put(1, y, field .. " " .. tostring(d[field]))
+      C.put(2, y, (field .. " " .. tostring(d[field])):sub(1,math.max(0,w-2)))
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
     end
-    C.put(1, h-1, model.message or "")
+    C.put(2, h-1, (model.message or ""):sub(1,math.max(0,w-2)))
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
     return C.frame()
@@ -432,11 +434,12 @@ S.layout = function(model, w, h)
     C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
   end
   local nav = {'mining', 'lumber', 'shop', 'ar', 'panel'}
-  local navCols = U.grid(w, h, #nav)
+  local navCols = U.grid(w, h, size.navColumns)
   if w == 57 then navCols = {{x=1,w=11},{x=13,w=11},{x=25,w=11},{x=37,w=10},{x=48,w=10}} end
   for i, id in ipairs(nav) do
-    local col = navCols[i]
-    C.button(col.x, h-navHeight+1, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
+    local col = navCols[(i-1)%#navCols+1]
+    local y = h-size.navRows*navHeight+1+math.floor((i-1)/#navCols)*navHeight
+    C.button(col.x, y, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
   end
   return C.frame()
 end

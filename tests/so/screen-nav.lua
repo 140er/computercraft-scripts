@@ -11,13 +11,14 @@ local function install(machine, files)
   end
 end
 
-local function setup(w, h)
+local function setup(w, h, kit)
   local net = H.new()
   local server = net.machine({id=1, modem=true})
   install(server, {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
     "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-state.lua", "so-mod-display.lua",
     "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
     "so-mod-cells.lua", "so-mod-lease.lua"})
+  if kit then server.install({"so-ui.lua", "so-mod-panel.lua", "so-mod-daily.lua"}) end
   server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
   server.boot("so-server.lua")
   net.flush()
@@ -45,14 +46,20 @@ local function setup(w, h)
     end
     error("display received no frame")
   end
-  local function button(label)
+  local function button(label, target)
     local picture = frame()
     for _, b in ipairs(picture.buttons) do
-      if b.label==label and b.x>=1 and b.y>=1 and b.y<=h and b.x+b.w-1<=w and #b.label<=b.w then
-        assert((client.screen[b.y] or ""):sub(b.x,b.x+#label-1)==label, label .. " is overwritten")
+      local y = b.y + math.floor((b.h or 1)/2)
+      local lines = {}
+      for row=b.y,b.y+(b.h or 1)-1 do lines[#lines+1]=(client.screen[row] or ""):sub(b.x,b.x+b.w-1) end
+      local text = table.concat(lines,"\n")
+      if (not target or b.id==target) and (b.label==label or text:find(label,1,true))
+          and b.x>=1 and b.y>=1 and b.y+(b.h or 1)-1<=h and b.x+b.w-1<=w and #label<=b.w then
+        assert(text:find(label,1,true), label .. " is overwritten")
         for _, other in ipairs(picture.buttons) do
-          if other~=b and other.y==b.y then
-            assert(b.x+b.w<=other.x or other.x+other.w<=b.x, label .. " overlaps another button")
+          if other~=b then
+            assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y+(b.h or 1)<=other.y
+              or other.y+(other.h or 1)<=b.y, label .. " on " .. picture.role .. " overlaps " .. other.id)
           end
         end
         return b
@@ -60,8 +67,8 @@ local function setup(w, h)
     end
     error("no visible " .. label .. " button on " .. picture.role .. " at " .. w .. "x" .. h)
   end
-  local function press(label)
-    local b = button(label)
+  local function press(label, target)
+    local b = button(label, target)
     client.inbox[#client.inbox+1] = table.pack(w==29 and "monitor_touch" or "mouse_click",
       w==29 and "monitor" or 1, b.x, b.y)
     net.flush()
@@ -75,6 +82,56 @@ local function setup(w, h)
 end
 
 return function(test, equal)
+  for _, size in ipairs({{26,20},{29,12},{15,10},{36,10},{39,19},{51,19},{57,24},{82,40},{100,38},{164,81}}) do
+    test("Big Tiles visible navigation graph at " .. size[1] .. "x" .. size[2], function()
+      local s = setup(size[1],size[2],true)
+      local seen = {}
+      local function role(name)
+        equal(s.frame().role,name)
+        assert(s.frame().palette, "Big Tiles kit must be active")
+        seen[name] = true
+      end
+      local function header(text)
+        assert(s.frame().rows[2].text:find(text,1,true), "missing " .. text .. " header")
+        seen[text] = true
+      end
+      if size[1]==26 then role("status");s.press("MORE") else role("generic") end
+      role("generic");header("DROP")
+      s.press("ADD NEW");header("ADD DROP")
+      s.press("BACK");header("DROP")
+      s.press("BACK");role("status")
+      s.press("MORE");role("generic")
+      for _, name in ipairs({"mining","lumber"}) do
+        s.press(name:upper());role(name)
+        s.button("BACK", "status")
+        s.press("SETUP");header(name=="mining" and (size[1]<26 and "MINING" or "MINING SETUP") or "LUMBER")
+        seen[name .. " setup"] = true
+        s.press("BACK", name=="mining" and "mine-back" or "lumber-back")
+        s.button("SETUP")
+        s.press("BACK", "status");role("status")
+        s.press("MORE");role("generic")
+      end
+      s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals={["minecraft:iron_ingot"]=64}})
+      s.press("SHOP");role("shop")
+      s.press("IRON INGOT");header("SHOP >")
+      s.button(size[1]<26 and "16" or "ORDER 16", "order:16:minecraft:iron_ingot")
+      s.press("BACK");header("SHOP")
+      s.press("BACK");role("status")
+      s.press("MORE");s.press("AR");role("ar")
+      s.button("TURTLES")
+      s.press("BACK");role("status")
+      s.press("MORE");s.press("PANEL");role("panel")
+      s.press("MORE");role("generic")
+      s.press("PANEL");role("panel")
+      s.press(size[1]<26 and "ALT" or "ALERTS");header("PANEL")
+      s.press("BACK");s.press("PAIR");header("PANEL")
+      s.press("BACK");s.press(size[1]<26 and "GLC" or "GLANCE");role("status")
+      if size[1]==26 then s.press("PANEL");role("panel");s.press("GLANCE");role("status") end
+      for _, name in ipairs({"status","generic","mining","lumber","shop","ar","panel","mining setup","lumber setup","SHOP >","ADD DROP"}) do
+        assert(seen[name], "unreached " .. name)
+      end
+    end)
+  end
   for _, size in ipairs({{26,20}, {29,12}}) do
     test("drop editor remains clickable at " .. size[1] .. "x" .. size[2], function()
       local s = setup(size[1], size[2])

@@ -56,23 +56,27 @@ class Canvas:
                 if bg: s.b[y][i] = bg
     def center(s, x, w, y, txt, bg=None):
         s.text(x + max(0, (w - len(txt)) // 2), y, txt[:w], bg)
-    def header(s, name, right="21:14"):
-        s.fill(0, 0, s.w, 1, "7")
-        s.text(1, 0, name)
-        s.text(s.w - len(right) - 1, 0, right)
+    def header(s, name, right="21:14", bg="7"):
+        s.fill(1, 1, s.w-2, 1, bg)
+        s.text(1, 1, name)
+        s.text(s.w - len(right) - 1, 1, right)
     def alert(s, msg):
-        s.fill(0, 1, s.w, 1, "e")
-        s.text(1, 1, msg[:s.w-2])
-    def tile(s, x, y, w, label, value, sub="", bg="d", h=5):
+        s.fill(1, 2, s.w-2, 1, "e")
+        s.text(1, 2, msg[:s.w-2])
+    def tile(s, x, y, w, label, value, sub="", bg="d", h=None):
+        h = h or (7 if s.h >= 24 else 6)
+        right = min(s.w-2,x+w-1)
+        x = max(1,x); w = max(0,right-x+1)
         s.fill(x, y, w, h, bg)
-        s.text(x + 1, y, label[:w-2])
+        s.text(x + 1, y+1, label[:w-2])
         rows = big(value)
         for r in range(3):
-            s.center(x, w, y + 1 + r, rows[r])
-        if sub: s.text(x + 1, y + 4, sub[:w-2])
+            s.center(x+1, w-2, y + 2 + r, rows[r])
+        if sub and h >= 7: s.text(x + 1, y + 5, sub[:w-2])
     def button(s, x, y, w, label, bg="7", h=3):
         s.fill(x, y, w, h, bg)
-        s.center(x, w, y + h // 2, label)
+        inset = 1 if len(label) <= w-2 else 0
+        s.center(x+inset, w-2*inset, y + h // 2, label)
     def dump(s, name, legend=True):
         out = [f"{name}  ({s.w}x{s.h})", "```text"]
         out += ["".join(r) for r in s.t]
@@ -89,43 +93,39 @@ def add(c, name, legend=False):
     M.append(c.dump(name, legend))
     FIXTURES.append((c, name))
 
-# --- Status, M (3x2 @0.5 = 57x24): 3 tile columns 18/19/18, 3 tile rows
-c = Canvas(57, 24); c.header("STATUS", "21:14  ok"); c.alert("! ore chest full (drop 3)          tap for alerts")
-cols = [(0,18),(19,19),(39,18)]
-data = [[("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","open now","b"),("ALERTS","1","ore chest full","e")],
-        [("ORE TODAY","214","+12 last 10 min","b"),("LOGS TODAY","96","4 trees","d"),("DISK","13%","2.1 of 16 MB","d")],
-        [("DISPLAYS","4","all fresh","d"),("DROPS","5","1 broken","1"),("PAIR","P","press P on server","9")]]
-for r, row in enumerate(data):
-    for (x, w), (lab, val, sub, bg) in zip(cols, row):
-        if val == "P":
-            c.fill(x, 2 + r*6 + 1, w, 5, bg); c.text(x+1, 2+r*6+1, lab); c.center(x, w, 2+r*6+3, "new client:"); c.text(x+1, 2+r*6+5, sub)
-        else:
-            c.tile(x, 2 + r*6 + 1, w, lab, val, sub, bg)
-for (x, w), (lab, bg) in zip([(0,13),(14,14),(29,14),(44,13)], [("MINING","7"),("LUMBER","7"),("SHOP","a"),("MORE","7")]):
-    c.button(x, 21, w, lab, bg)
-add(c, "Status, room monitor 3x2 at scale 0.5", True)
-
-# --- Status, L (4x3 @1 = 39x19): 2 columns 19/19, 2 rows
-c = Canvas(39, 19); c.header("STATUS", "ok")
-c.alert("! ore chest full")
-cols = [(0,19),(20,19)]
-data = [[("TURTLES","3","3 ok","d"),("ALERTS","1","ore chest full","e")],
-        [("ORE TODAY","214","+12 / 10 min","b"),("DISK","13%","2.1 of 16 MB","d")]]
-for r, row in enumerate(data):
-    for (x, w), (lab, val, sub, bg) in zip(cols, row):
-        c.tile(x, 3 + r*6, w, lab, val, sub, bg)
-c.button(0, 16, 12, "MINING"); c.button(13, 16, 12, "SHOP", "a"); c.button(26, 16, 13, "MORE")
-add(c, "Status, wall monitor 4x3 at scale 1", True)
-
-# --- Pocket glance (26x20): 3 tiles of 5 rows + nav
-c = Canvas(26, 20); c.header("FLEET", "21:14")
-for i, (lab, val, sub, bg) in enumerate([("TURTLES","3","3 ok, 0 lost","d"),("ALERTS","1","ore chest full","e"),("ORE TODAY","214","+12 / 10 min","b")]):
-    c.tile(0, 1 + i*6, 26, lab, val, sub, bg)
-c.fill(0, 19, 26, 1, "7"); c.text(0, 19, " <  glance 1/3  >  PANEL ")
-add(c, "Pocket, glance mode", True)
+def grid(w,n):
+    available=w-n+1
+    return [(int(i*available/n+0.5)+i,int((i+1)*available/n+0.5)-int(i*available/n+0.5)) for i in range(n)]
+status_data = [("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","open now","b"),("ALERTS","1","ore chest full","e"),
+    ("ORE TODAY","214","+12 last 10 min","b"),("LOGS TODAY","96","4 trees","d"),("DISK","13%","2.1 of 16 MB","d"),
+    ("DISPLAYS","4","all fresh","d"),("DROPS","5","1 broken","1"),("PAIR","","press P on server","9")]
+def status(w,h,indices,n,title):
+    c=Canvas(w,h);c.header("STATUS","21:14");c.alert("! ore chest full (drop 3)" if w!=39 else "! ore chest full")
+    cols=grid(w,n);wanted=(len(indices)+n-1)//n
+    navheight=3 if h>=19 and h-7>=wanted*8 else 1
+    nav=h-navheight; height=7 if nav-3>=wanted*8-1 else 6
+    for i,index in enumerate(indices):
+        x,width=cols[i%n]; y=3+(i//n)*(height+1)
+        lab,val,sub,bg=status_data[index]
+        c.tile(x,y,width,lab,val,sub,bg,height)
+        if index==8:
+            left=max(1,x);right=min(w-2,x+width-1)
+            c.fill(left+1,y+2,right-left-1,3,bg);c.center(left+1,right-left-1,y+3,"new client:")
+    if w==51:
+        c.fill(1,11,w-2,1,"7");c.text(1,11,"LOG")
+    labels=["MINING","SHOP","MORE"] if w==39 else ["MINING","LUMBER","SHOP","MORE"]
+    for (x,width),label in zip(grid(w,len(labels)),labels):c.button(x,nav,width,label,"a" if label=="SHOP" else "7",navheight)
+    add(c,title,True)
+status(57,24,list(range(9)),3,"Status, room monitor 3x2 at scale 0.5")
+status(39,19,[0,2,3,5],2,"Status, wall monitor 4x3 at scale 1")
+c=Canvas(26,20);c.header("FLEET","21:14")
+for i,index in enumerate([0,2]):c.tile(0,3+i*8,26,*status_data[index],h=7)
+c.button(0,18,26,"MORE",h=1)
+c.fill(0,19,26,1,"7");c.text(1,19,"<  glance 1/5  >  PANEL")
+add(c,"Pocket, glance mode",True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", "22:14")
+c = Canvas(26, 20); c.header("PANEL", "22:14"); c.button(7, 1, 6, "MORE", h=1)
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -137,44 +137,78 @@ add(c, "Pocket, panel mode", True)
 c = Canvas(57, 24); c.header("MINING", "running")
 cols = [(0,18),(19,19),(39,18)]
 for (x, w), (lab, val, sub, bg) in zip(cols, [("BUSY","2/2","both digging","d"),("ORE TODAY","214","iron 120 dia 3","b"),("DEPTH","-12","bottom -16","d")]):
-    c.tile(x, 2, w, lab, val, sub, bg)
+    c.tile(x, 3, w, lab, val, sub, bg,6)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("LANE","1","#3 waiting","1"),("MIN FUEL","640","#3","d"),("BRANCHES","3/8","48 long","b")]):
-    c.tile(x, 8, w, lab, val, sub, bg)
-c.fill(0, 14, 57, 1, "7"); c.text(1, 14, "TURTLE  STATE      POS          FUEL  ORE")
+    c.tile(x, 10, w, lab, val, sub, bg,6)
+c.fill(0, 17, 57, 1, "7"); c.text(1, 17, "TURTLE  STATE      POS          FUEL  ORE")
 for i, line in enumerate(["#2      mining     12,60,-9      812   14","#3      wait lane   0,61,-1      640    9"]):
-    c.text(1, 15 + i, line)
-c.fill(0, 15, 1, 1, "d"); c.fill(0, 16, 1, 1, "1")
+    c.text(1, 18 + i, line)
+c.fill(0, 18, 1, 1, "d"); c.fill(0, 19, 1, 1, "1")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
 add(c, "Mining, room monitor")
 
 # --- Lumber, M
 c = Canvas(57, 24); c.header("LUMBER", "running")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","-","no daily source","c"),("SAPLINGS","0","chest empty","e")]):
-    c.tile(x, 2, w, lab, val, sub, bg)
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","logs delivered","d"),("SAPLINGS","0","chest empty","e")]):
+    c.tile(x, 3, w, lab, val, sub, bg)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","min:sec","b")]):
-    c.tile(x, 8, w, lab, val, sub, bg)
+    c.tile(x, 11, w, lab, val, sub, bg)
 c.alert("! out of saplings: replanting paused")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
 add(c, "Lumber, room monitor")
 
-# --- Shop, M: search + item tiles (purple header accent)
-c = Canvas(57, 24); c.header("SHOP", "stock 21:14"); c.fill(0, 0, 57, 1, "a"); c.text(1, 0, "SHOP"); c.text(45, 0, "stock 21:14")
-c.fill(1, 2, 55, 1, "0"); c.text(1, 2, " search: iron_                                         ", "0")
-items = [("IRON INGOT","1240","^ +60/h","b"),("IRON ORE","312","- steady","b"),("RAW IRON","48","v -20/h","1")]
-for (x, w), (lab, val, sub, bg) in zip(cols, items): c.tile(x, 4, w, lab, val, sub, bg)
-items = [("IRON BLOCK","27","- steady","b"),("IRON NUGGET","5","v low","1"),("IRON BARS","0","empty","e")]
-for (x, w), (lab, val, sub, bg) in zip(cols, items): c.tile(x, 10, w, lab, val, sub, bg)
-c.text(1, 16, "Order: 16 iron_ingot sent to output chest")
-c.button(0, 18, 18, "< PREV"); c.button(19, 18, 19, "page 1/3"); c.button(39, 18, 18, "NEXT >")
-c.button(0, 21, 28, "CLEAR SEARCH"); c.button(29, 21, 28, "BACK")
-add(c, "Shop, room monitor (tap an item tile for the order page)")
+def grid(w, n):
+    import math
+    available = w - n + 1
+    return [(math.floor((i - 1) * available / n + .5) + i - 1,
+             math.floor(i * available / n + .5) - math.floor((i - 1) * available / n + .5))
+            for i in range(1, n + 1)]
 
-c = Canvas(57, 24); c.fill(0, 0, 57, 1, "a"); c.text(1, 0, "SHOP > IRON INGOT")
-c.tile(0, 2, 57, "IN STOCK", "1240", "^ +60 per hour", "b")
-c.button(0, 8, 18, "ORDER 1", "a", 5); c.button(19, 8, 19, "ORDER 16", "a", 5); c.button(39, 8, 18, "ORDER 64", "a", 5)
-c.text(1, 14, "Order: 16 iron_ingot ok (2 s ago)")
-c.button(0, 21, 57, "BACK")
-add(c, "Shop order page")
+SHOP_ITEMS = [("IRON INGOT", "1240", "^ +60/h", "b"),
+              ("IRON ORE", "312", "- steady", "b"), ("RAW IRON", "48", "v -20/h", "1"),
+              ("IRON BLOCK", "27", "- steady", "b"), ("IRON NUGGET", "5", "v low", "1"),
+              ("IRON BARS", "0", "empty", "e")]
+SHOP_ITEMS += [("IRON " + str(i), "0", "empty", "e") for i in range(7, 19)]
+
+def shop(w, h, selected=False):
+    import math
+    c = Canvas(w, h)
+    header, tile = 1, 5 if h < 16 else 7 if h >= 24 else 6
+    nav = 1 if h < 16 else 3
+    bottom = h - nav
+    if selected:
+        c.header("SHOP > IRON INGOT", "", "a")
+        y = 2 if h < 16 else header + 2
+        if y > header + 1: c.text(1, header + 1, "stock 21:14")
+        c.tile(0, y, w, "IN STOCK", "1240", "^ +60 per hour", "b", tile)
+        y = 7 if h < 16 else y + tile + 1
+        height = 1 if h < 12 else 3 if h < 16 else min(5, bottom - 2 - y)
+        for (x, width), amount in zip(grid(w, 3), [1, 16, 64]):
+            c.button(x, y, width, ("" if w < 26 else "ORDER ") + str(amount), "a", height)
+        c.text(1, bottom - 1, "Order: delivered")
+        if h >= 16: c.text(1, bottom - 2, "stock 21:14")
+        c.button(0, bottom, w, "BACK", h=nav)
+        return c
+    c.header("SHOP", "stock 21:14" if w >= 26 else "", "a")
+    tabs = grid(w, max(1, min(7, (w + 1) // 7)))
+    top = header + (3 if w < 26 or h < 12 else 2 + math.ceil(7 / len(tabs)))
+    for i, label in enumerate(["ALL", "ORES", "WOOD", "FOOD", "BLOCKS", "TOOLS", "OTHER"]):
+        x, width = tabs[i % len(tabs)]
+        c.button(x, header + 1 + i // len(tabs), width, label, "a" if i == 0 else "7", 1)
+    for (x, width), label in zip(grid(w, 3), ["A-Z", "STOCK", "NAME"]):
+        c.button(x, top - 1, width, label, "a" if label == "STOCK" else "7", 1)
+    cols = grid(w, max(1, (w + 1) // 19))
+    capacity = len(cols) * max(1, (bottom - top) // (tile + 1))
+    for i, (label, value, sub, bg) in enumerate(SHOP_ITEMS[:capacity]):
+        x, width = cols[i % len(cols)]
+        c.tile(x, top + (i // len(cols)) * (tile + 1), width, label, value, sub, bg, tile)
+    c.text(1, bottom - 1, "Order: sent 16")
+    for (x, width), label in zip(grid(w, 4), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">", "BACK"]):
+        c.button(x, bottom, width, label, h=nav)
+    return c
+
+add(shop(57, 24), "Shop, room monitor")
+add(shop(57, 24, True), "Shop order page")
 
 # --- Generic / drops page
 c = Canvas(57, 24); c.header("DROP POINTS", "5 points")
@@ -203,10 +237,10 @@ add(c, "Outage, last picture greyed (stale slot) with a coral NO SERVER tile")
 # --- Server terminal 51x19
 c = Canvas(51, 19); c.header("SO SERVER #1", "up 3h12")
 for (x, w), (lab, val, sub, bg) in zip([(0,12),(13,12),(26,12),(39,12)], [("TURTLES","3","ok","d"),("DISPLAYS","4","fresh","d"),("DISK","13%","2.1 MB","d"),("ALERTS","1","see log","e")]):
-    c.tile(x, 2, w, lab, val, sub, bg)
-c.fill(0, 8, 51, 1, "7"); c.text(1, 8, "LOG")
+    c.tile(x, 3, w, lab, val, sub, bg, 7)
+c.fill(0, 11, 51, 1, "7"); c.text(1, 11, "LOG")
 for i, l in enumerate(["21:14:02 lease 2-961 reported ok","21:14:05 drops: hold ore (3)","21:14:09 pair: display 7 joined","21:14:11 mine: #3 wait lane"]):
-    c.text(1, 9 + i, l)
+    c.text(1, 12 + i, l)
 c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client     [L] full log")
 add(c, "Server terminal, normal", True)
 
@@ -222,31 +256,55 @@ add(c, "Server terminal, pairing", True)
 # --- AR layers screen (M) and tiny 1x1
 c = Canvas(57, 24); c.header("AR GOGGLES", "1 controller")
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLES","1","layer on","d"),("LEASES","1","layer on","d"),("DROPS","0","layer off","c")]):
-    c.tile(x, 2, w, lab, val, sub, bg)
-c.tile(0, 8, 18, "ALERTS", "1", "layer on", "d"); c.text(20, 9, "tap a tile to switch its layer")
+    c.tile(x, 3, w, lab, val, sub, bg)
+c.tile(0, 11, 18, "ALERTS", "1", "layer on", "d")
 c.button(0, 20, 57, "BACK")
 add(c, "AR layer switches (1 = on, 0 = off)")
 
-c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.fill(0, 8, 15, 2, "7"); c.center(0, 15, 8, "tap: next")
+c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
+
+for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
+    for pending in [False, True]:
+        c = Canvas(w, h); c.header("PANEL", "01:00")
+        c.text(1, 2, "PAIR NEW CLIENT")
+        if pending:
+            c.fill(1, 3, w-2, 4, "9")
+            for r, row in enumerate(big("123456")):
+                c.center(1, w-2, 3+r, row)
+            c.center(1, w-2, 6, "4:52 left", "9")
+        c.button(0, h-4, w, "NEW CODE", "9")
+        c.button(0, h-1, w, "BACK", h=1)
+        add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)
+
+add(shop(29, 12), "Shop, compact touch monitor", True)
+add(shop(26, 20), "Shop, pocket touch flow", True)
+add(shop(100, 38), "Shop, large touch monitor")
+status(51,19,[0,6,5,2],4,"Status, terminal")
 
 import argparse
 from pathlib import Path
+import runpy
+
+map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--fixtures", type=Path)
+parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).resolve().parents[2] / "tests/ui/fixtures")
 args = parser.parse_args()
+
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
+    map_mockup["write"](Canvas, args.fixtures, fixtures=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
+map_mockup["write"](Canvas, Path("."))
 # font table
 ft = []
 for ch in "0123456789%-:/":

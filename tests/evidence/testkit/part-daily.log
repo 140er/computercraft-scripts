@@ -1,0 +1,15 @@
+part: so-mod-daily.lua; suites: tests/parts/so-mod-daily.lua
+part: generated 56 input files; private cwd /tmp/cc-part-g8w81sv_
+cc-test: using local-2 slot
+PASS UI5a Amsterdam clock covers both 2026 DST boundaries and midnight
+PASS UI5a status shop panel and server log use Amsterdam time
+PASS UI5a daily totals window copies midnight and saved cursor survive restart
+PASS UI5a real state history and daily store recover together from disk
+PASS UI5a ten thousand pending events consume only one bounded page without a yield
+PASS UI5a status mining and lumber show daily counters and stale fallback
+PASS UI5a daily module installs only on the server
+part: 7 passed, 0 failed, 0 undeclared reads; Lua CPU 0.039s
+part: local Lua wall 0.043s (excludes slot queue)
+real 0.18
+user 0.14
+sys 0.02

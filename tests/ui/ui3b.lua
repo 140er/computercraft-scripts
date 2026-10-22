@@ -50,11 +50,14 @@ local function setup()
   end,function(e)
     if e.text then s.query=e.text else s.calls[#s.calls+1]={'shop',e.id} end
   end)
+  env.SO.mods.shop={order=function(search,count)
+    if search:lower()=='iron' then s.calls[#s.calls+1]={'shop','order:'..count..':minecraft:iron_ingot'} end
+  end}
   local p = assert(loadfile('so-mod-panel.lua','t',env))()
   env.SO.mods.panel=p;p.tick(0)
   s.display,s.panel,s.env=d,p,env
   s.frame=function(id,w,h)
-    d.handlers.hello({from=id,body={w=w or 26,h=h or 20}})
+    d.handlers.hello({from=id,body={w=w or 26,h=h or 20,keyboard=true}})
     local got;d.handlers['view.get']({from=id},function(_,b) got=b end);return got
   end
   s.tap=function(id,button,text)
@@ -87,6 +90,17 @@ return function(test,equal)
     assert(#diff==0,table.concat(diff,'\n'))
     equal(s.frame(3,57,24).role,'generic')
   end)
+  test('UI3b explicit generic selection survives a display module restart at both compact sizes',function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local s=setup();s.frame(2,size[1],size[2]);s.tap(2,'generic')
+      equal(s.frame(2,size[1],size[2]).role,'generic')
+      equal(s.saved.roles['2'],'generic')
+      local d=assert(loadfile('so-mod-display.lua','t',s.env))()
+      d.handlers.hello({from=2,body={w=size[1],h=size[2]}})
+      local restored;d.handlers['view.get']({from=2},function(_,b) restored=b end)
+      equal(restored.role,'generic')
+    end
+  end)
   test('UI3b client input height keeps full Big Tiles pocket navigation',function()
     local s=setup()
     s.display.handlers.hello({from=2,body={w=26,h=19,fullH=20}})
@@ -100,7 +114,7 @@ return function(test,equal)
   test('UI3b glance pages cover all tiles independently and wrap both ways',function()
     local s=setup();s.frame(2);s.frame(3)
     local seen={}
-    for page=1,3 do
+    for page=1,5 do
       local out=capture(s.frame(2),26,20)
       for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
         local fg,bg=cell[2],cell[3]
@@ -109,13 +123,13 @@ return function(test,equal)
           (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','glance contrast '..fg..'/'..bg)
       end end
       local text=out.picture().text
-      for _,y in ipairs({2,8,14}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
-      assert(text[20]:find('glance '..page..'/3',1,true));s.tap(2,'next')
+      for _,y in ipairs({5,13}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
+      assert(text[20]:find('glance '..page..'/5',1,true));s.tap(2,'next')
     end
     for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS','PAIR'}) do assert(seen[label],label) end
-    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/3',1,true))
-    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 3/3',1,true))
-    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/3',1,true))
+    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/5',1,true))
+    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 5/5',1,true))
+    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/5',1,true))
   end)
   test('UI3b panel fixture matches and controls dispatch once per tap',function()
     local s=setup();s.now=(21*60+14)*60000;s.frame(2);s.tap(2,'panel');s.tap(2,nil,'iron')
@@ -124,9 +138,8 @@ return function(test,equal)
     for _,role in ipairs({'mining','lumber'}) do for _,cmd in ipairs({'start','stop'}) do
       local n=#s.calls;s.tap(2,role..':'..cmd);equal(#s.calls,n+1);equal(s.calls[#s.calls],{role,cmd})
     end end
-    local n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n+2)
-    equal(s.calls[n+1],{'shop','item:minecraft:iron_ingot'})
-    equal(s.calls[n+2],{'shop','order:16:minecraft:iron_ingot'})
+    local n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n+1)
+    equal(s.calls[n+1],{'shop','order:16:minecraft:iron_ingot'})
     s.tap(2,nil,'missing');n=#s.calls;s.tap(2,'order:16');equal(#s.calls,n)
   end)
   test('UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast',function()
@@ -146,7 +159,7 @@ return function(test,equal)
             (bg=='9' or bg=='e' or bg=='a') and fg=='f','contrast '..fg..'/'..bg)
         end end
         if page=='pair' and w>=26 then
-          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('new client',1,true))
+          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
         end
       end
     end
@@ -199,7 +212,46 @@ return function(test,equal)
       s.env.SO.mods.shop=shop;shop.tick(0)
       shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}})
       s.panel.tick(0);s.frame(2);s.tap(2,'panel');s.tap(2,nil,'IRON')
-      local n=#sends;s.tap(2,'order:'..amount);equal(#sends,n+1)
+      local sessions={{id=3},{id=4},{}}
+      local screen=s.display.screen('shop')
+      local totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}
+      for i=1,20 do totals['minecraft:gold_'..i]=i end
+      shop.listen.roomsorter_stock(9,{totals=totals})
+      local function press(session,id)
+        local frame=screen.render(57,24,session)
+        local button
+        for _,b in ipairs(frame.buttons) do if b.id==id then button=b end end
+        assert(button,'missing shop button '..id)
+        screen.input({id=id,x=button.x,y=button.y,session=session})
+      end
+      screen.input({text='gold',session=sessions[1]})
+      press(sessions[1],'next')
+      local selected
+      for _,b in ipairs(screen.render(57,24,sessions[1]).buttons) do
+        if b.id:match('^item:') then selected=b.id;break end
+      end
+      press(sessions[1],selected)
+      screen.input({text='iron',session=sessions[2]})
+      screen.input({text='gold',session=sessions[3]})
+      local before={}
+      for i,session in ipairs(sessions) do
+        before[i]=session.id and private(s.display.handlers.hello,'D').compose('shop',57,24,session) or screen.render(57,24,session)
+      end
+      local panelFrame=s.frame(2)
+      local orderButton
+      for _,b in ipairs(panelFrame.buttons) do if b.id=='order:'..amount then orderButton=b end end
+      assert(orderButton,'missing panel order button')
+      local n=#sends
+      s.display.handlers.input({from=2,body={id=orderButton.id,x=orderButton.x,y=orderButton.y}})
+      equal(#sends,n+1)
+      for i,session in ipairs(sessions) do
+        local after=session.id and private(s.display.handlers.hello,'D').compose('shop',57,24,session) or screen.render(57,24,session)
+        equal(after.buttons,before[i].buttons)
+        for y=1,14 do equal(after.rows[y],before[i].rows[y]) end
+      end
+      press(sessions[1],'items')
+      assert(table.concat(capture(screen.render(57,24,sessions[1]),57,24).picture().text,'\n'):find('2/',1,true))
+      assert(table.concat(capture(screen.render(57,24,sessions[3]),57,24).picture().text,'\n'):find('1/',1,true))
       local sent=sends[#sends]
       equal(sent.id,9);equal(sent.protocol,'roomsorter');equal(sent.body.cmd,'order')
       equal(sent.body.text,'minecraft:iron_ingot');equal(sent.body.n,amount)
@@ -277,6 +329,27 @@ return function(test,equal)
     local n=#s.calls;touch('mining:start');equal(#s.calls,n+1);equal(s.calls[#s.calls],{'mining','start'})
     touch('lumber:stop');equal(#s.calls,n+2);equal(s.calls[#s.calls],{'lumber','stop'})
     touch('pair');touch('panel-back');touch('status');equal(d.monitor.role,'status')
+  end)
+  test('UI3b monitor panels browse shop without a search field or quick orders',function()
+    for _,size in ipairs({{26,20},{29,12},{100,38}}) do
+      local s=setup()
+      s.display.handlers.hello({from=2,body={w=size[1],h=size[2],keyboard=false}})
+      s.tap(2,'panel')
+      local frame
+      s.display.handlers['view.get']({from=2},function(_,body) frame=body end)
+      assert(not table.concat(capture(frame,size[1],size[2]).picture().text,'\n'):find('search',1,true))
+      local browse
+      for _,button in ipairs(frame.buttons) do
+        assert(button.id~='search' and not button.id:match('^order:'))
+        if button.id=='shop' then browse=button end
+      end
+      assert(browse)
+      local calls=#s.calls
+      s.tap(2,nil,'iron');s.tap(2,'order:16');equal(#s.calls,calls)
+      s.tap(2,'shop')
+      s.display.handlers['view.get']({from=2},function(_,body) frame=body end)
+      equal(frame.role,'shop')
+    end
   end)
   test('UI3b panel installs only on the server',function()
     local f=assert(io.open('install.lua'));local source=f:read('*a');f:close()

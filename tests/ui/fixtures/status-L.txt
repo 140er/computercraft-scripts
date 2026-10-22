@@ -1,39 +1,39 @@
 39x19 Status, wall monitor 4x3 at scale 1
- STATUS                             ok 
+                                       
+ STATUS                          21:14 
  ! ore chest full                      
                                        
- TURTLES             ALERTS            
-        🬋🬋🬏                 🬞🬓         
-        🬇🬋🬐                  ▌         
-        🬋🬋🬀                 🬇🬌         
- 3 ok                ore chest full    
-                                       
- ORE TODAY           DISK              
-     🬖🬋🬏🬞🬓  🬵            🬞🬓 🬋🬋🬏🬹 🬏     
-      🬖🬀 ▌ 🬳🬷🬏            ▌ 🬇🬋🬐🬞🬅      
-     🬍🬋🬃🬇🬌  🬉            🬇🬌 🬋🬋🬀🬀🬉🬄     
- +12 / 10 min        2.1 of 16 MB      
+  TURTLES            ALERTS            
+        🬋🬋🬏                🬞🬓          
+        🬇🬋🬐                 ▌          
+        🬋🬋🬀                🬇🬌          
+  3 ok, 0 lost       ore chest full    
                                        
                                        
                                        
-   MINING        SHOP         MORE     
+  ORE TODAY          DISK              
+     🬖🬋🬏🬞🬓  🬵           🬞🬓 🬋🬋🬏🬹 🬏      
+      🬖🬀 ▌ 🬳🬷🬏           ▌ 🬇🬋🬐🬞🬅       
+     🬍🬋🬃🬇🬌  🬉           🬇🬌 🬋🬋🬀🬀🬉🬄      
+  +12 last 10 min    2.1 of 16 MB      
                                        
-777777777777777777777777777777777777777
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+   MINING        SHOP          MORE    
 fffffffffffffffffffffffffffffffffffffff
-dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
-dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
-dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
-dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
-dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+f7777777777777777777777777777777777777f
+feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
+fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffff
-bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
-bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
-bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
-bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
-bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
-fffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffff
-777777777777faaaaaaaaaaaaf7777777777777
-777777777777faaaaaaaaaaaaf7777777777777
-777777777777faaaaaaaaaaaaf7777777777777
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
+777777777777faaaaaaaaaaaaaf777777777777

@@ -133,6 +133,7 @@ H.apply = function(S, ev)
     if ev.data.role ~= nil then row.role = ev.data.role end
     if ev.data.fp ~= nil then row.fp = ev.data.fp end
     if ev.data.fuel ~= nil then row.fuel = ev.data.fuel end
+    if ev.data.journal ~= nil then row.journal = ev.data.journal end
     row.seen = ev.data.seen ~= nil and ev.data.seen or ev.at
     if type(ev.data.pose) == "table" then row.pose = H.machine({ pose = ev.data.pose }).pose end
   elseif ev.kind == "pose" and type(ev.data) == "table" and type(ev.data.id) == "number" then
@@ -334,9 +335,28 @@ local history = {
   end,
 }
 
+local function hello(msg)
+  local body, now = msg.body, os.epoch("utc")
+  local role = body.role
+  if role == "worker" then role = "turtle" end
+  if role == nil and type(body.w) == "number" and type(body.h) == "number" then role = "display" end
+  local journal = type(body.journal) == "table" and body.journal.id or body.journal
+  if type(journal) ~= "string" then journal = nil end
+  local fuel = body.fuel
+  if not (type(fuel) == "number" and fuel == fuel and math.abs(fuel) < math.huge)
+    and fuel ~= "unlimited" then fuel = nil end
+  local row = S.machines[tostring(msg.from)]
+  local changed = row and fuel ~= nil and (type(fuel) ~= type(row.fuel)
+    or type(fuel) == "number" and (math.abs(fuel - row.fuel) >= 100 or (fuel == 0) ~= (row.fuel == 0)))
+  if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
+    or changed or now - (row.seen or 0) >= 60000 then
+    emit("machine", { id = msg.from, role = role, fuel = fuel, seen = now, journal = journal })
+  end
+end
+
 return {
   name = "state",
-  handlers = {},
+  handlers = { hello = hello },
   tick = function() H.flush() end,
   emit = emit,
   get = get,

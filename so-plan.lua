@@ -118,6 +118,19 @@ function P.inRange(lease, id, cells)
   return true
 end
 
+function P.rangeBatch(lease, id, action)
+  if P.inRange(lease, id, action.cells or {}) then return action end
+  local out = { kind = "batch", steps = {}, cells = {}, actions = {} }
+  for _, part in ipairs(action.actions or {}) do
+    if not P.inRange(lease, id, part.cells or {}) then break end
+    out.actions[#out.actions + 1] = part
+    for _, step in ipairs(part.steps) do out.steps[#out.steps + 1] = step end
+    for _, cell in ipairs(part.cells or {}) do out.cells[#out.cells + 1] = cell end
+    out.pose = part.pose
+  end
+  if #out.steps > 0 then return out end
+end
+
 P.park = { steps = { { op = "inspectDown" } }, ms = 600000 }
 
 function P.fuelValue(name)

@@ -1,0 +1,15 @@
+part: miner; suites: tests/parts/so-mod-mine.lua
+part: generated 6 input files; private cwd /tmp/cc-part-lt6ogjac
+cc-test: using local-2 slot
+PASS mining refuses start without its disk guard or configured home
+PASS uncertain workers cannot receive a mining batch
+PASS radio range refusal sends only a stationary park
+PASS a completed branch is counted once when recovery revisits it
+PASS disk failure stops a mining job
+PASS retirement refuses recovery and protects a confirmed worker pose
+PASS expired reports keep the worker in recovery
+part: 7 passed, 0 failed, 0 undeclared reads; Lua CPU 0.018s
+part: local Lua wall 0.023s (excludes slot queue)
+real 0.21
+user 0.19
+sys 0.01

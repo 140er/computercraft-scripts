@@ -1,49 +1,49 @@
 57x24 Status, room monitor 3x2 at scale 0.5
- STATUS                                        21:14  ok 
- ! ore chest full (drop 3)          tap for alerts       
                                                          
- TURTLES            LEASES              ALERTS           
-       🬋🬋🬏                 🬖🬋🬏                🬞🬓         
-       🬇🬋🬐                  🬖🬀                 ▌         
-       🬋🬋🬀                 🬍🬋🬃                🬇🬌         
- 3 ok, 0 lost       open now            ore chest full   
+ STATUS                                            21:14 
+ ! ore chest full (drop 3)                               
                                                          
- ORE TODAY          LOGS TODAY          DISK             
-    🬖🬋🬏🬞🬓  🬵             🬖🬋🬏🬞🬋             🬞🬓 🬋🬋🬏🬹 🬏     
-     🬖🬀 ▌ 🬳🬷🬏            🬈🬋▌🬛🬋🬏             ▌ 🬇🬋🬐🬞🬅      
-    🬍🬋🬃🬇🬌  🬉             🬇🬅 🬈🬋🬀            🬇🬌 🬋🬋🬀🬀🬉🬄     
- +12 last 10 min    4 trees             2.1 of 16 MB     
-                                                         
- DISPLAYS           DROPS               PAIR             
-        🬵                  🬚🬋🬃                           
-       🬳🬷🬏                 🬂🬂🬓            new client:    
-        🬉                  🬈🬋🬀                           
- all fresh          1 broken            press P on server
+  TURTLES           LEASES              ALERTS           
+        🬋🬋🬏                🬖🬋🬏                🬞🬓         
+        🬇🬋🬐                 🬖🬀                 ▌         
+        🬋🬋🬀                🬍🬋🬃                🬇🬌         
                                                          
                                                          
-   MINING         LUMBER          SHOP          MORE     
                                                          
-777777777777777777777777777777777777777777777777777777777
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  ORE TODAY         LOGS TODAY          DISK             
+     🬖🬋🬏🬞🬓  🬵            🬖🬋🬏🬞🬋             🬞🬓 🬋🬋🬏🬹 🬏     
+      🬖🬀 ▌ 🬳🬷🬏           🬈🬋▌🬛🬋🬏             ▌ 🬇🬋🬐🬞🬅      
+     🬍🬋🬃🬇🬌  🬉            🬇🬅 🬈🬋🬀            🬇🬌 🬋🬋🬀🬀🬉🬄     
+                                                         
+                                                         
+                                                         
+  DISPLAYS          DROPS               PAIR             
+         🬵                 🬚🬋🬃                           
+        🬳🬷🬏                🬂🬂🬓            new client:    
+         🬉                 🬈🬋🬀                           
+                                                         
+    MINING        LUMBER          SHOP          MORE     
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+f7777777777777777777777777777777777777777777777777777777f
+feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
+fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
-bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
-bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
-bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
-bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
+fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddddddddddf1111111111111111111f999999999999999999
-ddddddddddddddddddf1111111111111111111f999999999999999999
-ddddddddddddddddddf1111111111111111111f999999999999999999
-ddddddddddddddddddf1111111111111111111f999999999999999999
-ddddddddddddddddddf1111111111111111111f999999999999999999
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777
-7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777
-7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111f99999999999999999f
+77777777777777f7777777777777faaaaaaaaaaaaaaf7777777777777

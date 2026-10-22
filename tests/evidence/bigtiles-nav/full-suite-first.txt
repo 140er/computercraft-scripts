@@ -1,0 +1,649 @@
+cc-test: using local-2 slot
+PASS no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+PASS goggles: HUD lines, ore icons, and frames that delete instead of clearing
+PASS fleetview draws teletext pixels with the right colours
+PASS shaft labels are raised, centered and readable with smaller turtle markers
+PASS attach, detach and reattach use peripheral events
+PASS new frames replace old positions and clamp branch width to reach
+PASS local coordinates, old miners and incomplete geometry are handled
+PASS key and dashboard touch toggles persist both states across restart
+PASS turtles at the shaft top need no extra position marker or path
+PASS LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+PASS controller failure stops 3D calls and leaves the dashboard running
+PASS real miner telemetry supplies world shafts and omits local positions
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+PASS world progress belongs to one shaft, including bore jobs and replacement turtles
+PASS legacy role progress stays available only to miners without world shafts
+PASS old miners with world telemetry use their shaft for reports and jobs
+PASS miner sends shaft identity and rejects unscoped progress from an old hub
+PASS a local-coordinate miner still accepts progress from a legacy hub
+PASS dashboard flags duplicate shafts and clears the warning when a claim changes
+PASS startup refuses a moved home even beside a chest and preserves tunnel state
+PASS home verification rounds GPS and allows local setups or unavailable GPS
+PASS GPS resync also checks vertical routes before declaring LOST
+PASS an underground restart may return home with GPS away from home
+PASS a failed turn never advances the saved heading or permits a move
+PASS turnFrom recovers both sides of an interrupted turn from tunnel geometry
+PASS recorded natural seals can be reopened after a reboot without allowing other rock
+PASS seal permission is consumed after digging and does not match a different block
+PASS failed movement after digging does not advance position, including falling blocks
+PASS known routes reject new natural rock during movement and digging retries
+PASS lava sources and flows use seals, while water never goes in the fuel bucket
+PASS lava that cannot be sealed blocks the route without a false LOST
+PASS fuel checkpoint recovers moves interrupted before or after physical movement
+PASS unlimited fuel needs GPS to resolve an interrupted move
+PASS hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS server captures broadcasts, polls legacy bots and persists registry and log
+PASS serialize mock rejects shared tables and cycles
+PASS server saves GPS status and hub assignments across restart
+PASS server trims unused status fields and copies shared coordinates without changing packets
+PASS server recovers interrupted saves and keeps a bounded central log
+PASS server mirrors main, serves chunks and hashes, and keeps good code on failure
+PASS server refreshes its code mirror periodically
+PASS update downloads through the real server without http and skips current code
+PASS update falls back to http with no server or a missing server copy
+PASS update takes GitHub over a server copy that may be behind main
+PASS update rejects corrupted server content and falls back to http
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS the newer hub state wins between the hub's file and the server's copy
+PASS server repeats an order until the miner confirms it, then gives up and logs
+PASS touchscreen: tap a miner, give it an order through the hub, switch tabs
+PASS miner confirms an order the server passes on
+PASS server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+PASS hub uses direct commands if a discovered server never answers
+PASS server records directed assignments and leaves developer commands alone
+PASS server ignores malformed hub mirrors and invalid transfers
+PASS capacity mock raises Out of space at write or close and counts partial bytes
+PASS server install guards startup writes and logs failures without replacing existing startup
+PASS one megabyte server mirrors the real repo once and serves matching root scripts
+PASS 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+PASS state and cache backups survive failed promotion and recover on restart
+PASS root scripts changed outside the server are not served with a stale hash
+PASS cache write failures at open, write, close and move keep old code and leave state writable
+PASS failed state writes preserve the only good state and persist errors after space returns
+PASS large status packets and old log text stay bounded across saves and restart
+PASS server clears AR and re-raises Terminated through parallel
+PASS hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors without server replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+PASS sha256 and hmac match known vectors
+PASS so-server refuses on 1 MB and 8 MB disks with the message, boots on 16 MB
+PASS two fake machines pair with a code, then exchange hello and ack
+PASS a message with a wrong MAC is dropped and logged
+PASS a repeated rid gets the saved reply again
+PASS an unknown type gets err
+PASS a test module so-mod-test.lua receives its message type and its tick runs
+PASS so-store refuses a write past its budget and the old file stays intact
+PASS the fake turtle digs and moves in the block world
+PASS a string payload, a 1 MB field, and a deep body are dropped and the server still answers
+PASS three turtles pair one after another and a re-pair needs a fresh code
+PASS a listener that records pairing and knows the code cannot compute the key
+PASS a replay 61s later is dropped and a retry runs the handler once
+PASS a fresh fake computer calls initWithTiming before its first random(32)
+PASS a retried pair message gets the saved ack
+PASS the pair code comes from ccryptolib random bytes
+PASS five bad pair MACs burn the code and join can pin the server id
+108 tests passed
+PASS restart after 5000 events restores the same state
+PASS a killed segment write loses only the event in that write
+PASS disk at 80 percent raises the disk alert and refuses a new job
+PASS a subscriber gets increasing revs and at most 2 frames per second
+PASS history pages move forward and the raw log stays within its caps
+PASS a paired machine keeps its fingerprint and pose across a server restart
+114 tests passed
+PASS worker and its libraries fit in 100 KB
+PASS a batch of 16 steps reports the fake world
+PASS lease expiry mid-batch stops at the next step
+PASS a silent server gets 12 fast beacons, a 32-move return, then slow beacons
+PASS reboot before a move reports that it did not happen
+PASS a batch with a bad MAC is ignored
+PASS a new lease stops beaconing and runs
+PASS a new lease during the return stops walking back
+PASS backtrack digs a block this turtle dug
+PASS backtrack stops on a block this turtle did not dig
+124 tests passed
+PASS a disk that loads so-pair without ccryptolib does not boot
+PASS the 65th drop point is refused and a repeat does not grow the list
+PASS pick falls back from a broken ore chest to any, then hold, and fix brings the ore back
+PASS hold still returns an alert when state and display are missing
+PASS the generic screen can fix a point and a saved file loads on the next boot
+PASS drops.edit accepts a table payload and ignores a string
+PASS the nearer same-dimension point wins, and a distance tie takes the smaller id
+PASS a failed save puts the previous points back
+132 tests passed
+PASS status fits a 1x1 monitor, a 3x2 monitor, and a pocket
+PASS a stopped server shows stale and retries up to 30 s
+PASS a button reaches the registered screen once
+PASS a display role survives a server restart
+PASS status still draws when the state module is missing
+PASS view.get answers one frame and does not subscribe
+138 tests passed
+PASS cells exclude other owners and reserveMany is atomic
+PASS cells do not sleep on single calls after idle gaps
+PASS cells keep quiet owners for an hour
+PASS cells forgetOwner frees exactly its owner and emits an event
+PASS cells restore reservations and dug marks after restart
+PASS cells preserve default calls and isolate dimensions
+PASS cells save and reload 10000 dug cells in 50 sections with yields
+PASS cells evict saved sections at the 256 section limit
+PASS cells.forget requires a fresh token bound to sender and owner
+PASS cells keep ownership when reservation persistence fails
+PASS cells register a callable state view from tick
+149 tests passed
+PASS lease refuses a second open batch without sending
+PASS lease full worker report releases cells emits pose and calls once
+PASS lease duplicate unknown and wrong sender reports have no effects
+PASS lease silence expires after grace and keeps reservations
+PASS lease beacon blocks sends and hello restores contact
+PASS lease range starts at first pose and grows only on full success
+PASS lease malformed reports preserve open work and missing modules are optional
+PASS lease history page replies with state history entries over wire
+PASS lease range uses gps or allows positions without a server fix
+158 tests passed
+PASS shop orders reach the storage turtle once and show its reply
+PASS shop broadcasts DNS lookup from tick without waiting
+PASS shop discovers a turtle starting two minutes later
+PASS shop discovers broadcasts and shows a rising stock trend
+PASS shop trends fall, stay flat and forget samples after an hour
+PASS server routes other protocols to listen and so only to dispatch
+PASS a broken listen does not stop the server or later listeners
+165 tests passed
+PASS W40 blocked batch reports actual pose, inventory, fuel and dug cells
+PASS W40 recovery sends to a beaconing worker and its report clears lost
+PASS W40 sixteen ore inspects retain eight selected tags in one envelope
+PASS W40 long ore tags fit a full inventory and dug journal
+PASS W40 inspect caps selected tags and keeps broad ore membership
+PASS W40 lease drops bad fact fields and keeps valid siblings
+PASS W40 changed journal never reuses a pose from another journal
+PASS W40 pair retry during a new code returns cached ack without a miss
+PASS W40 fake chests transfer items and fuel uses item values
+PASS W40 frames round trip in all rotations
+PASS W40 planner paths, chunks, range, parking and inventory helpers
+176 tests passed
+PASS mine shaft and branch mark every actual dug cell
+PASS mine two turtles reserve disjoint cells after every batch
+PASS mine wall vein is exhausted once
+PASS mine low fuel visits a front drop and returns to its interrupted pose
+PASS mine cleanup refuses an inventory and keeps junk out of the ore chest
+PASS mine saved cleanup refusal retries safely without unloading junk
+PASS mine discards tunnel junk into open cells and unloads only ore
+PASS mine range refusal sends no movement outside proven range
+PASS mine restart recovers a pending dig report without digging any cell twice
+PASS mine lost turtle is red until recovery report
+PASS mine lava source uses the bucket before junk and burns the lava
+PASS mine flowing lava and water are sealed before the worker moves
+PASS mine seals lava beside a thorough branch
+PASS mine expired lease retains its cells until a recovery report
+PASS mine down drops unload from above and hold when no drop exists
+PASS mine fast mode skips branch wall veins and uses two block spacing
+PASS mine pure inventory rules keep fuel and one sealable stack
+PASS mine bounds a vein to 64 blocks and emits ore and progress events
+PASS mine idle leases renew before timeout without repeated park traffic
+PASS mine down drop above the worker is routed around without digging the chest
+PASS mine full ore inventory unloads before fetching fuel
+PASS mine a coal-filled inventory unloads and frees space
+PASS mine fast mode still seals fluids above the tunnel
+PASS mine ore trips retain buckets and torches and return after unloading
+PASS mine batches known shaft travel and stops at an unknown inspect
+PASS mine ore filters leave diamond walls and follow iron reports
+PASS mine empty and missing ore filters accept all ores
+PASS mine ore chest failures park and retry after sixty seconds
+PASS mine fuel chest failures park and retry after sixty seconds
+PASS mine empty fuel chest returns with enough fuel
+PASS mine empty fuel chest holds below reserve
+PASS mine inspect ends the batch before ore changes the plan
+PASS mine missing drop backs off and emits one alert
+PASS mine completed branch unloads its remaining ore before parking
+PASS SO11 lane geometry includes the shaft spine junction and exit
+PASS SO11 opposite lane passes retain one owner and let the waiter proceed
+PASS SO11 deadlocked shaft poses cannot authorize a second lane entrant
+PASS SO11 lane waiters use age then id and all pass within three grants
+PASS mine supply trips share the shaft and retrace both branches
+PASS mine route planning avoids durable lookups and reuses a stopped pose
+216 tests passed
+PASS SO7 chest access faces the chest from the nearest unblocked neighbour
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from down
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from front
+PASS SO7 fells four trees, replants the farm and delivers every log
+PASS SO7 an empty sapling chest raises one alert and still fells all trees
+PASS SO7 a server restart mid-round recovers the worker pose and finishes
+PASS SO7 low fuel uses the fuel chest without burning harvested logs
+PASS SO7 a fuel trip during felling returns to the interrupted trunk height
+PASS SO7 range failures stop movement and show a red alert
+PASS SO7 another owner's reservation prevents the worker entering the cell
+PASS SO7 the generic lumber button opens the lumber screen
+PASS SO7 saved frame recovers on the first tick without lease memory
+228 tests passed
+PASS AR fleet frame has turtle labels, reservation outlines and drop labels
+PASS AR layer switches delete outlines on the next frame and persist
+PASS AR throttles frames and discovery and skips unchanged scenes
+PASS AR without a controller loads and ticks without drawing
+PASS AR drops a failing controller and rediscovers it later
+PASS cells.list and drops.list return detached copies
+PASS AR filters dimensions, ages turtles and limits alerts to the newest eight
+PASS display exposes the AR role on the drops generic screen and retains it
+PASS AR removes departed turtles and clears on attach and falls back to clear without delete
+237 tests passed
+PASS SO9 server manifest covers every root so file and crypto file
+PASS SO9 each role contains its static dependencies and thin clients fit 800 KB
+PASS SO9 small server disk refuses before HTTP and prints both config lines
+PASS SO9 fifth download failure leaves every old file unchanged
+PASS SO9 rejects empty, non-200 and invalid Lua responses
+PASS SO9 interrupted swaps recover every move for every role
+PASS SO9 interrupted fresh install removes newly introduced files
+PASS SO9 rollback can itself be interrupted and resumed
+PASS SO9 committed transaction finishes cleanup after interruption
+PASS SO9 update preserves keys data journal drops display and server config
+PASS SO9 fresh server writes plain GPS config and recovery startup
+PASS SO9 server manual coordinates retry invalid input
+PASS SO9 thin machines install only their role and launch pairing
+PASS SO9 role picker supports arrows clicks and monitor default touch
+PASS SO9 reset needs yes and preserves only installer and ROM
+PASS SO9 reset skips mounted and read-only paths and removes keys and data
+PASS SO9 reset reports a failed delete and continues clearing local data
+PASS SO9 update shim calls only role installer
+PASS SO9 first update uses the new installer list and removes retired role files
+PASS SO9 trims saved role whitespace and pins every raw request to one SHA
+PASS SO9 API failures use only the saved commit or leave the install unchanged
+PASS SO9 a failed pinned download never retries from a branch
+PASS SO9 a branch advance cannot change the commit during an update
+PASS SO9 invalid installer and invalid cached commit leave installed files unchanged
+PASS SO9 every deletion and metadata move rolls back across power loss
+PASS SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
+SO9 worker peak charged bytes=257208
+SO9 display peak charged bytes=242656
+PASS SO9 worker and display stay below 1 MB during the complete update
+PASS SO9 first update can resolve a SHA through Git refs when the API is blocked
+PASS SO9 malformed Git refs cannot select a moving ref or modify an existing install
+PASS SO9 downloaded installer must still define the saved role
+PASS SO9 rejects unsafe saved file paths and invalid handoff revisions
+268 tests passed
+PASS SO11 harness reboots with the same disk and id and drops outage messages
+PASS SO11 new mining jobs accept every ore by default
+SO11 time 60s
+SO11 time 120s
+SO11 time 180s
+SO11 time 240s
+SO11 time 300s
+SO11 power cut in display.tick at 360s
+SO11 time 360s
+SO11 time 420s
+SO11 time 480s
+SO11 time 540s
+SO11 time 600s
+SO11 time 660s
+SO11 time 720s
+SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
+SO11 mining 2 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-5} error=nil
+SO11 lumber phase=waiting cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=28,["y"]=64,["z"]=7}
+SO11 summary dug cells=80 ores delivered=4 trees felled=4 logs=16 leases sent=1293 reports=1293
+SO11 worker 2 recovery park=1s work=idle beacon=held lease
+SO11 worker 3 recovery park=1s work=idle beacon=held lease
+SO11 worker 4 recovery park=1s work=idle beacon=held lease
+SO11 display 5 recovery=25s
+SO11 display 6 recovery=16s
+SO11 elapsed 32 real seconds
+PASS SO11 integration check 1
+PASS SO11 integration check 2
+PASS SO11 integration check 3
+PASS SO11 integration check 4
+PASS SO11 integration check 5
+PASS SO11 integration check 6
+PASS SO11 integration check 7
+PASS SO11 B retries an unreported recovery park with a fresh envelope
+PASS SO11 B lumber recovery marks journal digs exactly once
+SO11 B time 60s mine=mining,mining lumber=nil
+SO11 B time 120s mine=mining,mining lumber=nil
+SO11 B time 180s mine=mining,mining lumber=nil
+SO11 B time 240s mine=mining,mining lumber=climb
+SO11 B cut worker 2 lease={["id"]="2-961",["park"]=false,["steps"]={[1]={["op"]="turnRight"}}}
+SO11 B cut worker 3 lease={["id"]="3-962",["park"]=false,["steps"]={[1]={["op"]="inspect"}}}
+SO11 B cut worker 4 lease={["id"]="4-959",["park"]=false,["recover"]=false,["steps"]={[1]={["op"]="digUp"},[2]={["op"]="up"}}}
+SO11 B power cut in lease.handlers.step.report at 240.15s
+SO11 B time 300s mine=mining,mining lumber=climb
+SO11 B time 360s mine=mining,mining lumber=climb
+SO11 B time 420s mine=mining,mining lumber=scan
+SO11 B time 480s mine=mining,mining lumber=scan
+SO11 B time 540s mine=ore,done lumber=base
+SO11 B time 600s mine=ore,done lumber=roundEnd
+SO11 B mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=48,["y"]=60,["z"]=-9} error=nil
+SO11 B mining 2 state=ore pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=18,["y"]=60,["z"]=-5} error=nil
+SO11 B lumber phase=roundEnd cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=2,["x"]=28,["y"]=64,["z"]=6}
+SO11 B summary dug cells=127 ores delivered=4 trees felled=3 logs=15 leases sent=1931 reports=1929
+SO11 B worker 2 recovery park=1s work=3.45s beacon=114.75s
+SO11 B worker 3 recovery park=1s work=10.45s beacon=115s
+SO11 B worker 4 recovery park=1s work=3.45s beacon=114.3s
+SO11 B display 5 recovery=1s
+SO11 B display 6 recovery=17s
+SO11 B interrupted report cells=1
+SO11 B elapsed 57 real seconds
+PASS SO11 B integration check 1
+PASS SO11 B integration check 2
+PASS SO11 B integration check 3
+PASS SO11 B integration check 4
+PASS SO11 B integration check 5
+PASS SO11 B integration check 6
+PASS SO11 B integration check 7
+286 tests passed
+PASS server modules share the shell program environment
+287 tests passed
+PASS Big Tiles visible navigation graph at 26x20
+PASS Big Tiles visible navigation graph at 29x12
+PASS Big Tiles visible navigation graph at 15x10
+PASS Big Tiles visible navigation graph at 36x10
+PASS Big Tiles visible navigation graph at 39x19
+PASS Big Tiles visible navigation graph at 51x19
+PASS Big Tiles visible navigation graph at 57x24
+PASS Big Tiles visible navigation graph at 82x40
+PASS Big Tiles visible navigation graph at 100x38
+PASS Big Tiles visible navigation graph at 164x81
+PASS drop editor remains clickable at 26x20
+PASS visible mining navigation at 26x20
+PASS visible lumber navigation at 26x20
+PASS visible shop navigation at 26x20
+PASS visible status navigation at 26x20
+PASS visible ar navigation at 26x20
+PASS drop editor remains clickable at 29x12
+PASS visible mining navigation at 29x12
+PASS visible lumber navigation at 29x12
+PASS visible shop navigation at 29x12
+PASS visible status navigation at 29x12
+PASS visible ar navigation at 29x12
+309 tests passed
+PASS display re-pairs after server key loss 26x20
+PASS display re-pairs after server key loss 29x12
+PASS forged display repair hint keeps valid key and authenticated frames recover
+PASS display wrong code then right code without reboot
+PASS display discovers a server that starts after boot
+PASS paired display boots before server and recovers after restart
+PASS display clears a no-server code and accepts another after discovery
+PASS display clears a timed-out code and accepts a new invitation
+PASS display echoes commands without covering buttons 26x20
+PASS display echoes commands without covering buttons 29x12
+319 tests passed
+PASS paged drop editor and typed input at 26x20
+PASS paged drop editor and typed input at 29x12
+PASS drop paging is independent between pocket and monitor
+322 tests passed
+PASS worker re-pairs with replaced server keys without losing the old key on failure
+PASS running idle worker notices server keys replaced after boot
+PASS worker ignores unrelated hints and retains valid keys on forged server hints
+PASS worker paired boot recovers without keyboard after server outage
+PASS worker unpaired code prompt keeps retrying discovery
+PASS worker accepts typed code after discovering a late server
+PASS server and display pair with a wired modem before wireless
+PASS server opens a wireless modem attached after boot and after detach
+PASS display opens a wireless modem attached after boot and after detach
+PASS server boots without modems and pairs after a wireless attachment
+PASS hostname collision keeps server running and identifies the other host
+PASS paired display boots with other host and uses its saved server
+PASS paired display boots with no host and uses its saved server
+PASS paired display boots with backup keys and uses its saved server
+336 tests passed
+PASS checkpoint retains only the two usable snapshots
+PASS startup removes stale snapshot generations
+PASS startup cleanup resumes after interrupted stale-file deletion
+PASS previous snapshot still loads after pruning
+PASS partial snapshot and pointer writes preserve the published state
+PASS snapshot pruning survives power loss at every disk mutation
+342 tests passed
+PASS mine supply follows shaft and spine facing 0
+PASS mine supply follows shaft and spine facing 1
+PASS mine supply follows shaft and spine facing 2
+PASS mine supply follows shaft and spine facing 3
+PASS mine supply retraces dug vein cells before entering the branch
+PASS mine supply leaves an unfinished shaft upward and refuses a chest in the corridor
+PASS mine supply bounds an unknown vein search and reuses known access
+PASS mine long supply passes reserve the shared corridor without yielding
+350 tests passed
+PASS space precheck changes no files and the same store retries
+PASS space precheck leaves recovered temporary and backup sources untouched
+PASS store retries after a failure at every save mutation
+PASS a partial first save retries on the same store
+PASS logging resumes after nearly full disk is freed without reboot
+355 tests passed
+PASS unload without a chest keeps the turtle inventory
+PASS transfers require inventories on each side and preserve counts
+357 tests passed
+PASS parked worker stays put and beacons through a twenty minute outage
+PASS worker interrupted during work still reverses its moves
+359 tests passed
+PASS reboot resolves a finite-fuel move that did not happen
+PASS reboot reports an interrupted turn without guessing when it did not happen
+PASS GPS resolves an unlimited-fuel move that did not happen
+PASS reboot resolves a finite-fuel move that happened
+PASS reboot reports an interrupted turn without guessing when it happened
+PASS GPS resolves an unlimited-fuel move that happened
+PASS legacy pending move without evidence reports uncertainty
+366 tests passed
+PASS mine add reanchors an uncertain turn that did not run
+PASS mine add reanchors an uncertain turn that ran
+PASS lumber add reanchors an uncertain turn that did not run
+PASS lumber add reanchors an uncertain turn that ran
+370 tests passed
+PASS lumber stops after three failed base digs and names start on screen
+PASS lumber reserves fuel for the actual chest distance
+PASS lumber clears junk when all inventory slots contain apples
+PASS lumber stops after failed travel movement despite successful inspections
+PASS lumber stops after failed ascent digs and moves
+PASS lumber drops excess saplings but keeps one for each known spot
+PASS lumber unloads a full log inventory during a climb
+PASS lumber clears a single junk stack at the end of a round
+378 tests passed
+PASS mining refuses start at 80% and resumes below it on 26x20
+PASS lumber refuses start at 80% and resumes below it on 26x20
+PASS mining refuses start at 80% and resumes below it on 29x12
+PASS lumber refuses start at 80% and resumes below it on 29x12
+PASS lumber counts only successful log drops
+PASS lumber holds without delivery credit when worker reports no inventory
+PASS lumber marks failed wood inspections broken without counting lost logs
+PASS lumber checks fuel chest before taking supplies
+PASS lumber checks saplings chest before taking supplies
+PASS lumber rechecks supply service saved before inspection support
+PASS lumber takes supplies after a successful inspection and clears strikes
+PASS lumber registers sapling chest for inspection failures
+390 tests passed
+PASS tick-stall: a bulk cells call in a handler keeps the tick timer and later messages
+PASS tick-stall: server modules never call sleep
+PASS tick-stall: the server rearms ticks after a handler swallows its timer
+393 tests passed
+PASS mine-done-return: a finished miner recovered away from its branch end returns there
+394 tests passed
+PASS lumber travel refuses saplings and propagules
+PASS lumber service flight front height 2
+PASS lumber service flight front height 7
+PASS lumber service flight down height 2
+PASS lumber service flight down height 7
+PASS lumber service does not dig an unknown log base
+PASS lumber return protects minecraft:oak_sapling
+PASS lumber return protects minecraft:mangrove_propagule
+PASS lumber return protects minecraft:oak_log
+PASS lumber failed send releases reservations and parks
+PASS lumber parks after pre-send failure unavailable
+PASS lumber parks after pre-send failure held
+PASS lumber parks after pre-send failure range
+PASS lumber replacement waits for old lease and confirmed park
+PASS lumber replacement retains a turtle whose park report expired
+PASS lumber replacement refuses an external open lease
+410 tests passed
+PASS generic frames keep revisions per client size and page
+PASS shop search clears through drawn controls at 26x20
+PASS shop search clears through drawn controls at 29x12
+PASS shop searches belong to each display and dead rooms are rediscovered
+PASS shop DNS answers do not substitute for stock and valid stock renews discovery
+PASS AR clears old boot elements once and expires retained alerts
+416 tests passed
+PASS mine requires home and clears command errors
+PASS mine start fails closed without its disk guard
+PASS mine removes an unloaded recovery holder and releases reservations
+PASS mine refuses removal with actual movement or another owner's lease
+PASS mine clears a stale lane waiter during recovery and supports saved home
+PASS discard drops only the requested junk count into open cells on every side
+PASS discard refuses solid blocks, liquids and inventories on every side
+PASS discard accepts inspected air but still refuses an inventory reporting air
+PASS discard keeps items when inspection cannot establish an empty cell
+PASS discard defaults down and rejects unknown sides without dropping
+426 tests passed
+PASS mine-underground: a worker re-added on the spine after a restart mines its new branch
+PASS mine-underground: a worker in a side cell after a restart still plans and refuels
+PASS mine-underground: a finished branch is counted once across restarts
+429 tests passed
+PASS dug bitset: full and sparse sections survive save and reload within 2 KB
+PASS dug bitset: legacy generations migrate without losing negative or dimension cells
+PASS dug bitset: interrupted migration recovers the newest valid generation
+432 tests passed
+PASS dug retirement: crossing 1 MB only requests consent, then allow retires oldest first
+PASS dug retirement: finish lossless migration before asking to forget anything
+PASS dug retirement: keep survives reboot and asks again only after 50 percent growth
+PASS dug retirement: running job areas, open leases, reservations and recovery history stay protected
+PASS dug retirement: approval rechecks reservations and accesses without expanding the offer
+PASS dug retirement: uncertain protection blocks requests and later approvals
+PASS dug retirement: failed consent saves and interrupted deletion never authorize extra pruning
+PASS dug retirement: persisted reads make a section newer than untouched sections
+PASS dug consent: drawn allow on generic at 26x20
+PASS dug consent: drawn keep on generic at 26x20
+PASS dug consent: drawn allow on status at 26x20
+PASS dug consent: drawn keep on status at 26x20
+PASS dug consent: drawn allow on mining at 26x20
+PASS dug consent: drawn keep on mining at 26x20
+PASS dug consent: drawn allow on lumber at 26x20
+PASS dug consent: drawn keep on lumber at 26x20
+PASS dug consent: drawn allow on shop at 26x20
+PASS dug consent: drawn keep on shop at 26x20
+PASS dug consent: drawn allow on ar at 26x20
+PASS dug consent: drawn keep on ar at 26x20
+PASS dug consent: drawn allow on generic at 29x12
+PASS dug consent: drawn keep on generic at 29x12
+PASS dug consent: drawn allow on status at 29x12
+PASS dug consent: drawn keep on status at 29x12
+PASS dug consent: drawn allow on mining at 29x12
+PASS dug consent: drawn keep on mining at 29x12
+PASS dug consent: drawn allow on lumber at 29x12
+PASS dug consent: drawn keep on lumber at 29x12
+PASS dug consent: drawn allow on shop at 29x12
+PASS dug consent: drawn keep on shop at 29x12
+PASS dug consent: drawn allow on ar at 29x12
+PASS dug consent: drawn keep on ar at 29x12
+PASS dug consent: only the current drawn button coordinates can authorize retirement
+PASS dug consent: all displays see the same decision and AR keeps the pending alert
+PASS dug retirement: mining re-inspects a forgotten cell and counts its interrupted dig once
+PASS dug retirement: forgotten tunnel facts cannot bypass inspection on a later job
+468 tests passed
+PASS UI0 old and compact frames draw identical cells and tall buttons hit their rectangle
+PASS UI0 kit frames keep last-row navigation after a duplicate resize
+PASS UI0 three-row buttons include every row and exclude adjacent cells
+PASS UI0 palette and scale send exactly one resized hello and restore stock colours
+UI0 tiled frame body 6834 bytes
+PASS UI0 tiled 164x81 frame fits the real serializer without losing cells
+PASS UI0 far persists beside roles and a failed save leaves scale unchanged
+PASS UI0 outage matches the fixture without a server and retries continue
+PASS UI0 stale repaint preserves inverted digits and button labels
+PASS UI0 capture round-trips every spec glyph including inverted sextants
+PASS UI0 generator preserves section 7.1 and reproduces every fixture
+478 tests passed
+PASS UI1 font decodes all nine cells of every spec glyph
+PASS UI1 status matches all size fixtures in both layers
+PASS UI1 takeover matches alert fixture
+PASS UI1 contrast respects ink including inverted glyph cells
+PASS UI1 odd sizes and blocks stay inside the canvas
+PASS UI1 gathering reads real sources and leaves unsupported totals stale
+PASS UI1 roleless machine rows count turtles, open leases and lost workers
+PASS UI1 takeover expires at five seconds, dismisses and throttles per session
+PASS UI1 subscribed frames retain all rows and expire takeovers on tick
+PASS UI1 latest changed alert wins and frames fit the wire budget
+PASS UI1 XS cycles tiles and status buttons select their roles
+PASS UI1 old renderers receive size and revisions remain independent
+PASS UI1 kit installs only on the server
+491 tests passed
+PASS UI2a mining mockup matches both fixture layers
+PASS UI2a text commands retain job effects on both pages
+PASS UI2a buttons share start and stop commands and save once per tap
+PASS UI2a setup navigation and every size keep bounds and contrast
+PASS UI2a gather uses mining facts and leaves daily ore stale
+PASS UI2a compact mining keeps full worker coordinates at 26x20
+PASS UI2a compact mining keeps full worker coordinates at 29x12
+498 tests passed
+PASS UI2c shop and order pages match unchanged M fixtures
+PASS UI2c one order tap sends once and renders send nothing
+PASS UI2c paging visits every item once and clamps at both ends
+PASS UI2c all sizes keep both pages inside bounds with readable contrast
+PASS UI2c gathering uses stock and history and keeps discovery visible
+503 tests passed
+PASS UI2b lumber matches the unchanged M fixture
+PASS UI2b setup and back render within every size with spec contrast
+PASS UI2b start and stop taps use the text commands once per tap including refusals
+PASS UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+PASS UI2b every text command retains configuration and refusal behavior
+PASS UI2b gather keeps missing timers and daily counters stale
+509 tests passed
+PASS UI2d drops and AR match M mockups cell by cell
+PASS UI2d selected drop actions and draft editor preserve stored points
+PASS UI2d drop paging exposes all points without overlapping controls
+PASS UI2d AR tile toggles once and survives reload
+PASS UI2d layouts fit all sizes and respect contrast
+PASS UI2d status returns from every role and generic keeps header clear
+515 tests passed
+PASS UI3a normal and pairing match unchanged fixtures
+PASS UI3a keys, expiry, used codes, bounded log and timer-only redraw
+PASS UI3a display tick paints the terminal with uptime and palette
+PASS UI3a monitor discovers at most every five seconds and navigates locally
+519 tests passed
+PASS UI3c turtle labels and twelve box edges use known state colours
+PASS UI3c lease owners have one blue outline and drops have uppercase labels
+PASS UI3c AR frame with 200 reservations does not sleep or yield
+PASS UI3c HUD has three forty pixel tiles with backing and four pixel bars
+PASS UI3c alert banner expires after five seconds and retains the HUD count
+PASS UI3c repeated history alerts renew the banner without changing the count
+PASS UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+526 tests passed
+PASS UI3b roleless pockets default to status and glance matches all twenty fixture rows
+PASS UI3b explicit generic selection survives a display module restart at both compact sizes
+PASS UI3b client input height keeps full Big Tiles pocket navigation
+PASS UI3b glance pages cover all tiles independently and wrap both ways
+PASS UI3b panel fixture matches and controls dispatch once per tap
+PASS UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast
+PASS UI3b missing modules have disabled blocks and no action targets
+PASS UI3b real mining and lumber inputs save once per control tap
+PASS UI3b real shop orders the best match exactly once for each quantity
+PASS UI3b monitor role persists and subscribed revisions stay per panel session
+PASS UI3b alert list pages through all state alerts and pairing help returns
+PASS UI3b partial installs without the kit keep the legacy role picker
+PASS UI3b custom generic headers stay clear when panel is not loaded
+PASS UI3b server local monitor panel forwards controls once
+PASS UI3b panel installs only on the server
+541 tests passed
+PASS UI5b MORE navigation switches only the tapped display once
+542 tests passed
+PASS UI5a Amsterdam clock covers both 2026 DST boundaries and midnight
+FAIL UI5a status shop panel and server log use Amsterdam time
+  tests/ui/ui5a.lua:100: assertion failed!
+PASS UI5a daily totals window copies midnight and saved cursor survive restart
+PASS UI5a real state history and daily store recover together from disk
+PASS UI5a ten thousand pending events consume only one bounded page without a yield
+PASS UI5a status mining and lumber show daily counters and stale fallback
+PASS UI5a daily module installs only on the server
+548 tests passed, 1 FAILED

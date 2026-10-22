@@ -1,0 +1,15 @@
+e2419a51cb4cbae9a7ce00c823fe475e6a2e3264
+0dcec246e1388a9207024d6dbb177ca194e9d4b8
+Lua syntax: 7 map-only changed Lua files
+PASS luac5.2 -p
+install.lua        37 locals (deepest at function line 186) ok
+so-mod-display.lua   30 locals (deepest at function line 182) ok
+so-mod-lumber.lua   34 locals (deepest at function line 288) ok
+so-mod-map.lua     56 locals (deepest at function line 76) ok
+so-mod-mine.lua    64 locals (deepest at function line 786) ok
+run.lua            37 locals (deepest at function line 381) ok
+map.lua            32 locals (deepest at function line 287) ok
+PASS tests/run.lua append-only (3 new lines)
+PASS no test file deleted
+PASS check-scope
+PASS whitespace check with fixed-width fixture padding allowed

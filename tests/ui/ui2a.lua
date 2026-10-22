@@ -39,6 +39,22 @@ return function(test,equal)
     local diff=R.diff('tests/ui/fixtures/mining-M.txt',capture(s.layout(m,57,24),57,24))
     assert(#diff==0,table.concat(diff,'\n'))
   end)
+  test('UI2a setup stays on the display that pressed its drawn button',function()
+    local s=setup();local a,b={},{}
+    local main=s.render(57,24,b)
+    local function press(session,id)
+      local button
+      for _,v in ipairs(s.render(57,24,session).buttons) do if v.id==id then button=v end end
+      assert(button,'missing mining button '..id)
+      s.input({id=id,x=button.x,y=button.y,session=session})
+    end
+    press(a,'setup')
+    assert(capture(s.render(57,24,a),57,24).picture().text[2]:find('SETUP',1,true))
+    equal(s.render(57,24,b),main)
+    equal(s.render(57,24),main)
+    press(a,'mine-back');equal(s.render(57,24,a),main)
+    equal(s.saves(),0)
+  end)
   test('UI2a text commands retain job effects on both pages',function()
     for _,page in ipairs({'main','setup'}) do
       local s=setup();if page=='setup' then s.input({id='setup'}) end
@@ -66,7 +82,7 @@ return function(test,equal)
         s.input({id=setupPage and 'setup' or 'mine-back'})
         local w,h=unpack(size);local f=s.render(w,h);local out=capture(f,w,h)
         if #f.buttons>0 then equal(f.buttons[#f.buttons].id,setupPage and 'mine-back' or 'status') end
-        if w==57 then assert(out.picture().text[1]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
+        if w==57 then assert(out.picture().text[2]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
           local fg,bg=cell[2],cell[3]
           if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
@@ -85,4 +101,14 @@ return function(test,equal)
     equal(m.tiles[4][2],'1');equal(m.tiles[5][2],'640');equal(m.tiles[5][3],'#3')
     equal(m.turtles[2].stripe,'1');equal(m.turtles[3].stripe,'e');equal(m.alert,'ore chest full')
   end)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    test('UI2a compact mining keeps full worker coordinates at '..size[1]..'x'..size[2],function()
+      local s=setup()
+      s.job.turtles={['2']={state='mining',pose={x=-5,y=64,z=-123},fuel=812,ores=14},
+        ['3']={state='wait lane',pose={x=-7,y=64,z=456},fuel=640,ores=9}}
+      local text=table.concat(capture(s.render(size[1],size[2]),size[1],size[2]).picture().text,'\n')
+      for _,pos in ipairs({'-5,64,-123','-7,64,456'}) do assert(text:find(pos,1,true),'clipped '..pos) end
+    end)
+  end
+
 end

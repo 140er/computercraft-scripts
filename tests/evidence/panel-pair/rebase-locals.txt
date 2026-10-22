@@ -1,0 +1,5 @@
+so-server.lua      44 locals (deepest at function line 41) ok
+so-mod-panel.lua   20 locals (deepest at function line 67) ok
+run.lua            37 locals (deepest at function line 381) ok
+ui3b.lua           37 locals (deepest at function line 206) ok
+panel-pair.lua     42 locals (deepest at function line 180) ok

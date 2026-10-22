@@ -1,6 +1,6 @@
 26x20 Pocket, panel mode
- PANEL              22:14 
                           
+ PANEL  MORE        22:14 
  MINING   stopped         
                           
    START         STOP     
@@ -19,8 +19,8 @@
                           
                           
  GLANCE  ALERTS  PAIR     
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 999999999999feeeeeeeeeeeee
 999999999999feeeeeeeeeeeee

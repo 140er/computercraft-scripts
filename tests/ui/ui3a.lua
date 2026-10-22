@@ -4,7 +4,7 @@ local function setup()
   local env = setmetatable({}, {__index=_G})
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.fs = {getCapacity=function() return 16000000 end,getFreeSpace=function() return 13900000 end}
-  env.SO = {mods={},proto=dofile("so-proto.lua"),store={store=function()
+  env.SO = {mods={},proto=dofile("so-proto.lua"),store={copy=function(v) local t={} for k,x in pairs(v) do t[k]=x end return t end,store=function()
     return {value={roles={}},save=function() error("local navigation saved") end}
   end},pair={key=function() error("local monitor used rednet") end}}
   env.peripheral = {find=function() s.finds=s.finds+1; return s.monitor end,getName=function() return "left" end}
@@ -118,9 +118,52 @@ return function(test,equal)
     s.env.SO.terminal={id=1,started=0,mode="normal",log={"retained server message"}}
     s.now=11520000;s.display.tick(s.now)
     local picture=s.env.term.picture()
-    assert(picture.text[1]:find("up 3h12",1,true))
+    assert(picture.text[2]:find("up 3h12",1,true))
     assert(table.concat(picture.text,"\n"):find("retained server message",1,true))
     equal(s.env.term.palette[2^9][1],s.display.palette[9])
+  end)
+  test("UI3a local monitor answers drawn dug consent buttons once",function()
+    for _,choice in ipairs({"allow","keep"}) do
+      local s=setup();local decisions={}
+      local notice={id="request-1",status="pending",text="Choose allow or keep"}
+      s.env.SO.mods.cells={retirement=function() return notice end,
+        decideRetirement=function(token,value)
+          decisions[#decisions+1]={token,value}
+          notice={id=token,status="kept",text="Decision saved"}
+        end}
+      s.monitor=R.capture(57,24);s.monitor.setTextScale=function() end
+      s.display.tick(0)
+      local d
+      for i=1,20 do local name,value=debug.getupvalue(s.display.tick,i);if name=="D" then d=value end end
+      assert(d and d.monitor)
+      local button
+      for _,b in ipairs(d.monitor.frame.buttons) do
+        if b.id=="dug."..choice.."/request-1" then button=b end
+      end
+      assert(button,"missing drawn consent button")
+      s.display.monitorTouch("left",button.x,button.y)
+      equal(#decisions,0)
+      s.display.tick(1)
+      equal(decisions,{{"request-1",choice}})
+      s.display.tick(2);equal(#decisions,1)
+      assert(s.monitor.picture().text[1]:find("Decision saved",1,true))
+    end
+  end)
+  test("UI3a local monitor rejects a queued stale consent button",function()
+    local s=setup();local decisions=0
+    local notice={id="request-1",status="pending",text="Choose allow or keep"}
+    s.env.SO.mods.cells={retirement=function() return notice end,
+      decideRetirement=function() decisions=decisions+1 end}
+    s.monitor=R.capture(57,24);s.monitor.setTextScale=function() end
+    s.display.tick(0)
+    local d
+    for i=1,20 do local name,value=debug.getupvalue(s.display.tick,i);if name=="D" then d=value end end
+    local button
+    for _,b in ipairs(assert(d.monitor).frame.buttons) do if b.id=="dug.allow/request-1" then button=b end end
+    assert(button,"missing drawn consent button")
+    s.display.monitorTouch("left",button.x,button.y)
+    notice={id="request-2",status="pending",text="Choose allow or keep"}
+    s.display.tick(1);equal(decisions,0)
   end)
   test("UI3a monitor discovers at most every five seconds and navigates locally",function()
     local s=setup()
@@ -129,7 +172,7 @@ return function(test,equal)
     s.monitor.setTextScale=function(scale) equal(scale,0.5) end
     s.now=4999;s.display.tick(s.now);equal(s.finds,1)
     s.now=5000;s.display.tick(s.now);equal(s.finds,2)
-    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
     local U=dofile("so-ui.lua")
     local mining
     local tiles={}
@@ -146,13 +189,13 @@ return function(test,equal)
     end,function() inputs=inputs+1 end)
     s.display.monitorTouch("right",mining.x,mining.y)
     s.now=5500;s.display.tick(s.now)
-    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
     s.display.monitorTouch("left",mining.x,mining.y)
-    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
     s.now=6000;s.display.tick(s.now)
-    assert(s.monitor.picture().text[1]:find("MINING",1,true))
+    assert(s.monitor.picture().text[2]:find("MINING",1,true))
     s.display.monitorTouch("left",1,22);s.now=7000;s.display.tick(s.now)
-    assert(s.monitor.picture().text[1]:find("STATUS",1,true));equal(inputs,1)
+    assert(s.monitor.picture().text[2]:find("STATUS",1,true));equal(inputs,1)
     s.monitor=nil;s.now=10000;s.display.tick(s.now)
   end)
 end

@@ -102,7 +102,7 @@ C.send = function(kind, body)
 end
 
 C.sendHello = function()
-  local body = { w = C.w, h = C.h >= 3 and C.h - 1 or C.h, fullH = C.h }
+  local body = { w = C.w, h = C.h >= 3 and C.h - 1 or C.h, fullH = C.h, keyboard = not C.monitor }
   local label = os.getComputerLabel()
   if type(label) == "string" and label ~= "" then body.label = label end
   C.send("hello", body)

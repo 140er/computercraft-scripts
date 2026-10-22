@@ -1,0 +1,6 @@
+PASS UI2d drops and AR match M mockups cell by cell
+PASS UI2d selected drop actions and draft editor preserve stored points
+PASS UI2d drop paging exposes all points without overlapping controls
+PASS UI2d AR tile toggles once and survives reload
+PASS UI2d layouts fit all sizes and respect contrast
+PASS UI2d status returns from every role and generic keeps header clear

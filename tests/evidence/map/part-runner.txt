@@ -1,0 +1,5 @@
+Command: cc-test --part map --lua-only
+Could not start on this frozen branch. tools/test_parts.py and scripts/test-emulator are absent.
+ModuleNotFoundError: No module named 'test_parts'
+Focused checks used timeout 50s lua5.2 /tmp/map-focused.lua with the real harness and modules instead.
+No version-matched emulator or gameplay result is claimed.
