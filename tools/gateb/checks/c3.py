@@ -50,7 +50,9 @@ def run(ctx):
         single_order = ctx.count_items("storage_output", "diamond") - before_order == 1
         ctx.navigate("pocket", "generic")
         ctx.power("pocket", "reboot")
-        survived = ctx.wait(lambda: ctx.frame("pocket").get("role") == "generic", 30)
+        survived = ctx.wait(lambda: ctx.lua("pocket", 'return GATEB_FRAME and GATEB_FRAME.role') == "generic", 30)
+        ctx.record("C3-pocket-reboot-frame.json", ctx.frame("pocket"))
+        ctx.screenshot("C3-client-after.png")
         return evaluate(ctx.record("C3-observations.json", {"all_screens_reached": all(reached),
              "setups_and_returns": all(setups), "generic_survives_reboot": bool(survived),
              "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": all(photos) if len(photos) == 14 else None}))
