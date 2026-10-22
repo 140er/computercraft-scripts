@@ -3,7 +3,7 @@ if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua"
 local P = { screens = {}, states = {}, alerts = {} }
 
 P.now = function() return os.epoch("utc") end
-P.time = function() return os.date("!%H:%M", math.floor(P.now() / 1000)) end
+P.time = function() return U and U.clock(P.now()).hm or "" end
 
 P.refresh = function()
   local display = SO.mods.display

@@ -63,8 +63,12 @@ and listeners use `listener(sender, message)`.
   and `distance(a, b)`.
 
 - [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
-  `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
+  `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
   `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
+  with EU summer time between the last Sundays of March and October at 01:00 UTC.
+  Status, stock samples, panel headers and new terminal log lines use this clock.
+  Durations keep their elapsed-time formats.
   `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
   columns and a tile-row count. Glyph returns three blit rows with inverted cells.
   Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
@@ -87,6 +91,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and `notify` for views, and `from`, `count` or `limit` for history.
   No wire handlers. Built-in views are `fleet`, `turtle/<id>`, `log` and `status`.
   See [state](server-only/PROTOCOL.md#state).
+- [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
+  and `lumber.logs` events from one history page of at most 50 entries per tick.
+  `today()` returns a copy of `{ date, ore, oreByName, oreRecent, logs }`.
+  Days use Amsterdam midnight and `oreRecent` covers `(now - 600000, now]`.
+  Counts and the last consumed sequence save together once a minute and on
+  day changes. Restart replays events after that cursor. No wire handlers.
+  See [daily](server-only/PROTOCOL.md#daily).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
   `status(id)`, `inRange(id, pos)` and `tick(now)`.
@@ -141,7 +152,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   glance row pages three tiles at a time with `prev` and `next`; `panel` selects
   panel mode. Explicit saved roles take precedence. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
-  Ore and log totals have no source and use stale tiles. A missing kit retains
+  Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
+  A missing kit retains
   the legacy status renderer for older partial installations.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
@@ -170,8 +182,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Mining uses Big Tiles with START, STOP, SETUP and BACK. SETUP has a local
-  BACK button; typed commands work on both pages. Daily ore totals have no
-  source and use a stale tile. Missing kits retain the legacy renderer.
+  BACK button; typed commands work on both pages. Daily ore totals and the top
+  two ore names come from `daily.today()`, with a stale tile when missing.
+  Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   New jobs default to `ores = {}`, which accepts all ores. Completed routes
@@ -196,7 +209,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
   the text command path. SETUP pages configuration commands; its BACK returns
   to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
-  Logs are delivered totals, not daily totals. Calls without a size retain
+  Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
+  tile when missing. Calls without a size retain
   the legacy rows for older callers.
   Restart recovery sends a stationary park using the saved frame without a
   volatile lease pose or range proof. Its report rebuilds the world pose before
@@ -245,8 +259,8 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
 - Worker adds `worker.lua`. Only turtles install this role.
 - Display adds `display.lua`. Pockets install this role. Computers can choose it.
 - Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
-  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua` and `so-mod-panel.lua`.
-  Current modules are ar, cells, display, drops, lease, lumber, mine, panel, shop and
+  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`, `so-mod-daily.lua` and `so-mod-panel.lua`.
+  Current modules are ar, cells, daily, display, drops, lease, lumber, mine, panel, shop and
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
 
@@ -343,6 +357,9 @@ blocks later saves until restart. Do not save inside tight loops.
 - `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
   Roles include `panel`. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
+- `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+  Recent ore uses UTC-second buckets `{ total, counts = { [epochMs] = count } }`.
+  Bucket keys and timestamp keys are decimal strings. Only the server installs it.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
@@ -427,6 +444,13 @@ UI-3b adds `tests/ui/ui3b.lua`. It checks unchanged status-P and panel-P fixture
 on all 20 rows, per-pocket paging and search, action forwarding, real shop orders,
 monitor layout, session revisions, role persistence, alert paging, pairing help,
 missing modules, contrast, bounds and server-only installation.
+
+UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
+clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
+history work, stale fallbacks and server-only installation. `lumber-M.txt` now
+shows a stale daily tile because its fixture setup has no daily module.
+`panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
+
 
 ## Open gaps
 

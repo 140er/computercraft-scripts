@@ -282,6 +282,24 @@ When the disk is 80% full or more, `status` raises the disk alert and new jobs a
 
 SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, and `input`. SO6 owns wire `history.page`.
 
+### daily
+
+`so-mod-daily.lua` is server-only. `daily.today()` returns a copied
+`{ date, ore, oreByName, oreRecent, logs }`. `oreByName` maps full item names
+to counts. `oreRecent` counts events in `(now - 600000, now]` from today's ore.
+`tick(now)` consumes at most one 50-entry state history page without waiting.
+It counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by
+event timestamp, ignores other days, and resets totals at Amsterdam midnight.
+
+The store `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+`cursor` is the last consumed sequence, including ignored events. `recent`
+maps decimal UTC seconds to `{ total, counts }`; `counts` maps decimal UTC
+milliseconds to ore counts. At most 601 second buckets remain. Counts and
+cursor save together at most once a minute, plus on a day change. A restart
+replays retained history after the saved cursor. Events already removed by
+state history retention cannot be reconstructed. There are no new wire types.
+
+
 ### lease
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
@@ -465,7 +483,7 @@ also stay per session. Every status frame carries the Big Tiles palette and that
 may ignore the size arguments. Older partial installs without `so-ui.lua` retain
 the legacy status renderer.
 
-The server-only `so-ui.lua` kit exports `palette`, `font`, `size(w, h)`,
+The server-only `so-ui.lua` kit exports `palette`, `font`, `clock(epochMs)`, `size(w, h)`,
 `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
 `status(model, w, h)` and `alert(model, w, h)`. Sizes are P, T, M, L, XS or
 `generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
@@ -477,6 +495,14 @@ Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
 `listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
 Frame returns compact runs, buttons with height and the palette.
 
+`so-ui.clock(epochMs)` returns `{ h, m, s, date, hm, hms }` in Amsterdam time.
+`date` is `YYYY-MM-DD`; `hm` and `hms` are zero-padded. UTC+1 becomes UTC+2
+on the last Sunday in March at 01:00 UTC, and returns to UTC+1 on the last
+Sunday in October at 01:00 UTC. Conversion uses Gregorian calendar arithmetic and
+does not depend on the host time zone. Status and panel headers, shop stock
+sample times, and new terminal log timestamps use this clock. Every new log
+line starts with `hh:mm:ss ` before the message. Durations are unchanged.
+
 The pure status layout takes `model.tiles`, ordered turtles, leases, alerts,
 ore, logs, disk, displays, drops and pairing. Each tile is
 `{ label, value, sub, bg }`. The model also has `time`, optional `alert`,
@@ -485,7 +511,10 @@ Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
 the count to the length of `alerts`. Gathering stays in display handler and tick
 paths. It reads state view `.alert` keys, registered worker machines, lease
 status, drop points, display sessions and the server root disk. Ore and log
-totals have no source and show `-` on stale tiles.
+totals come from `daily.today()`, with `-` on stale tiles when unavailable.
+Ore shows `+N last 10 min` in blue; logs show `logs delivered` in green.
+Mining shows the daily ore total and its two largest item counts, ordered by
+count descending then name ascending, with short names. Lumber shows daily logs.
 
 Alert identity is the state key plus its serialized value. Each display sees
 at most one takeover for each identity and at most one in 30 seconds. The

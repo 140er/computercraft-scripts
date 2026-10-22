@@ -7,16 +7,20 @@ if type(cap) ~= "number" or cap < MIN then
 end
 
 local S = { log = {}, output = print }
+local clockOk, clock = pcall(dofile, "so-ui.lua")
+if clockOk then S.ui = clock end
 print = function(...)
   if not term or not term.blit then S.output(...) end
   local parts = {}
   for i = 1,select("#",...) do parts[i]=tostring(select(i,...)) end
   local text = table.concat(parts,"\t")
   for line in (text.."\n"):gmatch("(.-)\n") do
+    local prefix = S.ui and (S.ui.clock(os.epoch("utc")).hms .. " ") or ""
+    local width = 4096 - #prefix
     repeat
-      S.log[#S.log+1]=line:sub(1,4096)
+      S.log[#S.log+1]=prefix .. line:sub(1,width)
       if #S.log > 200 then table.remove(S.log,1) end
-      line=line:sub(4097)
+      line=line:sub(width+1)
     until line == ""
   end
 end

@@ -242,7 +242,7 @@ D.register = function(role, render, input)
 end
 
 D.gather = function()
-  local model = { time = os.date and os.date("!%H:%M", math.floor(D.now() / 1000)) or "",
+  local model = { time = U and U.clock(D.now()).hm or "",
     alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
   local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
   local view = {}
@@ -296,17 +296,20 @@ D.gather = function()
   local disk = ratio and tostring(math.floor(ratio*100)) .. "%" or "-"
   local diskSub = ratio and string.format("%.1f of %.0f MB",(capacity-free)/1000000,capacity/1000000) or "no source"
   model.okShort, model.lostShort = tostring(turtles-lost) .. " ok", tostring(lost) .. " lost"
+  local daily = SO.mods.daily
+  local today = daily and type(daily.today) == "function" and daily.today()
   model.tiles = {
     {label="TURTLES",value=tostring(turtles),sub=model.okShort .. ", " .. model.lostShort,bg=lost > 0 and "e" or "d"},
     {label="LEASES",value=tostring(leases),sub="open now",bg="b"},
     {label="ALERTS",value=tostring(#model.alerts),sub=model.alert or "none",bg=#model.alerts > 0 and "e" or "d"},
-    {label="ORE TODAY",value="-",sub="no source",bg="c"},
-    {label="LOGS TODAY",value="-",sub="no source",bg="c"},
+    {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent .. " last 10 min") or "no source",bg=today and "b" or "c"},
+    {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "logs delivered" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=ratio and (ratio >= 0.8 and "e" or "d") or "c"},
     {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
     {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
     {label="PAIR",value="",sub="press P on server",bg="9"},
   }
+  model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
   return model

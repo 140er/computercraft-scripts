@@ -546,6 +546,8 @@ end
 
 S.gather = function()
   local j, known, ready = S.job, 0, 0
+  local daily = S.module("daily")
+  local today = type(daily.today) == "function" and daily.today()
   local now = os.epoch("utc")
   for _, spot in pairs(j.spots) do
     known = known + 1
@@ -568,7 +570,7 @@ S.gather = function()
     },
     tiles = {
       {"TREES READY", tostring(ready), "of " .. known .. " spots", "d"},
-      {"LOGS TODAY", tostring(j.logs or 0), "to wood chest", "b"},
+      {"LOGS TODAY", today and tostring(today.logs) or "-", today and "logs delivered" or "no daily source", today and "d" or "c"},
       {"SAPLINGS", tostring(saplings), saplings == 0 and "chest empty" or "carried", saplings == 0 and "e" or "d"},
       {"TURTLE", j.turtle and tostring(j.turtle.id) or "-", j.phase or "-", j.turtle and "d" or "c"},
       {"FUEL", tostring(j.fuel or "-"), type(j.fuel) == "number" and (j.fuel < 80 and "low" or "ok") or "no source", j.fuel and (type(j.fuel) == "number" and j.fuel < 80 and "1" or "d") or "c"},
