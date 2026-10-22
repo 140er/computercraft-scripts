@@ -32,8 +32,10 @@ globals, asynchronous cancellation, process ownership and admission boundaries.
 Python compilation, Lua syntax, Cobalt locals and scope checks pass.
 
 The first plain cc-test run lost its Windows connection with exit 125. The
-retry's terminal result was lost when the agent turn was interrupted. A further
-plain run is being saved to `~/work/gateb-runtime2/evidence/cc-test.log`.
+retry's terminal result was lost when the agent turn was interrupted. The final
+plain run selected local-2 and passed all 617 tests with exit 0. Its complete
+log is saved at `~/work/gateb-runtime2/evidence/cc-test.log`; the final output
+is also retained in `full-suite.txt`.
 
 Native HTTP installation and interruption, three or four concurrent worlds,
 CraftOS-PC sandbox screenshots, and Xvfb/client crash recovery were not exercised
