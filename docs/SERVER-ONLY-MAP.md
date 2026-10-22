@@ -60,7 +60,11 @@ and listeners use `listener(sender, message)`.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
   `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
-  and `distance(a, b)`.
+  and `distance(a, b)`. `access` takes the chest's own coordinates. For `front`,
+  it chooses the nearest unblocked horizontal neighbour by Manhattan distance
+  and faces the chest. Ties use north, east, south, west order. For `down`,
+  it uses the cell directly above the chest. It returns nil if all candidates
+  are blocked. The lumber caller supplies the known-obstacle checks.
 
 ### Server modules
 
@@ -99,6 +103,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
   `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
+  Points use the chest's own coordinates. `front` accesses it from beside it
+  at the same height; `down` accesses it from directly above.
   Handler `drops.edit` edits points. Tick registers the generic screen.
   The editor pages points to fit below navigation, reserves the bottom input row,
   and accepts typed coordinates or `add kind x y z [side] [dim]`.

@@ -74,7 +74,9 @@ to save it. Existing points have `fix` and `remove` buttons. Use `prev` and
 with the bottom row left for typed input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
 Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
--1 Nether, 1 End. Use the chest's block coordinates.
+-1 Nether, 1 End. Set each drop point to the chest's own coordinates. With
+`front`, the turtle stands beside the chest at the same height and faces it.
+With `down`, it stands directly above the chest. Leave the access cell clear.
 
 On the generic screen, type `1250 64 -900` and press Enter to set the draft,
 then tap `add`. Type `-1 1250 64 -900` to also set the dimension. To add
@@ -129,8 +131,17 @@ start
 stop
 ```
 
-`area` sets farm bounds and soil height. `saplings` sets the turtle access cell
-for the sapling chest. `add` anchors one paired worker with an axe.
+`area` sets farm bounds and soil height. `saplings` sets the sapling chest's own
+coordinates. With `front`, the planner chooses the nearest eligible cell beside
+the chest at the same height and faces the turtle towards it to take saplings.
+With `down`, the turtle stands at `<x> <y+1> <z>` and takes saplings from below.
+Leave these access cells clear. The planner excludes cells at or below soil
+height, known obstacles, chest cells and planted spots at soil height plus one.
+Distance is Manhattan distance from the turtle's current position. Ties use
+north, east, south, west order. If no eligible cell remains, the turtle holds
+with `no access to saplings chest`.
+
+`add` anchors one paired worker with an axe.
 Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
