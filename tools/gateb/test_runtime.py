@@ -1,10 +1,15 @@
 """Fast stdlib-only checks: python3 -m unittest discover -s tools/gateb."""
 import concurrent.futures
+import fcntl
 import json
 import os
 from pathlib import Path
 import socket
+import signal
 import struct
+import subprocess
+import sys
+import time
 import tempfile
 import unittest
 import zlib
@@ -119,6 +124,46 @@ class NBTTests(unittest.TestCase):
             self.assertEqual(result['nbt']['ComputerId'],4)
             self.assertEqual(result['block']['Properties']['facing'],'south')
             self.assertEqual(next(nbt.computers(temp))[0],4)
+
+
+
+
+class KeeperTests(unittest.TestCase):
+    def test_blocking_console_and_crash_keeps_children_owned(self):
+        import keeper
+        with tempfile.TemporaryDirectory() as temp:
+            home=Path(temp);lock=home/'suite.lock';log=home/'keeper.log'
+            with log.open('wb') as out:
+                process=subprocess.Popen([sys.executable,str(Path(keeper.__file__)),temp,str(lock)],stdout=out,stderr=subprocess.STDOUT)
+            try:
+                deadline=time.monotonic()+5
+                while not (home/'keeper.sock').exists() and time.monotonic()<deadline: time.sleep(.02)
+                self.assertTrue((home/'keeper.sock').exists())
+                # A disconnected caller must not stop an owned server.
+                with socket.socket(socket.AF_UNIX) as sock: sock.connect(str(home/'keeper.sock'))
+                time.sleep(.05)
+                self.assertEqual(keeper.call(home,{'op':'status'}),{})
+                fifo=home/'console';os.mkfifo(fifo)
+                script='import os,time; print(os.get_blocking(0),flush=True); print(input(),flush=True); time.sleep(60)'
+                info=keeper.call(home,{'op':'start','key':'dummy','argv':[sys.executable,'-c',script],'cwd':temp,'log':str(home/'child.log'),'fifo':str(fifo)})
+                with fifo.open('w') as handle: handle.write('console alive\n')
+                deadline=time.monotonic()+5
+                while time.monotonic()<deadline:
+                    if (home/'child.log').exists() and 'console alive' in (home/'child.log').read_text(): break
+                    time.sleep(.02)
+                self.assertEqual((home/'child.log').read_text(),'True\nconsole alive\n')
+                with lock.open('a') as handle:
+                    with self.assertRaises(BlockingIOError): fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                process.kill();process.wait(timeout=5)
+                deadline=time.monotonic()+5
+                released=False
+                while time.monotonic()<deadline:
+                    with lock.open('a') as handle:
+                        try: fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB);released=True;break
+                        except BlockingIOError: time.sleep(.02)
+                self.assertTrue(released,'child should exit and release inherited suite lock after keeper death')
+            finally:
+                if process.poll() is None: process.terminate();process.wait(timeout=10)
 
 
 if __name__=='__main__': unittest.main()

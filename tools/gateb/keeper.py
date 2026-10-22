@@ -114,7 +114,10 @@ def main(home, suite_lock):
                     response = {'ok':True,'result':result}
                 except Exception as exc:
                     response = {'ok':False,'error':str(exc)}
-                conn.sendall(json.dumps(response).encode() + b'\n')
+                try:
+                    conn.sendall(json.dumps(response).encode() + b'\n')
+                except (BrokenPipeError,ConnectionResetError):
+                    pass
     finally:
         for process in children.values():
             if process.poll() is None:

@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -83,6 +84,9 @@ def installer_manifest(source, role):
 class Runtime:
     def __init__(self, home=None):
         self.home = Path(home or os.environ.get('GATEB_HOME', WORK / 'gateb-runtime2')).expanduser().resolve()
+        for protected in (WORK/'mc-serverfiles',WORK/'gateb-livefiles'):
+            if self.home.is_relative_to(protected.resolve()):
+                raise ValueError('Runtime output must be outside reference and active Gate B directories')
         self.home.mkdir(parents=True, exist_ok=True);os.chmod(self.home, 0o700)
         config = self.home / 'config.json'
         self.config = json.loads(config.read_text()) if config.exists() else {}
@@ -233,8 +237,11 @@ class Runtime:
             if cid==10: role='display'
             props = native['block'].get('Properties',{})
             comps[str(cid)] = {'name':names[cid],'role':role,'kind':'turtle' if 'turtle' in native['block']['Name'] else 'computer','pos':native['pos'],'facing':props.get('facing')}
+            if {'1','2','4','5','6','9','10'} <= comps.keys(): break
         # Pocket computers tick only in a player's inventory, on client login.
-        comps['3'] = {'name':'pocket','role':'display','kind':'pocket','pos':[0,64,0],'facing':None,'requires_client':True}
+        player=Path(world)/'playerdata/9026426a-c1c1-3dac-8bb3-4c5121e010ce.dat'
+        pocket_pos=[math.floor(v) for v in nbt.loads(player.read_bytes())['Pos']]
+        comps['3'] = {'name':'pocket','role':'display','kind':'pocket','pos':pocket_pos,'facing':None,'requires_client':True}
         fixtures = {name:{'kind':kind,'pos':pos} for name,kind,pos in [
             ('ore','chest',[-4,64,4]),('fuel','chest',[-6,64,4]),
             ('wood','chest',[3,64,3]),('saplings','chest',[3,64,5]),
@@ -546,8 +553,9 @@ def main():
     p=sub.add_parser('api');p.add_argument('run');p.add_argument('request');p.add_argument('--timeout',type=float,default=15)
     p=sub.add_parser('client');p.add_argument('run');p.add_argument('action',choices=['start','shot','stop'])
     p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0)
-    args=parser.parse_args();runtime=Runtime(args.home);start=time.monotonic()
+    args=parser.parse_args();start=time.monotonic()
     try:
+        runtime=Runtime(args.home)
         if args.command=='build-template': result=runtime.build_template(args.snapshot)
         elif args.command=='api': result=runtime.request(args.run,json.loads(args.request),args.timeout)
         elif args.command=='install': result=runtime.install(args.run,args.sha,args.mode)
