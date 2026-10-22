@@ -168,6 +168,19 @@ S.status = function(id)
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
 
+S.cancelPark = function(id, owner)
+  local row = S.turtles[id]
+  local lease = row and row.open
+  if not lease then return true end
+  if owner ~= "mine" or lease.owner ~= owner or #lease.steps ~= 1
+    or lease.steps[1].op ~= "inspectDown" then return false, "turtle has open lease" end
+  row.open = nil
+  lease.status = "cancelled"
+  local cells = S.module("cells")
+  if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
+  return true
+end
+
 S.inRange = function(id, pos)
   if not S.pos then return true end
   local distance = S.distance(pos)
@@ -297,5 +310,6 @@ return {
     return true
   end,
   status = S.status,
+  cancelPark = S.cancelPark,
   inRange = S.inRange,
 }

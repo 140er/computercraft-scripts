@@ -113,7 +113,7 @@ The server sends `lease.batch` to a turtle.
 
 A step is a table.
 
-`op` is one of `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
+`op` is one of `discard`, `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
 
 `slot` is optional. It is an integer from 1 to 16. `select` uses it. Other ops use the already selected slot.
 
@@ -133,6 +133,11 @@ observation stays uncertain. The worker retains the pending entry and sends
 `journal.pose` then contains only the last committed pose. The worker stays still
 and refuses subsequent steps with `pose uncertain` until an operator re-adds it.
 The server discards its cached journal pose and refuses new leases while uncertain.
+
+`discard` accepts `side = "front" | "up" | "down"`, defaulting to `down`,
+and optional count `n`. It drops only after inspection establishes an empty cell.
+An adjacent inventory always refuses discard, even if inspection reports air.
+Occupied or uncertain cells return a failed result and keep the items.
 
 ### step.report
 
@@ -321,7 +326,14 @@ SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, a
 
 An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
-`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact. `lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
+`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact.
+
+`lease.cancelPark(id, "mine")` retires an open mining lease only when its sole
+step is `inspectDown`. It returns true when cancelled or already closed, otherwise
+false and `"turtle has open lease"`. Cancellation releases reservations owned by
+the lease and ignores later reports without calling the planner callback.
+
+`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
 
 The server position comes from the plain `so-server.cfg` table `{ pos = { dim, x, y, z } }`, read through `so-store`. Without it, the module tries `gps.locate(2)`. Without either position, every range check returns true and the module logs that once at load.
 
@@ -347,12 +359,15 @@ commands through that screen's `input.text`:
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
 - `bottom <y>` and `length <n>` set the shaft bottom and branch length.
 - `mode thorough|fast` selects wall inspection or faster branches.
-- `ores diamond,iron,...` accepts the supported names from `so-mine-plan.lua`.
+- `ores diamond, iron,...` accepts spaces around commas and the supported names from `so-mine-plan.lua`.
   Only selected ores start wall veins. Empty or missing lists accept all ores.
   Ores blocking the route are still dug.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
-- `remove <id>` removes a worker once its lease has closed.
-- `start` and `stop` control planning. An already sent batch finishes after stop.
+- `remove <id>` removes a worker after its lease closes or cancels its stationary
+  recovery or park inspection. It releases the worker's lane and reservations.
+  Movement and digging leases still prevent removal.
+- `start` checks the disk guard before requiring a configured `home`. Existing saved homes remain configured.
+  `stop` lets an already sent batch finish. A valid command clears the prior command error.
 
 Adding a worker sends a recovery park lease. Startup also sends each saved worker
 one recovery park lease before planning. Reports supply the real journal pose,
@@ -400,9 +415,10 @@ Thorough mode checks branch walls. Ore recognition also accepts `_ore` names, `:
 `c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
 It scoops lava sources with an empty bucket before trying sealing blocks.
 It seals other lava and water before movement. About every ten digs, extra junk
-drops into an inventory below the current position. If no inventory is present, cleanup stops retrying
-and the next ore trip deposits excess junk too. One stack of suitable blocks
-stays for sealing.
+uses guarded `discard` into an adjacent empty cell, preferring known open tunnel
+cells. Failed targets are skipped until the turtle moves. Junk stays aboard when
+no adjacent cell is safe, and ore unloads exclude junk. One suitable stack stays
+for sealing.
 
 Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
 below the mine route home plus 64 visit a fuel drop and refuel towards 2000,
@@ -460,6 +476,8 @@ report rather than assuming the returned expected `pose`. Multi-action batches
 also return `actions`, each with a one-based `first` index into `steps`.
 `ore(data, ores)` accepts an optional list of supported ore names and matches
 block names or ore subtype tags before applying the ore classifier.
+`cleanup(inv, all, side)` returns select/discard steps for junk, retaining one
+sealing stack unless `all` is true. `side` defaults to `down`.
 
 ### cells
 

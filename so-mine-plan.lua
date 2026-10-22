@@ -128,13 +128,13 @@ function M.sealable(item)
   end
   return true
 end
-function M.cleanup(inv, all)
+function M.cleanup(inv, all, side)
   local steps, kept = {}, false
   for _, item in ipairs(inv) do
     if M.junk(item) then
       if kept or all or not M.sealable(item) then
         steps[#steps+1] = { op = "select", slot = item.slot }
-        steps[#steps+1] = { op = "dropDown" }
+        steps[#steps+1] = { op = "discard", side = side or "down" }
       else kept = true end
     end
     if #steps >= 16 then break end

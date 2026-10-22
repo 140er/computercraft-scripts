@@ -53,7 +53,7 @@ and listeners use `listener(sender, message)`.
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
   Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
-  `cleanup(inv, all)`, `travel(from, goal, point, job?, row?)`,
+  `cleanup(inv, all, side?)`, `travel(from, goal, point, job?, row?)`,
   `supplyRoute(job, row, stand, point?, lookup?)`, `supplyDistance(job, row, stand?, lookup?)`,
   `next(job, row, lookup, inv, fuel)`,
   `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
@@ -100,7 +100,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
-  `status(id)`, `inRange(id, pos)` and `tick(now)`.
+  `status(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
@@ -156,10 +156,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  New jobs default to `ores = {}`, which accepts all ores. A refused junk cleanup
-  sets `cleanupBlocked` on that worker and sends excess junk through the next ore
-  unload, retaining one suitable sealing stack. Completed routes
-  unload remaining ore through the configured drop before parking.
+  New jobs require `home` before `start`; saved homes remain configured. Ore
+  filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
+  lease through `lease.cancelPark`, releasing the lane and reservations. Stale
+  lane waiters lose their place when they leave the queue. Completed routes
+  unload remaining ore through the configured drop before parking. Junk cleanup
+  uses guarded `discard` into adjacent empty cells, preferring known open tunnel
+  cells. Failed targets are skipped until movement. Ore unloads exclude junk.
   A lane pass reserves its full route through the shaft and spine plus its exit in one
   call. Intermediate batches retain the reservation until the worker leaves.
   Saved rows include `lane = { cells, entered, target?, release? }` while holding the lane
@@ -230,6 +233,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   pending entry, and refuses further steps without moving or backtracking.
   An operator re-adds it with its actual pose to clear uncertainty. The worker
   saves that anchor and clears old move/dug history before confirming it.
+  `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
+  adjacent inventories. The default side is down.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws

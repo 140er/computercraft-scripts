@@ -7,7 +7,7 @@ local unloadKeep = {
   ["minecraft:water_bucket"] = true, ["minecraft:torch"] = true,
 }
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
-local job = box.value or { dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
+local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
 local function mod(name) return SO.mods and SO.mods[name] end
 local function call(name, fn, ...)
@@ -30,6 +30,30 @@ local function mark(cell)
   end
   S.known[M.key(cell)] = false
 end
+local function cleanupAction(row)
+  local key = M.key(row.pose)
+  local blocked = row.cleanupBlocked
+  if type(blocked) ~= "table" or blocked.pose ~= key then blocked = {pose=key} row.cleanupBlocked=blocked end
+  local candidates = {
+    {side="down",cell=M.cell(row.pose,"down")},
+    {side="up",cell=M.cell(row.pose,"up")},
+  }
+  for f=0,3 do
+    local pose=SO.store.copy(row.pose) pose.facing=f
+    candidates[#candidates+1]={side="front",cell=M.cell(pose,"forward"),facing=f}
+  end
+  local target
+  for _, candidate in ipairs(candidates) do
+    if not blocked[M.key(candidate.cell)] then
+      target=target or candidate
+      if lookup(candidate.cell)==false then target=candidate break end
+    end
+  end
+  if not target then return nil end
+  local turn=target.facing and M.turn(row.pose,target.facing)
+  if turn then return {kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)} end
+  return {kind="cleanup",steps=M.cleanup(row.inv,false,target.side),cells={},cell=target.cell}
+end
 local function reservePose(id, row)
   local p = row.pose
   if call("cells","owner",p.x,p.y,p.z,p.dim)==owner(id) then return true end
@@ -38,6 +62,7 @@ local function reservePose(id, row)
   return ok
 end
 local function park(id, row, recover)
+  if recover or row.state ~= "wait lane" then row.laneWait = nil end
   if not recover and row.parkUntil and os.epoch("utc") < row.parkUntil - 60000 then return end
   local lid, err = call("lease", "send", id, P.park.steps, { owner = "mine", recover = recover, ms = P.park.ms, pose = row.pose })
   if lid then S.pending[id] = { kind = recover and "recover" or "park" } row.parkUntil = os.epoch("utc") + P.park.ms
@@ -56,6 +81,7 @@ local function dropFailure(id, row, kind, point)
       emit("mine.alert", { id = id, text = kind == "ore" and "ore chest full" or "fuel chest empty" })
       retry.alerted = true
     end
+    row.laneWait = nil
     row.state, row.error = "hold", kind == "ore" and "ore chest full" or "fuel chest empty"
     retry.after = os.epoch("utc") + 60000
   end
@@ -88,7 +114,7 @@ local function trip(id, row, kind)
   if not picked or not picked.point then
     dropFailure(id, row, kind)
     row.error = picked and picked.alert or "drops: hold " .. kind
-    row.state = "hold"
+    row.state = "hold" row.laneWait = nil
     if row.dropRetry.alerted then row.error = row.error .. " " .. (kind == "ore" and "ore chest full" or "fuel chest empty") end
     save()
     return false
@@ -115,7 +141,7 @@ local function trip(id, row, kind)
         local shared=false
         for _,cell in ipairs(path) do if M.inLane(job,cell) then shared=true break end end
         row.trip = { kind = kind, point = point, stand = stand, back = SO.store.copy(row.pose), stage = "out", path = path, reserve = route.reserve, shared = shared }
-        row.state = kind return true
+        row.state = kind row.laneWait = nil return true
       end
     end
   end
@@ -150,6 +176,7 @@ local function reserveBatch(id,row,action)
   if action.kind~="scan" then
     for _,cell in ipairs(action.cells or {}) do needs=needs or M.inLane(job,cell) end
   end
+  if not needs then row.laneWait=nil end
   local cells,seen={},{}
   local function add(cell)
     local key=M.key(cell)
@@ -203,7 +230,7 @@ local function report(_, id, results, lease)
   local action, interrupted = S.pending[id], row.inflight
   S.pending[id] = nil
   if not results or not lease.report or not lease.report.pose then
-    row.state, row.error, row.recover = "lost", "lease expired or missing pose", true save() return
+    row.state, row.error, row.recover = "lost", "lease expired or missing pose", true row.laneWait=nil save() return
   end
   row.inflight = nil
   local facts = lease.report
@@ -275,12 +302,12 @@ local function report(_, id, results, lease)
           row.scanAfter = nil
         else S.known[M.key(action.cell)] = nil row.error = results[1].err end
       elseif action.kind == "cleanup" then
+        row.cleanup = #M.cleanup(row.inv,false) > 0
         for i, step in ipairs(action.steps) do
-          if step.op == "dropDown" and not results[i].ok and results[i].err == "no inventory" then
-            row.cleanupBlocked = true
+          if step.op == "discard" and not results[i].ok then
+            row.cleanupBlocked[M.key(action.cell)] = true
           end
         end
-        row.cleanup = not row.cleanupBlocked and #M.cleanup(row.inv,false) > 0
         if not row.cleanup then row.cleaned = row.dug or 0 end
       elseif action.kind == "unload" or action.kind == "refuel" then
         local failed = false
@@ -348,9 +375,10 @@ plan = function(id,row)
   if not status then return end
   if status.uncertain then
     row.state, row.error = "hold", "pose uncertain: re-add turtle " .. id
+    row.laneWait=nil
     return
   end
-  if status.lost then row.state, row.error, row.recover = "lost", "worker beacon", true end
+  if status.lost then row.state, row.error, row.recover = "lost", "worker beacon", true row.laneWait=nil end
   if status.open then return end
   if status.lost or row.recover then
     row.state = "lost" row.recover = true park(id,row,true) return
@@ -365,8 +393,9 @@ plan = function(id,row)
   end
   row.inv = row.inv or {}
   local clean = M.cleanup(row.inv,false)
-  if not row.trip and not row.cleanupBlocked and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
-    send(id,row,{kind="cleanup",steps=clean,cells={}}) return
+  if not row.trip and #clean > 0 and (row.cleanup or (row.dug or 0)-(row.cleaned or 0)>=10 or P.free(row.inv)<2) then
+    local action=cleanupAction(row)
+    if action then send(id,row,action) return end
   end
   if not row.trip then
     local low = type(row.fuel)=="number" and row.fuel >= 0 and row.fuel < fuelReserve(row)
@@ -391,14 +420,9 @@ plan = function(id,row)
         local turn = M.turn(row.pose,t.stand.facing)
         send(id,row,{kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) return
       elseif t.kind == "ore" then
-        local steps, junkSlots = {}, {}
-        if row.cleanupBlocked then
-          for _, step in ipairs(M.cleanup(row.inv,false)) do
-            if step.op == "select" then junkSlots[step.slot] = true end
-          end
-        end
+        local steps = {}
         for _, item in ipairs(row.inv) do
-          if (not M.junk(item) or junkSlots[item.slot]) and not unloadKeep[item.name] then
+          if not M.junk(item) and not unloadKeep[item.name] then
             steps[#steps+1]={op="select",slot=item.slot}
             local drop = call("drops","steps",t.point) or {}
             for _, step in ipairs(drop) do steps[#steps+1]=step end
@@ -506,12 +530,19 @@ local function input(event)
   local cmd=a[1]
   local dirs={n=0,e=1,s=2,w=3}
   local function num(i) local n=tonumber(a[i]) if n and n%1==0 and math.abs(n)<30000000 then return n end end
-  if cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]}
+  if cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
   elseif cmd=="bottom" and num(2) then job.bottom=num(2)
   elseif cmd=="length" and num(2) and num(2)>0 and num(2)<=4096 then job.length=num(2)
   elseif cmd=="mode" and (a[2]=="thorough" or a[2]=="fast") then job.mode=a[2]
   elseif cmd=="ores" and a[2] then
-    local names={} for name in a[2]:gmatch("[^,]+") do if not M.ores[name] then S.error="unknown ore" return end names[#names+1]=name end job.ores=names
+    local names={}
+    for name in table.concat(a," ",2):gmatch("[^,]+") do
+      name=name:match("^%s*(.-)%s*$")
+      if not M.ores[name] then S.error="unknown ore" return end
+      names[#names+1]=name
+    end
+    if #names==0 then S.error="unknown ore" return end
+    job.ores=names
   elseif cmd=="add" and num(2) and num(2)>=0 and num(3) and num(4) and num(5) and dirs[a[6]] then
     local id=num(2)
     local status=call("lease","status",id)
@@ -529,15 +560,21 @@ local function input(event)
     reservePose(id,job.turtles[tostring(id)]) save() park(id,job.turtles[tostring(id)],true)
   elseif cmd=="remove" and num(2) then
     local status=call("lease","status",num(2))
-    if status and status.open then S.error="turtle has open lease" return end
+    if status and status.open then
+      local ok = call("lease","cancelPark",num(2),"mine")
+      if not ok then S.error="turtle has open lease" return end
+    end
     call("cells","releaseOwner",owner(num(2))) job.turtles[tostring(num(2))]=nil
+    S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
     if not ok then S.error = err or "disk guard unavailable" return end
+    if job.homeSet == false or not job.home then S.error="set home before start" return end
     S.error = nil
     job.running=true
   elseif cmd=="stop" then job.running=false
   else S.error="invalid mining command" return end
+  S.error=nil
   save()
 end
 local function render(w)
@@ -564,6 +601,8 @@ return {name="mine",handlers={},tick=function()
     for _,row in pairs(job.turtles) do row.recover=true row.state="recovering" end
   end
   for id,row in pairs(job.turtles) do
+    if row.state ~= "wait lane" or row.recover or not job.running
+      or (row.dropRetry and row.dropRetry.after and os.epoch("utc") < row.dropRetry.after) then row.laneWait=nil end
     if row.lane and row.lane.release and not row.recover then
       local status=call("lease","status",tonumber(id))
       if status and not status.open then

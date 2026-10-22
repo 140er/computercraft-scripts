@@ -82,7 +82,9 @@ return function(test)
       test(role .. " refuses start at 80% and resumes below it on " .. size[1] .. "x" .. size[2], function()
         local s = setup(size[1], size[2])
         s.press(role)
-        if role == "lumber" then
+        if role == "mining" then
+          s.typeText("home 0 64 0 n")
+        else
           s.typeText("area 0 0 2 2 64")
           s.typeText("add 3 0 65 0 n")
         end

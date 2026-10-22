@@ -44,7 +44,7 @@ return function(test, equal)
     for y = -2, 0 do net.world["0," .. y .. ",-1"] = "minecraft:stone" end
     for z = -2, -5, -1 do net.world["0,-2," .. z] = "minecraft:stone" end
     for x = 1, 3 do net.world[x .. ",-2,-5"] = "minecraft:stone" end
-    input("bottom -2") input("length 3") input("start")
+    input("home 0 0 0 n") input("bottom -2") input("length 3") input("start")
     net.advance(100)
     equal({ turtle.pos.x, turtle.pos.y, turtle.pos.z }, { 3, -2, -5 })
     equal(job(server).state, "done")

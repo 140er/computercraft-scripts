@@ -130,12 +130,16 @@ start
 stop
 ```
 
-`home` sets the chest-side position. `bottom` sets the shaft bottom.
+`home` sets the chest-side position and is required before the first `start`.
+`bottom` sets the shaft bottom.
 Branch length defaults to 64 blocks. `thorough` inspects walls, while `fast`
-uses faster branches. `ores` selects the supported ore names.
+uses faster branches. `ores` selects the supported ore names and accepts spaces
+around commas, such as `ores diamond, iron`.
 `add` anchors a paired worker at its world position and facing.
-Remove a worker only after its lease has closed. `stop` allows an already sent
-batch to finish. The screen shows worker state, pose, fuel, ore count and errors.
+`remove` can cancel a stationary recovery or park inspection and releases the
+worker's lane and reservations. Other open leases must finish first. `stop` allows
+an already sent batch to finish. The screen shows worker state, pose, fuel, ore
+count and errors.
 
 ## Lumber
 
@@ -203,10 +207,11 @@ The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 
 Workers refuse drop and suck steps unless the target is an inventory. A missing
-chest returns `no inventory` and keeps the items in the turtle. Mining cleanup
-uses an inventory below the turtle when present. After a refused cleanup, excess
-junk travels to the ore chest with the next unload;
-one suitable stack stays for sealing.
+chest returns `no inventory` and keeps the items in the turtle.
+
+Mining discards excess junk into adjacent empty cells, keeping one suitable stack
+for sealing. Workers check the target before each discard and refuse inventories
+or occupied cells. Ore chests receive ore, not excess cobble or deepslate.
 
 Idle turtles stay put when their park lease expires during a server outage. They
 beacon every 30 seconds. Only turtles whose last lease was work use fast beacons
