@@ -229,6 +229,18 @@ class Context:
                    if str(i.get("id", i.get("name", ""))).endswith(suffix))
 
     def power(self, name, action):
+        if name == "pocket" and action == "reboot":
+            before = self.lua(name, "return os.clock()")
+            self.request("lua_async", computer=self.computer(name), code="os.reboot()")
+            def rebooted():
+                after = self.lua(name, "return os.clock()")
+                return {"after": after} if isinstance(after, (int, float)) and after < before else None
+            proof = self.wait(rebooted, 30)
+            self.record("pocket-native-reboot.json", {"before": before, "after": proof.get("after") if proof else None,
+                                                       "uptime_reset": bool(proof), "action": "os.reboot"})
+            if not proof:
+                raise Blocked("Native pocket reboot did not produce a verified uptime reset")
+            return {"action": action, "computer": self.computer(name), "uptime_reset": True}
         return self.request("power", computer=self.computer(name), action=action)
 
     def screenshot(self, name):

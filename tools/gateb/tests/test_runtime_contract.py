@@ -15,6 +15,20 @@ from checks.model import Blocked, Verdict
 
 
 class ContractTests(unittest.TestCase):
+    def test_pocket_reboot_requires_a_native_uptime_reset(self):
+        class Runtime:
+            def __init__(self): self.requests=[];self.times=iter([100,101,0.2])
+            def request(self,world,request,timeout):
+                self.requests.append(request)
+                return {"values":[next(self.times)]} if request["op"] == "lua" else {"job":"reboot"}
+        runtime=Runtime()
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(runtime,"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40,interval=0)
+            self.assertTrue(ctx.power("pocket","reboot")["uptime_reset"])
+        self.assertEqual(runtime.requests[1]["op"],"lua_async")
+        self.assertEqual(runtime.requests[1]["code"],"os.reboot()")
+        self.assertFalse(any(q["op"] == "power" for q in runtime.requests))
+
     def test_navigation_uses_the_visible_more_button_id(self):
         frames = {"status":{"role":"status","buttons":[{"id":"generic"}]},
                   "generic":{"role":"generic","buttons":[{"id":"mining"}]},
