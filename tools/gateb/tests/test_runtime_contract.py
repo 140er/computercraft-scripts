@@ -139,8 +139,30 @@ class ContractTests(unittest.TestCase):
                 return Verdict("pass")
         with tempfile.TemporaryDirectory() as temp:
             ctx=Context(Runtime(),"test",{},temp,"a"*40)
-            with patch.object(ctx,"cli",side_effect=[{}, {"sha":"a"*40,"errors":[]}]), patch.object(run,"admit"), patch.object(run,"load",return_value=Check):
+            with patch.object(ctx,"cli",side_effect=[{}, {}, {"sha":"a"*40,"errors":[]}]), patch.object(run,"admit"), patch.object(run,"load",return_value=Check):
                 self.assertEqual(run.execute(ctx,"C5",Path("/runtime")).status,"pass")
+
+    def test_cleanup_signals_only_the_owned_runtime_key(self):
+        active={"owned-1":123,"unrelated":456};calls=[]
+        class Runtime:
+            home=Path("/private-runtime")
+            @staticmethod
+            def status():return active
+        class Keeper:
+            @staticmethod
+            def call(home,request):
+                calls.append(request);active.pop(request["key"],None)
+        class Ctx:
+            runtime=Runtime()
+            @staticmethod
+            def cli(*args):raise Blocked("Graceful shutdown timed out")
+            @staticmethod
+            def record(*args):pass
+        with patch.object(run.importlib,"import_module",return_value=Keeper):
+            result=run.stop_owned(Ctx(),"owned-1")
+        self.assertTrue(result["stopped"])
+        self.assertEqual(active,{"unrelated":456})
+        self.assertEqual(calls[0]["key"],"owned-1")
 
     def test_failed_exact_install_does_not_run_check(self):
         calls=[]
@@ -179,7 +201,7 @@ class ContractTests(unittest.TestCase):
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)
         self.assertEqual(report["counts"],{"pass":2,"fail":0,"blocked":1})
-        self.assertEqual(sum(c[0]=="reset" for c in calls),2)
+        self.assertEqual(sum(c[0]=="reset" for c in calls),0)
         self.assertEqual(sum(c[0]=="stop" for c in calls),2)
         self.assertEqual(sum(c[:2]==("pool","up") for c in calls),1)
         self.assertTrue(any("--prefix" in c for c in calls))

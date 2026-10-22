@@ -28,13 +28,15 @@ it refuses load1 at or above 8 and any full or unclassified local test-slot owne
 Module-only `--part` runs remain eligible. The pool keeper still makes the atomic
 memory and load admission decision. The driver reserves local-2 until every
 owned world stops, preventing another full local suite from starting between
-the admission check and native startup. The runtime keeper owns local-1. It resets
-each world to the native template before each check and verifies the installed
+the admission check and native startup. The runtime keeper owns local-1. It uses each fresh pool clone for its first check, then resets
+the world to the native template before later checks and verifies the installed
 commit before acting. Groups share a worker queue across the requested worlds.
 Mining runs C5, C7, C8 and C10. Screens run C1 through C4 and C14. Services run
 C6, C12 and C13. Lifecycle runs C9 and C11. Client work is serialized; only C3 and
 C13 start a client. Runtime admission and the shared test lock remain authoritative.
-No command connects to a remote Minecraft server.
+Graceful shutdown failures are saved. Cleanup then signals only the owned runtime
+keys through the keeper, escalating after a bounded wait, while retaining the
+local-slot reservation. No command connects to a remote Minecraft server.
 
 Changed-file selection follows the task's module mapping. Unknown Lua production
 files select all checks because shared storage, protocol and geometry can affect

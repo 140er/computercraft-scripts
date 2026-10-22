@@ -113,13 +113,15 @@ def runtime_class(directory):
     return module.Runtime
 
 
-def execute(ctx, check, runtime_dir, prepare=True):
+def execute(ctx, check, runtime_dir, prepare=True, reset=True):
     started_at, start = datetime.now(timezone.utc).isoformat(), time.monotonic()
     try:
         ctx.runtime_dir = runtime_dir
         if prepare:
             admit()
-            ctx.cli("reset", ctx.run, timeout=180)
+            if reset:
+                ctx.cli("reset", ctx.run, timeout=180)
+                ctx.cli("serve", ctx.run, timeout=180)
             install = ctx.cli("install", ctx.run, ctx.commit, "--mode", "copy", timeout=180)
             ctx.record("installed-build.json", install)
             if install.get("sha") != ctx.commit or install.get("errors"):
@@ -144,6 +146,27 @@ def execute(ctx, check, runtime_dir, prepare=True):
     ctx.record(f"{check}-result.json", result.to_dict())
     print(f"{check} {result.status} {result.wall_seconds:.2f}s", flush=True)
     return result
+
+
+def stop_owned(ctx, world):
+    try:
+        return ctx.cli("stop", world)
+    except (Blocked, OSError, subprocess.TimeoutExpired) as error:
+        proof = {"world": world, "graceful_stop_error": str(error)}
+        ctx.record(f"{world}-shutdown.json", proof)
+        keeper = importlib.import_module("keeper")
+        for force in (False, True):
+            if world not in ctx.runtime.status():
+                return {**proof, "stopped": True}
+            keeper.call(ctx.runtime.home, {"op": "signal", "key": world, "force": force})
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if world not in ctx.runtime.status():
+                    result = {**proof, "stopped": True, "forced": force}
+                    ctx.record(f"{world}-shutdown.json", result)
+                    return result
+                time.sleep(.2)
+        raise Blocked(f"Owned runtime process {world} survived cleanup")
 
 
 def main(argv=None):
@@ -209,6 +232,7 @@ def main(argv=None):
             cli.record("pool-start.json", resources)
             def worker(world):
                 output_results = []
+                first = True
                 while True:
                     with group_lock:
                         if not groups: break
@@ -226,8 +250,9 @@ def main(argv=None):
                                     finished.add("C1")
                             ctx.linked_install = linked_install
                         if check in ("C3", "C13"):
-                            with client_lock: result = execute(ctx, check, args.runtime_dir.resolve())
-                        else: result = execute(ctx, check, args.runtime_dir.resolve())
+                            with client_lock: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
+                        else: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
+                        first = False
                         with group_lock:
                             results.append(result)
                             finished.add(check)
@@ -242,11 +267,12 @@ def main(argv=None):
                                           0, rates[check], [str(error)], {}, [], ""))
             raise
         finally:
+            cleanup = []
             for world in created:
-                try: cli.cli("stop", world)
-                except (Blocked, OSError, subprocess.TimeoutExpired): pass
+                cleanup.append(stop_owned(cli, world))
             reservation.close()
             report = merge_results(results, selected, commit, time.monotonic()-start)
+            report["cleanup"] = cleanup
             write_report(report, output)
         print(f"Report {output / 'report.md'}", flush=True)
         return 0 if report["status"] == "pass" else 1
