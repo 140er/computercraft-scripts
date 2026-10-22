@@ -1,0 +1,6 @@
+panel pairing button, big digits and single use at 26x20 ... PASS
+panel expiry and code privacy at 26x20 ... PASS
+panel pairing button, big digits and single use at 29x12 ... PASS
+panel expiry and code privacy at 29x12 ... PASS
+panel pairing fixtures ... PASS
+repeat panel requests preserve five bad attempt limit ... PASS
