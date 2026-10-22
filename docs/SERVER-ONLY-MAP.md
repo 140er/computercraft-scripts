@@ -117,7 +117,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames. Calls are `screen(role, render, input)`, `far(id, on)` and `tick(now)`.
+  clipped frames. Calls are `screen(role, render, input)`, `far(id, on)`, `tick(now)`,
+  `terminal(model, view, w, h)` and `monitorTouch(side, x, y)`.
+  `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
+  code or log, `uptime`, `log`, `offset`, `code`, `expires` and `now`.
+  `monitorTouch` queues local input for the next tick. Tick discovers a local
+  monitor at most every five seconds and draws at scale 0.5 with local navigation,
+  without rednet or saved role changes. Tick also draws `SO.terminal` once a second.
   `far` saves a per-computer flag and returns success plus an optional save error.
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
@@ -261,8 +267,12 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
    filename order. The first `reply(t, body)` wins. Unknown types receive `err`.
 3. Other rednet protocols go to matching `listen[protocol]` hooks in filename
    order. `listen.so` cannot bypass authenticated dispatch.
-4. The P key opens pairing. The one-second timer expires reply-cache entries,
-   refreshes the pairing prompt and calls every `tick(now)` in filename order.
+4. The P key opens or renews pairing. Esc clears the invite. Used or expired
+   invites return to the normal terminal. L opens the full log, L or Esc returns,
+   and Up or Down scrolls it. Server prints enter an in-memory log bounded to
+   200 lines of at most 4096 bytes each. Long lines split without dropping text.
+   Monitor touches queue local input. The one-second timer expires reply-cache
+   entries, refreshes pairing state and calls every `tick(now)` in filename order.
    It rearms after the ticks; missed seconds do not produce catch-up ticks.
 
 Handlers, listeners and ticks run inside `pcall`; a failure logs and the loop

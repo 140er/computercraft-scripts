@@ -443,7 +443,144 @@ D.onInput = function(msg)
   if session and session.sub then D.sendFrame(msg.from, D.now(), true) end
 end
 
+D.paint = function(target, frame, w, h)
+  if target.setPaletteColour then
+    for i = 0, 15 do target.setPaletteColour(2^i, D.palette[i]) end
+  end
+  for y = 1, h do
+    local row = frame.rows[y] or {text="", runs={{w,"0","f"}}}
+    local fg, bg = {}, {}
+    if row.runs then
+      for _, run in ipairs(row.runs) do
+        fg[#fg+1], bg[#bg+1] = string.rep(run[2],run[1]), string.rep(run[3],run[1])
+      end
+    else
+      fg[1] = #row.fg == 1 and string.rep(row.fg,#row.text) or row.fg
+      bg[1] = #row.bg == 1 and string.rep(row.bg,#row.text) or row.bg
+    end
+    fg, bg = table.concat(fg), table.concat(bg)
+    local n = math.min(w,#fg)
+    target.setCursorPos(1,y)
+    target.blit((row.text .. string.rep(" ",w)):sub(1,w),
+      fg:sub(1,n)..string.rep("0",w-n), bg:sub(1,n)..string.rep("f",w-n))
+  end
+  for _, button in ipairs(frame.buttons or {}) do
+    local label = (button.label or ""):sub(1,math.min(button.w,w-button.x+1))
+    if label ~= "" then
+      target.setCursorPos(button.x,button.y)
+      target.blit(label,string.rep("0",#label),string.rep("7",#label))
+    end
+  end
+end
+
+D.terminal = function(model, view, w, h)
+  if not U then return D.legacyStatus() end
+  local C = U.canvas(w,h)
+  C.header("SO SERVER #" .. tostring(view.id), view.mode == "code" and "pairing" or view.uptime)
+  local lines, first = view.log or {}, 10
+  if view.mode == "code" then
+    C.fill(1,3,w,math.max(0,h-6),"9")
+    C.center(1,w,4,"PAIR CODE  (type it on the new client)","9")
+    local code = tostring(view.code or "")
+    C.big(1,7,w,code:sub(1,3).." "..code:sub(4,6),"9")
+    local left = math.max(0,math.ceil((view.expires-view.now)/1000))
+    C.center(1,w,12,string.format("%d:%02d left, works once",math.floor(left/60),left%60),"9")
+    C.center(1,w,14,"5 wrong tries burn the code","9")
+  elseif view.mode == "log" then
+    C.fill(1,3,w,1,"7"); C.put(2,3,"FULL LOG")
+    first = 4
+  else
+    local cols = U.grid(w,h,math.max(1,math.min(4,math.floor((w+1)/13))))
+    local bottom = 7
+    for i, index in ipairs({1,7,6,3}) do
+      local col = cols[(i-1)%#cols+1]
+      local y = 3 + math.floor((i-1)/#cols)*6
+      local t = model.tiles[index]
+      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg) end
+      bottom = math.max(bottom,y+4)
+    end
+    first = bottom+3
+    C.fill(1,first-1,w,1,"7"); C.put(2,first-1,"LOG")
+  end
+  if view.mode ~= "code" then
+    local count = math.max(0,h-first)
+    local last = math.max(0,#lines-(view.offset or 0))
+    local start = math.max(1,last-count+1)
+    for i = start,last do C.put(2,first+i-start,tostring(lines[i]):sub(1,math.max(0,w-2))) end
+  end
+  C.fill(1,h,w,1,"7")
+  C.put(2,h,view.mode == "code" and "[P] new code     [Esc] cancel"
+    or view.mode == "log" and "[Esc/L] back  [Up/Down] scroll"
+    or "[P] pair a client     [L] full log")
+  return C.frame()
+end
+
+D.localTouch = function(side,x,y)
+  local m = D.monitor
+  if not m or side ~= m.name or not m.frame then return end
+  local id
+  for _, b in ipairs(m.frame.buttons) do
+    if x >= b.x and x < b.x+b.w and y >= b.y and y < b.y+(b.h or 1) then id=b.id; break end
+  end
+  if not id then return end
+  m.pending = {id=id,x=x,y=y}
+end
+
+D.localTick = function(now)
+  if peripheral and peripheral.find and now >= (D.scanAt or 0) then
+    D.scanAt = now+5000
+    local target = peripheral.find("monitor")
+    if target then
+      local name = peripheral.getName(target)
+      if not D.monitor or D.monitor.name ~= name then
+        D.monitor = {target=target,name=name,role="status",session={}}
+      else D.monitor.target=target end
+    else D.monitor=nil end
+  end
+  local m = D.monitor
+  if m then
+    local ok = pcall(function()
+      m.target.setTextScale(0.5)
+      local w,h = m.target.getSize()
+      local event = m.pending
+      m.pending = nil
+      if event then
+        local drawn = m.role
+        if drawn == "status" and (m.session.showAlerts or now < (m.session.alertUntil or 0)) then
+          m.session.showAlerts=false
+          m.session.alertUntil=0
+          event.id="dismiss"
+        elseif drawn == "status" and event.id == "next" then
+          m.session.page=(m.session.page or 0)+1
+        elseif drawn == "status" and event.id == "alerts" then
+          m.session.takeover=D.model.alerts[#D.model.alerts]
+          m.session.showAlerts=m.session.takeover ~= nil
+        elseif event.id == "status" or event.id == "generic"
+          or ((drawn == "status" or drawn == "generic") and D.known[event.id]) then
+          m.role=event.id
+        end
+        local screen=D.screens[drawn]
+        event.role=drawn
+        if screen then screen.input(event) end
+      end
+      m.frame = D.compose(m.role,w,h,m.session)
+      D.paint(m.target,m.frame,w,h)
+    end)
+    if not ok then D.monitor=nil end
+  end
+end
+
 D.tick = function(now)
+  if U then D.model = D.gather() end
+  D.localTick(now)
+  if SO.terminal and term and term.blit then
+    local v = SO.terminal
+    v.now = now
+    local minutes = math.floor((now-v.started)/60000)
+    v.uptime = string.format("up %dh%02d",math.floor(minutes/60),minutes%60)
+    local w,h = term.getSize()
+    D.paint(term,D.terminal(D.model,v,w,h),w,h)
+  end
   for id, session in pairs(D.sessions) do
     if session.sub and session.w then D.sendFrame(id, now, false) end
   end
@@ -487,4 +624,6 @@ return {
   screen = D.register,
   far = D.far,
   palette = D.palette,
+  terminal = D.terminal,
+  monitorTouch = D.localTouch,
 }

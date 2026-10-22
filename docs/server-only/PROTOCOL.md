@@ -432,6 +432,22 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 SO5 owns this API on `SO.mods.display`.
 
+The server terminal uses `display.terminal(model, view, w, h)` to return a
+Big Tiles frame. The model is the status model. The view supplies `id`,
+`mode` as normal, code or log, `uptime`, `log`, `offset`, `code`,
+`expires` and `now`. Times are UTC milliseconds and the log offset counts
+back from the newest line. `SO.terminal` holds the runtime view. Display tick
+draws it once per second. Prints enter a volatile 200-line log, with long lines
+split into pieces of at most 4096 bytes. L opens the full log, L or Esc returns,
+and Up or Down scrolls. P opens or renews the existing five-minute invite.
+Esc clears it. Used or expired invites return to the normal page.
+
+`display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
+The next display tick routes it to the drawn screen and handles navigation.
+Discovery runs at most every five seconds. The monitor uses its real size,
+text scale 0.5 and the spec palette. Its status session and role are volatile,
+separate from paired displays, and require no rednet traffic or saved files.
+
 `display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render(w, h)` is called with the target display size and returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
 Frame signatures and revisions are kept per role and size. Status additionally
