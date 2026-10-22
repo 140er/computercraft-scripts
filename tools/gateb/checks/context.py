@@ -203,6 +203,15 @@ class Context:
     def terminal(self, name):
         return self.request("terminal", computer=self.computer(name))
 
+    def screen_text(self, name):
+        screen = self.terminal(name)
+        if name == "wall":
+            monitors = self.request("monitors", computer=self.computer(name))
+            if not monitors:
+                raise Blocked("Wall display has no physical monitor snapshot")
+            screen = next(iter(monitors.values()))
+        return " ".join(line["text"] for line in screen["lines"])
+
     def inventory(self, fixture):
         self.save()
         return self.request("chest", pos=self.fixture(fixture)["pos"])

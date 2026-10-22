@@ -28,14 +28,14 @@ def run(ctx):
     try:
         while time.monotonic() - started < 181:
             rows.append(ctx.state())
-            text = " ".join(l["text"] for l in ctx.terminal("wall")["lines"])
+            text = ctx.screen_text("wall")
             if stale is None and ("stale" in text.lower() or "NO SERVER" in text): stale = time.monotonic()-started
             time.sleep(ctx.interval)
     finally:
         ctx.power("server", "on")
     off_seconds, boot = time.monotonic()-started, time.monotonic()
-    recovered = ctx.wait(lambda: "stale" not in " ".join(l["text"] for l in ctx.terminal("wall")["lines"]).lower()
-                         and "NO SERVER" not in " ".join(l["text"] for l in ctx.terminal("wall")["lines"]), 30)
+    recovered = ctx.wait(lambda: "stale" not in ctx.screen_text("wall").lower()
+                         and "NO SERVER" not in ctx.screen_text("wall"), 30)
     recovery = time.monotonic()-boot if recovered else None
     ctx.wait(lambda: all(j.get("park") and j.get("id") != before["workers"].get(k, {}).get("id")
                         for k,j in ctx.state()["workers"].items()), 30)

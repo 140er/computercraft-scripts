@@ -53,6 +53,15 @@ class ContractTests(unittest.TestCase):
                 self.assertEqual(ctx.click("pocket","generic"),updated)
                 wait.assert_called_once()
 
+    def test_wall_outage_reads_the_monitor_overlay(self):
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="monitors": return {"left":{"lines":[{"text":"stale"}]}}
+                return {"lines":[{"text":"> "}]}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"2":{"name":"wall"}}},temp,"a"*40)
+            self.assertEqual(ctx.screen_text("wall"),"stale")
+
     def test_native_keyboard_char_events(self):
         class Runtime:
             def __init__(self): self.requests=[]
