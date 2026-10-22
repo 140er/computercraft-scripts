@@ -1,15 +1,11 @@
-Base: fd53311882d7adfbe3e66f4950377727d88b0ecd, PR #176.
-Plain cc-test: PASS, 551 tests, local-2 slot, exit 0.
-Focused UI checks: PASS, 83 checks including fixtures, contrast, tile padding and AR label ranges.
-Navigation walk from #176: PASS, 22 checks across ten screen sizes.
-Drop editor checks after adding its left margin: PASS, 6 checks.
-Compatibility with PR #174: production Lua merges automatically. Three generated-content conflicts were resolved with the padded layout and #174's daily sample. One added header assertion moved to row 2. The combined tree passed 87 UI checks, 22 navigation checks and the final 6 drop-editor checks.
+Base: b2f82c8 (origin/server-only), rebased from fd53311 (PR #176).
+Kept commits: 6cee69c, 6fe9297 and a14e6c2 from the old branch, plus one rebase follow-up commit.
+cc-test --slot local: PASS, 613 tests, local-1 slot, exit 0. The local slot was forced because the UI0 generator check only runs on POSIX. The log has no "SKIP UI0" line, and "UI0 generator preserves section 7.1 and reproduces every fixture" passed. Log: full-suite.txt.
+python3 -I docs/ui/mockup-gen.py --fixtures: all 26 fixtures regenerated, including the map, touch shop and panel pairing fixtures. Section 7.1 of BIG-TILES-SPEC.md and map-mockups.md come from the same generator run.
 luac5.2 -p: PASS for all 17 changed Lua files.
-python3 tools/cobaltlocals.py: maximum 58 locals, below 185.
+python3 tools/cobaltlocals.py: maximum 64 locals, below 185.
 Scope check against origin/server-only: PASS, tests/run.lua unchanged, no deleted tests.
-python3 -I docs/ui/mockup-gen.py --fixtures: PASS, fixtures regenerated and checked cell by cell.
-Client install source: worker 124883 bytes, display 117606 bytes, both below 1 MB.
-Gate A: not established. The Windows legacy sandbox run failed on missing server.state and a server copy over its 1 MB disk limit. Reports and stdout/stderr are saved. tests/review-capture.ps1 is absent.
-Gate B: not run for this head. The orchestrator owns the frozen server-only Gate B run.
-Windows task files and sandbox run removed; sandbox process stopped by its runner.
+Client files are unchanged by this branch (worker.lua and display.lua are not in the diff).
+The compat-174-* files, sandbox.txt and sandbox-reports.zip are from the old base, before the rebase.
+Gate A: not rerun for this head. Gate B: not run; the orchestrator owns Gate B.
 No live server or RCON was accessed.
