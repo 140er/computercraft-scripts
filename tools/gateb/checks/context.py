@@ -274,6 +274,10 @@ class Context:
         self.request("input", computer=self.computer(name), event=event, args=args)
         def changed():
             current = self.frame(name)
+            if button_id in ("status", "generic", "mining", "lumber", "shop", "ar", "map", "panel"):
+                return current if current.get("role") == button_id else None
+            if button_id == "map-back":
+                return current if current.get("role") != "map" else None
             return current if current != frame else None
         return self.wait(changed, 5) or self.frame(name)
 
