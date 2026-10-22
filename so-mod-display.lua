@@ -169,7 +169,7 @@ D.compose = function(role, w, h, session)
       { id = "lumber", x = 1, y = 1, w = 6, label = "lumber" },
       { id = "ar", x = 8, y = 1, w = 2, label = "ar" },
     }) do
-      if not found[button.id] then copy[#copy + 1] = button end
+      if not found[button.id] and not (found.new and found.status) then copy[#copy + 1] = button end
     end
     buttons = copy
   end
@@ -429,7 +429,9 @@ D.onInput = function(msg)
     elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
   end
   local screen = D.screens[drawn]
-  if drawn == "generic" and type(id) == "string" and D.known[id] then
+  if id == "status" then
+    D.setRole(msg.from, "status")
+  elseif drawn == "generic" and type(id) == "string" and D.known[id] then
     D.setRole(msg.from, id)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
     D.setRole(msg.from, "generic")

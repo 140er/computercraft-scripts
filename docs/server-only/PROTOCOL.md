@@ -470,7 +470,11 @@ opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
 select mining, lumber, shop or generic. Pocket navigation row 20 is reserved.
 No saved data or wire type changes are required.
 
-Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, `lumber`, and `ar`.
+Button id `generic` returns that display to the generic screen. Button id
+`status` returns to status from any screen. Generic buttons can select `shop`,
+`mining`, `status`, `lumber` and `ar`. Missing lumber and AR buttons are injected
+for legacy generic screens. The drops list has `new` and `status` buttons, so
+it suppresses that injection and reaches the other roles through ADD NEW.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids. Old files without `far` remain valid.
@@ -539,17 +543,30 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
+The generic Big Tiles screen shows short row numbers, kind, coordinates, side
+and state, with green or coral state stripes. A row tap selects the point for
+FIX and REMOVE. The default is the first broken point, or the first point if
+none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
+existing draft editor with kind, side, dimension and coordinate controls.
+That page also offers MINING, LUMBER, SHOP and AR navigation. Its BACK returns
+to the list. The list's BACK returns to status. Gather copies module state
+before the private pure layout builds the requested display size.
+
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
 
 ### ar
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
 `tick(now)` and has no wire handlers. Without a controller it does not draw.
-It registers `display.screen("ar", render, input)`. The generic screen has an
-`ar` button even when the drops module supplies that screen. The `ar` role
+It registers `display.screen("ar", render, input)`. The generic screen reaches
+AR through its fallback button or the drops draft editor. The `ar` role
 survives restart through `so-display`.
 
-The screen has one toggle for each layer, all enabled initially. Switches save
+The screen shows the controller count and one tile per layer. Each tile shows
+1 and "layer on" in green, or 0 and "layer off" in grey. Tapping a tile toggles
+its layer once. Small screens use compact tiles. BACK returns to status.
+Gather copies the layer state before the private pure layout renders it.
+All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 

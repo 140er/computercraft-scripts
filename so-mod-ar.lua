@@ -1,3 +1,5 @@
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local A = {
   layers = { turtles = true, leases = true, drops = true, alerts = true },
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
@@ -26,7 +28,7 @@ A.call = function(name, method, ...)
   local meta = type(fn) == "table" and getmetatable(fn)
   if type(fn) == "function" or (meta and type(meta.__call) == "function") then return fn(...) end
 end
-A.render = function()
+A.legacyRender = function()
   local picture = { rows = { { text = "AR layers", fg = "0", bg = "f" } }, buttons = {} }
   for i, layer in ipairs(A.order) do
     local label = layer .. (A.layers[layer] and " on" or " off")
@@ -34,6 +36,46 @@ A.render = function()
   end
   picture.buttons[5] = { id = "generic", x = 1, y = 6, w = 7, label = "generic" }
   return picture
+end
+A.gather = function()
+  local count = 0
+  for _ in pairs(A.controllers) do count = count + 1 end
+  return { count = count, layers = SO.store.copy(A.layers) }
+end
+A.layout = function(model, w, h)
+  local C = U.canvas(w,h)
+  C.header("AR GOGGLES", model.count .. (model.count == 1 and " controller" or " controllers"))
+  local cols = U.grid(w,h,w < 39 and 2 or nil)
+  if h < 16 then
+    local compactCols = U.grid(w,h,2)
+    for i,layer in ipairs(A.order) do
+      local col = compactCols[(i-1)%2+1]
+      local y = 3+math.floor((i-1)/2)*3
+      local on = model.layers[layer]
+      C.fill(col.x,y,col.w,2,on and 'd' or 'c')
+      C.put(col.x,y,layer:upper():sub(1,col.w))
+      C.center(col.x,col.w,y+1,on and '1' or '0')
+      C.hit(layer,col.x,y,col.w,2)
+    end
+    C.put(1,9,"tap a tile to switch its layer")
+    C.button(1,h,w,"BACK","status",'7',1)
+  else
+    for i,layer in ipairs(A.order) do
+      local col=cols[(i-1)%#cols+1]
+      local y=3+math.floor((i-1)/#cols)*6
+      local on=model.layers[layer]
+      C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
+      C.hit(layer,col.x,y,col.w,5)
+    end
+    if #cols == 2 then C.put(2,15,"tap a tile to switch its layer")
+    else C.put(cols[2] and cols[2].x+1 or 1,10,"tap a tile to switch its layer") end
+    C.button(1,h-3,w,"BACK","status")
+  end
+  return C.frame()
+end
+A.render = function(w,h)
+  if not U then return A.legacyRender() end
+  return A.layout(A.gather(),w or 57,h or 24)
 end
 A.input = function(event)
   if not event or A.layers[event.id] == nil then return end
