@@ -29,6 +29,7 @@ local function setup(phase, fuel, inv)
   end
   mod.tick(0) report(false)
   return { job = job, tick = mod.tick, report = report, queued = function() return queued end,
-    render = function() return render() end, input = function(text) input({ text = text }) end, events = events }
+    expire = function() local q = assert(queued) queued = nil callback(q.id, 2, nil, {}) end,
+    render = function() return render() end, input = function(text) input({ text = text }) end, events = events, mods = env.SO.mods, env = env }
 end
 return setup
