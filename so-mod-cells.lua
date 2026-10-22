@@ -49,10 +49,31 @@ end
 
 S.sectionValid = function(value)
   if type(value) ~= "table" then return false end
+  if value.format == "hex4096" then
+    return type(value.bits) == "string" and #value.bits == 1024 and not value.bits:find("[^0-9a-f]")
+      and type(value.used) == "number" and value.used >= 0 and value.used < math.huge
+  end
   for key, dug in pairs(value) do
     if type(key) ~= "number" or key % 1 ~= 0 or key < 0 or key > 4095 or dug ~= true then return false end
   end
   return true
+end
+
+S.bit = function(bits, index, set)
+  local offset, mask = math.floor(index / 4) + 1, 2 ^ (index % 4)
+  local digit = tonumber(bits:sub(offset, offset), 16)
+  local marked = math.floor(digit / mask) % 2 == 1
+  if set == nil then return marked end
+  if marked == set then return bits end
+  digit = digit + (set and mask or -mask)
+  return bits:sub(1, offset - 1) .. string.format("%x", digit) .. bits:sub(offset + 1)
+end
+
+S.compact = function(value)
+  if value and value.format == "hex4096" then return value, false end
+  local bits = string.rep("0", 1024)
+  for index in pairs(value or {}) do bits = S.bit(bits, index, true) S.pause() end
+  return { format = "hex4096", bits = bits, used = 0 }, value ~= nil
 end
 
 S.saveSection = function(section)
@@ -76,10 +97,15 @@ S.section = function(path)
     S.sections[oldest], S.cached = nil, S.cached - 1
   end
   fs.makeDir(path:match("^(.*)/"))
-  local box = SO.store.store(path, S.sectionValid)
-  section = { box = box, value = box.value or {}, used = S.clock, dirty = false }
+  local box = SO.store.store(path, S.sectionValid, 2048)
+  local value, migrate = S.compact(box.value)
+  section = { box = box, value = value, used = S.clock,
+    dirty = migrate or fs.exists(path .. ".tmp") or (box.value ~= nil and not fs.exists(path)) }
   local count = 0
-  for _ in pairs(section.value) do count = count + 1 end
+  for digit in value.bits:gmatch(".") do
+    local n = tonumber(digit, 16)
+    for _ = 1, 4 do count = count + n % 2 n = math.floor(n / 2) end
+  end
   S.dug = S.dug + count - (S.sizes[path] or 0)
   S.sizes[path] = count
   S.sections[path], S.cached = section, S.cached + 1
@@ -156,8 +182,9 @@ S.markDug = function(x, y, z, dim)
   local _, path, index = S.cell(x, y, z, dim)
   local section, err = S.section(path)
   if not section then return false, err end
-  if not section.value[index] then
-    section.value[index], section.dirty = true, true
+  if not S.bit(section.value.bits, index) then
+    section.value.bits, section.dirty = S.bit(section.value.bits, index, true), true
+    section.value.used = os.epoch("utc")
     S.sizes[path], S.dug = S.sizes[path] + 1, S.dug + 1
   end
   S.pause()
@@ -169,7 +196,7 @@ S.isDug = function(x, y, z, dim)
   local section, err = S.section(path)
   if not section then error(err, 2) end
   S.pause()
-  return section.value[index] == true
+  return S.bit(section.value.bits, index)
 end
 
 S.forget = function(x, y, z, dim)
@@ -183,8 +210,9 @@ S.forget = function(x, y, z, dim)
     ok, err = S.commit(copy)
     if not ok then return false, err end
   end
-  if section.value[index] then
-    section.value[index], section.dirty = nil, true
+  if S.bit(section.value.bits, index) then
+    section.value.bits, section.dirty = S.bit(section.value.bits, index, false), true
+    section.value.used = os.epoch("utc")
     S.sizes[path], S.dug = S.sizes[path] - 1, S.dug - 1
   end
   return true
