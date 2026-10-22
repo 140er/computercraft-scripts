@@ -165,7 +165,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
   text and resize events. Pairing prompts and digits appear on the display and
   its computer terminal. Failed pairing accepts a new code. Discovery and
-  stale-frame hello/subscribe retries use backoff capped at 30 seconds.
+  stale-frame hello/subscribe retries use backoff capped at 30 seconds. Screens
+  at least three rows tall reserve the bottom row for typed input and report
+  the remaining height in `hello`. Wall displays also echo input on the terminal.
 
 ## Installer roles and files
 

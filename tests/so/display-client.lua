@@ -30,10 +30,33 @@ local function setup(w,h,wall,absent)
   local c=n.machine({id=2,modem=true,capacity=1000000}); install(c)
   local face=grid(w,h); local own=wall and grid(51,19) or face
   c.env.term=own
+  local pull=c.env.os.pullEvent
+  c.env.os.pullEvent=function(...)
+    local ev=table.pack(pull(...))
+    if ev[1]=="modem_message" then
+      local packet=ev[5]
+      c.env.os.queueEvent("rednet_message",packet.nSender,packet.message,packet.sProtocol)
+    end
+    return table.unpack(ev,1,ev.n)
+  end
+  local send=s.env.rednet.send
+  s.env.rednet.send=function(id,payload,protocol)
+    if id~=c.id then return send(id,payload,protocol) end
+    s.sent[#s.sent+1]={id=id,payload=payload,protocol=protocol}
+    c.env.os.queueEvent("modem_message","back",c.id,s.id,
+      {nRecipient=c.id,nSender=s.id,message=payload,sProtocol=protocol},1)
+    return true
+  end
   local find=c.env.peripheral.find
   c.env.peripheral.find=function(kind) if kind=="monitor" and wall then return face end return find(kind) end
+  local lookups=0
+  local lookup=c.env.rednet.lookup
+  c.env.rednet.lookup=function(...)
+    lookups=lookups+1
+    return lookup(...)
+  end
   c.boot("display.lua"); n.flush()
-  return {n=n,s=s,c=c,face=face,own=own,w=w,h=h}
+  return {n=n,s=s,c=c,face=face,own=own,w=w,h=h,lookups=function() return lookups end}
 end
 local function event(t,...)
   t.c.env.os.queueEvent(...); t.n.flush(); assert(t.c.alive(),tostring(t.c.error))
@@ -54,7 +77,10 @@ return function(test,equal)
     assert(t.face.text():find("press P",1,true),t.face.text())
     assert(t.own.text():find("press P",1,true),t.own.text())
     event(t,"char","0"); event(t,"char","2"); event(t,"key",259)
-    assert(t.face.text():find("0",1,true)); event(t,"key",259)
+    local lookups=t.lookups()
+    t.n.advance(2)
+    equal(t.lookups(),lookups,"discovery interrupted code entry")
+    assert(t.face.text():find("Code: 0",1,true)); event(t,"key",259)
     local good=code(t); local bad=good=="000000" and "111111" or "000000"
     typeText(t,bad); t.n.advance(15)
     assert(not t.c.files["so-keys"],"wrong code saved")
@@ -66,6 +92,7 @@ return function(test,equal)
   test("display discovers a server that starts after boot",function()
     local t=setup(26,20,false,true)
     t.n.advance(65)
+    assert(t.lookups()>1 and t.lookups()<12,"discovery did not back off")
     assert(t.c.alive(),tostring(t.c.error))
     t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
     pair(t)
@@ -88,4 +115,61 @@ return function(test,equal)
     assert(not t.face.text():find("stale",1,true),t.face.text())
     assert(t.c.alive(),tostring(t.c.error))
   end)
+  test("display clears a no-server code and accepts another after discovery",function()
+    local t=setup(29,12,true,true)
+    typeText(t,"012345")
+    assert(t.face.text():find("no server",1,true),t.face.text())
+    assert(not t.c.files["so-keys"])
+    t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
+    pair(t)
+    assert(last(t,"view.sub"))
+  end)
+  test("display clears a timed-out code and accepts a new invitation",function()
+    local t=setup(26,20,false)
+    local send=t.s.env.rednet.send
+    t.s.env.rednet.send=function() return true end
+    typeText(t,code(t)); t.n.advance(15)
+    assert(t.face.text():find("timeout",1,true),t.face.text())
+    assert(not t.c.files["so-keys"])
+    t.s.env.rednet.send=send
+    pair(t)
+    assert(last(t,"view.sub"))
+  end)
+  for _,size in ipairs({{26,20,false},{29,12,true}}) do
+    test("display echoes commands without covering buttons "..size[1].."x"..size[2],function()
+      local t=setup(size[1],size[2],size[3])
+      local received={}
+      t.s.env.SO.mods.display.screen("generic",function()
+        return {rows={{text="Commands"}},buttons={
+          {id="go",label="go",x=1,y=size[2]-3,w=2}}}
+      end,function(e) received[#received+1]=e end)
+      pair(t)
+      equal(last(t,"hello").body.h,size[2]-1)
+      for _,text in ipairs({"home 1 64 2 n","area 0 0 8 8 63","diamond"}) do
+        typeText(t,text.."x"); event(t,"key",259)
+        equal(t.face.line(size[2]):sub(1,#text+2),"> "..text)
+        local _,ownH=t.own.getSize()
+        equal(t.own.line(ownH):sub(1,#text+2),"> "..text)
+        t.n.advance(2)
+        equal(t.face.line(size[2]):sub(1,#text+2),"> "..text)
+        equal(t.face.line(size[2]-1):sub(1,2),"go")
+        event(t,"key",257)
+        equal(last(t,"input").body.text,text)
+        equal(t.face.line(size[2]):sub(1,3),">  ")
+        equal(t.own.line(ownH):sub(1,3),">  ")
+      end
+      typeText(t,string.rep("a",64)); event(t,"char","b")
+      equal(t.face.line(size[2]),"> "..string.rep("a",size[1]-2))
+      local y,x
+      for row=1,size[2]-1 do
+        local at=t.face.line(row):find("go",1,true)
+        if at then x,y=at,row break end
+      end
+      assert(x and y,"no drawn button")
+      event(t,size[3] and "monitor_touch" or "mouse_click",size[3] and "right" or 1,x,y)
+      equal(received[#received].id,"go")
+      equal(t.face.line(size[2]):sub(1,3),">  ")
+    end)
+  end
+
 end

@@ -42,7 +42,16 @@ It tries GPS for two seconds. If GPS does not answer, enter the server's
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
 Press P again for each additional client. Keep any leading zeros in the code.
+Displays show the pairing prompt and digits on the monitor and computer terminal.
+Backspace removes a digit. The sixth digit starts pairing. If it fails, the
+display shows the reason and accepts a new code. Displays keep looking when
+the server is absent and reconnect after it restarts.
 Each machine starts its installed program immediately and on reboot.
+
+Display text commands appear on the bottom row while you type. Backspace
+edits the line and Enter sends it and clears it. Wall displays also echo the
+line on the computer terminal. Screens at least three rows tall reserve one
+row for input, leaving the remaining rows for server frames and buttons.
 
 Run `install update` to download the saved role again. `update` calls the same
 installer. Updates preserve pairing keys, the worker journal, drop points,

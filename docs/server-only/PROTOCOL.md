@@ -54,7 +54,9 @@ A paired computer sends `hello` to the server.
 
 `body.role` is an optional string. `body.label` is an optional string.
 
-`body.w` and `body.h` are optional positive integers. They are the display size in character cells, from `getSize`. The display module reads them. It does not treat `body.role` as the screen assignment.
+`body.w` and `body.h` are optional positive integers. They are the available frame size in character cells. `display.lua` uses
+`getSize` and reserves the bottom row for local input on screens at least
+three rows tall, so `body.h` is one less than the physical height there. The display module reads them. It does not treat `body.role` as the screen assignment.
 
 A turtle also sends these fields.
 

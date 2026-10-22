@@ -29,6 +29,7 @@ C.output = function()
   if type(h) ~= "number" or h < 1 then h = 1 end
   C.w = math.floor(w)
   C.h = math.floor(h)
+  C.viewH = C.h >= 3 and C.h - 1 or C.h
 end
 
 C.waitSeconds = function(id, attempt)
@@ -65,7 +66,7 @@ C.send = function(kind, body)
 end
 
 C.sendHello = function()
-  local body = { w = C.w, h = C.h }
+  local body = { w = C.w, h = C.viewH }
   local label = os.getComputerLabel()
   if type(label) == "string" and label ~= "" then body.label = label end
   C.send("hello", body)
@@ -97,7 +98,7 @@ C.clipDraw = function()
   if not out then return end
   if out.clear then out.clear() end
   local n = #C.rows
-  if n > C.h then n = C.h end
+  if n > C.viewH then n = C.viewH end
   for i = 1, n do
     local row = C.rows[i]
     local text = type(row) == "table" and type(row.text) == "string" and row.text or ""
@@ -110,7 +111,7 @@ C.clipDraw = function()
   for i = 1, #C.buttons do
     local b = C.buttons[i]
     if type(b) == "table" and type(b.x) == "number" and type(b.y) == "number"
-      and b.y >= 1 and b.y <= C.h and b.x >= 1 and b.x <= C.w then
+      and b.y >= 1 and b.y <= C.viewH and b.x >= 1 and b.x <= C.w then
       local label = type(b.label) == "string" and b.label or ""
       local room = C.w - b.x + 1
       if #label > room then label = label:sub(1, room) end
@@ -118,6 +119,7 @@ C.clipDraw = function()
       if out.write then out.write(label) end
     end
   end
+  C.drawInput()
   if C.phase == "stale" then C.drawStale() end
 end
 
@@ -129,7 +131,25 @@ C.drawStale = function()
   if C.out.write then C.out.write(word) end
 end
 
+C.drawInput = function()
+  local draw = function(out, width, height, room)
+    if out.setCursorPos then out.setCursorPos(1, height) end
+    local text = "> " .. C.typed:sub(-math.max(1, room - 2))
+    text = text:sub(1, room)
+    if out.write then out.write(text .. string.rep(" ", width - #text)) end
+  end
+  if C.h > C.viewH then
+    local room = C.phase == "stale" and math.max(0, C.w - 6) or C.w
+    draw(C.out, C.w, C.h, room)
+  end
+  if C.out ~= term then
+    local w, h = term.getSize()
+    draw(term, w, h, w)
+  end
+end
+
 C.hit = function(x, y)
+  if y < 1 or y > C.viewH then return end
   for i = #C.buttons, 1, -1 do
     local b = C.buttons[i]
     if type(b) == "table" and b.y == y and type(b.x) == "number" and type(b.w) == "number"
@@ -242,13 +262,19 @@ C.loop = function()
       if button and C.phase == "live" then
         C.typed = ""
         C.send("input", { id = button.id, x = x, y = y })
+        C.clipDraw()
       end
     elseif ev == "char" and C.phase == "live" and type(a) == "string" and #C.typed < 64 then
       C.typed = C.typed .. a
+      C.clipDraw()
+    elseif ev == "key" and (a == 259 or a == 14) and C.phase == "live" then
+      C.typed = C.typed:sub(1, -2)
+      C.clipDraw()
     elseif ev == "key" and (a == 257 or a == 28) and C.phase == "live" and C.typed ~= "" then
       local text = C.typed
       C.typed = ""
       C.send("input", { text = text, x = 1, y = 1 })
+      C.clipDraw()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       C.output()
       if C.phase == "pairing" then C.drawPair() else C.sendHello(); C.clipDraw() end
