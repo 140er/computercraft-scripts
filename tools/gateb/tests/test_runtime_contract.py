@@ -115,6 +115,22 @@ class ContractTests(unittest.TestCase):
         rows.append({"epoch":124,"workers":{"6":{**worker,"pose":{**worker["pose"],"f":1}}},"mine":{"turtles":{}}})
         self.assertEqual(analyze(rows,0,122,proof)["movement_recovery_seconds"],{})
 
+    def test_execution_loads_manifest_before_server_boot_probe(self):
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="manifest":return {"computers":{"1":{"name":"server"}}}
+                if request["op"]=="lua":return {"values":[True]}
+                return {}
+        class Check:
+            @staticmethod
+            def run(ctx):
+                self.assertEqual(ctx.computer("server"),1)
+                return Verdict("pass")
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{},temp,"a"*40)
+            with patch.object(ctx,"cli",side_effect=[{}, {"sha":"a"*40,"errors":[]}]), patch.object(run,"admit"), patch.object(run,"load",return_value=Check):
+                self.assertEqual(run.execute(ctx,"C5",Path("/runtime")).status,"pass")
+
     def test_failed_exact_install_does_not_run_check(self):
         calls=[]
         class FakeContext:
