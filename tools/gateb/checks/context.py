@@ -7,6 +7,13 @@ import time
 from .lua_data import parse
 from .model import Blocked, values
 
+HTTP_UPDATE = '''local original=http.get;local requests,failures=0,0
+  http.get=function(...) requests=requests+1;local r,e,f=original(...)
+    if not r or r.getResponseCode()~=200 then failures=failures+1 end;return r,e,f end
+  local ok,ran=pcall(shell.run,"install","update");http.get=original
+  if not ok then error(ran) end
+  return {ran=ran,requests=requests,failures=failures}'''
+
 SECRET_FIELD = re.compile(r"^(?:keys?|secret|token|pair(?:ing)?_?code|private.*)$", re.I)
 
 

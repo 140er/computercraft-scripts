@@ -2,6 +2,7 @@ import hashlib
 import subprocess
 import time
 from .model import Criteria, Blocked
+from .context import HTTP_UPDATE
 
 TITLE = "Interrupted HTTP update and recovery"
 
@@ -15,13 +16,8 @@ def evaluate(d):
 
 def run(ctx):
     before = ctx.integrity("wall")
-    update_code = '''local original=http.get;local requests,failures=0,0
-      http.get=function(...) requests=requests+1;local r,e,f=original(...)
-        if not r or r.getResponseCode()~=200 then failures=failures+1 end;return r,e,f end
-      local ok,ran=pcall(shell.run,"install","update");http.get=original
-      if not ok then error(ran) end
-      return {ran=ran,requests=requests,failures=failures}'''
-    job = ctx.request("lua_async", computer=ctx.computer("wall"), code=update_code)
+    old_terminal = " ".join(l["text"] for l in ctx.terminal("wall")["lines"])
+    job = ctx.request("lua_async", computer=ctx.computer("wall"), code=HTTP_UPDATE)
     def staged():
         result = ctx.request("files", computer=ctx.computer("wall"), path=".so-new/update.lua")
         return bool(result.get("content"))
@@ -33,12 +29,12 @@ def run(ctx):
         raise Blocked("Native terminate did not stop the updater")
     interrupted = ctx.request("lua_job", computer=ctx.computer("wall"), job=job["job"])
     terminal = ctx.terminal("wall")
-    native_interruption = "Terminated" in (str(interrupted.get("error", "")) + " ".join(l["text"] for l in terminal["lines"]))
+    native_interruption = "Terminated" in str(interrupted.get("error", "")) or ("Terminated" not in old_terminal and "Terminated" in " ".join(l["text"] for l in terminal["lines"]))
     ctx.record("C14-interrupted-terminal.json", terminal)
     after_interrupt = ctx.integrity("wall")
     ctx.power("wall", "reboot")
     old_boot = ctx.wait(lambda: ctx.frame("wall").get("role") is not None, 30)
-    full = ctx.request("lua_async", computer=ctx.computer("wall"), code=update_code)
+    full = ctx.request("lua_async", computer=ctx.computer("wall"), code=HTTP_UPDATE)
     complete = ctx.wait(lambda: ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"]).get("state") in ("done", "failed"), 120)
     full_job = ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"])
     transport = (full_job.get("values") or [{}])[0]
