@@ -12,6 +12,7 @@ def analyze(before, rows, off, boot):
     retreat = {k:set() for k in workers}
     outage_samples = 0
     seen, previous = {}, {}
+    globally_dug = {world_pose(p, frames[k]) for k,j in workers.items() if k in before["mine"].get("turtles", {}) for p in values(j.get("dug"))}
     last_off = {k:j["pose"] for k,j in workers.items()}
     for row in rows:
         if off+5 < row["epoch"] < boot: outage_samples += 1
@@ -28,9 +29,10 @@ def analyze(before, rows, off, boot):
             if k not in before["mine"].get("turtles", {}): continue
             current = {world_pose(p, frames[k]) for p in values(j.get("dug"))}
             if k in previous:
-                duplicates.extend({"worker":k,"pos":p} for p in current-previous[k] if p in seen[k])
+                duplicates.extend({"worker":k,"pos":p} for p in current-previous[k] if p in seen[k] or p in globally_dug)
                 seen[k].update(current)
             else: seen[k] = set(current)
+            globally_dug.update(current)
             previous[k] = current
     return {"off_seconds": boot-off, "active_workers": len(workers) == 3 and all(not j.get("park") for j in workers.values()),
             "outside_own_path": outside, "collisions": collisions, "duplicate_digs": duplicates,

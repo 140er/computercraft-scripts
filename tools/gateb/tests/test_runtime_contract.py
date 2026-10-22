@@ -79,13 +79,16 @@ class ContractTests(unittest.TestCase):
             TITLE="fixture"
             @staticmethod
             def run(ctx):
-                if ctx.output.name=="C3": raise Blocked("Missing reviewed pixels")
+                if ctx.output.name=="C3":
+                    ctx.linked_install()
+                    raise Blocked("Missing reviewed pixels")
                 return Verdict("pass")
         with tempfile.TemporaryDirectory() as temp, patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:object()), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
-            code=run.main(["--checks","C3,C5","--output",temp,"--worlds","2"])
+            code=run.main(["--checks","C1,C3,C5","--output",temp,"--worlds","2"])
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)
-        self.assertEqual(report["counts"],{"pass":1,"fail":0,"blocked":1})
+        self.assertEqual(report["counts"],{"pass":2,"fail":0,"blocked":1})
+        self.assertEqual(sum(c[0]=="reset" for c in calls),2)
         self.assertEqual(sum(c[0]=="stop" for c in calls),2)
         self.assertEqual(sum(c[0]=="clone" for c in calls),2)
 

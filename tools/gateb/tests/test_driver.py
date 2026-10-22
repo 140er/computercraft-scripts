@@ -159,6 +159,17 @@ class CriterionTests(unittest.TestCase):
         data = copy.deepcopy(PASS["C10"]); data["movement_recovery_seconds"] = {"4":1,"5":1}
         self.assertEqual(load("C10").evaluate(data).status, "fail")
 
+    def test_two_workers_cannot_redig_the_same_cell(self):
+        frame={"rot":0,"ox":0,"oy":0,"oz":0}
+        def journal(x): return {"id":"old","park":False,"pose":{"x":x,"y":0,"z":0,"f":0},"moves":[],"dug":[]}
+        before={"mine":{"turtles":{"4":{"frame":frame},"5":{"frame":frame}}},"lumber":{"turtle":{"frame":frame}},"workers":{"4":journal(0),"5":journal(1),"6":journal(2)}}
+        row=copy.deepcopy(before);row["epoch"]=1
+        row["workers"]["4"]["dug"]=[{"x":4,"y":0,"z":0}]
+        later=copy.deepcopy(row);later["epoch"]=2
+        later["workers"]["5"]["dug"]=[{"x":4,"y":0,"z":0}]
+        stats=load("C10").analyze(before,[row,later],0,181)
+        self.assertEqual(stats["duplicate_digs"],[{"worker":"5","pos":(4,0,0)}])
+
     def test_own_path_ignores_failed_moves(self):
         journal = {"pose":{"x":0,"y":0,"z":0,"f":0},"moves":{"1":{"op":"forward","ok":False},"2":{"op":"forward","ok":True}}}
         self.assertEqual(own_path(journal,{"rot":0,"ox":0,"oy":0,"oz":0}), {(0,0,0),(0,0,1)})
