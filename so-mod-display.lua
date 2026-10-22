@@ -7,7 +7,7 @@ local D = {
   order = { "shop", "mining", "status", "generic", "lumber", "ar" },
   known = {},
   box = nil,
-  saved = { roles = {} },
+  saved = { roles = {}, far = {} },
   screens = {},
   sessions = {},
   pictures = {},
@@ -37,12 +37,46 @@ D.setRole = function(id, role)
   end
   if want == old then return end
   if want == nil then D.saved.roles[name] = nil else D.saved.roles[name] = want end
-  local copy = { roles = {} }
+  local copy = { roles = {}, far = D.saved.far }
   for key, value in pairs(D.saved.roles) do copy.roles[key] = value end
   local ok = D.box.save(copy)
   if not ok then
     if old == nil then D.saved.roles[name] = nil else D.saved.roles[name] = old end
   end
+end
+
+D.far = function(id, on)
+  if type(id) ~= "number" or id < 0 or id % 1 ~= 0 or type(on) ~= "boolean" then return false end
+  local key = tostring(id)
+  local copy = { roles = D.saved.roles, far = {} }
+  for k, v in pairs(D.saved.far) do copy.far[k] = v end
+  copy.far[key] = on or nil
+  local ok, err = D.box.save(copy)
+  if not ok then return false, err end
+  D.saved = copy
+  if D.sessions[id] then D.sessions[id].sent = -math.huge end
+  return true
+end
+
+D.palette = {
+  [0] = 0xF2F4F8, 0xFFC24B, 0xE57FD8, 0x99B2F2,
+  0xDEDE6C, 0x7FCC19, 0xF2B2CC, 0x1F2B45,
+  0x8A97B5, 0x2DD4BF, 0xB69CFF, 0x5AB0FF,
+  0x4A5468, 0x3DDC84, 0xFF6B5E, 0x0E1626,
+}
+
+D.compact = function(row)
+  local runs = {}
+  for x = 1, #row.text do
+    local fg = #row.fg == 1 and row.fg or row.fg:sub(x, x)
+    local bg = #row.bg == 1 and row.bg or row.bg:sub(x, x)
+    local last = runs[#runs]
+    if last and last[2] == fg and last[3] == bg then last[1] = last[1] + 1
+    else runs[#runs + 1] = { 1, fg, bg } end
+  end
+  local compact = { text = row.text:gsub(" +$", ""), runs = runs }
+  if #SO.proto.ser(compact) < #SO.proto.ser(row) then return compact end
+  return row
 end
 
 D.session = function(id)
@@ -68,7 +102,19 @@ D.fit = function(picture, w, h)
     local row = src[i]
     local text, fg, bg = "", "0", "f"
     if type(row) == "table" then
-      if type(row.text) == "string" then text = row.text end
+      if type(row.runs) == "table" then
+        local f, b, width = {}, {}, 0
+        for _, run in ipairs(row.runs) do
+          local count = math.min(run[1], w - width)
+          if count > 0 then
+            f[#f + 1], b[#b + 1] = string.rep(run[2], count), string.rep(run[3], count)
+            width = width + count
+          end
+        end
+        fg, bg = table.concat(f), table.concat(b)
+        text = (row.text or "") .. string.rep(" ", math.max(0, width - #(row.text or "")))
+      end
+      if type(row.text) == "string" and not row.runs then text = row.text end
       if type(row.fg) == "string" and row.fg ~= "" then fg = row.fg end
       if type(row.bg) == "string" and row.bg ~= "" then bg = row.bg end
     end
@@ -77,7 +123,7 @@ D.fit = function(picture, w, h)
     if #bg ~= 1 then bg = bg:sub(1, #text) end
     if fg == "" then fg = "0" end
     if bg == "" then bg = "f" end
-    rows[i] = { text = text, fg = fg, bg = bg }
+    rows[i] = D.compact({ text = text, fg = fg, bg = bg })
   end
   local buttons = {}
   local srcB = type(picture.buttons) == "table" and picture.buttons or {}
@@ -88,7 +134,8 @@ D.fit = function(picture, w, h)
       local width = b.w
       if b.x + width - 1 > w then width = w - b.x + 1 end
       local label = type(b.label) == "string" and b.label or b.id
-      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label:sub(1, width) }
+      buttons[#buttons + 1] = { id = b.id, x = b.x, y = b.y, w = width, label = label:sub(1, width),
+        h = math.min(D.whole(b.h) and b.h or 1, h - b.y + 1) }
     end
   end
   return { rows = rows, buttons = buttons }
@@ -118,7 +165,7 @@ D.compose = function(role, w, h)
     end
     buttons = copy
   end
-  local sig = D.sig(rows, buttons)
+  local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
   local slot = D.pictures[role]
   if not slot then
     slot = { rev = 0, sig = "" }
@@ -129,6 +176,7 @@ D.compose = function(role, w, h)
     slot.sig = sig
   end
   local fitted = D.fit({ rows = rows, buttons = buttons }, w, h)
+  fitted.palette = picture.palette
   fitted.rev = slot.rev
   fitted.role = role
   return fitted
@@ -147,6 +195,7 @@ D.sendFrame = function(id, now, force)
   if not key then return end
   local role = D.drawn(id)
   local body = D.compose(role, session.w, session.h)
+  body.scale = D.saved.far[tostring(id)] and 1 or 0.5
   local slot = D.pictures[body.role]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
@@ -238,7 +287,9 @@ D.once = function(msg, reply)
   local session = D.session(msg.from)
   local w = session.w or 1
   local h = session.h or 1
-  reply("view.frame", D.compose(D.drawn(msg.from), w, h))
+  local body = D.compose(D.drawn(msg.from), w, h)
+  body.scale = D.saved.far[tostring(msg.from)] and 1 or 0.5
+  reply("view.frame", body)
 end
 
 D.onInput = function(msg)
@@ -279,11 +330,18 @@ D.load = function()
     for _, role in pairs(v.roles) do
       if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" then return false end
     end
+    if v.far ~= nil then
+      if type(v.far) ~= "table" then return false end
+      for _, on in pairs(v.far) do if type(on) ~= "boolean" then return false end end
+    end
     return true
   end)
-  D.saved = { roles = {} }
+  D.saved = { roles = {}, far = {} }
   if D.box.value and type(D.box.value.roles) == "table" then
     for id, role in pairs(D.box.value.roles) do D.saved.roles[tostring(id)] = role end
+  end
+  if D.box.value and D.box.value.far then
+    for id, on in pairs(D.box.value.far) do D.saved.far[tostring(id)] = on end
   end
   D.register("status", D.statusRender, function() end)
   D.register("generic", D.genericRender, function() end)
@@ -301,4 +359,6 @@ return {
   },
   tick = D.tick,
   screen = D.register,
+  far = D.far,
+  palette = D.palette,
 }

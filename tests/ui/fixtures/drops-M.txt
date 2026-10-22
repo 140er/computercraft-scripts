@@ -1,0 +1,49 @@
+57x24 Drop points (generic)
+ DROP POINTS                                    5 points 
+                                                         
+ ID  KIND     WHERE          SIDE   STATE                
+ 1  ore      10,64,-2       front  ok                    
+ 2  fuel     12,64,-2       front  ok                    
+ 3  wood     -4,64,10       front  ok                    
+ 4  saplings -6,64,10       front  ok                    
+ 5  any       0,64,4        down   broken                
+                                                         
+                                                         
+                                                         
+   FIX #5        REMOVE        ADD NEW          BACK     
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+effffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+9999999999999f7777777777777f77777777777777f77777777777777
+9999999999999f7777777777777f77777777777777f77777777777777
+9999999999999f7777777777777f77777777777777f77777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

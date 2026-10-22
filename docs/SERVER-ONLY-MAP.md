@@ -103,8 +103,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames. Calls are `screen(role, render, input)` and `tick(now)`.
-  `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
+  clipped frames. Calls are `screen(role, render, input)`, `far(id, on)` and `tick(now)`.
+  `far` saves a per-computer flag and returns success plus an optional save error.
+  `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
+  `render()` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
   The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
@@ -161,7 +163,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
-  text and resize events, and retries when its frame becomes stale.
+  text and resize events, and retries when its frame becomes stale. Rows accept
+  old blit strings or compact `{ text, runs = { { n, fg, bg }, ... } }` data.
+  Compact text omits trailing spaces, which the client pads to the run width.
+  Frames may carry a 0-based RGB palette and monitor scale 0.5 or 1. Missing
+  palettes restore stock colours. A changed scale sends one resized hello.
+  Buttons accept optional height `h`, default 1. The client draws the outage
+  tile and timers without a server, preserving inverted digit cells.
 
 ## Installer roles and files
 
@@ -269,7 +277,9 @@ blocks later saves until restart. Do not save inside tight loops.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
-- `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
+- `so-drops` holds drop points and failure counts.
+- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
+  Old files without `far` remain valid. Far displays use scale 1; others use 0.5.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
@@ -318,13 +328,24 @@ Run all four checks before a PR and record each command's last output line:
 lua5.2 tests/run.lua
 luac5.2 -p <every .lua file touched>
 python3 tools/cobaltlocals.py <every .lua file touched>
-sh tools/check-scope.sh origin/server-only HEAD
+sh tools/check-scope.sh origin/server-only-ui HEAD
 ```
 
 Keep each Lua file under 185 locals, including enclosing functions, for Cobalt's
 200-local ceiling. Commit before the scope check so `HEAD` includes the change.
 Offline tests do not prove in-game behavior. State which AGENTS.md gates could
 not run and which Minecraft or client checks remain unavailable in the PR.
+
+UI-0 adds `tests/ui/ui0.lua` to the full suite. It checks frame compatibility,
+serializer size, palette restoration, scale hello, button rectangles, outage
+fixtures, retries, font encoding and generator output. `tests/ui/render.lua`
+exports `load(path)`, `capture(w, h)` and `diff(fixture, picture)`. Capture returns
+a fake terminal with CC drawing methods and `picture()` for text/background
+layers. Diff returns up to eight cell differences with row, column, layer,
+expected and actual values. Sextants use the spec ink/background rules to undo
+inverted cells. `sextant(bits)` converts a six-bit pixel value to Unicode.
+`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes all fifteen fixture
+files without changing the normal mockups.md and font.txt output mode.
 
 ## Open gaps
 

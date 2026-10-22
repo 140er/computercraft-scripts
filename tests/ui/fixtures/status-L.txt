@@ -1,0 +1,39 @@
+39x19 Status, wall monitor 4x3 at scale 1
+ STATUS                             ok 
+ ! ore chest full                      
+                                       
+ TURTLES             ALERTS            
+        🬋🬋🬏                 🬞🬓         
+        🬇🬋🬐                  ▌         
+        🬋🬋🬀                 🬇🬌         
+ 3 ok                ore chest full    
+                                       
+ ORE TODAY           DISK              
+     🬖🬋🬏🬞🬓  🬵            🬞🬓 🬋🬋🬏🬹 🬏     
+      🬖🬀 ▌ 🬳🬷🬏            ▌ 🬇🬋🬐🬞🬅      
+     🬍🬋🬃🬇🬌  🬉            🬇🬌 🬋🬋🬀🬀🬉🬄     
+ +12 / 10 min        2.1 of 16 MB      
+                                       
+                                       
+                                       
+   MINING        SHOP         MORE     
+                                       
+777777777777777777777777777777777777777
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffff
+dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+dddddddddddddddddddfeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffff
+bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
+bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
+bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
+bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
+bbbbbbbbbbbbbbbbbbbfddddddddddddddddddd
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+777777777777faaaaaaaaaaaaf7777777777777
+777777777777faaaaaaaaaaaaf7777777777777
+777777777777faaaaaaaaaaaaf7777777777777

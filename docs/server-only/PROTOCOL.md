@@ -142,11 +142,22 @@ The server sends `view.frame` to a display.
 
 `body.role` is `shop`, `mining`, `status`, or `generic`. It is the screen that was drawn.
 
-`body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`.
+`body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`
+or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
+with one blit colour each for `fg` and `bg`. Runs cover the row width. Compact
+rows may omit trailing spaces from `text`; the client pads them to the run width.
+The server chooses compact rows only when their `so-proto.ser` output is smaller.
 
-`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, label = string }`. The list may be empty.
+`body.palette` is optional. It maps numeric indices 0 through 15 to packed RGB
+numbers, corresponding to blit slots `0` through `f`. A frame without a palette
+restores the stock CC palette. `body.scale` is optional and accepts 0.5 or 1.
+The server sends 0.5 by default, or 1 for a computer marked far. A monitor applies
+the scale, then sends one `hello` if its character dimensions changed. The resize
+event for the same dimensions does not send another `hello`.
 
-`x` and `y` are 1-based character coordinates. `w` is the width in characters. A button is one row tall.
+`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, h = number?, label = string }`. The list may be empty.
+
+`x` and `y` are 1-based character coordinates. `w` is the width in characters. `h` is the height in rows and defaults to 1. Any cell inside the rectangle hits the button.
 
 `fg` and `bg` are CC blit strings. One character paints the whole row. A string the same length as `text` paints each character.
 
@@ -412,11 +423,25 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 SO5 owns this API on `SO.mods.display`.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
 Button id `generic` returns that display to the generic screen. The generic screen's buttons are `shop`, `mining`, `status`, `generic`, `lumber`, and `ar`.
 
-The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
+The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
+in `so-display`, with string computer ids. Old files without `far` remain valid.
+The default role is `generic`. Both settings survive a restart.
+`display.far(id, on)` sets or clears the far flag through `so-store`. It returns
+success and an optional save error. A successful change sends the new scale on
+the next tick for a subscribed display. A failed save keeps the previous setting.
+`display.palette` is the Big Tiles palette as RGB numbers at indices 0 through 15.
+Renderers opt into it by returning `palette = SO.mods.display.palette`.
+
+After ten seconds without a frame, the client keeps the last picture with stale
+backgrounds and preserves inverted big digits. It draws a centred coral 21x7
+NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capable
+outputs repaint the timer once a second. Outputs without palette support retain
+the legacy bottom-right stale marker and repaint on retries. The retry schedule
+still uses jittered exponential backoff capped at 30 seconds.
 
 ### lumber
 
