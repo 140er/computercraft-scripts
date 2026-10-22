@@ -1,0 +1,8 @@
+FINDING restart-id-reuse at fixed clock send_a=2-0-1 restart send_b=2-0-1 old_report_a closes send_b
+PASS traces=483841 comparisons=17418260
+CAUGHT scratch Lua mutation: dispatch
+CAUGHT scratch Lua mutation: report_integrity
+CAUGHT scratch Lua mutation: reservation_retention
+CAUGHT scratch Lua mutation: uncertainty
+CAUGHT scratch Lua mutation: callback_once
+PASS real-source verification and all 5 scratch defects; 30.106s

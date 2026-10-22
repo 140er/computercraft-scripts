@@ -99,9 +99,26 @@ return function(test, equal)
       end
       local body={lease="legacy",expires=a.n.utc()+2000,steps={{op="inspectDown"}}}
       send(body);a.n.advance(1)
-      body.ttl=5000;body.expires=a.n.utc()+5000
       send(body);a.n.advance(1.1)
       assert(#F.sent(a.t,"beacon")>0,"retry extended the original expiry")
+      F.check(a)
+    end
+  end)
+  test("clock legacy servers can reuse a lease ID after reboot with a new UTC expiry",function()
+    for _, rate in ipairs({1,4}) do
+      local a=F.setup(nil,nil,rate)
+      local function send(expires, op)
+        local proto=a.s.env.SO.proto
+        local msg=proto.build(a.s.env.SO.pair.key(2),"lease.batch",{
+          lease="2-1",expires=expires,steps={{op=op}},
+        })
+        a.s.env.rednet.send(2,assert(proto.encode(msg)),"so");a.n.flush()
+      end
+      send(a.n.utc()+1000,"inspectDown");a.n.advance(1.1)
+      send(a.n.utc()+2000,"forward");a.n.advance(0.2)
+      equal(a.t.pos,{x=0,y=0,z=-1})
+      local reports=F.sent(a.t,"step.report")
+      assert(reports[#reports].body.results[1].ok,"old lease deadline blocked a new legacy lease")
       F.check(a)
     end
   end)

@@ -415,6 +415,8 @@ remains UTC plus that remaining duration for old workers. Retries recompute
 the remaining duration. Updated workers anchor it on receipt, including time
 spent queued behind another batch, and take the earlier deadline on a repeated
 lease ID. A missing `ttl` converts the legacy UTC remainder once at receipt.
+Legacy retries also match the original UTC expiry, so an old server can reuse
+a lease ID after reboot without inheriting the previous deadline.
 Transport delay before receipt is not charged by `ttl`. Mixed versions retain
 20 TPS behavior; accelerated Gate B requires all roles updated.
 

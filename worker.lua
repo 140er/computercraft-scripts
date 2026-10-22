@@ -346,10 +346,11 @@ W.accept = function(sender, payload)
     local body = msg.body
     if type(body) ~= "table" then return end
     local ttl = body.ttl
+    msg.legacyExpires = ttl == nil and body.expires or nil
     if ttl == nil and type(body.expires) == "number" then ttl = math.max(0, body.expires - os.epoch("utc")) end
     if type(ttl) ~= "number" or ttl ~= ttl or ttl < 0 or ttl == math.huge then return end
     msg.deadline = W.now() + ttl
-    if W.queued and W.queued.body.lease == body.lease then
+    if W.queued and W.queued.body.lease == body.lease and W.queued.legacyExpires == msg.legacyExpires then
       msg.deadline = math.min(msg.deadline, W.queued.deadline)
     end
     W.queued = msg
@@ -492,8 +493,10 @@ W.startBatch = function(msg)
   W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
   W.mode = "idle"
   local deadline = msg.deadline
-  if W.lease == body.lease and W.expires then deadline = math.min(deadline, W.expires) end
-  W.lease, W.expires = body.lease, deadline
+  if W.lease == body.lease and W.legacyExpires == msg.legacyExpires and W.expires then
+    deadline = math.min(deadline, W.expires)
+  end
+  W.lease, W.expires, W.legacyExpires = body.lease, deadline, msg.legacyExpires
   local results = {}
   for i = 1, n do
     if W.now() >= W.expires then
