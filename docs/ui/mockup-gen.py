@@ -84,7 +84,10 @@ class Canvas:
         return "\n".join(out)
 
 M = []
-def add(c, name, legend=False): M.append(c.dump(name, legend))
+FIXTURES = []
+def add(c, name, legend=False):
+    M.append(c.dump(name, legend))
+    FIXTURES.append((c, name))
 
 # --- Status, M (3x2 @0.5 = 57x24): 3 tile columns 18/19/18, 3 tile rows
 c = Canvas(57, 24); c.header("STATUS", "21:14  ok"); c.alert("! ore chest full (drop 3)          tap for alerts")
@@ -224,6 +227,22 @@ add(c, "AR layer switches (1 = on, 0 = off)")
 
 c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.fill(0, 8, 15, 2, "7"); c.center(0, 15, 8, "tap: next")
 add(c, "Smallest monitor 1x1 at scale 0.5")
+
+import argparse
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--fixtures", type=Path)
+args = parser.parse_args()
+if args.fixtures:
+    args.fixtures.mkdir(parents=True, exist_ok=True)
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS".split()
+    for stem, (canvas, title) in zip(names, FIXTURES):
+        layers = [f"{canvas.w}x{canvas.h} {title}"]
+        layers += ["".join(row) for row in canvas.t]
+        layers += ["".join(row) for row in canvas.b]
+        (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
+    raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
 # font table

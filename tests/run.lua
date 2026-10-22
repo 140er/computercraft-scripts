@@ -478,3 +478,6 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/so11.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui0.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

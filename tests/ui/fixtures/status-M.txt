@@ -1,0 +1,49 @@
+57x24 Status, room monitor 3x2 at scale 0.5
+ STATUS                                        21:14  ok 
+ ! ore chest full (drop 3)          tap for alerts       
+                                                         
+ TURTLES            LEASES              ALERTS           
+       🬋🬋🬏                 🬖🬋🬏                🬞🬓         
+       🬇🬋🬐                  🬖🬀                 ▌         
+       🬋🬋🬀                 🬍🬋🬃                🬇🬌         
+ 3 ok, 0 lost       open now            ore chest full   
+                                                         
+ ORE TODAY          LOGS TODAY          DISK             
+    🬖🬋🬏🬞🬓  🬵             🬖🬋🬏🬞🬋             🬞🬓 🬋🬋🬏🬹 🬏     
+     🬖🬀 ▌ 🬳🬷🬏            🬈🬋▌🬛🬋🬏             ▌ 🬇🬋🬐🬞🬅      
+    🬍🬋🬃🬇🬌  🬉             🬇🬅 🬈🬋🬀            🬇🬌 🬋🬋🬀🬀🬉🬄     
+ +12 last 10 min    4 trees             2.1 of 16 MB     
+                                                         
+ DISPLAYS           DROPS               PAIR             
+        🬵                  🬚🬋🬃                           
+       🬳🬷🬏                 🬂🬂🬓            new client:    
+        🬉                  🬈🬋🬀                           
+ all fresh          1 broken            press P on server
+                                                         
+                                                         
+   MINING         LUMBER          SHOP          MORE     
+                                                         
+777777777777777777777777777777777777777777777777777777777
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+bbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddd
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddddddddddf1111111111111111111f999999999999999999
+ddddddddddddddddddf1111111111111111111f999999999999999999
+ddddddddddddddddddf1111111111111111111f999999999999999999
+ddddddddddddddddddf1111111111111111111f999999999999999999
+ddddddddddddddddddf1111111111111111111f999999999999999999
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777
+7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777
+7777777777777f77777777777777faaaaaaaaaaaaaaf7777777777777

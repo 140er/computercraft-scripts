@@ -1,0 +1,49 @@
+57x24 Mining, room monitor
+ MINING                                          running 
+                                                         
+ BUSY               ORE TODAY           DEPTH            
+    🬖🬋🬏  🬓🬖🬋🬏           🬖🬋🬏🬞🬓  🬵              🬞🬓 🬖🬋🬏     
+     🬖🬀🬞🬅  🬖🬀            🬖🬀 ▌ 🬳🬷🬏          🬋🬋🬃 ▌  🬖🬀     
+    🬍🬋🬃🬄  🬍🬋🬃           🬍🬋🬃🬇🬌  🬉              🬇🬌 🬍🬋🬃     
+ both digging       iron 120 dia 3      bottom -16       
+                                                         
+ LANE               MIN FUEL            BRANCHES         
+       🬞🬓               🬞🬋  🬵 🬖🬋🬏          🬋🬋🬏  🬓🬖🬋🬏     
+        ▌               🬛🬋🬏🬳🬷🬏▌ ▌          🬇🬋🬐🬞🬅 🬗🬋🬐     
+       🬇🬌               🬈🬋🬀 🬉 🬈🬋🬀          🬋🬋🬀🬄  🬈🬋🬀     
+ #3 waiting         #3                  48 long          
+                                                         
+ TURTLE  STATE      POS          FUEL  ORE               
+ #2      mining     12,60,-9      812   14               
+ #3      wait lane   0,61,-1      640    9               
+                                                         
+                                                         
+                                                         
+                                                         
+    START         STOP          SETUP           BACK     
+                                                         
+                                                         
+777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddd
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddd
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddd
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddd
+ddddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddd
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+111111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+111111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+111111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+111111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+111111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
