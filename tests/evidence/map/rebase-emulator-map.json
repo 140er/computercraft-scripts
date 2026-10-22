@@ -1,0 +1,139 @@
+{
+  "status": "PASS",
+  "reason": "Pack-ROM product server/protocol/display and peripheral contracts passed",
+  "elapsed_seconds": 9.295,
+  "exact_native_core": false,
+  "compatibility": "CC:Tweaked 1.120.2 pack ROM on CraftOS-PC 2.8.3 / 1.112.0 native core",
+  "slot": "local-2 (parent reserved)",
+  "required": {
+    "minecraft": "1.21.1",
+    "neoforge": "21.1.259",
+    "cc_tweaked": "1.120.2",
+    "cc_jar_sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f"
+  },
+  "rom": {
+    "version": "1.120.2",
+    "version_text": "New features in CC: Tweaked 1.120.2",
+    "jar_sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f",
+    "tree_sha256": "87743e59ef2001af8fa15db152783abfc25b3faada77dda279389ee2db021855",
+    "all_extracted_bytes_match": true
+  },
+  "computers": [
+    {
+      "id": 0,
+      "ok": true,
+      "host": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+      "checks": [
+        "pack ROM version text",
+        "16 MB native disk",
+        "standards mode",
+        "native modem",
+        "native inventory peripheral",
+        "inventory hasType true",
+        "non-inventory hasType false",
+        "native inventory detach",
+        "absent hasType nil",
+        "native monitor",
+        "native computer 1",
+        "native computer 2",
+        "actual server modules loaded",
+        "actual state event persisted",
+        "native fs generation save",
+        "native fs generation reload",
+        "pairing fixture requested",
+        "server painted native monitor",
+        "AR published real product scene",
+        "AR real product line calls",
+        "AR real product text calls",
+        "no server module failures"
+      ],
+      "errors": {},
+      "serverErrors": {},
+      "moduleNames": [
+        "ar",
+        "cells",
+        "daily",
+        "display",
+        "drops",
+        "lease",
+        "lumber",
+        "map",
+        "mine",
+        "panel",
+        "shop",
+        "state"
+      ],
+      "nativeTurtle": false,
+      "nativeShims": {
+        "integerFormatShim": false
+      }
+    },
+    {
+      "id": 1,
+      "ok": true,
+      "host": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+      "checks": [
+        "pack ROM version text",
+        "16 MB native disk",
+        "standards mode",
+        "native modem",
+        "native inventory peripheral",
+        "inventory hasType true",
+        "non-inventory hasType false",
+        "native inventory detach",
+        "absent hasType nil",
+        "native monitor",
+        "real display painted native monitor",
+        "real display applied palette",
+        "real display set scale"
+      ],
+      "errors": {},
+      "nativeTurtle": false,
+      "nativeShims": {
+        "integerFormatShim": false
+      },
+      "monitorSize": [
+        78,
+        40
+      ]
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "host": "ComputerCraft 1.112.0 (CraftOS-PC v2.8.3)",
+      "checks": [
+        "pack ROM version text",
+        "16 MB native disk",
+        "standards mode",
+        "native modem",
+        "native inventory peripheral",
+        "inventory hasType true",
+        "non-inventory hasType false",
+        "native inventory detach",
+        "absent hasType nil",
+        "native rednet DNS",
+        "pairing code fixture",
+        "real X25519 pairing: nil",
+        "new pairing key persisted",
+        "hello authenticated reply",
+        "real hello acknowledged",
+        "view.get authenticated reply",
+        "real generic frame",
+        "real status button",
+        "native input transport",
+        "view.get authenticated reply",
+        "real input changed role",
+        "integration.unknown authenticated reply",
+        "unknown method rejected",
+        "forged MAC rejected with repair hint",
+        "hello authenticated reply",
+        "forged MAC preserved pairing key"
+      ],
+      "errors": {},
+      "nativeTurtle": false,
+      "nativeShims": {
+        "integerFormatShim": false
+      }
+    }
+  ]
+}

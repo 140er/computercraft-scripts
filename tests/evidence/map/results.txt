@@ -1,24 +1,26 @@
-Map validation completed.
-Base: fd53311882d7adfbe3e66f4950377727d88b0ecd, PR #176.
-Implementation: 6175ac8c33320cb31e0cbcf9190c3fde95c1910c.
-Target: server-only. Padding #177 is not merged into this branch.
-Plain cc-test: PASS, 569 tests, local-1 slot, exit 0.
-The earlier queued invocation was cancelled for the requested T3 restart before any suite ran.
-Map-specific checks: PASS, 20 tests, including real thin-client input at 26x20, 29x12 and 57x24.
-Temporary tree combined with #177: PASS, 52 focused map/navigation/UI0 checks.
-Both #177 and #174 merge cleanly. See compatibility.txt.
-The map and MAP button follow the kit header row, including padded row 2.
-Projected dug scans use at most 256 reads per frame and skip unknown empty shaft heights.
-Lua syntax: PASS for all 15 changed Lua files against origin/server-only.
-Cobalt locals: PASS, maximum 58, below 185.
-Scope: PASS, tests/run.lua is append-only with three added lines; no tests deleted.
-Generator fixtures match runtime frames at 26x20, 29x12 and 57x24.
-The 164x81 map frame fits the real protocol serializer.
-Client install sources: worker 124901 bytes, display 117624 bytes, each below 1 MB.
-The full installer suite also passes its below-1-MB peak-update checks.
-Gate A is not established on this head. The frozen base lacks tools/test_parts.py,
-scripts/test-emulator and tests/review-capture.ps1. The legacy sandbox runner targets old roles.
-The cc-test --part map --lua-only command could not start; see part-runner.txt.
-Focused checks used short Lua runs. No emulator or screenshot evidence is claimed.
-Gate B is reserved for the orchestrator. No gameplay run was started.
-No live Minecraft server or RCON was accessed.
+Map rebase validation completed.
+PR: https://github.com/140er/computercraft-scripts/pull/180
+Base: 0dcec246e1388a9207024d6dbb177ca194e9d4b8, origin/server-only.
+Validated code: e2419a51cb4cbae9a7ce00c823fe475e6a2e3264.
+Rebased only map commits from fd53311 onto the squash-merged base.
+The sole conflict was tests/run.lua. Its upstream prefix remains byte-for-byte unchanged.
+Only the three map test lines are appended. Padding #177 was not merged.
+PASS #174 consent validator and local-monitor consent routing are unchanged from the base.
+PASS #176 navigation remains alongside MAP and map-back.
+Plain cc-test: PASS, 595 tests, local-2 slot, exit 0.
+This includes local-monitor consent and stale-button regressions, both SO11 recovery scenarios,
+the range/lane regressions, and all 20 map checks.
+cc-test --part map: PASS, 20 tests, 0 failures, 0 undeclared reads.
+cc-test --part display: PASS, 36 tests, 0 failures, 0 undeclared reads.
+Both part commands passed their pack-ROM product integrations on three native computers.
+The display command queued after a busy local emulator slot and then succeeded without forcing a slot.
+The first map part run rejected three computed fixture paths. Explicit fixture registry paths fixed it.
+Lua syntax: PASS for all seven map-only changed Lua files.
+Cobalt locals: PASS, maximum 64, below 185.
+Scope: PASS, append-only tests/run.lua and no deleted tests.
+The full installer suite confirms worker/display peak updates stay below 1 MB.
+Emulator compatibility uses CC:Tweaked 1.120.2 pack ROM on CraftOS-PC 2.8.3 / 1.112.0 native core.
+Exact-native Gate A and gameplay Gate B remain unestablished. No gameplay run was started.
+Gate B is reserved for the orchestrator. No live Minecraft server or RCON was accessed.
+See rebase-*.txt and rebase-emulator-*.json for this validation.
+Files without the rebase prefix record the earlier validation before the base branches were squash-merged.
