@@ -478,3 +478,41 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/so11.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+test("server modules share the shell program environment", function()
+  local H = dofile("tests/so/harness.lua")
+  local net = H.new()
+  local server = net.machine({ id = 70, modem = true, directories = true })
+  server.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
+    "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-ar.lua", "so-mod-cells.lua",
+    "so-mod-display.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
+    "so-mod-mine.lua", "so-mod-shop.lua", "so-mod-state.lua" })
+  for _, name in ipairs({ "x25519", "random", "blake3", "chacha20", "config", "internal/util",
+    "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing" }) do
+    local path = "lib/ccryptolib/" .. name .. ".lua"
+    server.files[path] = read(path)
+  end
+  local global = server.env
+  global._G = global
+  global.loadfile = function(path, mode, env)
+    local source = server.files[path]
+    if not source then return nil, "missing " .. tostring(path) end
+    return load(source, "@" .. path, mode or "bt", env or global)
+  end
+  local program = setmetatable({}, { __index = global })
+  global.runServer = assert(global.loadfile("so-server.lua", nil, program))
+  server.spawn("runServer()")
+  net.advance(3)
+  local output = table.concat(server.log, "\n")
+  assert(server.alive(), tostring(server.error) .. "\n" .. output)
+  assert(not output:find("so-server: skip", 1, true), output)
+  assert(not output:find("failed:", 1, true), output)
+  local count = 0
+  for _, name in ipairs({ "ar", "cells", "display", "drops", "lease", "lumber", "mine", "shop", "state" }) do
+    assert(program.SO.mods[name], "module missing after boot: " .. name)
+    count = count + 1
+  end
+  equal(count, 9, "all server modules loaded and ticked")
+end)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

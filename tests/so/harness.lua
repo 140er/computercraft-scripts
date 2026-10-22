@@ -24,20 +24,12 @@ H.encode = function(value)
     if kind ~= "table" then error("bad type", 0) end
     if seen[v] then error("cycle", 0) end
     seen[v] = true
-    local keys = {}
-    for key in pairs(v) do keys[#keys + 1] = key end
-    for i = 2, #keys do
-      local key = keys[i]
-      local rank = type(key) .. ":" .. tostring(key)
-      local j = i - 1
-      while j >= 1 do
-        local other = keys[j]
-        if (type(other) .. ":" .. tostring(other)) <= rank then break end
-        keys[j + 1] = other
-        j = j - 1
-      end
-      keys[j + 1] = key
+    local keys, ranks = {}, {}
+    for key in pairs(v) do
+      keys[#keys + 1] = key
+      ranks[key] = type(key) .. ":" .. tostring(key)
     end
+    table.sort(keys, function(a, b) return ranks[a] < ranks[b] end)
     local parts = {}
     for i = 1, #keys do parts[i] = "[" .. write(keys[i]) .. "]=" .. write(v[keys[i]]) end
     seen[v] = nil
@@ -496,32 +488,39 @@ H.new = function()
         return assert(load("return " .. text, "=state", "t", {}))()
       end,
     }
-    env.dofile = function(path)
+    env.loadfile = function(path, mode, target)
       local text = env.fs.open(path, "r")
-      if not text then error("missing " .. tostring(path), 2) end
-      local fn, err = load(text.readAll(), "@" .. path, "t", env)
-      if not fn then error(err, 2) end
-      local result = fn()
-      if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
-      if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
-        local function guard(fn, label)
-          return function(...)
-            local old = m.context
-            m.context = label
-            local values = table.pack(pcall(fn, ...))
-            m.context = old
-            if not values[1] then error(values[2], 0) end
-            return table.unpack(values, 2, values.n)
+      if not text then return nil, "missing " .. tostring(path) end
+      local source = text.readAll()
+      text.close()
+      local fn, err = load(source, "@" .. path, mode or "bt", target or env)
+      if not fn then return nil, err end
+      return function(...)
+        local result = fn(...)
+        if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
+        if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
+          local function guard(fn, label)
+            return function(...)
+              local old = m.context
+              m.context = label
+              local values = table.pack(pcall(fn, ...))
+              m.context = old
+              if not values[1] then error(values[2], 0) end
+              return table.unpack(values, 2, values.n)
+            end
+          end
+          if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
+          for _, kind in ipairs({"handlers", "listen"}) do
+            for name, fn in pairs(result[kind] or {}) do
+              result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
+            end
           end
         end
-        if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
-        for _, kind in ipairs({"handlers", "listen"}) do
-          for name, fn in pairs(result[kind] or {}) do
-            result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
-          end
-        end
+        return result
       end
-      return result
+    end
+    env.dofile = function(path)
+      return assert(env.loadfile(path))()
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {

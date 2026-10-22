@@ -34,7 +34,9 @@ S.run = function()
   for i = 1, #names do
     local name = names[i]
     if name:match("^so%-mod%-.+%.lua$") then
-      local ok, mod = pcall(dofile, name)
+      local ok, mod = pcall(function()
+        return assert(loadfile(name, nil, _ENV))()
+      end)
       if ok and type(mod) == "table" and type(mod.name) == "string" and type(mod.handlers) == "table" then
         mods[#mods + 1] = mod
         SO.mods[mod.name] = mod
