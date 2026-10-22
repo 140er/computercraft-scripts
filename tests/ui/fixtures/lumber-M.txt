@@ -2,10 +2,10 @@
  LUMBER                                          running 
  ! out of saplings: replanting paused                    
  TREES READY        LOGS TODAY          SAPLINGS         
-       🬖🬋🬏                                    🬖🬋🬏        
-        🬖🬀                 🬋🬋🬃                ▌ ▌        
-       🬍🬋🬃                                    🬈🬋🬀        
- of 4 spots         no daily source     chest empty      
+       🬖🬋🬏               🬖🬋🬏🬞🬋                🬖🬋🬏        
+        🬖🬀               🬈🬋▌🬛🬋🬏               ▌ ▌        
+       🬍🬋🬃               🬇🬅 🬈🬋🬀               🬈🬋🬀        
+ of 4 spots         logs delivered      chest empty      
                                                          
  TURTLE             FUEL                NEXT GROW        
         🬵             🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏        🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏   
@@ -25,11 +25,11 @@
                                                          
 777777777777777777777777777777777777777777777777777777777
 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
-ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeee
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
 ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb

@@ -177,7 +177,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `terminal(model, view, w, h)` and `monitorTouch(side, x, y)`.
   `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
   code or log, `uptime`, `log`, `offset`, `code`, `expires` and `now`.
-  `monitorTouch` queues local input for the next tick. Tick discovers a local
+  `monitorTouch` queues local input for the next tick. Local and remote taps
+  use the same drawn-button validation for dug-storage consent. Tick discovers a local
   monitor at most every five seconds and draws at scale 0.5 with local navigation,
   without rednet or saved role changes. Tick also draws `SO.terminal` once a second.
   `screen(role)` returns the registered `{ render, input }` callbacks or nil.
@@ -208,9 +209,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   Main-page inputs forward START and STOP once to the mining or lumber screen.
-  Orders apply the local search to the shop screen, render its first page, select
-  the first item and send one `order:<count>:<name>` input. Shop's count/name sort
-  defines the best match. Missing screens have grey blocks without action targets.
+  Orders call `shop.order(search, count)` once. Shop's count/name sort defines
+  the best match; ordering leaves shop display state unchanged. Missing screens
+  have grey blocks without action targets.
   GLANCE returns to status; ALERTS lists state alerts; PAIR explains server pairing.
   Larger screens arrange the same controls using the kit grid. No saved panel file.
   See [panel](server-only/PROTOCOL.md#panel).
@@ -218,16 +219,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
+  turtle to the shop screen. Exports `tick(now)` and `order(search, count)`.
+  `order` sends one order for the match with the highest stock, breaking ties
+  by name. Counts are 1, 16 or 64. Missing matches or storage send nothing.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
   Tick registers the shop screen, discovers storage and polls stock.
-  Render callbacks use `render(w, h)`. The Big Tiles list opens an item with
+  Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
   `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
   List controls are `prev`, `next`, `clear`, `search` and `status` for BACK.
   Submitted text resets paging. The kit-free renderer retains the legacy list.
-  Search is
-  per display with a visible clear button. Five minutes without stock resumes
-  discovery; the legacy room has no server-only pairing or selector setting.
+  Search, paging, page capacity and selection belong to each display. Search has
+  a visible clear button. Five minutes without stock resumes discovery; the legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
@@ -237,10 +239,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Mining uses Big Tiles with START, STOP, SETUP and BACK. SETUP has a local
-  BACK button; typed commands work on both pages. Daily ore totals and the top
+  BACK button; the page belongs to the display session. Kit-free callers share
+  the default page. Typed commands work on both pages. Daily ore totals and the top
   two ore names come from `daily.today()`, with a stale tile when missing.
   Missing kits retain the legacy renderer.
-  Screen callbacks are `render(w, h)` and `input(event)`; reports use
+  Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   New jobs require `home` before `start`; saved homes remain configured. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park

@@ -77,6 +77,21 @@ return function(test, equal)
       s.input({id="items"});assert(not s.state.gather().selected)
     end
   end)
+  test("UI2c direct orders use stock and name ranking without changing display state",function()
+    local s,mod=setup()
+    mod.order("iron",16);equal(#s.sends,0)
+    mod.listen.roomsorter_stock(9,{totals={iron_b=64,iron_a=64,iron_c=16,gold=1000}})
+    s.render(57,24,{id=2})
+    s.input({text="gold",from=2})
+    s.input({id="item:gold",from=2})
+    local before=s.state.gather(2)
+    mod.order("IRON",16)
+    equal(#s.sends,1);equal(s.sends[1].body.text,"iron_a")
+    local after=s.state.gather(2)
+    after.order=before.order;equal(after,before)
+    for _,case in ipairs({{"missing",16},{"iron",2},{false,16}}) do mod.order(unpack(case)) end
+    equal(#s.sends,1)
+  end)
   test("UI2c paging visits every item once and clamps at both ends",function()
     local s,mod=setup();local totals={}
     for i=1,19 do totals["iron_"..i]=i end

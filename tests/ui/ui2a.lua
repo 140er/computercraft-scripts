@@ -39,6 +39,22 @@ return function(test,equal)
     local diff=R.diff('tests/ui/fixtures/mining-M.txt',capture(s.layout(m,57,24),57,24))
     assert(#diff==0,table.concat(diff,'\n'))
   end)
+  test('UI2a setup stays on the display that pressed its drawn button',function()
+    local s=setup();local a,b={},{}
+    local main=s.render(57,24,b)
+    local function press(session,id)
+      local button
+      for _,v in ipairs(s.render(57,24,session).buttons) do if v.id==id then button=v end end
+      assert(button,'missing mining button '..id)
+      s.input({id=id,x=button.x,y=button.y,session=session})
+    end
+    press(a,'setup')
+    assert(capture(s.render(57,24,a),57,24).picture().text[1]:find('SETUP',1,true))
+    equal(s.render(57,24,b),main)
+    equal(s.render(57,24),main)
+    press(a,'mine-back');equal(s.render(57,24,a),main)
+    equal(s.saves(),0)
+  end)
   test('UI2a text commands retain job effects on both pages',function()
     for _,page in ipairs({'main','setup'}) do
       local s=setup();if page=='setup' then s.input({id='setup'}) end
