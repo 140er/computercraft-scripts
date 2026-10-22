@@ -1,0 +1,8 @@
+Command: cc-test
+Slot: local-2
+Exit: 0
+PASS AR labels are compact and nearby drops and turtles have separate heights
+PASS AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+PASS AR turtle total agrees with fleet and status for working and paired idle turtles
+PASS AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+617 tests passed

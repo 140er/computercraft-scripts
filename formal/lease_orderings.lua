@@ -28,7 +28,7 @@ local function run(trace, foreign, batchSize, grace)
     local env = setmetatable({
       os = { epoch = function() return actual.now end }, print = function() end,
       rednet = { send = function() return true end },
-      SO = {
+      SO = { now = function() return actual.now end,
         store = { copy = copy, read = function() return { pos = { x = 0, y = 0, z = 0 } } end },
         pair = { key = function() return "paired" end },
         proto = { build = function(_, kind, body) return { kind = kind, body = body } end,
@@ -59,7 +59,7 @@ local function run(trace, foreign, batchSize, grace)
       elseif model.open then reason = "busy"
       else
         model.seq = model.seq + 1
-        expected = "2-" .. model.seq
+        expected = string.format("2-%.0f-%d", model.now, model.seq)
         model.open, model.expires = expected, model.now + 1000
         model.cells[expected] = true
       end
@@ -142,6 +142,7 @@ else
   visit(1)
   local collision = run({ "send_a", "restart", "send_b", "report_a" }, "wrong-id", 1, 11001)
   assert(collision.ids.send_a == collision.ids.send_b and #collision.calls == 1)
-  print("FINDING restart-id-reuse send_a=2-1 restart send_b=2-1 old_report_a closes send_b")
+  print("FINDING restart-id-reuse at fixed clock send_a=" .. collision.ids.send_a
+    .. " restart send_b=" .. collision.ids.send_b .. " old_report_a closes send_b")
 end
 print("PASS traces=" .. traces .. " comparisons=" .. checks)

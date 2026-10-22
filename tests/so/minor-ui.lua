@@ -7,7 +7,7 @@ return function(test, equal)
     net.time = 0
     local m = net.machine({id=1})
     m.install({"so-store.lua", "so-mod-display.lua"})
-    m.env.SO = {mods={}, store=m.env.dofile("so-store.lua"), pair={key=function() return "key" end},
+    m.env.SO = { now = function() return m.env.os.epoch("utc") end,mods={}, store=m.env.dofile("so-store.lua"), pair={key=function() return "key" end},
       proto={ser=H.encode, build=function(_, _, body) return body end, encode=function(body) return body end}}
     local d = m.env.dofile("so-mod-display.lua")
     local pages = {[2]=1, [3]=2}
@@ -57,7 +57,7 @@ return function(test, equal)
     local m = net.machine({id=1})
     m.install({"so-mod-shop.lua"})
     local render, input
-    m.env.SO={mods={display={screen=function(_, r, i) render,input=r,i end}}}
+    m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={display={screen=function(_, r, i) render,input=r,i end}}}
     local shop=m.env.dofile("so-mod-shop.lua")
     shop.tick(0)
     shop.listen.roomsorter_stock(90, {totals={stone=40,dirt=10}})
@@ -82,7 +82,7 @@ return function(test, equal)
     local m=net.machine({id=1})
     m.install({"so-mod-shop.lua"})
     local render
-    m.env.SO={mods={display={screen=function(_, r) render=r end}}}
+    m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={display={screen=function(_, r) render=r end}}}
     local shop=m.env.dofile("so-mod-shop.lua")
     shop.tick(0)
     shop.listen.dns(90,{sType="lookup response",sProtocol="roomsorter"})
@@ -113,7 +113,7 @@ return function(test, equal)
       delete=function(id) elements[id]=nil end, update=function() end,
       drawText2D=function(id) elements[id]=true end}
     m.env.peripheral.find=function() return ar end
-    m.env.SO={store=m.env.dofile("so-store.lua"),proto={ser=H.encode},mods={state={
+    m.env.SO={ now = function() return m.env.os.epoch("utc") end,store=m.env.dofile("so-store.lua"),proto={ser=H.encode},mods={state={
       get=function() return {} end,view=function() return {values=values} end,
       history={page=function(q)
         local out={}

@@ -4,7 +4,7 @@ local function setup()
   local env = setmetatable({}, {__index=_G})
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.fs = {getCapacity=function() return 16000000 end,getFreeSpace=function() return 13900000 end}
-  env.SO = {mods={},proto=dofile("so-proto.lua"),store={copy=function(v) local t={} for k,x in pairs(v) do t[k]=x end return t end,store=function()
+  env.SO = { now = function() return env.os.epoch("utc") end,mods={},proto=dofile("so-proto.lua"),store={copy=function(v) local t={} for k,x in pairs(v) do t[k]=x end return t end,store=function()
     return {value={roles={}},save=function() error("local navigation saved") end}
   end},pair={key=function() error("local monitor used rednet") end}}
   env.peripheral = {find=function() s.finds=s.finds+1; return s.monitor end,getName=function() return "left" end}
@@ -46,7 +46,7 @@ local function server()
   env.dofile=function(path)
     if path=="so-pair.lua" then return pair end
     if path=="so-proto.lua" then return {decode=function() end} end
-    if path=="so-store.lua" then return {} end
+    if path=="so-store.lua" then return {clock=function() return function() return s.now end end} end
     if path=="so-mod-display.lua" then
       return {name="display",handlers={},tick=function()
         s.view=env.SO.terminal;s.draws=s.draws+1

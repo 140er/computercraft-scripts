@@ -43,8 +43,8 @@ S.run = function()
   local store = S.need("so-store.lua")
   local pair = S.need("so-pair.lua")
   if not proto or not store or not pair then return end
-  pair.open(proto, store)
-  SO = { mods = {}, proto = proto, pair = pair, store = store }
+  SO = { mods = {}, proto = proto, pair = pair, store = store, now = store.clock() }
+  pair.open(proto, store, SO.now)
   -- Yield once without losing events. sleep(0) drops every event that is
   -- not its own timer, including the tick timer and rednet messages.
   -- Handlers, listeners and ticks must yield only through this.
@@ -76,7 +76,7 @@ S.run = function()
 
   local sent = {}
   local view = { mode = "normal", log = S.log, id = os.getComputerID(),
-    started = os.epoch("utc"), offset = 0 }
+    started = SO.now(), offset = 0 }
   SO.terminal = view
   local memory = 120000
   local misses = 0
@@ -104,7 +104,7 @@ S.run = function()
     codeOwner = nil
     view.mode = "code"
     view.code = pair.invite(not term.blit and term or nil)
-    view.expires = os.epoch("utc")+300000
+    view.expires = SO.now()+300000
     if not term.blit then showHostError() end
   end
 
@@ -281,10 +281,10 @@ S.run = function()
   local timer, ticked
   local function tick()
     if view.mode == "code" and not pair.pending() then showPrompt() end
-    local now = os.epoch("utc")
+    local now = SO.now()
     for _, by in pairs(sent) do
       for rid, slot in pairs(by) do
-        if now - slot.at > memory then by[rid] = nil end
+        if os.epoch("utc") - slot.at > memory then by[rid] = nil end
       end
     end
     for i = 1, #mods do
@@ -294,9 +294,9 @@ S.run = function()
         if not ok then print("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
       end
     end
-    timer, ticked = os.startTimer(1), os.clock()
+    timer, ticked = os.startTimer(1), SO.now()
   end
-  timer, ticked = os.startTimer(1), os.clock()
+  timer, ticked = os.startTimer(1), SO.now()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
@@ -333,9 +333,9 @@ S.run = function()
       end
     end
     -- A lost tick timer would stop planning for good while messages still
-    -- arrive. os.clock counts game ticks like timers do, so server lag
+    -- arrive. SO.now counts game ticks like timers do, so server lag
     -- does not trip this.
-    if os.clock() - ticked > 3 then
+    if SO.now() - ticked > 3000 then
       print("so-server: no tick for 3 s; rearming the tick timer")
       tick()
     end

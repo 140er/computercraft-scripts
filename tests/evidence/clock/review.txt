@@ -1,0 +1,9 @@
+The implementation review found one P2 issue in queued lease retries.
+A delayed retry could replace a queued deadline with a later value.
+The worker now preserves the earlier queued deadline before replacing the
+message. The regression delays a retry, starts the queued batch after its
+original expiry, and checks that no movement occurs.
+
+A separate comment review kept the existing watchdog explanation about native
+game-tick timers and removed the new comment about the internal reservation
+sequence. No application changes came from that comment review.

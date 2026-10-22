@@ -1,0 +1,3 @@
+PASS tests/run.lua append-only (6 new lines)
+PASS no test file deleted
+PASS check-scope

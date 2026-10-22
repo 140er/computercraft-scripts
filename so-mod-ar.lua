@@ -207,7 +207,7 @@ A.scene = function(now)
         for _, event in ipairs(page.entries or {}) do
           A.cursor = event.seq
           if event.kind:match("%.alert$") then
-            A.alerts[event.kind] = { at = event.seq, since = event.at or now, expires = (event.at or now) + A.alertMs }
+            A.alerts[event.kind] = { at = event.seq, since = event.gameAt or event.at or now, expires = (event.gameAt or event.at or now) + A.alertMs }
           end
         end
       until not page.next

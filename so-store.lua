@@ -94,4 +94,23 @@ function M.store(path, valid, limit)
   }
 end
 
+function M.clock()
+  local box = M.store("so-data/clock", function(v)
+    return type(v) == "table" and type(v.ceiling) == "number"
+      and v.format == "ticks-v1" and v.ceiling % 1 == 0 and v.ceiling >= 0 and v.ceiling < math.huge
+  end, 1024)
+  local origin = box.value and box.value.ceiling or os.epoch("utc")
+  local started, ceiling = os.clock(), origin
+  return function()
+    local now = origin + math.floor((os.clock() - started) * 1000 + 0.5)
+    if now >= ceiling then
+      local reserved = now + 1000
+      local ok, err = box.save({ format = "ticks-v1", ceiling = reserved })
+      assert(ok, "clock checkpoint: " .. tostring(err))
+      ceiling = reserved
+    end
+    return now
+  end
+end
+
 return M

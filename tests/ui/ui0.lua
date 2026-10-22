@@ -15,6 +15,7 @@ local function client(w, h)
   local env = setmetatable({}, { __index = _G })
   env.os = setmetatable({
     epoch = function() return state.now end,
+    clock = function() return state.now / 1000 end,
     getComputerID = function() return 2 end,
     getComputerLabel = function() return "screen" end,
     startTimer = function(seconds)
@@ -59,7 +60,7 @@ end
 local function server(saved)
   local proto = dofile("so-proto.lua")
   local state = { saved = saved or { roles = {} }, sends = {} }
-  local env = setmetatable({ SO = { mods = {}, proto = proto, pair = { key = function() return "key" end } } }, { __index = _G })
+  local env = setmetatable({ os={epoch=function() return 0 end}, SO = {now=function() return 0 end, mods = {}, proto = proto, pair = { key = function() return "key" end } } }, { __index = _G })
   env.SO.store = { store = function(_, valid)
     assert(valid(state.saved))
     return { value = state.saved, save = function(value)
@@ -319,8 +320,9 @@ return function(test, equal)
     local root = pipe and pipe:read("*l")
     if pipe then pipe:close() end
     if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
-      print("SKIP UI0 generator check: needs a POSIX shell and python3")
-      return
+      return dofile("tests/skips.lua").record(
+        "UI0 generator preserves section 7.1 and reproduces every fixture",
+        "needs a POSIX shell and python3")
     end
     local dir = os.tmpname()
     os.remove(dir)

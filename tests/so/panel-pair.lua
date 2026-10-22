@@ -179,7 +179,7 @@ return function(test, equal)
   end
   test("panel pairing fixtures",function()
     local R=dofile("tests/ui/render.lua")
-    local env=setmetatable({SO={mods={},pair={key=function() return true end,
+    local env=setmetatable({SO={now=function() return 0 end,mods={},pair={key=function() return true end,
       pending=function() return "123456" end},pairCode=function() end},
       os={epoch=function() return 0 end}}, {__index=_G})
     local panel=assert(loadfile("so-mod-panel.lua","t",env))()

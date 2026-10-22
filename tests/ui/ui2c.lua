@@ -8,7 +8,7 @@ local function setup(kit)
       send = function(id, body, protocol) s.sends[#s.sends + 1] = {id=id,body=body,protocol=protocol} end,
       broadcast = function() end,
     },
-    SO = { mods = { display = { screen = function(_, render, input) s.render, s.input = render, input end } } },
+    SO = { now = function() return s.now end, mods = { display = { screen = function(_, render, input) s.render, s.input = render, input end } } },
   }, { __index = _G })
   local mod = assert(loadfile("so-mod-shop.lua", "t", env))()
   mod.tick(s.now)

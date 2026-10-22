@@ -167,7 +167,7 @@ S.send = function(steps, action, cells, recover, ms)
   end
   S.pending = { id = id, action = action, steps = steps, pose = j.turtle.pose }
   S.idlePark = action == "park" or action == "recover"
-  if S.idlePark then S.parkAt = os.epoch("utc") end
+  if S.idlePark then S.parkAt = SO.now() end
   return true
 end
 S.op = function(op, action, cells)
@@ -397,7 +397,7 @@ S.report = function(id, turtleId, results, lease)
             local duplicate = false
             for _, candidate in ipairs(j.candidates) do if candidate.x == x and candidate.z == z then duplicate = true end end
             local spot = j.spots[x .. "," .. z]
-            if not duplicate and (not spot or os.epoch("utc") - (spot.plantedAt or 0) >= 600000) then
+            if not duplicate and (not spot or SO.now() - (spot.plantedAt or 0) >= 600000) then
               j.candidates[#j.candidates + 1] = { dim = j.dim, x = x, y = j.ground + 2, z = z }
             end
           end
@@ -438,7 +438,7 @@ S.report = function(id, turtleId, results, lease)
   elseif action == "plantCheck" then
     local block = result.ok and result.data or nil
     if block and L.isSapling(block.name) then
-      j.spots[j.tree.x .. "," .. j.tree.z].plantedAt = os.epoch("utc")
+      j.spots[j.tree.x .. "," .. j.tree.z].plantedAt = SO.now()
       S.finishTree()
     elseif block then
       S.finishTree()
@@ -446,7 +446,7 @@ S.report = function(id, turtleId, results, lease)
       j.phase = "plantPlace"
     end
   elseif action == "plant" then
-    if ok then j.spots[j.tree.x .. "," .. j.tree.z].plantedAt = os.epoch("utc") end
+    if ok then j.spots[j.tree.x .. "," .. j.tree.z].plantedAt = SO.now() end
     S.finishTree()
   elseif action == "supplyCheck" then
     if j.service then
@@ -730,7 +730,7 @@ S.gather = function()
   local j, known, ready = S.job, 0, 0
   local daily = S.module("daily")
   local today = type(daily.today) == "function" and daily.today()
-  local now = os.epoch("utc")
+  local now = SO.now()
   for _, spot in pairs(j.spots) do
     known = known + 1
     if (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 then ready = ready + 1 end

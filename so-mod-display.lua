@@ -25,7 +25,7 @@ if U then
   end
 end
 
-D.now = function() return os.epoch and os.epoch("utc") or 0 end
+D.now = function() return SO.now() end
 
 D.whole = function(n)
   return type(n) == "number" and n % 1 == 0 and n > 0
@@ -340,7 +340,7 @@ D.register = function(role, render, input)
 end
 
 D.gather = function()
-  local model = { time = U and U.clock(D.now()).hm or "",
+  local model = { time = U and U.clock(os.epoch("utc")).hm or "",
     alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
   local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
   local view = {}

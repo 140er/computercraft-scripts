@@ -1,0 +1,1399 @@
+Full gate: starting 4 shards; logs /tmp/cc-shards-jkvcuvnp
+cc-test: using local-2 slot
+PASS server captures broadcasts, polls legacy bots and persists registry and log
+CHECK-TIME 0.072084 tests/server.lua | server captures broadcasts, polls legacy bots and persists registry and log
+PASS serialize mock rejects shared tables and cycles
+CHECK-TIME 0.000048 tests/server.lua | serialize mock rejects shared tables and cycles
+PASS server saves GPS status and hub assignments across restart
+CHECK-TIME 0.009353 tests/server.lua | server saves GPS status and hub assignments across restart
+PASS server trims unused status fields and copies shared coordinates without changing packets
+CHECK-TIME 0.007170 tests/server.lua | server trims unused status fields and copies shared coordinates without changing packets
+PASS server recovers interrupted saves and keeps a bounded central log
+CHECK-TIME 0.261166 tests/server.lua | server recovers interrupted saves and keeps a bounded central log
+PASS server mirrors main, serves chunks and hashes, and keeps good code on failure
+CHECK-TIME 0.651927 tests/server.lua | server mirrors main, serves chunks and hashes, and keeps good code on failure
+PASS server refreshes its code mirror periodically
+CHECK-TIME 0.711598 tests/server.lua | server refreshes its code mirror periodically
+PASS update downloads through the real server without http and skips current code
+CHECK-TIME 0.014511 tests/server.lua | update downloads through the real server without http and skips current code
+PASS update falls back to http with no server or a missing server copy
+CHECK-TIME 0.004460 tests/server.lua | update falls back to http with no server or a missing server copy
+PASS update takes GitHub over a server copy that may be behind main
+CHECK-TIME 0.003928 tests/server.lua | update takes GitHub over a server copy that may be behind main
+PASS update rejects corrupted server content and falls back to http
+CHECK-TIME 0.004151 tests/server.lua | update rejects corrupted server content and falls back to http
+PASS hub restores fleet, orders go through the server, and it falls back after a lost command ack
+CHECK-TIME 0.088415 tests/server.lua | hub restores fleet, orders go through the server, and it falls back after a lost command ack
+PASS the newer hub state wins between the hub's file and the server's copy
+CHECK-TIME 0.033887 tests/server.lua | the newer hub state wins between the hub's file and the server's copy
+PASS server repeats an order until the miner confirms it, then gives up and logs
+CHECK-TIME 0.146798 tests/server.lua | server repeats an order until the miner confirms it, then gives up and logs
+PASS touchscreen: tap a miner, give it an order through the hub, switch tabs
+CHECK-TIME 0.099215 tests/server.lua | touchscreen: tap a miner, give it an order through the hub, switch tabs
+PASS miner confirms an order the server passes on
+CHECK-TIME 0.003400 tests/server.lua | miner confirms an order the server passes on
+PASS server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+CHECK-TIME 0.004112 tests/server.lua | server sees old hub fleets without a hub mirror and uses the terminal without a monitor
+PASS hub uses direct commands if a discovered server never answers
+CHECK-TIME 0.026674 tests/server.lua | hub uses direct commands if a discovered server never answers
+PASS server records directed assignments and leaves developer commands alone
+CHECK-TIME 0.005262 tests/server.lua | server records directed assignments and leaves developer commands alone
+PASS server ignores malformed hub mirrors and invalid transfers
+CHECK-TIME 0.005178 tests/server.lua | server ignores malformed hub mirrors and invalid transfers
+PASS capacity mock raises Out of space at write or close and counts partial bytes
+CHECK-TIME 0.000088 tests/server.lua | capacity mock raises Out of space at write or close and counts partial bytes
+PASS server install guards startup writes and logs failures without replacing existing startup
+CHECK-TIME 0.003861 tests/server.lua | server install guards startup writes and logs failures without replacing existing startup
+PASS one megabyte server mirrors the real repo once and serves matching root scripts
+CHECK-TIME 0.268103 tests/server.lua | one megabyte server mirrors the real repo once and serves matching root scripts
+PASS 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+CHECK-TIME 2.138982 tests/server.lua | 884 KB mirror startup cleans a disk-filling roomsorter tmp without rewriting good code
+PASS state and cache backups survive failed promotion and recover on restart
+CHECK-TIME 0.041415 tests/server.lua | state and cache backups survive failed promotion and recover on restart
+PASS root scripts changed outside the server are not served with a stale hash
+CHECK-TIME 0.735330 tests/server.lua | root scripts changed outside the server are not served with a stale hash
+PASS cache write failures at open, write, close and move keep old code and leave state writable
+CHECK-TIME 0.066466 tests/server.lua | cache write failures at open, write, close and move keep old code and leave state writable
+PASS failed state writes preserve the only good state and persist errors after space returns
+CHECK-TIME 0.076856 tests/server.lua | failed state writes preserve the only good state and persist errors after space returns
+PASS large status packets and old log text stay bounded across saves and restart
+CHECK-TIME 0.297965 tests/server.lua | large status packets and old log text stay bounded across saves and restart
+PASS server clears AR and re-raises Terminated through parallel
+CHECK-TIME 0.005350 tests/server.lua | server clears AR and re-raises Terminated through parallel
+PASS hub batches server acks into the existing timer frames
+CHECK-TIME 0.014502 tests/server.lua | hub batches server acks into the existing timer frames
+PASS server batches message bursts into one frame per second and refreshes stale colors
+CHECK-TIME 0.867329 tests/server.lua | server batches message bursts into one frame per second and refreshes stale colors
+PASS server forgets a silent hub and resumes AR after twenty seconds
+CHECK-TIME 0.159957 tests/server.lua | server forgets a silent hub and resumes AR after twenty seconds
+PASS server restart with a saved dead hub clears once and resumes AR after one grace window
+CHECK-TIME 0.064945 tests/server.lua | server restart with a saved dead hub clears once and resumes AR after one grace window
+PASS server registry renders the same HUD, shaft geometry and trouble colors as the hub
+CHECK-TIME 0.218044 tests/server.lua | server registry renders the same HUD, shaft geometry and trouble colors as the hub
+PASS server draws mirrored miners, preserves progress and hides forgotten or local miners
+CHECK-TIME 0.066386 tests/server.lua | server draws mirrored miners, preserves progress and hides forgotten or local miners
+PASS server key and protocol toggles persist across restarts and keep the HUD when off
+CHECK-TIME 0.028081 tests/server.lua | server key and protocol toggles persist across restarts and keep the HUD when off
+PASS server detects controller attach, detach and failure without stopping its registry
+CHECK-TIME 0.051254 tests/server.lua | server detects controller attach, detach and failure without stopping its registry
+PASS hub clears once and makes no draw calls while the server owns AR, including quit
+CHECK-TIME 0.197044 tests/server.lua | hub clears once and makes no draw calls while the server owns AR, including quit
+PASS hub forwards key and touch toggles to the owner without a local controller
+CHECK-TIME 0.022476 tests/server.lua | hub forwards key and touch toggles to the owner without a local controller
+PASS hub falls back on owner timeout and relinquishes again after replies resume
+CHECK-TIME 0.113721 tests/server.lua | hub falls back on owner timeout and relinquishes again after replies resume
+PASS server waits for the hub to clear before drawing after controller attach
+CHECK-TIME 0.039504 tests/server.lua | server waits for the hub to clear before drawing after controller attach
+PASS expired ready messages cannot restart server drawing while the hub falls back
+CHECK-TIME 0.090249 tests/server.lua | expired ready messages cannot restart server drawing while the hub falls back
+PASS mirrors without server replies cannot extend drawing into the hub fallback
+CHECK-TIME 0.235581 tests/server.lua | mirrors without server replies cannot extend drawing into the hub fallback
+PASS a missing command ack does not end AR ownership before its liveness timeout
+CHECK-TIME 0.014933 tests/server.lua | a missing command ack does not end AR ownership before its liveness timeout
+PASS server restart waits for its saved AR hub to relinquish the fallback view
+CHECK-TIME 0.063269 tests/server.lua | server restart waits for its saved AR hub to relinquish the fallback view
+PASS hub follows controller loss and reattach at the server
+CHECK-TIME 0.061137 tests/server.lua | hub follows controller loss and reattach at the server
+PASS shop orders reach the storage turtle once and show its reply
+CHECK-TIME 0.046208 tests/so/so6.lua | shop orders reach the storage turtle once and show its reply
+PASS shop broadcasts DNS lookup from tick without waiting
+CHECK-TIME 0.030106 tests/so/so6.lua | shop broadcasts DNS lookup from tick without waiting
+PASS shop discovers a turtle starting two minutes later
+CHECK-TIME 0.032171 tests/so/so6.lua | shop discovers a turtle starting two minutes later
+PASS shop discovers broadcasts and shows a rising stock trend
+CHECK-TIME 0.030147 tests/so/so6.lua | shop discovers broadcasts and shows a rising stock trend
+PASS shop trends fall, stay flat and forget samples after an hour
+CHECK-TIME 0.054921 tests/so/so6.lua | shop trends fall, stay flat and forget samples after an hour
+PASS server routes other protocols to listen and so only to dispatch
+CHECK-TIME 0.029319 tests/so/so6.lua | server routes other protocols to listen and so only to dispatch
+PASS a broken listen does not stop the server or later listeners
+CHECK-TIME 0.022693 tests/so/so6.lua | a broken listen does not stop the server or later listeners
+PASS W40 blocked batch reports actual pose, inventory, fuel and dug cells
+CHECK-TIME 0.073275 tests/so/w40.lua | W40 blocked batch reports actual pose, inventory, fuel and dug cells
+PASS W40 recovery sends to a beaconing worker and its report clears lost
+CHECK-TIME 0.055061 tests/so/w40.lua | W40 recovery sends to a beaconing worker and its report clears lost
+PASS W40 sixteen ore inspects retain eight selected tags in one envelope
+CHECK-TIME 0.126510 tests/so/w40.lua | W40 sixteen ore inspects retain eight selected tags in one envelope
+PASS W40 long ore tags fit a full inventory and dug journal
+CHECK-TIME 0.250094 tests/so/w40.lua | W40 long ore tags fit a full inventory and dug journal
+PASS W40 inspect caps selected tags and keeps broad ore membership
+CHECK-TIME 0.051033 tests/so/w40.lua | W40 inspect caps selected tags and keeps broad ore membership
+PASS W40 lease drops bad fact fields and keeps valid siblings
+CHECK-TIME 0.041482 tests/so/w40.lua | W40 lease drops bad fact fields and keeps valid siblings
+PASS W40 changed journal never reuses a pose from another journal
+CHECK-TIME 0.039780 tests/so/w40.lua | W40 changed journal never reuses a pose from another journal
+PASS W40 pair retry during a new code returns cached ack without a miss
+CHECK-TIME 0.087908 tests/so/w40.lua | W40 pair retry during a new code returns cached ack without a miss
+PASS W40 fake chests transfer items and fuel uses item values
+CHECK-TIME 0.051704 tests/so/w40.lua | W40 fake chests transfer items and fuel uses item values
+PASS W40 frames round trip in all rotations
+CHECK-TIME 0.000206 tests/so/w40.lua | W40 frames round trip in all rotations
+PASS W40 planner paths, chunks, range, parking and inventory helpers
+CHECK-TIME 0.000586 tests/so/w40.lua | W40 planner paths, chunks, range, parking and inventory helpers
+PASS mine shaft and branch mark every actual dug cell
+CHECK-TIME 0.973753 tests/so/so3.lua | mine shaft and branch mark every actual dug cell
+PASS mine two turtles reserve disjoint cells after every batch
+CHECK-TIME 2.439092 tests/so/so3.lua | mine two turtles reserve disjoint cells after every batch
+PASS mine wall vein is exhausted once
+CHECK-TIME 1.724488 tests/so/so3.lua | mine wall vein is exhausted once
+PASS mine low fuel visits a front drop and returns to its interrupted pose
+CHECK-TIME 1.299265 tests/so/so3.lua | mine low fuel visits a front drop and returns to its interrupted pose
+PASS mine cleanup refuses an inventory and keeps junk out of the ore chest
+CHECK-TIME 1.045805 tests/so/so3.lua | mine cleanup refuses an inventory and keeps junk out of the ore chest
+PASS mine saved cleanup refusal retries safely without unloading junk
+CHECK-TIME 1.026918 tests/so/so3.lua | mine saved cleanup refusal retries safely without unloading junk
+PASS mine discards tunnel junk into open cells and unloads only ore
+CHECK-TIME 1.563960 tests/so/so3.lua | mine discards tunnel junk into open cells and unloads only ore
+PASS mine range refusal sends no movement outside proven range
+CHECK-TIME 0.137681 tests/so/so3.lua | mine range refusal sends no movement outside proven range
+PASS mine restart recovers a pending dig report without digging any cell twice
+CHECK-TIME 1.057401 tests/so/so3.lua | mine restart recovers a pending dig report without digging any cell twice
+PASS mine lost turtle is red until recovery report
+CHECK-TIME 0.907365 tests/so/so3.lua | mine lost turtle is red until recovery report
+PASS mine lava source uses the bucket before junk and burns the lava
+CHECK-TIME 0.917773 tests/so/so3.lua | mine lava source uses the bucket before junk and burns the lava
+PASS mine flowing lava and water are sealed before the worker moves
+CHECK-TIME 1.012890 tests/so/so3.lua | mine flowing lava and water are sealed before the worker moves
+PASS mine seals lava beside a thorough branch
+CHECK-TIME 0.930677 tests/so/so3.lua | mine seals lava beside a thorough branch
+PASS mine expired lease retains its cells until a recovery report
+CHECK-TIME 0.809457 tests/so/so3.lua | mine expired lease retains its cells until a recovery report
+PASS mine down drops unload from above and hold when no drop exists
+CHECK-TIME 1.150296 tests/so/so3.lua | mine down drops unload from above and hold when no drop exists
+PASS mine fast mode skips branch wall veins and uses two block spacing
+CHECK-TIME 0.273758 tests/so/so3.lua | mine fast mode skips branch wall veins and uses two block spacing
+PASS mine pure inventory rules keep fuel and one sealable stack
+CHECK-TIME 0.001058 tests/so/so3.lua | mine pure inventory rules keep fuel and one sealable stack
+PASS mine bounds a vein to 64 blocks and emits ore and progress events
+CHECK-TIME 22.585567 tests/so/so3.lua | mine bounds a vein to 64 blocks and emits ore and progress events
+PASS mine idle leases renew before timeout without repeated park traffic
+CHECK-TIME 0.148876 tests/so/so3.lua | mine idle leases renew before timeout without repeated park traffic
+PASS mine down drop above the worker is routed around without digging the chest
+CHECK-TIME 1.295814 tests/so/so3.lua | mine down drop above the worker is routed around without digging the chest
+PASS mine full ore inventory unloads before fetching fuel
+CHECK-TIME 1.234885 tests/so/so3.lua | mine full ore inventory unloads before fetching fuel
+PASS mine a coal-filled inventory unloads and frees space
+CHECK-TIME 1.050189 tests/so/so3.lua | mine a coal-filled inventory unloads and frees space
+PASS mine fast mode still seals fluids above the tunnel
+CHECK-TIME 0.447856 tests/so/so3.lua | mine fast mode still seals fluids above the tunnel
+PASS mine ore trips retain buckets and torches and return after unloading
+CHECK-TIME 1.220520 tests/so/so3.lua | mine ore trips retain buckets and torches and return after unloading
+PASS mine batches known shaft travel and stops at an unknown inspect
+CHECK-TIME 0.000873 tests/so/so3.lua | mine batches known shaft travel and stops at an unknown inspect
+PASS mine ore filters leave diamond walls and follow iron reports
+CHECK-TIME 2.053957 tests/so/so3.lua | mine ore filters leave diamond walls and follow iron reports
+PASS mine empty and missing ore filters accept all ores
+CHECK-TIME 0.000691 tests/so/so3.lua | mine empty and missing ore filters accept all ores
+PASS mine ore chest failures park and retry after sixty seconds
+CHECK-TIME 0.180520 tests/so/so3.lua | mine ore chest failures park and retry after sixty seconds
+PASS mine fuel chest failures park and retry after sixty seconds
+CHECK-TIME 0.114686 tests/so/so3.lua | mine fuel chest failures park and retry after sixty seconds
+PASS mine empty fuel chest returns with enough fuel
+CHECK-TIME 0.810836 tests/so/so3.lua | mine empty fuel chest returns with enough fuel
+PASS mine empty fuel chest holds below reserve
+CHECK-TIME 0.123059 tests/so/so3.lua | mine empty fuel chest holds below reserve
+PASS mine inspect ends the batch before ore changes the plan
+CHECK-TIME 0.000720 tests/so/so3.lua | mine inspect ends the batch before ore changes the plan
+PASS mine missing drop backs off and emits one alert
+CHECK-TIME 0.101386 tests/so/so3.lua | mine missing drop backs off and emits one alert
+PASS mine completed branch unloads its remaining ore before parking
+CHECK-TIME 1.522758 tests/so/so3.lua | mine completed branch unloads its remaining ore before parking
+PASS SO11 lane geometry includes the shaft spine junction and exit
+CHECK-TIME 0.000722 tests/so/so3.lua | SO11 lane geometry includes the shaft spine junction and exit
+PASS SO11 opposite lane passes retain one owner and let the waiter proceed
+CHECK-TIME 3.242873 tests/so/so3.lua | SO11 opposite lane passes retain one owner and let the waiter proceed
+PASS SO11 deadlocked shaft poses cannot authorize a second lane entrant
+CHECK-TIME 0.142446 tests/so/so3.lua | SO11 deadlocked shaft poses cannot authorize a second lane entrant
+PASS SO11 lane waiters use age then id and all pass within three grants
+CHECK-TIME 5.700541 tests/so/so3.lua | SO11 lane waiters use age then id and all pass within three grants
+PASS mine supply trips share the shaft and retrace both branches
+CHECK-TIME 1.811623 tests/so/so3.lua | mine supply trips share the shaft and retrace both branches
+PASS mine route planning avoids durable lookups and reuses a stopped pose
+CHECK-TIME 1.494757 tests/so/so3.lua | mine route planning avoids durable lookups and reuses a stopped pose
+PASS mine supply follows shaft and spine facing 0
+CHECK-TIME 0.003379 tests/so/mine-travel.lua | mine supply follows shaft and spine facing 0
+PASS mine supply follows shaft and spine facing 1
+CHECK-TIME 0.003326 tests/so/mine-travel.lua | mine supply follows shaft and spine facing 1
+PASS mine supply follows shaft and spine facing 2
+CHECK-TIME 0.018652 tests/so/mine-travel.lua | mine supply follows shaft and spine facing 2
+PASS mine supply follows shaft and spine facing 3
+CHECK-TIME 0.003382 tests/so/mine-travel.lua | mine supply follows shaft and spine facing 3
+PASS mine supply retraces dug vein cells before entering the branch
+CHECK-TIME 0.000362 tests/so/mine-travel.lua | mine supply retraces dug vein cells before entering the branch
+PASS mine supply leaves an unfinished shaft upward and refuses a chest in the corridor
+CHECK-TIME 0.000218 tests/so/mine-travel.lua | mine supply leaves an unfinished shaft upward and refuses a chest in the corridor
+PASS mine supply bounds an unknown vein search and reuses known access
+CHECK-TIME 0.006632 tests/so/mine-travel.lua | mine supply bounds an unknown vein search and reuses known access
+PASS mine long supply passes reserve the shared corridor without yielding
+CHECK-TIME 0.002601 tests/so/mine-travel.lua | mine long supply passes reserve the shared corridor without yielding
+PASS reboot resolves a finite-fuel move that did not happen
+CHECK-TIME 0.084167 tests/so/worker-pending.lua | reboot resolves a finite-fuel move that did not happen
+PASS reboot reports an interrupted turn without guessing when it did not happen
+CHECK-TIME 0.079458 tests/so/worker-pending.lua | reboot reports an interrupted turn without guessing when it did not happen
+PASS GPS resolves an unlimited-fuel move that did not happen
+CHECK-TIME 0.058704 tests/so/worker-pending.lua | GPS resolves an unlimited-fuel move that did not happen
+PASS reboot resolves a finite-fuel move that happened
+CHECK-TIME 0.066997 tests/so/worker-pending.lua | reboot resolves a finite-fuel move that happened
+PASS reboot reports an interrupted turn without guessing when it happened
+CHECK-TIME 0.070147 tests/so/worker-pending.lua | reboot reports an interrupted turn without guessing when it happened
+PASS GPS resolves an unlimited-fuel move that happened
+CHECK-TIME 0.056973 tests/so/worker-pending.lua | GPS resolves an unlimited-fuel move that happened
+PASS legacy pending move without evidence reports uncertainty
+CHECK-TIME 0.062951 tests/so/worker-pending.lua | legacy pending move without evidence reports uncertainty
+PASS mine add reanchors an uncertain turn that did not run
+CHECK-TIME 0.097668 tests/so/worker-reanchor.lua | mine add reanchors an uncertain turn that did not run
+PASS mine add reanchors an uncertain turn that ran
+CHECK-TIME 0.093362 tests/so/worker-reanchor.lua | mine add reanchors an uncertain turn that ran
+PASS lumber add reanchors an uncertain turn that did not run
+CHECK-TIME 0.090612 tests/so/worker-reanchor.lua | lumber add reanchors an uncertain turn that did not run
+PASS lumber add reanchors an uncertain turn that ran
+CHECK-TIME 0.104790 tests/so/worker-reanchor.lua | lumber add reanchors an uncertain turn that ran
+PASS mining refuses start at 80% and resumes below it on 26x20
+CHECK-TIME 0.336145 tests/so/disk-guard.lua | mining refuses start at 80% and resumes below it on 26x20
+PASS lumber refuses start at 80% and resumes below it on 26x20
+CHECK-TIME 0.363687 tests/so/disk-guard.lua | lumber refuses start at 80% and resumes below it on 26x20
+PASS mining refuses start at 80% and resumes below it on 29x12
+CHECK-TIME 0.303792 tests/so/disk-guard.lua | mining refuses start at 80% and resumes below it on 29x12
+PASS lumber refuses start at 80% and resumes below it on 29x12
+CHECK-TIME 0.283392 tests/so/disk-guard.lua | lumber refuses start at 80% and resumes below it on 29x12
+PASS lumber counts only successful log drops
+CHECK-TIME 0.004816 tests/so/lumber-deliver.lua | lumber counts only successful log drops
+PASS lumber holds without delivery credit when worker reports no inventory
+CHECK-TIME 0.002358 tests/so/lumber-deliver.lua | lumber holds without delivery credit when worker reports no inventory
+PASS lumber marks failed wood inspections broken without counting lost logs
+CHECK-TIME 0.002636 tests/so/lumber-deliver.lua | lumber marks failed wood inspections broken without counting lost logs
+PASS lumber checks fuel chest before taking supplies
+CHECK-TIME 0.002663 tests/so/lumber-deliver.lua | lumber checks fuel chest before taking supplies
+PASS lumber checks saplings chest before taking supplies
+CHECK-TIME 0.002818 tests/so/lumber-deliver.lua | lumber checks saplings chest before taking supplies
+PASS lumber rechecks supply service saved before inspection support
+CHECK-TIME 0.002329 tests/so/lumber-deliver.lua | lumber rechecks supply service saved before inspection support
+PASS lumber takes supplies after a successful inspection and clears strikes
+CHECK-TIME 0.002558 tests/so/lumber-deliver.lua | lumber takes supplies after a successful inspection and clears strikes
+PASS lumber registers sapling chest for inspection failures
+CHECK-TIME 0.002291 tests/so/lumber-deliver.lua | lumber registers sapling chest for inspection failures
+PASS generic frames keep revisions per client size and page
+CHECK-TIME 0.002433 tests/so/minor-ui.lua | generic frames keep revisions per client size and page
+PASS shop search clears through drawn controls at 26x20
+CHECK-TIME 0.108726 tests/so/minor-ui.lua | shop search clears through drawn controls at 26x20
+PASS shop search clears through drawn controls at 29x12
+CHECK-TIME 0.123788 tests/so/minor-ui.lua | shop search clears through drawn controls at 29x12
+PASS shop searches belong to each display and dead rooms are rediscovered
+CHECK-TIME 0.000736 tests/so/minor-ui.lua | shop searches belong to each display and dead rooms are rediscovered
+PASS shop DNS answers do not substitute for stock and valid stock renews discovery
+CHECK-TIME 0.000597 tests/so/minor-ui.lua | shop DNS answers do not substitute for stock and valid stock renews discovery
+PASS AR clears old boot elements once and expires retained alerts
+CHECK-TIME 0.002594 tests/so/minor-ui.lua | AR clears old boot elements once and expires retained alerts
+PASS dug retirement: crossing 1 MB only requests consent, then allow retires oldest first
+CHECK-TIME 0.354368 tests/so/dug-retirement.lua | dug retirement: crossing 1 MB only requests consent, then allow retires oldest first
+PASS dug retirement: finish lossless migration before asking to forget anything
+CHECK-TIME 0.503110 tests/so/dug-retirement.lua | dug retirement: finish lossless migration before asking to forget anything
+PASS dug retirement: keep survives reboot and asks again only after 50 percent growth
+CHECK-TIME 0.873920 tests/so/dug-retirement.lua | dug retirement: keep survives reboot and asks again only after 50 percent growth
+PASS dug retirement: running job areas, open leases, reservations and recovery history stay protected
+CHECK-TIME 0.373504 tests/so/dug-retirement.lua | dug retirement: running job areas, open leases, reservations and recovery history stay protected
+PASS dug retirement: approval rechecks reservations and accesses without expanding the offer
+CHECK-TIME 0.229112 tests/so/dug-retirement.lua | dug retirement: approval rechecks reservations and accesses without expanding the offer
+PASS dug retirement: uncertain protection blocks requests and later approvals
+CHECK-TIME 0.262949 tests/so/dug-retirement.lua | dug retirement: uncertain protection blocks requests and later approvals
+PASS dug retirement: failed consent saves and interrupted deletion never authorize extra pruning
+CHECK-TIME 0.449359 tests/so/dug-retirement.lua | dug retirement: failed consent saves and interrupted deletion never authorize extra pruning
+PASS dug retirement: persisted reads make a section newer than untouched sections
+CHECK-TIME 0.470140 tests/so/dug-retirement.lua | dug retirement: persisted reads make a section newer than untouched sections
+PASS dug consent: drawn allow on generic at 26x20
+CHECK-TIME 0.297942 tests/so/dug-display.lua | dug consent: drawn allow on generic at 26x20
+PASS dug consent: drawn keep on generic at 26x20
+CHECK-TIME 0.303450 tests/so/dug-display.lua | dug consent: drawn keep on generic at 26x20
+PASS dug consent: drawn allow on status at 26x20
+CHECK-TIME 0.306614 tests/so/dug-display.lua | dug consent: drawn allow on status at 26x20
+PASS dug consent: drawn keep on status at 26x20
+CHECK-TIME 0.317210 tests/so/dug-display.lua | dug consent: drawn keep on status at 26x20
+PASS dug consent: drawn allow on mining at 26x20
+CHECK-TIME 0.325723 tests/so/dug-display.lua | dug consent: drawn allow on mining at 26x20
+PASS dug consent: drawn keep on mining at 26x20
+CHECK-TIME 0.318475 tests/so/dug-display.lua | dug consent: drawn keep on mining at 26x20
+PASS dug consent: drawn allow on lumber at 26x20
+CHECK-TIME 0.299309 tests/so/dug-display.lua | dug consent: drawn allow on lumber at 26x20
+PASS dug consent: drawn keep on lumber at 26x20
+CHECK-TIME 0.284133 tests/so/dug-display.lua | dug consent: drawn keep on lumber at 26x20
+PASS dug consent: drawn allow on shop at 26x20
+CHECK-TIME 0.359918 tests/so/dug-display.lua | dug consent: drawn allow on shop at 26x20
+PASS dug consent: drawn keep on shop at 26x20
+CHECK-TIME 0.380519 tests/so/dug-display.lua | dug consent: drawn keep on shop at 26x20
+PASS dug consent: drawn allow on ar at 26x20
+CHECK-TIME 0.362436 tests/so/dug-display.lua | dug consent: drawn allow on ar at 26x20
+PASS dug consent: drawn keep on ar at 26x20
+CHECK-TIME 0.348122 tests/so/dug-display.lua | dug consent: drawn keep on ar at 26x20
+PASS dug consent: drawn allow on generic at 29x12
+CHECK-TIME 0.320967 tests/so/dug-display.lua | dug consent: drawn allow on generic at 29x12
+PASS dug consent: drawn keep on generic at 29x12
+CHECK-TIME 0.296797 tests/so/dug-display.lua | dug consent: drawn keep on generic at 29x12
+PASS dug consent: drawn allow on status at 29x12
+CHECK-TIME 0.285771 tests/so/dug-display.lua | dug consent: drawn allow on status at 29x12
+PASS dug consent: drawn keep on status at 29x12
+CHECK-TIME 0.303754 tests/so/dug-display.lua | dug consent: drawn keep on status at 29x12
+PASS dug consent: drawn allow on mining at 29x12
+CHECK-TIME 0.283531 tests/so/dug-display.lua | dug consent: drawn allow on mining at 29x12
+PASS dug consent: drawn keep on mining at 29x12
+CHECK-TIME 0.354721 tests/so/dug-display.lua | dug consent: drawn keep on mining at 29x12
+PASS dug consent: drawn allow on lumber at 29x12
+CHECK-TIME 0.285996 tests/so/dug-display.lua | dug consent: drawn allow on lumber at 29x12
+PASS dug consent: drawn keep on lumber at 29x12
+CHECK-TIME 0.359592 tests/so/dug-display.lua | dug consent: drawn keep on lumber at 29x12
+PASS dug consent: drawn allow on shop at 29x12
+CHECK-TIME 0.331097 tests/so/dug-display.lua | dug consent: drawn allow on shop at 29x12
+PASS dug consent: drawn keep on shop at 29x12
+CHECK-TIME 0.359009 tests/so/dug-display.lua | dug consent: drawn keep on shop at 29x12
+PASS dug consent: drawn allow on ar at 29x12
+CHECK-TIME 0.323608 tests/so/dug-display.lua | dug consent: drawn allow on ar at 29x12
+PASS dug consent: drawn keep on ar at 29x12
+CHECK-TIME 0.314998 tests/so/dug-display.lua | dug consent: drawn keep on ar at 29x12
+PASS dug consent: only the current drawn button coordinates can authorize retirement
+CHECK-TIME 0.323128 tests/so/dug-display.lua | dug consent: only the current drawn button coordinates can authorize retirement
+PASS dug consent: all displays see the same decision and AR keeps the pending alert
+CHECK-TIME 1.413733 tests/so/dug-display.lua | dug consent: all displays see the same decision and AR keeps the pending alert
+PASS UI2a mining mockup matches both fixture layers
+CHECK-TIME 0.007641 tests/ui/ui2a.lua | UI2a mining mockup matches both fixture layers
+PASS UI2a setup stays on the display that pressed its drawn button
+CHECK-TIME 0.030308 tests/ui/ui2a.lua | UI2a setup stays on the display that pressed its drawn button
+PASS UI2a text commands retain job effects on both pages
+CHECK-TIME 0.004264 tests/ui/ui2a.lua | UI2a text commands retain job effects on both pages
+PASS UI2a buttons share start and stop commands and save once per tap
+CHECK-TIME 0.008552 tests/ui/ui2a.lua | UI2a buttons share start and stop commands and save once per tap
+PASS UI2a setup navigation and every size keep bounds and contrast
+CHECK-TIME 0.029729 tests/ui/ui2a.lua | UI2a setup navigation and every size keep bounds and contrast
+PASS UI2a gather uses mining facts and leaves daily ore stale
+CHECK-TIME 0.002205 tests/ui/ui2a.lua | UI2a gather uses mining facts and leaves daily ore stale
+PASS UI2a compact mining keeps full worker coordinates at 26x20
+CHECK-TIME 0.004709 tests/ui/ui2a.lua | UI2a compact mining keeps full worker coordinates at 26x20
+PASS UI2a compact mining keeps full worker coordinates at 29x12
+CHECK-TIME 0.002514 tests/ui/ui2a.lua | UI2a compact mining keeps full worker coordinates at 29x12
+PASS UI3b roleless pockets default to status and glance matches all twenty fixture rows
+CHECK-TIME 0.005905 tests/ui/ui3b.lua | UI3b roleless pockets default to status and glance matches all twenty fixture rows
+PASS UI3b explicit generic selection survives a display module restart at both compact sizes
+CHECK-TIME 0.010373 tests/ui/ui3b.lua | UI3b explicit generic selection survives a display module restart at both compact sizes
+PASS UI3b client input height keeps full Big Tiles pocket navigation
+CHECK-TIME 0.005933 tests/ui/ui3b.lua | UI3b client input height keeps full Big Tiles pocket navigation
+PASS UI3b glance pages cover all tiles independently and wrap both ways
+CHECK-TIME 0.020990 tests/ui/ui3b.lua | UI3b glance pages cover all tiles independently and wrap both ways
+PASS UI3b panel fixture matches and controls dispatch once per tap
+CHECK-TIME 0.018900 tests/ui/ui3b.lua | UI3b panel fixture matches and controls dispatch once per tap
+PASS UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast
+CHECK-TIME 0.036560 tests/ui/ui3b.lua | UI3b panel sessions, alert list, pairing help and monitor pages retain bounds and contrast
+PASS UI3b missing modules have disabled blocks and no action targets
+CHECK-TIME 0.006554 tests/ui/ui3b.lua | UI3b missing modules have disabled blocks and no action targets
+PASS UI3b real mining and lumber inputs save once per control tap
+CHECK-TIME 0.022657 tests/ui/ui3b.lua | UI3b real mining and lumber inputs save once per control tap
+PASS UI3b real shop orders the best match exactly once for each quantity
+CHECK-TIME 0.148431 tests/ui/ui3b.lua | UI3b real shop orders the best match exactly once for each quantity
+PASS UI3b monitor role persists and subscribed revisions stay per panel session
+CHECK-TIME 0.052780 tests/ui/ui3b.lua | UI3b monitor role persists and subscribed revisions stay per panel session
+PASS UI3b alert list pages through all state alerts and pairing help returns
+CHECK-TIME 0.021190 tests/ui/ui3b.lua | UI3b alert list pages through all state alerts and pairing help returns
+PASS UI3b partial installs without the kit keep the legacy role picker
+CHECK-TIME 0.006048 tests/ui/ui3b.lua | UI3b partial installs without the kit keep the legacy role picker
+PASS UI3b custom generic headers stay clear when panel is not loaded
+CHECK-TIME 0.008447 tests/ui/ui3b.lua | UI3b custom generic headers stay clear when panel is not loaded
+PASS UI3b server local monitor panel forwards controls once
+CHECK-TIME 0.032079 tests/ui/ui3b.lua | UI3b server local monitor panel forwards controls once
+PASS UI3b monitor panels browse shop without a search field or quick orders
+CHECK-TIME 0.040780 tests/ui/ui3b.lua | UI3b monitor panels browse shop without a search field or quick orders
+PASS UI3b panel installs only on the server
+CHECK-TIME 0.000059 tests/ui/ui3b.lua | UI3b panel installs only on the server
+PASS UI5b MORE navigation switches only the tapped display once
+CHECK-TIME 0.037276 tests/ui/ui5b.lua | UI5b MORE navigation switches only the tapped display once
+FILE-TIME 8.096165 tests/server.lua
+FILE-TIME 1.287016 tests/so/disk-guard.lua
+FILE-TIME 9.460553 tests/so/dug-display.lua
+FILE-TIME 3.516462 tests/so/dug-retirement.lua
+FILE-TIME 0.022469 tests/so/lumber-deliver.lua
+FILE-TIME 0.038552 tests/so/mine-travel.lua
+FILE-TIME 0.238874 tests/so/minor-ui.lua
+FILE-TIME 62.557792 tests/so/so3.lua
+FILE-TIME 0.245565 tests/so/so6.lua
+FILE-TIME 0.777639 tests/so/w40.lua
+FILE-TIME 0.479397 tests/so/worker-pending.lua
+FILE-TIME 0.386432 tests/so/worker-reanchor.lua
+FILE-TIME 0.089922 tests/ui/ui2a.lua
+FILE-TIME 0.437686 tests/ui/ui3b.lua
+FILE-TIME 0.037276 tests/ui/ui5b.lua
+201 tests passed, 0 FAILED, 0 skipped checks, shard 1/4
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using local-2 slot
+PASS no controller: the dashboard and its keys work and never touch AR
+CHECK-TIME 0.038986 tests/run.lua | no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+CHECK-TIME 0.029525 tests/run.lua | 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+PASS goggles: HUD lines, ore icons, and frames that delete instead of clearing
+CHECK-TIME 0.022395 tests/run.lua | goggles: HUD lines, ore icons, and frames that delete instead of clearing
+PASS fleetview draws teletext pixels with the right colours
+CHECK-TIME 0.000840 tests/run.lua | fleetview draws teletext pixels with the right colours
+PASS shaft labels are raised, centered and readable with smaller turtle markers
+CHECK-TIME 0.009180 tests/run.lua | shaft labels are raised, centered and readable with smaller turtle markers
+PASS attach, detach and reattach use peripheral events
+CHECK-TIME 0.030747 tests/run.lua | attach, detach and reattach use peripheral events
+PASS new frames replace old positions and clamp branch width to reach
+CHECK-TIME 0.011598 tests/run.lua | new frames replace old positions and clamp branch width to reach
+PASS local coordinates, old miners and incomplete geometry are handled
+CHECK-TIME 0.011198 tests/run.lua | local coordinates, old miners and incomplete geometry are handled
+PASS key and dashboard touch toggles persist both states across restart
+CHECK-TIME 0.082860 tests/run.lua | key and dashboard touch toggles persist both states across restart
+PASS turtles at the shaft top need no extra position marker or path
+CHECK-TIME 0.011232 tests/run.lua | turtles at the shaft top need no extra position marker or path
+PASS LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+CHECK-TIME 0.025386 tests/run.lua | LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+PASS controller failure stops 3D calls and leaves the dashboard running
+CHECK-TIME 0.014002 tests/run.lua | controller failure stops 3D calls and leaves the dashboard running
+PASS real miner telemetry supplies world shafts and omits local positions
+CHECK-TIME 0.033025 tests/run.lua | real miner telemetry supplies world shafts and omits local positions
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+CHECK-TIME 0.000932 tests/run.lua | Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+CHECK-TIME 0.000031 tests/run.lua | 3D mock rejects unverified methods
+PASS hub hands each new miner the direction the fewest others have and keeps it
+CHECK-TIME 0.005024 tests/miner_dirs.lua | hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+CHECK-TIME 0.010598 tests/miner_dirs.lua | pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+CHECK-TIME 0.002586 tests/miner_dirs.lua | miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+CHECK-TIME 0.003232 tests/miner_dirs.lua | miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+CHECK-TIME 0.010807 tests/miner_dirs.lua | setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+CHECK-TIME 0.004502 tests/miner_dirs.lua | setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+CHECK-TIME 0.007056 tests/miner_dirs.lua | setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+CHECK-TIME 0.002665 tests/miner_dirs.lua | miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+CHECK-TIME 0.007260 tests/miner_dirs.lua | install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS sha256 and hmac match known vectors
+CHECK-TIME 0.000906 tests/so/so0.lua | sha256 and hmac match known vectors
+PASS so-server refuses on 1 MB and 8 MB disks with the message, boots on 16 MB
+CHECK-TIME 0.021683 tests/so/so0.lua | so-server refuses on 1 MB and 8 MB disks with the message, boots on 16 MB
+PASS two fake machines pair with a code, then exchange hello and ack
+CHECK-TIME 0.058551 tests/so/so0.lua | two fake machines pair with a code, then exchange hello and ack
+PASS a message with a wrong MAC is dropped and logged
+CHECK-TIME 0.060717 tests/so/so0.lua | a message with a wrong MAC is dropped and logged
+PASS a repeated rid gets the saved reply again
+CHECK-TIME 0.062610 tests/so/so0.lua | a repeated rid gets the saved reply again
+PASS an unknown type gets err
+CHECK-TIME 0.066668 tests/so/so0.lua | an unknown type gets err
+PASS a test module so-mod-test.lua receives its message type and its tick runs
+CHECK-TIME 0.065562 tests/so/so0.lua | a test module so-mod-test.lua receives its message type and its tick runs
+PASS so-store refuses a write past its budget and the old file stays intact
+CHECK-TIME 0.000287 tests/so/so0.lua | so-store refuses a write past its budget and the old file stays intact
+PASS the fake turtle digs and moves in the block world
+CHECK-TIME 0.000054 tests/so/so0.lua | the fake turtle digs and moves in the block world
+PASS a string payload, a 1 MB field, and a deep body are dropped and the server still answers
+CHECK-TIME 0.085626 tests/so/so0.lua | a string payload, a 1 MB field, and a deep body are dropped and the server still answers
+PASS three turtles pair one after another and a re-pair needs a fresh code
+CHECK-TIME 0.204023 tests/so/so0.lua | three turtles pair one after another and a re-pair needs a fresh code
+PASS a listener that records pairing and knows the code cannot compute the key
+CHECK-TIME 0.071397 tests/so/so0.lua | a listener that records pairing and knows the code cannot compute the key
+PASS a replay 61s later is dropped and a retry runs the handler once
+CHECK-TIME 0.577333 tests/so/so0.lua | a replay 61s later is dropped and a retry runs the handler once
+PASS a fresh fake computer calls initWithTiming before its first random(32)
+CHECK-TIME 0.041257 tests/so/so0.lua | a fresh fake computer calls initWithTiming before its first random(32)
+PASS a retried pair message gets the saved ack
+CHECK-TIME 0.057858 tests/so/so0.lua | a retried pair message gets the saved ack
+PASS the pair code comes from ccryptolib random bytes
+CHECK-TIME 0.022521 tests/so/so0.lua | the pair code comes from ccryptolib random bytes
+PASS five bad pair MACs burn the code and join can pin the server id
+CHECK-TIME 0.090587 tests/so/so0.lua | five bad pair MACs burn the code and join can pin the server id
+PASS restart after 5000 events restores the same state
+CHECK-TIME 42.693634 tests/so/so1.lua | restart after 5000 events restores the same state
+PASS a killed segment write loses only the event in that write
+CHECK-TIME 0.061353 tests/so/so1.lua | a killed segment write loses only the event in that write
+PASS disk at 80 percent raises the disk alert and refuses a new job
+CHECK-TIME 0.027771 tests/so/so1.lua | disk at 80 percent raises the disk alert and refuses a new job
+PASS a subscriber gets increasing revs and at most 2 frames per second
+CHECK-TIME 0.033355 tests/so/so1.lua | a subscriber gets increasing revs and at most 2 frames per second
+PASS history pages move forward and the raw log stays within its caps
+CHECK-TIME 0.164076 tests/so/so1.lua | history pages move forward and the raw log stays within its caps
+PASS a paired machine keeps its fingerprint and pose across a server restart
+CHECK-TIME 0.081524 tests/so/so1.lua | a paired machine keeps its fingerprint and pose across a server restart
+PASS worker and its libraries fit in 100 KB
+CHECK-TIME 0.000081 tests/so/so2.lua | worker and its libraries fit in 100 KB
+PASS a batch of 16 steps reports the fake world
+CHECK-TIME 0.097034 tests/so/so2.lua | a batch of 16 steps reports the fake world
+PASS lease expiry mid-batch stops at the next step
+CHECK-TIME 0.080177 tests/so/so2.lua | lease expiry mid-batch stops at the next step
+PASS a silent server gets 12 fast beacons, a 32-move return, then slow beacons
+CHECK-TIME 0.209969 tests/so/so2.lua | a silent server gets 12 fast beacons, a 32-move return, then slow beacons
+PASS reboot before a move reports that it did not happen
+CHECK-TIME 0.073444 tests/so/so2.lua | reboot before a move reports that it did not happen
+PASS a batch with a bad MAC is ignored
+CHECK-TIME 0.063273 tests/so/so2.lua | a batch with a bad MAC is ignored
+PASS a new lease stops beaconing and runs
+CHECK-TIME 0.075474 tests/so/so2.lua | a new lease stops beaconing and runs
+PASS a new lease during the return stops walking back
+CHECK-TIME 0.104634 tests/so/so2.lua | a new lease during the return stops walking back
+PASS backtrack digs a block this turtle dug
+CHECK-TIME 0.100277 tests/so/so2.lua | backtrack digs a block this turtle dug
+PASS backtrack stops on a block this turtle did not dig
+CHECK-TIME 0.102101 tests/so/so2.lua | backtrack stops on a block this turtle did not dig
+PASS SO9 server manifest covers every root so file and crypto file
+CHECK-TIME 0.000296 tests/so/so9.lua | SO9 server manifest covers every root so file and crypto file
+PASS SO9 each role contains its static dependencies and thin clients fit 800 KB
+CHECK-TIME 0.011927 tests/so/so9.lua | SO9 each role contains its static dependencies and thin clients fit 800 KB
+PASS SO9 small server disk refuses before HTTP and prints both config lines
+CHECK-TIME 0.000310 tests/so/so9.lua | SO9 small server disk refuses before HTTP and prints both config lines
+PASS SO9 fifth download failure leaves every old file unchanged
+CHECK-TIME 0.003700 tests/so/so9.lua | SO9 fifth download failure leaves every old file unchanged
+PASS SO9 rejects empty, non-200 and invalid Lua responses
+CHECK-TIME 0.008662 tests/so/so9.lua | SO9 rejects empty, non-200 and invalid Lua responses
+PASS SO9 interrupted swaps recover every move for every role
+CHECK-TIME 2.889995 tests/so/so9.lua | SO9 interrupted swaps recover every move for every role
+PASS SO9 interrupted fresh install removes newly introduced files
+CHECK-TIME 0.461142 tests/so/so9.lua | SO9 interrupted fresh install removes newly introduced files
+PASS SO9 rollback can itself be interrupted and resumed
+CHECK-TIME 0.007411 tests/so/so9.lua | SO9 rollback can itself be interrupted and resumed
+PASS SO9 committed transaction finishes cleanup after interruption
+CHECK-TIME 0.005580 tests/so/so9.lua | SO9 committed transaction finishes cleanup after interruption
+PASS SO9 update preserves keys data journal drops display and server config
+CHECK-TIME 0.029713 tests/so/so9.lua | SO9 update preserves keys data journal drops display and server config
+PASS SO9 fresh server writes plain GPS config and recovery startup
+CHECK-TIME 0.016111 tests/so/so9.lua | SO9 fresh server writes plain GPS config and recovery startup
+PASS SO9 server manual coordinates retry invalid input
+CHECK-TIME 0.016496 tests/so/so9.lua | SO9 server manual coordinates retry invalid input
+PASS SO9 thin machines install only their role and launch pairing
+CHECK-TIME 0.010902 tests/so/so9.lua | SO9 thin machines install only their role and launch pairing
+PASS SO9 role picker supports arrows clicks and monitor default touch
+CHECK-TIME 0.021354 tests/so/so9.lua | SO9 role picker supports arrows clicks and monitor default touch
+PASS SO9 reset needs yes and preserves only installer and ROM
+CHECK-TIME 0.005357 tests/so/so9.lua | SO9 reset needs yes and preserves only installer and ROM
+PASS SO9 reset skips mounted and read-only paths and removes keys and data
+CHECK-TIME 0.000686 tests/so/so9.lua | SO9 reset skips mounted and read-only paths and removes keys and data
+PASS SO9 reset reports a failed delete and continues clearing local data
+CHECK-TIME 0.000781 tests/so/so9.lua | SO9 reset reports a failed delete and continues clearing local data
+PASS SO9 update shim calls only role installer
+CHECK-TIME 0.000021 tests/so/so9.lua | SO9 update shim calls only role installer
+PASS SO9 first update uses the new installer list and removes retired role files
+CHECK-TIME 0.031444 tests/so/so9.lua | SO9 first update uses the new installer list and removes retired role files
+PASS SO9 trims saved role whitespace and pins every raw request to one SHA
+CHECK-TIME 0.004346 tests/so/so9.lua | SO9 trims saved role whitespace and pins every raw request to one SHA
+PASS SO9 API failures use only the saved commit or leave the install unchanged
+CHECK-TIME 0.033178 tests/so/so9.lua | SO9 API failures use only the saved commit or leave the install unchanged
+PASS SO9 a failed pinned download never retries from a branch
+CHECK-TIME 0.003361 tests/so/so9.lua | SO9 a failed pinned download never retries from a branch
+PASS SO9 a branch advance cannot change the commit during an update
+CHECK-TIME 0.003883 tests/so/so9.lua | SO9 a branch advance cannot change the commit during an update
+PASS SO9 invalid installer and invalid cached commit leave installed files unchanged
+CHECK-TIME 0.010818 tests/so/so9.lua | SO9 invalid installer and invalid cached commit leave installed files unchanged
+PASS SO9 every deletion and metadata move rolls back across power loss
+CHECK-TIME 2.530162 tests/so/so9.lua | SO9 every deletion and metadata move rolls back across power loss
+PASS SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
+CHECK-TIME 0.012179 tests/so/so9.lua | SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
+SO9 worker peak charged bytes=257884
+SO9 display peak charged bytes=242744
+PASS SO9 worker and display stay below 1 MB during the complete update
+CHECK-TIME 0.008433 tests/so/so9.lua | SO9 worker and display stay below 1 MB during the complete update
+PASS SO9 first update can resolve a SHA through Git refs when the API is blocked
+CHECK-TIME 0.004571 tests/so/so9.lua | SO9 first update can resolve a SHA through Git refs when the API is blocked
+PASS SO9 malformed Git refs cannot select a moving ref or modify an existing install
+CHECK-TIME 0.010812 tests/so/so9.lua | SO9 malformed Git refs cannot select a moving ref or modify an existing install
+PASS SO9 downloaded installer must still define the saved role
+CHECK-TIME 0.003542 tests/so/so9.lua | SO9 downloaded installer must still define the saved role
+PASS SO9 rejects unsafe saved file paths and invalid handoff revisions
+CHECK-TIME 0.014649 tests/so/so9.lua | SO9 rejects unsafe saved file paths and invalid handoff revisions
+PASS SO11 harness reboots with the same disk and id and drops outage messages
+CHECK-TIME 0.000066 tests/so/so11.lua | SO11 harness reboots with the same disk and id and drops outage messages
+PASS SO11 new mining jobs accept every ore by default
+CHECK-TIME 0.022114 tests/so/so11.lua | SO11 new mining jobs accept every ore by default
+SO11 time 60s
+SO11 time 120s
+SO11 time 180s
+SO11 time 240s
+SO11 time 300s
+SO11 power cut in display.tick at 360s
+SO11 time 360s
+SO11 time 420s
+SO11 time 480s
+SO11 time 540s
+SO11 time 600s
+SO11 time 660s
+SO11 time 720s
+SO11 mining 2 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-5} error=nil
+SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
+SO11 lumber phase=waiting cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=28,["y"]=64,["z"]=7}
+SO11 summary dug cells=80 ores delivered=4 trees felled=4 logs=16 leases sent=1293 reports=1293
+SO11 worker 2 recovery park=1s work=idle beacon=held lease
+SO11 worker 3 recovery park=1s work=idle beacon=held lease
+SO11 worker 4 recovery park=1s work=idle beacon=held lease
+SO11 display 5 recovery=25s
+SO11 display 6 recovery=14s
+SO11 elapsed 33 real seconds
+PASS SO11 integration check 1
+CHECK-TIME 32.602380 tests/so/so11.lua | SO11 integration check 1
+PASS SO11 integration check 2
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 2
+PASS SO11 integration check 3
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 3
+PASS SO11 integration check 4
+CHECK-TIME 0.000000 tests/so/so11.lua | SO11 integration check 4
+PASS SO11 integration check 5
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 5
+PASS SO11 integration check 6
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 6
+PASS SO11 integration check 7
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 7
+PASS server modules share the shell program environment
+CHECK-TIME 0.024558 tests/run.lua | server modules share the shell program environment
+PASS paged drop editor and typed input at 26x20
+CHECK-TIME 0.600035 tests/so/drop-editor.lua | paged drop editor and typed input at 26x20
+PASS paged drop editor and typed input at 29x12
+CHECK-TIME 0.456681 tests/so/drop-editor.lua | paged drop editor and typed input at 29x12
+PASS drop paging is independent between pocket and monitor
+CHECK-TIME 0.644249 tests/so/drop-editor.lua | drop paging is independent between pocket and monitor
+PASS server and display pair with a wired modem before wireless
+CHECK-TIME 0.069626 tests/so/server-net.lua | server and display pair with a wired modem before wireless
+PASS server opens a wireless modem attached after boot and after detach
+CHECK-TIME 0.102330 tests/so/server-net.lua | server opens a wireless modem attached after boot and after detach
+PASS display opens a wireless modem attached after boot and after detach
+CHECK-TIME 0.120660 tests/so/server-net.lua | display opens a wireless modem attached after boot and after detach
+PASS server boots without modems and pairs after a wireless attachment
+CHECK-TIME 0.063480 tests/so/server-net.lua | server boots without modems and pairs after a wireless attachment
+PASS hostname collision keeps server running and identifies the other host
+CHECK-TIME 0.040728 tests/so/server-net.lua | hostname collision keeps server running and identifies the other host
+PASS paired display boots with other host and uses its saved server
+CHECK-TIME 0.075627 tests/so/server-net.lua | paired display boots with other host and uses its saved server
+PASS paired display boots with no host and uses its saved server
+CHECK-TIME 0.078184 tests/so/server-net.lua | paired display boots with no host and uses its saved server
+PASS paired display boots with backup keys and uses its saved server
+CHECK-TIME 0.087717 tests/so/server-net.lua | paired display boots with backup keys and uses its saved server
+PASS checkpoint retains only the two usable snapshots
+CHECK-TIME 0.001386 tests/so/snapshot-prune.lua | checkpoint retains only the two usable snapshots
+PASS startup removes stale snapshot generations
+CHECK-TIME 0.001466 tests/so/snapshot-prune.lua | startup removes stale snapshot generations
+PASS startup cleanup resumes after interrupted stale-file deletion
+CHECK-TIME 0.007358 tests/so/snapshot-prune.lua | startup cleanup resumes after interrupted stale-file deletion
+PASS previous snapshot still loads after pruning
+CHECK-TIME 0.001370 tests/so/snapshot-prune.lua | previous snapshot still loads after pruning
+PASS partial snapshot and pointer writes preserve the published state
+CHECK-TIME 0.005976 tests/so/snapshot-prune.lua | partial snapshot and pointer writes preserve the published state
+PASS snapshot pruning survives power loss at every disk mutation
+CHECK-TIME 0.034586 tests/so/snapshot-prune.lua | snapshot pruning survives power loss at every disk mutation
+PASS UI1 font decodes all nine cells of every spec glyph
+CHECK-TIME 0.000874 tests/ui/ui1.lua | UI1 font decodes all nine cells of every spec glyph
+PASS UI1 status matches all size fixtures in both layers
+CHECK-TIME 0.009253 tests/ui/ui1.lua | UI1 status matches all size fixtures in both layers
+PASS UI1 takeover matches alert fixture
+CHECK-TIME 0.002517 tests/ui/ui1.lua | UI1 takeover matches alert fixture
+PASS UI1 contrast respects ink including inverted glyph cells
+CHECK-TIME 0.010260 tests/ui/ui1.lua | UI1 contrast respects ink including inverted glyph cells
+PASS UI1 odd sizes and blocks stay inside the canvas
+CHECK-TIME 0.005713 tests/ui/ui1.lua | UI1 odd sizes and blocks stay inside the canvas
+PASS UI1 padded tiles keep titles and full big values inside their rows
+CHECK-TIME 0.011237 tests/ui/ui1.lua | UI1 padded tiles keep titles and full big values inside their rows
+PASS UI1 gathering reads real sources and leaves unsupported totals stale
+CHECK-TIME 0.009939 tests/ui/ui1.lua | UI1 gathering reads real sources and leaves unsupported totals stale
+PASS UI1 roleless machine rows count turtles, open leases and lost workers
+CHECK-TIME 0.011731 tests/ui/ui1.lua | UI1 roleless machine rows count turtles, open leases and lost workers
+PASS UI1 takeover expires at five seconds, dismisses and throttles per session
+CHECK-TIME 0.030009 tests/ui/ui1.lua | UI1 takeover expires at five seconds, dismisses and throttles per session
+PASS UI1 subscribed frames retain all rows and expire takeovers on tick
+CHECK-TIME 0.057084 tests/ui/ui1.lua | UI1 subscribed frames retain all rows and expire takeovers on tick
+PASS UI1 latest changed alert wins and frames fit the wire budget
+CHECK-TIME 0.012695 tests/ui/ui1.lua | UI1 latest changed alert wins and frames fit the wire budget
+PASS UI1 XS cycles tiles and status buttons select their roles
+CHECK-TIME 0.023968 tests/ui/ui1.lua | UI1 XS cycles tiles and status buttons select their roles
+PASS UI1 old renderers receive size and revisions remain independent
+CHECK-TIME 0.002466 tests/ui/ui1.lua | UI1 old renderers receive size and revisions remain independent
+PASS UI1 kit installs only on the server
+CHECK-TIME 0.000043 tests/ui/ui1.lua | UI1 kit installs only on the server
+PASS UI2b lumber matches the M fixture
+CHECK-TIME 0.004689 tests/ui/ui2b.lua | UI2b lumber matches the M fixture
+PASS UI2b setup and back render within every size with spec contrast
+CHECK-TIME 0.019956 tests/ui/ui2b.lua | UI2b setup and back render within every size with spec contrast
+PASS UI2b start and stop taps use the text commands once per tap including refusals
+CHECK-TIME 0.006163 tests/ui/ui2b.lua | UI2b start and stop taps use the text commands once per tap including refusals
+PASS UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+CHECK-TIME 0.005893 tests/ui/ui2b.lua | UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+PASS UI2b every text command retains configuration and refusal behavior
+CHECK-TIME 0.005306 tests/ui/ui2b.lua | UI2b every text command retains configuration and refusal behavior
+PASS UI2b gather keeps missing timers and daily counters stale
+CHECK-TIME 0.002435 tests/ui/ui2b.lua | UI2b gather keeps missing timers and daily counters stale
+PASS UI2d drops and AR match M mockups cell by cell
+CHECK-TIME 0.007087 tests/ui/ui2d.lua | UI2d drops and AR match M mockups cell by cell
+PASS UI2d selected drop actions and draft editor preserve stored points
+CHECK-TIME 0.004911 tests/ui/ui2d.lua | UI2d selected drop actions and draft editor preserve stored points
+PASS UI2d drop paging exposes all points without overlapping controls
+CHECK-TIME 0.063223 tests/ui/ui2d.lua | UI2d drop paging exposes all points without overlapping controls
+PASS UI2d AR tile toggles once and survives reload
+CHECK-TIME 0.006125 tests/ui/ui2d.lua | UI2d AR tile toggles once and survives reload
+PASS UI2d layouts fit all sizes and respect contrast
+CHECK-TIME 0.028214 tests/ui/ui2d.lua | UI2d layouts fit all sizes and respect contrast
+PASS UI2d status returns from every role and generic keeps header clear
+CHECK-TIME 0.037146 tests/ui/ui2d.lua | UI2d status returns from every role and generic keeps header clear
+PASS UI3c turtle labels and twelve box edges use known state colours
+CHECK-TIME 0.004284 tests/ui/ui3c.lua | UI3c turtle labels and twelve box edges use known state colours
+PASS UI3c lease owners have one blue outline and drops have short labels
+CHECK-TIME 0.001963 tests/ui/ui3c.lua | UI3c lease owners have one blue outline and drops have short labels
+PASS UI3c AR frame with 200 reservations does not sleep or yield
+CHECK-TIME 0.004319 tests/ui/ui3c.lua | UI3c AR frame with 200 reservations does not sleep or yield
+PASS UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars
+CHECK-TIME 0.002624 tests/ui/ui3c.lua | UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars
+PASS UI3c HUD label ranges stay padded and separated with consent and alerts
+CHECK-TIME 0.000791 tests/ui/ui3c.lua | UI3c HUD label ranges stay padded and separated with consent and alerts
+PASS UI3c alert banner expires after five seconds and retains the HUD count
+CHECK-TIME 0.002005 tests/ui/ui3c.lua | UI3c alert banner expires after five seconds and retains the HUD count
+PASS UI3c repeated history alerts renew the banner without changing the count
+CHECK-TIME 0.001524 tests/ui/ui3c.lua | UI3c repeated history alerts renew the banner without changing the count
+PASS UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+CHECK-TIME 0.003534 tests/ui/ui3c.lua | UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+PASS AR labels are compact and nearby drops and turtles have separate heights
+CHECK-TIME 0.003401 tests/so/ar-labels.lua | AR labels are compact and nearby drops and turtles have separate heights
+PASS AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+CHECK-TIME 0.040937 tests/so/ar-labels.lua | AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+PASS AR turtle total agrees with fleet and status for working and paired idle turtles
+CHECK-TIME 0.005823 tests/so/ar-labels.lua | AR turtle total agrees with fleet and status for working and paired idle turtles
+PASS AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+CHECK-TIME 0.239201 tests/so/ar-labels.lua | AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+FILE-TIME 0.053730 tests/miner_dirs.lua
+FILE-TIME 0.346495 tests/run.lua
+FILE-TIME 0.289362 tests/so/ar-labels.lua
+FILE-TIME 1.700965 tests/so/drop-editor.lua
+FILE-TIME 0.638352 tests/so/server-net.lua
+FILE-TIME 0.052142 tests/so/snapshot-prune.lua
+FILE-TIME 1.487640 tests/so/so0.lua
+FILE-TIME 43.061713 tests/so/so1.lua
+FILE-TIME 32.624565 tests/so/so11.lua
+FILE-TIME 0.906464 tests/so/so2.lua
+FILE-TIME 6.161822 tests/so/so9.lua
+FILE-TIME 0.187789 tests/ui/ui1.lua
+FILE-TIME 0.044442 tests/ui/ui2b.lua
+FILE-TIME 0.146706 tests/ui/ui2d.lua
+FILE-TIME 0.021044 tests/ui/ui3c.lua
+153 tests passed, 0 FAILED, 0 skipped checks, shard 4/4
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using local-2 slot
+PASS world progress belongs to one shaft, including bore jobs and replacement turtles
+CHECK-TIME 0.004868 tests/miner_lost.lua | world progress belongs to one shaft, including bore jobs and replacement turtles
+PASS legacy role progress stays available only to miners without world shafts
+CHECK-TIME 0.009123 tests/miner_lost.lua | legacy role progress stays available only to miners without world shafts
+PASS old miners with world telemetry use their shaft for reports and jobs
+CHECK-TIME 0.005124 tests/miner_lost.lua | old miners with world telemetry use their shaft for reports and jobs
+PASS miner sends shaft identity and rejects unscoped progress from an old hub
+CHECK-TIME 0.002991 tests/miner_lost.lua | miner sends shaft identity and rejects unscoped progress from an old hub
+PASS a local-coordinate miner still accepts progress from a legacy hub
+CHECK-TIME 0.002586 tests/miner_lost.lua | a local-coordinate miner still accepts progress from a legacy hub
+PASS dashboard flags duplicate shafts and clears the warning when a claim changes
+CHECK-TIME 0.010075 tests/miner_lost.lua | dashboard flags duplicate shafts and clears the warning when a claim changes
+PASS startup refuses a moved home even beside a chest and preserves tunnel state
+CHECK-TIME 0.002836 tests/miner_lost.lua | startup refuses a moved home even beside a chest and preserves tunnel state
+PASS home verification rounds GPS and allows local setups or unavailable GPS
+CHECK-TIME 0.008719 tests/miner_lost.lua | home verification rounds GPS and allows local setups or unavailable GPS
+PASS GPS resync also checks vertical routes before declaring LOST
+CHECK-TIME 0.002908 tests/miner_lost.lua | GPS resync also checks vertical routes before declaring LOST
+PASS an underground restart may return home with GPS away from home
+CHECK-TIME 0.002845 tests/miner_lost.lua | an underground restart may return home with GPS away from home
+PASS a failed turn never advances the saved heading or permits a move
+CHECK-TIME 0.005313 tests/miner_lost.lua | a failed turn never advances the saved heading or permits a move
+PASS turnFrom recovers both sides of an interrupted turn from tunnel geometry
+CHECK-TIME 0.015766 tests/miner_lost.lua | turnFrom recovers both sides of an interrupted turn from tunnel geometry
+PASS recorded natural seals can be reopened after a reboot without allowing other rock
+CHECK-TIME 0.005583 tests/miner_lost.lua | recorded natural seals can be reopened after a reboot without allowing other rock
+PASS seal permission is consumed after digging and does not match a different block
+CHECK-TIME 0.002831 tests/miner_lost.lua | seal permission is consumed after digging and does not match a different block
+PASS failed movement after digging does not advance position, including falling blocks
+CHECK-TIME 0.016609 tests/miner_lost.lua | failed movement after digging does not advance position, including falling blocks
+PASS known routes reject new natural rock during movement and digging retries
+CHECK-TIME 0.005315 tests/miner_lost.lua | known routes reject new natural rock during movement and digging retries
+PASS lava sources and flows use seals, while water never goes in the fuel bucket
+CHECK-TIME 0.008706 tests/miner_lost.lua | lava sources and flows use seals, while water never goes in the fuel bucket
+PASS lava that cannot be sealed blocks the route without a false LOST
+CHECK-TIME 0.002829 tests/miner_lost.lua | lava that cannot be sealed blocks the route without a false LOST
+PASS fuel checkpoint recovers moves interrupted before or after physical movement
+CHECK-TIME 0.033878 tests/miner_lost.lua | fuel checkpoint recovers moves interrupted before or after physical movement
+PASS unlimited fuel needs GPS to resolve an interrupted move
+CHECK-TIME 0.011392 tests/miner_lost.lua | unlimited fuel needs GPS to resolve an interrupted move
+PASS status fits a 1x1 monitor, a 3x2 monitor, and a pocket
+CHECK-TIME 0.123958 tests/so/so5.lua | status fits a 1x1 monitor, a 3x2 monitor, and a pocket
+PASS a stopped server shows stale and retries up to 30 s
+CHECK-TIME 0.106155 tests/so/so5.lua | a stopped server shows stale and retries up to 30 s
+PASS a button reaches the registered screen once
+CHECK-TIME 0.086477 tests/so/so5.lua | a button reaches the registered screen once
+PASS a display role survives a server restart
+CHECK-TIME 0.079810 tests/so/so5.lua | a display role survives a server restart
+PASS status still draws when the state module is missing
+CHECK-TIME 0.075265 tests/so/so5.lua | status still draws when the state module is missing
+PASS view.get answers one frame and does not subscribe
+CHECK-TIME 0.064594 tests/so/so5.lua | view.get answers one frame and does not subscribe
+PASS lease refuses a second open batch without sending
+CHECK-TIME 0.030066 tests/so/lease.lua | lease refuses a second open batch without sending
+PASS lease full worker report releases cells emits pose and calls once
+CHECK-TIME 0.023105 tests/so/lease.lua | lease full worker report releases cells emits pose and calls once
+PASS lease duplicate unknown and wrong sender reports have no effects
+CHECK-TIME 0.025772 tests/so/lease.lua | lease duplicate unknown and wrong sender reports have no effects
+PASS lease silence expires after grace and keeps reservations
+CHECK-TIME 0.024522 tests/so/lease.lua | lease silence expires after grace and keeps reservations
+PASS lease beacon blocks sends and hello restores contact
+CHECK-TIME 0.024328 tests/so/lease.lua | lease beacon blocks sends and hello restores contact
+PASS lease range never shrinks below 16 and grows only on full success
+CHECK-TIME 0.027337 tests/so/lease.lua | lease range never shrinks below 16 and grows only on full success
+PASS lease first park report preserves the initial range and nearer reports keep proof
+CHECK-TIME 0.030365 tests/so/lease.lua | lease first park report preserves the initial range and nearer reports keep proof
+PASS lease malformed reports preserve open work and missing modules are optional
+CHECK-TIME 0.023459 tests/so/lease.lua | lease malformed reports preserve open work and missing modules are optional
+PASS lease history page replies with state history entries over wire
+CHECK-TIME 0.024297 tests/so/lease.lua | lease history page replies with state history entries over wire
+PASS lease range uses gps or allows positions without a server fix
+CHECK-TIME 0.038599 tests/so/lease.lua | lease range uses gps or allows positions without a server fix
+PASS SO11 B retries an unreported recovery park with a fresh envelope
+CHECK-TIME 0.002575 tests/so/so11.lua | SO11 B retries an unreported recovery park with a fresh envelope
+PASS SO11 B lumber recovery marks journal digs exactly once
+CHECK-TIME 0.002511 tests/so/so11.lua | SO11 B lumber recovery marks journal digs exactly once
+SO11 B time 60s mine=mining,mining lumber=nil
+SO11 B time 120s mine=mining,mining lumber=nil
+SO11 B time 180s mine=mining,mining lumber=nil
+SO11 B time 240s mine=mining,mining lumber=climb
+SO11 B cut worker 2 lease={["id"]="2-961",["park"]=false,["steps"]={[1]={["op"]="turnRight"}}}
+SO11 B cut worker 3 lease={["id"]="3-962",["park"]=false,["steps"]={[1]={["op"]="inspect"}}}
+SO11 B cut worker 4 lease={["id"]="4-959",["park"]=false,["recover"]=false,["steps"]={[1]={["op"]="digUp"},[2]={["op"]="up"}}}
+SO11 B power cut in lease.handlers.step.report at 240.15s
+SO11 B time 300s mine=mining,mining lumber=climb
+SO11 B time 360s mine=mining,mining lumber=climb
+SO11 B time 420s mine=mining,mining lumber=scan
+SO11 B time 480s mine=mining,mining lumber=scan
+SO11 B time 540s mine=ore,done lumber=base
+SO11 B time 600s mine=ore,done lumber=roundEnd
+SO11 B mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=48,["y"]=60,["z"]=-9} error=nil
+SO11 B mining 2 state=ore pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=18,["y"]=60,["z"]=-5} error=nil
+SO11 B lumber phase=roundEnd cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=2,["x"]=28,["y"]=64,["z"]=6}
+SO11 B summary dug cells=127 ores delivered=4 trees felled=3 logs=15 leases sent=1931 reports=1929
+SO11 B worker 2 recovery park=1s work=3.45s beacon=114.75s
+SO11 B worker 3 recovery park=1s work=10.45s beacon=115s
+SO11 B worker 4 recovery park=1s work=3.45s beacon=114.3s
+SO11 B display 5 recovery=1s
+SO11 B display 6 recovery=17s
+SO11 B interrupted report cells=1
+SO11 B elapsed 60 real seconds
+PASS SO11 B integration check 1
+CHECK-TIME 57.998408 tests/so/so11.lua | SO11 B integration check 1
+PASS SO11 B integration check 2
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 B integration check 2
+PASS SO11 B integration check 3
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 B integration check 3
+PASS SO11 B integration check 4
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 B integration check 4
+PASS SO11 B integration check 5
+CHECK-TIME 0.000002 tests/so/so11.lua | SO11 B integration check 5
+PASS SO11 B integration check 6
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 B integration check 6
+PASS SO11 B integration check 7
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 B integration check 7
+PASS worker re-pairs with replaced server keys without losing the old key on failure
+CHECK-TIME 0.070229 tests/so/worker-boot.lua | worker re-pairs with replaced server keys without losing the old key on failure
+PASS running idle worker notices server keys replaced after boot
+CHECK-TIME 0.062667 tests/so/worker-boot.lua | running idle worker notices server keys replaced after boot
+PASS worker ignores unrelated hints and retains valid keys on forged server hints
+CHECK-TIME 0.149582 tests/so/worker-boot.lua | worker ignores unrelated hints and retains valid keys on forged server hints
+PASS worker paired boot recovers without keyboard after server outage
+CHECK-TIME 0.057516 tests/so/worker-boot.lua | worker paired boot recovers without keyboard after server outage
+PASS worker unpaired code prompt keeps retrying discovery
+CHECK-TIME 0.018654 tests/so/worker-boot.lua | worker unpaired code prompt keeps retrying discovery
+PASS worker accepts typed code after discovering a late server
+CHECK-TIME 0.059734 tests/so/worker-boot.lua | worker accepts typed code after discovering a late server
+PASS lumber stops after three failed base digs and names start on screen
+CHECK-TIME 0.003054 tests/so/lumber-loops.lua | lumber stops after three failed base digs and names start on screen
+PASS lumber reserves fuel for the actual chest distance
+CHECK-TIME 0.001621 tests/so/lumber-loops.lua | lumber reserves fuel for the actual chest distance
+PASS lumber clears junk when all inventory slots contain apples
+CHECK-TIME 0.001340 tests/so/lumber-loops.lua | lumber clears junk when all inventory slots contain apples
+PASS lumber stops after failed travel movement despite successful inspections
+CHECK-TIME 0.002218 tests/so/lumber-loops.lua | lumber stops after failed travel movement despite successful inspections
+PASS lumber stops after failed ascent digs and moves
+CHECK-TIME 0.006363 tests/so/lumber-loops.lua | lumber stops after failed ascent digs and moves
+PASS lumber drops excess saplings but keeps one for each known spot
+CHECK-TIME 0.001476 tests/so/lumber-loops.lua | lumber drops excess saplings but keeps one for each known spot
+PASS lumber unloads a full log inventory during a climb
+CHECK-TIME 0.001150 tests/so/lumber-loops.lua | lumber unloads a full log inventory during a climb
+PASS lumber clears a single junk stack at the end of a round
+CHECK-TIME 0.001163 tests/so/lumber-loops.lua | lumber clears a single junk stack at the end of a round
+PASS mine-done-return: a finished miner recovered away from its branch end returns there
+CHECK-TIME 1.877625 tests/so/mine-done-return.lua | mine-done-return: a finished miner recovered away from its branch end returns there
+PASS lumber travel refuses saplings and propagules
+CHECK-TIME 0.000008 tests/so/lumber-path.lua | lumber travel refuses saplings and propagules
+PASS lumber service flight front height 2
+CHECK-TIME 0.006238 tests/so/lumber-path.lua | lumber service flight front height 2
+PASS lumber service flight front height 7
+CHECK-TIME 0.010767 tests/so/lumber-path.lua | lumber service flight front height 7
+PASS lumber service flight down height 2
+CHECK-TIME 0.022909 tests/so/lumber-path.lua | lumber service flight down height 2
+PASS lumber service flight down height 7
+CHECK-TIME 0.013600 tests/so/lumber-path.lua | lumber service flight down height 7
+PASS lumber service does not dig an unknown log base
+CHECK-TIME 0.002125 tests/so/lumber-path.lua | lumber service does not dig an unknown log base
+PASS lumber return protects minecraft:oak_sapling
+CHECK-TIME 0.001790 tests/so/lumber-path.lua | lumber return protects minecraft:oak_sapling
+PASS lumber return protects minecraft:mangrove_propagule
+CHECK-TIME 0.001811 tests/so/lumber-path.lua | lumber return protects minecraft:mangrove_propagule
+PASS lumber return protects minecraft:oak_log
+CHECK-TIME 0.002077 tests/so/lumber-path.lua | lumber return protects minecraft:oak_log
+PASS lumber failed send releases reservations and parks
+CHECK-TIME 0.001624 tests/so/lumber-path.lua | lumber failed send releases reservations and parks
+PASS lumber parks after pre-send failure unavailable
+CHECK-TIME 0.002058 tests/so/lumber-path.lua | lumber parks after pre-send failure unavailable
+PASS lumber parks after pre-send failure held
+CHECK-TIME 0.002078 tests/so/lumber-path.lua | lumber parks after pre-send failure held
+PASS lumber parks after pre-send failure range
+CHECK-TIME 0.001746 tests/so/lumber-path.lua | lumber parks after pre-send failure range
+PASS lumber replacement waits for old lease and confirmed park
+CHECK-TIME 0.002219 tests/so/lumber-path.lua | lumber replacement waits for old lease and confirmed park
+PASS lumber replacement retains a turtle whose park report expired
+CHECK-TIME 0.002249 tests/so/lumber-path.lua | lumber replacement retains a turtle whose park report expired
+PASS lumber replacement refuses an external open lease
+CHECK-TIME 0.001698 tests/so/lumber-path.lua | lumber replacement refuses an external open lease
+PASS dug retirement: mining re-inspects a forgotten cell and counts its interrupted dig once
+CHECK-TIME 1.868243 tests/so/dug-mine.lua | dug retirement: mining re-inspects a forgotten cell and counts its interrupted dig once
+PASS dug retirement: forgotten tunnel facts cannot bypass inspection on a later job
+CHECK-TIME 10.957304 tests/so/dug-mine.lua | dug retirement: forgotten tunnel facts cannot bypass inspection on a later job
+PASS UI0 old and compact frames draw identical cells and tall buttons hit their rectangle
+CHECK-TIME 0.002337 tests/ui/ui0.lua | UI0 old and compact frames draw identical cells and tall buttons hit their rectangle
+PASS UI0 kit frames keep last-row navigation after a duplicate resize
+CHECK-TIME 0.002718 tests/ui/ui0.lua | UI0 kit frames keep last-row navigation after a duplicate resize
+PASS UI0 three-row buttons include every row and exclude adjacent cells
+CHECK-TIME 0.000931 tests/ui/ui0.lua | UI0 three-row buttons include every row and exclude adjacent cells
+PASS UI0 palette and scale send exactly one resized hello and restore stock colours
+CHECK-TIME 0.002115 tests/ui/ui0.lua | UI0 palette and scale send exactly one resized hello and restore stock colours
+UI0 tiled frame body 6834 bytes
+PASS UI0 tiled 164x81 frame fits the real serializer without losing cells
+CHECK-TIME 0.637843 tests/ui/ui0.lua | UI0 tiled 164x81 frame fits the real serializer without losing cells
+PASS UI0 far persists beside roles and a failed save leaves scale unchanged
+CHECK-TIME 0.023662 tests/ui/ui0.lua | UI0 far persists beside roles and a failed save leaves scale unchanged
+PASS UI0 outage matches the fixture without a server and retries continue
+CHECK-TIME 0.017800 tests/ui/ui0.lua | UI0 outage matches the fixture without a server and retries continue
+PASS UI0 stale repaint preserves inverted digits and button labels
+CHECK-TIME 0.004552 tests/ui/ui0.lua | UI0 stale repaint preserves inverted digits and button labels
+PASS UI0 capture round-trips every spec glyph including inverted sextants
+CHECK-TIME 0.007438 tests/ui/ui0.lua | UI0 capture round-trips every spec glyph including inverted sextants
+PASS UI0 generator preserves section 7.1 and reproduces every fixture
+CHECK-TIME 0.014481 tests/ui/ui0.lua | UI0 generator preserves section 7.1 and reproduces every fixture
+PASS UI2c shop and order pages match the touch M fixtures
+CHECK-TIME 0.009178 tests/ui/ui2c.lua | UI2c shop and order pages match the touch M fixtures
+PASS UI2c touch fixtures match at compact pocket and large sizes
+CHECK-TIME 0.017312 tests/ui/ui2c.lua | UI2c touch fixtures match at compact pocket and large sizes
+PASS UI2c one order tap sends once and renders send nothing
+CHECK-TIME 0.018837 tests/ui/ui2c.lua | UI2c one order tap sends once and renders send nothing
+PASS UI2c direct orders use stock and name ranking without changing display state
+CHECK-TIME 0.002027 tests/ui/ui2c.lua | UI2c direct orders use stock and name ranking without changing display state
+PASS UI2c paging visits every item once and clamps at both ends
+CHECK-TIME 0.015021 tests/ui/ui2c.lua | UI2c paging visits every item once and clamps at both ends
+PASS UI2c all sizes keep both pages inside bounds with readable contrast
+CHECK-TIME 0.032608 tests/ui/ui2c.lua | UI2c all sizes keep both pages inside bounds with readable contrast
+PASS UI2c gathering uses stock and history and keeps discovery visible
+CHECK-TIME 0.005106 tests/ui/ui2c.lua | UI2c gathering uses stock and history and keeps discovery visible
+PASS UI5a Amsterdam clock covers both 2026 DST boundaries and midnight
+CHECK-TIME 0.000135 tests/ui/ui5a.lua | UI5a Amsterdam clock covers both 2026 DST boundaries and midnight
+PASS UI5a status shop panel and server log use Amsterdam time
+CHECK-TIME 0.010823 tests/ui/ui5a.lua | UI5a status shop panel and server log use Amsterdam time
+PASS UI5a daily totals window copies midnight and saved cursor survive restart
+CHECK-TIME 0.001887 tests/ui/ui5a.lua | UI5a daily totals window copies midnight and saved cursor survive restart
+PASS UI5a real state history and daily store recover together from disk
+CHECK-TIME 0.005399 tests/ui/ui5a.lua | UI5a real state history and daily store recover together from disk
+PASS UI5a ten thousand pending events consume only one bounded page without a yield
+CHECK-TIME 0.005719 tests/ui/ui5a.lua | UI5a ten thousand pending events consume only one bounded page without a yield
+PASS UI5a status mining and lumber show daily counters and stale fallback
+CHECK-TIME 0.013978 tests/ui/ui5a.lua | UI5a status mining and lumber show daily counters and stale fallback
+PASS UI5a daily module installs only on the server
+CHECK-TIME 0.000121 tests/ui/ui5a.lua | UI5a daily module installs only on the server
+PASS hello registers an idle paired turtle in fleet, status, terminal and panel
+CHECK-TIME 0.067494 tests/so/hello-visible.lua | hello registers an idle paired turtle in fleet, status, terminal and panel
+PASS hello throttles unchanged and small fuel updates but records journal and significant fuel changes
+CHECK-TIME 0.102031 tests/so/hello-visible.lua | hello throttles unchanged and small fuel updates but records journal and significant fuel changes
+PASS paired display hello registers a display without adding a turtle
+CHECK-TIME 0.104247 tests/so/hello-visible.lua | paired display hello registers a display without adding a turtle
+PASS worker screen fits 39x13 and shows id, connection and elapsed seen time
+CHECK-TIME 0.152466 tests/so/hello-visible.lua | worker screen fits 39x13 and shows id, connection and elapsed seen time
+PASS map scene glyphs, colours and controls at 26x20
+CHECK-TIME 0.110527 tests/so/map.lua | map scene glyphs, colours and controls at 26x20
+PASS map scene glyphs, colours and controls at 29x12
+CHECK-TIME 0.088349 tests/so/map.lua | map scene glyphs, colours and controls at 29x12
+PASS map scene glyphs, colours and controls at 57x24
+CHECK-TIME 0.232048 tests/so/map.lua | map scene glyphs, colours and controls at 57x24
+PASS map scene glyphs, colours and controls at 164x81
+CHECK-TIME 2.188059 tests/so/map.lua | map scene glyphs, colours and controls at 164x81
+PASS map and MAP navigation follow the kit header on row 2 at 26x20
+CHECK-TIME 0.004746 tests/so/map.lua | map and MAP navigation follow the kit header on row 2 at 26x20
+PASS map and MAP navigation follow the kit header on row 2 at 29x12
+CHECK-TIME 0.004383 tests/so/map.lua | map and MAP navigation follow the kit header on row 2 at 29x12
+PASS map snapshots copy mining and lumber world data
+CHECK-TIME 0.007388 tests/so/map.lua | map snapshots copy mining and lumber world data
+PASS local monitor map controls keep a separate session
+CHECK-TIME 0.015497 tests/so/map.lua | local monitor map controls keep a separate session
+PASS map renders complete large frames inside the protocol limit
+CHECK-TIME 0.028556 tests/so/map.lua | map renders complete large frames inside the protocol limit
+PASS map uses bounded dug scans at maximum manual zoom
+CHECK-TIME 0.002720 tests/so/map.lua | map uses bounded dug scans at maximum manual zoom
+PASS all-level dug scans skip empty shaft heights and retain the frame budget
+CHECK-TIME 0.020423 tests/so/map.lua | all-level dug scans skip empty shaft heights and retain the frame budget
+PASS map view state and scan caches belong to each display
+CHECK-TIME 0.004031 tests/so/map.lua | map view state and scan caches belong to each display
+PASS map heading arrows use worker state and lost range colours
+CHECK-TIME 0.006173 tests/so/map.lua | map heading arrows use worker state and lost range colours
+PASS real display client opens and controls the map at 26x20
+CHECK-TIME 0.210647 tests/so/map.lua | real display client opens and controls the map at 26x20
+PASS real display client opens and controls the map at 29x12
+CHECK-TIME 0.221469 tests/so/map.lua | real display client opens and controls the map at 29x12
+PASS real display client opens and controls the map at 57x24
+CHECK-TIME 0.313569 tests/so/map.lua | real display client opens and controls the map at 57x24
+PASS display MAP and BACK use drawn targets at 26x20
+CHECK-TIME 0.117077 tests/so/map.lua | display MAP and BACK use drawn targets at 26x20
+PASS display MAP and BACK use drawn targets at 29x12
+CHECK-TIME 0.070993 tests/so/map.lua | display MAP and BACK use drawn targets at 29x12
+PASS display MAP and BACK use drawn targets at 57x24
+CHECK-TIME 0.156658 tests/so/map.lua | display MAP and BACK use drawn targets at 57x24
+PASS display MAP and BACK use drawn targets at 15x10
+CHECK-TIME 0.052952 tests/so/map.lua | display MAP and BACK use drawn targets at 15x10
+PASS panel pairing button, big digits and single use at 26x20
+CHECK-TIME 0.338471 tests/so/panel-pair.lua | panel pairing button, big digits and single use at 26x20
+PASS panel expiry and code privacy at 26x20
+CHECK-TIME 4.126348 tests/so/panel-pair.lua | panel expiry and code privacy at 26x20
+PASS panel pairing button, big digits and single use at 29x12
+CHECK-TIME 0.302288 tests/so/panel-pair.lua | panel pairing button, big digits and single use at 29x12
+PASS panel expiry and code privacy at 29x12
+CHECK-TIME 3.176809 tests/so/panel-pair.lua | panel expiry and code privacy at 29x12
+PASS panel pairing fixtures
+CHECK-TIME 0.004767 tests/so/panel-pair.lua | panel pairing fixtures
+PASS repeat panel requests preserve five bad attempt limit
+CHECK-TIME 0.221954 tests/so/panel-pair.lua | repeat panel requests preserve five bad attempt limit
+PASS touch shop browse and one order at 29x12
+CHECK-TIME 0.030217 tests/ui/shop-touch.lua | touch shop browse and one order at 29x12
+PASS touch shop browse and one order at 26x20
+CHECK-TIME 0.029933 tests/ui/shop-touch.lua | touch shop browse and one order at 26x20
+PASS touch shop browse and one order at 57x24
+CHECK-TIME 0.060483 tests/ui/shop-touch.lua | touch shop browse and one order at 57x24
+PASS touch shop browse and one order at 100x38
+CHECK-TIME 0.135964 tests/ui/shop-touch.lua | touch shop browse and one order at 100x38
+PASS touch shop client sends one roomsorter order at 26x20
+CHECK-TIME 0.230592 tests/ui/shop-touch.lua | touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+CHECK-TIME 0.192616 tests/ui/shop-touch.lua | touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+CHECK-TIME 0.460982 tests/ui/shop-touch.lua | touch shop client sends one roomsorter order at 100x38
+PASS touch shop reports failures missing room and stale stock
+CHECK-TIME 0.010438 tests/ui/shop-touch.lua | touch shop reports failures missing room and stale stock
+FILE-TIME 0.160297 tests/miner_lost.lua
+FILE-TIME 12.825547 tests/so/dug-mine.lua
+FILE-TIME 0.426238 tests/so/hello-visible.lua
+FILE-TIME 0.271850 tests/so/lease.lua
+FILE-TIME 0.018385 tests/so/lumber-loops.lua
+FILE-TIME 0.074997 tests/so/lumber-path.lua
+FILE-TIME 3.856265 tests/so/map.lua
+FILE-TIME 1.877625 tests/so/mine-done-return.lua
+FILE-TIME 8.170637 tests/so/panel-pair.lua
+FILE-TIME 58.003501 tests/so/so11.lua
+FILE-TIME 0.536259 tests/so/so5.lua
+FILE-TIME 0.418382 tests/so/worker-boot.lua
+FILE-TIME 1.151225 tests/ui/shop-touch.lua
+FILE-TIME 0.713877 tests/ui/ui0.lua
+FILE-TIME 0.100089 tests/ui/ui2c.lua
+FILE-TIME 0.038062 tests/ui/ui5a.lua
+140 tests passed, 0 FAILED, 0 skipped checks, shard 2/4
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using win slot (cc-codex-so-test-speed-20261022-225902-0815e78c)
+PASS a disk that loads so-pair without ccryptolib does not boot
+CHECK-TIME 0.003000 tests/so/so8.lua | a disk that loads so-pair without ccryptolib does not boot
+PASS the 65th drop point is refused and a repeat does not grow the list
+CHECK-TIME 0.087000 tests/so/so8.lua | the 65th drop point is refused and a repeat does not grow the list
+PASS pick falls back from a broken ore chest to any, then hold, and fix brings the ore back
+CHECK-TIME 0.032000 tests/so/so8.lua | pick falls back from a broken ore chest to any, then hold, and fix brings the ore back
+PASS hold still returns an alert when state and display are missing
+CHECK-TIME 0.056000 tests/so/so8.lua | hold still returns an alert when state and display are missing
+PASS the generic screen can fix a point and a saved file loads on the next boot
+CHECK-TIME 0.058000 tests/so/so8.lua | the generic screen can fix a point and a saved file loads on the next boot
+PASS drops.edit accepts a table payload and ignores a string
+CHECK-TIME 0.156000 tests/so/so8.lua | drops.edit accepts a table payload and ignores a string
+PASS the nearer same-dimension point wins, and a distance tie takes the smaller id
+CHECK-TIME 0.030000 tests/so/so8.lua | the nearer same-dimension point wins, and a distance tie takes the smaller id
+PASS a failed save puts the previous points back
+CHECK-TIME 0.079000 tests/so/so8.lua | a failed save puts the previous points back
+PASS cells exclude other owners and reserveMany is atomic
+CHECK-TIME 0.001000 tests/so/so4.lua | cells exclude other owners and reserveMany is atomic
+PASS cells do not sleep on single calls after idle gaps
+CHECK-TIME 0.002000 tests/so/so4.lua | cells do not sleep on single calls after idle gaps
+PASS cells keep quiet owners for an hour
+CHECK-TIME 0.001000 tests/so/so4.lua | cells keep quiet owners for an hour
+PASS cells forgetOwner frees exactly its owner and emits an event
+CHECK-TIME 0.002000 tests/so/so4.lua | cells forgetOwner frees exactly its owner and emits an event
+PASS cells restore reservations and dug marks after restart
+CHECK-TIME 0.006000 tests/so/so4.lua | cells restore reservations and dug marks after restart
+PASS cells preserve default calls and isolate dimensions
+CHECK-TIME 0.004000 tests/so/so4.lua | cells preserve default calls and isolate dimensions
+PASS cells save and reload 10000 dug cells in 50 sections with yields
+CHECK-TIME 0.148000 tests/so/so4.lua | cells save and reload 10000 dug cells in 50 sections with yields
+PASS cells evict saved sections at the 256 section limit
+CHECK-TIME 0.342000 tests/so/so4.lua | cells evict saved sections at the 256 section limit
+PASS cells.forget requires a fresh token bound to sender and owner
+CHECK-TIME 0.001000 tests/so/so4.lua | cells.forget requires a fresh token bound to sender and owner
+PASS cells keep ownership when reservation persistence fails
+CHECK-TIME 0.002000 tests/so/so4.lua | cells keep ownership when reservation persistence fails
+PASS cells register a callable state view from tick
+CHECK-TIME 0.001000 tests/so/so4.lua | cells register a callable state view from tick
+PASS SO7 chest access faces the chest from the nearest unblocked neighbour
+CHECK-TIME 0.001000 tests/so/so7.lua | SO7 chest access faces the chest from the nearest unblocked neighbour
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from down
+CHECK-TIME 2.869000 tests/so/so7.lua | SO7 real chest coordinates transfer wood, saplings and fuel from down
+PASS SO7 real chest coordinates transfer wood, saplings and fuel from front
+CHECK-TIME 3.114000 tests/so/so7.lua | SO7 real chest coordinates transfer wood, saplings and fuel from front
+PASS SO7 fells four trees, replants the farm and delivers every log
+CHECK-TIME 3.127000 tests/so/so7.lua | SO7 fells four trees, replants the farm and delivers every log
+PASS SO7 an empty sapling chest raises one alert and still fells all trees
+CHECK-TIME 2.373000 tests/so/so7.lua | SO7 an empty sapling chest raises one alert and still fells all trees
+PASS SO7 a server restart mid-round recovers the worker pose and finishes
+CHECK-TIME 2.660000 tests/so/so7.lua | SO7 a server restart mid-round recovers the worker pose and finishes
+PASS SO7 low fuel uses the fuel chest without burning harvested logs
+CHECK-TIME 2.992000 tests/so/so7.lua | SO7 low fuel uses the fuel chest without burning harvested logs
+PASS SO7 a fuel trip during felling returns to the interrupted trunk height
+CHECK-TIME 3.011000 tests/so/so7.lua | SO7 a fuel trip during felling returns to the interrupted trunk height
+PASS SO7 range failures stop movement and show a red alert
+CHECK-TIME 0.089000 tests/so/so7.lua | SO7 range failures stop movement and show a red alert
+PASS SO7 another owner's reservation prevents the worker entering the cell
+CHECK-TIME 0.091000 tests/so/so7.lua | SO7 another owner's reservation prevents the worker entering the cell
+PASS SO7 the generic lumber button opens the lumber screen
+CHECK-TIME 0.086000 tests/so/so7.lua | SO7 the generic lumber button opens the lumber screen
+PASS SO7 saved frame recovers on the first tick without lease memory
+CHECK-TIME 0.221000 tests/so/so7.lua | SO7 saved frame recovers on the first tick without lease memory
+PASS AR fleet frame has turtle labels, reservation outlines and drop labels
+CHECK-TIME 0.005000 tests/so/so10.lua | AR fleet frame has turtle labels, reservation outlines and drop labels
+PASS AR layer switches delete outlines on the next frame and persist
+CHECK-TIME 0.012000 tests/so/so10.lua | AR layer switches delete outlines on the next frame and persist
+PASS AR throttles frames and discovery and skips unchanged scenes
+CHECK-TIME 0.010000 tests/so/so10.lua | AR throttles frames and discovery and skips unchanged scenes
+PASS AR without a controller loads and ticks without drawing
+CHECK-TIME 0.002000 tests/so/so10.lua | AR without a controller loads and ticks without drawing
+PASS AR drops a failing controller and rediscovers it later
+CHECK-TIME 0.006000 tests/so/so10.lua | AR drops a failing controller and rediscovers it later
+PASS cells.list and drops.list return detached copies
+CHECK-TIME 0.003000 tests/so/so10.lua | cells.list and drops.list return detached copies
+PASS AR filters dimensions, ages turtles and limits alerts to the newest eight
+CHECK-TIME 0.005000 tests/so/so10.lua | AR filters dimensions, ages turtles and limits alerts to the newest eight
+PASS display exposes the AR role on the drops generic screen and retains it
+CHECK-TIME 0.005000 tests/so/so10.lua | display exposes the AR role on the drops generic screen and retains it
+PASS AR removes departed turtles and clears on attach and falls back to clear without delete
+CHECK-TIME 0.006000 tests/so/so10.lua | AR removes departed turtles and clears on attach and falls back to clear without delete
+PASS Big Tiles visible navigation graph at 26x20
+CHECK-TIME 0.553000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 26x20
+PASS Big Tiles visible navigation graph at 29x12
+CHECK-TIME 0.433000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 29x12
+PASS Big Tiles visible navigation graph at 15x10
+CHECK-TIME 0.386000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 15x10
+PASS Big Tiles visible navigation graph at 36x10
+CHECK-TIME 0.442000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 36x10
+PASS Big Tiles visible navigation graph at 39x19
+CHECK-TIME 0.579000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 39x19
+PASS Big Tiles visible navigation graph at 51x19
+CHECK-TIME 0.590000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 51x19
+PASS Big Tiles visible navigation graph at 57x24
+CHECK-TIME 0.722000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 57x24
+PASS Big Tiles visible navigation graph at 82x40
+CHECK-TIME 1.091000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 82x40
+PASS Big Tiles visible navigation graph at 100x38
+CHECK-TIME 1.070000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 100x38
+PASS Big Tiles visible navigation graph at 164x81
+CHECK-TIME 1.838000 tests/so/screen-nav.lua | Big Tiles visible navigation graph at 164x81
+PASS drop editor remains clickable at 26x20
+CHECK-TIME 0.130000 tests/so/screen-nav.lua | drop editor remains clickable at 26x20
+PASS visible mining navigation at 26x20
+CHECK-TIME 0.348000 tests/so/screen-nav.lua | visible mining navigation at 26x20
+PASS visible lumber navigation at 26x20
+CHECK-TIME 0.150000 tests/so/screen-nav.lua | visible lumber navigation at 26x20
+PASS visible shop navigation at 26x20
+CHECK-TIME 0.181000 tests/so/screen-nav.lua | visible shop navigation at 26x20
+PASS visible status navigation at 26x20
+CHECK-TIME 0.154000 tests/so/screen-nav.lua | visible status navigation at 26x20
+PASS visible ar navigation at 26x20
+CHECK-TIME 0.158000 tests/so/screen-nav.lua | visible ar navigation at 26x20
+PASS drop editor remains clickable at 29x12
+CHECK-TIME 0.097000 tests/so/screen-nav.lua | drop editor remains clickable at 29x12
+PASS visible mining navigation at 29x12
+CHECK-TIME 0.289000 tests/so/screen-nav.lua | visible mining navigation at 29x12
+PASS visible lumber navigation at 29x12
+CHECK-TIME 0.146000 tests/so/screen-nav.lua | visible lumber navigation at 29x12
+PASS visible shop navigation at 29x12
+CHECK-TIME 0.190000 tests/so/screen-nav.lua | visible shop navigation at 29x12
+PASS visible status navigation at 29x12
+CHECK-TIME 0.163000 tests/so/screen-nav.lua | visible status navigation at 29x12
+PASS visible ar navigation at 29x12
+CHECK-TIME 0.157000 tests/so/screen-nav.lua | visible ar navigation at 29x12
+PASS display re-pairs after server key loss 26x20
+CHECK-TIME 0.151000 tests/so/display-client.lua | display re-pairs after server key loss 26x20
+PASS display re-pairs after server key loss 29x12
+CHECK-TIME 0.134000 tests/so/display-client.lua | display re-pairs after server key loss 29x12
+PASS forged display repair hint keeps valid key and authenticated frames recover
+CHECK-TIME 0.092000 tests/so/display-client.lua | forged display repair hint keeps valid key and authenticated frames recover
+PASS display wrong code then right code without reboot
+CHECK-TIME 0.102000 tests/so/display-client.lua | display wrong code then right code without reboot
+PASS display discovers a server that starts after boot
+CHECK-TIME 0.095000 tests/so/display-client.lua | display discovers a server that starts after boot
+PASS paired display boots before server and recovers after restart
+CHECK-TIME 0.141000 tests/so/display-client.lua | paired display boots before server and recovers after restart
+PASS display clears a no-server code and accepts another after discovery
+CHECK-TIME 0.086000 tests/so/display-client.lua | display clears a no-server code and accepts another after discovery
+PASS display clears a timed-out code and accepts a new invitation
+CHECK-TIME 0.105000 tests/so/display-client.lua | display clears a timed-out code and accepts a new invitation
+PASS display echoes commands without covering buttons 26x20
+CHECK-TIME 0.104000 tests/so/display-client.lua | display echoes commands without covering buttons 26x20
+PASS display echoes commands without covering buttons 29x12
+CHECK-TIME 0.113000 tests/so/display-client.lua | display echoes commands without covering buttons 29x12
+PASS space precheck changes no files and the same store retries
+CHECK-TIME 0.001000 tests/so/store-recover.lua | space precheck changes no files and the same store retries
+PASS space precheck leaves recovered temporary and backup sources untouched
+CHECK-TIME 0.001000 tests/so/store-recover.lua | space precheck leaves recovered temporary and backup sources untouched
+PASS store retries after a failure at every save mutation
+CHECK-TIME 0.012000 tests/so/store-recover.lua | store retries after a failure at every save mutation
+PASS a partial first save retries on the same store
+CHECK-TIME 0.001000 tests/so/store-recover.lua | a partial first save retries on the same store
+PASS logging resumes after nearly full disk is freed without reboot
+CHECK-TIME 0.006000 tests/so/store-recover.lua | logging resumes after nearly full disk is freed without reboot
+PASS unload without a chest keeps the turtle inventory
+CHECK-TIME 0.063000 tests/so/worker-drop.lua | unload without a chest keeps the turtle inventory
+PASS transfers require inventories on each side and preserve counts
+CHECK-TIME 0.286000 tests/so/worker-drop.lua | transfers require inventories on each side and preserve counts
+PASS parked worker stays put and beacons through a twenty minute outage
+CHECK-TIME 0.244000 tests/so/worker-park.lua | parked worker stays put and beacons through a twenty minute outage
+PASS worker interrupted during work still reverses its moves
+CHECK-TIME 0.073000 tests/so/worker-park.lua | worker interrupted during work still reverses its moves
+PASS tick-stall: a bulk cells call in a handler keeps the tick timer and later messages
+CHECK-TIME 0.032000 tests/so/tick-stall.lua | tick-stall: a bulk cells call in a handler keeps the tick timer and later messages
+PASS tick-stall: server modules never call sleep
+CHECK-TIME 0.019000 tests/so/tick-stall.lua | tick-stall: server modules never call sleep
+PASS tick-stall: the server rearms ticks after a handler swallows its timer
+CHECK-TIME 0.027000 tests/so/tick-stall.lua | tick-stall: the server rearms ticks after a handler swallows its timer
+PASS mine requires home and clears command errors
+CHECK-TIME 0.043000 tests/so/mine-dead.lua | mine requires home and clears command errors
+PASS mine start fails closed without its disk guard
+CHECK-TIME 0.043000 tests/so/mine-dead.lua | mine start fails closed without its disk guard
+PASS mine removes an unloaded recovery holder and releases reservations
+CHECK-TIME 1.062000 tests/so/mine-dead.lua | mine removes an unloaded recovery holder and releases reservations
+PASS mine refuses removal with actual movement or another owner's lease
+CHECK-TIME 0.038000 tests/so/mine-dead.lua | mine refuses removal with actual movement or another owner's lease
+PASS mine clears a stale lane waiter during recovery and supports saved home
+CHECK-TIME 0.916000 tests/so/mine-dead.lua | mine clears a stale lane waiter during recovery and supports saved home
+PASS discard drops only the requested junk count into open cells on every side
+CHECK-TIME 0.220000 tests/so/worker-discard.lua | discard drops only the requested junk count into open cells on every side
+PASS discard refuses solid blocks, liquids and inventories on every side
+CHECK-TIME 0.614000 tests/so/worker-discard.lua | discard refuses solid blocks, liquids and inventories on every side
+PASS discard accepts inspected air but still refuses an inventory reporting air
+CHECK-TIME 0.084000 tests/so/worker-discard.lua | discard accepts inspected air but still refuses an inventory reporting air
+PASS discard keeps items when inspection cannot establish an empty cell
+CHECK-TIME 0.064000 tests/so/worker-discard.lua | discard keeps items when inspection cannot establish an empty cell
+PASS discard defaults down and rejects unknown sides without dropping
+CHECK-TIME 0.070000 tests/so/worker-discard.lua | discard defaults down and rejects unknown sides without dropping
+PASS mine-underground: a worker re-added on the spine after a restart mines its new branch
+CHECK-TIME 1.903000 tests/so/mine-underground.lua | mine-underground: a worker re-added on the spine after a restart mines its new branch
+PASS mine-underground: a worker in a side cell after a restart still plans and refuels
+CHECK-TIME 1.823000 tests/so/mine-underground.lua | mine-underground: a worker in a side cell after a restart still plans and refuels
+PASS mine-underground: a finished branch is counted once across restarts
+CHECK-TIME 1.270000 tests/so/mine-underground.lua | mine-underground: a finished branch is counted once across restarts
+PASS dug bitset: full and sparse sections survive save and reload within 2 KB
+CHECK-TIME 0.084000 tests/so/dug-bitset.lua | dug bitset: full and sparse sections survive save and reload within 2 KB
+PASS dug bitset: legacy generations migrate without losing negative or dimension cells
+CHECK-TIME 0.003000 tests/so/dug-bitset.lua | dug bitset: legacy generations migrate without losing negative or dimension cells
+PASS dug bitset: interrupted migration recovers the newest valid generation
+CHECK-TIME 0.012000 tests/so/dug-bitset.lua | dug bitset: interrupted migration recovers the newest valid generation
+PASS UI3a normal and pairing match unchanged fixtures
+CHECK-TIME 0.025000 tests/ui/ui3a.lua | UI3a normal and pairing match unchanged fixtures
+PASS UI3a keys, expiry, used codes, bounded log and timer-only redraw
+CHECK-TIME 0.008000 tests/ui/ui3a.lua | UI3a keys, expiry, used codes, bounded log and timer-only redraw
+PASS UI3a display tick paints the terminal with uptime and palette
+CHECK-TIME 0.004000 tests/ui/ui3a.lua | UI3a display tick paints the terminal with uptime and palette
+PASS UI3a local monitor answers drawn dug consent buttons once
+CHECK-TIME 0.034000 tests/ui/ui3a.lua | UI3a local monitor answers drawn dug consent buttons once
+PASS UI3a local monitor rejects a queued stale consent button
+CHECK-TIME 0.014000 tests/ui/ui3a.lua | UI3a local monitor rejects a queued stale consent button
+PASS UI3a monitor discovers at most every five seconds and navigates locally
+CHECK-TIME 0.023000 tests/ui/ui3a.lua | UI3a monitor discovers at most every five seconds and navigates locally
+PASS mining refuses start without its disk guard or configured home
+CHECK-TIME 0.004000 tests/parts/so-mod-mine.lua | mining refuses start without its disk guard or configured home
+PASS uncertain workers cannot receive a mining batch
+CHECK-TIME 0.005000 tests/parts/so-mod-mine.lua | uncertain workers cannot receive a mining batch
+PASS radio range refusal sends only a stationary park
+CHECK-TIME 0.004000 tests/parts/so-mod-mine.lua | radio range refusal sends only a stationary park
+PASS a completed branch is counted once when recovery revisits it
+CHECK-TIME 0.003000 tests/parts/so-mod-mine.lua | a completed branch is counted once when recovery revisits it
+PASS disk failure stops a mining job
+CHECK-TIME 0.005000 tests/parts/so-mod-mine.lua | disk failure stops a mining job
+PASS retirement refuses recovery and protects a confirmed worker pose
+CHECK-TIME 0.005000 tests/parts/so-mod-mine.lua | retirement refuses recovery and protects a confirmed worker pose
+PASS expired reports keep the worker in recovery
+CHECK-TIME 0.005000 tests/parts/so-mod-mine.lua | expired reports keep the worker in recovery
+range-batch bottom 48: both branches reached; max range ticks 0; cut descents 0
+PASS range-batch Gate B C5 two miners reach their branches
+CHECK-TIME 7.172000 tests/so/range-batch.lua | range-batch Gate B C5 two miners reach their branches
+range-batch bottom 16: both branches reached; max range ticks 0; cut descents 3
+PASS range-batch two miners extend range down a deep known shaft
+CHECK-TIME 16.835000 tests/so/range-batch.lua | range-batch two miners extend range down a deep known shaft
+range-batch C7: ore trip completed in 30.75s past blocked miner; miner resumed after range restored
+PASS range-batch C7 blocked shaft worker yields for an ore trip and resumes
+CHECK-TIME 8.254000 tests/so/range-batch.lua | range-batch C7 blocked shaft worker yields for an ore trip and resumes
+range-batch C7: ore trip completed in 35s past blocked miner; miner resumed after range restored
+PASS range-batch C7 replans an obstructed escape for an ore trip
+CHECK-TIME 8.450000 tests/so/range-batch.lua | range-batch C7 replans an obstructed escape for an ore trip
+range-batch C7: ore trip completed in 30.75s past blocked miner; miner resumed after range restored
+PASS range-batch C7 waits for return fuel before reacquiring the lane
+CHECK-TIME 8.651000 tests/so/range-batch.lua | range-batch C7 waits for return fuel before reacquiring the lane
+range-batch: escape requires fuel for the return and keeps only the occupied cell
+PASS range-batch retreat keeps fuel for its return
+CHECK-TIME 3.861000 tests/so/range-batch.lua | range-batch retreat keeps fuel for its return
+PASS range-batch supply travel extends proof in both directions
+CHECK-TIME 0.005000 tests/so/range-batch.lua | range-batch supply travel extends proof in both directions
+PASS range-batch lumber supply crosses the initial radius and returns
+CHECK-TIME 0.128000 tests/so/range-batch.lua | range-batch lumber supply crosses the initial radius and returns
+PASS range-batch a parked shaft cell does not block an unrelated spine pass
+CHECK-TIME 0.005000 tests/so/range-batch.lua | range-batch a parked shaft cell does not block an unrelated spine pass
+PASS range-batch keeps atomic actions and stops at the first unsafe action
+CHECK-TIME 0.000000 tests/so/range-batch.lua | range-batch keeps atomic actions and stops at the first unsafe action
+FILE-TIME 0.031000 tests/parts/so-mod-mine.lua
+FILE-TIME 1.123000 tests/so/display-client.lua
+FILE-TIME 0.099000 tests/so/dug-bitset.lua
+FILE-TIME 2.102000 tests/so/mine-dead.lua
+FILE-TIME 4.996000 tests/so/mine-underground.lua
+FILE-TIME 53.361000 tests/so/range-batch.lua
+FILE-TIME 9.867000 tests/so/screen-nav.lua
+FILE-TIME 0.054000 tests/so/so10.lua
+FILE-TIME 0.510000 tests/so/so4.lua
+FILE-TIME 20.634000 tests/so/so7.lua
+FILE-TIME 0.501000 tests/so/so8.lua
+FILE-TIME 0.021000 tests/so/store-recover.lua
+FILE-TIME 0.078000 tests/so/tick-stall.lua
+FILE-TIME 1.052000 tests/so/worker-discard.lua
+FILE-TIME 0.349000 tests/so/worker-drop.lua
+FILE-TIME 0.317000 tests/so/worker-park.lua
+FILE-TIME 0.108000 tests/ui/ui3a.lua
+123 tests passed, 0 FAILED, 0 skipped checks, shard 3/4
+Full gate: 617 tests passed, 0 FAILED, 0 skipped checks; 4 shards, 361.400s wall, PASS; logs /tmp/cc-shards-jkvcuvnp
+WALL 361.46

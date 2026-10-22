@@ -1,0 +1,14 @@
+part: tests/so/lease.lua; suites: tests/so/lease.lua
+part: generated 22 input files; private cwd /tmp/cc-part-e3iers30
+cc-test: using win slot (cc-part-20261022-224558-0b58d419)
+PASS lease refuses a second open batch without sending
+PASS lease full worker report releases cells emits pose and calls once
+PASS lease duplicate unknown and wrong sender reports have no effects
+PASS lease silence expires after grace and keeps reservations
+PASS lease beacon blocks sends and hello restores contact
+PASS lease range never shrinks below 16 and grows only on full success
+PASS lease first park report preserves the initial range and nearer reports keep proof
+PASS lease malformed reports preserve open work and missing modules are optional
+PASS lease history page replies with state history entries over wire
+PASS lease range uses gps or allows positions without a server fix
+part: 10 passed, 0 failed, 0 undeclared reads; Lua CPU 0.595s

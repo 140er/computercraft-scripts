@@ -31,7 +31,7 @@ local function lay(machine, paths)
 end
 
 local PREAMBLE = [[
-SO = { mods = {} }
+SO = { now = function() return os.epoch("utc") end, mods = {} }
 SO.store = dofile("so-store.lua")
 SO.proto = dofile("so-proto.lua")
 SO.pair = dofile("so-pair.lua")

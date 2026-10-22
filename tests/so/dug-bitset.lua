@@ -5,7 +5,7 @@ local function setup(files)
   local m = net.machine({ id = 1, directories = true })
   m.install({ "so-store.lua", "so-mod-cells.lua" })
   for path, bytes in pairs(files or {}) do m.files[path] = bytes end
-  m.env.SO = { mods = {}, store = m.env.dofile("so-store.lua"), breathe = function() end }
+  m.env.SO = { now = function() return m.env.os.epoch("utc") end, mods = {}, store = m.env.dofile("so-store.lua"), breathe = function() end }
   local cells = m.env.dofile("so-mod-cells.lua")
   m.env.SO.mods.cells = cells
   return cells, m

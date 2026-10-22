@@ -4,7 +4,30 @@ Read this first; explore only what it doesn't cover. Update it in the same PR wh
 
 This maps the code on `origin/server-only`. One server computer owns durable
 state and needs at least 16000000 bytes of disk. Workers and displays are thin,
-paired clients. Workers must fit a 1 MB disk. All times use `os.epoch("utc")`.
+paired clients. Workers must fit a 1 MB disk. Durations use the server's `SO.now()` in game
+milliseconds. Worker and display each have a tiny `now()` helper over
+`os.clock()`. UTC remains the date and protocol freshness clock.
+
+`SO.now()` comes from `so-store.clock()`. The first boot seeds its timeline
+from UTC, so existing saved deadlines and ages keep their meaning. It then
+advances by 50 ms per computer tick, independently of daylight changes.
+`so-data/clock` stores a `ticks-v1` upper reservation before time within it is
+returned. Each server start resumes at that reservation and can consume up to one game
+second. Time while the server computer is off does not advance this clock.
+Keep its generations with the rest of `so-data`; never restore jobs without
+their clock. A failed clock save refuses to issue more time.
+
+Lease deadlines, saved retries, planting waits, machine ages, LRU order,
+beacons, discovery, frame throttles and uptime use this timeline. Event `at`,
+Amsterdam dates, daily date boundaries, envelope timestamps and replay/cache
+windows remain UTC. Events also carry `gameAt` for elapsed alert and recent-ore
+windows. The initial UTC seed lets legacy event and saved timer values enter
+the timeline without changing poses, reservations or recovery records.
+Lease wire bodies carry remaining game milliseconds in `ttl`, plus a UTC
+`expires` for old workers. Updated workers anchor `ttl` when it arrives and
+never extend a deadline for the same lease. A missing `ttl` uses the legacy
+UTC remainder. Mixed versions are supported at 20 TPS. Accelerated checks
+require updated server, workers and displays.
 The [[server-only/PROTOCOL]] ([protocol](server-only/PROTOCOL.md)) owns wire formats
 and API details. Return to [[index]] ([start page](index.md)) for the wave plan.
 
@@ -29,16 +52,18 @@ and listeners use `listener(sender, message)`.
   `sha256(msg)`, `hmac(key, msg)`, `hex(raw)` and `unhex(hex)`.
   `request` waits, so never call it from the server's handlers or ticks.
 - [so-pair.lua](../so-pair.lua) pairs machines with X25519 and saves their keys.
-  Calls are `open(proto, store)`, `derive(code, serverId, clientId)`,
+  Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
   `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)` and
   `repairHint(sender, payload, serverId)`. The hint check only authorizes a prompt;
   it never removes a saved key.
+  `open` accepts the role's millisecond clock; omission uses local tick uptime.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
   `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
   as their server id when discovery fails.
 - [so-store.lua](../so-store.lua) owns generation-based persistence.
-  Calls are `copy(value)`, `read(path)` and `store(path, valid, limit)`.
+  Calls are `copy(value)`, `read(path)`, `clock()` and `store(path, valid, limit)`.
+  `clock()` returns the server's durable game-millisecond function.
   `store` returns `{ value, save = function(value) }`; `save` returns success
   and an optional error. `read` reads a plain Lua table without generation recovery.
 - [so-log.lua](../so-log.lua) stores bounded event segments and snapshots for state.
@@ -124,7 +149,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
   and `lumber.logs` events from one history page of at most 50 entries per tick.
   `today()` returns a copy of `{ date, ore, oreByName, oreRecent, logs }`.
-  Days use Amsterdam midnight and `oreRecent` covers `(now - 600000, now]`.
+  Days use Amsterdam midnight and `oreRecent` covers `(SO.now() - 600000, SO.now()]` using event `gameAt`.
   Counts and the last consumed sequence save together once a minute and on
   day changes. Restart replays events after that cursor. No wire handlers.
   See [daily](server-only/PROTOCOL.md#daily).
@@ -556,6 +581,7 @@ Do not save inside tight loops.
 - `so-keys` holds paired keys on server and clients. Pairing loads
   `lib/ccryptolib/` for X25519 and randomness.
 - `so-server.cfg` is the plain server-position table read through `so-store.read`.
+- `so-data/clock` holds the durable `ticks-v1` time reservation.
 - `so-data/log/<segment>` holds events. `so-data/snap/<snapshot>` and
   `so-data/snap/latest` hold folded state and its snapshot pointer.
   Segments are at most 64 KB, retained segment bytes at most 1 MB, and snapshots
@@ -571,7 +597,7 @@ Do not save inside tight loops.
   Roles include `panel` and `map`. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
 - `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
-  Recent ore uses UTC-second buckets `{ total, counts = { [epochMs] = count } }`.
+  Recent ore uses game-second buckets `{ total, counts = { [gameMs] = count } }`.
   Bucket keys and timestamp keys are decimal strings. Only the server installs it.
   Section files have no aggregate disk bound or automatic pruning. Owner release
   removes reservations only. Marks remain available for recovery across jobs.
@@ -673,3 +699,20 @@ shows a stale daily tile because its fixture setup has no daily module.
 - Lease state is memory-only. Planner recovery must use park leases and account
   for reservations that survived the restart.
 - SO3 mining, SO7 lumber, SO9 installer and SO10 AR are implemented.
+
+## Accelerated Gate B checks
+
+Run complete updated fleets at `/tick rate 80` for four times game speed.
+Mining and lumber throughput, lane safety, range, leases, silence grace,
+beacons, backtracking, park renewal, retry waits, discovery, stale frames,
+alerts and saved-job recovery can use game-second limits. SO11 A and B run at
+1x and 4x in the harness. Report game ticks and measured TPS with real elapsed
+time; the harness does not prove native Minecraft scheduling. `/tick sprint`
+can exercise these safety invariants, but client rendering and network service
+may lag the sprint. Use `/tick rate 80` for timing acceptance and screenshots.
+
+Keep tests of real outage durations, update interruptions and mixed-version
+rollouts at 20 TPS. UTC skew, replay retention, clock dates, Amsterdam midnight
+and daily date rollover also stay at 20 TPS. Changing tick rate cannot shorten
+those wall-clock checks. Server-off recovery at higher rates uses a game-time
+outage measured by the workers; the server's durable clock pauses while off.
