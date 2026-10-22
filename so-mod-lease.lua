@@ -19,7 +19,7 @@ S.journalPose = function(p)
 end
 
 S.facts = function(body)
-  local facts = { pose = S.journalPose(body.pose) }
+  local facts = { pose = not body.uncertain and S.journalPose(body.pose) or nil, uncertain = body.uncertain == true or nil }
   if type(body.journal) == "string" then facts.journal = body.journal end
   if S.number(body.fuel) then facts.fuel = body.fuel end
   if type(body.inv) == "table" then
@@ -89,9 +89,35 @@ S.notify = function(lease, results)
   end
 end
 
+S.anchorSend = function(id, row)
+  local key = SO.pair.key(id)
+  if not key then return false, "no key" end
+  local wire = SO.proto.encode(SO.proto.build(key, "worker.anchor", row.anchor.body))
+  if not wire then return false, "anchor" end
+  local ok, sent = pcall(rednet.send, id, wire, "so")
+  row.anchor.after = os.epoch("utc") + 1000
+  return ok and sent ~= false
+end
+
+S.reanchor = function(id, pose)
+  local row = S.row(id)
+  if not row.uncertain or type(row.journal) ~= "string" then return nil, "pose not uncertain" end
+  if not S.position(pose) or type(pose.facing) ~= "number" or pose.facing % 1 ~= 0
+    or pose.facing < 0 or pose.facing > 3 then return nil, "pose" end
+  row.anchor = { body = { journal = row.journal,
+    pose = { x = pose.x, y = pose.y, z = pose.z, f = pose.facing } } }
+  local ok, err = S.anchorSend(id, row)
+  if not ok then row.anchor = nil return nil, err or "send" end
+  local lease = row.open
+  row.open = nil
+  if lease then lease.status = "reanchored" S.notify(lease, nil) end
+  return true
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
+  if row.uncertain or row.anchor then return nil, "pose uncertain" end
   if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
   if type(steps) ~= "table" or #steps < 1 or #steps > 16 then return nil, "steps" end
@@ -139,7 +165,7 @@ end
 S.status = function(id)
   local row = S.row(id)
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt }
+    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
 
 S.inRange = function(id, pos)
@@ -173,11 +199,13 @@ S.report = function(msg)
   row.seen = os.epoch("utc")
   row.lost = false
   lease.report = S.facts(body)
+  row.uncertain = lease.report.uncertain
+  if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
   local cells = S.module("cells")
   if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
-  if allOk and lease.pose then
+  if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
     S.emit("pose", pose)
@@ -190,7 +218,9 @@ S.beacon = function(msg)
   local row = S.row(msg.from)
   row.lost = true
   row.seen = os.epoch("utc")
-  S.journalSeen(row, msg.body.pose, msg.body.journal)
+  row.uncertain = msg.body.uncertain == true or nil
+  if row.uncertain then row.pose, row.poseAt = nil, nil row.journal = msg.body.journal
+  else S.journalSeen(row, msg.body.pose, msg.body.journal) end
   S.emit("machine", { id = msg.from, fuel = msg.body.fuel, seen = row.seen, journal = row.journal })
 end
 
@@ -199,14 +229,24 @@ S.hello = function(msg)
   row.lost = false
   row.seen = os.epoch("utc")
   local journal = msg.body.journal
-  if type(journal) == "table" then S.journalSeen(row, journal.pose, journal.id) end
+  if type(journal) == "table" then
+    row.uncertain = journal.uncertain == true or nil
+    if row.uncertain then row.pose, row.poseAt = nil, nil row.journal = journal.id
+    else
+      if row.anchor and (type(journal.recovery) ~= "table" or journal.recovery.outcome ~= "anchored"
+        or journal.recovery.journal ~= row.anchor.body.journal) then row.uncertain = true return end
+      row.anchor = nil
+      S.journalSeen(row, journal.pose, journal.id)
+    end
+  end
   S.observe(row, msg.body.pose or msg.body.gps)
 end
 
 S.tick = function(now)
   now = now or os.epoch("utc")
   local count = 0
-  for _, row in pairs(S.turtles) do
+  for id, row in pairs(S.turtles) do
+    if row.anchor and now >= row.anchor.after then S.anchorSend(id, row) end
     local lease = row.open
     if lease and now > lease.expires + 10000 then
       row.open = nil
@@ -250,6 +290,7 @@ return {
   },
   tick = S.tick,
   send = S.send,
+  reanchor = S.reanchor,
   onReport = function(owner, fn)
     if type(owner) ~= "string" or type(fn) ~= "function" then return false end
     S.callbacks[owner] = fn

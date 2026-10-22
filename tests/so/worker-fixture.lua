@@ -1,6 +1,6 @@
 local H = dofile("tests/so/harness.lua")
 local F = {}
-F.setup = function(opts)
+F.setup = function(opts, modules)
   local n = H.new()
   local s = n.machine({ id = 1, modem = true })
   local t = n.machine(opts or { id = 2, modem = true, turtle = true, capacity = 1000000 })
@@ -15,6 +15,7 @@ F.setup = function(opts)
       value={ keys={ [tostring(m == s and 2 or 1)]=string.rep("a",64) } } })
   end
   s.install({ "so-server.lua" })
+  if modules then s.install(modules) end
   s.boot("so-server.lua"); n.flush()
   t.install({ "worker.lua" }); t.boot("worker.lua"); n.flush()
   assert(not s.error, tostring(s.error)); assert(not t.error, tostring(t.error))

@@ -123,6 +123,17 @@ Drop and suck operations require `peripheral.hasType(side, "inventory")` on the
 target side. Otherwise the worker returns `ok = false, err = "no inventory"`
 without calling the turtle transfer operation. Drops into open space are refused.
 
+On reboot the worker resolves a pending movement from the saved fuel level. A
+fuel difference of one means it ran; no difference means it did not. With
+unlimited fuel, a GPS fix saved before the move and another at boot can resolve
+the displacement. A turn, an old pending entry without evidence, or a conflicting
+observation stays uncertain. The worker retains the pending entry and sends
+`journal.recovery = { n, op, outcome }` on hello. `outcome` is `applied`,
+`not applied`, or `uncertain`. `journal.uncertain = true` marks an unknown pose;
+`journal.pose` then contains only the last committed pose. The worker stays still
+and refuses subsequent steps with `pose uncertain` until an operator re-adds it.
+The server discards its cached journal pose and refuses new leases while uncertain.
+
 ### step.report
 
 The turtle sends `step.report` to the server.
@@ -134,6 +145,8 @@ The turtle sends `step.report` to the server.
 `results[i].counts` is an optional array of 16 numbers, the item count in slots 1 to 16 after the step.
 
 `results[i].err` is `expired` when the step was not run because `lease.batch` `expires` had passed. Later steps in that batch use the same error.
+
+`body.uncertain = true` omits `body.pose` when an interrupted step could not be resolved.
 
 `body.pose` is `{ x, y, z, f }` in the journal frame after the last step. `body.journal` is the journal id. `body.fuel` is the numeric fuel level, or `-1` for unlimited. `body.inv` is the occupied-slot list `{ { slot, name, count }, ... }`. `body.dug` is the last 32 dug cells `{ { x, y, z }, ... }` in the journal frame. The worker reads these facts once after the batch, including when a step failed or expired.
 
@@ -677,3 +690,26 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 - SO10 owns `so-mod-ar.lua`.
 - W3-B owns `so-mod-lease.lua`. It sends `lease.batch` and handles `step.report`, `beacon`, and `history.page`.
 - W4-0 owns worker report facts, lease recovery facts, and the shared `so-plan.lua` helpers. It adds no planner.
+
+Worker uncertainty is also exposed by `lease.status(id).uncertain`. While it is
+true, `lease.send` returns `nil, "pose uncertain"`, including recovery parks.
+Uncertain beacons carry `uncertain = true` and omit `pose`.
+
+### worker.anchor
+
+Mining or lumber `add <id> <x> <y> <z> <n|e|s|w>` can replace an existing uncertain
+assignment. Both screens and the worker show `pose uncertain: re-add turtle <id>`.
+The operator supplies the turtle's actual position and facing. Normal duplicate
+mining adds still fail; lumber retains its normal configuration guards otherwise.
+
+`lease.reanchor(id, worldPose)` requires an uncertain worker and sends an
+authenticated `worker.anchor` with `{ journal, pose = { x, y, z, f } }`.
+`journal` identifies the uncertain worker journal. The worker accepts only its
+paired server, only while uncertain, and only when that journal id matches.
+It saves the supplied pose as a fresh journal, clears pending steps, moves and dug
+history, then sends hello with `journal.recovery = { outcome = "anchored", journal }`.
+Duplicate anchor requests re-send hello without resetting the journal, so a lost
+confirmation can recover. A failed save retains uncertainty. The server retries
+the anchor once per second
+and keeps refusing leases until that matching hello arrives. Old lease callbacks
+are cancelled during re-anchoring. Work then starts from the new assignment.

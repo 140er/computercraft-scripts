@@ -346,6 +346,10 @@ end
 plan = function(id,row)
   local status = call("lease", "status", id)
   if not status then return end
+  if status.uncertain then
+    row.state, row.error = "hold", "pose uncertain: re-add turtle " .. id
+    return
+  end
   if status.lost then row.state, row.error, row.recover = "lost", "worker beacon", true end
   if status.open then return end
   if status.lost or row.recover then
@@ -504,8 +508,18 @@ local function input(event)
   elseif cmd=="ores" and a[2] then
     local names={} for name in a[2]:gmatch("[^,]+") do if not M.ores[name] then S.error="unknown ore" return end names[#names+1]=name end job.ores=names
   elseif cmd=="add" and num(2) and num(2)>=0 and num(3) and num(4) and num(5) and dirs[a[6]] then
-    local id=num(2) if job.turtles[tostring(id)] then S.error="already added" return end
+    local id=num(2)
+    local status=call("lease","status",id)
+    local uncertain=status and status.uncertain
+    if job.turtles[tostring(id)] and not uncertain then S.error="already added" return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
+    if uncertain then
+      local ok,err=call("lease","reanchor",id,pose)
+      if not ok then S.error=err return end
+      call("cells","releaseOwner",owner(id))
+      S.pending[id],S.dugFacts[id]=nil,nil
+    end
+    S.error=nil
     job.turtles[tostring(id)]={anchor=pose,pose=pose,state="recovering",recover=true,inv={}}
     reservePose(id,job.turtles[tostring(id)]) save() park(id,job.turtles[tostring(id)],true)
   elseif cmd=="remove" and num(2) then
@@ -517,12 +531,19 @@ local function input(event)
   else S.error="invalid mining command" return end
   save()
 end
-local function render()
+local function render(w)
   local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
   for id,row in pairs(job.turtles) do
     local p=row.pose
+    if row.error == "pose uncertain: re-add turtle " .. id then
+      if (w or 51) < #row.error then
+        rows[#rows+1]={text="pose uncertain:",fg="e"}
+        rows[#rows+1]={text="re-add turtle "..id,fg="e"}
+      else rows[#rows+1]={text=row.error,fg="e"} end
+    else
     rows[#rows+1]={text=id.." "..row.state.." "..p.x..","..p.y..","..p.z.." fuel "..tostring(row.fuel or "?").." ores "..(row.ores or 0).." "..tostring(row.error or ""),fg=(row.state=="lost" or row.state=="range") and "e" or "0"}
+    end
   end
   return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
 end
