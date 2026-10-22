@@ -414,12 +414,15 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 SO5 owns this API on `SO.mods.display`.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render` is called with no arguments and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render(w, h, clientId)` receives the available content size and display computer ID and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ from, id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
 
 Button id `generic` returns that display to the generic screen. Every destination
 has a visible `generic` button on 26x20 pockets and 29x12 monitors. The generic
 screen reserves two top rows for `mining`, `lumber`, `shop`, `status`, and `ar`.
 Registered generic content, including the drop editor, starts two rows lower.
+For generic content, the render height excludes these two navigation rows.
+The display client already excludes its bottom input row from the hello height.
+Other roles receive the full hello size.
 
 The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
 
@@ -466,6 +469,17 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 `drops.fix(id)` sets the failure count to 0 and returns true, or returns false and `missing`.
 
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
+
+The generic editor pages the point list with `prev` and `next`. Its draft and
+buttons fit 26x20 pockets and 29x12 monitors below navigation and above the
+bottom input row. Draft and feedback are shared between displays; paging is per display.
+Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
+and `add <kind> <x> <y> <z> [front|down] [dim]` to set and save it.
+Omitted side and dimension keep the draft values. Dimension may be supplied
+without side. All coordinates and dimensions must be finite integers. Dimension
+0 is overworld, -1 Nether, 1 End. Invalid text leaves the draft unchanged and
+shows an error. Button `add` and typed `add` show save failures in the editor.
+No client or wire fields change.
 
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
 

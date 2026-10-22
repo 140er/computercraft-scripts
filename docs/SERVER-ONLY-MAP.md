@@ -100,12 +100,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
   Handler `drops.edit` edits points. Tick registers the generic screen.
+  The editor pages points to fit below navigation, reserves the bottom input row,
+  and accepts typed coordinates or `add kind x y z [side] [dim]`.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)` and `tick(now)`.
-  `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
-  coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
+  `render(w, h, clientId)` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
+  sender ID `from`, coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
   The generic screen reserves two top rows for `mining`, `lumber`, `shop`,
   `status` and `ar`, with the drop editor below. Every destination has a visible
