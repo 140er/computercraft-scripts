@@ -34,7 +34,9 @@ Run `scripts/test-part --list` to see module-to-suite selection, or
 Choose an explicit test file to narrow a large module part further.
 Numbered SO/UI scenarios remain explicit parts and run in the full suite;
 focused module parts do not replace them. A module with no regression fails
-rather than claiming coverage.
+rather than claiming coverage. A targeted module part must execute its source
+chunk through the guarded loaders; merely reading its text does not count.
+This check confirms execution, not complete behavioral or line coverage.
 
 ## Dependency enforcement and parallel runs
 
@@ -43,6 +45,7 @@ rather than claiming coverage.
 lists. It resolves crypto library paths assembled from a literal prefix,
 finite name list and `.lua` suffix. Embedded Lua program strings contribute
 edges too. No handwritten per-module dependency manifests are maintained.
+`require` resolves both `?.lua` and `lib/?.lua`, matching the runner.
 Static strings can conservatively include a file not reached by a particular
 test branch; the kit never executes such a file just to discover dependencies.
 Arbitrary computed paths are not inferred. They fail at runtime if missing
@@ -76,9 +79,13 @@ inputs, simultaneous private runs and a swallowed undeclared-load failure.
 See [CraftOS-PC evaluation](craftos-pc.md) for extracted modpack versions,
 source references, installed binaries, mismatch handling and peripheral APIs.
 The pack pins Minecraft **1.21.1** and CC:Tweaked **1.120.2**.
-CraftOS-PC **2.8.3** targets CC:Tweaked **1.112.0**, so the default
-emulator layer currently refuses to run. An exact compatible release has not
-been established. The emulator layer must refuse an unmatched runtime. No successful Lua-only
+The default emulator layer loads the pack jar's own ROM, checks its 1.120.2
+version text, validates the jar hash and verifies every extracted file.
+CraftOS-PC **2.8.3** retains a **1.112.0 native core**. The ROM swap covers
+Lua-side code; it does not replace native filesystem, peripheral or turtle
+implementations. The evaluation records those differences and the mocks/shims
+used by server-only tests. A mismatched jar, ROM version or emulator fails;
+there is no automatic Lua-only fallback. No successful Lua-only
 result proves CC:Tweaked or add-on integration compatibility.
 
 ## Formal verification
@@ -86,6 +93,37 @@ result proves CC:Tweaked or add-on integration compatibility.
 See [the formal verification report](formal-lease-orderings.md) and the project-local
 `verify-*` skill for the bounded model, source links and rerun command.
 Findings do not authorize product changes.
+
+## Measured timings
+
+Uncontended runs on t3code-home, with default parts including CraftOS-PC:
+
+| Command | Checks | Wall time |
+| --- | ---: | ---: |
+| `cc-test` at the frozen base, Windows slot | 536 | 332.46 s |
+| `cc-test` with the new mining unit checks, Windows slot | 543 | 373.07 s |
+| `cc-test --part server` | emulator + 8 Lua checks | 10.30 s |
+| `cc-test --part miner` | emulator + 7 Lua checks | 9.50 s |
+| `cc-test --part server --lua-only` | 8 | 0.91 s |
+| `cc-test --part miner --lua-only` | 7 | 0.21 s |
+| `cc-test --part so-mine-plan.lua --lua-only` | 8 | 0.13 s |
+| `cc-test --part so-mod-daily.lua --lua-only` | 7 | 0.18 s |
+| `cc-test --part so-mod-panel.lua --lua-only` | 14 | 0.44 s |
+
+The shared emulator integration takes about 9.3 seconds on Linux and 14.45
+seconds on Windows. Daily/panel timings above are the initial uncontended
+runs; final repetitions passed on Windows and under slot contention too. The focused mining
+fixture stages six inputs; server stages 21. Before the focused fixture,
+mining's broader regressions took 17.28 seconds for 19 checks and 40 inputs.
+Those regressions remain in the full suite and available by test-file name.
+The Windows part transport passed seven mining checks in 9.291 seconds,
+including upload and worker startup. Concurrent server and mining CLI runs
+passed on separate slots with separate staging directories.
+
+These are wall times, including command startup. The full-suite Windows
+measurements also include archive upload. Slot contention can add queue time;
+other saved runs waited 180 seconds. Lua CPU and local execution times are
+printed separately so queue delays are visible.
 
 ## Saved evidence
 

@@ -1,6 +1,22 @@
 local manifest = dofile("tests/part-manifest.lua")
 local rawOpen, rawLoad, rawLines, rawInput = io.open, loadfile, io.lines, io.input
 local violations = {}
+local executed = {}
+local function observe(chunk, name)
+  if not chunk then return nil end
+  return function(...)
+    executed[name] = true
+    return chunk(...)
+  end
+end
+local rawLoadCode = load
+load = function(code, name, ...)
+  local chunk, err = rawLoadCode(code, name, ...)
+  if chunk and type(name) == "string" then
+    chunk = observe(chunk, name:gsub("^[@=]", ""))
+  end
+  return chunk, err
+end
 local function check(path)
   local name = tostring(path):gsub("^%./", "")
   if not manifest.allowed[name] then
@@ -25,20 +41,24 @@ io.output = function() error("part tests cannot write host files", 0) end
 io.tmpfile = io.output
 loadfile = function(path, mode, env)
   path = check(path)
-  if env == nil then return rawLoad(path, mode) end
-  return rawLoad(path, mode, env)
+  local chunk, err
+  if env == nil then chunk, err = rawLoad(path, mode)
+  else chunk, err = rawLoad(path, mode, env) end
+  return observe(chunk, path), err
 end
 dofile = function(path) return assert(loadfile(path))() end
 package.path = "?.lua;lib/?.lua"
 local rawRequire = require
 require = function(name)
   local path = package.searchpath(name, package.path)
-  if path then check(path) end
+  if path then path = check(path) end
   if not path and not package.loaded[name] then
     violations[#violations + 1] = "require " .. name
     error("PART DEPENDENCY VIOLATION: require " .. name, 0)
   end
-  return rawRequire(name)
+  local result = rawRequire(name)
+  if path then executed[path] = true end
+  return result
 end
 io.popen = function() error("part tests cannot start host processes", 0) end
 os.execute = io.popen
@@ -74,6 +94,9 @@ for _, path in ipairs(manifest.suites) do
   suite(test, equal, read, mocks)
 end
 debug.sethook()
+if manifest.target and not executed[manifest.target] then
+  error("PART COVERAGE VIOLATION: target never executed: " .. manifest.target, 0)
+end
 print(string.format("part: %d passed, %d failed, %d undeclared reads; Lua CPU %.3fs",
   passed, failed, #violations, os.clock() - began))
 if failed > 0 or #violations > 0 or passed == 0 then os.exit(1) end

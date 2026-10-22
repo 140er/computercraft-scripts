@@ -1,0 +1,19 @@
+part: server; suites: tests/so/server-net.lua
+part: generated 21 input files; private cwd /tmp/cc-part-r_773a0k
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.335s)
+Evidence: /tmp/craftos-evidence-abgem8my
+cc-test: using local-2 slot
+PASS server and display pair with a wired modem before wireless
+PASS server opens a wireless modem attached after boot and after detach
+PASS display opens a wireless modem attached after boot and after detach
+PASS server boots without modems and pairs after a wireless attachment
+PASS hostname collision keeps server running and identifies the other host
+PASS paired display boots with other host and uses its saved server
+PASS paired display boots with no host and uses its saved server
+PASS paired display boots with backup keys and uses its saved server
+part: 8 passed, 0 failed, 0 undeclared reads; Lua CPU 0.681s
+part: local Lua wall 0.689s (excludes slot queue)
+real 10.19
+user 3.03
+sys 0.24

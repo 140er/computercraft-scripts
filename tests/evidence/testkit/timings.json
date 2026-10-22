@@ -1,0 +1,112 @@
+{
+  "base_commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "full_baseline": {
+    "command": "cc-test",
+    "slot": "win",
+    "passed": 536,
+    "wall_seconds": 332.46,
+    "includes": "snapshot, upload, worker startup, test execution"
+  },
+  "plain_lua_parts": [
+    {
+      "command": "cc-test --part server --lua-only",
+      "passed": 8,
+      "input_files": 21,
+      "wall_seconds": 0.74,
+      "lua_wall_seconds": 0.613,
+      "lua_cpu_seconds": 0.607
+    },
+    {
+      "command": "cc-test --part miner --lua-only",
+      "passed": 7,
+      "input_files": 6,
+      "wall_seconds": 0.13,
+      "lua_wall_seconds": 0.017,
+      "lua_cpu_seconds": 0.014
+    },
+    {
+      "command": "cc-test --part so-mine-plan.lua --lua-only",
+      "passed": 8,
+      "input_files": 6,
+      "wall_seconds": 0.13,
+      "lua_wall_seconds": 0.018,
+      "lua_cpu_seconds": 0.015
+    }
+  ],
+  "broader_mining_regressions_before_focused_fixture": {
+    "passed": 19,
+    "input_files": 40,
+    "wall_seconds": 17.28,
+    "lua_cpu_seconds": 17.15
+  },
+  "queue_note": "Other logs include 180 seconds waiting for free slots; timings above are uncontended. Lua CPU and local Lua wall exclude scheduler queue.",
+  "formal": {
+    "command": "python3 formal/verify_lease.py --evidence formal/evidence/lease-orderings.json",
+    "wall_seconds": 32.662,
+    "bounded_traces": 483841,
+    "scratch_mutations_caught": 5
+  },
+  "full_final": {
+    "command": "cc-test",
+    "slot": "win",
+    "passed": 543,
+    "wall_seconds": 373.07,
+    "exit_code": 0,
+    "includes": "snapshot, upload, worker startup, test execution"
+  },
+  "windows_part_transport": {
+    "command": "cc-test --slot win --part miner --lua-only",
+    "reason": "Validate actual Windows part staging, generated entrypoint and guards",
+    "passed": 7,
+    "wall_seconds": 9.291,
+    "lua_cpu_seconds": 0.496
+  },
+  "default_parts": [
+    {
+      "command": "cc-test --part server",
+      "lua_passed": 8,
+      "emulator_seconds": 9.335,
+      "wall_seconds": 10.19,
+      "lua_wall_seconds": 0.689
+    },
+    {
+      "command": "cc-test --part miner",
+      "lua_passed": 7,
+      "emulator_seconds": 9.302,
+      "wall_seconds": 9.5,
+      "lua_wall_seconds": 0.018
+    }
+  ],
+  "parallel_cli": {
+    "result": "PASS",
+    "miner_slot": "win",
+    "server_slot": "local-2",
+    "directories": "distinct; see parallel-miner.log and parallel-server.log",
+    "note": "Both commands started before waiting for either result. Native modem emulation uses process-local networks, with no shared OS ports."
+  },
+  "rom_negative_checks": {
+    "wrong_jar_hash": "refused",
+    "wrong_rom_version_with_matching_scratch_hash": "refused",
+    "scratch_removed": true
+  },
+  "review_fix_round": {
+    "findings": 2,
+    "fixed": 2,
+    "root_require": "Both root and lib package search paths resolved; self-test passes",
+    "static_only_coverage": "Dedicated daily/panel behavioral suites plus target-execution guard; scratch target breaks caught",
+    "server_lua_wall_seconds": 0.91,
+    "miner_lua_wall_seconds": 0.21,
+    "server_default_wall_seconds": 10.3,
+    "daily_complete": "7 passed on Windows; 11.06s incl remote transport",
+    "panel_complete": "14 passed; 0.258s local Lua wall; 15.48s incl slot queue"
+  },
+  "emulator_final": {
+    "linux_wall_seconds": 9.31,
+    "windows_wall_seconds": 14.453,
+    "assertions_each": 61,
+    "rom_version": "1.120.2",
+    "rom_file_count": 220,
+    "native_core_version": "1.112.0",
+    "windows_shim": "Exact integral %d formatting for epoch-millisecond request IDs only"
+  }
+}

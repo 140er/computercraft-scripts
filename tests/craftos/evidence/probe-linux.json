@@ -1,0 +1,32 @@
+{
+  "mode": "capability-probe",
+  "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+  "exact": false,
+  "manifest_sha256": "adababd996b0a8dd284da2d372ecaf9bcae6f73c03d30aa281b38e778bc44e6a",
+  "required": {
+    "minecraft": "1.21.1",
+    "neoforge": "21.1.259",
+    "cc_tweaked": "1.120.2",
+    "cc_jar_sha256": "e8651fe24b384e925e563c9ad077644744474e2e7c0adb8e6d5b4757598dce9f"
+  },
+  "emulator": {
+    "version": "2.8.3",
+    "cc_tweaked": "1.112.0",
+    "exact_compatible": false,
+    "release": "https://github.com/MCJack123/craftos2/releases/tag/v2.8.3",
+    "linux_appimage_sha256": "f25536c7a05f67827fe44573ff65627cbe595e13c75815ef86a4e1f3bd33a88c",
+    "windows_portable_sha256": "caf74fa9d6fcce44c940bf77ff789378fa34a4ebb0b608c57f885a0b0aebac37"
+  },
+  "status": "FAIL",
+  "files": [],
+  "command": [
+    "/home/jeffrey/work/craftos-so-evaluation/squashfs-root/AppRun",
+    "--headless",
+    "--directory",
+    "/home/jeffrey/work/craftos-so-evaluation/probe-linux/data",
+    "--id",
+    "0"
+  ],
+  "reason": "Capability probe timed out",
+  "elapsed_seconds": 60.15
+}

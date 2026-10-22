@@ -1,0 +1,17 @@
+{
+  "master": [
+    "#define CRAFTOSPC_CC_VERSION \"1.116.1\""
+  ],
+  "lua-5.2": [
+    "#define CRAFTOSPC_CC_VERSION \"1.109.2\""
+  ],
+  "lua-5.4": [
+    "#define CRAFTOSPC_CC_VERSION \"2.0.0\""
+  ],
+  "luajit": [
+    "#define CRAFTOSPC_CC_VERSION \"1.112.0\""
+  ],
+  "unicode-test": [
+    "#define CRAFTOSPC_CC_VERSION \"1.98.2\""
+  ]
+}

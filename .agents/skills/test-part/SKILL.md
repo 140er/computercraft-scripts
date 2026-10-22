@@ -9,10 +9,15 @@ Work from the repository root. Install the slot adapter once with
 Use `cc-test --part server` or `cc-test --part miner` while iterating.
 These aliases mean `so-server.lua` and `so-mod-mine.lua`; the normal-build
 `server.lua` and `miner.lua` are outside this kit's scope.
-The default layer requires version-checked CraftOS-PC integration.
-The pack pins Minecraft 1.21.1 / CC:Tweaked 1.120.2. CraftOS-PC 2.8.3
-targets CC:Tweaked 1.112.0, so the default currently refuses the mismatch.
-Do not turn a diagnostic probe into a passing exact-integration result.
+The default layer runs CraftOS-PC integration with the pack's own ROM.
+Minecraft is 1.21.1; the extracted CC:Tweaked ROM is 1.120.2. The runner
+checks the pinned jar hash, every extracted file and the ROM's version text.
+CraftOS-PC 2.8.3 still uses a 1.112.0 native core: this is a pack-ROM test,
+not exact native-core emulation. Never rewrite `_HOST` to hide that gap.
+See the README's peripheral table and core-difference notes before relying
+on monitor, modem, turtle or AR results. Windows additionally uses a narrow,
+reported integer-format shim for the protocol's epoch-millisecond IDs. Unsupported world behavior remains
+outside this layer; real-server/gameplay tests are the orchestrator's choice.
 For a faster plain-Lua unit run, explicitly use
 `cc-test --part so-mine-plan.lua --lua-only`.
 Use `cc-test --part tests/so/lease.lua --lua-only` to run one regression file.
@@ -29,6 +34,7 @@ This can be slower; choose one printed regression file for the next iteration.
 Each run has a private input directory and in-memory fake computers. The kit
 copies only the generated dependency closure, guards reads and Lua loaders,
 and fails any undeclared read even if a test catches its exception.
+Module parts must execute their target source; a static text check alone fails.
 A dependency failure calls for fixing the source graph resolver or making the
 loader expression statically resolvable, never disabling the guard.
 Part runs use the existing free local, Windows and PC slots.

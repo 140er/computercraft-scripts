@@ -1,0 +1,6 @@
+part.lua           24 locals (deepest at function line 0) ok
+so-mod-daily.lua    0 locals (deepest at function line 0) ok
+so-mod-panel.lua    0 locals (deepest at function line 0) ok
+integration.lua    21 locals (deepest at function line 12) ok
+ar-mock.lua        17 locals (deepest at function line 20) ok
+native-shims.lua   10 locals (deepest at function line 10) ok

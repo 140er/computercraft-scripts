@@ -35,10 +35,14 @@ def graph(root):
         deps = {v.removeprefix('./') for v in values if v.removeprefix('./') in files}
         # require strings and computed crypto paths share the same finite source
         # vocabulary (e.g. "lib/ccryptolib/" .. name .. ".lua").
-        for value in values:
-            module = 'lib/' + value.replace('.', '/') + '.lua'
-            if module in files:
-                deps.add(module)
+        required = [token.group()[1:-1] for token in TOKEN.finditer(code)
+                    if not token.group().startswith('--')
+                    and re.search(r'\brequire$', code[:token.start()].rstrip().removesuffix('(').rstrip()[-8:])]
+        for value in required:
+            for prefix in ('', 'lib/'):
+                module = prefix + value.replace('.', '/') + '.lua'
+                if module in files:
+                    deps.add(module)
         for prefix in values:
             if prefix.endswith('/') and not prefix.startswith('/'):
                 for value in values:
@@ -109,7 +113,9 @@ def prepare(root, part, timeout=60):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / name, dest)
     shutil.copyfile(root / 'tests/part.lua', stage / 'tests/run.lua')
-    manifest = 'return { timeout = ' + str(timeout) + ', suites = {' + ','.join(map(lua_string, suites)) + '}, allowed = {'
+    module = {'server': 'so-server', 'miner': 'so-mod-mine'}.get(part.removesuffix('.lua'), part.removesuffix('.lua')) + '.lua'
+    target = lua_string(module) if module in files else 'nil'
+    manifest = 'return { target = ' + target + ', timeout = ' + str(timeout) + ', suites = {' + ','.join(map(lua_string, suites)) + '}, allowed = {'
     manifest += ','.join('[' + lua_string(p) + ']=true' for p in sorted(allowed)) + '} }\n'
     (stage / 'tests/part-manifest.lua').write_text(manifest)
     print('part: ' + part + '; suites: ' + ', '.join(suites), flush=True)

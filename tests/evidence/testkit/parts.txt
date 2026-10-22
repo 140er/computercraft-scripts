@@ -1,0 +1,22 @@
+display.lua: tests/so/display-client.lua, tests/so/dug-display.lua
+so-log.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/lease.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/snapshot-prune.lua, tests/so/store-recover.lua, tests/so/tick-stall.lua
+so-lumber-plan.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/dug-retirement.lua, tests/so/lumber-deliver.lua, tests/so/lumber-loops.lua, tests/so/lumber-path.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/tick-stall.lua, tests/so/worker-reanchor.lua
+so-mine-plan.lua: tests/parts/so-mine-plan.lua
+so-mod-ar.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/tick-stall.lua
+so-mod-cells.lua: tests/parts/so-mine-plan.lua, tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-bitset.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/dug-retirement.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-travel.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/tick-stall.lua, tests/so/worker-reanchor.lua
+so-mod-daily.lua: tests/parts/so-mod-daily.lua
+so-mod-display.lua: tests/so/display-client.lua, tests/so/dug-display.lua
+so-mod-drops.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/lumber-deliver.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/tick-stall.lua
+so-mod-lease.lua: tests/so/lease.lua
+so-mod-lumber.lua: tests/so/lumber-loops.lua, tests/so/lumber-path.lua, tests/ui/ui2b.lua
+so-mod-mine.lua: tests/parts/so-mod-mine.lua
+so-mod-panel.lua: tests/parts/so-mod-panel.lua
+so-mod-shop.lua: tests/ui/ui2c.lua
+so-mod-state.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/lease.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/store-recover.lua, tests/so/tick-stall.lua
+so-pair.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/display-client.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/lease.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/server-net.lua, tests/so/tick-stall.lua, tests/so/worker-boot.lua, tests/so/worker-discard.lua, tests/so/worker-drop.lua, tests/so/worker-park.lua, tests/so/worker-pending.lua, tests/so/worker-reanchor.lua
+so-plan.lua: tests/parts/so-mine-plan.lua
+so-proto.lua: tests/parts/so-mod-daily.lua, tests/parts/so-mod-panel.lua, tests/so/disk-guard.lua, tests/so/display-client.lua, tests/so/drop-editor.lua, tests/so/dug-display.lua, tests/so/dug-mine.lua, tests/so/lease.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-underground.lua, tests/so/minor-ui.lua, tests/so/screen-nav.lua, tests/so/server-net.lua, tests/so/tick-stall.lua, tests/so/worker-boot.lua, tests/so/worker-discard.lua, tests/so/worker-drop.lua, tests/so/worker-park.lua, tests/so/worker-pending.lua, tests/so/worker-reanchor.lua
+so-server.lua: tests/so/server-net.lua
+so-store.lua: tests/so/store-recover.lua
+so-ui.lua: tests/so/minor-ui.lua
+worker.lua: tests/so/worker-boot.lua, tests/so/worker-discard.lua, tests/so/worker-drop.lua, tests/so/worker-park.lua, tests/so/worker-pending.lua, tests/so/worker-reanchor.lua

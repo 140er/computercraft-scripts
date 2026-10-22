@@ -1,0 +1,26 @@
+part: miner; suites: tests/so/dug-mine.lua, tests/so/mine-dead.lua, tests/so/mine-done-return.lua, tests/so/mine-travel.lua, tests/so/mine-underground.lua
+part: generated 40 input files; private cwd /tmp/cc-part-zjtkabid
+cc-test: using local-1 slot
+PASS dug retirement: mining re-inspects a forgotten cell and counts its interrupted dig once
+PASS dug retirement: forgotten tunnel facts cannot bypass inspection on a later job
+PASS mine requires home and clears command errors
+PASS mine start fails closed without its disk guard
+PASS mine removes an unloaded recovery holder and releases reservations
+PASS mine refuses removal with actual movement or another owner's lease
+PASS mine clears a stale lane waiter during recovery and supports saved home
+PASS mine-done-return: a finished miner recovered away from its branch end returns there
+PASS mine supply follows shaft and spine facing 0
+PASS mine supply follows shaft and spine facing 1
+PASS mine supply follows shaft and spine facing 2
+PASS mine supply follows shaft and spine facing 3
+PASS mine supply retraces dug vein cells before entering the branch
+PASS mine supply leaves an unfinished shaft upward and refuses a chest in the corridor
+PASS mine supply bounds an unknown vein search and reuses known access
+PASS mine long supply passes reserve the shared corridor without yielding
+PASS mine-underground: a worker re-added on the spine after a restart mines its new branch
+PASS mine-underground: a worker in a side cell after a restart still plans and refuels
+PASS mine-underground: a finished branch is counted once across restarts
+part: 19 passed, 0 failed, 0 undeclared reads; Lua CPU 17.150s
+real 17.28
+user 17.22
+sys 0.05

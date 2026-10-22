@@ -13,17 +13,18 @@ with tempfile.TemporaryDirectory(prefix='parts-selftest-') as directory:
     (root / 'lib/example').mkdir(parents=True)
     (root / 'tests/part.lua').write_text((repo / 'tests/part.lua').read_text())
     (root / 'tests/mocks.lua').write_text('return {encode=tostring}')
-    (root / 'example.lua').write_text('return require("example.child")')
+    (root / 'example.lua').write_text('return require("child") + require("example.child")')
+    (root / 'child.lua').write_text('return 3')
     (root / 'lib/example/child.lua').write_text('return 7')
     (root / 'unrelated.lua').write_text('error("must never load")')
     suite = root / 'tests/so/example.lua'
     suite.write_text('local path="example.lua"\nreturn function(test) test("load",function() '
-                     'assert(dofile(path)==7) end) end')
+                     'assert(dofile(path)==10) end) end')
 
     def run():
         temporary, stage, _, allowed = prepare(root, 'example.lua')
         try:
-            assert 'lib/example/child.lua' in allowed
+            assert 'lib/example/child.lua' in allowed and 'child.lua' in allowed
             assert not (stage / 'unrelated.lua').exists()
             result = subprocess.run(['lua5.2', '-e', 'package.path="lib/?.lua;"..package.path; '
                                      'dofile("tests/run.lua")'], cwd=stage, capture_output=True, text=True)
@@ -52,4 +53,11 @@ with tempfile.TemporaryDirectory(prefix='parts-selftest-') as directory:
             assert result.returncode == 1 and '1 undeclared reads' in result.stdout, result.stdout + result.stderr
         finally:
             temporary.cleanup()
+    suite.write_text('local path="example.lua";return function(test) test("static only",function() local f=assert(io.open(path));f:close() end) end')
+    temporary, stage, _, _ = prepare(root, 'example.lua')
+    try:
+        result = subprocess.run(['lua5.2','tests/run.lua'],cwd=stage,capture_output=True,text=True)
+        assert result.returncode != 0 and 'PART COVERAGE VIOLATION' in result.stderr, result.stdout + result.stderr
+    finally:
+        temporary.cleanup()
 print('PASS graph closure, excluded source, concurrent private directories, swallowed load/require/lines/input violations')

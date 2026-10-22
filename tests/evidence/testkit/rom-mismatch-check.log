@@ -1,0 +1,3 @@
+PASS wrong pack jar hash refused
+PASS wrong ROM version text refused even with a matching supplied hash
+PASS scratch jar and ROM copies removed

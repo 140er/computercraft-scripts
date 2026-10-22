@@ -1,0 +1,28 @@
+{
+  "suites": [
+    "tests/so/server-net.lua"
+  ],
+  "inputs": [
+    "display.lua",
+    "lib/ccryptolib/blake3.lua",
+    "lib/ccryptolib/chacha20.lua",
+    "lib/ccryptolib/config.lua",
+    "lib/ccryptolib/internal/curve25519.lua",
+    "lib/ccryptolib/internal/edwards25519.lua",
+    "lib/ccryptolib/internal/fp.lua",
+    "lib/ccryptolib/internal/hw.lua",
+    "lib/ccryptolib/internal/packing.lua",
+    "lib/ccryptolib/internal/util.lua",
+    "lib/ccryptolib/random.lua",
+    "lib/ccryptolib/x25519.lua",
+    "so-mod-display.lua",
+    "so-pair.lua",
+    "so-proto.lua",
+    "so-server.lua",
+    "so-store.lua",
+    "so-ui.lua",
+    "tests/mocks.lua",
+    "tests/so/harness.lua",
+    "tests/so/server-net.lua"
+  ]
+}

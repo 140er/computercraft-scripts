@@ -1,0 +1,12 @@
+[
+  {
+    "part": "miner",
+    "exit_code": 0,
+    "wall_seconds_upper_bound": 16.368
+  },
+  {
+    "part": "server",
+    "exit_code": 0,
+    "wall_seconds_upper_bound": 16.367
+  }
+]
