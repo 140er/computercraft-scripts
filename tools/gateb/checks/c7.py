@@ -29,6 +29,7 @@ def run(ctx):
                       observe=lambda: {"server_log": ctx.lua("server", "return SO.terminal.log")})
     data = analyze(rows, miners, ctx.tick_rate, 180)
     data["previously_dug_cells"] = audit_dug(rows, miners, cold)
+    data["prior_dug_coverage"] = "cold marks audited" if cold else "not triggered; covered by unit tests"
     data["game_seconds"] = (ctx.game_clock() - start) / 1000
     data["ore_delivered"] = ctx.count_items("ore", "raw_iron") - before > 0
     for kind in ("ore", "fuel"):

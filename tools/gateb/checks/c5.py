@@ -20,6 +20,7 @@ def run(ctx):
     rows = ctx.sample("C5-samples.jsonl", ctx.game_seconds(600) + 30, done)
     data = analyze(rows, miners, ctx.tick_rate)
     data["previously_dug_cells"] = audit_dug(rows, miners, cold)
+    data["prior_dug_coverage"] = "cold marks audited" if cold else "not triggered; covered by unit tests"
     data["conditional_yield"] = ("naturally triggered; observed in samples" if any(t.get("yield") for r in rows for t in r["mine"].get("turtles", {}).values())
                                  else "not triggered; covered by unit tests")
     return evaluate(ctx.record("C5-observations.json", data))
