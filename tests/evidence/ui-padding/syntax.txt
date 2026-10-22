@@ -1,0 +1,1 @@
+PASS luac5.2 -p for every changed Lua file.

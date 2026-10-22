@@ -1,0 +1,15 @@
+Base: fd53311882d7adfbe3e66f4950377727d88b0ecd, PR #176.
+Plain cc-test: PASS, 551 tests, local-2 slot, exit 0.
+Focused UI checks: PASS, 83 checks including fixtures, contrast, tile padding and AR label ranges.
+Navigation walk from #176: PASS, 22 checks across ten screen sizes.
+Drop editor checks after adding its left margin: PASS, 6 checks.
+Compatibility with PR #174: production Lua merges automatically. Three generated-content conflicts were resolved with the padded layout and #174's daily sample. One added header assertion moved to row 2. The combined tree passed 87 UI checks, 22 navigation checks and the final 6 drop-editor checks.
+luac5.2 -p: PASS for all 17 changed Lua files.
+python3 tools/cobaltlocals.py: maximum 58 locals, below 185.
+Scope check against origin/server-only: PASS, tests/run.lua unchanged, no deleted tests.
+python3 -I docs/ui/mockup-gen.py --fixtures: PASS, fixtures regenerated and checked cell by cell.
+Client install source: worker 124883 bytes, display 117606 bytes, both below 1 MB.
+Gate A: not established. The Windows legacy sandbox run failed on missing server.state and a server copy over its 1 MB disk limit. Reports and stdout/stderr are saved. tests/review-capture.ps1 is absent.
+Gate B: not run for this head. The orchestrator owns the frozen server-only Gate B run.
+Windows task files and sandbox run removed; sandbox process stopped by its runner.
+No live server or RCON was accessed.

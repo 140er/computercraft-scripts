@@ -1,0 +1,10 @@
+Padding code commit: 6cee69c, plus the drop editor inset from 6fe9297
+PR #174 head: d6f7abd1e540d388e898aaaec494844cc809a8f6
+Production Lua changes merge automatically.
+Three generated-content conflicts need resolution:
+- docs/ui/mockup-gen.py: keep padded geometry and use #174's LOGS TODAY sample of 96, logs delivered, green.
+- tests/ui/fixtures/lumber-M.txt: regenerate from that generator.
+- docs/ui/BIG-TILES-SPEC.md: regenerate section 7.1 from that generator.
+The new UI2a setup-isolation test in #174 must read its header on row 2.
+After these resolutions, 87 UI checks and 22 navigation checks passed.
+The combined tree was tested in /tmp/ui-padding-compat-174 and was not merged into this branch.

@@ -106,16 +106,16 @@ Preview (the same glyphs as Unicode sextants, close to how CC draws them):
 
 ## 5. Building blocks (so-ui.lua, server side)
 
-- **Header** (1 row, `7`): screen name left, a short state right (`running`, `ok`, `21:14`). The shop header is `a`.
-- **Alert bar** (row 2, `e`, ink text): the newest alert, with `tap for alerts`. If there is no alert, the row is navy.
-- **Tile** (5 rows, any width of 12 or more): row 1 label, rows 2-4 the big value centred, row 5 one sub line.
+- **Header** (row 2, `7`): screen name left, a short state right (`running`, `ok`, `21:14`). The shop header is `a`.
+- **Alert bar** (row 3, `e`, ink text): the newest alert. If there is no alert, the row is navy.
+- **Tile**: row 1 is blank, row 2 holds the title, and rows 3-5 hold the complete big value. A six-row tile ends with a blank row. A seven-row tile puts the sub-line on row 6 and ends with a blank row. Content has one blank column on each side. The default height is seven rows on screens at least 24 rows tall, otherwise six; layouts can pass a height explicitly.
   The colour shows the state: `d` ok, `1` attention, `e` fault, `b` info, `9` action, `c` stale or off.
-  A value that does not fit at big size falls back to normal text in row 3.
+  A value that does not fit at big size falls back to normal text in tile row 4.
 - **Button** (3 rows tall, at least 8 wide): label on the middle row. `7` normal, `9` primary, `e` stop, `a` shop.
 - **List row** (1 row): a 1-character state stripe in the state colour at column 1, then plain columns.
 - **Search box** (1 row, `0` background, ink text).
 - Tiles have one blank row above the title and below the content, and one blank column on each side. A big value uses three complete rows. Tiles need six rows without a sub-line or seven with one. Compact layouts drop the sub-line first. Headers start on row 2. Tile backgrounds leave a one-column screen margin. One-row navigation keeps its full labels when there is no room for inner padding.
-- **Grid**: tiles with 1-column and 1-row gaps (navy). Buttons sit on the bottom 3 rows (pocket: 1 nav row).
+- **Grid**: tiles with 1-column and 1-row gaps (navy). Buttons use the bottom three rows when they fit, otherwise one row. The pocket reserves two navigation rows.
 
 ## 6. Alerts and outages
 
