@@ -24,7 +24,7 @@ def run(ctx):
         for name in ("pocket", "wall"):
             for role in ("mining", "lumber", "generic", "ar", "map", "shop", "status"):
                 frame = ctx.navigate(name, role)
-                ctx.record(f"C3-{name}-{role}.json", {"frame": frame, "terminal": ctx.terminal(name)})
+                ctx.record(f"C3-{name}-{role}.json", {"frame": frame, "screen": ctx.request("monitors", computer=ctx.computer(name)) if name == "wall" else ctx.terminal(name)})
                 reached.append(frame.get("role") == role)
                 if role == "mining":
                     text = "\n".join(r.get("text", "") for r in values(frame["rows"]))
@@ -33,11 +33,11 @@ def run(ctx):
                     setup = ctx.click(name, "setup")
                     setups.append(any("back" in b.get("id", "") for b in values(setup["buttons"])))
                     ctx.click(name, "mine-back" if role == "mining" else "lumber-back")
-            # Captures require the client to open this native device, not merely stand in the world.
-            if ctx.manifest.get("client_views", {}).get(name):
-                ctx.command(ctx.manifest["client_views"][name])
-                ctx.screenshot(f"C3-{name}.png")
-                photos.append(check(ctx, f"C3-{name}.png"))
+                if ctx.manifest.get("client_views", {}).get(name):
+                    ctx.command(ctx.manifest["client_views"][name])
+                    photo = f"C3-{name}-{role}.png"
+                    ctx.screenshot(photo)
+                    photos.append(check(ctx, photo))
         ctx.power("storage", "on")
         ctx.navigate("wall", "shop")
         ctx.type_text("wall", "diamond")
@@ -52,6 +52,6 @@ def run(ctx):
         survived = ctx.wait(lambda: ctx.frame("pocket").get("role") == "generic", 30)
         return evaluate(ctx.record("C3-observations.json", {"all_screens_reached": all(reached),
              "setups_and_returns": all(setups), "generic_survives_reboot": bool(survived),
-             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": len(photos) == 2 and all(photos)}))
+             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": all(photos) if len(photos) == 14 else None}))
     finally:
         ctx.cli("client", ctx.run, "stop")

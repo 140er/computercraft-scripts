@@ -68,7 +68,8 @@ File-copy preparation never counts as a normal HTTP installation.
 C3 reads actual received button rectangles and injects native mouse or monitor
 input. Successful queuing alone never establishes navigation success. Optional
 `client_views.wall` and `client_views.pocket` console commands place the client
-for native photos. `visual_baselines` maps screenshot names to reviewed external
+for native photos of each role, such as `C3-pocket-mining.png`. Missing camera
+setup blocks photo credit. `visual_baselines` maps screenshot names to reviewed external
 references with `path`, `sha256`, and `regions` of `[width,height,x,y]`. Regions
 must exclude changing clocks or world animation. Exact pixels must match.
 Missing references block visual claims. Large images stay outside git.

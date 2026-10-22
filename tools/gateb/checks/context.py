@@ -6,6 +6,7 @@ import time
 
 from .lua_data import parse
 from .model import Blocked, values
+from .admission import admit
 
 HTTP_UPDATE = '''local original=http.get;local requests,failures=0,0
   http.get=function(...) requests=requests+1;local r,e,f=original(...)
@@ -40,6 +41,8 @@ class Context:
         return self.runtime.request(self.run, {"op": op, **kwargs}, timeout=30)
 
     def cli(self, *args, timeout=180):
+        if args[0] in ("serve", "reset") or args[:2] == ("pool", "up") or (args[0] == "client" and args[-1] == "start"):
+            admit()
         command = ["python3", str(getattr(self, "runtime_dir", Path(__file__).resolve().parents[1]) / "world.py"), *map(str, args)]
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
         if completed.returncode:
