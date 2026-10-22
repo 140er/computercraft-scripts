@@ -193,9 +193,12 @@ does not pair with this server.
 
 The server discovers the Storage Room turtle and polls stock automatically.
 Until discovery the shop screen says `Storage room not found, still looking`.
-Type text to filter item names. Matching ignores case and treats spaces as
-underscores. Item buttons order 1, 16 or 64 items. Replies appear as `Order:`
-lines. Orders are not retried automatically and time out after two minutes.
+Type text to filter item names on that display. Matching ignores case and treats
+spaces as underscores. Tap `clear`, or submit a lone space or `*`, to clear it.
+After five minutes without stock, the server clears stale stock and looks for
+a Storage Room turtle again. Rooms use the legacy unpaired protocol; there is
+no saved room selector, so isolate competing storage networks.
+Item buttons order 1, 16 or 64 items. Replies appear as `Order:` lines. Orders are not retried automatically and time out after two minutes.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 

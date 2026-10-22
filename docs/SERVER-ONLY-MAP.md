@@ -133,7 +133,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames. Calls are `screen(role, render, input)` and `tick(now)`.
+  clipped frames with per-role, per-client revisions and a four-second keepalive.
+  Calls are `screen(role, render, input)` and `tick(now)`.
   `render(w, h, clientId)` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
   sender ID `from`, coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
@@ -144,7 +145,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
-  Tick registers the shop screen, discovers storage and polls stock.
+  Tick registers the shop screen, discovers storage and polls stock. Search is
+  per display with a visible clear button. Five minutes without stock resumes
+  discovery; the legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
@@ -203,7 +206,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `drops` and `alerts` toggles. Switches save through `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
-  dimensions filter world elements. See [AR](server-only/PROTOCOL.md#ar).
+  dimensions filter world elements. Alerts expire after five minutes, renewed
+  by new events. First controller attachment clears old elements when supported.
+  See [AR](server-only/PROTOCOL.md#ar).
 
 ### Thin clients
 

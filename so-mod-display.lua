@@ -129,10 +129,11 @@ D.compose = function(role, w, h, clientId)
     buttons = copy
   end
   local sig = D.sig(rows, buttons)
-  local slot = D.pictures[role]
+  local key = role .. ":" .. tostring(clientId)
+  local slot = D.pictures[key]
   if not slot then
     slot = { rev = 0, sig = "" }
-    D.pictures[role] = slot
+    D.pictures[key] = slot
   end
   if sig ~= slot.sig then
     slot.rev = slot.rev + 1
@@ -157,7 +158,7 @@ D.sendFrame = function(id, now, force)
   if not key then return end
   local role = D.drawn(id)
   local body = D.compose(role, session.w, session.h, id)
-  local slot = D.pictures[body.role]
+  local slot = D.pictures[body.role .. ":" .. tostring(id)]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
   if not due then return end
