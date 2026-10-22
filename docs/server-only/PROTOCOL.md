@@ -510,7 +510,7 @@ when the drops module supplies the generic screen.
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids. Old files without `far` remain valid.
 The default role is `generic`, except a 26x20 display without a saved role
-uses `status`. Saved roles, including `panel`, take precedence. Both settings
+uses `status` when the kit is installed. Saved roles, including `panel`, take precedence. Both settings
 survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on

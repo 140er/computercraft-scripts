@@ -137,7 +137,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   header button when they do not already provide one.
   Render signatures and revisions are isolated by role and size. Status also
   isolates paging and alert takeover state per display session. Panel frames also
-  isolate revisions per session. A roleless 26x20 display defaults to status. Its
+  isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
   glance row pages three tiles at a time with `prev` and `next`; `panel` selects
   panel mode. Explicit saved roles take precedence. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.

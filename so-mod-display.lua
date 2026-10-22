@@ -31,7 +31,7 @@ D.roleOf = function(id)
   local role = D.saved.roles[tostring(id)]
   if role == "shop" or role == "mining" or role == "lumber" or role == "status" or role == "ar" or role == "panel" then return role end
   local session = D.sessions[id]
-  if role == nil and session and session.w == 26 and session.h == 20 then return "status" end
+  if U and role == nil and session and session.w == 26 and session.h == 20 then return "status" end
   return "generic"
 end
 
