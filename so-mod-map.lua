@@ -2,6 +2,14 @@ local U = dofile("so-ui.lua")
 local M = { scene = {}, dirs = {[0]={0,-1},{1,0},{0,1},{-1,0}},
   dimensions = {[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"} }
 
+do
+  local probe = U.canvas(15,3)
+  probe.header("MAP", "")
+  for y,row in ipairs(probe.frame().rows) do
+    if row.text:find("MAP",1,true) then M.headerRow=y break end
+  end
+end
+
 M.call = function(name, method, ...)
   local mod = SO.mods[name]
   if mod and type(mod[method]) == "function" then return mod[method](...) end
@@ -68,7 +76,9 @@ end
 M.render = function(w, h, session)
   session = type(session)=="table" and session or {}
   local v, s = M.view(session), M.scene
-  local c, vw, vh = U.canvas(w,h), w, math.max(1,h-4)
+  local mapTop = M.headerRow+1
+  local c, vw, vh = U.canvas(w,h), w, math.max(1,h-3-M.headerRow)
+  v.headerRow = M.headerRow
   local g = M.geometry(s)
   local surface = s.server and s.server.y or s.lumber.ground or g and g.top or 64
   local y = v.level=="surface" and surface or g and g.bottom or surface
@@ -95,33 +105,46 @@ M.render = function(w, h, session)
   end
   local scale = v.scale or 1
   local left, top = v.x-math.floor(vw/2)*scale, v.z-math.floor(vh/2)*scale
-  local function project(x,z) return math.floor((x-left)/scale)+1, math.floor((z-top)/scale)+2 end
+  local function project(x,z) return math.floor((x-left)/scale)+1, math.floor((z-top)/scale)+mapTop end
   local function visible(p) return v.level=="all" or p.y==y end
   local function mark(p,ch,color)
     local x,z = project(p.x,p.z)
-    if x>=1 and x<=vw and z>=2 and z<=vh+1 then c.put(x,z,ch,"f",color) return x,z end
+    if x>=1 and x<=vw and z>=mapTop and z<mapTop+vh then c.put(x,z,ch,"f",color) return x,z end
   end
   local key = table.concat({left,top,scale,w,h,v.level,y,s.dim},":")
   if v.scanKey ~= key then v.scanKey, v.cursor, v.dug, v.nextDug = key, 0, {}, {} end
-  local low, high = y,y
-  if v.level=="all" then low,high = math.min(y,surface),math.max(y,surface) end
+  local levels, seen = {}, {}
+  local function level(value)
+    if value and not seen[value] then seen[value]=true levels[#levels+1]=value end
+  end
+  level(y)
+  if v.level=="all" then
+    level(surface)
+    if g then level(g.bottom+1) level(g.top) end
+    if area then level(s.lumber.ground) end
+    for _, t in ipairs(s.turtles) do level(t.pose.y) end
+    for _, p in ipairs(s.drops) do level(p.y) end
+  end
+  table.sort(levels)
+  local levelKey = table.concat(levels,",")
+  if v.levelKey~=levelKey then v.levelKey,v.cursor,v.nextDug=levelKey,0,{} end
   local width, depth = vw*scale,vh*scale
-  local total = width*depth*(high-low+1)
+  local total = width*depth*#levels
   for _=1,math.min(256,total) do
     local n = v.cursor
     local x,z = left+n%width, top+math.floor(n/width)%depth
-    local level = low+math.floor(n/(width*depth))
+    local level = levels[math.floor(n/(width*depth))+1]
     if M.call("cells","isDug",x,level,z,s.dim) then
       local px,pz = project(x,z)
-      v.dug[(pz-2)*vw+px],v.nextDug[(pz-2)*vw+px] = true,true
+      v.dug[(pz-mapTop)*vw+px],v.nextDug[(pz-mapTop)*vw+px] = true,true
     end
     v.cursor = (n+1)%total
     if v.cursor==0 then v.dug,v.nextDug=v.nextDug,{} end
   end
-  for z=2,vh+1 do
+  for z=mapTop,mapTop+vh-1 do
     for x=1,vw do
-      if v.dug[(z-2)*vw+x] then c.put(x,z," ","0","8") end
-      local x1,z1 = left+(x-1)*scale,top+(z-2)*scale
+      if v.dug[(z-mapTop)*vw+x] then c.put(x,z," ","0","8") end
+      local x1,z1 = left+(x-1)*scale,top+(z-mapTop)*scale
       local x2,z2 = x1+scale-1,z1+scale-1
       if area and (v.level=="all" or y==s.lumber.ground) and
           ((x1<=area.x1 and x2>=area.x1 or x1<=area.x2 and x2>=area.x2) and z2>=area.z1 and z1<=area.z2
@@ -137,7 +160,7 @@ M.render = function(w, h, session)
         if (v.level=="all" or y==g.bottom) and
             (r1<=0 and r2>=0 and a2>=0 and a1<=g.count*g.gap
             or branch<=g.count and branch*g.gap<=a2 and r2>=0 and r1<=g.length) then
-          if not v.dug[(z-2)*vw+x] then c.put(x,z," ","f","7") end
+          if not v.dug[(z-mapTop)*vw+x] then c.put(x,z," ","f","7") end
         end
       end
     end
@@ -152,7 +175,7 @@ M.render = function(w, h, session)
   local occupied = {}
   for _, t in ipairs(s.turtles) do if visible(t.pose) then
     local x,z = project(t.pose.x,t.pose.z)
-    if x>=1 and x<=vw and z>=2 and z<=vh+1 then occupied[z*vw+x] = true end
+    if x>=1 and x<=vw and z>=mapTop and z<mapTop+vh then occupied[z*vw+x] = true end
   end end
   for _, t in ipairs(s.turtles) do if visible(t.pose) then
     local arrow = ({[0]="^",">","v","<",north="^",east=">",south="v",west="<"})[t.pose.facing or t.pose.f or 0] or "^"

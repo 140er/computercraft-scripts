@@ -231,63 +231,28 @@ add(c, "AR layer switches (1 = on, 0 = off)")
 c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
 
-# --- Top-down map scene in the projected level.
-import math
-for mw, mh in [(26, 20), (29, 12), (57, 24)]:
-    c = Canvas(mw, mh)
-    vh = mh - 4
-    scale = max(1, math.ceil(13 / mw), math.ceil(14 / vh))
-    left, top = -(mw // 2) * scale, -4 - (vh // 2) * scale
-    def mark(x, z, ch=" ", bg="7"):
-        px, py = (x - left) // scale, (z - top) // scale + 1
-        if 0 <= px < mw and 1 <= py <= vh:
-            c.text(px, py, ch, bg)
-            return px, py
-    for z in range(-9, 0):
-        mark(0, z)
-    for z in [-5, -9]:
-        for x in range(5):
-            mark(x, z)
-    mark(1, -7, bg="8")
-    for x in range(-5, -2):
-        for z in range(-3, 0):
-            if x in [-5, -3] or z in [-3, -1]:
-                mark(x, z, bg="d")
-    mark(0, -1, "H", "9")
-    for x, y, ch in [(5, -5, "O"), (-5, 2, "F"), (-3, 2, "W"), (-1, 2, "S")]:
-        mark(x, y, ch, "a")
-    mark(0, 2, "@", "9")
-    for x, z, ch, ident, bg in [(2, -5, ">", "2", "d"), (4, -9, "v", "3", "b")]:
-        px, py = mark(x, z, ch, bg)
-        if scale == 1:
-            c.text(px + 1, py, ident, bg)
-    c.header("MAP", f"N ^ 1:{scale}")
-    available = mw - 3
-    for row, labels in [(mh - 3, ["BACK", "FIT", "+", "-"]), (mh - 2, ["^", "<", "v", ">"] )]:
-        for i, label in enumerate(labels):
-            start = math.floor(i * available / 4 + 0.5)
-            end = math.floor((i + 1) * available / 4 + 0.5)
-            c.button(start + i, row, end - start, label, "9" if label == "FIT" else "7", h=1)
-    c.button(0, mh - 1, mw, "ALL", h=1)
-    add(c, f"Map, projected levels {mw}x{mh}", True)
-
 import argparse
 from pathlib import Path
+import runpy
+
+map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fixtures", type=Path)
 args = parser.parse_args()
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS map-26x20 map-29x12 map-57x24".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
+    map_mockup["write"](Canvas, args.fixtures, fixtures=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
+map_mockup["write"](Canvas, Path("."))
 # font table
 ft = []
 for ch in "0123456789%-:/":

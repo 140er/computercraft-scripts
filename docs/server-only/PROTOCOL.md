@@ -765,14 +765,17 @@ Numeric drop dimensions are normalized to world dimension strings.
 `x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
 `level` starts as `all` and cycles through `mine`, `surface`, `all`.
 Mine selects the job bottom; surface selects server y, farm ground or mine home.
-All projects every scene marker and scans the interval between bottom and surface.
+All projects every scene marker. Dug scans sample the mine bottom and its next
+block, mine home, surface, farm ground, and known chest and turtle y levels.
 The map is north-up with x horizontal and z vertical. It filters to the server
 dimension, or the configured job dimension when the server position is absent.
 
 Geometry tests intersections per screen cell. Route length and branch count do
 not increase frame work. Dug scans call `cells.isDug` at most 256 times per
 render and retain a viewport-sized raster. A completed scan replaces old marks.
-View changes reset the scan. At coarse zoom, any found dug block marks its
+View changes reset the scan. Changing tracked levels restarts the scan while
+retaining its visible raster until a new pass completes. Empty shaft heights
+are skipped. At coarse zoom, any found dug block marks its
 projected cell. New dug blocks appear as the scan advances. Rendering never
 calls sleep. Existing cell reads may use `SO.breathe` during bulk work.
 
@@ -785,7 +788,8 @@ Markers at the same projected cell overlap; turtles take precedence.
 
 Drawn inputs are `map-fit`, `map-in`, `map-out`, `map-n`, `map-w`, `map-s`,
 `map-e` and `map-level`. Zoom ranges from 1 to 4096 blocks per cell. Panning
-moves three displayed cells. Controls occupy the bottom three rows at every
+moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
+the padded kit. Controls occupy the bottom three rows at every
 size, including 26x20 and 29x12. The header shows north and blocks per cell.
 The remaining rows expand with the display. All view and scan state clears on
 server restart and remains independent per paired display or local monitor.

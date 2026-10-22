@@ -222,9 +222,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lumber.mapView()`, registry workers, lease range/state and drop points.
   `render(w, h, session)` keeps fit, centre, blocks per cell, level and a bounded
   dug-cell scan in `session.map`. Rendering uses at most 256 `cells.isDug`
-  calls. Scan caches replace on complete passes and reset on view changes.
+  calls, limited to known tunnel, surface, farm, chest and turtle levels.
+  Scan caches replace on complete passes and reset on view changes.
   Mine geometry uses screen-cell intersections, independent of route length.
   MAP appears at the right of each Big Tiles header when this module is loaded.
+  Map and navigation read the kit header row, including the padded row 2.
   BACK restores `session.mapReturn`, or status after restart. Local monitor
   navigation uses its own session. No client or saved-file format changes.
   See [map](server-only/PROTOCOL.md#map).

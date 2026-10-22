@@ -17,6 +17,14 @@ local D = {
   alertSequence = 0,
 }
 
+if U then
+  local probe = U.canvas(15,3)
+  probe.header("MAP", "")
+  for y,row in ipairs(probe.frame().rows) do
+    if row.text:find("MAP",1,true) then D.headerRow=y break end
+  end
+end
+
 D.now = function() return os.epoch and os.epoch("utc") or 0 end
 
 D.whole = function(n)
@@ -227,7 +235,8 @@ D.compose = function(role, w, h, session)
   if U and role ~= "map" and D.screens.map and w >= 15 then
     local copy, targets = {}, {}
     for i,row in ipairs(rows) do copy[i]=row end
-    local row = rows[1] or {text=""}
+    local headerRow = D.headerRow
+    local row = rows[headerRow] or {text=""}
     local fitted = D.fit({rows={row},buttons={}},w,1).rows[1]
     local text = fitted.text .. string.rep(" ",w)
     local fg,bg = "",""
@@ -249,10 +258,10 @@ D.compose = function(role, w, h, session)
         text=text:sub(1,last-6)..tail..string.rep(" ",w)
       end
     end
-    copy[1] = {text=text:sub(1,w-4).." MAP", fg=fg:sub(1,w-4).."ffff",
+    copy[headerRow] = {text=text:sub(1,w-4).." MAP", fg=fg:sub(1,w-4).."ffff",
       bg=bg:sub(1,w-4).."9999"}
     for _,b in ipairs(buttons) do targets[#targets+1]=b end
-    targets[#targets+1] = {id="map",x=w-3,y=1,w=4,h=1,label=""}
+    targets[#targets+1] = {id="map",x=w-3,y=headerRow,w=4,h=1,label=""}
     rows,buttons=copy,targets
   end
   if banner then

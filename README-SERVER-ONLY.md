@@ -115,8 +115,8 @@ saplings. The farm outline is green. Broken drop points are coral.
 
 The bottom button cycles `MINE`, `SURFACE` and `ALL`. Mine selects the job's
 bottom y level. Surface selects the server's y level, or the farm ground when
-there is no server position. All projects the scene and scans dug blocks
-between the mine bottom and surface. Dug blocks appear progressively, with at
+there is no server position. All projects the scene and scans dug blocks at the mine bottom, tunnel roof,
+surface, farm ground, and known chest and turtle levels. Dug blocks appear progressively, with at
 most 256 cell reads per frame. At coarse zoom, several blocks share one cell.
 Turtles draw above landmarks and cells. Only the server's dimension is shown.
 

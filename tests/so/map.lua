@@ -2,7 +2,7 @@ local H = dofile("tests/so/harness.lua")
 local R = dofile("tests/ui/render.lua")
 local U = dofile("so-ui.lua")
 
-local function setup(monitor)
+local function setup(monitor, padded)
   local net = H.new()
   local m = net.machine({id=1,modem=true,monitor=monitor,width=26,height=20})
   m.install({"so-store.lua","so-mod-map.lua","so-mod-display.lua","so-ui.lua","so-proto.lua"})
@@ -13,7 +13,31 @@ local function setup(monitor)
     m.env.peripheral.find=function(kind) if kind=="monitor" then return target end return find(kind) end
     m.env.peripheral.getName=function() return "monitor" end
   end
-  local scene = {queries=0, machines={}}
+  if padded then
+    local native=m.env.dofile
+    m.env.dofile=function(path)
+      local lib=native(path)
+      if path=="so-ui.lua" then
+        local probe=lib.canvas(15,3) probe.header("MAP","")
+        if probe.frame().rows[1].text:find("MAP",1,true) then
+          local canvas=lib.canvas
+          lib.canvas=function(w,h,bg)
+            local c=canvas(w,h,bg)
+            local header=c.header
+            c.header=function(...)
+              header(...)
+              c.cells[2]=c.cells[1]
+              c.cells[1]={}
+              for x=1,w do c.cells[1][x]={" ","0","f"} end
+            end
+            return c
+          end
+        end
+      end
+      return lib
+    end
+  end
+  local scene = {queries=0, machines={},levels={}}
   local mine = {dim="minecraft:overworld",home={x=0,y=64,z=0,facing=0},bottom=60,length=4,branches=2,
     turtles={[2]={pose={x=2,y=60,z=-5,facing=1},state="mining"},
       [3]={pose={x=4,y=60,z=-9,facing=2},state="done"}}}
@@ -27,6 +51,7 @@ local function setup(monitor)
     state={get=function() return scene.machines end},
     cells={isDug=function(x,y,z)
       scene.queries=scene.queries+1
+      scene.levels[y]=true
       return x==1 and y==60 and z==-7
     end},
     lease={status=function(id) return scene.lost==id and {lost=true} or {} end,inRange=function() return true end},
@@ -61,7 +86,7 @@ local function picture(frame,w,h)
 end
 local function project(v,w,h,x,z)
   return math.floor((x-v.x+math.floor(w/2)*v.scale)/v.scale)+1,
-    math.floor((z-v.z+math.floor((h-4)/2)*v.scale)/v.scale)+2
+    math.floor((z-v.z+math.floor((h-3-v.headerRow)/2)*v.scale)/v.scale)+v.headerRow+1
 end
 local function button(frame,id,w,h)
   for _,b in ipairs(frame.buttons) do if b.id==id then
@@ -125,6 +150,33 @@ return function(test,equal)
       end
     end)
   end
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h=size[1],size[2]
+    test("map and MAP navigation follow the kit header on row 2 at "..w.."x"..h,function()
+      local s=setup(false,true)
+      local kit=s.machine.env.dofile("so-ui.lua")
+      s.display.screen("panel",function(cw,ch)
+        local c=kit.canvas(cw,ch) c.header("PANEL","22:14") return c.frame()
+      end,function() end)
+      s.display.handlers.hello({from=22,body={w=w,h=h,fullH=h}})
+      s.display.handlers.input({from=22,body={id="generic",x=1,y=1}})
+      s.display.handlers.input({from=22,body={id="panel",x=1,y=1}})
+      local frame
+      s.display.handlers["view.get"]({from=22,body={}},function(_,body) frame=body end)
+      local target=button(frame,"map",w,h)
+      equal(target.y,2)
+      equal(frame.rows[1].text:match("%S"),nil,"blank padding above navigation")
+      assert(frame.rows[2].text:find("22:14",1,true),"MAP preserves the panel clock")
+      local session={}
+      frame=s.screen.render(w,h,session)
+      equal(session.map.headerRow,2)
+      equal(frame.rows[1].text:match("%S"),nil,"blank padding above map")
+      assert(frame.rows[2].text:find("MAP",1,true),"map header stays on row 2")
+      local x,z=project(session.map,w,h,2,-5)
+      assert(z>2,"scene is below the header")
+      equal(picture(frame,w,h).cells[z][x][1],">")
+    end)
+  end
   test("map snapshots copy mining and lumber world data",function()
     local s=setup()
     local m=s.machine
@@ -180,6 +232,22 @@ return function(test,equal)
     local before=s.queries
     s.screen.render(29,12,session)
     equal(s.queries-before,256)
+  end)
+  test("all-level dug scans skip empty shaft heights and retain the frame budget",function()
+    local s=setup()
+    s.mine.bottom=-58
+    s.mine.turtles[2].pose.y=-58
+    s.mine.turtles[3].pose.y=-58
+    s.map.tick(0)
+    local session={}
+    for _=1,30 do
+      local before=s.queries
+      s.screen.render(26,20,session)
+      assert(s.queries-before<=256,"bounded all-level work")
+    end
+    equal(session.map.levelKey,"-58,-57,60,64")
+    for y in pairs(s.levels) do assert(y==-58 or y==-57 or y==60 or y==64,"scanned an empty shaft height") end
+    assert(s.levels[-58] and s.levels[-57] and s.levels[60] and s.levels[64],"all tracked levels scanned")
   end)
   test("map view state and scan caches belong to each display",function()
     local s,a,b=setup(),{},{}
