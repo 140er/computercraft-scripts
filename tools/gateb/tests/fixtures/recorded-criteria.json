@@ -1,0 +1,205 @@
+{
+  "source": "build-4b6ba5b/baseline-0f73a4e-report.md and build-0f73a4e/C6,C8,C9,C10,C11,C12,C13-result.json; normalized observations, not new game evidence",
+  "commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "checks": [
+    {
+      "check": "C1",
+      "expected": "fail",
+      "observations": {
+        "normal_http_install": true,
+        "install_errors": [
+          "Initial display 2 wget TLS secure-connection failure; retry succeeded"
+        ],
+        "exact_files": true,
+        "rebooted_roles": 6
+      }
+    },
+    {
+      "check": "C2",
+      "expected": "pass",
+      "observations": {
+        "paired_clients": 5,
+        "bad_attempts": 5,
+        "invitation_burned": true,
+        "probe_unpaired": true,
+        "server_prompt_restored": true
+      }
+    },
+    {
+      "check": "C3",
+      "expected": "fail",
+      "observations": {
+        "all_screens_reached": false,
+        "setups_and_returns": false,
+        "coordinates_fit": false,
+        "generic_survives_reboot": true,
+        "single_order_delivery": true,
+        "real_photos": true
+      }
+    },
+    {
+      "check": "C4",
+      "expected": "pass",
+      "observations": {
+        "settled_seconds": 10,
+        "verified_before_anchor": true,
+        "server_poses_match": true,
+        "display_poses_match": true
+      }
+    },
+    {
+      "check": "C5",
+      "expected": "fail",
+      "observations": {
+        "range_samples": 1,
+        "collisions": 0,
+        "errors": [],
+        "completed_miners": [
+          "4"
+        ],
+        "handoff_game_seconds": null
+      }
+    },
+    {
+      "check": "C6",
+      "expected": "pass",
+      "observations": {
+        "logs_delivered": 19,
+        "replanted": 4,
+        "dug_count": 28,
+        "unsafe_digs": []
+      }
+    },
+    {
+      "check": "C8",
+      "expected": "pass",
+      "observations": {
+        "ore": {
+          "alerts": 1,
+          "parked": true,
+          "retry_game_seconds": [
+            60.297,
+            60.315
+          ],
+          "resume_game_seconds": 37.84242367744446
+        },
+        "fuel": {
+          "alerts": 1,
+          "parked": true,
+          "retry_game_seconds": [
+            60.953,
+            60.938,
+            60.753
+          ],
+          "resume_game_seconds": 56.28811955451965
+        }
+      }
+    },
+    {
+      "check": "C9",
+      "expected": "pass",
+      "observations": {
+        "off_seconds": 183.4,
+        "no_motion": true,
+        "stale_seconds": 7.83,
+        "recovery_seconds": 12.86,
+        "new_recovery_parks": true
+      }
+    },
+    {
+      "check": "C10",
+      "expected": "pass",
+      "observations": {
+        "off_seconds": 204.51960396766663,
+        "active_workers": true,
+        "outside_own_path": [],
+        "collisions": [],
+        "duplicate_digs": [],
+        "movement_recovery_seconds": {
+          "4": 5.1088738441467285,
+          "5": 5.1088738441467285,
+          "6": 5.1088738441467285
+        },
+        "worker_count": 3,
+        "outage_samples": 10,
+        "retreat_observed": true
+      }
+    },
+    {
+      "check": "C11",
+      "expected": "pass",
+      "observations": {
+        "zero_forced_chunks": true,
+        "native_unloaded": true,
+        "helpers_disabled": true,
+        "pending_inputs_absent": true,
+        "no_input_after_return": true,
+        "active_mid_batch": true,
+        "parked_poses_preserved": true,
+        "healthy_after_return": true,
+        "unloaded_seconds": 130.72,
+        "sample_count": 5,
+        "state_changes": [],
+        "movement_recovery_seconds": {
+          "6": 12.21
+        },
+        "active_count": 1
+      }
+    },
+    {
+      "check": "C12",
+      "expected": "pass",
+      "observations": {
+        "stock_visible_seconds": 10.78,
+        "search_filtered": true,
+        "delivered_delta": 16,
+        "stock_delta": -16
+      }
+    },
+    {
+      "check": "C13",
+      "expected": "fail",
+      "observations": {
+        "linked_goggles": true,
+        "labels_boxes_headings_aligned": null,
+        "no_overlap": false,
+        "stable_frames": null,
+        "hud_matches_server": false,
+        "native_layer_removal": true,
+        "layers_persist": true,
+        "real_photos": true
+      }
+    },
+    {
+      "check": "C14",
+      "expected": "pass",
+      "observations": {
+        "real_http_staging": true,
+        "native_interruption": true,
+        "old_files_unchanged": true,
+        "pairing_unchanged": true,
+        "old_role_rebooted": true,
+        "full_update_exact": true,
+        "final_rebooted": true
+      }
+    },
+    {
+      "check": "C7",
+      "expected": "fail",
+      "observations": {
+        "range_samples": 1,
+        "collisions": 0,
+        "errors": [],
+        "completed_miners": [
+          "4"
+        ],
+        "handoff_game_seconds": null,
+        "game_seconds": 694.62,
+        "ore_delivered": false,
+        "fuel_trip": false,
+        "ore_trip": false,
+        "server_errors": 0
+      }
+    }
+  ]
+}
