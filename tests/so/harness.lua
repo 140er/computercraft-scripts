@@ -176,8 +176,10 @@ local function attachTurtle(m, opts, world)
     placeUp = function() return place(4) end,
     placeDown = function() return place(5) end,
     suck = function(n) return suck(m.heading, n) end,
+    suckUp = function(n) return suck(4, n) end,
     suckDown = function(n) return suck(5, n) end,
     drop = function(n) return drop(n, m.heading) end,
+    dropUp = function(n) return drop(n, 4) end,
     dropDown = function(n) return drop(n, 5) end,
     refuel = function(n) return refuel(n) end,
     select = function(slot)
@@ -524,6 +526,19 @@ H.new = function()
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {
+      hasType = function(side, kind)
+        if kind ~= "inventory" or not m.pos then return false end
+        local p = m.pos
+        local dx, dy, dz = 0, 0, 0
+        if side == "top" then dy = 1
+        elseif side == "bottom" then dy = -1
+        elseif side == "front" then
+          dx = ({ [0]=0, 1, 0, -1 })[m.heading]
+          dz = ({ [0]=-1, 0, 1, 0 })[m.heading]
+        else return false end
+        local block = net.world[(p.x+dx) .. "," .. (p.y+dy) .. "," .. (p.z+dz)]
+        return type(block) == "table" and type(block.inv) == "table"
+      end,
       find = function(kind)
         if kind == "modem" and m.modem then return m.modem end
         if kind == "monitor" and opts.monitor then return env.term end

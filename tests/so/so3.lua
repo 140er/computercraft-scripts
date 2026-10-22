@@ -202,8 +202,9 @@ return function(test,equal)
     equal(s.turtle.pos.y, -2)
     assert(chest.inv[1].count < 64)
   end)
-  test("mine inventory unloads kept items and discards extra junk",function()
+  test("mine inventory unloads kept items and deposits extra junk",function()
     local s=setup()
+    s.net.world["0,-1,0"]={name="mod:crate",inv={}}
     for i=1,16 do s.turtle.inv[i]={name=i<=2 and "minecraft:cobblestone" or "minecraft:diamond",count=64} end
     s.net.world["1,0,0"]={name="minecraft:chest",inv={}}
     assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=1,y=0,z=0,side="front",kind="ore"}))
@@ -211,6 +212,23 @@ return function(test,equal)
     local chest=s.net.world["1,0,0"] local count=0
     for _,item in ipairs(chest.inv) do assert(item.name~="minecraft:cobblestone") count=count+item.count end
     equal(count,14*64)
+    equal(s.net.world["0,-1,0"].inv[1].count,64)
+  end)
+  test("mine refused cleanup unloads ore and excess junk at the chest",function()
+    local s=setup()
+    for i=1,16 do s.turtle.inv[i]={name=i<=2 and "minecraft:cobblestone" or "minecraft:diamond",count=64} end
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["1,0,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=1,y=0,z=0,side="front",kind="ore"}))
+    s.input("start") run(s,150)
+    local ore,junk=0,0
+    for _,item in ipairs(chest.inv) do
+      if item.name=="minecraft:diamond" then ore=ore+item.count end
+      if item.name=="minecraft:cobblestone" then junk=junk+item.count end
+    end
+    equal(ore,14*64) equal(junk,64)
+    equal(s.turtle.inv[1].count,64)
+    assert(s.turtle.pos.y<0,"mining did not resume after refused cleanup")
   end)
   test("mine range refusal sends no movement outside proven range",function()
     local s=setup() local lease=s.server.env.SO.mods.lease

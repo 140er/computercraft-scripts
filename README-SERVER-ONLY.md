@@ -174,3 +174,9 @@ underscores. Item buttons order 1, 16 or 64 items. Replies appear as `Order:`
 lines. Orders are not retried automatically and time out after two minutes.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
+
+Workers refuse drop and suck steps unless the target is an inventory. A missing
+chest returns `no inventory` and keeps the items in the turtle. Mining cleanup
+uses an inventory below the turtle when present. After a refused cleanup, excess
+junk travels to the ore chest with the next unload;
+one suitable stack stays for sealing.
