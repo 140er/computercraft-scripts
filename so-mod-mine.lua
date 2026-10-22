@@ -92,6 +92,10 @@ local function homeRoute(row)
   if cached and cached.key == key and cached.index == row.index and cached.route == row.route
       and cached.home == job.home and cached.bottom == job.bottom and cached.dim == job.dim then return cached end
   local path, access = M.supplyRoute(job,row,job.home,nil,lookup)
+  -- No remembered route: a re-add underground, or the lookup is empty after a
+  -- restart. Below the surface, plan the direct way down to the mine level and
+  -- along the spine; trips without access dig the same path.
+  if not path and row.pose.y < job.home.y then path = M.supplyRoute(job,{pose=row.pose},job.home) end
   cached = {key=key,index=row.index,route=row.route,home=job.home,bottom=job.bottom,dim=job.dim,
     reserve=path and #path-1+64 or math.huge,
     row={pose=row.pose,route=row.route,index=row.index,access=access}}
@@ -500,6 +504,14 @@ plan = function(id,row)
       row.branch, row.route, row.index=branch,M.route(job,branch),1
       row.veinCount = 0
     end
+    -- A worker added below the surface joins its route at the nearest tunnel
+    -- cell rather than climbing a new column to the shaft top.
+    if row.index==1 and row.pose.y<row.route[1].y then
+      row.index=2
+      for i=3,#row.route do
+        if M.distance(row.pose,row.route[i])<M.distance(row.pose,row.route[row.index]) then row.index=i end
+      end
+    end
     while row.route[row.index] and M.same(row.pose,row.route[row.index]) do row.index=row.index+1 end
     row.goal=row.route[row.index]
     -- A finished worker recovered elsewhere (moved by hand, or backed along
@@ -515,8 +527,13 @@ plan = function(id,row)
           return
         end
       end
-      row.state="done" job.progress.done=(job.progress.done or 0)+1
-      emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done}) save() park(id,row,false) return
+      row.state="done"
+      -- Recovery sets a finished row back to mining; count each branch once.
+      if row.counted~=row.branch then
+        row.counted=row.branch job.progress.done=(job.progress.done or 0)+1
+        emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
+      end
+      save() park(id,row,false) return
     end
   end
   row.state="mining"
@@ -598,7 +615,11 @@ return {name="mine",handlers={},tick=function()
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end
     lease.onReport("mine",report) display.screen("mining",render,input) S.wired=true
-    for _,row in pairs(job.turtles) do row.recover=true row.state="recovering" end
+    for _,row in pairs(job.turtles) do
+      -- Rows saved before counted existed were counted when they finished.
+      if row.state=="done" and row.counted==nil then row.counted=row.branch end
+      row.recover=true row.state="recovering"
+    end
   end
   for id,row in pairs(job.turtles) do
     if row.state ~= "wait lane" or row.recover or not job.running
