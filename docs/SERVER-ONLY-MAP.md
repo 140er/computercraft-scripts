@@ -141,6 +141,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   lowest id; a waiter with three intervening grants has priority. Waiting rows
   show `wait lane`. Side veins wait until the worker leaves the shared lane.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
+  Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
+  its fuel covers the return trip, the paused position's distance home, and 64 more moves.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).

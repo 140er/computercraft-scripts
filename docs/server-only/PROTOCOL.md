@@ -359,6 +359,9 @@ position about every ten digs. One stack of suitable blocks stays for sealing.
 
 Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
 below the distance home plus 64 visit a fuel drop and refuel towards 2000.
+An empty fuel chest ends the pickup if the worker has enough fuel to return to
+the paused position and still meet that position's distance home plus 64.
+Otherwise the existing chest retry and hold rules apply.
 Trips return to the position where work stopped. Trips route around their chest. Full inventories unload before a fuel pickup.
 Ore unloading includes mined fuel items. Front drops use a free neighbour
 at the same height. Down drops use the cell above the chest. The drop module's

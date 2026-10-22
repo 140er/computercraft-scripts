@@ -560,6 +560,40 @@ return function(test,equal)
     end)
   end
 
+  for _, spec in ipairs({ { coal=1, enough=true }, { coal=0, enough=false } }) do
+    test("mine empty fuel chest " .. (spec.enough and "returns with enough fuel" or "holds below reserve"), function()
+      local s = setup({fuel=30})
+      local chest = {name="minecraft:chest", inv={}}
+      if spec.coal > 0 then chest.inv[1]={name="minecraft:coal",count=spec.coal} end
+      s.net.world["1,0,0"] = chest
+      assert(s.server.env.SO.mods.drops.add({id="fuel",dim=0,x=1,y=0,z=0,side="front",kind="fuel"}))
+      local attempts, alerts = 0, 0
+      local suck = s.turtle.env.turtle.suck
+      s.turtle.env.turtle.suck = function(n) attempts=attempts+1 return suck(n) end
+      s.server.env.SO.mods.state = {emit=function(name)
+        if name=="mine.alert" then alerts=alerts+1 end
+      end}
+      s.input("start") run(s,100)
+      local row = persisted(s).turtles["2"]
+      if spec.enough then
+        equal(row.trip,nil)
+        equal(row.state,"done")
+        equal(row.dropRetry,nil)
+        equal(attempts,2)
+        equal(alerts,0)
+        assert(s.turtle.fuel > 64 and s.turtle.fuel < 2000)
+        equal(s.turtle.pos,{x=3,y=-2,z=-5})
+      else
+        equal(row.state,"hold")
+        equal(row.error,"fuel chest empty")
+        equal(row.trip.stage,"out")
+        equal(alerts,1)
+        assert(row.dropRetry.after)
+        equal(s.turtle.pos,{x=0,y=0,z=0})
+      end
+    end)
+  end
+
   test("mine inspect ends the batch before ore changes the plan", function()
     local M = dofile("so-mine-plan.lua")
     local row={pose={dim="minecraft:overworld",x=0,y=0,z=0,facing=0},goal={x=0,y=-20,z=0}}
