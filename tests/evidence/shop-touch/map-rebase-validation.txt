@@ -1,3 +1,5 @@
+Historical cb7fe0a validation, superseded by pair-map-validation.txt after #178 merged.
+
 Map-base rebase validation.
 Rebased only the shop commits onto server-only cb7fe0a, which includes the top-down map.
 The spec retains the touch shop description and section 7.0 Top-down map. Section 7.1 was regenerated from the merged mockup generator.

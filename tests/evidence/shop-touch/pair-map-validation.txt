@@ -1,0 +1,11 @@
+Pairing and map base rebase validation.
+Rebased only the shop commits onto server-only b883fb5, which includes #180 top-down map and #178 panel pairing.
+The merged pairing page and authenticated pair-code input remain intact. Touch-only shop controls remain on top of the merged panel behavior.
+The spec retains both the map section and the shop description. Regenerated section 7.1 includes pairing and shop mockups in generator order.
+The generator fixture list and UI0 fixture list include all four pairing fixtures and all three additional shop fixtures. Map fixtures are also retained and generated.
+python3 -I docs/ui/mockup-gen.py --fixtures completed.
+A local POSIX run of tests/ui/ui0.lua passed all 10 tests, including generator preserves section 7.1 and reproduces every fixture, with no SKIP UI0 line.
+tests/run.lua preserves the complete b883fb5 base, including map and pairing suites, and appends only the three shop-test lines.
+Final full command is cc-test --slot local. The override is required because UI0 generator parity needs a POSIX shell and python3 and would be skipped on Windows/PC.
+The exact tested head and result are recorded in the PR body after the run. The complete log is /home/jeffrey/work/test-evidence/shop-touch/b883fb5-full-suite.log, outside the checkout so committing evidence does not change the tested head afterward.
+The earlier cb7fe0a run completed with 605 passes before this new base arrived. It is historical validation, not the final run for this head.
