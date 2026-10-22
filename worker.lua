@@ -273,7 +273,8 @@ W.transmit = function(id, msg)
 end
 
 W.paint = function()
-  local seen = W.seen and tostring(W.seen) or "-"
+  local age = W.seen and math.max(0, math.floor((os.epoch("utc") - W.seen) / 1000))
+  local seen = age and (age < 60 and age .. "s ago" or math.floor(age / 60) .. "m ago") or "-"
   term.clear()
   term.setCursorPos(1, 1)
   term.write("lease " .. (W.lease or "-"))
@@ -283,6 +284,10 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   term.write("seen " .. seen)
+  term.setCursorPos(1, 9)
+  term.write("turtle " .. os.getComputerID())
+  term.setCursorPos(1, 10)
+  term.write(age and age < 60 and ("server " .. W.server .. " ok") or "waiting for server")
   if W.repair then
     term.setCursorPos(1, 6)
     term.write("Key changed? Old key kept.")
