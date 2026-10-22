@@ -358,6 +358,9 @@ or dug cell must pass the range check and reservation check before dispatch.
 Lost and expired workers retain their reservations until a recovery report.
 A completed route unloads remaining ore through the configured ore drop, returns
 to its branch tip and parks. A missing or failed drop uses the existing retry delay.
+A finished worker recovered away from its branch tip, for example one moved by
+hand or saved after an older worker backed along its path, travels back to the
+tip before it parks.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 

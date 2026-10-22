@@ -478,6 +478,11 @@ plan = function(id,row)
     end
     while row.route[row.index] and M.same(row.pose,row.route[row.index]) do row.index=row.index+1 end
     row.goal=row.route[row.index]
+    -- A finished worker recovered elsewhere (moved by hand, or backed along
+    -- its path by a worker from before #146) returns to its branch end, so it
+    -- does not park in a column or lane that other workers travel through.
+    local last=row.route[#row.route]
+    if not row.goal and last and not M.same(row.pose,last) then row.goal=last end
     if not row.goal then
       for _, item in ipairs(row.inv) do
         if not M.junk(item) and not unloadKeep[item.name] and P.fuelValue(item.name) == 0 then
