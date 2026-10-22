@@ -1,0 +1,16 @@
+---
+description: Slim mode for trivial and standard tier tasks (token plan step 4)
+alwaysApply: true
+---
+# Slim mode (trivial and standard tiers)
+Applies when the task block says `Tier: trivial` or `Tier: standard`, or gives no tier and the task is small.
+`Tier: hard` uses full pstack / poteto-mode with the models in pstack-models.mdc.
+
+- Don't load poteto-mode or principle-* skills up front. No swarm, arena, interrogate, reflect, sharpen, figure-it-out or architect panels.
+- Load at most one named skill, only when clearly needed (for example tdd when asked).
+- Read the files you need in one batch. Don't re-read unchanged files.
+- No recap or summary turns. No long plans for trivial tasks.
+- trivial: normal effort, no explorers, no review agent. Run the relevant tests once (plain `cc-test` where it exists, else `lua5.2 tests/run.lua` or the repo's check), then open the PR.
+- standard: high effort, max 2 explorers at normal effort, one review pass, at most one fix round.
+- Helper models: follow pstack-models.mdc.
+- When done, stop. Final message: PR link, tests run and their result.
