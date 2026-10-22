@@ -189,6 +189,7 @@ class Runtime:
                     copytree(source,stage/'world')
                     (stage/'world/session.lock').unlink(missing_ok=True)
                     manifest = self.discover(stage/'world')
+                    manifest['artifacts']={'snapshot':str(source),'server_source':str(Path(self.config.get('server_source',WORK/'gateb-livefiles/server')).resolve()),'mod_count':len(list((stage/'mods').glob('*.jar')))}
                     atomic(stage/'manifest.json',manifest)
                     # Import only native installed startups, never per-run helpers.
                     for cid, comp in manifest['computers'].items():

@@ -73,6 +73,9 @@ def prepare(runtime, name):
         output=command(f'data get block {xyz} ComputerId')
         if f'has the following block data: {cid}' not in output:
             raise RuntimeError('Native turtle placement failed for '+cid)
+        command(f'data get block {xyz} Fuel')
+        command(f'data get block {xyz} LeftUpgrade')
+        command(f'data get block {xyz} RightUpgrade')
         manifest['computers'][cid].update(pos=pos,facing=facing)
     for name,fixture in manifest['fixtures'].items():
         if fixture['kind']!='chest': continue
