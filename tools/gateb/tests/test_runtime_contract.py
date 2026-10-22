@@ -1,0 +1,253 @@
+import json
+from pathlib import Path
+import sys
+import tempfile
+import shutil
+import subprocess
+import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import run
+from checks.context import Context
+from checks.model import Blocked, Verdict
+
+
+class ContractTests(unittest.TestCase):
+    def test_pocket_reboot_requires_a_native_uptime_reset(self):
+        class Runtime:
+            def __init__(self): self.requests=[];self.times=iter([100,101,0.2])
+            def request(self,world,request,timeout):
+                self.requests.append(request)
+                return {"values":[next(self.times)]} if request["op"] == "lua" else {"job":"reboot"}
+        runtime=Runtime()
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(runtime,"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40,interval=0)
+            self.assertTrue(ctx.power("pocket","reboot")["uptime_reset"])
+        self.assertEqual(runtime.requests[1]["op"],"lua_async")
+        self.assertEqual(runtime.requests[1]["code"],"os.reboot()")
+        self.assertFalse(any(q["op"] == "power" for q in runtime.requests))
+
+    def test_navigation_uses_the_visible_more_button_id(self):
+        frames = {"status":{"role":"status","buttons":[{"id":"generic"}]},
+                  "generic":{"role":"generic","buttons":[{"id":"mining"}]},
+                  "mining":{"role":"mining","buttons":[{"id":"status"}]}}
+        state = ["status"]
+        with tempfile.TemporaryDirectory() as temp:
+            ctx = Context(object(), "test", {}, temp, "a"*40)
+            def click(name, button):
+                if button not in [b["id"] for b in frames[state[0]]["buttons"]]: raise Blocked("Absent")
+                state[0] = button
+                return frames[state[0]]
+            with patch.object(ctx,"frame",side_effect=lambda name:frames[state[0]]), patch.object(ctx,"click",side_effect=click):
+                self.assertEqual(ctx.navigate("pocket","mining")["role"], "mining")
+
+    def test_admission_distinguishes_local_suites_from_parts_and_runtime(self):
+        from checks.admission import full_local_suite
+        locks="1: FLOCK ADVISORY WRITE 123 fd:01:456 0 EOF\n"
+        slots={(253,1,456):"test-suite-local-2.lock"}
+        self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test"]))
+        self.assertIsNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test","--part","mine"]))
+        self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test","--part","mine","--shards","2"]))
+        slots={(253,1,456):"test-suite.lock"}
+        self.assertIsNone(full_local_suite(locks,slots,lambda pid:["python3","/repo/tools/gateb/keeper.py"]))
+        self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:[]))
+
+    def test_reservation_blocks_new_local_suites_and_releases(self):
+        from checks.admission import reserve_local_slot
+        import fcntl
+        with tempfile.TemporaryDirectory() as temp:
+            with reserve_local_slot(Path(temp)):
+                with (Path(temp)/"test-suite-local-2.lock").open("a") as other:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            with (Path(temp)/"test-suite-local-2.lock").open("a") as other:
+                fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+
+    def test_admission_refuses_high_load_before_runtime(self):
+        from checks.admission import admit
+        with patch("checks.admission.os.getloadavg",return_value=(8,4,2)):
+            with self.assertRaisesRegex(Blocked,"load1"):
+                admit()
+
+    def test_drop_fixture_uses_stable_ids_and_checks_success(self):
+        class Runtime:
+            def request(self,world,request,timeout):
+                self.code=request["code"];return {"values":[False]}
+        runtime=Runtime()
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(runtime,"test",{"computers":{"1":{"name":"server"}},"fixtures":{"ore":{"pos":[1,2,3]}}},temp,"a"*40)
+            with self.assertRaisesRegex(Blocked,"ore drop"):
+                ctx.drops()
+        self.assertIn("gateb_ore",runtime.code)
+
+    def test_click_waits_for_an_observed_frame(self):
+        initial={"role":"status","rev":1,"buttons":[{"id":"generic","x":1,"y":1,"w":4}]}
+        updated={"role":"generic","rev":2,"buttons":initial["buttons"]}
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="frame": return initial
+                return {"width":26,"height":20}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40)
+            with patch.object(ctx,"wait",return_value=updated) as wait:
+                self.assertEqual(ctx.click("pocket","generic"),updated)
+                wait.assert_called_once()
+
+    def test_wall_outage_reads_the_monitor_overlay(self):
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="monitors": return {"left":{"lines":[{"text":"stale"}]}}
+                return {"lines":[{"text":"> "}]}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"2":{"name":"wall"}}},temp,"a"*40)
+            self.assertEqual(ctx.screen_text("wall"),"stale")
+
+    @unittest.skipUnless(shutil.which("lua5.2"),"Lua 5.2 is unavailable")
+    def test_http_observer_records_rollback_even_when_shell_returns_true(self):
+        from checks.context import HTTP_UPDATE
+        source = '''http={get=function() return {getResponseCode=function() return 200 end} end}
+          shell={run=function() http.get("real-request");print("Install rolled back: simulated disk failure");return true end}
+          local saved=http.get;local p=print
+          local fn=assert(load(CODE));local result=fn()
+          assert(result.ran and result.requests==1 and result.failures==1)
+          assert(http.get==saved and print==p)
+        '''.replace("CODE",json.dumps(HTTP_UPDATE))
+        completed=subprocess.run(["lua5.2","-"],input=source,text=True,capture_output=True)
+        self.assertEqual(completed.returncode,0,completed.stderr)
+
+    def test_setup_waits_for_screen_registration(self):
+        calls=[]
+        class Runtime:
+            def request(self,world,request,timeout):
+                calls.append(request["code"])
+                return {"values":[len(calls)>1]}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"1":{"name":"server"}}},temp,"a"*40,interval=0)
+            self.assertTrue(ctx.screen_input("mining","stop"))
+        self.assertEqual(len(calls),3)
+        self.assertNotIn("local s=assert",calls[0])
+        self.assertIn("local s=assert",calls[-1])
+
+    def test_native_keyboard_char_events(self):
+        class Runtime:
+            def __init__(self): self.requests=[]
+            def request(self, world, request, timeout): self.requests.append(request); return {}
+        runtime=Runtime()
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(runtime,"test",{"computers":{"2":{"name":"wall"}}},temp,"a"*40)
+            ctx.type_text("wall","diamond")
+        self.assertEqual([q["event"] for q in runtime.requests], ["char"]*7+["key"])
+        self.assertEqual(runtime.requests[-1]["args"], [257,False])
+
+    def test_runtime_block_preserves_the_actionable_reason(self):
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(object(),"test",{},temp,"a"*40)
+            with patch("checks.context.subprocess.run",return_value=SimpleNamespace(returncode=1,stdout='{"ok":false,"error":"Template preparation did not finish"}')):
+                with self.assertRaisesRegex(Blocked,"Template preparation did not finish"):
+                    ctx.cli("clone","test")
+
+    def test_tick_clock_does_not_use_minecraft_calendar(self):
+        class Runtime:
+            def request(self, world, request, timeout):
+                self.code=request["code"]; return {"values":[1800000]}
+        runtime=Runtime()
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(runtime,"test",{"computers":{"1":{"name":"server"}}},temp,"a"*40)
+            self.assertEqual(ctx.game_clock(),1800000)
+        self.assertIn("SO.now()",runtime.code)
+        self.assertIn("os.clock()",runtime.code)
+        self.assertNotIn("ingame",runtime.code)
+
+    def test_native_unload_turn_is_not_movement(self):
+        from checks.c11 import analyze
+        proof={}
+        worker={"id":"active","park":False,"pose":{"x":0,"y":0,"z":0,"f":0}}
+        rows=[{"epoch":t,"workers":{"6":worker},"mine":{"turtles":{}}} for t in (0,121)]
+        rows.append({"epoch":124,"workers":{"6":{**worker,"pose":{**worker["pose"],"f":1}}},"mine":{"turtles":{}}})
+        self.assertEqual(analyze(rows,0,122,proof)["movement_recovery_seconds"],{})
+
+    def test_execution_loads_manifest_before_server_boot_probe(self):
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="manifest":return {"computers":{"1":{"name":"server"}}}
+                if request["op"]=="lua":return {"values":[True]}
+                return {}
+        class Check:
+            @staticmethod
+            def run(ctx):
+                self.assertEqual(ctx.computer("server"),1)
+                return Verdict("pass")
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{},temp,"a"*40)
+            with patch.object(ctx,"cli",side_effect=[{}, {}, {"sha":"a"*40,"errors":[]}]), patch.object(run,"admit"), patch.object(run,"load",return_value=Check):
+                self.assertEqual(run.execute(ctx,"C5",Path("/runtime")).status,"pass")
+
+    def test_cleanup_signals_only_the_owned_runtime_key(self):
+        active={"owned-1":123,"unrelated":456};calls=[]
+        class Runtime:
+            home=Path("/private-runtime")
+            @staticmethod
+            def status():return active
+        class Keeper:
+            @staticmethod
+            def call(home,request):
+                calls.append(request);active.pop(request["key"],None)
+        class Ctx:
+            runtime=Runtime()
+            @staticmethod
+            def cli(*args):raise Blocked("Graceful shutdown timed out")
+            @staticmethod
+            def record(*args):pass
+        with patch.object(run.importlib,"import_module",return_value=Keeper):
+            result=run.stop_owned(Ctx(),"owned-1")
+        self.assertTrue(result["stopped"])
+        self.assertEqual(active,{"unrelated":456})
+        self.assertEqual(calls[0]["key"],"owned-1")
+
+    def test_failed_exact_install_does_not_run_check(self):
+        calls=[]
+        class FakeContext:
+            run="private";commit="a"*40;tick_rate=20;evidence=[]
+            def cli(self,*args,**kwargs):
+                calls.append(args)
+                if args[0]=="install":return {"sha":self.commit,"errors":["bad file"]}
+            def record(self,*args):pass
+            def command(self,*args):pass
+        with patch.object(run,"admit"), patch.object(run,"load") as module:
+            result=run.execute(FakeContext(),"C5",Path("/runtime"))
+            self.assertEqual(result.status,"blocked")
+            module.assert_not_called()
+
+    def test_scheduler_cleans_worlds_and_keeps_other_results(self):
+        calls=[]
+        class FakeContext(Context):
+            def cli(self,*args,**kwargs):
+                calls.append(args)
+                if args[0]=="install": return {"sha":self.commit,"errors":[]}
+                return {}
+            def request(self,op,**kwargs):return {"computers":{}}
+            def lua(self,*args):return True
+            def command(self,*args):pass
+        class Check:
+            TITLE="fixture"
+            @staticmethod
+            def run(ctx):
+                if ctx.output.name=="C3":
+                    ctx.linked_install()
+                    raise Blocked("Missing reviewed pixels")
+                return Verdict("pass")
+        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:object()), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
+            code=run.main(["--checks","C1,C3,C5","--output",temp,"--worlds","2"])
+            report=json.loads((Path(temp)/"report.json").read_text())
+        self.assertEqual(code,1)
+        self.assertEqual(report["counts"],{"pass":2,"fail":0,"blocked":1})
+        self.assertEqual(sum(c[0]=="reset" for c in calls),0)
+        self.assertEqual(sum(c[0]=="stop" for c in calls),2)
+        self.assertEqual(sum(c[:2]==("pool","up") for c in calls),1)
+        self.assertTrue(any("--prefix" in c for c in calls))
+        self.assertFalse(any(c[0] in ("clone","serve") for c in calls))
+
+
+if __name__=="__main__":unittest.main()
