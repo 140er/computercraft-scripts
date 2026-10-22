@@ -59,7 +59,11 @@ geometry may be top-level `mine` and `farm` entries. Physical chests are named
 `fixtures`. The farm's `dig_cells` must list every native stem and canopy cell.
 Any successful dig outside those cells fails C6. The driver configures real drop
 points through the public module API and checks native poses before every add.
-C7 uses a native low-fuel fixture to exercise a real fuel trip. C8 fills the real
+C7 observes natural ore and fuel trips; an untriggered low-fuel trip is reported
+as covered by unit tests, matching the focused Gate B report. C5 retains its
+full ten game-minute window and C7 retains thirty game minutes. Both reject
+re-mining cold snapshot marks, shared digs and unknown movement stalls. Ordinary
+lane contention does not fail a check. C8 fills the real
 ore chest, then resets its private world for the separate native low-fuel case.
 No conditional planner branch is forced.
 

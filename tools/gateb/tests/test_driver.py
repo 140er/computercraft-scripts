@@ -31,7 +31,8 @@ PASS = {
     "C13": {k: True for k in ("linked_goggles", "labels_boxes_headings_aligned", "no_overlap", "stable_frames", "hud_matches_server", "native_layer_removal", "layers_persist", "real_photos")},
     "C14": {k: True for k in ("real_http_staging", "native_interruption", "old_files_unchanged", "pairing_unchanged", "old_role_rebooted", "full_update_exact", "final_rebooted")},
 }
-PASS["C7"] = {**PASS["C5"], "game_seconds": 1800, "ore_delivered": True, "fuel_trip": True, "ore_trip": True, "server_errors": 0}
+PASS["C5"].update(observed_game_seconds=600, stalled_miners=[], shared_dig_cells=[], previously_dug_cells=[])
+PASS["C7"] = {**PASS["C5"], "game_seconds": 1800, "ore_delivered": True, "fuel_trip": False, "ore_trip": True, "server_errors": 0}
 FAIL = {"C1": ("install_errors", ["initial TLS failure"]), "C2": ("probe_unpaired", False),
         "C3": ("coordinates_fit", False), "C4": ("verified_before_anchor", False), "C5": ("range_samples", 1),
         "C6": ("unsafe_digs", [[4,63,5]]), "C7": ("game_seconds", 1799),
@@ -151,6 +152,7 @@ class CriterionTests(unittest.TestCase):
             rows.append({"epoch":epoch,"mine":{"turtles":{"4":{"pose":{**cell,"x":x},"lane":{"cells":[cell]},"counted":0},"5":{"pose":{**cell,"x":2},"counted":1,**({"lane":{"cells":[cell]}} if second_lane else {})}}}})
         stats = analyze(rows, [4,5])
         self.assertEqual(stats["handoff_game_seconds"], 29)
+        stats.update(observed_game_seconds=600, previously_dug_cells=[])
         self.assertEqual(load("C5").evaluate(stats).status, "pass")
         rows[-1]["epoch"] = 132
         self.assertEqual(load("C5").evaluate(analyze(rows,[4,5])).status, "fail")
@@ -160,6 +162,26 @@ class CriterionTests(unittest.TestCase):
         stats = analyze(rows, (4, 5), 80)
         self.assertEqual(stats["observed_wall_seconds"], 10)
         self.assertEqual(stats["observed_game_seconds"], 36)
+
+    def test_lane_contention_is_not_a_mining_fault(self):
+        fixture = json.loads((FIXTURES / "recorded-held.json").read_text())
+        self.assertEqual(analyze(fixture["rows"], (4, 5))["errors"], [])
+        fixture["rows"][-1]["mine"]["turtles"]["4"]["state"] = "hold"
+        self.assertTrue(analyze(fixture["rows"], (4, 5))["errors"])
+
+    def test_native_stall_and_old_dug_marks_fail(self):
+        from checks.mining import audit_dug
+        worker = {"pose":{"x":0,"y":48,"z":0},"frame":{"rot":0,"ox":0,"oy":0,"oz":0}}
+        row = {"epoch":0,"mine":{"turtles":{"4":worker}},"workers":{"4":{"dug":[{"x":0,"y":48,"z":0}]}}}
+        later = copy.deepcopy(row);later["epoch"] = 121
+        self.assertEqual(analyze([row, later], (4, 5))["stalled_miners"], ["4"])
+        cold = {"so-data/cells/minecraft%3aoverworld/0_3_0": '{schema=1,generation=1,value={format="hex4096",bits="1' + '0'*1023 + '"}}'}
+        self.assertEqual(audit_dug([row], (4,5), cold), [[0,48,0]])
+        self.assertEqual(audit_dug([row], (4,5), {}), [])
+
+    def test_complete_c5_window_is_required(self):
+        data = copy.deepcopy(PASS["C5"]);data["observed_game_seconds"] = 599
+        self.assertEqual(load("C5").evaluate(data).status, "fail")
 
     def test_outage_requires_actual_motion(self):
         data = copy.deepcopy(PASS["C10"]); data["movement_recovery_seconds"] = {"4":1,"5":1}
