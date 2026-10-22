@@ -16,7 +16,7 @@ P.refresh = function()
       P.states[role] = "stopped"
       if role ~= "shop" then
         local frame = screen.render(57, 24)
-        local header = frame and frame.rows and frame.rows[1]
+        local header = frame and frame.rows and frame.rows[2] or frame and frame.rows and frame.rows[1]
         if header and header.text and header.text:find("running", 1, true) then P.states[role] = "running" end
       end
     end
@@ -150,7 +150,7 @@ P.render = function(w, h, session)
       P.block(c,"lumber",1,8,w,h)
       P.shop(c,session,1,13,w,h)
     end
-    c.button(8,1,6,"MORE","generic","7",1)
+    c.button(8,2,6,"MORE","generic","7",1)
     c.fill(1,h,w,1,"7")
     if w >= 26 then
       c.put(2,h,"GLANCE  ALERTS  PAIR")

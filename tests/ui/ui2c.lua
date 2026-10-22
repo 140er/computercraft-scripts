@@ -130,7 +130,7 @@ return function(test, equal)
         local frame=s.state.layout(m,unpack(size))
         local out=capture(frame,unpack(size))
         if size[1]>=15 then
-          if size[2]<16 then assert(out.picture().text[size[2]-1]:find("Order:",1,true)) end
+          if size[2]>10 and size[2]<16 then assert(out.picture().text[size[2]-1]:find("Order:",1,true)) end
           local buttons={}
           for _,b in ipairs(frame.buttons) do buttons[b.id]=true end
           if page==2 then

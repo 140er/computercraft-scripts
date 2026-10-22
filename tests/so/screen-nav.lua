@@ -59,7 +59,7 @@ local function setup(w, h, kit)
         for _, other in ipairs(picture.buttons) do
           if other~=b then
             assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y+(b.h or 1)<=other.y
-              or other.y+(other.h or 1)<=b.y, label .. " overlaps another button")
+              or other.y+(other.h or 1)<=b.y, label .. " on " .. picture.role .. " overlaps " .. other.id)
           end
         end
         return b
@@ -92,7 +92,7 @@ return function(test, equal)
         seen[name] = true
       end
       local function header(text)
-        assert(s.frame().rows[1].text:find(text,1,true), "missing " .. text .. " header")
+        assert(s.frame().rows[2].text:find(text,1,true), "missing " .. text .. " header")
         seen[text] = true
       end
       if size[1]==26 then role("status");s.press("MORE") else role("generic") end

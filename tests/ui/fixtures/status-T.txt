@@ -1,11 +1,14 @@
-51x19 Status, server terminal tiles and log
- STATUS                                         ok 
+51x19 Status, terminal
+                                                   
+ STATUS                                      21:14 
  ! ore chest full (drop 3)                         
- TURTLES      DISPLAYS     DISK         ALERTS     
-    🬋🬋🬏           🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
-    🬇🬋🬐          🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
-    🬋🬋🬀           🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
- ok           fresh        2.1 MB       see log    
+                                                   
+  TURTLES     DISPLAYS     DISK         ALERTS     
+     🬋🬋🬏          🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
+     🬇🬋🬐         🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
+     🬋🬋🬀          🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
+  3 ok, 0 l   all fresh    2.1 of 16    ore chest  
+                                                   
                                                    
  LOG                                               
                                                    
@@ -13,23 +16,20 @@
                                                    
                                                    
                                                    
-                                                   
-                                                   
-                                                   
    MINING       LUMBER        SHOP         MORE    
                                                    
-777777777777777777777777777777777777777777777777777
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
-ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777777777777777777777777777777777777777777
+f7777777777777777777777777777777777777777777777777f
+feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff

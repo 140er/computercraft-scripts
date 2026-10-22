@@ -795,7 +795,7 @@ S.layout = function(model, w, h)
       for i, t in ipairs(model.tiles) do
         if i + 2 < bottom then
           C.fill(1, i + 2, w, 1, t[4])
-          C.put(1, i + 2, (t[1] .. " " .. t[2]):sub(1, w), U.ink(t[4]), t[4])
+          C.put(2, i + 2, (t[1] .. " " .. t[2]):sub(1, w-2), U.ink(t[4]), t[4])
         end
       end
     else
@@ -803,7 +803,7 @@ S.layout = function(model, w, h)
         local row = math.floor((i - 1) / #cols)
         if row < rows then
           local col = cols[(i - 1) % #cols + 1]
-          C.tile(col.x, 3 + row * 6, col.w, unpack(t))
+          C.tile(col.x, 4 + row * 8, col.w, unpack(t))
         end
       end
     end

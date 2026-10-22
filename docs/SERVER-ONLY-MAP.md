@@ -95,6 +95,7 @@ and listeners use `listener(sender, message)`.
   Durations keep their elapsed-time formats.
   `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
   columns and a tile-row count. Glyph returns three blit rows with inverted cells.
+  Tiles accept an optional final height after the background. Six rows omit the sub-line; seven rows retain it. Titles and values have one cell of inner padding.
   Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
   `tile`, `button`, `listRow`, `search` and `frame`. Coordinates are one-based.
   `frame()` returns compact rows, rectangular buttons and the palette.
@@ -213,7 +214,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Render signatures and revisions are isolated by role, size and session. Status also
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
-  glance row pages three tiles at a time with `prev` and `next`; `panel` selects
+  glance row pages two tiles at a time with `prev` and `next`; `panel` selects
   panel mode. MORE opens generic from glance, status and panel. Explicit saved roles,
   including generic, take precedence and survive restart. The 15x10 status page
   has separate NEXT and MORE buttons. Gather runs in

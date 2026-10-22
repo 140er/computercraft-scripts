@@ -1,41 +1,41 @@
 26x20 Pocket, glance mode
+                          
  FLEET              21:14 
- TURTLES                  
+                          
+                          
+  TURTLES                 
            🬋🬋🬏            
            🬇🬋🬐            
            🬋🬋🬀            
- 3 ok, 0 lost             
+  3 ok, 0 lost            
                           
- ALERTS                   
+                          
+                          
+  ALERTS                  
            🬞🬓             
             ▌             
            🬇🬌             
- ore chest full           
+  ore chest full          
                           
- ORE TODAY                
-        🬖🬋🬏🬞🬓  🬵          
-         🬖🬀 ▌ 🬳🬷🬏         
-        🬍🬋🬃🬇🬌  🬉          
- +12 / 10 min             
            MORE           
- <  glance 1/3  >  PANEL  
-77777777777777777777777777
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
+ <  glance 1/5  >  PANEL  
 ffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeee
+f777777777777777777777777f
 ffffffffffffffffffffffffff
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+fddddddddddddddddddddddddf
+ffffffffffffffffffffffffff
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeeeeeeeef
 77777777777777777777777777
 77777777777777777777777777

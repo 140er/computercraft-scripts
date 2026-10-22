@@ -1,0 +1,16 @@
+so-mod-ar.lua      34 locals (deepest at function line 95) ok
+so-mod-display.lua   29 locals (deepest at function line 302) ok
+so-mod-lumber.lua   34 locals (deepest at function line 288) ok
+so-mod-mine.lua    58 locals (deepest at function line 675) ok
+so-mod-panel.lua   20 locals (deepest at function line 55) ok
+so-mod-shop.lua    25 locals (deepest at function line 181) ok
+so-ui.lua          26 locals (deepest at function line 119) ok
+screen-nav.lua     28 locals (deepest at function line 49) ok
+ui1.lua            40 locals (deepest at function line 52) ok
+ui2a.lua           34 locals (deepest at function line 62) ok
+ui2c.lua           33 locals (deepest at function line 101) ok
+ui2d.lua           39 locals (deepest at function line 82) ok
+ui3a.lua           22 locals (deepest at function line 67) ok
+ui3b.lua           37 locals (deepest at function line 143) ok
+ui3c.lua           19 locals (deepest at function line 36) ok
+ui5a.lua           24 locals (deepest at function line 196) ok

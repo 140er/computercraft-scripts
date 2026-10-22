@@ -801,12 +801,12 @@ local function layout(m, w, h, setup)
     local tall = h >= 19 and #cols >= 3
     local buttonHeight = tall and 3 or 1
     local buttonY = tall and h-3 or w < 26 and h-1 or h
-    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-3)/6)))
+    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-4)/7)))
     if tall then
       for i,t in ipairs(m.tiles) do
         local col = cols[(i-1)%#cols+1]
         local row = math.floor((i-1)/#cols)
-        if row < tileRows then c.tile(col.x,3+row*6,col.w,unpack(t)) end
+        if row < tileRows then c.tile(col.x,4+row*7,col.w,t[1],t[2],t[3],t[4],6) end
       end
     else
       for i,t in ipairs(m.tiles) do
@@ -815,7 +815,7 @@ local function layout(m, w, h, setup)
         end
       end
     end
-    local listY = tall and 3+tileRows*6 or 9
+    local listY = tall and 4+tileRows*7 or 9
     if listY < buttonY then
       c.fill(1,listY,w,1,"7"); c.put(2,listY,w < 39 and "TURTLE  POS  STATE" or "TURTLE  STATE      POS          FUEL  ORE")
       for i,row in ipairs(m.turtles) do
