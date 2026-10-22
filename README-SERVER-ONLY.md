@@ -161,7 +161,13 @@ with `no access to saplings chest`.
 
 `add` anchors one paired worker with an axe.
 Work stays stopped until configured and started. `stop` parks after the current
-lease reports. Dark oak is excluded. Empty sapling chests disable replanting
+lease reports. Log delivery counts require a successful drop and an inventory
+decrease. Failed wood, fuel and sapling chest inspections mark drop points broken
+after three failures. Repair the chest, use `fix` in the generic drop editor if
+marked broken, and send `start` on the lumber screen. Sapling service reuses a
+matching drop point or adds a `storage` point to that editor. Remove unused old
+sapling points there after changing the coordinates.
+Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
 The screen shows work state, deliveries, saplings, spots, fuel and alerts.
 Three failed moves or digs stop work and emit an alert for the screen and AR.

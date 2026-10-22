@@ -192,12 +192,40 @@ S.move = function(target)
   return S.moveDirect(target)
 end
 
+S.saplingPoint = function(point)
+  local drops = S.module("drops")
+  local dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1,
+    ["minecraft:the_end"] = 1 })[S.job.dim]
+  if dim == nil or type(drops.list) ~= "function" or type(drops.add) ~= "function" then return nil end
+  for _, saved in ipairs(drops.list()) do
+    if saved.dim == dim and saved.x == point.x and saved.y == point.y and saved.z == point.z
+      and saved.side == point.side then return saved end
+  end
+  local saved = { id = table.concat({ "lumber_saplings", dim, point.x, point.y, point.z, point.side }, "_"),
+    dim = dim, x = point.x, y = point.y, z = point.z, side = point.side, kind = "storage" }
+  if drops.add(saved) then return saved end
+end
+S.noteChest = function(point, result)
+  local name = result and result.ok and type(result.data) == "table" and result.data.name or nil
+  local drops = S.module("drops")
+  if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
+  return type(name) == "string" and name ~= ""
+end
+
 S.service = function(kind, resume)
   local j = S.job
   local point
   if kind == "saplings" then
     point = j.saplings
-    if point then point = { dim = j.dim, x = point.x, y = point.y, z = point.z, side = point.side } end
+    if point then
+      local saved = S.saplingPoint(point)
+      if not saved or saved.broken then
+        j.blocked = "hold"
+        S.alert("hold saplings chest; fix drop point and start")
+        return false
+      end
+      point = { id = saved.id, dim = j.dim, x = point.x, y = point.y, z = point.z, side = point.side }
+    end
   else
     local drops = S.module("drops")
     local near = { dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1,
@@ -267,6 +295,10 @@ S.report = function(id, turtleId, results, lease)
         cells.markDug(world.x, world.y, world.z, world.dim)
       end
     end
+  end
+  local inspected
+  if pending.action == "junk" or type(pending.action) == "table" and pending.action.kind == "drop" then
+    inspected = S.noteChest(j.service and j.service.point, results[2])
   end
   S.noteBlocks(pending, results)
   if report.inv then j.inv = report.inv end
@@ -391,6 +423,15 @@ S.report = function(id, turtleId, results, lease)
   elseif action == "plant" then
     if ok then j.spots[j.tree.x .. "," .. j.tree.z].plantedAt = os.epoch("utc") end
     S.finishTree()
+  elseif action == "supplyCheck" then
+    if j.service then
+      if S.noteChest(j.service.point, result) then
+        j.service.stage = "take"
+      else
+        j.blocked = "hold"
+        S.alert("hold " .. j.service.kind .. " chest; fix chest and start")
+      end
+    end
   elseif action == "suck" then
     local service = j.service
     if service and service.kind == "saplings" then
@@ -398,7 +439,7 @@ S.report = function(id, turtleId, results, lease)
       if S.slot(function(name) return name == desired end) then
         service.stage = "return"
       elseif ok and S.empty() then
-        service.stage = "suck"
+        service.stage = "check"
       else
         j.noSaplings = true
         S.alert("out of saplings")
@@ -416,12 +457,12 @@ S.report = function(id, turtleId, results, lease)
   elseif type(action) == "table" and action.kind == "drop" then
     local after = S.count(function(name) return name:match("_log$") ~= nil end)
     local count = math.max(0, action.before - after)
-    if count > 0 then
+    if ok and inspected and result.ok and count > 0 then
       j.logs = (j.logs or 0) + count
       S.emit("lumber.logs", { id = turtleId, count = count })
-    elseif not ok then
+    elseif not ok or not inspected then
       j.blocked = "hold"
-      S.alert("hold wood")
+      S.alert("hold wood; fix chest and start")
     end
   end
   if not S.pending then S.release() end
@@ -430,6 +471,15 @@ end
 
 S.workService = function()
   local j, service = S.job, S.job.service
+  if service.kind == "saplings" and not service.point.id then
+    local saved = S.saplingPoint(service.point)
+    if not saved or saved.broken then
+      j.blocked = "hold"
+      S.alert("hold saplings chest; fix drop point and start")
+      return
+    end
+    service.point.id = saved.id
+  end
   if service.stage == "travel" then
     if not service.access or S.occupied(service.access) then
       service.access = L.access(service.point, j.turtle.pose, S.occupied)
@@ -441,10 +491,13 @@ S.workService = function()
       S.save()
     end
     if not S.move(service.access) then return end
-    service.stage = service.kind == "wood" and "drop" or "suck"
+    service.stage = service.kind == "wood" and "drop" or "check"
     S.save()
   end
-  if service.stage == "suck" then
+  if service.stage == "check" or service.stage == "suck" then
+    service.stage = "check"
+    S.op(service.point.side == "down" and "inspectDown" or "inspect", "supplyCheck")
+  elseif service.stage == "take" then
     local slot = S.empty()
     if not slot then
       if service.kind == "saplings" then
