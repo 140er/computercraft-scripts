@@ -182,6 +182,8 @@ C.onFrame = function(msg)
   if type(body) ~= "table" then return end
   C.rows = type(body.rows) == "table" and body.rows or {}
   C.buttons = type(body.buttons) == "table" and body.buttons or {}
+  C.repair = nil
+  C.digits = ""
   C.phase = "live"
   C.attempt = 0
   C.clipDraw()
@@ -202,6 +204,7 @@ C.drawPair = function()
     local w, h = out.getSize()
     if out.clear then out.clear() end
     local lines = {
+      C.repair and "Old key kept. Pair again?" or "Pair a new client",
       "Pair: press P on the server, then type the 6-digit code here",
       C.pairError or (C.server and "Ready for code" or "Looking for server..."),
       "Code: " .. C.digits,
@@ -227,10 +230,10 @@ C.retry = function()
     C.server = rednet.lookup("so", "server")
   end
   if C.server and C.pair.key(C.server) then
-    C.phase = "stale"
+    C.phase = C.repair and "pairing" or "stale"
     C.sendHello()
     C.sendSub()
-    C.clipDraw()
+    if C.repair then C.drawPair() else C.clipDraw() end
   else
     C.phase = "pairing"
     C.drawPair()
@@ -247,10 +250,11 @@ C.join = function()
   C.attempt = 0
   if ok then
     C.pairError = nil
+    C.repair = nil
     C.retry()
   else
     C.pairError = "Pair failed: " .. tostring(reason or "unknown")
-    C.server = nil
+    if not C.repair then C.server = nil end
     C.phase = "pairing"
     C.drawPair()
     C.arm(C.waitSeconds(os.getComputerID(), 1))
@@ -263,6 +267,11 @@ C.loop = function()
     if ev == "timer" and a == C.timer then
       if C.phase == "live" then C.markStale() else C.retry() end
     elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then
+      if C.pair.repairHint(a, b, C.server) then
+        C.repair = true
+        C.phase = "pairing"
+        C.drawPair()
+      end
       local msg = C.proto.decode(b)
       local key = C.pair.key(C.server)
       if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then C.onFrame(msg) end

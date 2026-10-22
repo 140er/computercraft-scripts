@@ -212,3 +212,9 @@ facing, then enter `add <id> <x> <y> <z> <n|e|s|w>` on its mining or lumber scre
 This re-anchors that turtle, clears its old movement history and uncertainty, and
 starts a fresh assignment at the supplied pose. The worker must save and confirm
 the anchor before work resumes. Rebooting alone does not guess a pose.
+
+If the server is reset or its pairing keys are replaced while its computer ID
+stays the same, clients show an "Old key kept" pairing prompt. Press P on the
+server and type the new code on each client. Turtles also require Enter. The
+client keeps its old key until pairing succeeds. A normal authenticated reply
+restores the client screen, so a false prompt does not require a reset.

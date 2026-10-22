@@ -28,7 +28,9 @@ and listeners use `listener(sender, message)`.
 - [so-pair.lua](../so-pair.lua) pairs machines with X25519 and saves their keys.
   Calls are `open(proto, store)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
-  `session(clientPubHex)`, `invite(screen)` and `join(code, serverId)`.
+  `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)` and
+  `repairHint(sender, payload, serverId)`. The hint check only authorizes a prompt;
+  it never removes a saved key.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
   `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
   as their server id when discovery fails.
@@ -210,8 +212,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   stays put and beacons every 30 seconds, retaining its move history.
   Paired boots retry discovery and hello with backoff capped at 30 seconds,
   using the saved server id if discovery fails. They show `waiting for server`
-  until an authenticated reply arrives. Only unpaired boots prompt for a code;
-  that prompt keeps retrying discovery while accepting digits and Enter.
+  until an authenticated reply arrives. A `pair.required` hint also offers a code
+  prompt while retaining the saved key until a new pairing succeeds. Otherwise
+  only unpaired boots prompt for a code. That prompt keeps retrying discovery
+  while accepting digits and Enter. Idle workers send hello every 30 seconds
+  without authenticated replies to detect a later server key reset.
   Drop and suck operations on every side require an adjacent inventory. Missing
   inventories return `no inventory` and leave items in the turtle.
   At boot, pending moves use saved fuel or GPS to resolve their outcome. Turns
@@ -224,7 +229,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
   text and resize events. Pairing prompts and digits appear on the display and
-  its computer terminal. Failed pairing accepts a new code. Discovery and
+  its computer terminal. Failed pairing accepts a new code. A `pair.required`
+  hint shows the same prompt without deleting the old key. Authenticated frames
+  dismiss the hint and restore the normal screen. Discovery and
   stale-frame hello/subscribe retries use backoff capped at 30 seconds. At boot,
   it prefers the lowest saved paired server ID and retries that ID without DNS.
   It opens every modem and rescans on attach and detach events. Screens

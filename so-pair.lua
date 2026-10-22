@@ -117,6 +117,11 @@ end
 
 M.clear = function() S.pending = nil end
 M.key = function(id) return S.keys[tostring(id)] end
+M.repairHint = function(sender, payload, server)
+  return server ~= nil and sender == server and M.key(server) ~= nil
+    and type(payload) == "table" and payload.from == server
+    and payload.t == "pair.required"
+end
 M.peer = function()
   local first
   for id in pairs(S.keys) do

@@ -281,6 +281,14 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   term.write("seen " .. seen)
+  if W.repair then
+    term.setCursorPos(1, 6)
+    term.write("Key changed? Old key kept.")
+    term.setCursorPos(1, 7)
+    term.write("Press P on server. Code: " .. (W.codeText or ""))
+    term.setCursorPos(1, 8)
+    term.write(W.pairError or "Type 6 digits, then Enter")
+  end
   if W.journal.uncertain then
     term.setCursorPos(1, 5)
     term.write("pose uncertain: re-add turtle " .. os.getComputerID())
@@ -313,11 +321,17 @@ end
 
 W.accept = function(sender, payload)
   if sender ~= W.server then return end
+  if W.pair.repairHint(sender, payload, W.server) then
+    W.repair = true
+    W.paint()
+    return
+  end
   local msg = W.proto.decode(payload)
   if not msg or msg.from ~= sender then return end
   local key = W.pair.key(W.server)
   if not key or not W.proto.macOk(key, msg) then return end
   if not W.proto.fresh(msg) then return end
+  W.repair, W.codeText, W.pairError = nil, nil, nil
   W.seen = os.epoch("utc")
   if msg.t == "worker.anchor" then W.reanchor(msg.body)
   elseif msg.t == "lease.batch" then W.queued = msg end
@@ -333,6 +347,24 @@ W.breathe = function(seconds)
         os.cancelTimer(id)
         return
       end
+    elseif W.repair and (ev == "char" or ev == "paste") then
+      W.codeText = ((W.codeText or "") .. tostring(a):gsub("%D", "")):sub(1, 6)
+      W.paint()
+    elseif W.repair and ev == "key" and (a == 259 or a == 14) then
+      W.codeText = (W.codeText or ""):sub(1, -2)
+      W.paint()
+    elseif W.repair and ev == "key" and (a == 257 or a == 28) and #(W.codeText or "") == 6 then
+      os.cancelTimer(id)
+      local ok, err = W.pair.join(W.codeText, W.server)
+      id = os.startTimer(seconds)
+      W.codeText = ""
+      if ok then
+        W.repair, W.pairError = nil, nil
+        W.hello()
+      else
+        W.pairError = "Pair failed: " .. tostring(err)
+      end
+      W.paint()
     elseif ev == "timer" and a == id then
       return
     end
@@ -567,7 +599,7 @@ end
 W.onWake = function()
   local now = os.epoch("utc")
   if W.mode == "idle" then
-    if not W.seen then W.hello() end
+    if not W.seen or now - W.seen >= 30000 then W.hello() end
     if W.expires and now >= W.expires then W.enterFast() end
     return
   end

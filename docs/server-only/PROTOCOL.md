@@ -731,3 +731,17 @@ confirmation can recover. A failed save retains uncertainty. The server retries
 the anchor once per second
 and keeps refusing leases until that matching hello arrives. Old lease callbacks
 are cancelled during re-anchoring. Work then starts from the new assignment.
+
+### Re-pairing after a server key reset
+
+When authentication fails for `hello`, `beacon` or `step.report`, the server
+sends `{ t = "pair.required", from = serverId }` on `so`. This is an unsigned
+hint outside the authenticated envelope. It is not proof that a key was lost.
+Clients only show it for their saved server ID, and keep the saved key and
+normal authenticated message handling. An authenticated display frame or worker
+reply dismisses the prompt. A forged hint can show a prompt but cannot delete or replace keys,
+change the server ID, authorize work or reset the turtle journal.
+
+Press P on the server, then enter its new code on the client. Displays accept
+six digits; turtles also require Enter. Failed pairing retains the old key.
+Only a successful authenticated pairing saves the replacement key.

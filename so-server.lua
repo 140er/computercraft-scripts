@@ -194,6 +194,9 @@ S.run = function()
           showPrompt()
         end
       end
+      if msg.t == "hello" or msg.t == "beacon" or msg.t == "step.report" then
+        rednet.send(sender, { t = "pair.required", from = os.getComputerID() }, "so")
+      end
       print("so-server: bad mac from " .. tostring(sender))
       return
     end
