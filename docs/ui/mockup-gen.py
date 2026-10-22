@@ -158,24 +158,55 @@ c.alert("! out of saplings: replanting paused")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
 add(c, "Lumber, room monitor")
 
-# --- Shop, M: search + item tiles (purple header accent)
-c = Canvas(57, 24); c.header("SHOP", "stock 21:14"); c.fill(0, 0, 57, 1, "a"); c.text(1, 0, "SHOP"); c.text(45, 0, "stock 21:14")
-c.fill(1, 2, 55, 1, "0"); c.text(1, 2, " search: iron_                                         ", "0")
-items = [("IRON INGOT","1240","^ +60/h","b"),("IRON ORE","312","- steady","b"),("RAW IRON","48","v -20/h","1")]
-for (x, w), (lab, val, sub, bg) in zip(cols, items): c.tile(x, 4, w, lab, val, sub, bg)
-items = [("IRON BLOCK","27","- steady","b"),("IRON NUGGET","5","v low","1"),("IRON BARS","0","empty","e")]
-for (x, w), (lab, val, sub, bg) in zip(cols, items): c.tile(x, 10, w, lab, val, sub, bg)
-c.text(1, 16, "Order: 16 iron_ingot sent to output chest")
-c.button(0, 18, 18, "< PREV"); c.button(19, 18, 19, "page 1/3"); c.button(39, 18, 18, "NEXT >")
-c.button(0, 21, 28, "CLEAR SEARCH"); c.button(29, 21, 28, "BACK")
-add(c, "Shop, room monitor (tap an item tile for the order page)")
+def grid(w, n):
+    import math
+    available = w - n + 1
+    return [(math.floor((i - 1) * available / n + .5) + i - 1,
+             math.floor(i * available / n + .5) - math.floor((i - 1) * available / n + .5))
+            for i in range(1, n + 1)]
 
-c = Canvas(57, 24); c.fill(0, 0, 57, 1, "a"); c.text(1, 0, "SHOP > IRON INGOT")
-c.tile(0, 2, 57, "IN STOCK", "1240", "^ +60 per hour", "b")
-c.button(0, 8, 18, "ORDER 1", "a", 5); c.button(19, 8, 19, "ORDER 16", "a", 5); c.button(39, 8, 18, "ORDER 64", "a", 5)
-c.text(1, 14, "Order: 16 iron_ingot ok (2 s ago)")
-c.button(0, 21, 57, "BACK")
-add(c, "Shop order page")
+SHOP_ITEMS = [("IRON INGOT", "1240", "^ +60/h", "b"),
+              ("IRON ORE", "312", "- steady", "b"), ("RAW IRON", "48", "v -20/h", "1"),
+              ("IRON BLOCK", "27", "- steady", "b"), ("IRON NUGGET", "5", "v low", "1"),
+              ("IRON BARS", "0", "empty", "e")]
+SHOP_ITEMS += [("IRON " + str(i), "0", "empty", "e") for i in range(7, 19)]
+
+def shop(w, h, selected=False):
+    import math
+    c = Canvas(w, h)
+    c.fill(0, 0, w, 1, "a")
+    c.text(1, 0, "SHOP > IRON INGOT" if selected else "SHOP")
+    nav = 1 if h < 16 else 3
+    bottom = h - nav
+    if selected:
+        c.text(1, 1, "stock 21:14")
+        c.tile(0, 2, w, "IN STOCK", "1240", "^ +60 per hour", "b")
+        for (x, width), amount in zip(grid(w, 3), [1, 16, 64]):
+            c.button(x, 7 if h < 16 else 8, width, "ORDER " + str(amount), "a", 1 if h < 12 else 3 if h < 16 else 5)
+        c.text(1, bottom - 1, "Order: delivered")
+        if h >= 16: c.text(1, bottom - 2, "stock 21:14")
+        c.button(0, bottom, w, "BACK", h=nav)
+        return c
+    c.text(w - 12, 0, "stock 21:14")
+    tabs = grid(w, max(1, min(7, (w + 1) // 7)))
+    top = 2 + math.ceil(7 / len(tabs))
+    for i, label in enumerate(["ALL", "ORES", "WOOD", "FOOD", "BLOCKS", "TOOLS", "OTHER"]):
+        x, width = tabs[i % len(tabs)]
+        c.button(x, 1 + i // len(tabs), width, label, "a" if i == 0 else "7", 1)
+    for (x, width), label in zip(grid(w, 3), ["A-Z", "STOCK", "NAME"]):
+        c.button(x, top - 1, width, label, "a" if label == "STOCK" else "7", 1)
+    cols = grid(w, max(1, (w + 1) // 19))
+    capacity = len(cols) * max(1, (bottom - top) // 6)
+    for i, (label, value, sub, bg) in enumerate(SHOP_ITEMS[:capacity]):
+        x, width = cols[i % len(cols)]
+        c.tile(x, top + (i // len(cols)) * 6, width, label, value, sub, bg)
+    c.text(1, bottom - 1, "Order: sent 16")
+    for (x, width), label in zip(grid(w, 4), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">", "BACK"]):
+        c.button(x, bottom, width, label, h=nav)
+    return c
+
+add(shop(57, 24), "Shop, room monitor")
+add(shop(57, 24, True), "Shop order page")
 
 # --- Generic / drops page
 c = Canvas(57, 24); c.header("DROP POINTS", "5 points")
@@ -244,6 +275,10 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
         c.button(0, h-1, w, "BACK", h=1)
         add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)
 
+add(shop(29, 12), "Shop, compact touch monitor", True)
+add(shop(26, 20), "Shop, pocket touch flow", True)
+add(shop(100, 38), "Shop, large touch monitor")
+
 import argparse
 from pathlib import Path
 import runpy
@@ -255,7 +290,7 @@ parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).res
 args = parser.parse_args()
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]

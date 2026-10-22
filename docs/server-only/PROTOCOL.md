@@ -78,7 +78,9 @@ A paired computer sends `hello` to the server.
 three rows tall, so `body.h` is one less than the physical height there.
 Optional `body.fullH` advertises the physical height. The Big Tiles server uses
 that height and kit frames fill every row, including pocket glance navigation.
-Kit-free frames retain the local input row. The display module reads these sizes.
+Kit-free frames retain the local input row. `body.keyboard` is true only when the
+client draws on its own terminal. Every monitor client reports false. Missing
+flags use touch panel controls. The display module reads these sizes.
 It does not treat `body.role` as the screen assignment.
 
 A turtle also sends these fields.
@@ -273,12 +275,32 @@ The module finds the existing, unpaired Storage Room turtle through DNS or the s
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
-The Big Tiles screen uses `render(w, h)`. It lists items sorted by descending count, with item name as the tie breaker. Submitted text filters names without case sensitivity; spaces match underscores. A new search resets to page 1. Buttons `prev` and `next` stop at the ends, `clear` empties the search, and `status` returns to status. The `search` box accepts typed text. The header shows the latest stock sample time in UTC, or `-` before sampling.
+The Big Tiles screen uses `render(w, h, session)`. Stock is shared; category,
+letter, sort, page, selection and order feedback belong to the display session.
+It draws category tabs derived from item IDs, an A-Z letter picker, STOCK and
+NAME sort buttons, item tiles and paging. Small screens open a category picker.
+No shop search field is drawn. Submitted text remains a compatible name filter;
+spaces match underscores, and a lone space or `*` clears it. Category taps clear
+that filter. Count sort descends by stock and breaks ties by item ID. Name sort
+uses the displayed name and then item ID. The stock time uses Amsterdam time.
+Stock older than 30 seconds shows STALE STOCK.
 
-Tapping `item:<itemName>` opens an order page with an IN STOCK tile and buttons `order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`. Button `items` returns to the list. Tiles are blue normally, amber for falling stock or counts of 16 or fewer, and coral when empty. Trend rates estimate the hourly change from the oldest sample using the retained minute-sample intervals. The latest order reply lines share one status line. Without `so-ui.lua`, the legacy list and its order buttons remain available.
+Tapping `item:<itemName>` opens an IN STOCK tile and quantity buttons
+`order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`.
+`items` returns to the same list page; `status` returns from the list to status.
+Tiles keep the existing blue, amber, empty and trend states. Stale tiles use gray.
+Without `so-ui.lua`, the legacy list and its direct order buttons remain available.
 
-An order button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows reply text with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
-The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names for that display without case sensitivity; spaces match underscores. The visible `clear` button, a lone space, or `*` clears that display's filter. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
+An order sends `{ cmd = "order", text = itemName, n = count, rid = number }`
+on `roomsorter` once. Quantity buttons then become inactive until the user
+returns to the list and selects an item again. Replies match sender and request
+ID. Each reply updates only the initiating display's latest order. The status is
+sent after dispatch and on a Getting or Crafting reply, delivered only after an
+explicit Delivered or sent-to-output-chest reply, and failed on refusal or a
+two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is
+the final observable state there. The screen never infers delivery from stock
+changes and never retries orders. `shop.order(search, count)` remains a direct
+one-order API for keyboard panel quick orders and leaves shop displays unchanged.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
@@ -650,7 +672,10 @@ and clips the picture to the `hello` size. `input` accepts
 `{ from, id, x, y, role, session }` and optional `text`. The session is the same table
 passed to render; it is never sent on the wire. `role` is the screen that was
 showing. Local monitor input receives its own session through the same field.
-The session includes client `id`. Kit-free render callbacks receive the client
+The session includes client `id` and `keyboard`, true only when hello reports
+`body.keyboard == true`. Monitor clients report false. A missing flag uses touch
+controls. Monitor panels open the shop with a SHOP button; keyboard panels retain
+typed quick search and quantities. Kit-free render callbacks receive the client
 ID as their third argument. Their generic content height excludes two navigation
 rows for mining, lumber, shop, status and AR. Every kit-free destination has a
 visible generic return button on 26x20 pockets and 29x12 monitors.

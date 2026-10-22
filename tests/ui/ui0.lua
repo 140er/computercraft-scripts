@@ -149,7 +149,7 @@ return function(test, equal)
     c.onFrame({ body = { rows = {}, palette = palette, scale = 0.5 } })
     equal(state.scale, 0.5)
     equal(#state.sends, before + 1)
-    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 23, fullH = 24, label = "screen" } })
+    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 23, fullH = 24, keyboard = false, label = "screen" } })
     for i = 0, 15 do equal(out.palette[2 ^ i], { palette[i] }) end
     local loop = coroutine.create(c.loop)
     assert(coroutine.resume(loop))
@@ -332,7 +332,7 @@ return function(test, equal)
     local section = spec:match("\n(Status, room monitor.-)\n\n\n### 7%.2")
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
-    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S"
+    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

@@ -256,13 +256,28 @@ role on that turtle. It uses the legacy plain-rednet storage protocols and
 does not pair with this server.
 
 The server discovers the Storage Room turtle and polls stock automatically.
-Until discovery the shop screen says `Storage room not found, still looking`.
-Type text to filter item names on that display. Matching ignores case and treats
-spaces as underscores. Tap `clear`, or submit a lone space or `*`, to clear it.
-After five minutes without stock, the server clears stale stock and looks for
-a Storage Room turtle again. Rooms use the legacy unpaired protocol; there is
-no saved room selector, so isolate competing storage networks.
-Item buttons order 1, 16 or 64 items. Replies appear as `Order:` lines. Orders are not retried automatically and time out after two minutes.
+Until discovery the shop screen says `Storage room not found`.
+Tap a category, use `A-Z` to jump to a letter, and sort by `STOCK` or `NAME`.
+Categories come from item IDs. Unknown items appear under `OTHER`.
+Tap an item, then `ORDER 1`, `ORDER 16` or `ORDER 64`. BACK returns to the
+same list page. List BACK returns to status, where MORE opens navigation.
+The whole flow works by touch on monitors and pockets, without a search field.
+Small screens use short quantity labels and a category picker.
+
+Each display keeps its own category, letter, sort, page, selection and order
+status. An order sends once. Quantity buttons stay inactive until you return
+to the list and select an item again. `Order: sent` means the request went out
+or the room accepted it. `Order: delivered` requires an explicit delivery reply.
+The current legacy room replies when it queues an order, so it stays `sent`.
+Refusals and unanswered orders show `failed`. Orders time out after two minutes
+and are never retried automatically.
+
+Stock older than 30 seconds shows `STALE STOCK`. After five minutes without
+stock, the server clears the list and discovers storage again. Rooms use the
+legacy unpaired protocol; isolate competing storage networks.
+Keyboard-equipped panels retain typed quick search. Monitor panels show a SHOP
+button that opens the touch shop. Clients report keyboard availability in hello.
+Older clients that omit it get the touch panel.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 

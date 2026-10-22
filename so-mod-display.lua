@@ -515,6 +515,7 @@ D.hello = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.acceptSize(body.w, body.h) then return end
   local session = D.session(msg.from)
+  session.keyboard = body.keyboard == true
   session.w = body.w
   session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
@@ -592,6 +593,8 @@ D.onInput = function(msg)
     D.setRole(msg.from, session.mapReturn or "status")
   elseif id == "status" then
     D.setRole(msg.from, "status")
+  elseif drawn == "panel" and id == "shop" then
+    D.setRole(msg.from, "shop")
   elseif drawn == "generic" and type(id) == "string" and D.known[id] then
     D.setRole(msg.from, id)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
@@ -732,6 +735,7 @@ D.localTick = function(now)
         end
         local screen=D.screens[drawn]
         event.role=drawn
+        if drawn == "panel" and event.id == "shop" then m.role = "shop" end
         event.session=m.session
         if screen then screen.input(event) end
       end

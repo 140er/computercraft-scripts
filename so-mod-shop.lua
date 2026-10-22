@@ -18,14 +18,20 @@ local S = {
   registered = false,
 }
 
-S.request = function(kind, name, count)
-  if not S.turtle then return end
+S.request = function(kind, name, count, view)
+  if not S.turtle then
+    if view then view.order = "Order: failed, storage room not found" end
+    return
+  end
   S.rid = S.rid + 1
   local rid = S.rid
-  S.pending[rid] = { kind = kind, sender = S.turtle, at = os.epoch("utc") }
+  S.pending[rid] = { kind = kind, sender = S.turtle, at = os.epoch("utc"), view = view }
   if kind == "order" then
     S.latestOrder = rid
-    S.orders = { "sending " .. tostring(count) .. " " .. name }
+    S.orders = { "sent " .. tostring(count) .. " " .. name }
+    if view then
+      view.order, view.orderDetail, view.orderRid = "Order: sent " .. count, nil, rid
+    end
   end
   rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
 end
@@ -47,13 +53,28 @@ S.reply = function(sender, message)
   if type(message) ~= "table" then return end
   local pending = S.pending[message.rid]
   if not pending or pending.sender ~= sender then return end
-  S.pending[message.rid] = nil
   if pending.kind == "stock" then
+    S.pending[message.rid] = nil
     S.stock(message)
-  elseif message.rid == S.latestOrder then
-    S.orders = {}
+  else
+    local lines = {}
     for i = 1, #message do
-      if type(message[i]) == "string" then S.orders[#S.orders + 1] = message[i] end
+      if type(message[i]) == "string" then lines[#lines + 1] = message[i] end
+    end
+    if message.rid == S.latestOrder then S.orders = lines end
+    local text = table.concat(lines, "; ")
+    local lower = text:lower()
+    local status = "failed"
+    if lower:match("^getting ") or lower:match("^crafting ") or lower:find("getting those", 1, true) then
+      status = "sent"
+    elseif lower:match("^delivered ") or lower:find("sent to output chest", 1, true) then
+      status = "delivered"
+    end
+    if status == "sent" then pending.acknowledged = true
+    else S.pending[message.rid] = nil end
+    if pending.view and pending.view.orderRid == message.rid then
+      pending.view.order = "Order: " .. status
+      pending.view.orderDetail = text ~= "" and text or "empty reply"
     end
   end
 end
@@ -96,7 +117,7 @@ end
 
 S.view = function(client)
   local key = type(client) == "table" and (client.id or client) or client or 0
-  if not S.views[key] then S.views[key] = { search = "", page = 1 } end
+  if not S.views[key] then S.views[key] = { search = "", page = 1, category = "all", sort = "count" } end
   return S.views[key]
 end
 
@@ -121,7 +142,7 @@ S.legacy = function(w, h, clientId)
   }
   local rows, buttons = picture.rows, picture.buttons
   rows[1] = S.row("              Storage: " .. S.state)
-  rows[2] = S.row("Search: " .. search)
+  rows[2] = S.row("")
   if not S.turtle then
     rows[#rows + 1] = S.row("Storage room not found, still looking")
     return picture
@@ -157,20 +178,52 @@ end
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 
-S.capacity = function(w, h)
+S.categories = {
+  {"all", "ALL"}, {"ores", "ORES", {"ore", "ingot", "nugget", "raw_", "diamond", "emerald", "coal", "redstone", "lapis", "quartz"}},
+  {"wood", "WOOD", {"log", "planks", "wood", "stem", "hyphae", "sapling", "stick"}},
+  {"food", "FOOD", {"apple", "bread", "carrot", "potato", "beef", "porkchop", "chicken", "mutton", "fish", "cod", "salmon", "melon", "berry", "berries", "cookie", "stew", "wheat"}},
+  {"blocks", "BLOCKS", {"stone", "dirt", "sand", "gravel", "brick", "glass", "concrete", "terracotta", "wool", "block", "deepslate", "obsidian", "netherrack"}},
+  {"tools", "TOOLS", {"pickaxe", "axe", "shovel", "hoe", "sword", "bow", "shield", "shears", "bucket", "fishing_rod", "helmet", "chestplate", "leggings", "boots"}},
+  {"other", "OTHER"},
+}
+
+S.category = function(name)
+  local id = name:gsub("^.-:", "")
+  for _, index in ipairs({6, 2, 3, 4, 5}) do
+    local category = S.categories[index]
+    for _, part in ipairs(category[3] or {}) do
+      if id:find(part, 1, true) then return category[1] end
+    end
+  end
+  return "other"
+end
+
+S.geometry = function(w, h)
+  local tabs = U.grid(w, h, math.max(1, math.min(7, math.floor((w + 1) / 7))))
+  local compact = w < 26 or h < 12
+  local top = compact and 4 or 3 + math.ceil(7 / #tabs)
+  local nav = h < 16 and 1 or 3
+  local bottom = h - nav + 1
   local cols = U.grid(w, h)
-  if w == 57 and h == 24 then cols = {{x=1,w=18},{x=20,w=19},{x=40,w=18}} end
-  local rows = math.max(1, math.floor((h - 11) / 6))
-  return cols, rows, #cols * rows
+  local rows = math.max(1, math.floor((bottom - top) / 6))
+  return { tabs = tabs, top = top, nav = nav, bottom = bottom, cols = cols,
+    rows = rows, capacity = #cols * rows, compact = compact }
+end
+
+S.capacity = function(w, h)
+  local g = S.geometry(w, h)
+  return g.cols, g.rows, g.capacity
 end
 
 S.gather = function(client)
   local view = S.view(client)
   local search = view.search
   local m = { found = S.turtle ~= nil, search = search, page = view.page, items = {},
-    order = table.concat(S.orders, "; "), time = "-" }
-  if S.sampleAt then
-    m.time = U and U.clock(S.sampleAt).hm or "-"
+    order = view.order or "", orderDetail = view.orderDetail, ordered = view.ordered,
+    categories = view.categories, category = view.category, letter = view.letter, letters = view.letters, sort = view.sort,
+    stale = S.heardAt == nil or os.epoch("utc") - S.heardAt >= 30000, time = "-" }
+  if S.heardAt then
+    m.time = U and U.clock(S.heardAt).hm or "-"
   end
   local query = search:lower():gsub("%s+", "_")
   for name, count in pairs(S.totals) do
@@ -184,9 +237,17 @@ S.gather = function(client)
     if count == 0 then item.sub = "empty"
     elseif count <= 16 and delta < 0 then item.sub = "v low" end
     if name == view.selected then m.selected = item end
-    if name:lower():find(query, 1, true) then m.items[#m.items + 1] = item end
+    if name:lower():find(query, 1, true)
+        and (view.category == "all" or S.category(name) == view.category)
+        and (not view.letter or item.label:sub(1, 1) == view.letter) then
+      m.items[#m.items + 1] = item
+    end
   end
   table.sort(m.items, function(a, b)
+    if view.sort == "name" then
+      if a.label == b.label then return a.name < b.name end
+      return a.label < b.label
+    end
     if a.count == b.count then return a.name < b.name end
     return a.count > b.count
   end)
@@ -194,67 +255,102 @@ S.gather = function(client)
 end
 
 S.layout = function(m, w, h)
-  local C = U.canvas(w, h)
-  local cols, rows, capacity = S.capacity(w, h)
-  local small = h < 16
-  local navHeight = small and 1 or 3
-  local bottom = h - navHeight + 1
+  local C, g = U.canvas(w, h), S.geometry(w, h)
+  if w < 4 or h < 5 then return C.frame() end
+  local status = m.stale and "STALE STOCK" or ("stock " .. m.time)
+  local footer = function(back)
+    local pages = math.max(1, math.ceil(#m.items / g.capacity))
+    local cols = U.grid(w, h, w < 26 and 5 or 4)
+    if w < 26 then cols[4].w = cols[4].w + cols[5].w + 1; cols[5] = nil end
+    for i, label in ipairs({"<", (m.page or 1) .. "/" .. pages, ">", "BACK"}) do
+      local col = cols[i]
+      if i == 2 and col.w < #label then label = tostring(m.page or 1) end
+      C.button(col.x, g.bottom, col.w, label, ({"prev", "page", "next", back})[i], "7", g.nav)
+    end
+  end
+  if m.categories then
+    C.header("SHOP CATEGORIES", "", "a")
+    for i, category in ipairs(S.categories) do
+      local cols = U.grid(w, h, 2)
+      local col = cols[(i - 1) % 2 + 1]
+      C.button(col.x, 3 + math.floor((i - 1) / 2), col.w, category[2], "category:" .. category[1], "a", 1)
+    end
+    C.button(1, g.bottom, w, "BACK", "items", "7", g.nav)
+    return C.frame()
+  end
+  if m.letters then
+    C.header("SHOP A-Z", "", "a")
+    local cols = U.grid(w, h, math.min(7, math.max(1, math.floor((w + 1) / 4))))
+    local height = h >= 20 and 3 or 1
+    for i = 1, 27 do
+      local col = cols[(i - 1) % #cols + 1]
+      local letter = i == 1 and "ALL" or string.char(63 + i)
+      C.button(col.x, 3 + math.floor((i - 1) / #cols) * height, col.w,
+        letter, "letter:" .. letter, "a", height)
+    end
+    C.button(1, g.bottom, w, "BACK", "items", "7", g.nav)
+    return C.frame()
+  end
   if m.selected then
     local item = m.selected
     C.header("SHOP > " .. item.label, "", "a")
-    C.tile(1, 3, w, "IN STOCK", item.count, item.detail, item.bg)
+    C.put(2, 2, status:sub(1, math.max(0, w - 2)))
+    C.tile(1, 3, w, "IN STOCK", item.count, item.detail, m.stale and "c" or item.bg, 5)
     local orderCols = U.grid(w, h, 3)
-    if w == 57 and h == 24 then orderCols = cols end
+    local height = h < 12 and 1 or h < 16 and 3 or 5
     for i, amount in ipairs({1,16,64}) do
-      local col = orderCols[(i - 1) % #orderCols + 1]
-      local y = small and 8 or 9
-      local height = small and 1 or 5
-      if y + height - 1 < bottom then
-        C.button(col.x, y, col.w, (col.w < 8 and "" or "ORDER ") .. amount,
+      local col = orderCols[i]
+      local y = h < 16 and 8 or 9
+      if m.ordered then
+        C.fill(col.x, y, col.w, height, "c")
+        C.center(col.x, col.w, y + math.floor(height / 2), tostring(amount))
+      else
+        C.button(col.x, y, col.w, (w < 26 and "" or "ORDER ") .. amount,
           "order:" .. amount .. ":" .. item.name, "a", height)
       end
     end
-    C.put(2, small and h-1 or 15, ("Order: " .. m.order):sub(1, math.max(0,w-2)))
-    C.button(1, bottom, w, "BACK", "items", "7", navHeight)
+    C.put(2, g.bottom - 1, (m.order or ""):sub(1, math.max(0, w - 2)))
+    if h >= 16 then
+      C.put(2, g.bottom - 2, (m.orderDetail or status):sub(1, math.max(0, w - 2)))
+    end
+    C.button(1, g.bottom, w, "BACK", "items", "7", g.nav)
     return C.frame()
   end
-  C.header("SHOP", w >= 26 and ("stock " .. m.time) or "", "a")
-  C.search(2, small and 2 or 3, math.max(0,w-2), " search: " .. m.search .. "_", "search")
-  local pages = math.max(1, math.ceil(#m.items / capacity))
-  local page = math.max(1, math.min(m.page, pages))
-  local start = (page - 1) * capacity
-  if not m.found then
-    local message = "Storage room not found, still looking"
-    local width = math.max(1,w-2)
-    for i=1, math.ceil(#message/width) do
-      C.put(2, (small and 3 or 5)+i-1, message:sub((i-1)*width+1,i*width))
-    end
+  C.header("SHOP", w >= 26 and status or "", "a")
+  if g.compact then
+    C.button(1, 2, w, (m.category or "all"):upper(), "categories", "a", 1)
   else
-    for i=1,capacity do
-      local item = m.items[start+i]
+    for i, category in ipairs(S.categories) do
+      local col = g.tabs[(i - 1) % #g.tabs + 1]
+      C.button(col.x, 2 + math.floor((i - 1) / #g.tabs), col.w, category[2],
+        "category:" .. category[1], category[1] == (m.category or "all") and "a" or "7", 1)
+    end
+  end
+  for i, col in ipairs(U.grid(w, h, 3)) do
+    C.button(col.x, g.top - 1, col.w, ({m.letter or "A-Z", "STOCK", "NAME"})[i],
+      ({"letters", "sort:count", "sort:name"})[i],
+      (i == 2 and m.sort ~= "name" or i == 3 and m.sort == "name") and "a" or "7", 1)
+  end
+  local page = math.max(1, math.min(m.page or 1, math.max(1, math.ceil(#m.items / g.capacity))))
+  if not m.found then
+    local text, width = "Storage room not found", math.max(1, w - 2)
+    for i = 1, math.ceil(#text / width) do
+      C.put(2, g.top + i - 1, text:sub((i - 1) * width + 1, i * width))
+    end
+  elseif #m.items == 0 then
+    C.center(1, w, g.top + 1, "No items")
+  else
+    for i = 1, g.capacity do
+      local item = m.items[(page - 1) * g.capacity + i]
       if not item then break end
-      local col = cols[(i-1)%#cols+1]
-      local y = (small and 3 or 5) + math.floor((i-1)/#cols)*6
-      C.tile(col.x,y,col.w,item.label,item.count,item.sub,item.bg)
-      C.hit("item:" .. item.name,col.x,y,col.w,5)
+      local col = g.cols[(i - 1) % #g.cols + 1]
+      local y = g.top + math.floor((i - 1) / #g.cols) * 6
+      C.tile(col.x, y, col.w, item.label, item.count, item.sub, m.stale and "c" or item.bg, 5)
+      C.hit("item:" .. item.name, col.x, y, col.w, 5)
     end
   end
-  C.put(2, small and h-1 or h-7, ("Order: " .. m.order):sub(1,math.max(0,w-2)))
-  if pages > 1 then
-    local y = small and h-2 or h-5
-    local pager = U.grid(w,h,3)
-    if w == 57 and h == 24 then pager = cols end
-    local labels = {"< PREV", "page " .. page .. "/" .. pages, "NEXT >"}
-    for i,col in ipairs(pager) do
-      local label = labels[i]
-      if col.w < 8 then label = ({ "<", page .. "/" .. pages, ">" })[i] end
-      C.button(col.x,y,col.w,label,({"prev","page","next"})[i],"7",navHeight)
-    end
-  end
-  local halves = U.grid(w,h,2)
-  if w == 57 and h == 24 then halves = {{x=1,w=28},{x=30,w=28}} end
-  C.button(halves[1].x,bottom,halves[1].w,"CLEAR SEARCH","clear","7",navHeight)
-  C.button(halves[2].x,bottom,halves[2].w,"BACK","status","7",navHeight)
+  C.put(2, g.bottom - 1, (m.order or ""):sub(1, math.max(0, w - 2)))
+  footer("status")
   return C.frame()
 end
 
@@ -276,26 +372,49 @@ S.input = function(event)
   local view = S.view(client)
   if type(event.text) == "string" then
     view.search = (event.text == " " or event.text == "*") and "" or event.text
-    view.page, view.selected = 1, nil
+    view.page, view.selected, view.ordered = 1, nil, nil
     return
   end
-  if event.id == "clear" then view.search = ""; view.page, view.selected = 1, nil; return end
+  if event.id == "clear" then view.search = ""; view.page, view.selected, view.ordered = 1, nil, nil; return end
   if type(event.id) ~= "string" then return end
   if U then
-    if event.id == "items" then view.selected = nil return end
+    if event.id == "items" then view.selected, view.letters, view.ordered, view.categories = nil, nil, nil, nil return end
+    if event.id == "categories" then view.categories = true return end
+    if event.id == "letters" then view.letters = true return end
+    local letter = event.id:match("^letter:(%u+)$")
+    if letter and (letter == "ALL" or #letter == 1) then
+      view.letter = letter ~= "ALL" and letter or nil
+      view.page, view.letters = 1, nil
+      return
+    end
+    local category = event.id:match("^category:(%a+)$")
+    if category then
+      for _, entry in ipairs(S.categories) do
+        if entry[1] == category then
+          view.category, view.page, view.selected, view.letter, view.search, view.categories = category, 1, nil, nil, "", nil
+          return
+        end
+      end
+      return
+    end
+    if event.id == "sort:name" or event.id == "sort:count" then
+      view.sort, view.page = event.id:sub(6), 1
+      return
+    end
     if event.id == "next" or event.id == "prev" then
       local pages = math.max(1,math.ceil(#S.gather(client).items/(view.capacity or 1)))
       view.page = math.max(1,math.min(pages,view.page + (event.id == "next" and 1 or -1)))
       return
     end
     local item = event.id:match("^item:(.+)$")
-    if item and S.totals[item] ~= nil then view.selected = item return end
+    if item and S.totals[item] ~= nil then view.selected, view.ordered = item, nil return end
   end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
   if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil
-      and (not U or view.selected == name) then
-    S.request("order", name, count)
+      and (not U or view.selected == name) and not view.ordered then
+    view.ordered = U ~= nil
+    S.request("order", name, count, view)
   end
 end
 
@@ -327,7 +446,10 @@ S.tick = function(now)
   for rid, pending in pairs(S.pending) do
     if now - pending.at >= 120000 then
       S.pending[rid] = nil
-      if pending.kind == "order" and rid == S.latestOrder then S.orders = { "reply timed out" } end
+      if pending.kind == "order" and not pending.acknowledged then
+        if rid == S.latestOrder then S.orders = { "reply timed out" } end
+        if pending.view and pending.view.orderRid == rid then pending.view.order = "Order: failed, timed out" end
+      end
     end
   end
 end
