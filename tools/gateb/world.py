@@ -568,7 +568,7 @@ class Runtime:
                 if not self.run(name).exists(): self.clone(name)
                 self.serve(name)
         elif action=='down':
-            for run in (self.home/'runs').iterdir():
+            for run in (self.home/'runs').glob('*'):
                 if owned(run.name): self.stop(run.name)
         status=[]
         for key,pid in self.status().items():
