@@ -8,6 +8,8 @@ local C = {
   rows = {},
   buttons = {},
   typed = "",
+  digits = "",
+  pairError = nil,
   attempt = 0,
   timer = nil,
   out = nil,
@@ -156,42 +158,84 @@ C.markStale = function()
   C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
 end
 
-C.retry = function()
-  if not C.pair.key(C.server) then
-    C.phase = "boot"
-    C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
-    return
+C.drawPair = function()
+  local draw = function(out)
+    if not out then return end
+    local w, h = out.getSize()
+    if out.clear then out.clear() end
+    local lines = {
+      "Pair: press P on the server, then type the 6-digit code here",
+      C.pairError or (C.server and "Ready for code" or "Looking for server..."),
+      "Code: " .. C.digits,
+    }
+    local y = 1
+    for _, line in ipairs(lines) do
+      repeat
+        if y > h then return end
+        out.setCursorPos(1, y)
+        out.write(line:sub(1, w))
+        line, y = line:sub(w + 1), y + 1
+      until line == ""
+    end
   end
+  draw(C.out)
+  if C.out ~= term then draw(term) end
+end
+
+C.retry = function()
+  local modem = peripheral.find("modem")
+  if modem then rednet.open(peripheral.getName(modem)) end
   C.output()
-  C.sendHello()
-  C.sendSub()
+  if not C.server or (not C.pair.key(C.server) and C.digits == "") then
+    C.server = rednet.lookup("so", "server")
+  end
+  if C.server and C.pair.key(C.server) then
+    C.phase = "stale"
+    C.sendHello()
+    C.sendSub()
+    C.clipDraw()
+  else
+    C.phase = "pairing"
+    C.drawPair()
+  end
   C.attempt = C.attempt + 1
   C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
 end
 
-C.ensureKey = function()
-  local modem = peripheral.find("modem")
-  if modem then rednet.open(peripheral.getName(modem)) end
-  C.server = rednet.lookup("so", "server")
-  if type(C.server) ~= "number" then return end
-  if C.pair.key(C.server) then return end
-  local digits = ""
-  while #digits < 6 do
-    local ev, ch = os.pullEvent()
-    if ev == "char" and type(ch) == "string" and ch:match("^%d$") then digits = digits .. ch end
+C.join = function()
+  C.pairError = "Pairing..."
+  C.drawPair()
+  local ok, reason = C.pair.join(C.digits, C.server)
+  C.digits = ""
+  C.attempt = 0
+  if ok then
+    C.pairError = nil
+    C.retry()
+  else
+    C.pairError = "Pair failed: " .. tostring(reason or "unknown")
+    C.server = nil
+    C.phase = "pairing"
+    C.drawPair()
+    C.arm(C.waitSeconds(os.getComputerID(), 1))
   end
-  C.pair.join(digits)
 end
 
 C.loop = function()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == C.timer then
-      if C.phase == "stale" then C.retry() else C.markStale() end
+      if C.phase == "live" then C.markStale() else C.retry() end
     elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then
       local msg = C.proto.decode(b)
       local key = C.pair.key(C.server)
       if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then C.onFrame(msg) end
+    elseif ev == "char" and C.phase == "pairing" and type(a) == "string" and a:match("^%d$") then
+      C.digits = C.digits .. a
+      C.drawPair()
+      if #C.digits == 6 then C.join() end
+    elseif ev == "key" and C.phase == "pairing" and (a == 259 or a == 14) then
+      C.digits = C.digits:sub(1, -2)
+      C.drawPair()
     elseif ev == "monitor_touch" or ev == "mouse_click" then
       local x, y = b, c
       local button = C.hit(x, y)
@@ -207,15 +251,13 @@ C.loop = function()
       C.send("input", { text = text, x = 1, y = 1 })
     elseif ev == "monitor_resize" or ev == "term_resize" then
       C.output()
-      C.sendHello()
-      C.clipDraw()
+      if C.phase == "pairing" then C.drawPair() else C.sendHello(); C.clipDraw() end
     end
   end
 end
 
 C.output()
-C.ensureKey()
-C.sendHello()
-C.sendSub()
-C.arm(10)
+C.phase = "pairing"
+C.drawPair()
+C.retry()
 C.loop()
