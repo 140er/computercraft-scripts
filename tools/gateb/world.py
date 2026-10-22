@@ -343,16 +343,21 @@ class Runtime:
                 time.sleep(.05)
             raise RuntimeError('Console command timed out')
 
+    def stopped_result(self, name):
+        path=self.home/'exits.json'
+        info=json.loads(path.read_text()).get(name,{}) if path.exists() else {}
+        return {'run':name,'stopped':True,**info}
+
     def stop(self, name):
         self.client_stop(name)
-        if name not in self.status(): return {'run':name,'stopped':True}
+        if name not in self.status(): return self.stopped_result(name)
         try:
             self.command(name,'stop',timeout=3)
         except RuntimeError:
             pass
         deadline=time.monotonic()+60
         while time.monotonic()<deadline:
-            if name not in self.status(): return {'run':name,'stopped':True}
+            if name not in self.status(): return self.stopped_result(name)
             time.sleep(.2)
         raise RuntimeError('Server did not stop cleanly; process retained for inspection')
 

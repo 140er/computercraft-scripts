@@ -71,6 +71,10 @@ def main(home, suite_lock):
             for key, process in list(children.items()):
                 if process.poll() is not None:
                     children.pop(key)
+                    path=home/'exits.json'
+                    exits=json.loads(path.read_text()) if path.exists() else {}
+                    exits[key]={'pid':process.pid,'returncode':process.returncode,'at':time.time()}
+                    temporary=path.with_suffix('.tmp');temporary.write_text(json.dumps(exits));temporary.replace(path)
                     for handle in handles.pop(key):
                         handle.close() if hasattr(handle, 'close') else os.close(handle)
             if children:

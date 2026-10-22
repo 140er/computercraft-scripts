@@ -64,7 +64,8 @@ def main():
         raise
     finally:
         for name in names:
-            try: runtime.stop(name)
+            try:
+                report.setdefault('shutdown',{})[name]=runtime.stop(name)
             except Exception as exc: report['errors'].append('Stop '+name+': '+str(exc))
         atomic(evidence/'result.json',report)
         print('Evidence:',evidence,flush=True)
