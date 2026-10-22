@@ -1,0 +1,36 @@
+part: so-mod-shop; suites: tests/ui/ui2c.lua
+part: generated 7 input files; private cwd /tmp/cc-part-ggti99z2
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.058s)
+Evidence: /tmp/craftos-evidence-ohw91we5
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.05s)
+Evidence: /tmp/craftos-evidence-rqoyhrh6
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.069s)
+Evidence: /tmp/craftos-evidence-ym22affw
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving win for emulator + Lua part
+Emulator FAIL: Local cc-test slots busy; retry when a local slot is free (0.051s)
+Evidence: /tmp/craftos-evidence-8moy587e
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-2 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.293s)
+Evidence: /tmp/craftos-evidence-z2zk2z8i
+cc-test: using local-2 slot
+PASS UI2c shop and order pages match the touch M fixtures
+FAIL UI2c touch fixtures match at compact pocket and large sizes
+PART DEPENDENCY VIOLATION: tests/ui/fixtures/shop-compact.txt
+PASS UI2c one order tap sends once and renders send nothing
+PASS UI2c direct orders use stock and name ranking without changing display state
+PASS UI2c paging visits every item once and clamps at both ends
+PASS UI2c all sizes keep both pages inside bounds with readable contrast
+PASS UI2c gathering uses stock and history and keeps discovery visible
+part: 6 passed, 1 failed, 1 undeclared reads; Lua CPU 0.064s
+part: local Lua wall 0.067s (excludes slot queue)

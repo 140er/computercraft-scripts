@@ -1,0 +1,25 @@
+Touch shop rebase validation.
+Base: origin/server-only at 0dcec246e1388a9207024d6dbb177ca194e9d4b8.
+Source under test: 09c6963c9db8f29bac9dce482f586c359e1bb724.
+
+Replayed only the four shop commits onto the squash-merged base. Original #174 and #176 commits are no longer parents of this branch. Their shop.order, per-display views and navigation behavior remain in the merged base. The #175 fleet display and #179 range changes remain unchanged.
+Resolved tests/run.lua by preserving the entire new base and appending the existing three touch-test lines. The scope check passes.
+The isolated shop runner exposed dynamically assembled fixture paths. Changed those to full literal paths so the #182 testkit includes all three size fixtures. Product behavior is unchanged.
+
+cc-test --part so-mod-shop: PASS, 7 tests, 0 failed, 0 undeclared reads; pack-ROM emulator PASS.
+cc-test --part so-mod-panel: PASS, 16 tests, 0 failed, 0 undeclared reads; pack-ROM emulator PASS.
+cc-test --part shop-touch: PASS, 8 tests, 0 failed, 0 undeclared reads; pack-ROM emulator PASS.
+The testkit requires full root module names; --part shop is not an alias. The first isolated shop run failed on the missing declared fixture and the fixed run passes.
+Parts queued while local emulator slots were busy. They eventually ran without forcing a slot. Logs preserve the reservation retries. Emulator reports are saved in rebase-emulators.zip.
+Pack ROM compatibility uses CC:Tweaked 1.120.2 ROM on CraftOS-PC 2.8.3 / 1.112.0 native core. It does not claim exact native-core parity.
+
+Plain cc-test: PASS, 585 tests, exit code 0, automatically selected win slot.
+Logs are rebase-full-suite.txt. Windows buffers some SO11 progress messages until after the final summary; the final test summary is 585 tests passed.
+Windows available memory while running was about 3598 MB.
+luac5.2 -p on all changed Lua files: PASS.
+python3 tools/cobaltlocals.py on all changed Lua files: PASS, below 185.
+sh tools/check-scope.sh origin/server-only HEAD: PASS, three appended lines and no test files deleted.
+python3 -I docs/ui/mockup-gen.py --fixtures: generated fixtures remain unchanged.
+
+After the full run, a fresh origin fetch still showed this same base. #178 was not merged into server-only at that check. Pairing remains the orchestrator's separate PR.
+No live Minecraft server or RCON was used. Real-server/gameplay testing remains with the orchestrator.

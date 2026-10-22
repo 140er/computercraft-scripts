@@ -1,4 +1,3 @@
-The restart checkpoint has been completed.
-See results.txt for final validation and padding-compatibility.txt for the temporary #177 combined-tree check.
-The full suite passes 563 tests. The PR targets server-only with #176 and #174 included; the orchestrator merges later.
-Gate A remains unestablished and Gate B remains with the orchestrator. Neither is claimed as a pass.
+The restart checkpoint and squash-merge rebase are complete.
+See rebase-results.txt for the current head validation. The full suite passes 585 tests, and shop, panel and touch part tests pass with pack-ROM checks.
+Only shop commits were replayed onto the merged server-only base. The orchestrator merges the PR.
