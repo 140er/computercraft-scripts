@@ -19,6 +19,8 @@ def run(ctx):
     try:
         if not ctx.wait(lambda: ctx.frame("pocket"), 180):
             raise Blocked("Pocket did not become available after client login")
+        if getattr(ctx, "linked_install", None):
+            ctx.linked_install()
         for name in ("pocket", "wall"):
             for role in ("mining", "lumber", "generic", "ar", "map", "shop", "status"):
                 frame = ctx.navigate(name, role)

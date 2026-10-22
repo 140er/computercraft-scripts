@@ -121,7 +121,7 @@ class Context:
         while True:
             try:
                 result = predicate()
-            except RuntimeError:
+            except (RuntimeError, FileNotFoundError):
                 result = None
             if result:
                 return result

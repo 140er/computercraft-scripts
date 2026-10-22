@@ -110,18 +110,19 @@ def runtime_class(directory):
     return module.Runtime
 
 
-def execute(ctx, check, runtime_dir):
+def execute(ctx, check, runtime_dir, prepare=True):
     started_at, start = datetime.now(timezone.utc).isoformat(), time.monotonic()
     try:
         ctx.runtime_dir = runtime_dir
-        ctx.cli("reset", ctx.run, timeout=180)
-        install = ctx.cli("install", ctx.run, ctx.commit, "--mode", "copy", timeout=180)
-        ctx.record("installed-build.json", install)
-        if install.get("sha") != ctx.commit or install.get("errors"):
-            raise Blocked("Runtime did not verify a clean exact-commit installation")
-        if not ctx.wait(lambda: ctx.lua("server", "return SO ~= nil"), 60):
-            raise Blocked("Installed server did not finish booting")
-        ctx.manifest = ctx.request("manifest")
+        if prepare:
+            ctx.cli("reset", ctx.run, timeout=180)
+            install = ctx.cli("install", ctx.run, ctx.commit, "--mode", "copy", timeout=180)
+            ctx.record("installed-build.json", install)
+            if install.get("sha") != ctx.commit or install.get("errors"):
+                raise Blocked("Runtime did not verify a clean exact-commit installation")
+            if not ctx.wait(lambda: ctx.lua("server", "return SO ~= nil"), 60):
+                raise Blocked("Installed server did not finish booting")
+            ctx.manifest = ctx.request("manifest")
         ctx.command(f"tick rate {ctx.tick_rate:g}")
         if ctx.tick_rate != 20 and ctx.lua("server", 'return SO and type(SO.now) == "function"') is not True:
             raise Blocked("Installed server has no SO.now tick-scaled clock; refusing speed-up")
@@ -193,7 +194,7 @@ def main(argv=None):
         groups = [checks for checks in groups if checks]
         worlds = [f"driver-{token}-{i+1}" for i in range(min(args.worlds, len(groups))) ]
         client_lock, group_lock = threading.Lock(), threading.Lock()
-        results, created = [], []
+        results, created, finished = [], [], set()
         try:
             for world in worlds:
                 cli.cli("clone", world)
@@ -206,11 +207,23 @@ def main(argv=None):
                         if not groups: break
                         checks = groups.pop(0)
                     for check in checks:
+                        with group_lock:
+                            if check in finished: continue
                         ctx = Context(runtime, world, {}, output/check, commit, rates[check])
+                        if check == "C3" and "C1" in selected:
+                            def linked_install():
+                                linked = Context(runtime, world, ctx.manifest, output/"C1", commit, 20)
+                                result = execute(linked, "C1", args.runtime_dir.resolve(), prepare=False)
+                                with group_lock:
+                                    results.append(result)
+                                    finished.add("C1")
+                            ctx.linked_install = linked_install
                         if check in ("C3", "C13"):
                             with client_lock: result = execute(ctx, check, args.runtime_dir.resolve())
                         else: result = execute(ctx, check, args.runtime_dir.resolve())
-                        with group_lock: results.append(result)
+                        with group_lock:
+                            results.append(result)
+                            finished.add(check)
                 return output_results
             with ThreadPoolExecutor(max_workers=len(worlds)) as pool:
                 for future in as_completed([pool.submit(worker, world) for world in worlds]):

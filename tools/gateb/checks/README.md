@@ -55,8 +55,10 @@ ore chest, then resets its private world for the separate native low-fuel case.
 No conditional planner branch is forced.
 
 C1 requires ordinary HTTP installation evidence on all six roles. Minecraft
-pockets require a connected player. With no client outside C3/C13, C1 reports
-blocked if the runtime cannot provide that six-role installation evidence.
+pockets require a connected player. When C1 and C3 are selected together, C3 runs
+C1 while its photo client is connected, saving a separate C1 result. C1 alone
+reports blocked if the runtime cannot provide six-role installation evidence
+without starting another client.
 File-copy preparation never counts as a normal HTTP installation.
 
 C3 reads actual received button rectangles and injects native mouse or monitor
