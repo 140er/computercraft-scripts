@@ -187,6 +187,9 @@ and backtrack along their saved moves.
 
 After a reboot, workers resolve an interrupted move from saved fuel or GPS
 evidence before reporting their pose. If a move or turn cannot be resolved, the
-worker shows `pose uncertain`, stays put and refuses new steps. Its hello reports
-the pending operation and uncertainty. An operator must inspect and reconcile
-the saved journal before work can resume; rebooting alone does not guess a pose.
+worker shows `pose uncertain: re-add turtle <id>`, stays put and refuses new steps.
+Its hello reports the pending operation and uncertainty. Inspect its position and
+facing, then enter `add <id> <x> <y> <z> <n|e|s|w>` on its mining or lumber screen.
+This re-anchors that turtle, clears its old movement history and uncertainty, and
+starts a fresh assignment at the supplied pose. The worker must save and confirm
+the anchor before work resumes. Rebooting alone does not guess a pose.

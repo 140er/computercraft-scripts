@@ -101,6 +101,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Reports release lease-owned cells; silence leaves reservations in place.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
+  `reanchor(id, worldPose)` sends an authenticated `worker.anchor` for an uncertain
+  journal and retries until a matching hello confirms it. Mining/lumber `add`
+  use it to replace an uncertain worker assignment with the operator-supplied pose.
   See [lease](server-only/PROTOCOL.md#lease).
 - [so-mod-cells.lua](../so-mod-cells.lua), `cells`, owns reservations and dug marks.
   Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
@@ -204,6 +207,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   At boot, pending moves use saved fuel or GPS to resolve their outcome. Turns
   or missing evidence stay uncertain. The worker reports that fact, keeps the
   pending entry, and refuses further steps without moving or backtracking.
+  An operator re-adds it with its actual pose to clear uncertainty. The worker
+  saves that anchor and clears old move/dug history before confirming it.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws

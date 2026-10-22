@@ -507,12 +507,22 @@ S.input = function(ev)
     j.saplings = { x = x, y = y, z = z, side = words[5] }
     j.noSaplings = false
   elseif words[1] == "add" and #words == 6 then
-    if j.running or S.pending then S.alert("stop before configuring") return end
     local id, x, y, z = integer(2), integer(3), integer(4), integer(5)
     local f = ({ n = 0, e = 1, s = 2, w = 3 })[words[6]]
     if not id or id < 0 or not x or not y or not z or f == nil then S.alert("invalid turtle") return end
-    if j.turtle then S.release() end
+    local lease = S.module("lease")
+    local status = type(lease.status) == "function" and lease.status(id) or {}
+    local reanchor = status.uncertain and j.turtle and j.turtle.id == id
+    if (j.running or S.pending) and not reanchor then S.alert("stop before configuring") return end
     local pose = { dim = j.dim, x = x, y = y, z = z, facing = f }
+    if status.uncertain then
+      local ok, err = lease.reanchor(id, pose)
+      if not ok then S.alert(err) return end
+      S.pending, S.idlePark, S.parkAt = nil, nil, nil
+      j.blocked, j.alert, j.tree, j.service = nil, nil, nil, nil
+      j.phase = "scan"
+    end
+    if j.turtle then S.release() end
     j.turtle = { id = id, anchor = pose, pose = pose }
     j.inv, j.fuel = {}, 0
     S.recover = true
@@ -520,14 +530,18 @@ S.input = function(ev)
   S.save()
 end
 
-S.render = function()
+S.render = function(w)
   local j = S.job
   local known, planted = 0, 0
   for _, spot in pairs(j.spots) do known = known + 1 if (spot.plantedAt or 0) > 0 then planted = planted + 1 end end
   local state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and j.phase or "stopped")
   local rows = {}
   local function row(text, red) rows[#rows + 1] = { text = text, fg = red and "e" or "0", bg = "f" } end
-  row("Lumber " .. tostring(state), j.blocked == "lost" or j.blocked == "out of range")
+  if j.blocked == "pose uncertain" then
+    local text = "pose uncertain: re-add turtle " .. j.turtle.id
+    if (w or 51) < #text then row("pose uncertain:",true) row("re-add turtle "..j.turtle.id,true)
+    else row(text,true) end
+  else row("Lumber " .. tostring(state), j.blocked == "lost" or j.blocked == "out of range") end
   row("Logs delivered " .. tostring(j.logs or 0))
   row("Saplings " .. tostring(S.count(L.isSapling)))
   row("Spots " .. known .. " planted " .. planted)
@@ -544,6 +558,11 @@ S.tick = function(now)
   local j = S.job
   if not j.turtle or not S.callback or type(lease.status) ~= "function" then return end
   local status = lease.status(j.turtle.id)
+  if status.uncertain then
+    j.blocked = "pose uncertain"
+    S.alert("pose uncertain: re-add turtle " .. j.turtle.id)
+    return
+  end
   if status.lost then S.recover = true j.blocked = "lost" end
   if S.pending or status.open then return end
   if S.recover then

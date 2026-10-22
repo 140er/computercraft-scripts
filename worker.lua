@@ -69,6 +69,7 @@ W.save = function()
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
   local ok, err = W.box.save(W.journal)
   if not ok then print("worker: journal " .. tostring(err)) end
+  return ok
 end
 
 W.load = function()
@@ -280,6 +281,34 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   term.write("seen " .. seen)
+  if W.journal.uncertain then
+    term.setCursorPos(1, 5)
+    term.write("pose uncertain: re-add turtle " .. os.getComputerID())
+  end
+end
+
+W.reanchor = function(body)
+  if type(body) ~= "table" then return end
+  local recovered = W.journal.recovery
+  if not W.journal.uncertain and type(recovered) == "table" and recovered.outcome == "anchored"
+    and recovered.journal == body.journal then W.hello() return end
+  if not W.journal.uncertain or body.journal ~= W.journal.id then return end
+  local p = body.pose
+  if type(p) ~= "table" then return end
+  for _, field in ipairs({ "x", "y", "z", "f" }) do
+    local n = p[field]
+    if type(n) ~= "number" or n ~= n or n % 1 ~= 0 or math.abs(n) >= 30000000 then return end
+  end
+  if p.f < 0 or p.f > 3 then return end
+  local old, pose = W.journal, W.pose
+  W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
+  W.journal = { seq = old.seq, moves = {}, dug = {}, park = true,
+    recovery = { outcome = "anchored", journal = old.id } }
+  W.bump()
+  if not W.save() then W.journal, W.pose = old, pose return end
+  W.dug, W.queued, W.expires, W.lease = {}, nil, nil, nil
+  W.mode, W.stepName = "idle", "idle"
+  W.hello()
 end
 
 W.accept = function(sender, payload)
@@ -290,7 +319,8 @@ W.accept = function(sender, payload)
   if not key or not W.proto.macOk(key, msg) then return end
   if not W.proto.fresh(msg) then return end
   W.seen = os.epoch("utc")
-  if msg.t == "lease.batch" then W.queued = msg end
+  if msg.t == "worker.anchor" then W.reanchor(msg.body)
+  elseif msg.t == "lease.batch" then W.queued = msg end
 end
 
 W.breathe = function(seconds)

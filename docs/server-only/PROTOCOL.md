@@ -131,7 +131,7 @@ observation stays uncertain. The worker retains the pending entry and sends
 `journal.recovery = { n, op, outcome }` on hello. `outcome` is `applied`,
 `not applied`, or `uncertain`. `journal.uncertain = true` marks an unknown pose;
 `journal.pose` then contains only the last committed pose. The worker stays still
-and refuses subsequent steps with `pose uncertain` until the journal is reconciled.
+and refuses subsequent steps with `pose uncertain` until an operator re-adds it.
 The server discards its cached journal pose and refuses new leases while uncertain.
 
 ### step.report
@@ -694,3 +694,22 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 Worker uncertainty is also exposed by `lease.status(id).uncertain`. While it is
 true, `lease.send` returns `nil, "pose uncertain"`, including recovery parks.
 Uncertain beacons carry `uncertain = true` and omit `pose`.
+
+### worker.anchor
+
+Mining or lumber `add <id> <x> <y> <z> <n|e|s|w>` can replace an existing uncertain
+assignment. Both screens and the worker show `pose uncertain: re-add turtle <id>`.
+The operator supplies the turtle's actual position and facing. Normal duplicate
+mining adds still fail; lumber retains its normal configuration guards otherwise.
+
+`lease.reanchor(id, worldPose)` requires an uncertain worker and sends an
+authenticated `worker.anchor` with `{ journal, pose = { x, y, z, f } }`.
+`journal` identifies the uncertain worker journal. The worker accepts only its
+paired server, only while uncertain, and only when that journal id matches.
+It saves the supplied pose as a fresh journal, clears pending steps, moves and dug
+history, then sends hello with `journal.recovery = { outcome = "anchored", journal }`.
+Duplicate anchor requests re-send hello without resetting the journal, so a lost
+confirmation can recover. A failed save retains uncertainty. The server retries
+the anchor once per second
+and keeps refusing leases until that matching hello arrives. Old lease callbacks
+are cancelled during re-anchoring. Work then starts from the new assignment.
