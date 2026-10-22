@@ -4,7 +4,7 @@ local C = { green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, coral = 0xFFFF
   white = 0xFFF2F4F8 - 2^32, backing = 0xC00E1626 - 2^32 }
 local function boot()
   local m = H.new().machine({ id = 1, capacity = 16000000 })
-  m.install({ "so-store.lua", "so-mod-ar.lua" })
+  m.install({ "so-store.lua", "so-mod-ar.lua", "so-mod-cells.lua" })
   local e, b = m.env, { machines = {}, values = {}, entries = {}, points = {}, cells = {}, status = {}, outside = {} }
   e.SO = { store = e.dofile("so-store.lua"), proto = { ser = H.encode }, mods = {} }
   local mods = e.SO.mods
@@ -71,6 +71,25 @@ return function(test, equal)
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
       for i = 1, 12 do equal(b.ar.elements["drop:" .. row[1] .. ":box:" .. i][1], row[2]) end
     end
+  end)
+  test("UI3c AR frame with 200 reservations does not sleep or yield", function()
+    local b = boot(); b.machine(2, "mining")
+    local sleeps = 0
+    b.env.sleep = function() sleeps = sleeps + 1 end
+    local cells = b.env.dofile("so-mod-cells.lua")
+    local route = {}
+    for x = 1, 200 do route[x] = { x = x, y = 64, z = 3 } end
+    assert(cells.reserveMany("mine:2", route))
+    b.env.SO.mods.cells = cells
+    sleeps = 0; cells.counts(); assert(sleeps > 0, "counts must exercise the pause threshold")
+    sleeps = 0
+    local frame = coroutine.create(function() b.tick(1000) end)
+    local ok, err = coroutine.resume(frame); assert(ok, err)
+    equal(coroutine.status(frame), "dead")
+    equal(sleeps, 0)
+    equal(b.ar.frames, 1)
+    for edge = 1, 12 do equal(b.ar.elements["lease:mine:2:" .. edge][1], C.blue) end
+    equal(b.ar.elements["lease:mine:2:2"][2], 201)
   end)
   test("UI3c HUD has three forty pixel tiles with backing and four pixel bars", function()
     local b = boot(); b.machine(2, "working"); b.machine(3, "lost")
