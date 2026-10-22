@@ -131,6 +131,7 @@ P.render = function(w, h, session)
       P.block(c,"lumber",1,8,w,h)
       P.shop(c,session,1,13,w,h)
     end
+    c.button(8,1,6,"MORE","generic","7",1)
     c.fill(1,h,w,1,"7")
     if w >= 26 then
       c.put(2,h,"GLANCE  ALERTS  PAIR")

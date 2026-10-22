@@ -203,7 +203,8 @@ U.status = function(model, w, h)
   elseif size == 'XS' then
     local index = (model.page or 0) % #tiles + 1
     draw(index, 1, 3, w, index == 1 and model.lostShort or nil)
-    C.fill(1, 9, w, 2, '7'); C.center(1,w,9,'tap: next'); C.hit('next',1,1,w,h)
+    C.button(1,h-1,w,'NEXT','next','7',1)
+    C.button(1,h,w,'MORE','generic','7',1)
   elseif size == 'T' then
     for i, index in ipairs({1,7,6,3}) do draw(index, (i - 1) * 13 + 1, 3, 12, (model.terminalSubs or {})[i]) end
     C.fill(1,9,w,1,'7'); C.put(2,9,'LOG')
@@ -233,6 +234,7 @@ U.status = function(model, w, h)
       C.button(col.x,h-2,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7')
     end
   end
+  if size == 'P' then C.button(1,h-1,w,'MORE','generic','7',1) end
   return C.frame()
 end
 U.alert = function(model, w, h)

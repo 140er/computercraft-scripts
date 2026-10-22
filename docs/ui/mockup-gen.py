@@ -121,11 +121,12 @@ add(c, "Status, wall monitor 4x3 at scale 1", True)
 c = Canvas(26, 20); c.header("FLEET", "21:14")
 for i, (lab, val, sub, bg) in enumerate([("TURTLES","3","3 ok, 0 lost","d"),("ALERTS","1","ore chest full","e"),("ORE TODAY","214","+12 / 10 min","b")]):
     c.tile(0, 1 + i*6, 26, lab, val, sub, bg)
+c.button(0, 18, 26, "MORE", h=1)
 c.fill(0, 19, 26, 1, "7"); c.text(0, 19, " <  glance 1/3  >  PANEL ")
 add(c, "Pocket, glance mode", True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", "22:14")
+c = Canvas(26, 20); c.header("PANEL", "22:14"); c.button(7, 0, 6, "MORE", h=1)
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -227,7 +228,7 @@ c.tile(0, 8, 18, "ALERTS", "1", "layer on", "d"); c.text(20, 9, "tap a tile to s
 c.button(0, 20, 57, "BACK")
 add(c, "AR layer switches (1 = on, 0 = off)")
 
-c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.fill(0, 8, 15, 2, "7"); c.center(0, 15, 8, "tap: next")
+c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
 
 import argparse

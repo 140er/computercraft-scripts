@@ -167,7 +167,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Handler `drops.edit` edits points. Tick registers the generic screen.
   The Big Tiles list selects the first broken point by default, or the first
   point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
-  opens the draft editor and navigation to mining, lumber, shop and AR. BACK
+  opens the draft editor. The list links to mining, lumber, shop, AR and panel;
+  links wrap into two rows below 39 columns and three below 26. BACK
   returns the list to status and the editor to the list. Long lists have paging.
   Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
   The kit-free editor fits below two navigation rows and above local input;
@@ -190,9 +191,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
   Button id `status` returns any screen to status. Generic screens with their
-  own `lumber` and `ar` buttons keep them. The drops list has its own nav row
+  own `lumber` and `ar` buttons keep them. The drops list has its own navigation
   (MINING, LUMBER, SHOP, AR, PANEL) and suppresses header injection; older generic screens retain
-  the fallback buttons. Generic screens at least 39 columns wide gain a PANEL
+  the fallback buttons. The draft editor keeps its header clear and returns
+  to the list with BACK. Generic screens at least 39 columns wide gain a PANEL
   header button when the panel screen is loaded and they do not already provide one.
   Input includes sender ID `from`. Sessions retain the client ID as `id`.
   Kit-free callbacks receive that ID instead of the session. Their generic
@@ -201,14 +203,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
   glance row pages three tiles at a time with `prev` and `next`; `panel` selects
-  panel mode. Explicit saved roles take precedence. Gather runs in
+  panel mode. MORE opens generic from glance, status and panel. Explicit saved roles,
+  including generic, take precedence and survive restart. The 15x10 status page
+  has separate NEXT and MORE buttons. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
   the legacy status renderer for older partial installations.
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
   `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
-  main/alerts/pair pages and alert paging in each display session. Tick gathers
+  main/alerts/pair pages and alert paging in each display session. MORE in its
+  header opens the generic drop-point list. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   Main-page inputs forward START and STOP once to the mining or lumber screen.
   Orders call `shop.order(search, count)` once. Shop's count/name sort defines

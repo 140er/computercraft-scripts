@@ -56,7 +56,7 @@ return function(test,equal)
     local d,_,screens=boot();local ui=screens.generic
     for i=1,64 do assert(d.add({id='p'..i,kind='ore',dim=0,x=i,y=64,z=0,side='front'})) end
     local seen={}
-    for _=1,32 do
+    for _=1,64 do
       local f=ui.render(15,10)
       local cells={}
       for _,b in ipairs(f.buttons) do
