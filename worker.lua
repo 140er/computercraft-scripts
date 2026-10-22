@@ -14,7 +14,11 @@ local C = {
   dz = { [0] = -1, [1] = 0, [2] = 1, [3] = 0 },
   tags = { "c:ores", "forge:ores", "minecraft:logs", "minecraft:leaves",
     "minecraft:saplings", "minecraft:dirt", "c:chests", "forge:chests" },
-  counted = { refuel = true, drop = true, dropDown = true, suck = true, suckDown = true },
+  transfers = { drop = "front", dropUp = "top", dropDown = "bottom",
+    suck = "front", suckUp = "top", suckDown = "bottom" },
+  counted = { refuel = true, drop = true, dropUp = true, dropDown = true, suck = true, suckUp = true, suckDown = true },
+  discard = { front = { "front", "inspect", "drop" }, up = { "top", "inspectUp", "dropUp" },
+    down = { "bottom", "inspectDown", "dropDown" } },
 }
 
 local W = {}
@@ -67,6 +71,7 @@ W.save = function()
   W.journal.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
   local ok, err = W.box.save(W.journal)
   if not ok then print("worker: journal " .. tostring(err)) end
+  return ok
 end
 
 W.load = function()
@@ -113,6 +118,10 @@ end
 W.markPending = function(op)
   W.bump()
   W.journal.pending = { n = W.journal.seq, op = op, lease = W.lease }
+  if C.moves[op] and op ~= "turnLeft" and op ~= "turnRight" then
+    W.journal.pending.fuel = W.fuelRaw()
+    if W.journal.pending.fuel == "unlimited" then W.journal.pending.gps = W.gpsFix() end
+  end
   W.save()
 end
 
@@ -172,6 +181,37 @@ W.gpsFix = function()
   return { x = x, y = y, z = z }
 end
 
+W.resolvePending = function()
+  local pending = W.journal.pending
+  if not pending or not C.moves[pending.op] then return end
+  local moved
+  if pending.op ~= "turnLeft" and pending.op ~= "turnRight" then
+    local fuel = W.fuelRaw()
+    if type(fuel) == "number" and type(pending.fuel) == "number" then
+      if fuel == pending.fuel then moved = false
+      elseif fuel == pending.fuel - 1 then moved = true end
+    elseif type(pending.gps) == "table" then
+      local fix, before = W.gpsFix(), pending.gps
+      if fix then
+        local dx, dy, dz = fix.x-before.x, fix.y-before.y, fix.z-before.z
+        if dx == 0 and dy == 0 and dz == 0 then moved = false
+        elseif pending.op == "up" and dx == 0 and dy == 1 and dz == 0 then moved = true
+        elseif pending.op == "down" and dx == 0 and dy == -1 and dz == 0 then moved = true
+        elseif (pending.op == "forward" or pending.op == "back") and dy == 0
+          and ((math.abs(dx) == 1 and dz == 0) or (dx == 0 and math.abs(dz) == 1)) then moved = true end
+      end
+    end
+  end
+  W.journal.recovery = { n = pending.n, op = pending.op,
+    outcome = moved == nil and "uncertain" or moved and "applied" or "not applied" }
+  W.journal.uncertain = moved == nil or nil
+  if moved ~= nil then
+    if moved then W.apply(pending.op) W.pushMove(pending.op) end
+    W.journal.pending = nil
+  end
+  W.save()
+end
+
 W.hello = function()
   local key = W.pair.key(W.server)
   if not key then return end
@@ -196,7 +236,8 @@ W.beacon = function()
     id = os.getComputerID(),
     fuel = W.fuelBeacon(),
     journal = W.journal.id,
-    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
+    pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
+    uncertain = W.journal.uncertain,
   }))
 end
 
@@ -205,7 +246,8 @@ W.report = function(results)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
     lease = W.lease, results = results,
-    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
+    pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
+    uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
   })
   while not W.proto.encode(msg) do
@@ -241,17 +283,60 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   term.write("seen " .. seen)
+  if W.repair then
+    term.setCursorPos(1, 6)
+    term.write("Key changed? Old key kept.")
+    term.setCursorPos(1, 7)
+    term.write("Press P on server. Code: " .. (W.codeText or ""))
+    term.setCursorPos(1, 8)
+    term.write(W.pairError or "Type 6 digits, then Enter")
+  end
+  if W.journal.uncertain then
+    term.setCursorPos(1, 5)
+    term.write("pose uncertain: re-add turtle " .. os.getComputerID())
+  end
+end
+
+W.reanchor = function(body)
+  if type(body) ~= "table" then return end
+  local recovered = W.journal.recovery
+  if not W.journal.uncertain and type(recovered) == "table" and recovered.outcome == "anchored"
+    and recovered.journal == body.journal then W.hello() return end
+  if not W.journal.uncertain or body.journal ~= W.journal.id then return end
+  local p = body.pose
+  if type(p) ~= "table" then return end
+  for _, field in ipairs({ "x", "y", "z", "f" }) do
+    local n = p[field]
+    if type(n) ~= "number" or n ~= n or n % 1 ~= 0 or math.abs(n) >= 30000000 then return end
+  end
+  if p.f < 0 or p.f > 3 then return end
+  local old, pose = W.journal, W.pose
+  W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
+  W.journal = { seq = old.seq, moves = {}, dug = {}, park = true,
+    recovery = { outcome = "anchored", journal = old.id } }
+  W.bump()
+  if not W.save() then W.journal, W.pose = old, pose return end
+  W.dug, W.queued, W.expires, W.lease = {}, nil, nil, nil
+  W.mode, W.stepName = "idle", "idle"
+  W.hello()
 end
 
 W.accept = function(sender, payload)
   if sender ~= W.server then return end
+  if W.pair.repairHint(sender, payload, W.server) then
+    W.repair = true
+    W.paint()
+    return
+  end
   local msg = W.proto.decode(payload)
   if not msg or msg.from ~= sender then return end
   local key = W.pair.key(W.server)
   if not key or not W.proto.macOk(key, msg) then return end
   if not W.proto.fresh(msg) then return end
+  W.repair, W.codeText, W.pairError = nil, nil, nil
   W.seen = os.epoch("utc")
-  if msg.t == "lease.batch" then W.queued = msg end
+  if msg.t == "worker.anchor" then W.reanchor(msg.body)
+  elseif msg.t == "lease.batch" then W.queued = msg end
 end
 
 W.breathe = function(seconds)
@@ -264,10 +349,43 @@ W.breathe = function(seconds)
         os.cancelTimer(id)
         return
       end
+    elseif W.repair and (ev == "char" or ev == "paste") then
+      W.codeText = ((W.codeText or "") .. tostring(a):gsub("%D", "")):sub(1, 6)
+      W.paint()
+    elseif W.repair and ev == "key" and (a == 259 or a == 14) then
+      W.codeText = (W.codeText or ""):sub(1, -2)
+      W.paint()
+    elseif W.repair and ev == "key" and (a == 257 or a == 28) and #(W.codeText or "") == 6 then
+      os.cancelTimer(id)
+      local ok, err = W.pair.join(W.codeText, W.server)
+      id = os.startTimer(seconds)
+      W.codeText = ""
+      if ok then
+        W.repair, W.pairError = nil, nil
+        W.hello()
+      else
+        W.pairError = "Pair failed: " .. tostring(err)
+      end
+      W.paint()
     elseif ev == "timer" and a == id then
       return
     end
   end
+end
+
+W.discard = function(step)
+  local side = C.discard[step.side or "down"]
+  if not side then return false, "bad side" end
+  if peripheral.hasType(side[1], "inventory") then return false, "inventory present" end
+  local exists, block = turtle[side[2]]()
+  if exists ~= true and (exists ~= false or block ~= "No block to inspect") then
+    return false, "cell unknown"
+  end
+  if exists and (type(block) ~= "table" or (block.name ~= "minecraft:air"
+    and block.name ~= "minecraft:cave_air" and block.name ~= "minecraft:void_air")) then
+    return false, "cell occupied"
+  end
+  return turtle[side[3]](step.n)
 end
 
 W.exec = function(step)
@@ -277,9 +395,14 @@ W.exec = function(step)
     return result
   end
   local op = step.op
-  local fn = turtle[op]
+  local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
+    return result
+  end
+  local side = C.transfers[op]
+  if side and not peripheral.hasType(side, "inventory") then
+    result.err = "no inventory"
     return result
   end
   local ok, info
@@ -341,6 +464,15 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
+  if W.journal.uncertain then
+    W.lease = body.lease
+    local results = {}
+    for i = 1, n do results[i] = { ok = false, err = "pose uncertain", counts = W.counts() } end
+    W.report(results)
+    W.enterSlow()
+    return
+  end
+  W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
   W.mode = "idle"
   W.lease = body.lease
   W.expires = body.expires
@@ -382,6 +514,11 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
+  if W.journal.park or W.journal.uncertain then
+    W.enterSlow()
+    W.beacon()
+    return
+  end
   local now = os.epoch("utc")
   W.mode = "fast"
   W.stepName = "beacon"
@@ -395,7 +532,7 @@ end
 
 W.enterSlow = function()
   W.mode = "slow"
-  W.stepName = "slow"
+  W.stepName = W.journal.uncertain and "pose uncertain" or "slow"
   W.nextPing = os.epoch("utc") + C.slowGap
   W.paint()
 end
@@ -479,7 +616,7 @@ end
 W.onWake = function()
   local now = os.epoch("utc")
   if W.mode == "idle" then
-    if not W.seen then W.hello() end
+    if not W.seen or now - W.seen >= 30000 then W.hello() end
     if W.expires and now >= W.expires then W.enterFast() end
     return
   end
@@ -529,12 +666,26 @@ W.readCode = function()
     if type(text) == "string" then return text:match("%d%d%d%d%d%d") end
     return nil
   end
-  if type(read) ~= "function" then return nil end
+  W.codeText = W.codeText or ""
   term.setCursorPos(1, 5)
-  term.write("Code: ")
-  local line = read()
-  if type(line) ~= "string" then return nil end
-  return line:match("%d%d%d%d%d%d")
+  term.write("Code: " .. W.codeText)
+  local timer = os.startTimer(2)
+  while true do
+    local ev, value = os.pullEvent()
+    if ev == "timer" and value == timer then return nil end
+    if ev == "char" or ev == "paste" then
+      W.codeText = (W.codeText .. tostring(value):gsub("%D", "")):sub(1, 6)
+    elseif ev == "key" and value == 259 then
+      W.codeText = W.codeText:sub(1, -2)
+    elseif ev == "key" and value == 257 and #W.codeText == 6 then
+      os.cancelTimer(timer)
+      local code = W.codeText
+      W.codeText = ""
+      return code
+    end
+    term.setCursorPos(1, 5)
+    term.write("Code: " .. W.codeText .. " ")
+  end
 end
 
 W.boot = function()
@@ -555,22 +706,37 @@ W.boot = function()
   W.pair.open(W.proto, store)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
+  W.resolvePending()
   W.mode = "idle"
   W.stepName = "idle"
+  local saved = W.pair.peer()
+  local delay, code = 2, nil
   while true do
-    W.server = rednet.lookup("so", "server")
-    if type(W.server) ~= "number" then W.server = nil end
-    if W.server and W.pair.key(W.server) then break end
-    local code = W.readCode()
-    if W.server and code then
-      local ok = W.pair.join(code)
-      if ok then
-        fs.delete("so-code")
-        break
+    local found = rednet.lookup("so", "server")
+    W.server = type(found) == "number" and found or nil
+    if saved then
+      if not W.server or not W.pair.key(W.server) then W.server = saved end
+      W.stepName = "waiting for server"
+      W.paint()
+      W.hello()
+      W.breathe(delay)
+      if W.seen then break end
+      delay = math.min(delay * 2, 30)
+    else
+      W.paint()
+      code = code or W.readCode()
+      if W.server and code then
+        if W.pair.join(code) then
+          fs.delete("so-code")
+          break
+        end
+        code = nil
       end
+      if code or fs.exists("so-code") then sleep(2) end
     end
-    sleep(2)
   end
+  W.stepName = "idle"
+  if W.journal.uncertain then W.enterSlow() end
   W.hello()
   W.paint()
   W.loop()

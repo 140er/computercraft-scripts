@@ -90,7 +90,7 @@ end
 D.session = function(id)
   local found = D.sessions[id]
   if found then return found end
-  found = { sub = false, sent = 0 }
+  found = { id = id, sub = false, sent = 0 }
   D.sessions[id] = found
   return found
 end
@@ -155,7 +155,8 @@ D.compose = function(role, w, h, session)
   if screen then
     local ok, got
     if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, h, D.now())
-    else ok, got = pcall(screen.render, w, h, session) end
+    else ok, got = pcall(screen.render, w, not U and role == "generic" and math.max(1, h - 2) or h,
+      U and session or (session and session.id)) end
     if ok and type(got) == "table" then picture = got end
   end
   if not picture then
@@ -164,7 +165,27 @@ D.compose = function(role, w, h, session)
   end
   local rows = type(picture.rows) == "table" and picture.rows or {}
   local buttons = type(picture.buttons) == "table" and picture.buttons or {}
-  if role == "generic" then
+  if role == "generic" and not U then
+    local shifted = { { text = "", fg = "0", bg = "f" }, { text = "", fg = "0", bg = "f" } }
+    for i, row in ipairs(rows) do shifted[i + 2] = row end
+    rows = shifted
+    local copy = {
+      { id = "mining", x = 1, y = 1, w = 6, label = "mining" },
+      { id = "lumber", x = 8, y = 1, w = 6, label = "lumber" },
+      { id = "shop", x = 15, y = 1, w = 4, label = "shop" },
+      { id = "status", x = 1, y = 2, w = 6, label = "status" },
+      { id = "ar", x = 8, y = 2, w = 2, label = "ar" },
+    }
+    for _, button in ipairs(buttons) do
+      if not D.known[button.id] then
+        local moved = {}
+        for key, value in pairs(button) do moved[key] = value end
+        moved.y = button.y + 2
+        copy[#copy + 1] = moved
+      end
+    end
+    buttons = copy
+  elseif role == "generic" then
     local copy, found = {}, {}
     for i, button in ipairs(buttons) do copy[i], found[button.id] = button, true end
     for _, button in ipairs({
@@ -180,8 +201,8 @@ D.compose = function(role, w, h, session)
   end
   local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
   local pictureKey = role .. ":" .. w .. "x" .. h
-  local pictures = (role == "status" or role == "panel") and session and (session.pictures or {}) or D.pictures
-  if (role == "status" or role == "panel") and session then session.pictures = pictures end
+  local pictures = session and (session.pictures or {}) or D.pictures
+  if session then session.pictures = pictures end
   local slot = pictures[pictureKey]
   if not slot then
     slot = { rev = 0, sig = "" }
@@ -213,7 +234,7 @@ D.sendFrame = function(id, now, force)
   if U and role == "status" then D.model = D.gather() end
   local body = D.compose(role, session.w, session.h, session)
   body.scale = D.saved.far[tostring(id)] and 1 or 0.5
-  local slot = ((body.role == "status" or body.role == "panel") and session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
+  local slot = (session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
   if not due then return end
@@ -417,7 +438,7 @@ D.hello = function(msg)
   if type(body) ~= "table" or not D.acceptSize(body.w, body.h) then return end
   local session = D.session(msg.from)
   session.w = body.w
-  session.h = body.h
+  session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
   if session.sub then D.sendFrame(msg.from, D.now(), true) end
 end
 
@@ -471,7 +492,7 @@ D.onInput = function(msg)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
     D.setRole(msg.from, "generic")
   end
-  local event = { id = id, x = body.x, y = body.y, role = drawn, session = session }
+  local event = { from = msg.from, id = id, x = body.x, y = body.y, role = drawn, session = session }
   if text ~= nil then event.text = text end
   if screen then pcall(screen.input, event) end
   local session = D.sessions[msg.from]
@@ -512,6 +533,7 @@ D.terminal = function(model, view, w, h)
   if not U then return D.legacyStatus() end
   local C = U.canvas(w,h)
   C.header("SO SERVER #" .. tostring(view.id), view.mode == "code" and "pairing" or view.uptime)
+  if view.hostError then C.put(1,2,view.hostError,"e") end
   local lines, first = view.log or {}, 10
   if view.mode == "code" then
     C.fill(1,3,w,math.max(0,h-6),"9")

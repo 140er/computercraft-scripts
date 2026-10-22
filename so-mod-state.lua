@@ -234,6 +234,11 @@ H.touch = function()
   H.flush()
 end
 
+local function canStart()
+  if not H.disk().accepting then return false, "disk >=80%; free space" end
+  return true
+end
+
 local function emit(kind, data)
   if type(kind) ~= "string" or kind == "" then return false, "kind" end
   if kind == "job" and not H.disk().accepting then return false, "disk" end
@@ -336,6 +341,7 @@ return {
   emit = emit,
   get = get,
   view = view,
+  canStart = canStart,
   job = function(data) return emit("job", data) end,
   history = history,
 }

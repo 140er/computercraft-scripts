@@ -14,6 +14,7 @@ return function(test, equal, read)
     local m = H.new().machine({ id = 99, capacity = cap or 16000000 })
     local e, disk, dirs = m.env, {}, { [""] = true }
     m.files, m.dirs, m.calls, m.runs = disk, dirs, 0, {}
+    m.urls, m.remote, m.sha = {}, {}, string.rep("a", 40)
     local function norm(p) return p:gsub("^/+", ""):gsub("/+$", "") end
     e.fs = {
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
@@ -55,7 +56,13 @@ return function(test, equal, read)
         p = norm(p)
         if mode == "w" then
           disk[p] = ""
-          return { write = function(s) disk[p] = disk[p] .. s end, close = function() end }
+          return { write = function(s)
+            disk[p] = disk[p] .. s
+            local used = 0
+            for _, bytes in pairs(disk) do used = used + math.max(500, #bytes) end
+            m.peak = math.max(m.peak or 0, used)
+            assert(used <= m.capacity, "disk limit exceeded")
+          end, close = function() end }
         end
         if not disk[p] then return nil end
         return { readAll = function() return disk[p] end, close = function() end }
@@ -68,20 +75,39 @@ return function(test, equal, read)
     e.gps = { locate = function(timeout) equal(timeout, 2); return 1, 2, 3 end }
     e.read = function() return "" end
     e.shell = { run = function(...) m.runs[#m.runs + 1] = { ... }; return true end }
+    e.textutils.unserializeJSON = function(body)
+      if body ~= "branch-json" then error("bad JSON") end
+      return { commit = { sha = m.sha } }
+    end
     e.http = { get = function(url, headers, binary)
+      m.urls[#m.urls + 1] = url
+      if url == "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only" then
+        if m.apiError then error("HTTP disabled") end
+        if m.apiFail then return nil, "API unavailable" end
+        return { getResponseCode = function() return m.apiStatus or 200 end,
+          readAll = function() return m.apiBody or "branch-json" end, close = function() end }
+      end
+      if url == "https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack" then
+        if not m.gitBody then return nil, "Git refs unavailable" end
+        return { getResponseCode = function() return m.gitStatus or 200 end,
+          readAll = function() return m.gitBody end, close = function() end }
+      end
       m.calls = m.calls + 1
+      if m.onRaw then m.onRaw(url) end
       equal(headers, nil); equal(binary, true)
-      local path = assert(url:match("^https://raw%.githubusercontent%.com/140er/computercraft%-scripts/refs/heads/server%-only/(.*)$"))
+      local ref, path = url:match("^https://raw%.githubusercontent%.com/140er/computercraft%-scripts/([^/]+)/(.*)$")
+      if ref == "refs" then path = path:match("^heads/server%-only/(.*)$") end
+      assert(path, url)
       if m.failAt == m.calls then return nil, "not found" end
-      local body = m.badPath == path and (m.badBody or "") or read(path)
+      local body = m.badPath == path and (m.badBody or "") or m.remote[path] or read(path)
       return { getResponseCode = function() return m.status or 200 end,
         readAll = function() return body end, close = function() end }
     end }
-    m.run = function(command) return assert(load(source, "@install.lua", "t", e))(command) end
+    m.run = function(command) return assert(load(m.source or source, "@install.lua", "t", e))(command) end
     return m
   end
   local function installed(role)
-    local m = machine(role)
+    local m = machine(role, role == "server" and 16000000 or 1000000)
     for _, path in ipairs(files(role)) do m.files[path] = "-- previous version\n" .. read(path) end
     m.files[".so-role"] = role
     m.files["startup.lua"] = 'shell.run("' .. roles[role].program .. '")'
@@ -353,5 +379,220 @@ return function(test, equal, read)
       shell = { run = function(...) args = { ... } end },
     }))()
     equal(args[1], "install.lua"); equal(args[2], "update"); equal(#args, 2)
+  end)
+  test("SO9 first update uses the new installer list and removes retired role files", function()
+    local m = installed("server")
+    m.files["so-mod-retired.lua"] = "return {name='retired'}"
+    m.remote["install.lua"] = source:gsub('"so%-plan%.lua", ', '')
+      :gsub('"so%-mod%-shop%.lua", ', '"so-mod-added.lua", "lib/new-helper.lua", ')
+    m.remote["so-mod-added.lua"] = "return {name='added'}"
+    m.remote["lib/new-helper.lua"] = "return {}"
+    m.run("update")
+    equal(m.files["so-mod-added.lua"], m.remote["so-mod-added.lua"])
+    equal(m.files["so-plan.lua"], nil)
+    equal(m.files["so-mod-shop.lua"], nil)
+    equal(m.files["so-mod-retired.lua"], nil)
+    equal(m.files["so-server.cfg"], "position")
+    equal(m.files["so-keys"], "secret")
+    equal(m.files["install.lua"], m.remote["install.lua"])
+    m.source = m.files["install.lua"]
+    m.remote["install.lua"] = source
+    m.run("update")
+    equal(m.files["so-mod-added.lua"], nil)
+    equal(m.files["lib/new-helper.lua"], nil)
+    equal(m.files["so-plan.lua"], read("so-plan.lua"))
+  end)
+  test("SO9 trims saved role whitespace and pins every raw request to one SHA", function()
+    local m = installed("worker")
+    m.files[".so-role"] = " \tworker\r\n"
+    m.run("update")
+    equal(m.files[".so-role"], "worker")
+    equal(m.files[".so-revision"], m.sha)
+    equal(m.urls[1], "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only")
+    equal(m.urls[2], "https://raw.githubusercontent.com/140er/computercraft-scripts/" .. m.sha .. "/install.lua")
+    for i = 2, #m.urls do
+      assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true), m.urls[i])
+    end
+    equal(m.files["worker.lua"], read("worker.lua"))
+  end)
+  test("SO9 API failures use only the saved commit or leave the install unchanged", function()
+    for _, mode in ipairs({ "offline", "exception", "status", "json", "sha" }) do
+      for _, saved in ipairs({ false, true }) do
+        local m = installed("display")
+        if mode == "offline" then m.apiFail = true
+        elseif mode == "exception" then m.apiError = true
+        elseif mode == "status" then m.apiStatus = 403
+        elseif mode == "json" then m.apiBody = "broken"
+        else m.sha = "refs/heads/server-only" end
+        local sha = string.rep("b", 40)
+        if saved then m.files[".so-revision"] = sha end
+        local before = snapshot(m)
+        m.run("update")
+        if saved then
+          equal(m.files[".so-revision"], sha)
+          equal(m.files["display.lua"], read("display.lua"))
+          for _, url in ipairs(m.urls) do
+            if url:find("raw.githubusercontent.com", 1, true) then assert(url:find("/" .. sha .. "/", 1, true)) end
+          end
+        else
+          unchanged(m, before)
+          equal(m.calls, 0)
+        end
+      end
+    end
+  end)
+  test("SO9 a failed pinned download never retries from a branch", function()
+    local m = installed("worker")
+    local before = snapshot(m)
+    m.failAt = 3
+    m.run("update")
+    unchanged(m, before)
+    for i = 2, #m.urls do assert(m.urls[i]:find("/" .. m.sha .. "/", 1, true)) end
+  end)
+  test("SO9 a branch advance cannot change the commit during an update", function()
+    local m = installed("worker")
+    local sha = m.sha
+    m.onRaw = function() m.sha = string.rep("c", 40) end
+    m.run("update")
+    equal(m.files[".so-revision"], sha)
+    for i = 2, #m.urls do assert(m.urls[i]:find("/" .. sha .. "/", 1, true)) end
+  end)
+  test("SO9 invalid installer and invalid cached commit leave installed files unchanged", function()
+    for _, mode in ipairs({ "empty", "syntax", "incompatible", "cache" }) do
+      local m = installed("worker")
+      if mode == "cache" then
+        m.apiFail = true
+        m.files[".so-revision"] = "refs/heads/server-only"
+      else
+        m.badPath = "install.lua"
+        m.badBody = mode == "empty" and "" or mode == "syntax" and "not lua !" or "return true"
+      end
+      local before = snapshot(m)
+      m.run("update")
+      unchanged(m, before)
+    end
+  end)
+  test("SO9 every deletion and metadata move rolls back across power loss", function()
+    for _, role in ipairs({ "worker", "display", "server" }) do
+      local function setup()
+        local m = installed(role)
+        m.files["so-mod-retired.lua"] = "old module"
+        m.files["retired-util.lua"] = "old helper"
+        m.files[".so-files"] = m.env.textutils.serialize({ "retired-util.lua" })
+        m.files[".so-revision"] = string.rep("b", 40)
+        return m
+      end
+      local probe, count = setup(), 0
+      local move = probe.env.fs.move
+      probe.env.fs.move = function(a, b) move(a, b); count = count + 1 end
+      probe.run("update")
+      equal(probe.files["so-mod-retired.lua"], nil)
+      equal(probe.files["retired-util.lua"], nil)
+      for stop = 1, count do
+        local m = setup()
+        local before, moves = snapshot(m), 0
+        local native = m.env.fs.move
+        m.env.fs.move = function(a, b)
+          native(a, b)
+          moves = moves + 1
+          if moves == stop then coroutine.yield("power cut") end
+        end
+        local co = coroutine.create(function() m.run("update") end)
+        local ok, err = coroutine.resume(co)
+        assert(ok, err)
+        equal(coroutine.status(co), "suspended")
+        m.env.fs.move = native
+        m.source = m.files["install.lua"]
+        m.run("recover")
+        m.run("recover")
+        unchanged(m, before)
+      end
+    end
+  end)
+  test("SO9 failed swaps restore deletions and committed cleanup errors remain recoverable", function()
+    for _, committed in ipairs({ false, true }) do
+      local m = installed("worker")
+      m.files["so-mod-retired.lua"] = "old module"
+      local before = snapshot(m)
+      if committed then
+        local delete = m.env.fs.delete
+        m.env.fs.delete = function(p)
+          if p == "/.so-old" and m.files[".so-new/committed"] then error("cleanup failed") end
+          delete(p)
+        end
+        m.run("update")
+        equal(m.files[".so-new/committed"], "yes")
+        m.env.fs.delete = delete
+        m.run("recover")
+        equal(m.files["so-mod-retired.lua"], nil)
+        equal(m.files["worker.lua"], read("worker.lua"))
+      else
+        local move = m.env.fs.move
+        m.env.fs.move = function(a, b)
+          move(a, b)
+          if a == "/so-mod-retired.lua" then error("disk fault") end
+        end
+        m.run("update")
+        unchanged(m, before)
+      end
+    end
+  end)
+  test("SO9 worker and display stay below 1 MB during the complete update", function()
+    for _, role in ipairs({ "worker", "display" }) do
+      local m = installed(role)
+      m.run("update")
+      assert(m.peak < 1000000, role .. " peak " .. tostring(m.peak))
+      equal(m.files[".so-revision"], m.sha)
+      print("SO9 " .. role .. " peak charged bytes=" .. m.peak)
+    end
+  end)
+  test("SO9 first update can resolve a SHA through Git refs when the API is blocked", function()
+    local m = installed("worker")
+    m.apiFail = true
+    local function packet(value) return string.format("%04x", #value + 4) .. value end
+    local sha = string.rep("d", 40)
+    m.gitBody = packet("# service=git-upload-pack\n") .. "0000" ..
+      packet(string.rep("b", 40) .. " HEAD\0capabilities\n") ..
+      packet(string.rep("c", 40) .. " refs/heads/server-only-ui\n") ..
+      packet(sha .. " refs/heads/server-only\n") .. "0000"
+    m.run("update")
+    equal(m.files[".so-revision"], sha)
+    equal(m.files["worker.lua"], read("worker.lua"))
+    equal(m.calls, #files("worker"))
+    for _, url in ipairs(m.urls) do
+      if url:find("raw.githubusercontent.com", 1, true) then assert(url:find("/" .. sha .. "/", 1, true)) end
+    end
+  end)
+  test("SO9 malformed Git refs cannot select a moving ref or modify an existing install", function()
+    for _, body in ipairs({ "bad", "0001", "ffffshort", "0044" .. string.rep("e", 40) .. " refs/heads/server-only-ui\n" }) do
+      local m = installed("display")
+      m.apiFail, m.gitBody = true, body
+      local before = snapshot(m)
+      m.run("update")
+      unchanged(m, before)
+      equal(m.calls, 0)
+    end
+  end)
+  test("SO9 downloaded installer must still define the saved role", function()
+    local m = installed("worker")
+    m.remote["install.lua"] = source:gsub('  worker = { program = "worker.lua", "worker.lua" },', '')
+    local before = snapshot(m)
+    m.run("update")
+    unchanged(m, before)
+  end)
+  test("SO9 rejects unsafe saved file paths and invalid handoff revisions", function()
+    for _, path in ipairs({ "../so-keys", "lib/../../so-keys", "/startup.lua", "so-server.cfg" }) do
+      local m = installed("worker")
+      m.files[".so-files"] = m.env.textutils.serialize({ path })
+      local before = snapshot(m)
+      m.run("update")
+      unchanged(m, before)
+    end
+    local m = installed("worker")
+    local before = snapshot(m)
+    local apply = assert(load(source, "@install.lua", "t", m.env))("prepare")
+    local ok = pcall(apply, "update", { revision = "server-only", previous = {}, role = "worker" })
+    equal(ok, false)
+    unchanged(m, before)
   end)
 end

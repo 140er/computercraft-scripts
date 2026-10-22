@@ -1,0 +1,7 @@
+PASS luac5.2 -p on all changed Lua files
+so-log.lua         17 locals (deepest at function line 192) ok
+run.lua            37 locals (deepest at function line 381) ok
+snapshot-prune.lua   33 locals (deepest at function line 116) ok
+PASS tests/run.lua append-only (4 new lines)
+PASS no test file deleted
+PASS check-scope

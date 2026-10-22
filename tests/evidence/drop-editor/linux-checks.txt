@@ -1,0 +1,22 @@
+$ flock ~/work/test-suite.lock timeout 20m lua5.2 tests/run.lua
+290 tests passed
+exit 0; full output in linux-suite.txt
+
+$ luac5.2 -p so-mod-drops.lua so-mod-display.lua tests/so/drop-editor.lua tests/run.lua
+exit 0
+
+$ python3 tools/cobaltlocals.py so-mod-drops.lua so-mod-display.lua tests/so/drop-editor.lua tests/run.lua
+so-mod-drops.lua   22 locals (deepest at function line 285) ok
+so-mod-display.lua   23 locals (deepest at function line 97) ok
+drop-editor.lua    26 locals (deepest at function line 81) ok
+run.lua            37 locals (deepest at function line 381) ok
+exit 0
+
+$ sh tools/check-scope.sh origin/server-only HEAD
+PASS tests/run.lua append-only (4 new lines)
+PASS no test file deleted
+PASS check-scope
+exit 0
+
+CraftOS-PC PowerShell capture unavailable on this Linux VM.
+Gate B pending separate Codex run. No live server accessed.

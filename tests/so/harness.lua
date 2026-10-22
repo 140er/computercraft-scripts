@@ -24,20 +24,12 @@ H.encode = function(value)
     if kind ~= "table" then error("bad type", 0) end
     if seen[v] then error("cycle", 0) end
     seen[v] = true
-    local keys = {}
-    for key in pairs(v) do keys[#keys + 1] = key end
-    for i = 2, #keys do
-      local key = keys[i]
-      local rank = type(key) .. ":" .. tostring(key)
-      local j = i - 1
-      while j >= 1 do
-        local other = keys[j]
-        if (type(other) .. ":" .. tostring(other)) <= rank then break end
-        keys[j + 1] = other
-        j = j - 1
-      end
-      keys[j + 1] = key
+    local keys, ranks = {}, {}
+    for key in pairs(v) do
+      keys[#keys + 1] = key
+      ranks[key] = type(key) .. ":" .. tostring(key)
     end
+    table.sort(keys, function(a, b) return ranks[a] < ranks[b] end)
     local parts = {}
     for i = 1, #keys do parts[i] = "[" .. write(keys[i]) .. "]=" .. write(v[keys[i]]) end
     seen[v] = nil
@@ -184,8 +176,10 @@ local function attachTurtle(m, opts, world)
     placeUp = function() return place(4) end,
     placeDown = function() return place(5) end,
     suck = function(n) return suck(m.heading, n) end,
+    suckUp = function(n) return suck(4, n) end,
     suckDown = function(n) return suck(5, n) end,
     drop = function(n) return drop(n, m.heading) end,
+    dropUp = function(n) return drop(n, 4) end,
     dropDown = function(n) return drop(n, 5) end,
     refuel = function(n) return refuel(n) end,
     select = function(slot)
@@ -460,6 +454,9 @@ H.new = function()
         if event[1] == "terminate" then error("Terminated", 0) end
         return table.unpack(event, 1, event.n)
       end,
+      pullEventRaw = function()
+        return coroutine.yield()
+      end,
     }
     env.sleep = function(seconds)
       if opts.guardServer then
@@ -496,35 +493,55 @@ H.new = function()
         return assert(load("return " .. text, "=state", "t", {}))()
       end,
     }
-    env.dofile = function(path)
+    env.loadfile = function(path, mode, target)
       local text = env.fs.open(path, "r")
-      if not text then error("missing " .. tostring(path), 2) end
-      local fn, err = load(text.readAll(), "@" .. path, "t", env)
-      if not fn then error(err, 2) end
-      local result = fn()
-      if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
-      if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
-        local function guard(fn, label)
-          return function(...)
-            local old = m.context
-            m.context = label
-            local values = table.pack(pcall(fn, ...))
-            m.context = old
-            if not values[1] then error(values[2], 0) end
-            return table.unpack(values, 2, values.n)
+      if not text then return nil, "missing " .. tostring(path) end
+      local source = text.readAll()
+      text.close()
+      local fn, err = load(source, "@" .. path, mode or "bt", target or env)
+      if not fn then return nil, err end
+      return function(...)
+        local result = fn(...)
+        if path == "lib/ccryptolib/random.lua" then noteRandom(m, result) end
+        if opts.guardServer and path:match("^so%-mod%-.+%.lua$") and type(result) == "table" then
+          local function guard(fn, label)
+            return function(...)
+              local old = m.context
+              m.context = label
+              local values = table.pack(pcall(fn, ...))
+              m.context = old
+              if not values[1] then error(values[2], 0) end
+              return table.unpack(values, 2, values.n)
+            end
+          end
+          if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
+          for _, kind in ipairs({"handlers", "listen"}) do
+            for name, fn in pairs(result[kind] or {}) do
+              result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
+            end
           end
         end
-        if result.tick then result.tick = guard(result.tick, result.name .. ".tick") end
-        for _, kind in ipairs({"handlers", "listen"}) do
-          for name, fn in pairs(result[kind] or {}) do
-            result[kind][name] = guard(fn, result.name .. "." .. kind .. "." .. name)
-          end
-        end
+        return result
       end
-      return result
+    end
+    env.dofile = function(path)
+      return assert(env.loadfile(path))()
     end
     if opts.modem then m.modem = { isWireless = function() return true end } end
     env.peripheral = {
+      hasType = function(side, kind)
+        if kind ~= "inventory" or not m.pos then return false end
+        local p = m.pos
+        local dx, dy, dz = 0, 0, 0
+        if side == "top" then dy = 1
+        elseif side == "bottom" then dy = -1
+        elseif side == "front" then
+          dx = ({ [0]=0, 1, 0, -1 })[m.heading]
+          dz = ({ [0]=-1, 0, 1, 0 })[m.heading]
+        else return false end
+        local block = net.world[(p.x+dx) .. "," .. (p.y+dy) .. "," .. (p.z+dz)]
+        return type(block) == "table" and type(block.inv) == "table"
+      end,
       find = function(kind)
         if kind == "modem" and m.modem then return m.modem end
         if kind == "monitor" and opts.monitor then return env.term end
