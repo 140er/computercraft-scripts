@@ -46,6 +46,27 @@ class RuntimeTests(unittest.TestCase):
         self.manifest['computers']['2']['name']='wall';self.manifest['computers']['2']['pos']=[0,False,0]
         with self.assertRaisesRegex(ValueError,'integer'): validate_manifest(self.manifest)
 
+    def test_discovered_fixture_catalog_matches_native_tree_geometry(self):
+        natives=[]
+        for cid,pos in ((1,[0,64,0]),(2,[-3,64,0]),(4,[-21,48,17]),(5,[-21,48,21]),(6,[12,65,11]),(9,[-12,64,4]),(10,[-8,64,0])):
+            natives.append((cid,{'pos':pos,'block':{'Name':'computercraft:computer_advanced','Properties':{'facing':'south'}}}))
+        world=Path(self.temp.name)/'fixture-world'
+        (world/'playerdata').mkdir(parents=True)
+        (world/'playerdata/9026426a-c1c1-3dac-8bb3-4c5121e010ce.dat').write_bytes(b'fixture')
+        for cid,_ in natives:
+            disk=world/'computercraft/computer'/str(cid);disk.mkdir(parents=True)
+            (disk/'.so-role').write_text('server' if cid==1 else 'worker' if cid in (4,5,6) else 'display')
+        with patch('nbt.computers',return_value=iter(natives)),patch('nbt.loads',return_value={'Pos':[-4.5,68,3.5]}):
+            manifest=self.runtime.discover(world)
+        self.assertEqual(manifest['computers']['3']['pos'],[-5,68,3])
+        self.assertEqual(manifest['computers']['10']['name'],'probe')
+        self.assertEqual(manifest['fixtures']['wood']['pos'],[3,64,3])
+        self.assertEqual(manifest['mine']['home'],[-5,64,4,'s'])
+        cells=set(map(tuple,manifest['farm']['dig_cells']))
+        self.assertEqual(len(cells),120)
+        self.assertIn((4,69,4),cells)
+        self.assertNotIn((7,64,7),cells)
+
     def test_ports_are_unique_under_concurrency_and_skip_bound_socket(self):
         with socket.socket() as occupied:
             occupied.bind(('127.0.0.1',0));port=occupied.getsockname()[1]

@@ -88,3 +88,9 @@ python3 -m unittest discover -s tools/gateb -v
 luac5.2 -p tools/gateb/bridge.lua
 python3 tools/cobaltlocals.py tools/gateb/bridge.lua
 ```
+
+`python3 tools/gateb/smoke.py` builds a new template, starts two worlds together,
+installs the current server-only tip, reads each real terminal and native turtle
+pose, then stops both servers. It refuses to replace an existing template. Use
+`--reuse-template` only when that template has already completed preparation.
+Timing and sanitized terminal evidence go under the runtime home's `evidence`.
