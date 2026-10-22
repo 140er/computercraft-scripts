@@ -72,8 +72,9 @@ and listeners use `listener(sender, message)`.
   boundaries. Multi-action results include `actions` with one-based `first` step indices.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
-  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
-  and `distance(a, b)`. `access` takes the chest's own coordinates. For `front`,
+  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`,
+  `travel(from, target, ground)` and `distance(a, b)`. `travel` returns the next
+  service waypoint, with horizontal travel at ground plus two. `access` takes the chest's own coordinates. For `front`,
   it chooses the nearest unblocked horizontal neighbour by Manhattan distance
   and faces the chest. Ties use north, east, south, west order. For `down`,
   it uses the cell directly above the chest. It returns nil if all candidates

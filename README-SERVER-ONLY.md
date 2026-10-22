@@ -159,7 +159,12 @@ Distance is Manhattan distance from the turtle's current position. Ties use
 north, east, south, west order. If no eligible cell remains, the turtle holds
 with `no access to saplings chest`.
 
-`add` anchors one paired worker with an axe.
+`add` anchors one paired worker with an axe. To replace it, stop work and wait
+for its lease to report. If `add` says it is parking the old turtle, wait for
+the report and repeat `add`. Do not remove the old turtle before that report.
+Service trips cross the farm at soil height plus two and descend at the chest
+access cell. Keep that flight path clear. Travel protects saplings and tree
+bases. A blocked service route holds until the operator fixes it and starts again.
 Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Log delivery counts require a successful drop and an inventory
 decrease. Failed wood, fuel and sapling chest inspections mark drop points broken
