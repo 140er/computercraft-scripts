@@ -44,6 +44,40 @@ S.empty = function()
   for _, item in ipairs(S.job.inv or {}) do occupied[item.slot] = true end
   for slot = 1, 16 do if not occupied[slot] then return slot end end
 end
+S.junk = function()
+  local needed = {}
+  for _, spot in pairs(S.job.spots) do
+    local name = L.saplingFor(spot.kind)
+    if name then needed[name] = (needed[name] or 0) + 1 end
+  end
+  local tree = S.job.tree
+  if tree then
+    local name = L.saplingFor(tree.kind)
+    if name then needed[name] = math.max(needed[name] or 0, 1) end
+  end
+  for _, item in ipairs(S.job.inv or {}) do
+    if L.isSapling(item.name) then
+      local keep = math.min(item.count, needed[item.name] or 0)
+      needed[item.name] = math.max(0, (needed[item.name] or 0) - keep)
+      if item.count > keep then return item, item.count - keep end
+    elseif item.name == "minecraft:stick" or item.name == "minecraft:apple" or item.name:match("_leaves$") then
+      return item, item.count
+    end
+  end
+end
+S.fuelNeed = function()
+  local j, drops = S.job, S.module("drops")
+  local dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 })[j.dim]
+  local p = j.turtle.pose
+  local picked = dim ~= nil and type(drops.pick) == "function" and drops.pick("fuel", { dim = dim, x = p.x, y = p.y, z = p.z })
+  local point = picked and picked.point
+  if not point then return 32 end
+  local access = L.access(point, p)
+  if not access then return 32 end
+  local flight = j.ground + 2
+  return math.abs(p.y - flight) + math.abs(p.x - access.x) + math.abs(p.z - access.z)
+    + math.abs(access.y - flight) + 32
+end
 S.owner = function() return "lumber:" .. tostring(S.job.turtle.id) end
 S.release = function()
   local cells = S.module("cells")
@@ -180,7 +214,7 @@ S.service = function(kind, resume)
       S.alert("out of saplings")
     else
       j.blocked = "hold"
-      S.alert("hold " .. kind)
+      S.alert("hold " .. kind .. "; fix chest, then start")
     end
     return false
   end
@@ -240,6 +274,28 @@ S.report = function(id, turtleId, results, lease)
   local action, result = pending.action, results[#results]
   local ok = true
   for _, row in ipairs(results) do if not row.ok then ok = false end end
+  local attempted, failed
+  for i, step in ipairs(pending.steps) do
+    if step.op == "forward" or step.op == "back" or step.op == "up" or step.op == "down"
+      or step.op == "turnLeft" or step.op == "turnRight" or step.op:match("^dig") then
+      attempted = true
+      if not results[i] or not results[i].ok then failed = step.op end
+    end
+  end
+  if attempted then
+    if failed then
+      j.failures = (j.failures or 0) + 1
+      if j.failures >= 3 then
+        j.blocked = "hold"
+        S.alert(failed .. " failed; fix cause, then start")
+      end
+    else j.failures = nil end
+  end
+  if failed then
+    if not S.pending then S.release() end
+    S.save()
+    return
+  end
   if action == "recover" then
     S.recover = false
     j.blocked = nil
@@ -355,6 +411,8 @@ S.report = function(id, turtleId, results, lease)
     if j.service then
       if not ok then j.blocked = "fuel" S.alert("no usable fuel") else j.service.stage = "return" end
     end
+  elseif action == "junk" then
+    if not ok then j.blocked = "hold" S.alert("junk drop failed; fix chest, then start") end
   elseif type(action) == "table" and action.kind == "drop" then
     local after = S.count(function(name) return name:match("_log$") ~= nil end)
     local count = math.max(0, action.before - after)
@@ -401,7 +459,16 @@ S.workService = function()
     S.send({ { op = "select", slot = slot }, { op = service.point.side == "down" and "suckDown" or "suck" } }, "suck")
   elseif service.stage == "drop" then
     local item = S.slot(function(name) return name:match("_log$") ~= nil end)
-    if not item then service.stage = "return" S.save() return end
+    if not item then
+      local junk, count = S.junk()
+      if junk then
+        S.send({ { op = "select", slot = junk.slot },
+          { op = service.point.side == "down" and "inspectDown" or "inspect" },
+          { op = service.point.side == "down" and "dropDown" or "drop", n = count } }, "junk")
+        return
+      end
+      service.stage = "return" S.save() return
+    end
     local drops = S.module("drops")
     if type(drops.steps) ~= "function" then S.alert("drops unavailable") return end
     local steps = drops.steps(service.point)
@@ -424,9 +491,10 @@ end
 S.work = function(now)
   local j = S.job
   if j.service then S.workService() return end
+  if P.free(j.inv or {}) < 3 and (S.junk() or S.slot(function(name) return name:match("_log$") ~= nil end)) then S.service("wood") return end
   if j.phase == "roundEnd" then
     local logs = S.slot(function(name) return name:match("_log$") ~= nil end)
-    if logs then S.service("wood", "waiting") else j.phase = "waiting" j.nextRound = now + 600000 S.save() end
+    if logs or S.junk() then S.service("wood", "waiting") else j.phase = "waiting" j.nextRound = now + 600000 S.save() end
     return
   end
   if j.phase == "waiting" then
@@ -491,7 +559,7 @@ S.input = function(ev)
   if words[1] == "stop" and #words == 1 then j.running = false
   elseif words[1] == "start" and #words == 1 then
     if not j.area or not j.turtle or not j.ground then S.alert("configure area and turtle") return end
-    j.running, j.blocked, j.noSaplings, j.alert = true, nil, false, nil
+    j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     S.recover = true
   elseif words[1] == "area" and #words == 6 then
     if j.running or S.pending then S.alert("stop before configuring") return end
@@ -546,7 +614,8 @@ S.render = function(w)
   row("Saplings " .. tostring(S.count(L.isSapling)))
   row("Spots " .. known .. " planted " .. planted)
   row("Fuel " .. tostring(j.fuel or "?"))
-  row("Alert " .. tostring(j.alert or "-"), j.blocked == "lost" or j.blocked == "out of range")
+  row("Alert " .. tostring(j.alert or "-"), j.blocked ~= nil)
+  if j.blocked then row("Fix cause, then type start", true) end
   return { rows = rows, buttons = { { id = "generic", x = 1, y = 8, w = 7, label = "generic" } } }
 end
 
@@ -574,7 +643,7 @@ S.tick = function(now)
     if not S.idlePark or not S.parkAt or now - S.parkAt >= 540000 then S.park() end
     return
   end
-  if type(j.fuel) == "number" and j.fuel >= 0 and j.fuel < 80 and not j.service then
+  if type(j.fuel) == "number" and j.fuel >= 0 and j.fuel < S.fuelNeed() and not j.service then
     if not S.service("fuel") then return end
   end
   S.work(now)

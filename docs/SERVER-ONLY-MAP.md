@@ -182,6 +182,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Restart recovery sends a stationary park using the saved frame without a
   volatile lease pose or range proof. Its report rebuilds the world pose before
   work resumes. Work leases still require the range and reservation checks.
+  Three failed moves or digs hold and emit `lumber.alert`. Holds show that
+  `start` is required after fixing the cause. Fuel trips reserve the route
+  distance plus 32 fuel. Wood service removes junk and excess saplings while
+  preserving one per known spot of each species and the current tree.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
