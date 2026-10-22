@@ -24,6 +24,16 @@ return function(test, equal)
       end
     end
   end)
+  test('lumber holds without delivery credit when worker reports no inventory', function()
+    local f = fixture('wood')
+    f.tick(1)
+    f.report(false, { { ok = true }, { ok = true, data = { name = 'minecraft:stone' } },
+      { ok = false, err = 'no inventory' } })
+    equal(f.job.logs or 0, 0)
+    equal(f.job.inv[1].count, 8)
+    equal(f.job.blocked, 'hold')
+    for _, event in ipairs(f.events) do assert(event.kind ~= 'lumber.logs') end
+  end)
   test('lumber marks failed wood inspections broken without counting lost logs', function()
     local f = fixture('wood')
     for i = 1, 3 do
