@@ -158,6 +158,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `status(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
+  Unreported single-step `inspectDown` parks retry every game second with the
+  same lease ID, a fresh envelope and the remaining duration. Reports stop retries.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
   Range starts at 16 and only grows with known world poses or successful reports.
   Work may extend eight blocks beyond that proof.
@@ -418,6 +420,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   only unpaired boots prompt for a code. That prompt keeps retrying discovery
   while accepting digits and Enter. Idle workers send hello every 30 seconds
   without authenticated replies to detect a later server key reset.
+  GPS lookups keep accepting authenticated server messages. An anchor received
+  during a lookup confirms without starting a nested lookup.
   Drop and suck operations on every side require an adjacent inventory. Missing
   inventories return `no inventory` and leave items in the turtle.
   At boot, pending moves use saved fuel or GPS to resolve their outcome. Turns

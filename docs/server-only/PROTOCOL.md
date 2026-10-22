@@ -420,6 +420,12 @@ a lease ID after reboot without inheriting the previous deadline.
 Transport delay before receipt is not charged by `ttl`. Mixed versions retain
 20 TPS behavior; accelerated Gate B requires all roles updated.
 
+Unreported single-step `inspectDown` parks retry every game second until a
+report arrives or the lease expires. Retries retain the lease ID and use a
+fresh envelope with the remaining duration. Both ordinary and recovery parks
+use this rule. Workers accept authenticated server messages during GPS lookups,
+so a lookup cannot discard a renewal or a work batch.
+
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
 

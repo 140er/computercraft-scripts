@@ -174,8 +174,19 @@ W.counts = function()
 end
 
 W.gpsFix = function()
-  if type(gps) ~= "table" or type(gps.locate) ~= "function" then return nil end
-  local ok, x, y, z = pcall(gps.locate, 2)
+  if W.locating or type(gps) ~= "table" or type(gps.locate) ~= "function" then return nil end
+  W.locating = true
+  local lookup = coroutine.create(gps.locate)
+  local result = table.pack(coroutine.resume(lookup, 2))
+  while result[1] and coroutine.status(lookup) ~= "dead" do
+    local event = table.pack(os.pullEvent())
+    if event[1] == "rednet_message" and event[4] == "so" then W.accept(event[2], event[3]) end
+    if not result[2] or result[2] == event[1] then
+      result = table.pack(coroutine.resume(lookup, table.unpack(event, 1, event.n)))
+    end
+  end
+  W.locating = nil
+  local ok, x, y, z = table.unpack(result, 1, result.n)
   if not ok or type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
     return nil
   end
@@ -216,6 +227,7 @@ end
 W.hello = function()
   local key = W.pair.key(W.server)
   if not key then return end
+  local where = W.gpsFix()
   local body = {
     role = "turtle",
     fuel = W.fuelBody(),
@@ -225,7 +237,6 @@ W.hello = function()
   }
   local label = os.getComputerLabel()
   if type(label) == "string" and #label > 0 then body.label = label end
-  local where = W.gpsFix()
   if where then body.gps = where end
   W.transmit(W.server, W.proto.build(key, "hello", body))
 end
