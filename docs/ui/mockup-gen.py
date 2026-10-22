@@ -125,7 +125,7 @@ c.fill(0, 19, 26, 1, "7"); c.text(0, 19, " <  glance 1/3  >  PANEL ")
 add(c, "Pocket, glance mode", True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", "21:14")
+c = Canvas(26, 20); c.header("PANEL", "22:14")
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -149,7 +149,7 @@ add(c, "Mining, room monitor")
 
 # --- Lumber, M
 c = Canvas(57, 24); c.header("LUMBER", "running")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","to wood chest","b"),("SAPLINGS","0","chest empty","e")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","-","no daily source","c"),("SAPLINGS","0","chest empty","e")]):
     c.tile(x, 2, w, lab, val, sub, bg)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","min:sec","b")]):
     c.tile(x, 8, w, lab, val, sub, bg)
