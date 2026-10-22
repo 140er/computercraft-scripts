@@ -105,6 +105,12 @@ class ResultTests(unittest.TestCase):
 
 
 class CriterionTests(unittest.TestCase):
+    def test_native_accelerated_mining_verdicts(self):
+        fixture = json.loads((FIXTURES / "recorded-d803bc7-mining.json").read_text())
+        for item in fixture["checks"]:
+            with self.subTest(check=item["check"]):
+                self.assertEqual(load(item["check"]).evaluate(item["observations"]).status, item["expected"])
+
     def test_every_check_pass_and_fail(self):
         for check in IDS:
             with self.subTest(check=check):
