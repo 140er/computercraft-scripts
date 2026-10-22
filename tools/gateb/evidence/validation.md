@@ -26,7 +26,7 @@ Both real server terminals showed status, and saved native NBT placed miner 4
 at `[-5,64,3]`, facing south. A later fast-path native pose read took 0.002 s.
 These timings describe this smoke run, not a complete Gate B speedup.
 
-17 focused tests pass, including manifest geometry, port contention, independent
+18 focused tests pass, including manifest geometry, port contention, independent
 clones, native saved NBT, offline file reads, secret-path exclusion, bridge role
 globals, asynchronous cancellation, process ownership and admission boundaries.
 Python compilation, Lua syntax, Cobalt locals and scope checks pass.

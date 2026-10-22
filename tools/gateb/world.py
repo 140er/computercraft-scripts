@@ -565,6 +565,9 @@ class Runtime:
             if not 1<=count<=4: raise ValueError('Pool size must be 1..4')
             for i in range(1,count+1):
                 name=owner+'-'+str(i)
+                if name not in self.status():
+                    available=int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
+                    keeper.admit(3*1024*1024,available,os.getloadavg()[0],True)
                 if not self.run(name).exists(): self.clone(name)
                 self.serve(name)
         elif action=='down':

@@ -96,6 +96,11 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(set(call.args[0] for call in stop.call_args_list),{'driver-123-1','driver-123-2'})
         with self.assertRaises(ValueError): self.runtime.pool('up',1,prefix='../bad')
 
+    def test_pool_refuses_its_first_world_before_cloning_when_overloaded(self):
+        with patch.object(self.runtime,'status',return_value={}),patch('os.getloadavg',return_value=(8,8,8)),patch.object(self.runtime,'clone') as clone:
+            with self.assertRaisesRegex(RuntimeError,'load1=8.00'): self.runtime.pool('up',1,prefix='driver')
+            clone.assert_not_called()
+
     def test_ports_are_unique_under_concurrency_and_skip_bound_socket(self):
         with socket.socket() as occupied:
             occupied.bind(('127.0.0.1',0));port=occupied.getsockname()[1]

@@ -53,7 +53,8 @@ the test-suite flock and the exact child processes it starts. Each server uses
 a 2 GiB heap, two active processors and 256 MiB direct memory. Admission refuses
 new servers or clients below 3 GiB available memory. An additional server
 also requires load1 below 8 and more than 8 GiB available memory; refusal
-reports both measurements. `pool up 3`, `pool status`
+reports both measurements. Pool up also applies those thresholds before
+its first new world. `pool up 3`, `pool status`
 and `pool down` manage named pool worlds and report RSS. Ordinary world servers
 and clients share the same pool lock. Shut them down before running cc-test.
 BlueMap's copied web listener is disabled, and voice chat binds to loopback on

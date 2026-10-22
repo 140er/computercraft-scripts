@@ -58,7 +58,8 @@ heap, two active processors and a 256 MiB direct-memory cap. Admission requires
 at least 3 GiB available memory per new server. When another native server is
 already running, admission also requires load1 below 8 and MemAvailable above
 8 GiB. This check happens atomically in the keeper for both serve and pool up;
-a refusal includes the measured values.
+a refusal includes the measured values. Pool up applies the same load and
+8 GiB memory thresholds before its first new world too.
 
 All servers and clients cooperate with `~/work/test-suite.lock`. A pool keeper
 holds that exclusive flock while any runtime process is alive. If another Gate B
