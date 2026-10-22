@@ -59,6 +59,9 @@ local function dropFailure(id, row, kind, point)
     retry.after = os.epoch("utc") + 60000
   end
 end
+local function fuelReserve(pose)
+  return M.distance(pose,job.home)+64
+end
 local function trip(id, row, kind)
   local near = SO.store.copy(row.pose)
   near.dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 })[job.dim]
@@ -259,7 +262,12 @@ local function report(_, id, results, lease)
             if not result.ok then failed = true end
           end
         end
-        if failed then dropFailure(id, row, row.trip.kind, row.trip.point)
+        local enough = action.kind == "refuel" and type(row.fuel) == "number"
+          and (row.fuel < 0 or row.fuel >= M.distance(row.pose,row.trip.back)+fuelReserve(row.trip.back))
+        if failed and enough then
+          row.trip.stage = "back"
+          row.state, row.dropRetry, row.error = "fuel", nil, nil
+        elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point)
         else row.dropRetry, row.error = nil, nil end
         if action.kind == "unload" then row.trip.stage = "out"
         elseif type(row.fuel) == "number" and row.fuel >= 2000 then row.trip.stage = "back" end
@@ -327,7 +335,7 @@ plan = function(id,row)
     send(id,row,{kind="cleanup",steps=clean,cells={}}) return
   end
   if not row.trip then
-    local low = type(row.fuel)=="number" and row.fuel >= 0 and row.fuel < M.distance(row.pose,job.home)+64
+    local low = type(row.fuel)=="number" and row.fuel >= 0 and row.fuel < fuelReserve(row.pose)
     if low or P.free(row.inv)<2 then if not trip(id,row,P.free(row.inv)<2 and "ore" or "fuel") then park(id,row,false) return end end
   end
   if row.trip then
