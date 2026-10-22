@@ -284,12 +284,12 @@ class Context:
             self.click(name, "map-back")
         routes = {
             "status": (("status",), ("mine-back", "status"), ("lumber-back", "status")),
-            "generic": (("generic",), ("more",), ("status", "more")),
-            "mining": (("mining",), ("more", "mining"), ("status", "more", "mining")),
-            "lumber": (("lumber",), ("more", "lumber"), ("status", "more", "lumber")),
-            "shop": (("shop",), ("more", "shop"), ("status", "more", "shop")),
-            "ar": (("ar",), ("more", "ar"), ("status", "more", "ar")),
-            "map": (("map",), ("more", "map"), ("status", "more", "map")),
+            "generic": (("generic",), ("status", "generic")),
+            "mining": (("mining",), ("generic", "mining"), ("status", "generic", "mining")),
+            "lumber": (("lumber",), ("generic", "lumber"), ("status", "generic", "lumber")),
+            "shop": (("shop",), ("generic", "shop"), ("status", "generic", "shop")),
+            "ar": (("ar",), ("generic", "ar"), ("status", "generic", "ar")),
+            "map": (("map",), ("generic", "map"), ("status", "generic", "map")),
         }
         for route in routes[role]:
             try:

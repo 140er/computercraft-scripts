@@ -15,6 +15,20 @@ from checks.model import Blocked, Verdict
 
 
 class ContractTests(unittest.TestCase):
+    def test_navigation_uses_the_visible_more_button_id(self):
+        frames = {"status":{"role":"status","buttons":[{"id":"generic"}]},
+                  "generic":{"role":"generic","buttons":[{"id":"mining"}]},
+                  "mining":{"role":"mining","buttons":[{"id":"status"}]}}
+        state = ["status"]
+        with tempfile.TemporaryDirectory() as temp:
+            ctx = Context(object(), "test", {}, temp, "a"*40)
+            def click(name, button):
+                if button not in [b["id"] for b in frames[state[0]]["buttons"]]: raise Blocked("Absent")
+                state[0] = button
+                return frames[state[0]]
+            with patch.object(ctx,"frame",side_effect=lambda name:frames[state[0]]), patch.object(ctx,"click",side_effect=click):
+                self.assertEqual(ctx.navigate("pocket","mining")["role"], "mining")
+
     def test_admission_distinguishes_local_suites_from_parts_and_runtime(self):
         from checks.admission import full_local_suite
         locks="1: FLOCK ADVISORY WRITE 123 fd:01:456 0 EOF\n"
