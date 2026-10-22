@@ -863,7 +863,7 @@ S.recoveryRetry = function()
   assert(#m.sent==2,"reported recovery park must stop retrying")
   assert(lease.send(2,{{op="inspectDown"}}))
   n.advance(1) lease.tick(n.time)
-  assert(#m.sent==3,"ordinary park must not be retried")
+  assert(#m.sent==4,"unreported ordinary park must be retried")
 end
 
 S.lumberDug = function()

@@ -1,0 +1,11 @@
+{
+  "source": "build-0f73a4e/C9-result.json; baseline report for stock delta and paired proof",
+  "commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "observations": {
+    "off_seconds": 183.39783430099487,
+    "stale_seconds": 7.831070184707642,
+    "recovery_seconds": 12.85531735420227,
+    "no_motion": true,
+    "new_recovery_parks": true
+  }
+}

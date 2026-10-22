@@ -1,0 +1,90 @@
+{
+  "source": "build-0f73a4e/native-state-samples.jsonl",
+  "commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "rows": [
+    {
+      "epoch": 0.0,
+      "mine": {
+        "turtles": {
+          "4": {
+            "state": "mining",
+            "pose": {
+              "facing": 3,
+              "dim": "minecraft:overworld",
+              "z": 9,
+              "x": -7,
+              "y": 48
+            }
+          },
+          "5": {
+            "pose": {
+              "facing": 1,
+              "dim": "minecraft:overworld",
+              "z": 5,
+              "x": -5,
+              "y": 64
+            },
+            "state": "range",
+            "error": "outside proven radio range"
+          }
+        }
+      }
+    },
+    {
+      "epoch": 0.5,
+      "mine": {
+        "turtles": {
+          "5": {
+            "pose": {
+              "y": 64,
+              "z": 5,
+              "x": -5,
+              "facing": 1,
+              "dim": "minecraft:overworld"
+            },
+            "error": "outside proven radio range",
+            "state": "range"
+          },
+          "4": {
+            "state": "mining",
+            "pose": {
+              "y": 48,
+              "z": 9,
+              "x": -7,
+              "facing": 1,
+              "dim": "minecraft:overworld"
+            }
+          }
+        }
+      }
+    },
+    {
+      "epoch": 1.0,
+      "mine": {
+        "turtles": {
+          "4": {
+            "pose": {
+              "facing": 2,
+              "x": -7,
+              "dim": "minecraft:overworld",
+              "z": 9,
+              "y": 48
+            },
+            "state": "mining"
+          },
+          "5": {
+            "state": "range",
+            "pose": {
+              "facing": 1,
+              "x": -5,
+              "dim": "minecraft:overworld",
+              "z": 5,
+              "y": 64
+            },
+            "error": "outside proven radio range"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "source": "build-0f73a4e/C6-result.json; baseline report for stock delta and paired proof",
+  "commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "observations": {
+    "logs_delivered": 19,
+    "replanted": 4,
+    "dug_count": 28,
+    "unsafe_digs": []
+  }
+}

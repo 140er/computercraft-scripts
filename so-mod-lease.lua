@@ -149,7 +149,7 @@ S.send = function(id, steps, opts)
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
     owner = opts.owner, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
-  if opts.recover and #steps == 1 and steps[1].op == "inspectDown" then
+  if #steps == 1 and steps[1].op == "inspectDown" then
     lease.retryAt = SO.now() + 1000
   end
   local wire, err = SO.proto.encode(SO.proto.build(key, "lease.batch", {

@@ -4,7 +4,7 @@
 local H = {}
 
 local base = {
-  bit32 = bit32, string = string, table = table, math = math,
+  bit32 = bit32, string = string, table = table, math = math, coroutine = coroutine,
   pairs = pairs, ipairs = ipairs, type = type, tostring = tostring, tonumber = tonumber,
   error = error, assert = assert, pcall = pcall, xpcall = xpcall, select = select,
   unpack = unpack, next = next, setmetatable = setmetatable, getmetatable = getmetatable,

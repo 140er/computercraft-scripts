@@ -1,0 +1,63 @@
+{
+  "source": "/home/jeffrey/work/gateb-driver/targeted-C3-C5-d803bc7-r5/C5/C5-samples.jsonl",
+  "commit": "d803bc733353e647a8447f52e5d0d4e17a58f98b",
+  "rows": [
+    {
+      "epoch": 1792706341.0111089,
+      "mine": {
+        "turtles": {
+          "5": {
+            "state": "mining",
+            "pose": {
+              "y": 64,
+              "x": -5,
+              "dim": "minecraft:overworld",
+              "z": 3,
+              "facing": 0
+            }
+          },
+          "4": {
+            "state": "mining",
+            "pose": {
+              "y": 63,
+              "x": -5,
+              "dim": "minecraft:overworld",
+              "z": 5,
+              "facing": 2
+            },
+            "error": "held"
+          }
+        }
+      }
+    },
+    {
+      "epoch": 1792706382.0462446,
+      "mine": {
+        "turtles": {
+          "5": {
+            "state": "wait lane",
+            "pose": {
+              "y": 64,
+              "x": -5,
+              "dim": "minecraft:overworld",
+              "z": 4,
+              "facing": 2
+            },
+            "error": "held"
+          },
+          "4": {
+            "state": "mining",
+            "pose": {
+              "y": 48,
+              "x": -5,
+              "dim": "minecraft:overworld",
+              "z": 6,
+              "facing": 2
+            },
+            "error": "held"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "source": "/home/jeffrey/work/gateb-driver/accelerated-C5-C7-d803bc7",
+  "commit": "d803bc733353e647a8447f52e5d0d4e17a58f98b",
+  "checks": [
+    {
+      "check": "C5",
+      "expected": "pass",
+      "observations": {
+        "collisions": 0,
+        "completed_miners": [
+          "4",
+          "5"
+        ],
+        "conditional_yield": "not triggered; covered by unit tests",
+        "errors": [],
+        "handoff_game_seconds": 0.0,
+        "lane_granted_epoch": 1792706744.6330378,
+        "lane_left_epoch": 1792706744.6330378,
+        "new_dug_cell_counts": {
+          "4": 20,
+          "5": 20
+        },
+        "observed_game_seconds": 601.65,
+        "observed_wall_seconds": 150.383,
+        "previously_dug_cells": [],
+        "range_samples": 0,
+        "shared_dig_cells": [],
+        "stalled_miners": []
+      }
+    },
+    {
+      "check": "C7",
+      "expected": "fail",
+      "observations": {
+        "collisions": 0,
+        "completed_miners": [
+          "4",
+          "5"
+        ],
+        "conditional_yield": "not triggered; covered by unit tests",
+        "errors": [
+          "5: worker beacon"
+        ],
+        "fuel_trip": false,
+        "fuel_trip_coverage": "not triggered; covered by unit tests",
+        "game_seconds": 1801.55,
+        "handoff_game_seconds": 0.0,
+        "lane_granted_epoch": 1792706938.1548579,
+        "lane_left_epoch": 1792706938.1548579,
+        "new_dug_cell_counts": {
+          "4": 20,
+          "5": 20
+        },
+        "observed_game_seconds": 1800.25,
+        "observed_wall_seconds": 450.071,
+        "ore_delivered": true,
+        "ore_trip": true,
+        "previously_dug_cells": [],
+        "prior_dug_coverage": "not triggered; covered by unit tests",
+        "range_samples": 0,
+        "server_errors": 0,
+        "shared_dig_cells": [],
+        "stalled_miners": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "source": "build-0f73a4e/C12-result.json; baseline report for stock delta and paired proof",
+  "commit": "0f73a4ea74815bc21158585a498da446f5072034",
+  "observations": {
+    "stock_visible_seconds": 10.780571460723877,
+    "search_filtered": true,
+    "delivered_delta": 16,
+    "stock_delta": -16
+  }
+}
