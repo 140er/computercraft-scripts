@@ -27,9 +27,11 @@ and listeners use `listener(sender, message)`.
   `request` waits, so never call it from the server's handlers or ticks.
 - [so-pair.lua](../so-pair.lua) pairs machines with X25519 and saves their keys.
   Calls are `open(proto, store)`, `derive(code, serverId, clientId)`,
-  `pending()`, `clear()`, `key(id)`, `remember(id, key)`,
+  `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
   `session(clientPubHex)`, `invite(screen)` and `join(code, serverId)`.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
+  `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
+  as their server id when discovery fails.
 - [so-store.lua](../so-store.lua) owns generation-based persistence.
   Calls are `copy(value)`, `read(path)` and `store(path, valid, limit)`.
   `store` returns `{ value, save = function(value) }`; `save` returns success
@@ -167,6 +169,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [worker.lua](../worker.lua) executes `lease.batch`, sends `hello`, `step.report`
   and `beacon`, journals steps, and backs up after lease expiry. No exported API.
+  Paired boots retry discovery and hello with backoff capped at 30 seconds,
+  using the saved server id if discovery fails. They show `waiting for server`
+  until an authenticated reply arrives. Only unpaired boots prompt for a code;
+  that prompt keeps retrying discovery while accepting digits and Enter.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws

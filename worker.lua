@@ -529,12 +529,26 @@ W.readCode = function()
     if type(text) == "string" then return text:match("%d%d%d%d%d%d") end
     return nil
   end
-  if type(read) ~= "function" then return nil end
+  W.codeText = W.codeText or ""
   term.setCursorPos(1, 5)
-  term.write("Code: ")
-  local line = read()
-  if type(line) ~= "string" then return nil end
-  return line:match("%d%d%d%d%d%d")
+  term.write("Code: " .. W.codeText)
+  local timer = os.startTimer(2)
+  while true do
+    local ev, value = os.pullEvent()
+    if ev == "timer" and value == timer then return nil end
+    if ev == "char" or ev == "paste" then
+      W.codeText = (W.codeText .. tostring(value):gsub("%D", "")):sub(1, 6)
+    elseif ev == "key" and value == 259 then
+      W.codeText = W.codeText:sub(1, -2)
+    elseif ev == "key" and value == 257 and #W.codeText == 6 then
+      os.cancelTimer(timer)
+      local code = W.codeText
+      W.codeText = ""
+      return code
+    end
+    term.setCursorPos(1, 5)
+    term.write("Code: " .. W.codeText .. " ")
+  end
 end
 
 W.boot = function()
@@ -557,20 +571,33 @@ W.boot = function()
   W.load()
   W.mode = "idle"
   W.stepName = "idle"
+  local saved = W.pair.peer()
+  local delay, code = 2, nil
   while true do
-    W.server = rednet.lookup("so", "server")
-    if type(W.server) ~= "number" then W.server = nil end
-    if W.server and W.pair.key(W.server) then break end
-    local code = W.readCode()
-    if W.server and code then
-      local ok = W.pair.join(code)
-      if ok then
-        fs.delete("so-code")
-        break
+    local found = rednet.lookup("so", "server")
+    W.server = type(found) == "number" and found or nil
+    if saved then
+      if not W.server or not W.pair.key(W.server) then W.server = saved end
+      W.stepName = "waiting for server"
+      W.paint()
+      W.hello()
+      W.breathe(delay)
+      if W.seen then break end
+      delay = math.min(delay * 2, 30)
+    else
+      W.paint()
+      code = code or W.readCode()
+      if W.server and code then
+        if W.pair.join(code) then
+          fs.delete("so-code")
+          break
+        end
+        code = nil
       end
+      if code or fs.exists("so-code") then sleep(2) end
     end
-    sleep(2)
   end
+  W.stepName = "idle"
   W.hello()
   W.paint()
   W.loop()

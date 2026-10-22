@@ -47,6 +47,10 @@ Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when
 the server is absent and reconnect after it restarts.
 Each machine starts its installed program immediately and on reboot.
+Paired turtles never ask for another code at boot. They show `waiting for server`
+and retry discovery and authenticated hello with backoff capped at 30 seconds.
+If discovery fails, they use their saved server id. Unpaired turtles keep
+retrying discovery while waiting for six digits and Enter at `Code:`.
 
 Display text commands appear on the bottom row while you type. Backspace
 edits the line and Enter sends it and clears it. Wall displays also echo the
