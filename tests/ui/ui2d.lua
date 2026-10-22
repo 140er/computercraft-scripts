@@ -56,7 +56,7 @@ return function(test,equal)
     local d,_,screens=boot();local ui=screens.generic
     for i=1,64 do assert(d.add({id='p'..i,kind='ore',dim=0,x=i,y=64,z=0,side='front'})) end
     local seen={}
-    for _=1,22 do
+    for _=1,32 do
       local f=ui.render(15,10)
       local cells={}
       for _,b in ipairs(f.buttons) do
@@ -69,7 +69,7 @@ return function(test,equal)
     end
     local n=0;for _ in pairs(seen) do n=n+1 end;equal(n,64)
     ui.render(57,24);ui.input({id='prev'})
-    local first=ui.render(57,24).buttons[1].id;equal(first,'select:p33')
+    local first=ui.render(57,24).buttons[1].id;equal(first,'select:p40')
     ui.input({id='select:p64'});ui.input({id='remove'});equal(#d.list(),63)
   end)
   test('UI2d AR tile toggles once and survives reload',function()
@@ -104,7 +104,7 @@ return function(test,equal)
     local function frame() local f;display.handlers['view.get']({from=2},function(_,v) f=v end);return f end
     local function tap(id) display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
     display.handlers.hello({from=2,body={w=57,h=24}})
-    for _,role in ipairs({'mining','lumber','shop','ar'}) do tap('generic');tap('new');local nav={};for _,b in ipairs(frame().buttons) do nav[b.id]=true end;assert(nav[role],role);tap(role);equal(frame().role,role);tap('status');equal(frame().role,'status') end
+    for _,role in ipairs({'mining','lumber','shop','ar'}) do tap('generic');local nav={};for _,b in ipairs(frame().buttons) do nav[b.id]=true end;assert(nav[role],role);tap(role);equal(frame().role,role);tap('status');equal(frame().role,'status') end
     tap('generic');tap('list');local f=frame();assert(f.rows[1].text:find('DROP POINTS',1,true))
     local found={};for _,b in ipairs(f.buttons) do found[b.id]=true;assert(b.y>1) end
     assert(found.status and found.new);tap('status');equal(frame().role,'status');tap('generic')
