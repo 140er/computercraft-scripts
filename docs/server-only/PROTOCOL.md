@@ -431,7 +431,12 @@ the branch to its spine junction, follow the spine to the shaft, and climb the s
 before taking a shortest axis path around the chest to a free stand. Return trips
 reverse the saved path. A side vein first connects through known dug cells to the
 last reached mining waypoint. If that connection cannot be found within 512 cells,
-the trip waits instead of cutting a new tunnel. Searches use only the in-memory
+for example after a restart empties the lookup or a re-add underground, a worker
+below the surface plans the direct path: down or up its own column to the bottom
+level, straight to the spine, then along the spine and up the shaft. That path
+sets the fuel reserve and the trip digs it. Above the surface the trip still
+waits with `no known mine route`. A worker added below the surface joins its
+new route at the nearest cell after the shaft top instead of climbing to it. Searches use only the in-memory
 block lookup, never the durable cells API. Home routes and vein access cache until
 the pose, route waypoint or mine geometry changes. A stationary turtle does not
 repeat the search on each tick; stand candidates reuse the cached access path.
@@ -467,6 +472,10 @@ the alert until a transfer succeeds or the drop changes.
 
 The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
 `{ level, branch, done }` through `SO.mods.state.emit` when available.
+`progress.done` and `mine.progress` count each branch once. Rows save the counted
+branch as `counted`, so recovery after a restart or a finished row re-entering
+`done` does not count it again. Rows saved before `counted` existed take their
+branch as counted when they load in state `done`.
 `so-mine-plan.lua` owns the pure movement decisions, geometry, ore recognition,
 and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a batch
 description without network, storage, or server calls. `row.pose` and `row.goal`

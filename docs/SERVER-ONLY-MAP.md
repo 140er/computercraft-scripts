@@ -176,7 +176,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Supply trips save `path` and `reserve` in the trip record. They use the lane queue
   and reserve the shared corridor, surface approach and branch exit through the
   chest turnaround and return. Private branch cells use normal movement batches.
-  Route searches read only the in-memory block lookup. Home routes and vein access
+  Route searches read only the in-memory block lookup. With no remembered route
+  (restart, underground re-add), a worker below the surface uses the direct path
+  down to the bottom level, to the spine and up the shaft for its reserve and trip.
+  An underground re-add joins its route at the nearest cell past the shaft top.
+  Rows save `counted`, the branch already added to `progress.done`. Home routes and vein access
   cache by pose, route waypoint and mine geometry; stationary ticks and chest
   candidates reuse them. Fuel reports use the saved trip path and reserve.
   Trips using the shared corridor defer report planning to tick. Moves outside the lane release one private
