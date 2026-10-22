@@ -1,32 +1,4 @@
-local function setup(phase, fuel, inv)
-  local job = { dim = 'minecraft:overworld', spots = {}, running = true, phase = phase or 'scan', cursor = 1,
-    area = { x1 = 0, x2 = 2, z1 = 0, z2 = 0 }, ground = 0, fuel = fuel or 1000, inv = inv or {},
-    tree = { x = 0, z = 0, kind = 'minecraft:oak_log' },
-    turtle = { id = 2, pose = { dim = 'minecraft:overworld', x = 0, y = 2, z = 0, facing = 1 },
-      frame = { dim = 'minecraft:overworld', ox = 0, oy = 0, oz = 0, rot = 0 } } }
-  local callback, render, input, queued, events, serial = nil, nil, nil, nil, {}, 0
-  local env = setmetatable({ os = { epoch = function() return 0 end }, SO = { store = { store = function() return { value = job, save = function() return true end } end }, mods = {
-    cells = { reserveMany = function() return true end, releaseOwner = function() end },
-    state = { emit = function(kind, data) events[#events + 1] = { kind = kind, data = data } end },
-    drops = { pick = function(kind) return { point = { id = 1, x = 250, y = 1, z = 0, side = 'down', kind = kind } } end },
-    display = { screen = function(_, r, i) render, input = r, i end },
-    lease = { status = function() return { open = queued ~= nil, pos = job.turtle.pose, range = 10000 } end,
-      inRange = function() return true end,
-      onReport = function(_, fn) callback = fn end,
-      send = function(_, steps, opts) serial = serial + 1 queued = { id = serial, steps = steps, opts = opts } return serial end },
-  } } }, { __index = _G })
-  local mod = assert(loadfile('so-mod-lumber.lua', 't', env))()
-  local function report(fail)
-    local q = assert(queued) queued = nil
-    local results = {}
-    for i, step in ipairs(q.steps) do results[i] = { ok = not fail, data = step.op == 'inspectDown' and { name = 'minecraft:oak_log', tags = { ['minecraft:logs'] = true } } or nil } end
-    callback(q.id, 2, results, { report = { pose = { x = 0, y = 2, z = 0, f = 1 }, fuel = job.fuel, inv = job.inv } })
-    return q
-  end
-  mod.tick(0) report(false)
-  return { job = job, tick = mod.tick, report = report, queued = function() return queued end,
-    render = function() return render() end, input = function(text) input({ text = text }) end, events = events }
-end
+local setup = dofile('tests/so/lumber-fixture.lua')
 return function(test, equal)
   test('lumber stops after three failed base digs and names start on screen', function()
     local s = setup('base')
@@ -36,6 +8,15 @@ return function(test, equal)
     equal(s.events[#s.events].kind, 'lumber.alert')
     s.tick(2)
     equal(s.queued().steps[1].op, 'inspectDown')
+    s.report(false)
+    s.input('start')
+    assert(not s.job.blocked and not s.job.failures, 'start must clear retry hold')
+    s.tick(3)
+    s.report(false)
+    s.tick(4)
+    s.report(false)
+    s.report(true)
+    assert(not s.job.blocked, 'first new failure must not immediately hold')
   end)
   test('lumber reserves fuel for the actual chest distance', function()
     local s = setup('scan', 200)
@@ -50,4 +31,56 @@ return function(test, equal)
     local q = s.queued()
     assert(s.job.service and s.job.service.kind == 'wood', 'full junk inventory must be cleaned at wood chest')
   end)
+  test('lumber stops after failed travel movement despite successful inspections', function()
+    local s = setup('scan')
+    s.job.cursor = 2
+    for _ = 1, 3 do s.tick(1) s.report(false) s.report(true) end
+    assert(s.job.blocked, 'mob-blocked moves must hold')
+    assert(s.job.alert:find('forward failed', 1, true))
+  end)
+  test('lumber stops after failed ascent digs and moves', function()
+    for _, failedIndex in ipairs({ 1, 2 }) do
+      local s = setup('climb')
+      for _ = 1, 3 do
+        s.tick(1)
+        s.report(false, { { ok = true, data = { name = 'minecraft:oak_log', tags = { ['minecraft:logs'] = true } } } })
+        s.report(false, { { ok = failedIndex ~= 1 }, { ok = failedIndex ~= 2 } })
+      end
+      assert(s.job.blocked, 'failed ascent must hold')
+    end
+  end)
+
+  test('lumber drops excess saplings but keeps one for each known spot', function()
+    local s = setup('scan', 1000, { { slot = 1, name = 'minecraft:oak_sapling', count = 64 },
+      { slot = 2, name = 'minecraft:birch_sapling', count = 8 } })
+    s.job.spots = { ['0,0'] = { kind = 'minecraft:oak_log' }, ['1,0'] = { kind = 'minecraft:oak_log' } }
+    s.job.service = { kind = 'wood', point = { side = 'down' }, stage = 'drop' }
+    s.tick(1)
+    local q = s.queued()
+    equal(q.steps[1].slot, 1)
+    equal(q.steps[3].n, 62)
+    equal(q.steps[3].op, 'dropDown')
+    s.job.inv[1].count = 2
+    s.report(false)
+    s.tick(2)
+    equal(s.queued().steps[1].slot, 2)
+    equal(s.queued().steps[3].n, 8)
+    s.report(true)
+    assert(s.job.blocked, 'failed junk drop must hold instead of looping')
+  end)
+
+  test('lumber unloads a full log inventory during a climb', function()
+    local inv = {}
+    for i = 1, 16 do inv[i] = { slot = i, name = 'minecraft:oak_log', count = 64 } end
+    local s = setup('climb', 1000, inv)
+    s.tick(1)
+    assert(s.job.service and s.job.service.kind == 'wood')
+    equal(s.job.service.resume, 'climb')
+  end)
+  test('lumber clears a single junk stack at the end of a round', function()
+    local s = setup('roundEnd', 1000, { { slot = 1, name = 'minecraft:stick', count = 1 } })
+    s.tick(1)
+    assert(s.job.service and s.job.service.kind == 'wood')
+  end)
+
 end

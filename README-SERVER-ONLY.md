@@ -159,6 +159,14 @@ Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
 The screen shows work state, deliveries, saplings, spots, fuel and alerts.
+Three failed moves or digs stop work and emit an alert for the screen and AR.
+Fix the obstruction or tool, then type `start`. Other holds also show this
+recovery instruction. Refuelling starts with the distance to the fuel chest
+along the flight-height route plus 32 fuel remaining.
+At the wood chest, the turtle also drops sticks, apples, leaves and excess
+saplings. It keeps one sapling per known spot of each species, including the
+current tree. It unloads when fewer than three slots remain, even mid-tree,
+and clears junk at the end of each round.
 
 ## Shop and the Storage Room turtle
 
