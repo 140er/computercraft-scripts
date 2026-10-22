@@ -90,7 +90,7 @@ class Runtime:
         self.home.mkdir(parents=True, exist_ok=True);os.chmod(self.home, 0o700)
         config = self.home / 'config.json'
         self.config = json.loads(config.read_text()) if config.exists() else {}
-        self.suite_lock = Path(self.config.get('suite_lock', WORK / 'test-suite.lock'))
+        self.suite_lock = WORK / 'test-suite.lock'
 
     def run(self, name):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', str(name)):
