@@ -296,6 +296,10 @@ S.report = function(id, turtleId, results, lease)
       end
     end
   end
+  local inspected
+  if pending.action == "junk" or type(pending.action) == "table" and pending.action.kind == "drop" then
+    inspected = S.noteChest(j.service and j.service.point, results[2])
+  end
   S.noteBlocks(pending, results)
   if report.inv then j.inv = report.inv end
   if report.fuel ~= nil then j.fuel = report.fuel end
@@ -323,10 +327,6 @@ S.report = function(id, turtleId, results, lease)
     if not S.pending then S.release() end
     S.save()
     return
-  end
-  local inspected
-  if action == "junk" or type(action) == "table" and action.kind == "drop" then
-    inspected = S.noteChest(j.service and j.service.point, results[2])
   end
   if action == "recover" then
     S.recover = false
