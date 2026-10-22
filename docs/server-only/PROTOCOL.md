@@ -166,7 +166,7 @@ A paired computer sends `drops.edit` to the server. The payload is the table fro
 
 `body.op` is `add`, `remove`, or `fix`.
 
-For `add`, `body.id` is a string of letters, digits, underscore, and hyphen. `body.dim`, `body.x`, `body.y`, and `body.z` are integers. `body.side` is `front` or `down`. `body.kind` is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`.
+For `add`, `body.id` is a string of letters, digits, underscore, and hyphen. `body.dim`, `body.x`, `body.y`, and `body.z` are integers. The x, y and z fields are the chest's own coordinates. `body.side` is `front` or `down`. `front` accesses the chest from a neighbouring cell at the same height while facing it; `down` accesses it from directly above. `body.kind` is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`.
 
 For `remove` and `fix`, `body.id` is that point id.
 
@@ -433,9 +433,19 @@ The module stores each computer's role in `so-display`. The default is `generic`
 The `lumber` display accepts these text commands:
 
 - `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
-- `saplings <x> <y> <z> <front|down>` sets the turtle access cell for the sapling chest.
+- `saplings <x> <y> <z> <front|down>` sets the sapling chest's own coordinates and access side.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
 - `start` begins work. `stop` parks after the current lease reports.
+
+For `front`, `L.access` chooses a horizontal neighbour at the chest's height
+and faces the turtle towards the chest for `suck`. It chooses the eligible cell
+with the shortest Manhattan distance from the turtle's current position.
+Ties use north, east, south, west order. For `down`, the only candidate is
+`{ x = x, y = y + 1, z = z }`, and the turtle uses `suckDown`.
+The lumber caller excludes cells at or below soil height, known obstacles,
+chest cells and planted spots at soil height plus one. Keep access cells clear;
+these checks use the planner's known state. If no eligible cell remains,
+the turtle holds with `no access to saplings chest`.
 
 The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
@@ -460,6 +470,8 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
 `drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken }`. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
 
+Drop points use the chest's own coordinates. The caller positions the turtle
+beside the chest facing it for `front`, or directly above it for `down`.
 `drops.steps(point)` takes a point. Side `front` returns `{ { op = "inspect" }, { op = "drop" } }`. Side `down` returns `{ { op = "inspectDown" }, { op = "dropDown" } }`. A call with no string `id` returns `{}`, including `steps({ name = "minecraft:cobble", n = 1, where = "front" })`.
 
 `drops.add(point)` takes `{ id, dim, x, y, z, side, kind }`. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
