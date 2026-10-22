@@ -60,7 +60,7 @@ def closure(edges, starts):
 
 
 def select(root, part, files, edges):
-    candidates = sorted(p for p in files if re.fullmatch(r'tests/(so|ui)/[^/]+\.lua', p)
+    candidates = sorted(p for p in files if re.fullmatch(r'tests/(so|ui|parts)/[^/]+\.lua', p)
                         and p not in {'tests/so/harness.lua', 'tests/ui/render.lua'}
                         and not p.endswith('-fixture.lua'))
     explicit = part.removeprefix('./')
@@ -73,8 +73,16 @@ def select(root, part, files, edges):
     module = {'server': 'so-server', 'miner': 'so-mod-mine'}.get(module, module)
     if module + '.lua' not in files:
         raise ValueError('unknown part: ' + part + '; use a root module or tests/so/<suite>.lua')
+    dedicated = 'tests/parts/' + module + '.lua'
+    if dedicated in candidates:
+        return [dedicated]
     key = re.sub(r'^so-(?:mod-)?', '', module)
     module_deps = closure(edges, [module + '.lua'])
+    narrow = [p for p in candidates
+              if module + '.lua' in closure(edges, [p])
+              and {d for d in closure(edges, [p]) if '/' not in d}.issubset(module_deps)]
+    if narrow:
+        return narrow
     focused = [p for p in candidates if re.search(r'(^|-)' + re.escape(key) + r'(-|$)', Path(p).stem)
                and module_deps.intersection(closure(edges, [p]))]
     if focused:
@@ -90,7 +98,7 @@ def lua_string(value):
     return json.dumps(value, ensure_ascii=True)
 
 
-def prepare(root, part):
+def prepare(root, part, timeout=60):
     files, edges = graph(root)
     suites = select(root, part, files, edges)
     allowed = closure(edges, [*suites, 'tests/mocks.lua'])
@@ -101,9 +109,30 @@ def prepare(root, part):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / name, dest)
     shutil.copyfile(root / 'tests/part.lua', stage / 'tests/run.lua')
-    manifest = 'return { suites = {' + ','.join(map(lua_string, suites)) + '}, allowed = {'
+    manifest = 'return { timeout = ' + str(timeout) + ', suites = {' + ','.join(map(lua_string, suites)) + '}, allowed = {'
     manifest += ','.join('[' + lua_string(p) + ']=true' for p in sorted(allowed)) + '} }\n'
     (stage / 'tests/part-manifest.lua').write_text(manifest)
     print('part: ' + part + '; suites: ' + ', '.join(suites), flush=True)
     print('part: generated ' + str(len(allowed)) + ' input files; private cwd ' + str(stage), flush=True)
     return temporary, stage, suites, sorted(allowed)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    options = parser.add_mutually_exclusive_group(required=True)
+    options.add_argument('--list', action='store_true')
+    options.add_argument('--dependencies', metavar='PART')
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    files, edges = graph(root)
+    if args.dependencies:
+        suites = select(root, args.dependencies, files, edges)
+        print(json.dumps({'suites': suites, 'inputs': sorted(closure(edges, [*suites, 'tests/mocks.lua']))}, indent=2))
+    else:
+        for name in sorted(p for p in files if '/' not in p and p.endswith('.lua')
+                           and (p.startswith('so-') or p in {'worker.lua', 'display.lua'})):
+            try:
+                suites = select(root, name, files, edges)
+                print(name + ': ' + ', '.join(suites))
+            except ValueError:
+                print(name + ': no regression suite')

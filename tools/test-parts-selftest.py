@@ -44,4 +44,12 @@ with tempfile.TemporaryDirectory(prefix='parts-selftest-') as directory:
         assert result.returncode == 1 and '1 undeclared reads' in result.stdout, result.stdout + result.stderr
     finally:
         temporary.cleanup()
-print('PASS graph closure, excluded source, concurrent private directories, swallowed loader violation')
+    for call in ['require("unlisted")', 'io.lines("unrelated" .. ".lua")', 'io.input("unrelated" .. ".lua")']:
+        suite.write_text('return function(test) test("escape",function() pcall(function() ' + call + ' end) end) end')
+        temporary, stage, _, _ = prepare(root, 'tests/so/example.lua')
+        try:
+            result = subprocess.run(['lua5.2', 'tests/run.lua'], cwd=stage, capture_output=True, text=True)
+            assert result.returncode == 1 and '1 undeclared reads' in result.stdout, result.stdout + result.stderr
+        finally:
+            temporary.cleanup()
+print('PASS graph closure, excluded source, concurrent private directories, swallowed load/require/lines/input violations')

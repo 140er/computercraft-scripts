@@ -1,3 +1,6 @@
 #!/bin/sh
 set -eu
+if [ "${1:-}" = --list ]; then
+  exec python3 "$(dirname "$0")/../tools/test_parts.py" --list
+fi
 exec cc-test --part "$@"

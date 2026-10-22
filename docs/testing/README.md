@@ -11,6 +11,12 @@ cc-test --part tests/so/lease.lua --lua-only
 cc-test
 ```
 
+The focused mining fixture loads the real mining module, its planner libraries
+and UI library with store/lease/cell mocks. Its seven checks cover start guards,
+uncertain workers, range refusal, exactly-once branch counting, disk failure,
+retirement protection and report expiry. The broader mining regressions remain
+explicit parts and run in the full suite.
+
 The first two commands default to Lua regressions plus the version-checked
 emulator layer. `--lua-only` is an explicit unit-test shortcut. Plain `cc-test`
 remains the full regression suite and must pass once before a PR. The
@@ -18,9 +24,13 @@ orchestrator decides when to run real-server/gameplay tests.
 
 `server`/`server.lua` and `miner`/`miner.lua` are server-only aliases for
 `so-server.lua` and `so-mod-mine.lua`. Normal-build work comes later.
-A root module name selects regressions with matching filename words and a
-source dependency on that module. If there are none, it selects related
+A root module first selects its dedicated `tests/parts/<module>.lua` suite
+when present. Next it prefers suites whose product-file dependency closure
+is contained in the module closure. Otherwise it selects matching filename words
+and a source dependency on the module or its libraries. If there are none, it selects related
 non-scenario regressions. The command prints exactly which suites it chose.
+Run `scripts/test-part --list` to see module-to-suite selection, or
+`python3 tools/test_parts.py --dependencies miner` to inspect generated inputs.
 Choose an explicit test file to narrow a large module part further.
 Numbered SO/UI scenarios remain explicit parts and run in the full suite;
 focused module parts do not replace them. A module with no regression fails
@@ -50,7 +60,11 @@ The installed `cc-test` still chooses the first free local, Windows or PC slot.
 The repository installer backs up the scheduler to `cc-test.bak-parts` and
 refuses unfamiliar patch locations. Both remote transports receive the same
 minimal staged archive. Tests execute `tests/run.lua` inside that archive,
-which contains the part runner rather than the full suite. The full runner in
+which contains the part runner rather than the full suite.
+Part Lua CPU time is limited to 60 seconds by default; local wall time has the
+same limit. Remote workers also retain their 20-minute outer wall deadline.
+Use `--part-timeout 180` only for an intentionally longer scenario.
+The slot lock covers the emulator and Lua work together. The full runner in
 the checkout is unchanged. The remote infrastructure's baseline repository
 contains only a placeholder; part tests cannot access it.
 

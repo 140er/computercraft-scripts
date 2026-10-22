@@ -18,8 +18,9 @@ For a faster plain-Lua unit run, explicitly use
 Use `cc-test --part tests/so/lease.lua --lua-only` to run one regression file.
 `scripts/test-part <part>` forwards to the same scheduler.
 
-Part selection derives focused regression names and dependency closures from
-source. The command prints its selected suites. Numbered scenarios such as
+Part selection prefers dedicated `tests/parts/<module>.lua` suites, then
+uses focused regression names and dependency closures from source.
+Run `scripts/test-part --list` to inspect module selection. The command prints its selected suites. Numbered scenarios such as
 SO3 and SO11 remain explicit parts, not implicit module iterations:
 `cc-test --part tests/so/so11.lua`.
 A module without a matching suite uses its related non-scenario regressions.
@@ -30,7 +31,10 @@ copies only the generated dependency closure, guards reads and Lua loaders,
 and fails any undeclared read even if a test catches its exception.
 A dependency failure calls for fixing the source graph resolver or making the
 loader expression statically resolvable, never disabling the guard.
-Part runs use the existing free local, Windows and PC slots. Do not force a
+Part runs use the existing free local, Windows and PC slots.
+Each part has a 60-second Lua CPU budget and a local wall limit; remote
+workers retain their 20-minute outer wall limit. Use `--part-timeout 180`
+only for an intentionally longer scenario. Do not force a
 slot unless the test needs it, and record the reason.
 
 Run plain `cc-test` once before opening the PR. Preserve its log and the part
@@ -38,5 +42,5 @@ log, including slot, input count and timings. Full-suite tests cover scenarios
 that focused parts omit. Computer disks use the server-only 16 MB budget;
 smaller-budget rejection tests keep their intentional limits.
 Real-server/gameplay testing is at the orchestrator's discretion. Never use
-the live Minecraft server. Read [the kit README](../../../../docs/testing/README.md)
+the live Minecraft server. Read [the kit README](../../../docs/testing/README.md)
 for version pins, emulator fidelity and the peripheral coverage table.
