@@ -473,13 +473,13 @@ local function input(event)
   save()
 end
 local function render()
-  local rows={{text="Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
+  local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
   for id,row in pairs(job.turtles) do
     local p=row.pose
     rows[#rows+1]={text=id.." "..row.state.." "..p.x..","..p.y..","..p.z.." fuel "..tostring(row.fuel or "?").." ores "..(row.ores or 0).." "..tostring(row.error or ""),fg=(row.state=="lost" or row.state=="range") and "e" or "0"}
   end
-  return {rows=rows,buttons={}}
+  return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
 end
 return {name="mine",handlers={},tick=function()
   if not S.wired then

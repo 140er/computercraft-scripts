@@ -107,7 +107,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `render()` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
   coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
-  The generic screen includes `lumber` and `ar` buttons, including with the drops screen.
+  The generic screen reserves two top rows for `mining`, `lumber`, `shop`,
+  `status` and `ar`, with the drop editor below. Every destination has a visible
+  `generic` button on 26x20 pockets and 29x12 monitors.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
