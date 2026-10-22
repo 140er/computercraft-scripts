@@ -40,6 +40,19 @@ class ContractTests(unittest.TestCase):
                 ctx.drops()
         self.assertIn("gateb_ore",runtime.code)
 
+    def test_click_waits_for_an_observed_frame(self):
+        initial={"role":"status","rev":1,"buttons":[{"id":"generic","x":1,"y":1,"w":4}]}
+        updated={"role":"generic","rev":2,"buttons":initial["buttons"]}
+        class Runtime:
+            def request(self,world,request,timeout):
+                if request["op"]=="frame": return initial
+                return {"width":26,"height":20}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40)
+            with patch.object(ctx,"wait",return_value=updated) as wait:
+                self.assertEqual(ctx.click("pocket","generic"),updated)
+                wait.assert_called_once()
+
     def test_native_keyboard_char_events(self):
         class Runtime:
             def __init__(self): self.requests=[]

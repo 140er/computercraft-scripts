@@ -256,8 +256,10 @@ class Context:
         if b["x"] + b.get("w", 1)-1 > size["width"] or b["y"] + b.get("h", 1)-1 > size["height"]:
             raise Blocked("Button is clipped outside physical display")
         self.request("input", computer=self.computer(name), event=event, args=args)
-        time.sleep(self.interval * 2)
-        return self.frame(name)
+        def changed():
+            current = self.frame(name)
+            return current if current != frame else None
+        return self.wait(changed, 5) or self.frame(name)
 
     def navigate(self, name, role):
         initial = self.frame(name)
