@@ -104,9 +104,12 @@ def block(world, pos):
     return {'pos':[x,y,z], 'block':state, 'nbt':entity}
 
 
-def computers(world):
+def computers(world, near=None):
     """Scan existing region chunks for native computer IDs and positions."""
-    for path in sorted((Path(world) / 'region').glob('r.*.*.mca')):
+    rx0,rz0=(near[0]//512,near[2]//512) if near else (0,0)
+    paths=list((Path(world)/'region').glob('r.*.*.mca'))
+    paths.sort(key=lambda p: (abs(int(p.name.split('.')[1])-rx0)+abs(int(p.name.split('.')[2])-rz0),p.name))
+    for path in paths:
         _, rx, rz, _ = path.name.split('.')
         with path.open('rb') as stream:
             locations = stream.read(4096)

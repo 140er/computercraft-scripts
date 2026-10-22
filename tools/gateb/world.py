@@ -421,7 +421,11 @@ class Runtime:
             if op=='turtle':
                 cid=str(q['computer']);comp=self.manifest(name)['computers'].get(cid)
                 if not comp: cid=next(k for k,v in self.manifest(name)['computers'].items() if v['name']==q['computer'])
-                result=next((v for computer,v in nbt.computers(world) if str(computer)==cid),None)
+                position=self.manifest(name)['computers'][cid]['pos']
+                try: result=nbt.block(world,position)
+                except FileNotFoundError: result=None
+                if result is None or str(result['nbt'].get('ComputerId'))!=cid:
+                    result=next((v for computer,v in nbt.computers(world,near=position) if str(computer)==cid),None)
                 if result is None: raise RuntimeError('Computer not found in saved chunks')
                 result['facing']=result['block'].get('Properties',{}).get('facing')
                 return result
