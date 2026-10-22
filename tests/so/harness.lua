@@ -454,6 +454,9 @@ H.new = function()
         if event[1] == "terminate" then error("Terminated", 0) end
         return table.unpack(event, 1, event.n)
       end,
+      pullEventRaw = function()
+        return coroutine.yield()
+      end,
     }
     env.sleep = function(seconds)
       if opts.guardServer then
