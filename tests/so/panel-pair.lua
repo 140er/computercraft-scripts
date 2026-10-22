@@ -186,8 +186,11 @@ return function(test, equal)
     local render
     env.SO.mods.display={screen=function(_,fn) if fn then render=fn end end}
     panel.tick(0)
-    for _,size in ipairs({{26,20,"P"},{29,12,"S"}}) do
-      local w,h,suffix=table.unpack(size)
+    for _,size in ipairs({
+      {26,20,{[false]="tests/ui/fixtures/panelpair-P.txt",[true]="tests/ui/fixtures/panelcode-P.txt"}},
+      {29,12,{[false]="tests/ui/fixtures/panelpair-S.txt",[true]="tests/ui/fixtures/panelcode-S.txt"}},
+    }) do
+      local w,h,fixtures=table.unpack(size)
       for _,pending in ipairs({false,true}) do
         local session={id=2,panel={page="pair"}}
         if pending then session.panel.invitation={code="123456",expires=292000} end
@@ -201,7 +204,7 @@ return function(test, equal)
           fg,bg=table.concat(fg),table.concat(bg)
           out.setCursorPos(1,y);out.blit(row.text..string.rep(" ",#fg-#row.text),fg,bg)
         end
-        local differences=R.diff("tests/ui/fixtures/panel"..(pending and "code-" or "pair-")..suffix..".txt",out)
+        local differences=R.diff(fixtures[pending],out)
         assert(#differences==0,table.concat(differences,"\n"))
       end
     end
