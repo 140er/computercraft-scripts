@@ -481,6 +481,11 @@ end
 
 S.input = function(ev)
   if type(ev) ~= "table" then return end
+  if ev.text == nil then
+    if ev.id == "setup" then S.setup, S.setupPage = true, 0 return end
+    if ev.id == "setup-next" then S.setupPage = (S.setupPage or 0) + 1 return end
+    if ev.id == "lumber-back" then S.setup = false return end
+  end
   local words = {}
   for word in tostring(ev.text or ev.id or ""):gmatch("%S+") do words[#words + 1] = word end
   local j = S.job
@@ -520,7 +525,7 @@ S.input = function(ev)
   S.save()
 end
 
-S.render = function()
+S.legacyRender = function()
   local j = S.job
   local known, planted = 0, 0
   for _, spot in pairs(j.spots) do known = known + 1 if (spot.plantedAt or 0) > 0 then planted = planted + 1 end end
@@ -534,6 +539,103 @@ S.render = function()
   row("Fuel " .. tostring(j.fuel or "?"))
   row("Alert " .. tostring(j.alert or "-"), j.blocked == "lost" or j.blocked == "out of range")
   return { rows = rows, buttons = { { id = "generic", x = 1, y = 8, w = 7, label = "generic" } } }
+end
+
+S.gather = function()
+  local j, known, ready = S.job, 0, 0
+  local now = os.epoch("utc")
+  for _, spot in pairs(j.spots) do
+    known = known + 1
+    if (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 then ready = ready + 1 end
+  end
+  local saplings = S.count(L.isSapling)
+  local seconds = j.nextRound and math.max(0, math.ceil((j.nextRound - now) / 1000))
+  local grow = seconds and string.format("%d:%02d", math.floor(seconds / 60), seconds % 60) or "-"
+  local function point(p)
+    return p and (p.x .. "," .. p.y .. "," .. p.z .. " " .. (p.side or "")) or "-"
+  end
+  return {
+    state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
+    alert = j.alert, setup = S.setup, setupPage = S.setupPage,
+    details = {
+      "AREA " .. (j.area and (j.area.x1 .. "," .. j.area.z1 .. " to " .. j.area.x2 .. "," .. j.area.z2) or "-"),
+      "GROUND " .. tostring(j.ground or "-"), "SAPLINGS " .. point(j.saplings),
+      "TURTLE " .. (j.turtle and (j.turtle.id .. " at " .. point(j.turtle.pose)) or "-"),
+      "area x1 z1 x2 z2 ground", "saplings x y z front|down", "add id x y z n|e|s|w",
+    },
+    tiles = {
+      {"TREES READY", tostring(ready), "of " .. known .. " spots", "d"},
+      {"LOGS TODAY", tostring(j.logs or 0), "to wood chest", "b"},
+      {"SAPLINGS", tostring(saplings), saplings == 0 and "chest empty" or "carried", saplings == 0 and "e" or "d"},
+      {"TURTLE", j.turtle and tostring(j.turtle.id) or "-", j.phase or "-", j.turtle and "d" or "c"},
+      {"FUEL", tostring(j.fuel or "-"), type(j.fuel) == "number" and (j.fuel < 80 and "low" or "ok") or "no source", j.fuel and (type(j.fuel) == "number" and j.fuel < 80 and "1" or "d") or "c"},
+      {"NEXT GROW", grow, seconds and "min:sec" or "no timer", seconds and "b" or "c"},
+    },
+  }
+end
+
+S.layout = function(model, w, h)
+  local U = S.ui
+  local C = U.canvas(w, h)
+  C.header("LUMBER", model.state)
+  C.alert(model.alert and ("! " .. model.alert))
+  local compact = w < 39 or h < 20
+  local navRows = w < 26 and 2 or 1
+  local bottom = compact and math.max(1, h - navRows + 1) or h - 3
+  if model.setup then
+    local lines = {}
+    for _, line in ipairs(model.details) do
+      for first = 1, #line, math.max(1, w - 2) do
+        lines[#lines + 1] = line:sub(first, first + math.max(1, w - 2) - 1)
+      end
+    end
+    local count = math.max(1, bottom - 3)
+    local pages = math.ceil(#lines / count)
+    local offset = ((model.setupPage or 0) % math.max(1, pages)) * count
+    for i = 1, count do
+      if lines[offset + i] and i + 2 < bottom then C.put(2, i + 2, lines[offset + i], "0", "f") end
+    end
+    local left = 1
+    if pages > 1 then
+      local width = math.max(1, math.floor(w / 2))
+      C.button(1, bottom, width, "NEXT", "setup-next", "7", compact and 1 or 3)
+      left = width + 1
+    end
+    C.button(left, bottom, w - left + 1, "BACK", "lumber-back", "7", compact and 1 or 3)
+  else
+    local cols, rows = U.grid(w, h)
+    if compact then
+      for i, t in ipairs(model.tiles) do
+        if i + 2 < bottom then
+          C.fill(1, i + 2, w, 1, t[4])
+          C.put(1, i + 2, (t[1] .. " " .. t[2]):sub(1, w), U.ink(t[4]), t[4])
+        end
+      end
+    else
+      for i, t in ipairs(model.tiles) do
+        local row = math.floor((i - 1) / #cols)
+        if row < rows then
+          local col = cols[(i - 1) % #cols + 1]
+          C.tile(col.x, 3 + row * 6, col.w, unpack(t))
+        end
+      end
+    end
+    local buttons = U.grid(w, h, w < 26 and 2 or 4)
+    if w == 57 and h == 24 then buttons = {{x=1,w=13},{x=15,w=13},{x=29,w=14},{x=44,w=14}} end
+    for i, b in ipairs({{"START", "start", "9"}, {"STOP", "stop", "e"}, {"SETUP", "setup", "7"}, {"BACK", "status", "7"}}) do
+      local col = buttons[(i - 1) % #buttons + 1]
+      local y = bottom + (w < 26 and math.floor((i - 1) / 2) or 0)
+      C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
+    end
+  end
+  return C.frame()
+end
+
+S.render = function(w, h)
+  if not w or not h then return S.legacyRender() end
+  if not S.ui and (not fs or not fs.exists or fs.exists("so-ui.lua")) then S.ui = dofile("so-ui.lua") end
+  if not S.ui then return S.legacyRender() end
+  return S.layout(S.gather(), w, h)
 end
 
 S.tick = function(now)
