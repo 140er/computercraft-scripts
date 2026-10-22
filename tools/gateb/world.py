@@ -295,6 +295,11 @@ class Runtime:
                 if log.exists() and re.search(r'Done \([\d.]+s\)!',log.read_text(errors='replace')):
                     return {'run':name,'pid':pid,'warm':True}
                 raise RuntimeError('Server exists but has not reached its ready marker')
+            for cid in self.manifest(name)['computers']:
+                base=self.computer_disk(name,cid)/'.gateb'
+                (base/'screen.json').unlink(missing_ok=True)
+                shutil.rmtree(base/'in',ignore_errors=True)
+                shutil.rmtree(base/'out',ignore_errors=True)
             fifo=run/'console.fifo'
             fifo.unlink(missing_ok=True);os.mkfifo(fifo,0o600)
             log=run/'console.log'
@@ -354,6 +359,7 @@ class Runtime:
             run=self.run(name)
             shutil.rmtree(run/'world');copytree(self.home/'template/world',run/'world')
             shutil.copy2(self.home/'template/manifest.json',run/'manifest.json')
+            (run/'install.json').unlink(missing_ok=True)
         if running: self.serve(name)
         return {'run':name,'restarted':running}
 
