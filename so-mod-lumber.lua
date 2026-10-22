@@ -81,7 +81,8 @@ end
 S.owner = function() return "lumber:" .. tostring(S.job.turtle.id) end
 S.release = function()
   local cells = S.module("cells")
-  if type(cells.releaseOwner) == "function" then cells.releaseOwner(S.owner()) end
+  if type(cells.releaseOwner) == "function" then return cells.releaseOwner(S.owner()) end
+  return true
 end
 
 S.cellKey = function(p) return p.x .. "," .. p.y .. "," .. p.z end
@@ -309,12 +310,15 @@ S.report = function(id, turtleId, results, lease)
   end
   local cells = S.module("cells")
   if j.turtle.frame and type(cells.markDug) == "function" and type(cells.isDug) == "function" then
+    local history = {}
     for _, cell in ipairs(report.dug or {}) do
       local world = P.toWorld(j.turtle.frame, { x = cell.x, y = cell.y, z = cell.z, f = 0 })
+      history[#history + 1] = world
       if not cells.isDug(world.x, world.y, world.z, world.dim) then
         cells.markDug(world.x, world.y, world.z, world.dim)
       end
     end
+    if report.dug and type(cells.rememberWorker) == "function" then cells.rememberWorker(turtleId, j.turtle.pose, history) end
   end
   local inspected
   if pending.action == "junk" or type(pending.action) == "table" and pending.action.kind == "drop" then
@@ -682,7 +686,10 @@ S.input = function(ev)
       j.blocked, j.alert, j.tree, j.service = nil, nil, nil, nil
       j.phase = "scan"
     end
-    if j.turtle then S.release() end
+    if j.turtle then
+      local released, err = S.release()
+      if released == false then S.alert("save failed: " .. tostring(err)) return end
+    end
     j.turtle = { id = id, anchor = pose, pose = pose }
     j.inv, j.fuel = {}, 0
     S.recover = true
@@ -741,4 +748,18 @@ S.tick = function(now)
   S.work(now)
 end
 
-return { name = "lumber", handlers = {}, tick = S.tick }
+S.dugProtection = function(protect)
+  local j = S.job
+  if j.turtle then
+    if S.recover or not j.turtle.frame then return false end
+    protect(j.dim, j, 48)
+    if S.pending then protect(j.dim, S.pending, 48) end
+  end
+  if j.running and j.area then
+    protect(j.dim, { { x=j.area.x1, y=-math.huge, z=j.area.z1 },
+      { x=j.area.x2, y=math.huge, z=j.area.z2 } }, 1)
+  end
+  return true
+end
+
+return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection }

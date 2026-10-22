@@ -53,9 +53,9 @@ return function(test, equal)
     equal(cells.isDug(-1, -1, -1, "mod:moon"), true)
     assert(cells.tick(0))
     local saved = m.env.SO.store.read(other)
-    equal(saved.generation, 8)
+    equal(saved.generation, 9)
     equal(saved.value.format, "hex4096")
-    equal(m.files[other .. ".bak"], old)
+    equal(m.env.SO.store.read(other .. ".bak").value.format, "hex4096")
     local loaded = setup(m.files)
     equal(loaded.isDug(-16, -16, -16, "mod:moon"), true)
     equal(loaded.isDug(-3, -11, -16, "mod:moon"), true)
@@ -64,7 +64,7 @@ return function(test, equal)
 
   test("dug bitset: interrupted migration recovers the newest valid generation", function()
     local old = H.encode({ schema = 1, generation = 3, value = { [0] = true, [255] = true } })
-    for _, failAt in ipairs({ 1, 2 }) do
+    for _, failAt in ipairs({ 1, 2, 3, 4 }) do
       local cells, m = setup({ [path] = old })
       local move, calls = m.env.fs.move, 0
       m.env.fs.move = function(from, to)

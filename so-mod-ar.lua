@@ -45,6 +45,11 @@ end
 A.scene = function(now)
   local scene = {}
   local function put(id, method, ...) scene[id] = { method = method, args = { ... } } end
+  local retirement = A.call("cells", "retirement")
+  if retirement then
+    put("alert:dug-storage", "drawText2D", A.red, 4, 4,
+      retirement.text .. (retirement.status == "pending" and " Choose allow or keep on a display." or ""), false)
+  end
   local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
   local function label(id, color, p, text)
     put(id, "drawText3D", color, p.x + 0.5, p.y + 1.6, p.z + 0.5, 0, 0, 3, text, true)
@@ -139,7 +144,8 @@ A.scene = function(now)
     for i = 1, math.min(8, #alerts) do
       local row = alerts[i]
       local text = type(row.value) == "table" and row.value.text or row.value
-      put("alert:" .. row.key, "drawText2D", A.red, 4, 4 + (i - 1) * 10, row.key .. " " .. tostring(text), false)
+      put("alert:" .. row.key, "drawText2D", A.red, 4, 4 + (i - 1 + (retirement and 1 or 0)) * 10,
+        row.key .. " " .. tostring(text), false)
     end
   end
   return scene
