@@ -1,0 +1,21 @@
+15x10 Smallest monitor 1x1 at scale 0.5
+ FLEET      ok 
+               
+ TURTLES       
+      🬋🬋🬏      
+      🬇🬋🬐      
+      🬋🬋🬀      
+ 0 lost        
+               
+   tap: next   
+               
+777777777777777
+fffffffffffffff
+ddddddddddddddd
+ddddddddddddddd
+ddddddddddddddd
+ddddddddddddddd
+ddddddddddddddd
+fffffffffffffff
+777777777777777
+777777777777777

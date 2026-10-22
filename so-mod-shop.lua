@@ -94,7 +94,7 @@ S.row = function(text)
   return { text = text, fg = "0", bg = "f" }
 end
 
-S.render = function(w, h, clientId)
+S.legacy = function(w, h, clientId)
   local search = S.search[clientId or 0] or ""
   local picture = {
     rows = {},
@@ -138,16 +138,146 @@ S.render = function(w, h, clientId)
   return picture
 end
 
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
+
+S.page = 1
+S.selected = nil
+S.capacity = function(w, h)
+  local cols = U.grid(w, h)
+  if w == 57 and h == 24 then cols = {{x=1,w=18},{x=20,w=19},{x=40,w=18}} end
+  local rows = math.max(1, math.floor((h - 11) / 6))
+  return cols, rows, #cols * rows
+end
+
+S.gather = function(client)
+  local search = S.search[client or 0] or ""
+  local m = { found = S.turtle ~= nil, search = search, page = S.page, items = {},
+    order = table.concat(S.orders, "; "), time = "-" }
+  if S.sampleAt then
+    m.time = U and U.clock(S.sampleAt).hm or "-"
+  end
+  local query = search:lower():gsub("%s+", "_")
+  for name, count in pairs(S.totals) do
+    local samples = S.history[name]
+    local delta = count - (samples and samples[1] or count)
+    local rate = math.floor(math.abs(delta) * 60 / math.max(1, samples and #samples - 1 or 1) + 0.5)
+    local sub = delta > 0 and ("^ +" .. rate .. "/h") or delta < 0 and ("v -" .. rate .. "/h") or "- steady"
+    local item = { name = name, label = name:gsub("^.-:", ""):gsub("_", " "):upper(),
+      count = count, sub = sub, detail = sub:gsub("/h", " per hour"),
+      bg = count == 0 and "e" or (count <= 16 or delta < 0) and "1" or "b" }
+    if count == 0 then item.sub = "empty"
+    elseif count <= 16 and delta < 0 then item.sub = "v low" end
+    if name == S.selected then m.selected = item end
+    if name:lower():find(query, 1, true) then m.items[#m.items + 1] = item end
+  end
+  table.sort(m.items, function(a, b)
+    if a.count == b.count then return a.name < b.name end
+    return a.count > b.count
+  end)
+  return m
+end
+
+S.layout = function(m, w, h)
+  local C = U.canvas(w, h)
+  local cols, rows, capacity = S.capacity(w, h)
+  local small = h < 16
+  local navHeight = small and 1 or 3
+  local bottom = h - navHeight + 1
+  if m.selected then
+    local item = m.selected
+    C.header("SHOP > " .. item.label, "", "a")
+    C.tile(1, 3, w, "IN STOCK", item.count, item.detail, item.bg)
+    local orderCols = U.grid(w, h, 3)
+    if w == 57 and h == 24 then orderCols = cols end
+    for i, amount in ipairs({1,16,64}) do
+      local col = orderCols[(i - 1) % #orderCols + 1]
+      local y = small and 8 or 9
+      local height = small and 1 or 5
+      if y + height - 1 < bottom then
+        C.button(col.x, y, col.w, (col.w < 8 and "" or "ORDER ") .. amount,
+          "order:" .. amount .. ":" .. item.name, "a", height)
+      end
+    end
+    C.put(2, small and h-1 or 15, ("Order: " .. m.order):sub(1, math.max(0,w-2)))
+    C.button(1, bottom, w, "BACK", "items", "7", navHeight)
+    return C.frame()
+  end
+  C.header("SHOP", w >= 26 and ("stock " .. m.time) or "", "a")
+  C.search(2, small and 2 or 3, math.max(0,w-2), " search: " .. m.search .. "_", "search")
+  local pages = math.max(1, math.ceil(#m.items / capacity))
+  local page = math.max(1, math.min(m.page, pages))
+  local start = (page - 1) * capacity
+  if not m.found then
+    local message = "Storage room not found, still looking"
+    local width = math.max(1,w-2)
+    for i=1, math.ceil(#message/width) do
+      C.put(2, (small and 3 or 5)+i-1, message:sub((i-1)*width+1,i*width))
+    end
+  else
+    for i=1,capacity do
+      local item = m.items[start+i]
+      if not item then break end
+      local col = cols[(i-1)%#cols+1]
+      local y = (small and 3 or 5) + math.floor((i-1)/#cols)*6
+      C.tile(col.x,y,col.w,item.label,item.count,item.sub,item.bg)
+      C.hit("item:" .. item.name,col.x,y,col.w,5)
+    end
+  end
+  C.put(2, small and h-1 or h-7, ("Order: " .. m.order):sub(1,math.max(0,w-2)))
+  if pages > 1 then
+    local y = small and h-2 or h-5
+    local pager = U.grid(w,h,3)
+    if w == 57 and h == 24 then pager = cols end
+    local labels = {"< PREV", "page " .. page .. "/" .. pages, "NEXT >"}
+    for i,col in ipairs(pager) do
+      local label = labels[i]
+      if col.w < 8 then label = ({ "<", page .. "/" .. pages, ">" })[i] end
+      C.button(col.x,y,col.w,label,({"prev","page","next"})[i],"7",navHeight)
+    end
+  end
+  local halves = U.grid(w,h,2)
+  if w == 57 and h == 24 then halves = {{x=1,w=28},{x=30,w=28}} end
+  C.button(halves[1].x,bottom,halves[1].w,"CLEAR SEARCH","clear","7",navHeight)
+  C.button(halves[2].x,bottom,halves[2].w,"BACK","status","7",navHeight)
+  return C.frame()
+end
+
+S.render = function(w, h, session)
+  local client = type(session) == "table" and session.id or session
+  if not U then return S.legacy(w, h, client) end
+  w, h = w or 57, h or 24
+  local _, _, capacity = S.capacity(w,h)
+  local m = S.gather(client)
+  S.page = math.max(1,math.min(S.page,math.max(1,math.ceil(#m.items/capacity))))
+  S.pageCapacity = capacity
+  m.page = S.page
+  return S.layout(m,w,h)
+end
+
 S.input = function(event)
   if type(event.text) == "string" then
     S.search[event.from or 0] = (event.text == " " or event.text == "*") and "" or event.text
+    S.page, S.selected = 1, nil
     return
   end
-  if event.id == "clear" then S.search[event.from or 0] = "" return end
+  if event.id == "clear" then S.search[event.from or 0] = ""; S.page, S.selected = 1, nil; return end
   if type(event.id) ~= "string" then return end
+  if U then
+    if event.id == "items" then S.selected = nil return end
+    if event.id == "clear" then S.search[event.from or 0], S.page, S.selected = "", 1, nil return end
+    if event.id == "next" or event.id == "prev" then
+      local pages = math.max(1,math.ceil(#S.gather(event.from or (event.session and event.session.id)).items/(S.pageCapacity or 1)))
+      S.page = math.max(1,math.min(pages,S.page + (event.id == "next" and 1 or -1)))
+      return
+    end
+    local item = event.id:match("^item:(.+)$")
+    if item and S.totals[item] ~= nil then S.selected = item return end
+  end
   local count, name = event.id:match("^order:(%d+):(.+)$")
   count = tonumber(count)
-  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil then
+  if (count == 1 or count == 16 or count == 64) and S.totals[name] ~= nil
+      and (not U or S.selected == name) then
     S.request("order", name, count)
   end
 end

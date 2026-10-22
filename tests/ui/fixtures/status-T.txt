@@ -1,0 +1,39 @@
+51x19 Status, server terminal tiles and log
+ STATUS                                         ok 
+ ! ore chest full (drop 3)                         
+ TURTLES      DISPLAYS     DISK         ALERTS     
+    🬋🬋🬏           🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
+    🬇🬋🬐          🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
+    🬋🬋🬀           🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
+ ok           fresh        2.1 MB       see log    
+                                                   
+ LOG                                               
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+   MINING       LUMBER        SHOP         MORE    
+                                                   
+777777777777777777777777777777777777777777777777777
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
+ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
+ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
+ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
+ddddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777f777777777777faaaaaaaaaaaaf777777777777
+777777777777f777777777777faaaaaaaaaaaaf777777777777
+777777777777f777777777777faaaaaaaaaaaaf777777777777

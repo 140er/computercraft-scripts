@@ -75,7 +75,11 @@ A paired computer sends `hello` to the server.
 
 `body.w` and `body.h` are optional positive integers. They are the available frame size in character cells. `display.lua` uses
 `getSize` and reserves the bottom row for local input on screens at least
-three rows tall, so `body.h` is one less than the physical height there. The display module reads them. It does not treat `body.role` as the screen assignment.
+three rows tall, so `body.h` is one less than the physical height there.
+Optional `body.fullH` advertises the physical height. The Big Tiles server uses
+that height and kit frames fill every row, including pocket glance navigation.
+Kit-free frames retain the local input row. The display module reads these sizes.
+It does not treat `body.role` as the screen assignment.
 
 A turtle also sends these fields.
 
@@ -189,11 +193,22 @@ sizes or pages.
 
 `body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
 
-`body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`.
+`body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`
+or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
+with one blit colour each for `fg` and `bg`. Runs cover the row width. Compact
+rows may omit trailing spaces from `text`; the client pads them to the run width.
+The server chooses compact rows only when their `so-proto.ser` output is smaller.
 
-`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, label = string }`. The list may be empty.
+`body.palette` is optional. It maps numeric indices 0 through 15 to packed RGB
+numbers, corresponding to blit slots `0` through `f`. A frame without a palette
+restores the stock CC palette. `body.scale` is optional and accepts 0.5 or 1.
+The server sends 0.5 by default, or 1 for a computer marked far. A monitor applies
+the scale, then sends one `hello` if its character dimensions changed. The resize
+event for the same dimensions does not send another `hello`.
 
-`x` and `y` are 1-based character coordinates. `w` is the width in characters. A button is one row tall.
+`body.buttons` is a list of `{ id = string, x = number, y = number, w = number, h = number?, label = string }`. The list may be empty.
+
+`x` and `y` are 1-based character coordinates. `w` is the width in characters. `h` is the height in rows and defaults to 1. Any cell inside the rectangle hits the button.
 
 `fg` and `bg` are CC blit strings. One character paints the whole row. A string the same length as `text` paints each character.
 
@@ -258,6 +273,11 @@ The module finds the existing, unpaired Storage Room turtle through DNS or the s
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
+The Big Tiles screen uses `render(w, h)`. It lists items sorted by descending count, with item name as the tie breaker. Submitted text filters names without case sensitivity; spaces match underscores. A new search resets to page 1. Buttons `prev` and `next` stop at the ends, `clear` empties the search, and `status` returns to status. The `search` box accepts typed text. The header shows the latest stock sample time in UTC, or `-` before sampling.
+
+Tapping `item:<itemName>` opens an order page with an IN STOCK tile and buttons `order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`. Button `items` returns to the list. Tiles are blue normally, amber for falling stock or counts of 16 or fewer, and coral when empty. Trend rates estimate the hourly change from the oldest sample using the retained minute-sample intervals. The latest order reply lines share one status line. Without `so-ui.lua`, the legacy list and its order buttons remain available.
+
+An order button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows reply text with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
 The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names for that display without case sensitivity; spaces match underscores. The visible `clear` button, a lone space, or `*` clears that display's filter. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
@@ -316,6 +336,24 @@ When the disk is 80% full or more, `status` raises the disk alert and new jobs a
 
 SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, and `input`. SO6 owns wire `history.page`.
 
+### daily
+
+`so-mod-daily.lua` is server-only. `daily.today()` returns a copied
+`{ date, ore, oreByName, oreRecent, logs }`. `oreByName` maps full item names
+to counts. `oreRecent` counts events in `(now - 600000, now]` from today's ore.
+`tick(now)` consumes at most one 50-entry state history page without waiting.
+It counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by
+event timestamp, ignores other days, and resets totals at Amsterdam midnight.
+
+The store `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+`cursor` is the last consumed sequence, including ignored events. `recent`
+maps decimal UTC seconds to `{ total, counts }`; `counts` maps decimal UTC
+milliseconds to ore counts. At most 601 second buckets remain. Counts and
+cursor save together at most once a minute, plus on a day change. A restart
+replays retained history after the saved cursor. Events already removed by
+state history retention cannot be reconstructed. There are no new wire types.
+
+
 ### lease
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
@@ -353,7 +391,12 @@ at the bottom level. Branch junctions are four blocks apart in `thorough` mode
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
 New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
-The module registers `display.screen("mining", render, input)`. Send these text
+The module registers `display.screen("mining", render, input)`. `render(w, h)`
+returns a Big Tiles frame. Input ids `start` and `stop` use the text commands
+below. `setup` opens the settings page and `mine-back` returns to mining.
+`status` is the main BACK navigation id. Both pages accept text commands.
+Daily ore totals have no source and show a stale `-` tile. A missing UI kit
+retains the legacy renderer. Send these text
 commands through that screen's `input.text`:
 
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
@@ -571,8 +614,35 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 
 SO5 owns this API on `SO.mods.display`.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render(w, h, clientId)` receives the available content size and display computer ID and returns `{ rows, buttons }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ from, id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+The server terminal uses `display.terminal(model, view, w, h)` to return a
+Big Tiles frame. The model is the status model. The view supplies `id`,
+`mode` as normal, code or log, `uptime`, `log`, `offset`, `code`,
+`expires` and `now`. Times are UTC milliseconds and the log offset counts
+back from the newest line. `SO.terminal` holds the runtime view. Display tick
+draws it once per second. Prints enter a volatile 200-line log, with long lines
+split into pieces of at most 4096 bytes. L opens the full log, L or Esc returns,
+and Up or Down scrolls. P opens or renews the existing five-minute invite.
+Esc clears it. Used or expired invites return to the normal page.
 
+`display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
+The next display tick routes it to the drawn screen and handles navigation.
+Discovery runs at most every five seconds. The monitor uses its real size,
+text scale 0.5 and the spec palette. Its status session and role are volatile,
+separate from paired displays, and require no rednet traffic or saved files.
+`display.screen(role, render, input)` registers one screen. `role` is a string.
+A second call for the same role replaces the first. `screen(role)` with no
+callbacks returns the registered `{ render, input }` or nil.
+`render(w, h, session?)` receives the target size and server-local session and
+returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`,
+and clips the picture to the `hello` size. `input` accepts
+`{ from, id, x, y, role, session }` and optional `text`. The session is the same table
+passed to render; it is never sent on the wire. `role` is the screen that was
+showing. Local monitor input receives its own session through the same field.
+The session includes client `id`. Kit-free render callbacks receive the client
+ID as their third argument. Their generic content height excludes two navigation
+rows for mining, lumber, shop, status and AR. Every kit-free destination has a
+visible generic return button on 26x20 pockets and 29x12 monitors.
+Existing callbacks can ignore the added session argument and field.
 Dug-storage requests occupy the top of every role, including `status` and
 `generic`. The server wraps their text and shifts the role below it. Buttons
 `dug.allow/<request-id>` and `dug.keep/<request-id>` carry labels `allow` and
@@ -581,15 +651,111 @@ coordinates inside its drawn rectangle. Stale or clipped buttons do nothing.
 Clients keep the existing `view.frame` and `input` wire formats. AR shows a
 pending request until a player decides, even with event alerts disabled.
 
-Button id `generic` returns that display to the generic screen. Every destination
-has a visible `generic` button on 26x20 pockets and 29x12 monitors. The generic
-screen reserves two top rows for `mining`, `lumber`, `shop`, `status`, and `ar`.
-Registered generic content, including the drop editor, starts two rows lower.
-For generic content, the render height excludes these two navigation rows.
-The display client already excludes its bottom input row from the hello height.
-Other roles receive the full hello size.
+Frame signatures and revisions are kept per role, size and session. Status additionally
+keeps revisions, tile paging and alert state per display session. Panel revisions
+also stay per session. Every status frame carries the Big Tiles palette and that display's scale. Existing renderers
+may ignore the size arguments. Older partial installs without `so-ui.lua` retain
+the legacy status renderer.
 
-The module stores each computer's role in `so-display`. The default is `generic`. The file survives a restart.
+The server-only `so-ui.lua` kit exports `palette`, `font`, `clock(epochMs)`, `size(w, h)`,
+`grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
+`status(model, w, h)` and `alert(model, w, h)`. Sizes are P, T, M, L, XS or
+`generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
+Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
+Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
+`fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`, `big(x,y,w,text,bg)`,
+`hit(id,x,y,w,h)`, `header(name,right?,bg?)`, `alert(text)`,
+`tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
+`listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
+Frame returns compact runs, buttons with height and the palette.
+
+`so-ui.clock(epochMs)` returns `{ h, m, s, date, hm, hms }` in Amsterdam time.
+`date` is `YYYY-MM-DD`; `hm` and `hms` are zero-padded. UTC+1 becomes UTC+2
+on the last Sunday in March at 01:00 UTC, and returns to UTC+1 on the last
+Sunday in October at 01:00 UTC. Conversion uses Gregorian calendar arithmetic and
+does not depend on the host time zone. Status and panel headers, shop stock
+sample times, and new terminal log timestamps use this clock. Every new log
+line starts with `hh:mm:ss ` before the message. Durations are unchanged.
+
+The pure status layout takes `model.tiles`, ordered turtles, leases, alerts,
+ore, logs, disk, displays, drops and pairing. Each tile is
+`{ label, value, sub, bg }`. The model also has `time`, optional `alert`,
+`alerts`, `log`, `terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
+Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
+the count to the length of `alerts`. Gathering stays in display handler and tick
+paths. It reads state view `.alert` keys, registered worker machines, lease
+status, drop points, display sessions and the server root disk. Ore and log
+totals come from `daily.today()`, with `-` on stale tiles when unavailable.
+Ore shows `+N last 10 min` in blue; logs show `logs delivered` in green.
+Mining shows the daily ore total and its two largest item counts, ordered by
+count descending then name ascending, with short names. Lumber shows daily logs.
+
+Alert identity is the state key plus its serialized value. Each display sees
+at most one takeover for each identity and at most one in 30 seconds. The
+coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
+stay in the alert bar and do not trigger a delayed takeover. The alert bar
+opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
+select mining, lumber, shop or generic. At 26x20, glance row 20 shows
+`<  glance n/m  >  PANEL`. Its `prev` and `next` inputs wrap three pages of
+three tiles independently per pocket. The first page shows turtles, alerts and
+ore; later pages show leases, logs, disk, displays, drops and pairing. The `panel`
+input selects panel mode.
+No saved data or wire type changes are required.
+
+Button id `generic` returns that display to the generic screen. Button id
+`status` returns to status from any screen. Generic buttons can select `shop`,
+`mining`, `status`, `lumber`, `ar` and `panel`. Missing lumber and AR buttons are injected
+for legacy generic screens. The drops list has `new` and `status` buttons, so
+it suppresses that injection and reaches the other roles through ADD NEW.
+Generic screens at least 39 columns wide also gain a PANEL header button
+when the panel screen is loaded, unless they already have one.
+This keeps panel mode reachable on monitors
+when the drops module supplies the generic screen.
+
+The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
+in `so-display`, with string computer ids. Old files without `far` remain valid.
+The default role is `generic`, except a 26x20 display without a saved role
+uses `status` when the kit is installed. Saved roles, including `panel`, take precedence. Both settings
+survive a restart.
+`display.far(id, on)` sets or clears the far flag through `so-store`. It returns
+success and an optional save error. A successful change sends the new scale on
+the next tick for a subscribed display. A failed save keeps the previous setting.
+`display.palette` is the Big Tiles palette as RGB numbers at indices 0 through 15.
+Renderers opt into it by returning `palette = SO.mods.display.palette`.
+
+After ten seconds without a frame, the client keeps the last picture with stale
+backgrounds and preserves inverted big digits. It draws a centred coral 21x7
+NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capable
+outputs repaint the timer once a second. Outputs without palette support retain
+the legacy bottom-right stale marker and repaint on retries. The retry schedule
+still uses jittered exponential backoff capped at 30 seconds.
+
+### panel
+
+`so-mod-panel.lua` exports module metadata and `tick(now)`. It registers the
+`panel` screen and has no wire handlers. It is installed only on the server.
+Search and page selection live in the display session and clear on restart.
+The saved display role can be `panel`; no new saved file or wire type is added.
+
+Tick reads registered screens through `SO.mods.display.screen(role)` and reads
+mining and lumber state from their rendered headers. It gathers the state view's
+`.alert` values for the alert list. Render uses these cached facts and the local
+session. Missing registered screens show grey controls marked `not loaded`.
+
+Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
+`lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
+only this panel's search. START and STOP forward one input to the corresponding
+registered screen. An order applies that search to the registered shop screen,
+renders its first list page, selects its first `item:<name>` and sends exactly
+one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
+which defines the best match. A search with no match sends no order. This uses
+the existing shop search and selection state, shared with full shop screens.
+
+`status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
+`alert-next` wrapping pages. `pair` shows instructions to press P on the server
+and type its code on the new client. `panel-back` returns to the main panel.
+At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
+screens use compact controls. Pairing and job planning are unchanged.
 
 ### lumber
 
@@ -656,7 +822,14 @@ A broken point or failed registration holds the turtle and asks for `start` afte
 the drop point is fixed. Changing the sapling coordinates leaves old points in
 the editor, where the operator can remove them.
 
-The screen shows state, logs delivered, saplings carried, known and planted spots, fuel, and the last alert. Lost workers and range failures appear in red. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
+The screen callback accepts `render(w, h)` and draws Big Tiles from job state.
+It shows eligible spots, delivered logs, carried saplings, turtle phase, fuel,
+and the next scan countdown. A missing countdown uses a stale tile. The logs
+tile uses the delivered total because no daily total exists. START and STOP
+use the text commands above. SETUP lists the area, ground, sapling chest, turtle
+and their text commands, with NEXT on small screens. Its BACK button returns
+to lumber; the main BACK has
+id `status`. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
@@ -678,7 +851,20 @@ beside the chest facing it for `front`, or directly above it for `down`.
 
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
-The generic editor pages the point list with `prev` and `next`. Its draft and
+The generic Big Tiles screen shows short row numbers, kind, coordinates, side
+and state, with green or coral state stripes. A row tap selects the point for
+FIX and REMOVE. The default is the first broken point, or the first point if
+none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
+existing draft editor with kind, side, dimension and coordinate controls.
+The list offers MINING, LUMBER, SHOP, AR and PANEL on its bottom row. SHOP uses purple;
+the other buttons use slate. At 57x24 they occupy rows 22 through 24 with
+widths 11, 11, 11, 10 and 10 and one-column gaps. Other sizes use the grid rule,
+with one-row navigation in compact layouts. The editor keeps ADD and BACK.
+The display module still injects its legacy LUMBER and AR header buttons
+into the editor, plus PANEL on screens at least 39 columns wide when that
+role is registered. The editor's BACK returns to the list. The list's BACK returns to status. Gather copies module state
+before the private pure layout builds the requested display size.
+The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
 buttons fit 26x20 pockets and 29x12 monitors below navigation and above the
 bottom input row. Draft and feedback are shared between displays; paging is per display.
 Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
@@ -695,29 +881,50 @@ The list is saved through `so-store` in the file `so-drops`. A change emits `dro
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
 `tick(now)` and has no wire handlers. Without a controller it does not draw.
-It registers `display.screen("ar", render, input)`. The generic screen has an
-`ar` button even when the drops module supplies that screen. The `ar` role
+It registers `display.screen("ar", render, input)`. The generic screen reaches
+AR through its fallback button or the drops draft editor. The `ar` role
 survives restart through `so-display`.
 
-The screen has one toggle for each layer, all enabled initially. Switches save
+The screen shows the controller count and one tile per layer. Each tile shows
+1 and "layer on" in green, or 0 and "layer off" in grey. Tapping a tile toggles
+its layer once. Small screens use compact tiles. BACK returns to status.
+Gather copies the layer state before the private pure layout renders it.
+All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
-- `turtles` draws a box, heading arrow and name or `#id` with fuel for each
-  machine with a pose in `state.get("machines")`. A machine unseen for two
-  minutes is grey. Otherwise a lost lease is red, an open lease is cyan, and
-  an idle machine is white.
-- `leases` draws one bounding outline per `mine:<id>` or `lumber:<id>` owner
-  with reservations from `cells.list`. It includes all that owner's cells in
-  the server dimension, rather than the default 256-cell page.
-- `drops` draws a small box and `kind id` label per `drops.list()` point.
-  Broken points are red.
-- `alerts` draws up to eight state keys ending in `.alert` at the top left.
-  Retained state history orders alerts newest first, including repeated alerts.
-  Keys absent from retained history use their first observation order. Alerts
-  expire five minutes after the event timestamp, or first observation when no
-  timestamp is available. Repeated events renew the deadline. Expired snapshot
-  values stay hidden until a new event arrives.
+- `turtles` draws a twelve-edge box, heading arrow and size-3 `#<id> <STATE>`
+  label for each machine with a pose. State comes from the machine registry and
+  `lease.status`, with `lease.inRange` checked when available. Two minutes
+  unseen takes precedence and uses stale. Lost or out-of-range turtles use
+  coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
+  is exempt. Working, mining, running and lumber states use green. Other open
+  leases use teal; idle turtles use white. The HUD counts registered workers,
+  excluding lost, out-of-range and stale turtles from its ok count.
+- `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
+  owner derived from the machine registry using `cells.list(owner, math.huge)`.
+  It includes all that owner's cells in the server dimension. Scene gathering
+  does not call `cells.counts()`, whose reservation scan can breathe during a burst.
+- `drops` draws a small box and uppercase `KIND id` label per point.
+  Broken points use coral; other points use white.
+- The HUD has three 40-pixel tiles for TURTLES ok, ALERTS count and DISK percent.
+  Each has a translucent backing, white text and a four-pixel state bar.
+  Turtle problems, active alerts and disk use of at least 80 percent use coral;
+  healthy tiles use green. Unknown disk use is stale.
+- `alerts` shows the newest active `.alert` value in a coral banner for five
+  seconds after observation. Retained history detects repeated identical
+  alerts; without history a changed serialized value renews the banner.
+  Expiry deletes the banner while the HUD keeps the active alert-key count.
+  The switch hides the banner without hiding the HUD count. Controllers without
+  `drawRect2D` retain a text-only alert instead of the timed banner.
+
+World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
+`FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`, stale
+`FF4A5468` and white `FFF2F4F8`. HUD backing is `C00E1626`.
+Alerts expire five minutes after the event timestamp, or first observation when
+no timestamp is available. Repeated events renew the deadline and the short
+banner. Expired snapshot values stay hidden until a new event arrives.
+Text-only controllers show the newest retained alert.
 
 Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
 map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to

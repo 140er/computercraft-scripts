@@ -546,7 +546,15 @@ plan = function(id,row)
   if action.kind=="hold" then row.error=action.error row.state="hold" park(id,row,false)
   elseif not send(id,row,action) then park(id,row,false) end
 end
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
+local page = "main"
 local function input(event)
+  if type(event.text) ~= "string" then
+    if event.id == "setup" then page = "setup" return
+    elseif event.id == "mine-back" then page = "main" return
+    elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
+  end
   if type(event.text)~="string" then return end
   local a={} for word in event.text:gmatch("%S+") do a[#a+1]=word end
   local cmd=a[1]
@@ -601,7 +609,7 @@ local function input(event)
   S.error=nil
   save()
 end
-local function render(w)
+local function legacyRender(w)
   local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
   for id,row in pairs(job.turtles) do
@@ -616,6 +624,108 @@ local function render(w)
     end
   end
   return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
+end
+local function gather()
+  local m = { running = job.running, alert = S.error, turtles = {}, tiles = {}, setup = {} }
+  local busy, waiting, minimum, fuelId, waitIds = 0, 0, nil, nil, {}
+  for id, row in pairs(job.turtles) do
+    local state = row.laneWait and "wait lane" or row.state
+    local stripe = (state == "lost" or state == "range") and "e" or
+      (state == "wait lane" or state == "hold" or state == "waiting") and "1" or "d"
+    if state == "mining" then busy = busy + 1 end
+    if row.laneWait then waiting = waiting + 1 waitIds[#waitIds + 1] = "#" .. id end
+    if type(row.fuel) == "number" and (not minimum or row.fuel < minimum) then minimum, fuelId = row.fuel, id end
+    if not m.alert and row.error then m.alert = row.error end
+    local p = row.pose or row.anchor or job.home
+    m.turtles[#m.turtles + 1] = { id = tonumber(id), state = state, stripe = stripe,
+      pos = p.x .. "," .. p.y .. "," .. p.z, fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0) }
+  end
+  table.sort(m.turtles, function(a,b) return a.id < b.id end)
+  table.sort(waitIds)
+  local today = call("daily", "today")
+  local names, oreSub = {}, "no daily source"
+  if today then
+    for name, count in pairs(today.oreByName) do names[#names + 1] = { name = name, count = count } end
+    table.sort(names, function(a,b) return a.count > b.count or (a.count == b.count and a.name < b.name) end)
+    local parts = {}
+    for i = 1, math.min(2, #names) do
+      local short = names[i].name:gsub("^.-:", ""):gsub("^deepslate_", ""):gsub("_ore$", "")
+      if short == "diamond" then short = "dia" end
+      parts[#parts + 1] = short .. " " .. names[i].count
+    end
+    oreSub = table.concat(parts, " ")
+  end
+  m.tiles = {
+    {"BUSY", busy .. "/" .. #m.turtles, busy .. " digging", "d"},
+    {"ORE TODAY", today and tostring(today.ore) or "-", oreSub, today and "b" or "c"},
+    {"DEPTH", tostring(job.bottom), "bottom " .. job.bottom, "d"},
+    {"LANE", tostring(waiting), waiting > 0 and (table.concat(waitIds,",") .. " waiting") or "clear", waiting > 0 and "1" or "d"},
+    {"MIN FUEL", tostring(minimum or "-"), fuelId and ("#" .. fuelId) or "no fuel report", minimum and "d" or "c"},
+    {"BRANCHES", (job.progress.done or 0) .. "/" .. (job.progress.nextBranch or 0), job.length .. " long", "b"},
+  }
+  local ids = {} for _, row in ipairs(m.turtles) do ids[#ids + 1] = "#" .. row.id end
+  m.setup = {
+    "home " .. job.home.x .. "," .. job.home.y .. "," .. job.home.z .. " " .. ({[0]="n","e","s","w"})[job.home.facing],
+    "bottom " .. job.bottom, "length " .. job.length, "mode " .. job.mode,
+    "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
+    "turtles " .. table.concat(ids,","), "commands: home bottom length mode ores add remove",
+  }
+  return m
+end
+local function layout(m, w, h, setup)
+  local c = U.canvas(w,h)
+  c.header(setup and "MINING SETUP" or "MINING", m.running and "running" or "stopped")
+  c.alert(m.alert)
+  if setup then
+    local y = 3
+    for _, line in ipairs(m.setup) do
+      for x = 1, math.max(1,#line), math.max(1,w-2) do
+        if y < h then c.put(2,y,line:sub(x,x+math.max(1,w-2)-1)) end
+        y = y + 1
+      end
+    end
+    c.button(1,h,w,"BACK","mine-back","7",1)
+  else
+    local cols = U.grid(w,h)
+    local tall = h >= 19 and #cols >= 3
+    local buttonHeight = tall and 3 or 1
+    local buttonY = tall and h-3 or h
+    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-3)/6)))
+    if tall then
+      for i,t in ipairs(m.tiles) do
+        local col = cols[(i-1)%#cols+1]
+        local row = math.floor((i-1)/#cols)
+        if row < tileRows then c.tile(col.x,3+row*6,col.w,unpack(t)) end
+      end
+    else
+      for i,t in ipairs(m.tiles) do
+        if i+2 < buttonY then
+          c.fill(1,i+2,w,1,t[4]); c.put(2,i+2,(t[1] .. " " .. t[2]):sub(1,math.max(0,w-2)))
+        end
+      end
+    end
+    local listY = tall and 3+tileRows*6 or 9
+    if listY < buttonY then
+      c.fill(1,listY,w,1,"7"); c.put(2,listY,"TURTLE  STATE      POS          FUEL  ORE")
+      for i,row in ipairs(m.turtles) do
+        if listY+i < buttonY then
+          c.listRow(listY+i,string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore),row.stripe)
+        end
+      end
+    end
+    local buttons = {{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"},{"BACK","status","7"}}
+    local available, x = math.max(0,w-3), 1
+    for i,b in ipairs(buttons) do
+      local width = math.floor(available/(5-i))
+      c.button(x,buttonY,width,b[1],b[2],b[3],buttonHeight)
+      x, available = x+width+1, available-width
+    end
+  end
+  return c.frame()
+end
+local function render(w,h)
+  if not U then return legacyRender(w) end
+  return layout(gather(),w or 57,h or 24,page == "setup")
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do

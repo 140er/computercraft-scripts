@@ -1,8 +1,12 @@
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local A = {
   layers = { turtles = true, leases = true, drops = true, alerts = true },
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000,
-  white = -1, grey = -6710887, red = -43691, cyan = -11141121,
+  white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
+  green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
+  teal = 0xFF2DD4BF - 2^32, backing = 0xC00E1626 - 2^32,
   dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 },
     north = { 0, -1 }, east = { 1, 0 }, south = { 0, 1 }, west = { -1, 0 } },
   dimensions = { [0] = "minecraft:overworld", [-1] = "minecraft:the_nether", [1] = "minecraft:the_end" },
@@ -27,7 +31,7 @@ A.call = function(name, method, ...)
   local meta = type(fn) == "table" and getmetatable(fn)
   if type(fn) == "function" or (meta and type(meta.__call) == "function") then return fn(...) end
 end
-A.render = function()
+A.legacyRender = function()
   local picture = { rows = { { text = "AR layers", fg = "0", bg = "f" } }, buttons = {} }
   for i, layer in ipairs(A.order) do
     local label = layer .. (A.layers[layer] and " on" or " off")
@@ -36,11 +40,63 @@ A.render = function()
   picture.buttons[5] = { id = "generic", x = 1, y = 6, w = 7, label = "generic" }
   return picture
 end
+A.gather = function()
+  local count = 0
+  for _ in pairs(A.controllers) do count = count + 1 end
+  return { count = count, layers = SO.store.copy(A.layers) }
+end
+A.layout = function(model, w, h)
+  local C = U.canvas(w,h)
+  C.header("AR GOGGLES", model.count .. (model.count == 1 and " controller" or " controllers"))
+  local cols = U.grid(w,h,w < 39 and 2 or nil)
+  if h < 16 then
+    local compactCols = U.grid(w,h,2)
+    for i,layer in ipairs(A.order) do
+      local col = compactCols[(i-1)%2+1]
+      local y = 3+math.floor((i-1)/2)*3
+      local on = model.layers[layer]
+      C.fill(col.x,y,col.w,2,on and 'd' or 'c')
+      C.put(col.x,y,layer:upper():sub(1,col.w))
+      C.center(col.x,col.w,y+1,on and '1' or '0')
+      C.hit(layer,col.x,y,col.w,2)
+    end
+    C.put(1,9,"tap a tile to switch its layer")
+    C.button(1,h,w,"BACK","status",'7',1)
+  else
+    for i,layer in ipairs(A.order) do
+      local col=cols[(i-1)%#cols+1]
+      local y=3+math.floor((i-1)/#cols)*6
+      local on=model.layers[layer]
+      C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
+      C.hit(layer,col.x,y,col.w,5)
+    end
+    if #cols == 2 then C.put(2,15,"tap a tile to switch its layer")
+    else C.put(cols[2] and cols[2].x+1 or 1,10,"tap a tile to switch its layer") end
+    C.button(1,h-3,w,"BACK","status")
+  end
+  return C.frame()
+end
+A.render = function(w,h)
+  if not U then return A.legacyRender() end
+  return A.layout(A.gather(),w or 57,h or 24)
+end
 A.input = function(event)
   if not event or A.layers[event.id] == nil then return end
   local nextLayers = SO.store.copy(A.layers)
   nextLayers[event.id] = not nextLayers[event.id]
   if A.box.save(nextLayers) then A.layers = nextLayers end
+end
+A.turtle = function(machine, status, now, inRange)
+  local state = tostring(machine.state or "idle"):lower():gsub("_", " ")
+  if now - (machine.seen or 0) >= 120000 then return A.grey, "STALE" end
+  if status.lost or inRange == false or state == "lost" or state == "range" or state == "out of range" then
+    return A.red, status.lost and "LOST" or (inRange == false and "OUT OF RANGE" or state:upper())
+  end
+  if type(machine.fuel) == "number" and machine.fuel >= 0 and machine.fuel < 64 then return A.amber, "LOW FUEL" end
+  if state:find("wait", 1, true) or state:find("hold", 1, true) or state == "low fuel" then return A.amber, state:upper() end
+  if state == "working" or state == "mining" or state == "running" or state == "lumber" then return A.green, state:upper() end
+  if status.open then return A.teal, state == "idle" and "LEASED" or state:upper() end
+  return A.white, state:upper()
 end
 A.scene = function(now)
   local scene = {}
@@ -64,14 +120,18 @@ A.scene = function(now)
     end
   end
   local machines = A.call("state", "get", "machines") or {}
+  local okCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose
+    local status = A.call("lease", "status", tonumber(id) or id) or {}
+    local color, text = A.turtle(machine, status, now, p and A.call("lease", "inRange", tonumber(id) or id, p))
+    if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
+      turtleCount = turtleCount + 1
+      if color ~= A.red and color ~= A.grey then okCount = okCount + 1 end
+    end
     if A.layers.turtles and p and A.sameDim(p.dim) then
-      local status = A.call("lease", "status", tonumber(id) or id) or {}
-      local color = now - (machine.seen or 0) >= 120000 and A.grey
-        or (status.lost and A.red or (status.open and A.cyan or A.white))
       local key = "turtle:" .. id
-      label(key, color, p, (machine.name or machine.label or ("#" .. id)) .. "  " .. tostring(machine.fuel or "?"))
+      label(key, color, p, "#" .. id .. " " .. text)
       box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
       local d = A.dirs[p.facing or p.f or 0]
       if d then
@@ -84,22 +144,24 @@ A.scene = function(now)
         end
       end
     end
-    if A.layers.leases then
-      for _, prefix in ipairs({ "mine:", "lumber:" }) do
-        local owner, bounds = prefix .. id, nil
-        for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do
-          if A.sameDim(cell.dim) then
-            if not bounds then bounds = { cell.x, cell.y, cell.z, cell.x + 1, cell.y + 1, cell.z + 1 }
-            else
-              for i, axis in ipairs({ "x", "y", "z" }) do
-                bounds[i] = math.min(bounds[i], cell[axis])
-                bounds[i + 3] = math.max(bounds[i + 3], cell[axis] + 1)
-              end
+  end
+  if A.layers.leases then
+    local owners = {}
+    for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
+    for owner in pairs(owners) do
+      local bounds
+      for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do
+        if A.sameDim(cell.dim) then
+          if not bounds then bounds = { cell.x, cell.y, cell.z, cell.x + 1, cell.y + 1, cell.z + 1 }
+          else
+            for i, axis in ipairs({ "x", "y", "z" }) do
+              bounds[i] = math.min(bounds[i], cell[axis])
+              bounds[i + 3] = math.max(bounds[i + 3], cell[axis] + 1)
             end
           end
         end
-        if bounds then box("lease:" .. owner, A.cyan, unpack(bounds)) end
       end
+      if bounds then box("lease:" .. owner, A.blue, unpack(bounds)) end
     end
   end
   if A.layers.drops then
@@ -107,11 +169,12 @@ A.scene = function(now)
       if A.sameDim(p.dim) then
         local key, color = "drop:" .. p.id, p.broken and A.red or A.white
         box(key .. ":box", color, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
-        label(key, color, p, p.kind .. " " .. p.id)
+        label(key, color, p, p.kind:upper() .. " " .. p.id)
       end
     end
   end
-  if A.layers.alerts then
+  local alertCount = 0
+  do
     local view = A.call("state", "view") or {}
     local state = SO.mods.state
     local history = state and state.history
@@ -121,34 +184,56 @@ A.scene = function(now)
         for _, event in ipairs(page.entries or {}) do
           A.cursor = event.seq
           if event.kind:match("%.alert$") then
-            A.alerts[event.kind] = { at = event.seq, expires = (event.at or now) + A.alertMs }
+            A.alerts[event.kind] = { at = event.seq, since = event.at or now, expires = (event.at or now) + A.alertMs }
           end
         end
       until not page.next
     end
     local alerts = {}
     for key, value in pairs(view.values or {}) do
-      if type(key) == "string" and key:match("%.alert$") then
+      if type(key) == "string" and key:match("%.alert$") and value then
         local signature = SO.proto.ser(value)
         local old = A.alerts[key]
-        if not old then A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, expires = now + A.alertMs }
+        if not old then A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now, expires = now + A.alertMs }
         elseif not history and old.sig ~= signature then
-          A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, expires = now + A.alertMs }
+          A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now, expires = now + A.alertMs }
         end
         if now < A.alerts[key].expires then
-          alerts[#alerts + 1] = { key = key, value = value, at = A.alerts[key].at }
+          alerts[#alerts + 1] = { key = key, value = value, at = A.alerts[key].at, since = A.alerts[key].since }
         end
       end
     end
     table.sort(alerts, function(a, b) return a.at > b.at or (a.at == b.at and a.key < b.key) end)
-    for i = 1, math.min(8, #alerts) do
-      local row = alerts[i]
+    alertCount = #alerts
+    local row = alerts[1]
+    local banners = false
+    for _, controller in ipairs(A.controllers) do
+      if type(controller.ar.drawRect2D) == "function" then banners = true break end
+    end
+    if A.layers.alerts and row and (not banners or now - row.since < 5000) then
       local text = type(row.value) == "table" and row.value.text or row.value
-      put("alert:" .. row.key, "drawText2D", A.red, 4, 4 + (i - 1 + (retirement and 1 or 0)) * 10,
-        row.key .. " " .. tostring(text), false)
+      local top = retirement and 12 or 0
+      put("alert:backing", "drawRect2D", A.red, 0, top, 120, 14)
+      put("alert:" .. row.key, "drawText2D", A.white, 4, 4 + top, tostring(text), false)
     end
   end
-  return scene
+  local capacity = fs and fs.getCapacity and fs.getCapacity("/")
+  local free = fs and fs.getFreeSpace and fs.getFreeSpace("/")
+  local ratio = type(capacity) == "number" and capacity > 0 and type(free) == "number" and (capacity - free) / capacity
+  local tiles = {
+    { "turtles", "TURTLES", okCount .. " ok", okCount == turtleCount and A.green or A.red },
+    { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.green },
+    { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.green) or A.grey },
+  }
+  local hudTop = retirement and 12 or 0
+  for i, tile in ipairs(tiles) do
+    local id, x = "hud:" .. tile[1], (i - 1) * 40
+    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 40, 28)
+    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 40, 4)
+    put(id .. ":label", "drawText2D", A.white, x + 2, 24 + hudTop, tile[2], false)
+    put(id .. ":value", "drawText2D", A.white, x + 2, 34 + hudTop, tile[3], false)
+  end
+  return scene, machines
 end
 A.alerts, A.serial = {}, 0
 A.draw = function(controller, scene)
@@ -157,7 +242,7 @@ A.draw = function(controller, scene)
   for id, element in pairs(scene) do
     if element.method == "drawItemIcon3D" then
       if pcall(ar.drawItemIcon3D, id, unpack(element.args)) then drawn[id] = true end
-    else
+    elseif element.method ~= "drawRect2D" or type(ar.drawRect2D) == "function" then
       ar[element.method](id, unpack(element.args))
       drawn[id] = true
     end
@@ -195,8 +280,8 @@ A.tick = function(now)
   end
   if #A.controllers == 0 or (A.frameAt and now - A.frameAt < 1000) then return end
   A.frameAt = now
-  local scene = A.scene(now)
-  local sig = SO.proto.ser(scene)
+  local scene, machines = A.scene(now)
+  local sig = SO.proto.ser({ scene, machines })
   for i = #A.controllers, 1, -1 do
     local controller = A.controllers[i]
     if controller.sig ~= sig then

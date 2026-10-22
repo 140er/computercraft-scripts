@@ -1,0 +1,41 @@
+26x20 Pocket, panel mode
+ PANEL              22:14 
+                          
+ MINING   stopped         
+                          
+   START         STOP     
+                          
+                          
+ LUMBER   running         
+                          
+   START         STOP     
+                          
+                          
+ SHOP     search:         
+  iron_                   
+                          
+                          
+   1        16       64   
+                          
+                          
+ GLANCE  ALERTS  PAIR     
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+999999999999feeeeeeeeeeeee
+999999999999feeeeeeeeeeeee
+999999999999feeeeeeeeeeeee
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+999999999999feeeeeeeeeeeee
+999999999999feeeeeeeeeeeee
+999999999999feeeeeeeeeeeee
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f000000000000000000000000f
+ffffffffffffffffffffffffff
+aaaaaaaafaaaaaaaafaaaaaaaa
+aaaaaaaafaaaaaaaafaaaaaaaa
+aaaaaaaafaaaaaaaafaaaaaaaa
+ffffffffffffffffffffffffff
+77777777777777777777777777

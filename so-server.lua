@@ -6,7 +6,24 @@ if type(cap) ~= "number" or cap < MIN then
   return
 end
 
-local S = {}
+local S = { log = {}, output = print }
+local clockOk, clock = pcall(dofile, "so-ui.lua")
+if clockOk then S.ui = clock end
+print = function(...)
+  if not term or not term.blit then S.output(...) end
+  local parts = {}
+  for i = 1,select("#",...) do parts[i]=tostring(select(i,...)) end
+  local text = table.concat(parts,"\t")
+  for line in (text.."\n"):gmatch("(.-)\n") do
+    local prefix = S.ui and (S.ui.clock(os.epoch("utc")).hms .. " ") or ""
+    local width = 4096 - #prefix
+    repeat
+      S.log[#S.log+1]=prefix .. line:sub(1,width)
+      if #S.log > 200 then table.remove(S.log,1) end
+      line=line:sub(width+1)
+    until line == ""
+  end
+end
 
 S.need = function(name)
   if not fs.exists(name) then
@@ -58,7 +75,9 @@ S.run = function()
   end
 
   local sent = {}
-  local view = { mode = "" }
+  local view = { mode = "normal", log = S.log, id = os.getComputerID(),
+    started = os.epoch("utc"), offset = 0 }
+  SO.terminal = view
   local memory = 120000
   local misses = 0
 
@@ -69,20 +88,22 @@ S.run = function()
   end
 
   local function showPrompt()
-    if view.mode == "prompt" then return end
-    view.mode = "prompt"
-    term.clear()
-    term.setCursorPos(1, 1)
-    term.write("Press P to pair")
-    print("Press P to pair")
-    showHostError()
+    view.mode, view.offset = "normal", 0
+    if term and not term.blit then
+      term.clear()
+      term.setCursorPos(1, 1)
+      term.write("Press P to pair")
+      print("Press P to pair")
+    end
+    if not term.blit then showHostError() end
   end
 
   local function showCode()
     misses = 0
     view.mode = "code"
-    pair.invite(term)
-    showHostError()
+    view.code = pair.invite(not term.blit and term or nil)
+    view.expires = os.epoch("utc")+300000
+    if not term.blit then showHostError() end
   end
 
   local function recall(msg)
@@ -271,6 +292,21 @@ S.run = function()
       openModems()
     elseif ev == "key" and a == pairKey and not b then
       showCode()
+    elseif ev == "key" and not b then
+      if a == ((keys and keys.escape) or 1) then
+        if view.mode == "code" then pair.clear() end
+        showPrompt()
+      elseif a == ((keys and keys.l) or 38) and view.mode ~= "code" then
+        view.mode = view.mode == "log" and "normal" or "log"
+        view.offset = 0
+      elseif view.mode == "log" and a == ((keys and keys.up) or 200) then
+        view.offset = math.min(math.max(0,#S.log-1),view.offset+1)
+      elseif view.mode == "log" and a == ((keys and keys.down) or 208) then
+        view.offset = math.max(0,view.offset-1)
+      end
+    elseif ev == "monitor_touch" then
+      local display = SO.mods.display
+      if display and type(display.monitorTouch) == "function" then display.monitorTouch(a,b,c) end
     elseif ev == "rednet_message" and c == "so" then
       dispatch(a, b)
     elseif ev == "rednet_message" then
@@ -293,4 +329,6 @@ S.run = function()
   end
 end
 
-S.run()
+local ok, err = pcall(S.run)
+print = S.output
+if not ok then error(err,0) end

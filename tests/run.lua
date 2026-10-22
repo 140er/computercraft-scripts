@@ -597,3 +597,36 @@ dofile("tests/so/dug-display.lua")(test, equal)
 dofile("tests/so/dug-mine.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui0.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui1.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2a.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2c.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui2d.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3a.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3c.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui3b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui5b.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/ui/ui5a.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

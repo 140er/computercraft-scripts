@@ -1,3 +1,5 @@
+local U
+if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local S = {
   points = {},
   box = nil,
@@ -282,7 +284,7 @@ S.view = function(id)
   return S.views[id]
 end
 
-S.render = function(w, h, clientId)
+S.legacyRender = function(w, h, clientId)
   w, h = w or 26, h or 9
   local rows = { S.row("drops") }
   local buttons = {}
@@ -363,13 +365,115 @@ S.typed = function(text)
   if direct then S.addDraft() end
 end
 
+S.selectedPoint = function()
+  if S.selected and S.find(S.selected) then return S.selected end
+  for _, p in ipairs(S.points) do if p.fails >= S.strikes then return p.id end end
+  return S.points[1] and S.points[1].id
+end
+
+S.gather = function(view)
+  return { points = S.clone(S.points), selected = S.selectedPoint(), draft = SO.store.copy(S.draft),
+    editing = S.editing, message = S.message, page = view and view.page or 1 }
+end
+
+S.listSize = function(count, w, h)
+  local compact = w < 39 or h < 16
+  local actionY = compact and h-3 or math.min(math.max(11, count+6), h-6)
+  local capacity = math.max(1, actionY-5)
+  return { compact = compact, actionY = actionY, capacity = capacity,
+    pages = math.max(1, math.ceil(count/capacity)) }
+end
+
+S.layout = function(model, w, h)
+  local C = U.canvas(w, h)
+  if model.editing then
+    C.header("ADD DROP POINT", "")
+    local d = model.draft
+    local cols = U.grid(w, h, 2)
+    for i, field in ipairs({"kind", "side"}) do
+      C.button(cols[i].x, 4, cols[i].w, tostring(d[field]), field, '7', 1)
+    end
+    for i, field in ipairs({"dim", "x", "y", "z"}) do
+      local y = i + 4
+      C.put(1, y, field .. " " .. tostring(d[field]))
+      C.button(w-5, y, 3, "-", field.."-", '7', 1)
+      C.button(w-2, y, 3, "+", field.."+", '7', 1)
+    end
+    C.put(1, h-1, model.message or "")
+    C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
+    C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
+    return C.frame()
+  end
+  C.header("DROP POINTS", #model.points .. " points")
+  C.fill(1, 3, w, 1, '7'); C.put(2, 3, "ID  KIND     WHERE          SIDE   STATE")
+  local size = S.listSize(#model.points, w, h)
+  local compact, actionY, capacity, pages = size.compact, size.actionY, size.capacity, size.pages
+  local navHeight = compact and 1 or 3
+  local page = math.min(model.page or 1, pages)
+  local first = (page-1)*capacity+1
+  local selectedRow
+  for i,p in ipairs(model.points) do if p.id == model.selected then selectedRow=i end end
+  for i=first,math.min(#model.points,first+capacity-1) do
+    local p = model.points[i]
+    local text = string.format("%-3d%-9s%-15s%-7s%s", i, p.kind,
+      string.format("%2d,%d,%d",p.x,p.y,p.z), p.side, p.fails >= 3 and 'broken' or 'ok')
+    C.listRow(i-first+4, text, p.fails >= 3 and 'e' or 'd')
+    C.hit('select:'..p.id, 1, i-first+4, w, 1)
+  end
+  if pages > 1 then
+    C.button(1, actionY-1, math.floor(w/2), "PREV", "prev", '7', 1)
+    C.button(math.floor(w/2)+1, actionY-1, w-math.floor(w/2), "NEXT", "next", '7', 1)
+  end
+  local actions = {{'FIX #'..(selectedRow or '-'),'fix','9'},{'REMOVE','remove'},{'ADD NEW','new'},{'BACK','status'}}
+  local cols = U.grid(w,h,compact and 2 or 4)
+  if w==57 and not compact then cols={{x=1,w=13},{x=15,w=13},{x=29,w=14},{x=44,w=14}} end
+  for i,b in ipairs(actions) do
+    local col = cols[(i-1)%#cols+1]
+    C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
+  end
+  local nav = {'mining', 'lumber', 'shop', 'ar', 'panel'}
+  local navCols = U.grid(w, h, #nav)
+  if w == 57 then navCols = {{x=1,w=11},{x=13,w=11},{x=25,w=11},{x=37,w=10},{x=48,w=10}} end
+  for i, id in ipairs(nav) do
+    local col = navCols[i]
+    C.button(col.x, h-navHeight+1, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
+  end
+  return C.frame()
+end
+
+S.render = function(w, h, session)
+  if not U then return S.legacyRender(w, h, session) end
+  w, h = w or 57, h or 24
+  local view = S.view(type(session) == "table" and session.id or session)
+  local model = S.gather(view)
+  model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
+  view.page = model.page
+  local frame = S.layout(model, w, h)
+  frame.rev = S.rev
+  return frame
+end
+
 S.input = function(ev)
   if type(ev) ~= "table" then return end
-  if type(ev.text) == "string" then S.typed(ev.text) return end
+  if type(ev.text) == "string" then S.typed(ev.text); if U then S.editing = true end; return end
   if type(ev.id) ~= "string" then return end
-  local view = S.view(ev.from)
-  if ev.id == "prev" then view.page = math.max(1, view.page - 1) return end
-  if ev.id == "next" then view.page = math.min(view.pages, view.page + 1) return end
+  if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" or ev.id == "panel" then
+    S.editing = false return
+  end
+  if ev.id == "new" then S.editing = true return end
+  if ev.id == "list" then S.editing = false return end
+  if not U and (ev.id == "prev" or ev.id == "next") then
+    local view = S.view(ev.from)
+    view.page = math.max(1, math.min(view.pages, view.page + (ev.id == "next" and 1 or -1)))
+    return
+  end
+  local view = S.view(ev.from or (ev.session and ev.session.id))
+  if ev.id == "next" then view.page = view.page + 1 return end
+  if ev.id == "prev" then view.page = math.max(1, view.page-1) return end
+  local selected = ev.id:match("^select:(.+)$")
+  if selected and S.find(selected) then S.selected = selected return end
+  if ev.id == "fix" then local id = S.selectedPoint(); if id then S.selected = id; S.fix(id) end return end
+  if ev.id == "remove" then local id = S.selectedPoint(); if id then S.remove(id) end return end
   local fixId = ev.id:match("^fix:(.+)$")
   if fixId then S.fix(fixId) return end
   local removeId = ev.id:match("^remove:(.+)$")

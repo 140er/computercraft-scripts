@@ -1,0 +1,49 @@
+57x24 Lumber, room monitor
+ LUMBER                                          running 
+ ! out of saplings: replanting paused                    
+ TREES READY        LOGS TODAY          SAPLINGS         
+       🬖🬋🬏                                    🬖🬋🬏        
+        🬖🬀                 🬋🬋🬃                ▌ ▌        
+       🬍🬋🬃                                    🬈🬋🬀        
+ of 4 spots         no daily source     chest empty      
+                                                         
+ TURTLE             FUEL                NEXT GROW        
+        🬵             🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏        🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏   
+       🬳🬷🬏             ▌  🬖🬀 ▌ ▌ ▌        🬛🬋🬏🬠🬐  🬖🬀▌ ▌   
+        🬉             🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀        🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀   
+ felling            ok                  min:sec          
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+    START         STOP          SETUP           BACK     
+                                                         
+                                                         
+777777777777777777777777777777777777777777777777777777777
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+ddddddddddddddddddfcccccccccccccccccccfeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+ddddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbb
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

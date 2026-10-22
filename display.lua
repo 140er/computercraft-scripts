@@ -12,6 +12,9 @@ local C = {
   pairError = nil,
   attempt = 0,
   timer = nil,
+  lastFrame = os.epoch("utc"),
+  retryAt = 0,
+  stock = {},
   out = nil,
   proto = dofile("so-proto.lua"),
   store = dofile("so-store.lua"),
@@ -41,13 +44,27 @@ end
 C.output = function()
   local mon = peripheral.find("monitor")
   C.out = mon or term
+  C.monitor = mon ~= nil
+  C.outputKey = mon or "term"
+  if mon and peripheral.getName then
+    local ok, name = pcall(peripheral.getName, mon)
+    if ok then C.outputKey = name end
+  end
+  if not C.stock[C.outputKey] then
+    local palette = {}
+    local get = term.nativePaletteColour or C.out.getPaletteColour
+    if get then
+      for i = 0, 15 do palette[i] = { get(2 ^ i) } end
+    end
+    C.stock[C.outputKey] = palette
+  end
   local w, h = 1, 1
   if C.out and C.out.getSize then w, h = C.out.getSize() end
   if type(w) ~= "number" or w < 1 then w = 1 end
   if type(h) ~= "number" or h < 1 then h = 1 end
   C.w = math.floor(w)
   C.h = math.floor(h)
-  C.viewH = C.h >= 3 and C.h - 1 or C.h
+  C.viewH = C.fullFrame and C.h or (C.h >= 3 and C.h - 1 or C.h)
 end
 
 C.waitSeconds = function(id, attempt)
@@ -72,6 +89,7 @@ end
 C.arm = function(seconds)
   if C.timer then os.cancelTimer(C.timer) end
   C.timer = os.startTimer(seconds)
+  C.retryAt = os.epoch("utc") + seconds * 1000
 end
 
 C.send = function(kind, body)
@@ -84,7 +102,7 @@ C.send = function(kind, body)
 end
 
 C.sendHello = function()
-  local body = { w = C.w, h = C.viewH }
+  local body = { w = C.w, h = C.h >= 3 and C.h - 1 or C.h, fullH = C.h }
   local label = os.getComputerLabel()
   if type(label) == "string" and label ~= "" then body.label = label end
   C.send("hello", body)
@@ -111,6 +129,23 @@ C.paint = function(text, fg, bg)
   if out.write then out.write(text) end
 end
 
+C.expand = function(row)
+  if type(row.runs) ~= "table" then return row.text or "", row.fg, row.bg end
+  local fg, bg, width = {}, {}, 0
+  for _, run in ipairs(row.runs) do
+    if type(run) == "table" and type(run[1]) == "number" and run[1] > 0
+      and run[1] % 1 == 0 and type(run[2]) == "string" and #run[2] == 1
+      and type(run[3]) == "string" and #run[3] == 1 then
+      local n = math.min(run[1], C.w - width)
+      if n <= 0 then break end
+      fg[#fg + 1], bg[#bg + 1] = string.rep(run[2], n), string.rep(run[3], n)
+      width = width + n
+    end
+  end
+  local text = row.text or ""
+  return text .. string.rep(" ", math.max(0, width - #text)), table.concat(fg), table.concat(bg)
+end
+
 C.clipDraw = function()
   local out = C.out
   if not out then return end
@@ -119,11 +154,10 @@ C.clipDraw = function()
   if n > C.viewH then n = C.viewH end
   for i = 1, n do
     local row = C.rows[i]
-    local text = type(row) == "table" and type(row.text) == "string" and row.text or ""
+    local text, fg, bg = "", "0", "f"
+    if type(row) == "table" then text, fg, bg = C.expand(row) end
     if #text > C.w then text = text:sub(1, C.w) end
     if out.setCursorPos then out.setCursorPos(1, i) end
-    local fg, bg = "0", "f"
-    if type(row) == "table" then fg, bg = row.fg, row.bg end
     C.paint(text, fg, bg)
   end
   for i = 1, #C.buttons do
@@ -138,15 +172,84 @@ C.clipDraw = function()
     end
   end
   C.drawInput()
-  if C.phase == "stale" then C.drawStale() end
+  if C.phase == "stale" then
+    C.drawStale()
+    if C.out.setPaletteColour and not C.repaint then C.repaint = os.startTimer(1) end
+  end
 end
 
+C.font = {
+  ["0"] = ".###.#...##...##...##...##...#.###.",
+  ["1"] = "..#...##....#....#....#....#...###.",
+  ["2"] = ".###.#...#....#...#...#...#...#####",
+  ["3"] = "####.....#....#.###.....#....#####.",
+  ["4"] = "...#...##..#.#.#..#.#####...#....#.",
+  ["5"] = "######....####.....#....##...#.###.",
+  ["6"] = "..##..#...#....####.#...##...#.###.",
+  ["7"] = "#####....#...#...#...#....#....#...",
+  ["8"] = ".###.#...##...#.###.#...##...#.###.",
+  ["9"] = ".###.#...##...#.####....#...#..##..",
+  [":"] = "......##...##........##...##.......",
+}
+
 C.drawStale = function()
-  if C.w < 1 or C.h < 1 or not C.out then return end
-  local word = "stale"
-  if #word > C.w then word = word:sub(#word - C.w + 1) end
-  if C.out.setCursorPos then C.out.setCursorPos(C.w - #word + 1, C.h) end
-  if C.out.write then C.out.write(word) end
+  if not C.out then return end
+  local function draw(x, y, text, fg, bg)
+    if y < 1 or y > C.h or x > C.w then return end
+    if x < 1 then text = text:sub(2 - x); x = 1 end
+    text = text:sub(1, C.w - x + 1)
+    C.out.setCursorPos(x, y)
+    C.paint(text, fg, bg)
+  end
+  for y = 1, C.h do
+    local row = C.rows[y]
+    local text, fg, bg = "", "0", "c"
+    if type(row) == "table" then text, fg, bg = C.expand(row) end
+    text = (text .. string.rep(" ", C.w)):sub(1, C.w)
+    local f, b = {}, {}
+    for x = 1, C.w do
+      local old = type(bg) == "string" and (#bg == 1 and bg or bg:sub(x, x)) or ""
+      local invert = text:byte(x) >= 128 and text:byte(x) <= 159 and ((old == "f" and type(fg) == "string"
+          and (#fg == 1 and fg or fg:sub(x, x)) ~= "0"
+          and (#fg == 1 and fg or fg:sub(x, x)) ~= "8") or old == "0")
+      f[x], b[x] = invert and "c" or "0", invert and "0" or "c"
+    end
+    draw(1, y, text, table.concat(f), table.concat(b))
+  end
+  for _, button in ipairs(C.buttons) do
+    if type(button.x) == "number" and type(button.y) == "number" and type(button.label) == "string" then
+      draw(button.x, button.y, button.label, "0", "c")
+    end
+  end
+  local x, y = math.floor((C.w - 21) / 2) + 1, math.floor((C.h - 7) / 2) + 1
+  for r = 0, 6 do draw(x, y + r, string.rep(" ", 21), "f", "e") end
+  local function center(text, row) draw(x + math.floor((21 - #text) / 2), row, text, "f", "e") end
+  center("NO SERVER", y + 1)
+  local seconds = math.max(0, math.floor((os.epoch("utc") - C.lastFrame) / 1000))
+  local value = math.floor(seconds / 60) .. string.format(":%02d", seconds % 60)
+  if #value > 7 then value = "9999:59" end
+  for r = 0, 2 do
+    local cx = x + math.floor((21 - #value * 3) / 2)
+    for i = 1, #value do
+      local glyph = C.font[value:sub(i, i)]
+      for col = 0, 2 do
+        local bits = 0
+        for pixel = 0, 5 do
+          local px, py = col * 2 + pixel % 2, r * 3 + math.floor(pixel / 2)
+          if px < 5 and py >= 1 and py <= 7 and glyph:sub((py - 1) * 5 + px + 1, (py - 1) * 5 + px + 1) == "#" then
+            bits = bits + 2 ^ pixel
+          end
+        end
+        local inverse = bits >= 32
+        draw(cx, y + 2 + r, string.char(128 + (inverse and 63 - bits or bits)), inverse and "e" or "f", inverse and "f" or "e")
+        cx = cx + 1
+      end
+    end
+  end
+  center("since last frame", y + 5)
+  local retry = math.max(0, math.ceil((C.retryAt - os.epoch("utc")) / 1000))
+  draw(2, C.h - 1, "retrying in " .. retry .. " s", "0", "c")
+  if not C.out.setPaletteColour then draw(C.w - 4, C.h, "stale", "0", "c") end
 end
 
 C.drawInput = function()
@@ -170,7 +273,8 @@ C.hit = function(x, y)
   if y < 1 or y > C.viewH then return end
   for i = #C.buttons, 1, -1 do
     local b = C.buttons[i]
-    if type(b) == "table" and b.y == y and type(b.x) == "number" and type(b.w) == "number"
+    if type(b) == "table" and type(b.y) == "number" and y >= b.y and y < b.y + (b.h or 1)
+      and type(b.x) == "number" and type(b.w) == "number"
       and x >= b.x and x < b.x + b.w then
       return b
     end
@@ -180,6 +284,26 @@ end
 C.onFrame = function(msg)
   local body = msg.body
   if type(body) ~= "table" then return end
+  if C.out.setPaletteColour then
+    for i = 0, 15 do
+      local rgb = type(body.palette) == "table" and body.palette[i]
+      if type(rgb) == "number" and rgb >= 0 and rgb <= 0xFFFFFF then
+        C.out.setPaletteColour(2 ^ i, rgb)
+      else
+        local stock = C.stock[C.outputKey][i]
+        if stock then C.out.setPaletteColour(2 ^ i, unpack(stock)) end
+      end
+    end
+  end
+  if C.monitor and C.out.setTextScale and (body.scale == 0.5 or body.scale == 1) then
+    local w, h = C.w, C.h
+    C.out.setTextScale(body.scale)
+    C.output()
+    if C.w ~= w or C.h ~= h then C.sendHello() end
+  end
+  C.fullFrame = type(body.palette) == "table"
+  C.viewH = C.fullFrame and C.h or (C.h >= 3 and C.h - 1 or C.h)
+  C.lastFrame = os.epoch("utc")
   C.rows = type(body.rows) == "table" and body.rows or {}
   C.buttons = type(body.buttons) == "table" and body.buttons or {}
   C.repair = nil
@@ -194,8 +318,8 @@ C.markStale = function()
   if C.phase == "stale" then return end
   C.phase = "stale"
   C.attempt = 1
-  C.clipDraw()
   C.arm(C.waitSeconds(os.getComputerID(), C.attempt))
+  C.clipDraw()
 end
 
 C.drawPair = function()
@@ -264,7 +388,10 @@ end
 C.loop = function()
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == "timer" and a == C.timer then
+    if ev == "timer" and a == C.repaint then
+      C.repaint = nil
+      if C.phase == "stale" then C.clipDraw() end
+    elseif ev == "timer" and a == C.timer then
       if C.phase == "live" then C.markStale() else C.retry() end
     elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then
       if C.pair.repairHint(a, b, C.server) then
@@ -304,8 +431,12 @@ C.loop = function()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
       C.openModems()
     elseif ev == "monitor_resize" or ev == "term_resize" then
+      local outputKey, w, h = C.outputKey, C.w, C.h
       C.output()
-      if C.phase == "pairing" then C.drawPair() else C.sendHello(); C.clipDraw() end
+      if C.phase == "pairing" then C.drawPair() else
+        if C.outputKey ~= outputKey or C.w ~= w or C.h ~= h then C.sendHello() end
+        C.clipDraw()
+      end
     end
   end
 end

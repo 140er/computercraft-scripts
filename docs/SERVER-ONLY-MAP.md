@@ -80,6 +80,20 @@ and listeners use `listener(sender, message)`.
   it uses the cell directly above the chest. It returns nil if all candidates
   are blocked. The lumber caller supplies the known-obstacle checks.
 
+- [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
+  `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
+  `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
+  with EU summer time between the last Sundays of March and October at 01:00 UTC.
+  Status, stock samples, panel headers and new terminal log lines use this clock.
+  Durations keep their elapsed-time formats.
+  `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
+  columns and a tile-row count. Glyph returns three blit rows with inverted cells.
+  Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
+  `tile`, `button`, `listRow`, `search` and `frame`. Coordinates are one-based.
+  `frame()` returns compact rows, rectangular buttons and the palette.
+  See [display](server-only/PROTOCOL.md#display) for the status model.
+
 ### Server modules
 
 All modules return `{ name, handlers, tick, ... }`. Call another module only
@@ -98,6 +112,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   remain available. No wire handlers. Built-in views are `fleet`, `turtle/<id>`,
   `log` and `status`.
   See [state](server-only/PROTOCOL.md#state).
+- [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
+  and `lumber.logs` events from one history page of at most 50 entries per tick.
+  `today()` returns a copy of `{ date, ore, oreByName, oreRecent, logs }`.
+  Days use Amsterdam midnight and `oreRecent` covers `(now - 600000, now]`.
+  Counts and the last consumed sequence save together once a minute and on
+  day changes. Restart replays events after that cursor. No wire handlers.
+  See [daily](server-only/PROTOCOL.md#daily).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
   `status(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
@@ -142,27 +163,69 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Points use the chest's own coordinates. `front` accesses it from beside it
   at the same height; `down` accesses it from directly above.
   Handler `drops.edit` edits points. Tick registers the generic screen.
-  The editor pages points to fit below navigation, reserves the bottom input row,
-  and accepts typed coordinates or `add kind x y z [side] [dim]`.
+  The Big Tiles list selects the first broken point by default, or the first
+  point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
+  opens the draft editor and navigation to mining, lumber, shop and AR. BACK
+  returns the list to status and the editor to the list. Long lists have paging.
+  Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
+  The kit-free editor fits below two navigation rows and above local input;
+  its paging is per display.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames with per-role, per-client revisions and a four-second keepalive.
-  Calls are `screen(role, render, input)` and `tick(now)`.
-  `render(w, h, clientId)` returns `{ rows, buttons }`; `input(event)` receives the drawn role,
-  sender ID `from`, coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
+  clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
+  `terminal(model, view, w, h)` and `monitorTouch(side, x, y)`.
+  `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
+  code or log, `uptime`, `log`, `offset`, `code`, `expires` and `now`.
+  `monitorTouch` queues local input for the next tick. Tick discovers a local
+  monitor at most every five seconds and draws at scale 0.5 with local navigation,
+  without rednet or saved role changes. Tick also draws `SO.terminal` once a second.
+  `screen(role)` returns the registered `{ render, input }` callbacks or nil.
+  `far` saves a per-computer flag and returns success plus an optional save error.
+  `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
+  `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
+  coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
-  The generic screen reserves two top rows for `mining`, `lumber`, `shop`,
-  `status` and `ar`, with the drop editor below. Every destination has a visible
-  `generic` button on 26x20 pockets and 29x12 monitors.
+  Button id `status` returns any screen to status. Generic screens with their
+  own `lumber` and `ar` buttons keep them. The drops list has its own nav row
+  (MINING, LUMBER, SHOP, AR, PANEL) and suppresses header injection; older generic screens retain
+  the fallback buttons. Generic screens at least 39 columns wide gain a PANEL
+  header button when the panel screen is loaded and they do not already provide one.
+  Input includes sender ID `from`. Sessions retain the client ID as `id`.
+  Kit-free callbacks receive that ID instead of the session. Their generic
+  frames reserve two navigation rows and keep a visible return button.
+  Render signatures and revisions are isolated by role, size and session. Status also
+  isolates paging and alert takeover state per display session. Panel frames also
+  isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
+  glance row pages three tiles at a time with `prev` and `next`; `panel` selects
+  panel mode. Explicit saved roles take precedence. Gather runs in
+  handlers or ticks and reads state, leases, drops, sessions and server disk use.
+  Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
+  A missing kit retains
+  the legacy status renderer for older partial installations.
+- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
+  `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
+  main/alerts/pair pages and alert paging in each display session. Tick gathers
+  registered screen callbacks and job header states, plus state `.alert` values.
+  Main-page inputs forward START and STOP once to the mining or lumber screen.
+  Orders apply the local search to the shop screen, render its first page, select
+  the first item and send one `order:<count>:<name>` input. Shop's count/name sort
+  defines the best match. Missing screens have grey blocks without action targets.
+  GLANCE returns to status; ALERTS lists state alerts; PAIR explains server pairing.
+  Larger screens arrange the same controls using the kit grid. No saved panel file.
+  See [panel](server-only/PROTOCOL.md#panel).
   Dug-storage requests appear above every role, including status and generic.
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
-  See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
-  Tick registers the shop screen, discovers storage and polls stock. Search is
+  Tick registers the shop screen, discovers storage and polls stock.
+  Render callbacks use `render(w, h)`. The Big Tiles list opens an item with
+  `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
+  List controls are `prev`, `next`, `clear`, `search` and `status` for BACK.
+  Submitted text resets paging. The kit-free renderer retains the legacy list.
+  Search is
   per display with a visible clear button. Five minutes without stock resumes
   discovery; the legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
@@ -173,7 +236,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `forgetDug` clears block lookup entries for a set of retired section paths.
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
-  Screen callbacks are `render()` and `input(event)`; reports use
+  Mining uses Big Tiles with START, STOP, SETUP and BACK. SETUP has a local
+  BACK button; typed commands work on both pages. Daily ore totals and the top
+  two ore names come from `daily.today()`, with a stale tile when missing.
+  Missing kits retain the legacy renderer.
+  Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   New jobs require `home` before `start`; saved homes remain configured. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
@@ -214,8 +281,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   worker recovery. Mining and lumber pass world-frame journal cells to cells.
   Tick registers `display.screen("lumber", render, input)` and
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
-  Screen callbacks are `render()` and `input(event)`; reports use
+  Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
+  The Big Tiles screen gathers job state into a pure layout. START and STOP use
+  the text command path. SETUP pages configuration commands; its BACK returns
+  to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
+  Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
+  tile when missing. Calls without a size retain
+  the legacy rows for older callers.
   Restart recovery sends a stationary park using the saved frame without a
   volatile lease pose or range proof. Its report rebuilds the world pose before
   work resumes. Work leases still require the range and reservation checks.
@@ -231,7 +304,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
   controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
   Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
-  `drops` and `alerts` toggles. Switches save through `so-store` to `so-data/ar`.
+  `drops` and `alerts` toggles. The screen shows controller count, on/off tiles
+  and BACK to status. Small screens use compact tiles. Switches save through
+  `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. Alerts expire after five minutes, renewed
@@ -266,7 +341,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
-  text and resize events. Pairing prompts and digits appear on the display and
+  text and resize events, and retries when its frame becomes stale. Rows accept
+  old blit strings or compact `{ text, runs = { { n, fg, bg }, ... } }` data.
+  Compact text omits trailing spaces, which the client pads to the run width.
+  Frames may carry a 0-based RGB palette and monitor scale 0.5 or 1. Missing
+  palettes restore stock colours. A changed scale sends one resized hello.
+  Buttons accept optional height `h`, default 1. The client draws the outage
+  tile and timers without a server, preserving inverted digit cells.
+  Pairing prompts and digits appear on the display and
   its computer terminal. Failed pairing accepts a new code. A `pair.required`
   hint shows the same prompt without deleting the old key. Authenticated frames
   dismiss the hint and restore the normal screen. Discovery and
@@ -274,7 +356,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   it prefers the lowest saved paired server ID and retries that ID without DNS.
   It opens every modem and rescans on attach and detach events. Screens
   at least three rows tall reserve the bottom row for typed input and report
-  the remaining height in `hello`. Wall displays also echo input on the terminal.
+  the remaining height in `hello`. The optional `fullH` advertises physical height
+  so Big Tiles can use every row, including pocket glance navigation. Kit frames
+  use that full height; kit-free frames retain the input row. Wall displays
+  also echo input on the terminal.
 
 ## Installer roles and files
 
@@ -292,8 +377,8 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
 - Worker adds `worker.lua`. Only turtles install this role.
 - Display adds `display.lua`. Pockets install this role. Computers can choose it.
 - Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
-  `so-lumber-plan.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`.
-  Current modules are ar, cells, display, drops, lease, lumber, mine, shop and
+  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`, `so-mod-daily.lua` and `so-mod-panel.lua`.
+  Current modules are ar, cells, daily, display, drops, lease, lumber, mine, panel, shop and
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
 
@@ -350,8 +435,12 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
    filename order. The first `reply(t, body)` wins. Unknown types receive `err`.
 3. Other rednet protocols go to matching `listen[protocol]` hooks in filename
    order. `listen.so` cannot bypass authenticated dispatch.
-4. The P key opens pairing. The one-second timer expires reply-cache entries,
-   refreshes the pairing prompt and calls every `tick(now)` in filename order.
+4. The P key opens or renews pairing. Esc clears the invite. Used or expired
+   invites return to the normal terminal. L opens the full log, L or Esc returns,
+   and Up or Down scrolls it. Server prints enter an in-memory log bounded to
+   200 lines of at most 4096 bytes each. Long lines split without dropping text.
+   Monitor touches queue local input. The one-second timer expires reply-cache
+   entries, refreshes pairing state and calls every `tick(now)` in filename order.
    It rearms after the ticks; missed seconds do not produce catch-up ticks.
    If any event arrives more than 3 s (`os.clock`) after the last tick, the
    loop logs, ticks and starts a fresh timer, so a lost timer cannot stop
@@ -412,6 +501,13 @@ Do not save inside tight loops.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
+- `so-drops` holds drop points and failure counts.
+- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
+  Roles include `panel`. Old files without `far` remain valid.
+  Far displays use scale 1; others use 0.5.
+- `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
+  Recent ore uses UTC-second buckets `{ total, counts = { [epochMs] = count } }`.
+  Bucket keys and timestamp keys are decimal strings. Only the server installs it.
   Section files have no aggregate disk bound or automatic pruning. Owner release
   removes reservations only. Marks remain available for recovery across jobs.
 - `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
@@ -463,13 +559,49 @@ Run all four checks before a PR and record each command's last output line:
 lua5.2 tests/run.lua
 luac5.2 -p <every .lua file touched>
 python3 tools/cobaltlocals.py <every .lua file touched>
-sh tools/check-scope.sh origin/server-only HEAD
+sh tools/check-scope.sh origin/server-only-ui HEAD
 ```
 
 Keep each Lua file under 185 locals, including enclosing functions, for Cobalt's
 200-local ceiling. Commit before the scope check so `HEAD` includes the change.
 Offline tests do not prove in-game behavior. State which AGENTS.md gates could
 not run and which Minecraft or client checks remain unavailable in the PR.
+
+UI-0 adds `tests/ui/ui0.lua` to the full suite. It checks frame compatibility,
+serializer size, palette restoration, scale hello, button rectangles, outage
+fixtures, retries, font encoding and generator output. `tests/ui/render.lua`
+exports `load(path)`, `capture(w, h)` and `diff(fixture, picture)`. Capture returns
+a fake terminal with CC drawing methods and `picture()` for text/background
+layers. Diff returns up to eight cell differences with row, column, layer,
+expected and actual values. Sextants use the spec ink/background rules to undo
+inverted cells. `sextant(bits)` converts a six-bit pixel value to Unicode.
+`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes all fifteen fixture
+files without changing the normal mockups.md and font.txt output mode.
+
+UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status fixtures,
+alert takeover timing and dismissal, contrast, clipping, XS paging, role buttons,
+size-specific revisions, source gathering and server-only kit installation.
+`status-T.txt` uses four 12-column tiles and a log, with status navigation on the
+bottom three rows. UI-1 pocket parity covers rows 1 through 19; UI-3b covers all 20 rows.
+
+
+UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
+selected drop actions, draft editing, all 64 points through paging, AR switch
+persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
+Screen gather and pure layout helpers are private; public module APIs, saved
+files and client role lists are unchanged.
+
+UI-3b adds `tests/ui/ui3b.lua`. It checks unchanged status-P and panel-P fixtures
+on all 20 rows, per-pocket paging and search, action forwarding, real shop orders,
+monitor layout, session revisions, role persistence, alert paging, pairing help,
+missing modules, contrast, bounds and server-only installation.
+
+UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
+clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
+history work, stale fallbacks and server-only installation. `lumber-M.txt` now
+shows a stale daily tile because its fixture setup has no daily module.
+`panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
+
 
 ## Open gaps
 
