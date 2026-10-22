@@ -348,6 +348,7 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
+  W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
   W.mode = "idle"
   W.lease = body.lease
   W.expires = body.expires
@@ -389,6 +390,11 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
+  if W.journal.park then
+    W.enterSlow()
+    W.beacon()
+    return
+  end
   local now = os.epoch("utc")
   W.mode = "fast"
   W.stepName = "beacon"
