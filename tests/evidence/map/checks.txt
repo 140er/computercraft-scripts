@@ -1,0 +1,12 @@
+6a3fd6cff3a590acce7abe26d6aef3a267375475
+0f73a4ea74815bc21158585a498da446f5072034
+PASS tests/run.lua append-only (3 new lines)
+PASS no test file deleted
+PASS check-scope
+so-mod-map.lua     53 locals (deepest at function line 68) ok
+so-mod-display.lua   29 locals (deepest at function line 333) ok
+so-mod-mine.lua    58 locals (deepest at function line 675) ok
+so-mod-lumber.lua   34 locals (deepest at function line 288) ok
+install.lua        37 locals (deepest at function line 186) ok
+map.lua            31 locals (deepest at function line 214) ok
+run.lua            37 locals (deepest at function line 381) ok

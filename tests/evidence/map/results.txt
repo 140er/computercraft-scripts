@@ -1,0 +1,18 @@
+Implementation checkpoint before the requested T3 restart.
+Branch: codex/so-feat-map, based on fd53311 from PR #176.
+Implementation commit: 6a3fd6cff3a590acce7abe26d6aef3a267375475.
+Focused map, navigation and UI0 checks: 49 passed, 0 failed.
+Map-specific checks: 17 passed, 0 failed.
+Lua syntax: all seven changed Lua files passed.
+Cobalt locals: maximum 58, below 185.
+Scope against origin/server-only: PASS, tests/run.lua adds three lines only.
+Generator fixtures match the spec and runtime frames at 26x20, 29x12 and 57x24.
+The 164x81 map frame fits the real protocol serializer.
+Plain cc-test was invoked, but every slot stayed busy. It was cancelled while
+queued for the requested restart. No full-suite result exists for this head.
+Merge-tree against #174: clean at d6f7abd1e540d388e898aaaec494844cc809a8f6.
+Padding merge-tree: Lua files merge; generated spec and generator conflict.
+Gate A is not established. The inherited sandbox runner targets legacy roles,
+and tests/review-capture.ps1 is absent. No emulator evidence is claimed here.
+Gate B is reserved for the orchestrator. No gameplay test was started.
+No live Minecraft server or RCON was accessed.

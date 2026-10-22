@@ -1,0 +1,8 @@
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
