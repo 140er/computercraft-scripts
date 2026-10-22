@@ -136,7 +136,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Only `tick(now)` is exported beyond module metadata; no wire handlers.
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
-  Screen callbacks are `render()` and `input(event)`; reports use
+  Mining uses Big Tiles with START, STOP, SETUP and BACK. SETUP has a local
+  BACK button; typed commands work on both pages. Daily ore totals have no
+  source and use a stale tile. Missing kits retain the legacy renderer.
+  Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   New jobs default to `ores = {}`, which accepts all ores. Completed routes
   unload remaining ore through the configured drop before parking.
