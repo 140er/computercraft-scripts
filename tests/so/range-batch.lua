@@ -254,6 +254,49 @@ return function(test, equal)
     assert(radius >= 60, "lumber reports did not extend the range")
   end)
 
+  test("range-batch a parked shaft cell does not block an unrelated spine pass", function()
+    local top = { dim = DIM, x = -5, y = 64, z = 5, facing = 2 }
+    local job = { dim = DIM, home = { x = -5, y = 64, z = 4, facing = 2 }, bottom = 48,
+      mode = "thorough", length = 16, running = true, progress = { nextBranch = 2 }, turtles = {
+        ["4"] = { pose = { dim = DIM, x = -6, y = 48, z = 9, facing = 1 }, fuel = 10000, inv = {}, branch = 1,
+          route = { { dim = DIM, x = -5, y = 48, z = 9 }, { dim = DIM, x = -5, y = 48, z = 13 },
+            { dim = DIM, x = -6, y = 48, z = 13 } }, index = 1 },
+        ["5"] = { pose = top, fuel = 0, inv = {}, branch = 0,
+          yield = { path = { top }, cursor = 0, stage = "wait", state = "hold", pass = {}, after = 60000 } },
+      } }
+    for _, row in pairs(job.turtles) do
+      row.anchor = row.pose row.frame = { dim = DIM, rot = 0, ox = 0, oy = 0, oz = 0 }
+    end
+    local queued, callback = {}, nil
+    local env = setmetatable({ os = { epoch = function() return 0 end },
+      fs = { exists = function() return false end, makeDir = function() end, list = function() return {} end },
+      SO = { store = { copy = dofile("so-store.lua").copy,
+        store = function(path) return { value = path == "so-data/mine/job" and job or nil, save = function() return true end } end },
+        mods = { state = { emit = function() end }, display = { screen = function() end }, lease = {
+          inRange = function() return true end,
+          status = function(id) return { open = queued[id] and id } end,
+          onReport = function(_, fn) callback = fn end,
+          send = function(id, steps, opts) queued[id] = { steps = steps, opts = opts } return id end,
+        } } } }, { __index = _G })
+    local cells = assert(loadfile("so-mod-cells.lua", "t", env))()
+    env.SO.mods.cells = cells
+    local mine = assert(loadfile("so-mod-mine.lua", "t", env))()
+    mine.tick()
+    for _, id in ipairs({ 4, 5 }) do
+      local row, q = job.turtles[tostring(id)], assert(queued[id])
+      queued[id] = nil
+      callback(id, id, { { ok = false } }, { report = { pose = {
+        x = row.pose.x, y = row.pose.y, z = row.pose.z, f = row.pose.facing }, fuel = row.fuel, inv = {} } })
+      equal(q.steps[1].op, "inspectDown")
+    end
+    mine.tick()
+    assert(queued[4], "stationary shaft worker prevented an unrelated spine lease")
+    equal(queued[4].steps[1].op, "inspect")
+    equal(cells.owner(-5, 48, 9, DIM), "mine:4")
+    equal(cells.owner(top.x, top.y, top.z, DIM), "mine:5")
+    assert(not job.turtles["5"].lane and not job.turtles["5"].laneWait)
+  end)
+
   test("range-batch keeps atomic actions and stops at the first unsafe action", function()
     local lease = { inRange = function(_, p) return p.x <= 2 end }
     local move = { kind = "move", first = 1, steps = { { op = "forward" } }, cells = { { x = 2 } }, pose = { x = 2 } }

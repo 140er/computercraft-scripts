@@ -432,7 +432,8 @@ failed returns retreat again and wait a minute before retrying. After leaving, i
 entry while retaining its occupied cell. The saved yield path returns it to its
 old pose and facing before work resumes. Range blocks retry when the original
 action fits; other holds retry after a minute. No safe retreat releases the pass
-but keeps the physically occupied cell protected. Unknown or lost poses still
+but keeps the physically occupied cell protected. Other passes use normal cell
+reservations instead of a global veto from that parked worker. Unknown or lost poses still
 require recovery before movement or reservation release.
 
 Lost workers and workers outside their proven radio range appear in red.

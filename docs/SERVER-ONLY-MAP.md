@@ -283,7 +283,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   escape moves invalidate their target and try another known exit; failed returns
   retreat again and wait a minute before another return attempt.
   Without a safe retreat, the worker releases the pass and keeps its physical
-  cell protected. A turtle that cannot physically move can still obstruct that cell.
+  cell protected. Other passes can use the remaining lane when their cells do
+  not intersect that occupied cell. A turtle that cannot physically move can
+  still obstruct its cell.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
   its fuel covers the saved return route, the paused position's route home, and 64 more moves.

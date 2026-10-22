@@ -193,7 +193,8 @@ local function reserveBatch(id,row,action)
     row.laneWait=row.laneWait or {at=os.epoch("utc"),passes=0}
     local first=id
     for other,peer in pairs(job.turtles) do
-      if tonumber(other)~=id and (peer.lane or M.inLane(job,peer.pose)) then return false,"held" end
+      local parked=peer.yield and peer.yield.stage=="wait"
+      if tonumber(other)~=id and (peer.lane or M.inLane(job,peer.pose) and not parked) then return false,"held" end
       if not leaving and peer.laneWait and laneOrder(tonumber(other),first) then first=tonumber(other) end
     end
     if first~=id then return false,"held" end
