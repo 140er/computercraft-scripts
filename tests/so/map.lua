@@ -1,6 +1,11 @@
 local H = dofile("tests/so/harness.lua")
 local R = dofile("tests/ui/render.lua")
 local U = dofile("so-ui.lua")
+local fixtures = {
+  ["26x20"]="tests/ui/fixtures/map-26x20.txt",
+  ["29x12"]="tests/ui/fixtures/map-29x12.txt",
+  ["57x24"]="tests/ui/fixtures/map-57x24.txt",
+}
 
 local function setup(monitor, padded)
   local net = H.new()
@@ -144,7 +149,7 @@ return function(test,equal)
       equal(session.map.level,"all")
       cell(0,2,"@","9") cell(2,-5,">","d") cell(1,-7,nil,"8")
       if w==26 or w==29 or w==57 then
-        local fixture=R.load("tests/ui/fixtures/map-"..w.."x"..h..".txt")
+        local fixture=R.load(fixtures[w.."x"..h])
         local diffs=R.diff(fixture,picture(frame,w,h).picture())
         equal(#diffs,0,table.concat(diffs,"\n"))
       end
