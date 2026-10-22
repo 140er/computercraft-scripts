@@ -596,7 +596,9 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 
 `P.inRange(lease, id, cells)` calls `lease.inRange(id, cell)` for every cell and returns false if any check fails. It returns true if the lease module or its range function is missing.
 
-`P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. An expired lease makes the worker beacon and back up its last moves.
+`P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. A single `inspectDown` step marks a stationary park lease in the worker journal.
+If it expires, the worker stays put and beacons every 30 seconds. An expired
+work lease still starts fast beacons and backtracking along the last 32 moves.
 
 `P.fuelValue(name)` returns fuel per item for Minecraft coal and charcoal as 80, coal blocks as 800, lava buckets as 1000, and blaze rods as 120. Other names return 0. `P.free(inv)` returns the number of empty slots among the turtle's 16 slots using the occupied-slot report list.
 

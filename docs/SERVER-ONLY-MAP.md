@@ -190,7 +190,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 ### Thin clients
 
 - [worker.lua](../worker.lua) executes `lease.batch`, sends `hello`, `step.report`
-  and `beacon`, journals steps, and backs up after lease expiry. No exported API.
+  and `beacon`, journals steps, and backs up after work lease expiry. No exported API.
+  A single `inspectDown` marks a stationary park. When it expires, the worker
+  stays put and beacons every 30 seconds, retaining its move history.
   Paired boots retry discovery and hello with backoff capped at 30 seconds,
   using the saved server id if discovery fails. They show `waiting for server`
   until an authenticated reply arrives. Only unpaired boots prompt for a code;

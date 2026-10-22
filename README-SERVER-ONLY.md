@@ -180,3 +180,7 @@ chest returns `no inventory` and keeps the items in the turtle. Mining cleanup
 uses an inventory below the turtle when present. After a refused cleanup, excess
 junk travels to the ore chest with the next unload;
 one suitable stack stays for sealing.
+
+Idle turtles stay put when their park lease expires during a server outage. They
+beacon every 30 seconds. Only turtles whose last lease was work use fast beacons
+and backtrack along their saved moves.
