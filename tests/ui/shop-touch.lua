@@ -38,6 +38,7 @@ end
 T.capture = function(frame,w,h)
   local out=R.capture(w,h)
   assert(#frame.rows==h)
+  assert((frame.rows[1].text.."\n"..frame.rows[2].text):find("SHOP",1,true),"shop header overwritten")
   for y,row in ipairs(frame.rows) do
     local fg,bg={},{}
     for _,run in ipairs(row.runs) do

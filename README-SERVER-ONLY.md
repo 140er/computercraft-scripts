@@ -278,6 +278,8 @@ legacy unpaired protocol; isolate competing storage networks.
 Keyboard-equipped panels retain typed quick search. Monitor panels show a SHOP
 button that opens the touch shop. Clients report keyboard availability in hello.
 Older clients that omit it get the touch panel.
+The shop also fits the padded kit from #177, whose header occupies row 2. It
+measures the header and tile extent and adjusts paging to the available space.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
 

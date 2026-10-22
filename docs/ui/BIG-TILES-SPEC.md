@@ -167,7 +167,10 @@ WOOD, FOOD, BLOCKS, TOOLS and OTHER. A small ID substring table assigns items;
 unknown IDs stay in OTHER. Tools take precedence over materials. A-Z opens a
 letter picker with ALL to remove the letter filter. STOCK and NAME select the
 sort order. Category, letter and sort changes reset paging for that display.
-Compact controls use one row. Item tiles keep five rows and the kit's grid.
+Compact controls use one row. The shop measures the kit header and tile extent
+once per height. It uses five-row compact tiles and the kit's grid. The padded
+kit in #177 places the header on row 2; controls start below it and larger tiles
+reduce the page capacity instead of covering controls.
 At 29x12 there is one item per page; at 26x20 there are two. Large screens add
 columns and rows. Below these sizes, categories open in a separate picker.
 

@@ -198,16 +198,39 @@ S.category = function(name)
   return "other"
 end
 
+S.measurements = {}
+S.metrics = function(h)
+  if S.measurements[h] then return S.measurements[h] end
+  local probe = U.canvas(16, math.max(8, h))
+  probe.header("SHOP", "", "a")
+  local header = 1
+  for y, row in ipairs(probe.frame().rows) do
+    if row.text:find("SHOP", 1, true) then header = y break end
+  end
+  probe = U.canvas(16, math.max(8, h))
+  probe.tile(1, 1, 16, "", "", "", "d")
+  local tile = 5
+  for y, row in ipairs(probe.frame().rows) do
+    for _, run in ipairs(row.runs) do
+      if run[3] == "d" then tile = y break end
+    end
+  end
+  local metrics = { header = header, tile = h < 16 and 5 or tile }
+  S.measurements[h] = metrics
+  return metrics
+end
+
 S.geometry = function(w, h)
+  local metrics = S.metrics(h)
   local tabs = U.grid(w, h, math.max(1, math.min(7, math.floor((w + 1) / 7))))
   local compact = w < 26 or h < 12
-  local top = compact and 4 or 3 + math.ceil(7 / #tabs)
+  local top = metrics.header + (compact and 3 or 2 + math.ceil(7 / #tabs))
   local nav = h < 16 and 1 or 3
   local bottom = h - nav + 1
   local cols = U.grid(w, h)
-  local rows = math.max(1, math.floor((bottom - top) / 6))
+  local rows = math.max(1, math.floor((bottom - top) / (metrics.tile + 1)))
   return { tabs = tabs, top = top, nav = nav, bottom = bottom, cols = cols,
-    rows = rows, capacity = #cols * rows, compact = compact }
+    rows = rows, capacity = #cols * rows, compact = compact, header = metrics.header, tile = metrics.tile }
 end
 
 S.capacity = function(w, h)
@@ -273,7 +296,7 @@ S.layout = function(m, w, h)
     for i, category in ipairs(S.categories) do
       local cols = U.grid(w, h, 2)
       local col = cols[(i - 1) % 2 + 1]
-      C.button(col.x, 3 + math.floor((i - 1) / 2), col.w, category[2], "category:" .. category[1], "a", 1)
+      C.button(col.x, g.header + 2 + math.floor((i - 1) / 2), col.w, category[2], "category:" .. category[1], "a", 1)
     end
     C.button(1, g.bottom, w, "BACK", "items", "7", g.nav)
     return C.frame()
@@ -281,11 +304,12 @@ S.layout = function(m, w, h)
   if m.letters then
     C.header("SHOP A-Z", "", "a")
     local cols = U.grid(w, h, math.min(7, math.max(1, math.floor((w + 1) / 4))))
-    local height = h >= 20 and 3 or 1
+    local start = g.header + 2
+    local height = math.max(1, math.min(h >= 20 and 3 or 1, math.floor((g.bottom - start) / math.ceil(27 / #cols))))
     for i = 1, 27 do
       local col = cols[(i - 1) % #cols + 1]
       local letter = i == 1 and "ALL" or string.char(63 + i)
-      C.button(col.x, 3 + math.floor((i - 1) / #cols) * height, col.w,
+      C.button(col.x, start + math.floor((i - 1) / #cols) * height, col.w,
         letter, "letter:" .. letter, "a", height)
     end
     C.button(1, g.bottom, w, "BACK", "items", "7", g.nav)
@@ -294,13 +318,15 @@ S.layout = function(m, w, h)
   if m.selected then
     local item = m.selected
     C.header("SHOP > " .. item.label, "", "a")
-    C.put(2, 2, status:sub(1, math.max(0, w - 2)))
-    C.tile(1, 3, w, "IN STOCK", item.count, item.detail, m.stale and "c" or item.bg, 5)
+    local tileY = h < 16 and 3 or g.header + 2
+    if tileY > g.header + 1 then C.put(2, g.header + 1, status:sub(1, math.max(0, w - 2))) end
+    C.tile(1, tileY, w, m.stale and "STALE STOCK" or "IN STOCK", item.count, item.detail,
+      m.stale and "c" or item.bg, g.tile)
     local orderCols = U.grid(w, h, 3)
-    local height = h < 12 and 1 or h < 16 and 3 or 5
+    local y = h < 16 and 8 or tileY + g.tile + 1
+    local height = h < 12 and 1 or h < 16 and 3 or math.min(5, g.bottom - 2 - y)
     for i, amount in ipairs({1,16,64}) do
       local col = orderCols[i]
-      local y = h < 16 and 8 or 9
       if m.ordered then
         C.fill(col.x, y, col.w, height, "c")
         C.center(col.x, col.w, y + math.floor(height / 2), tostring(amount))
@@ -318,11 +344,11 @@ S.layout = function(m, w, h)
   end
   C.header("SHOP", w >= 26 and status or "", "a")
   if g.compact then
-    C.button(1, 2, w, (m.category or "all"):upper(), "categories", "a", 1)
+    C.button(1, g.header + 1, w, (m.category or "all"):upper(), "categories", "a", 1)
   else
     for i, category in ipairs(S.categories) do
       local col = g.tabs[(i - 1) % #g.tabs + 1]
-      C.button(col.x, 2 + math.floor((i - 1) / #g.tabs), col.w, category[2],
+      C.button(col.x, g.header + 1 + math.floor((i - 1) / #g.tabs), col.w, category[2],
         "category:" .. category[1], category[1] == (m.category or "all") and "a" or "7", 1)
     end
   end
@@ -344,9 +370,9 @@ S.layout = function(m, w, h)
       local item = m.items[(page - 1) * g.capacity + i]
       if not item then break end
       local col = g.cols[(i - 1) % #g.cols + 1]
-      local y = g.top + math.floor((i - 1) / #g.cols) * 6
-      C.tile(col.x, y, col.w, item.label, item.count, item.sub, m.stale and "c" or item.bg, 5)
-      C.hit("item:" .. item.name, col.x, y, col.w, 5)
+      local y = g.top + math.floor((i - 1) / #g.cols) * (g.tile + 1)
+      C.tile(col.x, y, col.w, item.label, item.count, item.sub, m.stale and "c" or item.bg, g.tile)
+      C.hit("item:" .. item.name, col.x, y, col.w, g.tile)
     end
   end
   C.put(2, g.bottom - 1, (m.order or ""):sub(1, math.max(0, w - 2)))
