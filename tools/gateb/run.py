@@ -2,6 +2,7 @@
 """Run Gate B checks in isolated local Minecraft worlds."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import importlib.util
 import json
@@ -15,7 +16,7 @@ import uuid
 
 from checks import ACCELERATED, GROUPS, IDS, load
 from checks.context import Context, sanitize
-from checks.admission import admit
+from checks.admission import admit, reserve_local_slot
 from checks.model import Blocked, Result, Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -199,8 +200,10 @@ def main(argv=None):
         worlds = [f"{prefix}-{i+1}" for i in range(min(args.worlds, len(groups))) ]
         client_lock, group_lock = threading.Lock(), threading.Lock()
         results, created, finished = [], [], set()
+        reservation = ExitStack()
         try:
             admit()
+            reservation.enter_context(reserve_local_slot())
             created.extend(worlds)
             resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=180 * len(worlds))
             cli.record("pool-start.json", resources)
@@ -242,6 +245,7 @@ def main(argv=None):
             for world in created:
                 try: cli.cli("stop", world)
                 except (Blocked, OSError, subprocess.TimeoutExpired): pass
+            reservation.close()
             report = merge_results(results, selected, commit, time.monotonic()-start)
             write_report(report, output)
         print(f"Report {output / 'report.md'}", flush=True)

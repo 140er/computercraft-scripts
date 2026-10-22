@@ -25,6 +25,17 @@ class ContractTests(unittest.TestCase):
         self.assertIsNone(full_local_suite(locks,slots,lambda pid:["python3","/repo/tools/gateb/keeper.py"]))
         self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:[]))
 
+    def test_reservation_blocks_new_local_suites_and_releases(self):
+        from checks.admission import reserve_local_slot
+        import fcntl
+        with tempfile.TemporaryDirectory() as temp:
+            with reserve_local_slot(Path(temp)):
+                with (Path(temp)/"test-suite-local-2.lock").open("a") as other:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            with (Path(temp)/"test-suite-local-2.lock").open("a") as other:
+                fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+
     def test_admission_refuses_high_load_before_runtime(self):
         from checks.admission import admit
         with patch("checks.admission.os.getloadavg",return_value=(8,4,2)):
@@ -163,7 +174,7 @@ class ContractTests(unittest.TestCase):
                     ctx.linked_install()
                     raise Blocked("Missing reviewed pixels")
                 return Verdict("pass")
-        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:object()), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
+        with tempfile.TemporaryDirectory() as temp, patch.object(run,"admit"), patch.object(run,"reserve_local_slot"), patch.object(run,"Context",FakeContext), patch.object(run,"runtime_class",return_value=lambda:object()), patch.object(run,"resolve",return_value="a"*40), patch.object(run,"load",return_value=Check):
             code=run.main(["--checks","C1,C3,C5","--output",temp,"--worlds","2"])
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)
