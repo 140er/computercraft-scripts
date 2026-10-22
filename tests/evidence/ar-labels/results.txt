@@ -1,0 +1,13 @@
+Full suite source commit: 1ec086568c2382ee7d05771f179362ebda792d10.
+Plain cc-test: PASS, 581 tests, local-1 slot, exit 0.
+Focused UI, AR, navigation and drop checks: PASS, 129 checks.
+cc-test --part so-mod-ar --lua-only: PASS, 4 checks, no undeclared reads.
+cc-test --part so-mod-ar: PASS, pack-ROM emulator product and peripheral contracts, then 4 AR checks.
+The module run initially encountered busy local emulator slots, then succeeded on local-2.
+luac5.2 -p: PASS for all changed Lua files against origin/server-only.
+python3 tools/cobaltlocals.py: PASS, maximum 64 locals, below 185.
+sh tools/check-scope.sh origin/server-only HEAD: PASS, tests/run.lua append-only with 4 new lines, no test file deleted.
+The #177 HUD spacing check remains green.
+The first full-suite attempt is invalid because a merge changed its local checkout while it ran. Its log is retained and does not count as a passing run.
+Real goggles validation is pending the orchestrator's Gate B run. The native emulator uses an older core and mocked AR, not a real CC:AR renderer.
+The final evidence commit changes only saved test results.
