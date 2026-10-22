@@ -770,4 +770,62 @@ return function(test,equal)
     equal(grants,{5,3,4,2})
   end)
 
+  test("mine supply trips share the shaft and retrace both branches",function()
+    local s=setup()
+    s.add(3,2)
+    local M=dofile("so-mine-plan.lua")
+    local disk=persisted(s)
+    disk.running=true
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["-3,0,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=-3,y=0,z=0,side="front",kind="ore"}))
+    local allowed={}
+    for _,w in ipairs(s.turtles) do
+      local row=disk.turtles[tostring(w.id)]
+      row.branch=w.id-2 row.route=M.route(disk,row.branch) row.index=#row.route+1
+      row.pose=row.route[#row.route] row.anchor=row.pose row.frame=nil
+      row.inv={}
+      for slot=1,16 do
+        w.inv[slot]={name="minecraft:diamond",count=64}
+        row.inv[slot]={slot=slot,name="minecraft:diamond",count=64}
+      end
+      w.pos={x=row.pose.x,y=row.pose.y,z=row.pose.z} w.heading=row.pose.facing
+      for _,p in ipairs(row.route) do allowed[M.key(p)]=true end
+      for y=-2,0 do allowed["0,"..y..",-1"]=true end
+      s.server.env.SO.mods.cells.releaseOwner("mine:"..w.id)
+    end
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.server=s.net.boot(s.server)
+    local cells=s.server.env.SO.mods.cells
+    local visited,returns={},{}
+    for _,w in ipairs(s.turtles) do
+      s.server.env.SO.mods.lease.handlers.hello({from=w.id,body={pose={x=0,y=0,z=-20}}})
+      for _,op in ipairs({"forward","back","up","down"}) do
+        local move=w.env.turtle[op]
+        w.env.turtle[op]=function(...)
+          local ok,err=move(...)
+          if ok then
+            local p=w.pos
+            assert(p.y==0 or allowed[M.key(p)],"supply trip left the dug mine")
+            for _,other in ipairs(s.turtles) do
+              if other~=w then assert(not M.same(p,other.pos),"supply turtles collided") end
+            end
+            if M.inLane(disk,p) then
+              equal(cells.owner(0,0,-1),"mine:"..w.id)
+              equal(cells.owner(0,-2,-1),"mine:"..w.id)
+              visited[w.id]=true
+            end
+            if visited[w.id] and p.x==3 and p.y==-2 and p.z==-(5+(w.id-2)*4) then returns[w.id]=true end
+          end
+          return ok,err
+        end
+      end
+    end
+    run(s,300)
+    assert(visited[2] and visited[3],"both supply trips must use the shared lane")
+    assert(returns[2] and returns[3],"both supply trips must return to their branch tips")
+    equal(persisted(s).turtles["2"].state,"done")
+    equal(persisted(s).turtles["3"].state,"done")
+  end)
+
 end

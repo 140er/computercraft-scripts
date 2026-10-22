@@ -377,11 +377,25 @@ It seals other lava and water before movement. Extra junk drops at the current
 position about every ten digs. One stack of suitable blocks stays for sealing.
 
 Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
-below the distance home plus 64 visit a fuel drop and refuel towards 2000.
+below the mine route home plus 64 visit a fuel drop and refuel towards 2000,
+or the return route plus reserve if that needs more fuel.
 An empty fuel chest ends the pickup if the worker has enough fuel to return to
-the paused position and still meet that position's distance home plus 64.
+the paused position along the saved route and still meet that position's route home plus 64.
 Otherwise the existing chest retry and hold rules apply.
-Trips return to the position where work stopped. Trips route around their chest. Full inventories unload before a fuel pickup.
+Trips return to the position where work stopped. Underground trips return along
+the branch to its spine junction, follow the spine to the shaft, and climb the shaft
+before taking a shortest axis path around the chest to a free stand. Return trips
+reverse the saved path. A side vein first connects through known dug cells to the
+last reached mining waypoint. If that connection cannot be found within 4096 cells,
+the trip waits instead of cutting a new tunnel. Only the final approach can open new cells.
+A trip reserves its full route before entering the shared lane and retains it
+through the chest turnaround until it returns to its paused position. This uses
+the same queue as other miners and prevents opposing surface approaches from
+blocking each other. Supply trips sharing the lane run one at a time.
+Saved trip records include `path`, starting at the paused position, and `reserve`,
+the fuel needed there for the route home plus 64. Older trip records use the mine
+geometry when possible and hold if the recovered position is outside that route.
+Full inventories unload before a fuel pickup.
 Ore unloading includes mined fuel items. Front drops use a free neighbour
 at the same height. Down drops use the cell above the chest. The drop module's
 numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as

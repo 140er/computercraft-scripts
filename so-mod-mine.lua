@@ -59,8 +59,16 @@ local function dropFailure(id, row, kind, point)
     retry.after = os.epoch("utc") + 60000
   end
 end
-local function fuelReserve(pose)
-  return M.distance(pose,job.home)+64
+local function supplyKnown(cell)
+  if lookup(cell) == false or call("cells","isDug",cell.x,cell.y,cell.z,cell.dim) then return false end
+end
+local function fuelReserve(row)
+  return M.supplyDistance(job,row,nil,supplyKnown)+64
+end
+local function tripReserve(t)
+  local back = {pose=t.back}
+  return (t.path and #t.path-1 or M.supplyDistance(job,back,t.stand))
+    + (t.reserve or fuelReserve(back))
 end
 local function trip(id, row, kind)
   local near = SO.store.copy(row.pose)
@@ -84,17 +92,20 @@ local function trip(id, row, kind)
       local p = { dim = job.dim, x = point.x, y = point.y, z = point.z, facing = f }
       local c = M.cell(p, "back") c.facing = f candidates[#candidates+1] = c
     end
-    table.sort(candidates, function(a,b) return M.distance(row.pose,a) < M.distance(row.pose,b) end)
+    table.sort(candidates, function(a,b) return M.supplyDistance(job,row,a) < M.supplyDistance(job,row,b) end)
   end
   for _, stand in ipairs(candidates) do
     local held = call("cells", "owner", stand.x, stand.y, stand.z, stand.dim)
     local known = S.known[M.key(stand)]
     if (not held or held == owner(id)) and (known == nil or known == false) then
-      row.trip = { kind = kind, point = point, stand = stand, back = SO.store.copy(row.pose), stage = "out" }
-      row.state = kind return true
+      local path = M.supplyRoute(job,row,stand,point,supplyKnown)
+      if path then
+        row.trip = { kind = kind, point = point, stand = stand, back = SO.store.copy(row.pose), stage = "out", path = path, reserve = fuelReserve(row) }
+        row.state = kind return true
+      end
     end
   end
-  row.error = "drop neighbours held" return false
+  row.error = "drop neighbours held or no mine route" return false
 end
 local function laneOrder(a,b)
   local x,y=job.turtles[tostring(a)].laneWait,job.turtles[tostring(b)].laneWait
@@ -107,7 +118,7 @@ end
 local function releaseBatch(id,row)
   if row.lane then
     if M.inLane(job,row.pose) then row.lane.entered=true
-    elseif row.lane.entered then
+    elseif row.lane.entered and not row.trip then
       row.lane.release=true
       reservePose(id,row)
       return
@@ -263,14 +274,14 @@ local function report(_, id, results, lease)
           end
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
-          and (row.fuel < 0 or row.fuel >= M.distance(row.pose,row.trip.back)+fuelReserve(row.trip.back))
+          and (row.fuel < 0 or row.fuel >= tripReserve(row.trip))
         if failed and enough then
           row.trip.stage = "back"
           row.state, row.dropRetry, row.error = "fuel", nil, nil
         elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point)
         else row.dropRetry, row.error = nil, nil end
         if action.kind == "unload" then row.trip.stage = "out"
-        elseif type(row.fuel) == "number" and row.fuel >= 2000 then row.trip.stage = "back" end
+        elseif type(row.fuel) == "number" and row.fuel >= math.max(2000,tripReserve(row.trip)) then row.trip.stage = "back" end
       end
     end
   end
@@ -335,7 +346,7 @@ plan = function(id,row)
     send(id,row,{kind="cleanup",steps=clean,cells={}}) return
   end
   if not row.trip then
-    local low = type(row.fuel)=="number" and row.fuel >= 0 and row.fuel < fuelReserve(row.pose)
+    local low = type(row.fuel)=="number" and row.fuel >= 0 and row.fuel < fuelReserve(row)
     if low or P.free(row.inv)<2 then if not trip(id,row,P.free(row.inv)<2 and "ore" or "fuel") then park(id,row,false) return end end
   end
   if row.trip then
@@ -351,6 +362,8 @@ plan = function(id,row)
           save()
           return
         end
+        releaseBatch(id,row)
+        if row.lane and row.lane.release then save() return end
       elseif t.point.side == "front" and row.pose.facing ~= t.stand.facing then
         local turn = M.turn(row.pose,t.stand.facing)
         send(id,row,{kind="turn",steps={turn},cells={},pose=P.apply(row.pose,turn.op)}) return
@@ -369,7 +382,7 @@ plan = function(id,row)
         local steps = {}
         for _, item in ipairs(row.inv) do
           local value = P.fuelValue(item.name)
-          if value>0 then steps={{op="select",slot=item.slot},{op="refuel",n=math.min(item.count,math.max(1,math.ceil((2000-(row.fuel or 0))/value)))}} break end
+          if value>0 then steps={{op="select",slot=item.slot},{op="refuel",n=math.min(item.count,math.max(1,math.ceil((math.max(2000,tripReserve(t))-(row.fuel or 0))/value)))}} break end
         end
         if #steps==0 then
           local occupied={} for _, item in ipairs(row.inv) do occupied[item.slot]=true end

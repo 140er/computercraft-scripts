@@ -51,11 +51,18 @@ and listeners use `listener(sender, message)`.
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
   Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
-  `cleanup(inv, all)`, `travel(from, goal, point)`, `next(job, row, lookup, inv, fuel)`,
+  `cleanup(inv, all)`, `travel(from, goal, point, job?, row?)`,
+  `supplyRoute(job, row, stand, point?, lookup?)`, `supplyDistance(job, row, stand?, lookup?)`,
+  `next(job, row, lookup, inv, fuel)`,
   `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
   `lane` lists the shared shaft column and bottom spine through the furthest
   assigned junction, plus an optional exit. `inLane` tests that geometry;
   `lanePass` lists the cells crossed in the planned pass through its exit.
+  `supplyRoute` returns the departure cell and every movement cell through the branch,
+  spine and shaft to the stand. A supplied lookup returns false for known dug cells
+  and connects a side vein to the last reached route waypoint. No connection returns nil.
+  `supplyDistance` counts those moves and returns infinity when no route exists.
+  Contextual `travel` returns the remaining outbound or reverse trip cells.
   `ores` is the supported ore-name set. The optional `ore` filter uses those names.
   `next` batches known straight travel and turns, ending at inspect or dig report
   boundaries. Multi-action results include `actions` with one-based `first` step indices.
@@ -144,7 +151,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   show `wait lane`. Side veins wait until the worker leaves the shared lane.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
-  its fuel covers the return trip, the paused position's distance home, and 64 more moves.
+  its fuel covers the saved return route, the paused position's route home, and 64 more moves.
+  Supply trips save `path` and `reserve` in the trip record. They use the lane queue
+  and retain the full trip reservation through the chest turnaround and return.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
