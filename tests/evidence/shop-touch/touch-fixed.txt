@@ -1,0 +1,9 @@
+PASS touch shop browse and one order at 29x12
+PASS touch shop browse and one order at 26x20
+PASS touch shop browse and one order at 57x24
+PASS touch shop browse and one order at 100x38
+PASS touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+PASS touch shop reports failures missing room and stale stock
+8 tests, 0 failed

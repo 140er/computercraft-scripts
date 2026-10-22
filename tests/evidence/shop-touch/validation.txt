@@ -19,3 +19,6 @@ The fixture now delivers a stock broadcast through the public listener. All 7 UI
 A full rerun is still required after the requested T3 restart. No full-suite pass is claimed.
 
 The updated cc-test --part shop --lua-only command could not start because this worktree lacks tools/test_parts.py. scripts/test-emulator is also absent. part-check.txt preserves the missing-module error. The short clock check used lua5.2 with a 30-second timeout.
+
+Final result after restart and padding compatibility fix: PASS, plain cc-test, 563 tests, local-2, exit code 0.
+Focused normal-kit checks pass 76 tests. The temporary #177 combined tree passes 30 navigation/touch checks with header row 2. See results.txt and padding-compatibility.txt.
