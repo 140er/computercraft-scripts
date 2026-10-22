@@ -94,7 +94,11 @@ def main(home, suite_lock):
                             if q.get('memory_kib', 0):
                                 available = int(next(v.split()[1] for v in Path('/proc/meminfo').read_text().splitlines() if v.startswith('MemAvailable:')))
                                 if available < q['memory_kib']:
-                                    raise RuntimeError('At least 3 GiB available memory is required per new server/client')
+                                    raise RuntimeError(f"Admission refused: available memory {available/1048576:.2f} GiB; at least 3 GiB required")
+                                if q.get('server') and any(':' not in child for child in children):
+                                    load=os.getloadavg()[0]
+                                    if load>=8 or available<=8*1024*1024:
+                                        raise RuntimeError(f"Pool admission refused: load1={load:.2f} must be below 8; MemAvailable={available/1048576:.2f} GiB must exceed 8 GiB")
                             log = open(q['log'], 'ab', buffering=0)
                             stdin = os.open(q['fifo'], os.O_RDWR) if q.get('fifo') else open(os.devnull, 'rb')
                             try:

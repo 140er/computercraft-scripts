@@ -51,7 +51,9 @@ cannot safely accept replacement region files while those chunks remain loaded.
 `serve` waits for Minecraft's native ready marker. The shared pool keeper owns
 the test-suite flock and the exact child processes it starts. Each server uses
 a 2 GiB heap, two active processors and 256 MiB direct memory. Admission refuses
-new servers or clients below 3 GiB available memory. `pool up 3`, `pool status`
+new servers or clients below 3 GiB available memory. An additional server
+also requires load1 below 8 and more than 8 GiB available memory; refusal
+reports both measurements. `pool up 3`, `pool status`
 and `pool down` manage named pool worlds and report RSS. Ordinary world servers
 and clients share the same pool lock. Shut them down before running cc-test.
 BlueMap's copied web listener is disabled, and voice chat binds to loopback on

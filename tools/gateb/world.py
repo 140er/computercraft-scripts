@@ -310,7 +310,7 @@ class Runtime:
             args=list((run/'libraries/net/neoforged/neoforge').glob('*/unix_args.txt'))
             if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
             argv+=['@'+str(args[0]),'nogui']
-            info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024})
+            info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024,'server':True})
             state.update(pid=info['pid'],ready=False);atomic(run/'run.json',state)
             deadline=time.monotonic()+timeout
             while time.monotonic()<deadline:

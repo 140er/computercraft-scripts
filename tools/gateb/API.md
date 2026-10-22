@@ -55,7 +55,10 @@ always restarts. `serve` is idempotent and waits for the native Done message.
 `pool up N` clones and starts `pool-1` through `pool-N`; `pool status` reports
 ports, PIDs and RSS. `pool down` stops only those runs. Each server has a 2 GiB
 heap, two active processors and a 256 MiB direct-memory cap. Admission requires
-at least 3 GiB available memory per new server.
+at least 3 GiB available memory per new server. When another native server is
+already running, admission also requires load1 below 8 and MemAvailable above
+8 GiB. This check happens atomically in the keeper for both serve and pool up;
+a refusal includes the measured values.
 
 All servers and clients cooperate with `~/work/test-suite.lock`. A pool keeper
 holds that exclusive flock while any runtime process is alive. If another Gate B
