@@ -280,6 +280,17 @@ S.tick = function(now)
   end
 end
 
+S.dugProtection = function(protect)
+  for _, row in pairs(S.turtles) do
+    if row.uncertain or row.anchor then return false end
+    if row.open then
+      if not row.open.pose then return false end
+      protect(row.open.pose.dim or "minecraft:overworld", row.open.pose, 48)
+    end
+  end
+  return true
+end
+
 local config = SO.store.read("so-server.cfg")
 if type(config) == "table" then S.pos = S.copyPose(config.pos) end
 if not S.pos and type(gps) == "table" and type(gps.locate) == "function" then
@@ -312,4 +323,5 @@ return {
   status = S.status,
   cancelPark = S.cancelPark,
   inRange = S.inRange,
+  dugProtection = S.dugProtection,
 }

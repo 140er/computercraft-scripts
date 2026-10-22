@@ -11,7 +11,7 @@ local function install(machine, files)
   end
 end
 
-local function setup(w, h)
+local function setup(w, h, prepare)
   local net = H.new()
   local server = net.machine({id=1, modem=true})
   install(server, {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
@@ -19,6 +19,7 @@ local function setup(w, h)
     "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
     "so-mod-cells.lua", "so-mod-lease.lua"})
   server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
+  if prepare then prepare(server) end
   server.boot("so-server.lua")
   net.flush()
   assert(not server.error, tostring(server.error))

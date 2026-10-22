@@ -107,6 +107,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Reports release lease-owned cells; silence leaves reservations in place.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
+  `dugProtection(protect)` supplies bounds for open leases. It refuses retirement
+  when a lease has no world pose or a worker has an uncertain pose.
   `reanchor(id, worldPose)` sends an authenticated `worker.anchor` for an uncertain
   journal and retries until a matching hello confirms it. Mining/lumber `add`
   use it to replace an uncertain worker assignment with the operator-supplied pose.
@@ -120,6 +122,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `{ dim, x, y, z }` reservations, default 256.
   The optional dimension defaults to `minecraft:overworld`.
   Handler `cells.forget` requires a second, confirmed request.
+  Sections save a 1024-character hex bitset, with a 2048-byte generation limit.
+  Legacy tables migrate through two compact generations without losing marks.
+  `retirement()` returns a pending request or a brief decision notice.
+  `decideRetirement(id, choice)` accepts `allow` or `keep` for that request.
+  At 1000000 bytes of section generations, eligible sections prompt every
+  display and AR. Only `allow` removes sections, oldest use first, aiming for
+  650000 bytes. `keep` persists a new request threshold at 150% of current use.
+  `rememberWorker(id, worldPose, dug)` retains the last reported world-frame
+  journal cells, including after job removal. Its bounded per-worker record and
+  consent policy save to `so-data/dug-policy`. Reservations, running job areas,
+  leases and recovery paths protect whole sections. Unknown recovery blocks
+  retirement. Bulk work uses `SO.breathe`.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
@@ -141,6 +155,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The generic screen reserves two top rows for `mining`, `lumber`, `shop`,
   `status` and `ar`, with the drop editor below. Every destination has a visible
   `generic` button on 26x20 pockets and 29x12 monitors.
+  Dug-storage requests appear above every role, including status and generic.
+  The server accepts consent only for a current, fully visible button at its
+  drawn coordinates. Decision notices last 30 seconds.
   See [display](server-only/PROTOCOL.md#display).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
@@ -151,7 +168,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
-  Only `tick(now)` is exported beyond module metadata; no wire handlers.
+  Calls are `tick(now)`, `dugProtection(protect)` and `forgetDug(sectionPaths)`;
+  no wire handlers. Protection covers the running mine and saved worker routes.
+  `forgetDug` clears block lookup entries for a set of retired section paths.
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
@@ -190,7 +209,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
-  Only `tick(now)` is exported beyond module metadata; no wire handlers.
+  Calls are `tick(now)` and `dugProtection(protect)`; no wire handlers.
+  Protection covers the running farm at every height, saved service routes and
+  worker recovery. Mining and lumber pass world-frame journal cells to cells.
   Tick registers `display.screen("lumber", render, input)` and
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
   Screen callbacks are `render()` and `input(event)`; reports use
@@ -215,6 +236,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. Alerts expire after five minutes, renewed
   by new events. First controller attachment clears old elements when supported.
+  Dug-storage requests remain visible until a player decides, including with
+  the optional event-alert layer off. Decision notices last 30 seconds.
   See [AR](server-only/PROTOCOL.md#ar).
 
 ### Thin clients

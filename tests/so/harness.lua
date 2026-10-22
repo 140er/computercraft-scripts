@@ -377,12 +377,13 @@ H.new = function()
         m.files[from] = nil
       end,
       getCapacity = function() return m.capacity end,
+      getSize = function(path) return #(assert(m.files[path], "No such file")) end,
       getFreeSpace = function() return m.capacity - used(m.files) end,
       makeDir = function() end,
       list = function(dir)
         local names = {}
         if opts.directories then
-          local prefix = (dir == "/" or dir == "") and "" or dir .. "/"
+          local prefix = (dir == "/" or dir == "") and "" or dir:gsub("/+$", "") .. "/"
           local found = {}
           for path in pairs(m.files) do
             if path:sub(1, #prefix) == prefix then
