@@ -189,6 +189,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `start` is required after fixing the cause. Fuel trips reserve the route
   distance plus 32 fuel. Wood service removes junk and excess saplings while
   preserving one per known spot of each species and the current tree.
+  Log delivery counts require a successful drop report and an inventory decrease.
+  Wood and supply inspections call `drops.note`. Sapling service reuses a matching
+  drop point or registers a stable `storage` point for the drop editor.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar

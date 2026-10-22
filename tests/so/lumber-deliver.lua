@@ -18,7 +18,10 @@ return function(test, equal)
       f.job.inv = {}
       f.report(false, { { ok = true }, { ok = true, data = { name = 'minecraft:chest' } }, { ok = success } })
       equal(f.job.logs or 0, success and 8 or 0)
-      if not success then equal(f.job.blocked, 'hold') end
+      if not success then
+        equal(f.job.blocked, 'hold')
+        for _, event in ipairs(f.events) do assert(event.kind ~= 'lumber.logs') end
+      end
     end
   end)
   test('lumber marks failed wood inspections broken without counting lost logs', function()
@@ -49,6 +52,25 @@ return function(test, equal)
       equal(f.mods.drops.list()[1].broken, true)
     end)
   end
+  test('lumber rechecks supply service saved before inspection support', function()
+    local f = fixture('fuel')
+    f.job.service.stage = 'suck'
+    f.tick(1)
+    equal(f.queued().steps[1].op, 'inspectDown')
+    equal(#f.queued().steps, 1)
+  end)
+  test('lumber takes supplies after a successful inspection and clears strikes', function()
+    local f = fixture('fuel')
+    assert(f.mods.drops.note('fuel', nil))
+    assert(f.mods.drops.note('fuel', nil))
+    f.tick(1)
+    f.report(false, { { ok = true, data = { name = 'minecraft:chest' } } })
+    equal(f.job.service.stage, 'take')
+    f.tick(2)
+    equal(f.queued().steps[2].op, 'suckDown')
+    assert(f.mods.drops.note('fuel', nil))
+    equal(f.mods.drops.list()[1].broken, false)
+  end)
   test('lumber registers sapling chest for inspection failures', function()
     local f = fixture('wood')
     f.job.service, f.job.inv, f.job.phase = nil, {}, 'plant'
@@ -59,5 +81,10 @@ return function(test, equal)
     local found
     for _, p in ipairs(f.mods.drops.list()) do if p.id == point.id then found = p end end
     assert(found and found.kind == 'storage' and found.x == 4)
+    local count = #f.mods.drops.list()
+    f.job.service = nil
+    f.tick(2)
+    equal(f.job.service.point.id, point.id)
+    equal(#f.mods.drops.list(), count)
   end)
 end

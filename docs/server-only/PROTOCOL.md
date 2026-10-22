@@ -530,6 +530,20 @@ An empty sapling chest disables replanting while felling continues. It emits `lu
 
 Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
 
+Wood deliveries count the reported inventory decrease only when every step in the
+select, inspect and drop batch succeeds. Failed inspections call `drops.note` for
+wood, fuel and sapling chests. Supply trips inspect before taking items. A failed
+inspection holds the turtle. Repair the chest and send `start` to retry. Three
+failed inspections mark the drop point broken in the generic editor. Use `fix`
+there after repairing it. Successful inspections clear earlier failure counts.
+
+Sapling service reuses a registered point at the same coordinates, dimension and
+side. If none exists, it registers a `storage` point with the stable id
+`lumber_saplings_<dim>_<x>_<y>_<z>_<side>`. These points share the 64-point limit.
+A broken point or failed registration holds the turtle and asks for `start` after
+the drop point is fixed. Changing the sapling coordinates leaves old points in
+the editor, where the operator can remove them.
+
 The screen shows state, logs delivered, saplings carried, known and planted spots, fuel, and the last alert. Lost workers and range failures appear in red. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
