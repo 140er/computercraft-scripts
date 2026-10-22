@@ -66,6 +66,11 @@ end
 
 P.shop = function(c, session, x, y, w, height, compact)
   local loaded = P.states.shop ~= "not loaded"
+  if not session.keyboard then
+    if loaded then c.button(x, y, w, "SHOP", "shop", "a", compact and 3 or 5)
+    else c.fill(x, y, w, compact and 3 or 5, "c"); c.center(x, w, y + 1, "SHOP") end
+    return
+  end
   c.put(x+1,y,"SHOP")
   c.put(x+(loaded and 10 or math.min(10,math.max(1,w-10))),y,loaded and "search:" or "not loaded")
   if loaded then c.search(x+1,y+1,w-2," " .. (session.panel.search or "") .. "_","search")
@@ -164,7 +169,7 @@ P.input = function(event)
   if not session then return end
   session.panel = session.panel or {search="",page="main"}
   local panel,id = session.panel,event.id
-  if type(event.text) == "string" then panel.search = event.text:sub(1,256);return end
+  if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
   if id == "panel-back" then panel.page="main"
   elseif id == "pair" or id == "alerts" then panel.page=id
   elseif id == "pair-code" and panel.page == "pair" and event.from == session.id
@@ -182,7 +187,7 @@ P.input = function(event)
     else
       local amount = (id or ""):match("^order:(%d+)$")
       local shop = SO.mods.shop
-      if (amount == "1" or amount == "16" or amount == "64") and P.screens.shop
+      if (amount == "1" or amount == "16" or amount == "64") and P.screens.shop and session.keyboard
           and shop and type(shop.order) == "function" then
         shop.order(panel.search, tonumber(amount))
       end

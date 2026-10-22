@@ -1,0 +1,10 @@
+Historical cb7fe0a validation, superseded by pair-map-validation.txt after #178 merged.
+
+Map-base rebase validation.
+Rebased only the shop commits onto server-only cb7fe0a, which includes the top-down map.
+The spec retains the touch shop description and section 7.0 Top-down map. Section 7.1 was regenerated from the merged mockup generator.
+python3 -I docs/ui/mockup-gen.py --fixtures completed; all map and shop fixtures are retained.
+A POSIX Lua run of tests/ui/ui0.lua passed all 10 tests, including generator preserves section 7.1 and reproduces every fixture. There was no SKIP UI0 line.
+tests/run.lua preserves the entire cb7fe0a base, including map regressions, then appends the three shop-test lines.
+The final full run uses cc-test --slot local because UI0 needs a POSIX shell and python3. Windows/PC would skip that generator check.
+The full log is saved at /home/jeffrey/work/test-evidence/shop-touch/cb7fe0a-full-suite.log. Its outcome and exact tested head are recorded in the PR body after completion; no checkout changes follow the full run.

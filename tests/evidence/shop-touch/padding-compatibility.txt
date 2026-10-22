@@ -1,0 +1,14 @@
+Padding source: PR #177 at a14e6c27440153cc2ae9dd831f834bab0e520bc6.
+Touch source: be135d8e1a7b5d3990299c9ea261b421a7e3c6aa.
+Temporary detached tree started at 3d500c0. Merged origin/codex/so-fix-ui-padding there with --no-commit --no-ff -Xours, then copied the final touch shop module and touch tests into it.
+The temporary tree's so-ui.lua is identical to #177's so-ui.lua. No padding commit is merged into the touch branch.
+
+Before the fix, the category controls overwrote the header on row 2. padding-before.txt preserves that failure.
+The shop now measures a blank kit header and tile once per height, then positions controls below the measured header and calculates page capacity from the measured tile height.
+Compact tiles remain five rows. The quantity row and letter picker use the available space. Larger padded tiles reduce capacity instead of covering controls.
+
+Combined-tree check: 30 passed, 0 failed.
+This includes all 22 navigation checks and eight touch shop checks with 40 stock items.
+The touch checks assert that row 2 retains SHOP on browse, letter, selected-item and sent-order frames. At 29x12, 26x20, 57x24 and 100x38 they check drawn, non-overlapping controls, no search field, category, letter, sort, paging, one order of 16, order status and unchanged second-display state.
+Simulated paired clients cover 26x20, 29x12 and 100x38, return through BACK/MORE and remain under the 1 MB disk limit.
+See padding-combined.txt and padding-{26x20,29x12,100x38}.txt. Captures are mock terminal output, not real gameplay screenshots.

@@ -1,0 +1,39 @@
+Mock terminal capture, 40 stock items
+ SHOP            stock 01:16 
+  ALL    ORES   WOOD    FOOD 
+BLOCKS  TOOLS   OTHER        
+   A-Z      STOCK     NAME   
+ DIAMOND PICKAXE             
+           🬚🬋🬃🬞🬋             
+           🬂🬂🬓🬛🬋🬏            
+           🬈🬋🬀🬈🬋🬀            
+ - steady                    
+                             
+                             
+   <     1/40     >     BACK 
+Selected item
+ SHOP > IRON INGOT           
+ stock 01:16                 
+ IN STOCK                    
+           🬚🬋🬃🬞🬓             
+           🬂🬂🬓 ▌             
+           🬈🬋🬀🬇🬌             
+ - steady                    
+                             
+ ORDER 1  ORDER 16  ORDER 64 
+                             
+                             
+            BACK             
+One order sent, quantities inactive
+ SHOP > IRON INGOT           
+ stock 01:16                 
+ IN STOCK                    
+           🬚🬋🬃🬞🬓             
+           🬂🬂🬓 ▌             
+           🬈🬋🬀🬇🬌             
+ - steady                    
+                             
+    1        16        64    
+                             
+ Order: sent 16              
+            BACK             

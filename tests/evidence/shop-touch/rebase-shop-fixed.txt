@@ -1,0 +1,27 @@
+part: so-mod-shop; suites: tests/ui/ui2c.lua
+part: generated 10 input files; private cwd /tmp/cc-part-fjyetxrh
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: reserving local-1 for emulator + Lua part
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.414s)
+Evidence: /tmp/craftos-evidence-ysennm10
+cc-test: using local-1 slot
+PASS UI2c shop and order pages match the touch M fixtures
+PASS UI2c touch fixtures match at compact pocket and large sizes
+PASS UI2c one order tap sends once and renders send nothing
+PASS UI2c direct orders use stock and name ranking without changing display state
+PASS UI2c paging visits every item once and clamps at both ends
+PASS UI2c all sizes keep both pages inside bounds with readable contrast
+PASS UI2c gathering uses stock and history and keeps discovery visible
+part: 7 passed, 0 failed, 0 undeclared reads; Lua CPU 0.074s
+part: local Lua wall 0.077s (excludes slot queue)

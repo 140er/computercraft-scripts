@@ -206,7 +206,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the fallback buttons. The draft editor keeps its header clear and returns
   to the list with BACK. Generic screens at least 39 columns wide gain a PANEL
   header button when the panel screen is loaded and they do not already provide one.
-  Input includes sender ID `from`. Sessions retain the client ID as `id`.
+  Input includes sender ID `from`. Sessions retain the client ID as `id` and hello `keyboard == true` as `keyboard`.
+  Monitor clients send false; older clients omit it and get touch controls.
   Kit-free callbacks receive that ID instead of the session. Their generic
   frames reserve two navigation rows and keep a visible return button.
   Render signatures and revisions are isolated by role, size and session. Status also
@@ -239,9 +240,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   header opens the generic drop-point list. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   Main-page inputs forward START and STOP once to the mining or lumber screen.
-  Orders call `shop.order(search, count)` once. Shop's count/name sort defines
+  Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
+  Monitor panels replace quick search and quantities with a SHOP button.
   GLANCE returns to status; ALERTS lists state alerts; PAIR offers NEW CODE.
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
@@ -259,10 +261,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Tick registers the shop screen, discovers storage and polls stock.
   Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
   `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
-  List controls are `prev`, `next`, `clear`, `search` and `status` for BACK.
-  Submitted text resets paging. The kit-free renderer retains the legacy list.
-  Search, paging, page capacity and selection belong to each display. Search has
-  a visible clear button. Five minutes without stock resumes discovery; the legacy room has no server-only pairing or selector setting.
+  List controls are `category:<name>`, `letters`, `letter:<A-Z|ALL>`,
+  `sort:count`, `sort:name`, `prev`, `next` and `status` for BACK.
+  Small screens use `categories` to open a category picker. No shop search field
+  is drawn. The kit-free renderer retains its item list and direct order buttons.
+  Browse state and order feedback belong to each display. Orders send once and
+  disable quantities until another item selection. Sent does not imply delivery.
+  Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
+  The legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.

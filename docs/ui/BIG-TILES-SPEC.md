@@ -162,6 +162,31 @@ Compact mining rows show the worker id, full x,y,z position, then state.
 Below 26 columns, mining navigation wraps into two rows.
 AR goggles: section 7.2.
 
+The shop has no search field on monitors or pockets. Category tabs are ALL, ORES,
+WOOD, FOOD, BLOCKS, TOOLS and OTHER. A small ID substring table assigns items;
+unknown IDs stay in OTHER. Tools take precedence over materials. A-Z opens a
+letter picker with ALL to remove the letter filter. STOCK and NAME select the
+sort order. Category, letter and sort changes reset paging for that display.
+Compact controls use one row. The shop measures the kit header and tile extent
+once per height. It uses five-row compact tiles and the kit's grid. The padded
+kit in #177 places the header on row 2; controls start below it and larger tiles
+reduce the page capacity instead of covering controls.
+At 29x12 there is one item per page; at 26x20 there are two. Large screens add
+columns and rows. Below these sizes, categories open in a separate picker.
+
+Tap an item, then a large 1, 16 or 64 quantity button. An order sends once and
+leaves the display on its order page. Quantities become inactive until the user
+returns to the list and selects an item again. Sent, delivered and failed are
+order states for that display. Getting or Crafting acknowledges a sent order;
+it does not prove delivery. Legacy rooms currently send only that acknowledgement.
+Missing storage shows Storage room not found. Stock older than 30 seconds shows
+STALE STOCK; after five minutes the list clears and discovery resumes.
+
+Monitor panels show a SHOP button instead of typed quick orders. Keyboard panels
+keep quick search. Clients report `keyboard = false` for every monitor, including
+monitors attached to a computer with a keyboard. Missing capability flags use
+touch controls. Every action has a drawn button. No helper text is needed.
+
 ### 7.0 Top-down map
 
 A teal `MAP` button occupies the right four cells of every Big Tiles header
@@ -458,12 +483,11 @@ Lumber, room monitor  (57x24)
                                                          
 ```
 
-Shop, room monitor (tap an item tile for the order page)  (57x24)
+Shop, room monitor  (57x24)
 ```text
  SHOP                                        stock 21:14 
-                                                         
-  search: iron_                                          
-                                                         
+  ALL     ORES    WOOD    FOOD   BLOCKS   TOOLS    OTHER 
+       A-Z                STOCK               NAME       
  IRON INGOT         IRON ORE            RAW IRON         
    🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬋🬋🬏🬞🬓 🬖🬋🬏             🬵 🬖🬋🬏      
     ▌  🬖🬀🬳🬷🬏▌ ▌         🬇🬋🬐 ▌  🬖🬀            🬳🬷🬏🬗🬋🬐      
@@ -476,20 +500,21 @@ Shop, room monitor (tap an item tile for the order page)  (57x24)
       🬍🬋🬃🬉                 🬈🬋🬀                🬈🬋🬀        
  - steady           v low               empty            
                                                          
- Order: 16 iron_ingot sent to output chest               
+ IRON 7             IRON 8              IRON 9           
+       🬖🬋🬏                 🬖🬋🬏                🬖🬋🬏        
+       ▌ ▌                 ▌ ▌                ▌ ▌        
+       🬈🬋🬀                 🬈🬋🬀                🬈🬋🬀        
+ empty              empty               empty            
+ Order: sent 16                                          
                                                          
-                                                         
-      < PREV            page 1/3             NEXT >      
-                                                         
-                                                         
-        CLEAR SEARCH                     BACK            
+      <             1/2            >            BACK     
                                                          
 ```
 
 Shop order page  (57x24)
 ```text
  SHOP > IRON INGOT                                       
-                                                         
+ stock 21:14                                             
  IN STOCK                                                
                       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                       
                        ▌  🬖🬀🬳🬷🬏▌ ▌                       
@@ -502,13 +527,13 @@ Shop order page  (57x24)
                                                          
                                                          
                                                          
- Order: 16 iron_ingot ok (2 s ago)                       
                                                          
                                                          
                                                          
                                                          
                                                          
-                                                         
+ stock 21:14                                             
+ Order: delivered                                        
                                                          
                           BACK                           
                                                          
@@ -885,6 +910,126 @@ fffffffffffffffffffffffffffff
 99999999999999999999999999999
 99999999999999999999999999999
 77777777777777777777777777777
+```
+
+Shop, compact touch monitor  (29x12)
+```text
+ SHOP            stock 21:14 
+  ALL    ORES   WOOD    FOOD 
+BLOCKS  TOOLS   OTHER        
+   A-Z      STOCK     NAME   
+ IRON INGOT                  
+        🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         
+         ▌  🬖🬀🬳🬷🬏▌ ▌         
+        🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
+ ^ +60/h                     
+                             
+ Order: sent 16              
+   <     1/18     >     BACK 
+```
+Background layer (blit letters, see palette):
+```text
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaf777777f7777777f777777
+7777777f777777f7777777fffffff
+777777777faaaaaaaaaf777777777
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+7777777f777777f7777777f777777
+```
+
+Shop, pocket touch flow  (26x20)
+```text
+ SHOP         stock 21:14 
+  ALL      ORES     WOOD  
+  FOOD    BLOCKS   TOOLS  
+ OTHER                    
+  A-Z     STOCK     NAME  
+ IRON INGOT               
+       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏       
+        ▌  🬖🬀🬳🬷🬏▌ ▌       
+       🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀       
+ ^ +60/h                  
+                          
+ IRON ORE                 
+        🬋🬋🬏🬞🬓 🬖🬋🬏         
+        🬇🬋🬐 ▌  🬖🬀         
+        🬋🬋🬀🬇🬌 🬍🬋🬃         
+ - steady                 
+ Order: sent 16           
+                          
+  <     1/9     >    BACK 
+                          
+```
+Background layer (blit letters, see palette):
+```text
+aaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaf77777777f77777777
+77777777f77777777f77777777
+77777777ffffffffffffffffff
+77777777faaaaaaaaf77777777
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+ffffffffffffffffffffffffff
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+bbbbbbbbbbbbbbbbbbbbbbbbbb
+ffffffffffffffffffffffffff
+777777f777777f77777f777777
+777777f777777f77777f777777
+777777f777777f77777f777777
+```
+
+Shop, large touch monitor  (100x38)
+```text
+ SHOP                                                                                   stock 21:14 
+     ALL           ORES          WOOD           FOOD         BLOCKS         TOOLS          OTHER    
+               A-Z                             STOCK                             NAME               
+ IRON INGOT          IRON ORE            RAW IRON             IRON BLOCK          IRON NUGGET       
+   🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏          🬋🬋🬏🬞🬓 🬖🬋🬏              🬵 🬖🬋🬏              🬖🬋🬏🬋🬋🬓                🬚🬋🬃        
+    ▌  🬖🬀🬳🬷🬏▌ ▌          🬇🬋🬐 ▌  🬖🬀             🬳🬷🬏🬗🬋🬐               🬖🬀🬞🬅                 🬂🬂🬓        
+   🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀          🬋🬋🬀🬇🬌 🬍🬋🬃              🬉 🬈🬋🬀              🬍🬋🬃🬉                  🬈🬋🬀        
+ ^ +60/h             - steady            v -20/h              - steady            v low             
+                                                                                                    
+ IRON BARS           IRON 7              IRON 8               IRON 9              IRON 10           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
+ empty               empty               empty                empty               empty             
+                                                                                                    
+ IRON 11             IRON 12             IRON 13              IRON 14             IRON 15           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
+ empty               empty               empty                empty               empty             
+                                                                                                    
+ IRON 16             IRON 17             IRON 18                                                    
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                                                 
+        ▌ ▌                 ▌ ▌                 ▌ ▌                                                 
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                                                 
+ empty               empty               empty                                                      
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ Order: sent 16                                                                                     
+                                                                                                    
+           <                        1/1                       >                       BACK          
+                                                                                                    
 ```
 
 

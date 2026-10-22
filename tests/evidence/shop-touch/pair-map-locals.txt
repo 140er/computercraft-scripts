@@ -1,0 +1,12 @@
+display.lua        30 locals (deepest at function line 195) ok
+so-mod-display.lua   30 locals (deepest at function line 182) ok
+so-mod-panel.lua   20 locals (deepest at function line 67) ok
+so-mod-shop.lua    25 locals (deepest at function line 134) ok
+run.lua            37 locals (deepest at function line 381) ok
+minor-ui-fixture.lua   27 locals (deepest at function line 50) ok
+minor-ui.lua       21 locals (deepest at function line 118) ok
+shop-touch.lua     27 locals (deepest at function line 70) ok
+ui0.lua            48 locals (deepest at function line 255) ok
+ui2c.lua           33 locals (deepest at function line 123) ok
+ui3b.lua           37 locals (deepest at function line 206) ok
+ui5a.lua           24 locals (deepest at function line 197) ok

@@ -1,6 +1,6 @@
 57x24 Shop order page
  SHOP > IRON INGOT                                       
-                                                         
+ stock 21:14                                             
  IN STOCK                                                
                       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                       
                        ▌  🬖🬀🬳🬷🬏▌ ▌                       
@@ -13,13 +13,13 @@
                                                          
                                                          
                                                          
- Order: 16 iron_ingot ok (2 s ago)                       
                                                          
                                                          
                                                          
                                                          
                                                          
-                                                         
+ stock 21:14                                             
+ Order: delivered                                        
                                                          
                           BACK                           
                                                          

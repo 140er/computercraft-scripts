@@ -1,0 +1,14 @@
+FAIL touch shop browse and one order at 29x12
+tests/ui/shop-touch.lua:41: shop header overwritten
+FAIL touch shop browse and one order at 26x20
+tests/ui/shop-touch.lua:41: shop header overwritten
+FAIL touch shop browse and one order at 57x24
+tests/ui/shop-touch.lua:41: shop header overwritten
+FAIL touch shop browse and one order at 100x38
+tests/ui/shop-touch.lua:41: shop header overwritten
+PASS touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+FAIL touch shop reports failures missing room and stale stock
+tests/ui/shop-touch.lua:182: assertion failed!
+8 tests, 5 failed

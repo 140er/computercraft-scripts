@@ -37,7 +37,7 @@ local function capture(frame, w, h)
 end
 local function model()
   local m = { found=true, time="21:14", search="iron", page=1,
-    order="16 iron_ingot sent to output chest", items={} }
+    order="Order: sent 16", items={} }
   for _,v in ipairs({
     {"iron_ingot",1240,"^ +60/h","b"},{"iron_ore",312,"- steady","b"},
     {"raw_iron",48,"v -20/h","1"},{"iron_block",27,"- steady","b"},
@@ -49,15 +49,22 @@ local function model()
   return m
 end
 return function(test, equal)
-  test("UI2c shop and order pages match unchanged M fixtures",function()
+  test("UI2c shop and order pages match the touch M fixtures",function()
     local s = setup()
     assert(s.state.layout, "missing pure shop layout")
     local m=model()
     local diff=R.diff("tests/ui/fixtures/shop-M.txt",capture(s.state.layout(m,57,24),57,24))
     assert(#diff==0,table.concat(diff,"\n"))
-    m.selected=m.items[1];m.order="16 iron_ingot ok (2 s ago)"
+    m.selected=m.items[1];m.order="Order: delivered"
     diff=R.diff("tests/ui/fixtures/shoporder-M.txt",capture(s.state.layout(m,57,24),57,24))
     assert(#diff==0,table.concat(diff,"\n"))
+  end)
+  test("UI2c touch fixtures match at compact pocket and large sizes",function()
+    local s=setup()
+    for _,case in ipairs({{29,12,"tests/ui/fixtures/shop-compact.txt"},{26,20,"tests/ui/fixtures/shop-pocket.txt"},{100,38,"tests/ui/fixtures/shop-large.txt"}}) do
+      local diff=R.diff(case[3],capture(s.state.layout(model(),case[1],case[2]),case[1],case[2]))
+      assert(#diff==0,table.concat(diff,"\n"))
+    end
   end)
   test("UI2c one order tap sends once and renders send nothing",function()
     for _,amount in ipairs({1,16,64}) do
@@ -88,7 +95,7 @@ return function(test, equal)
     mod.order("IRON",16)
     equal(#s.sends,1);equal(s.sends[1].body.text,"iron_a")
     local after=s.state.gather(2)
-    after.order=before.order;equal(after,before)
+    equal(after,before)
     for _,case in ipairs({{"missing",16},{"iron",2},{false,16}}) do mod.order(unpack(case)) end
     equal(#s.sends,1)
   end)
@@ -97,16 +104,16 @@ return function(test, equal)
     for i=1,19 do totals["iron_"..i]=i end
     mod.listen.roomsorter_stock(9,{totals=totals})
     local seen={}
-    for page=1,4 do
+    for page=1,3 do
       local frame=s.render(57,24);local count=0
       for _,b in ipairs(frame.buttons) do
         local name=b.id:match("^item:(.+)$")
         if name then assert(not seen[name]);seen[name]=true;count=count+1 end
       end
-      equal(count,page==4 and 1 or 6)
+      equal(count,page==3 and 1 or 9)
       s.input({id="next"})
     end
-    equal(s.state.gather().page,4)
+    equal(s.state.gather().page,3)
     for i=1,5 do s.input({id="prev"});s.render(57,24) end
     equal(s.state.gather().page,1)
     s.input({id="next"});s.input({text="IRON 1"});s.render(57,24)
@@ -129,7 +136,7 @@ return function(test, equal)
           if page==2 then
             for _,amount in ipairs({1,16,64}) do assert(buttons["order:"..amount..":iron_ingot"]) end
             assert(buttons.items)
-          else assert(buttons.prev and buttons.next and buttons.page and buttons.clear and buttons.status) end
+          else assert(buttons.prev and buttons.next and buttons.page and buttons.letters and buttons.status) end
         end
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
           local fg,bg=cell[2],cell[3]
