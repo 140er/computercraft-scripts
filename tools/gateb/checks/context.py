@@ -150,6 +150,9 @@ class Context:
         return seconds * 20 / self.tick_rate
 
     def screen_input(self, role, text=None, button=None):
+        ready = f'return SO and SO.mods and SO.mods.display and SO.mods.display.screen({json.dumps(role)}) ~= nil'
+        if not self.wait(lambda: self.lua("server", ready), 60):
+            raise Blocked(f"Server did not register the {role} screen")
         payload = {"text": text} if text is not None else {"id": button}
         code = f'local s=assert(SO.mods.display.screen({json.dumps(role)})); s.input(textutils.unserializeJSON({json.dumps(json.dumps(payload))})); return true'
         return self.lua("server", code)

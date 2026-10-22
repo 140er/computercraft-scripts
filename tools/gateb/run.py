@@ -127,7 +127,7 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
             if install.get("sha") != ctx.commit or install.get("errors"):
                 raise Blocked("Runtime did not verify a clean exact-commit installation")
             ctx.manifest = ctx.request("manifest")
-            if not ctx.wait(lambda: ctx.lua("server", "return SO ~= nil"), 60):
+            if not ctx.wait(lambda: ctx.lua("server", 'return SO and SO.mods and SO.mods.display and SO.mods.display.screen("mining") ~= nil'), 60):
                 raise Blocked("Installed server did not finish booting")
         ctx.command(f"tick rate {ctx.tick_rate:g}")
         if ctx.tick_rate != 20 and ctx.lua("server", 'return SO and type(SO.now) == "function"') is not True:

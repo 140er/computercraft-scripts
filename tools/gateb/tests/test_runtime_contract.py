@@ -88,6 +88,19 @@ class ContractTests(unittest.TestCase):
         completed=subprocess.run(["lua5.2","-"],input=source,text=True,capture_output=True)
         self.assertEqual(completed.returncode,0,completed.stderr)
 
+    def test_setup_waits_for_screen_registration(self):
+        calls=[]
+        class Runtime:
+            def request(self,world,request,timeout):
+                calls.append(request["code"])
+                return {"values":[len(calls)>1]}
+        with tempfile.TemporaryDirectory() as temp:
+            ctx=Context(Runtime(),"test",{"computers":{"1":{"name":"server"}}},temp,"a"*40,interval=0)
+            self.assertTrue(ctx.screen_input("mining","stop"))
+        self.assertEqual(len(calls),3)
+        self.assertNotIn("local s=assert",calls[0])
+        self.assertIn("local s=assert",calls[-1])
+
     def test_native_keyboard_char_events(self):
         class Runtime:
             def __init__(self): self.requests=[]
