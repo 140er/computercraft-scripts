@@ -303,7 +303,14 @@ return function(test, equal)
   end)
 
   test("UI0 generator preserves section 7.1 and reproduces every fixture", function()
-    local root = assert(io.popen("pwd")):read("*l")
+    assert(#source("display.lua") < 16384, "display.lua exceeds 16 KB")
+    local pipe = io.popen("pwd")
+    local root = pipe and pipe:read("*l")
+    if pipe then pipe:close() end
+    if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
+      print("SKIP UI0 generator check: needs a POSIX shell and python3")
+      return
+    end
     local dir = os.tmpname()
     os.remove(dir)
     assert(os.execute("mkdir -p '" .. dir .. "'"))
@@ -320,6 +327,5 @@ return function(test, equal)
       R.load(dir .. "/fixtures/" .. name .. ".txt")
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
-    assert(#source("display.lua") < 16384, "display.lua exceeds 16 KB")
   end)
 end
