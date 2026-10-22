@@ -1,6 +1,6 @@
 57x24 Map, projected levels 57x24
- MAP                                             N ^ 1:1 
                                                          
+ MAP                                             N ^ 1:1 
                                                          
                                                          
                                                          
@@ -23,8 +23,8 @@
      BACK           FIT            +              -      
       ^              <             v              >      
                            ALL                           
-777777777777777777777777777777777777777777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

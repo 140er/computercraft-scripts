@@ -1,25 +1,25 @@
 29x12 Shop, compact touch monitor
+                             
  SHOP            stock 21:14 
   ALL    ORES   WOOD    FOOD 
 BLOCKS  TOOLS   OTHER        
    A-Z      STOCK     NAME   
- IRON INGOT                  
+                             
+  IRON INGOT                 
         🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         
          ▌  🬖🬀🬳🬷🬏▌ ▌         
         🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
- ^ +60/h                     
-                             
  Order: sent 16              
    <     1/18     >     BACK 
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+fffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaf
 aaaaaaaf777777f7777777f777777
 7777777f777777f7777777fffffff
 777777777faaaaaaaaaf777777777
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-fffffffffffffffffffffffffffff
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffff
 7777777f777777f7777777f777777

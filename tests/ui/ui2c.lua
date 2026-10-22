@@ -104,16 +104,16 @@ return function(test, equal)
     for i=1,19 do totals["iron_"..i]=i end
     mod.listen.roomsorter_stock(9,{totals=totals})
     local seen={}
-    for page=1,3 do
+    for page=1,4 do
       local frame=s.render(57,24);local count=0
       for _,b in ipairs(frame.buttons) do
         local name=b.id:match("^item:(.+)$")
         if name then assert(not seen[name]);seen[name]=true;count=count+1 end
       end
-      equal(count,page==3 and 1 or 9)
+      equal(count,page==4 and 1 or 6)
       s.input({id="next"})
     end
-    equal(s.state.gather().page,3)
+    equal(s.state.gather().page,4)
     for i=1,5 do s.input({id="prev"});s.render(57,24) end
     equal(s.state.gather().page,1)
     s.input({id="next"});s.input({text="IRON 1"});s.render(57,24)

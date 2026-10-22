@@ -1,6 +1,6 @@
 29x12 Map, projected levels 29x12
- MAP                 N ^ 1:2 
                              
+ MAP                 N ^ 1:2 
                 v            
                              
                >O            
@@ -11,8 +11,8 @@
  BACK    FIT      +      -   
    ^      <       v      >   
              ALL             
-77777777777777777777777777777
 fffffffffffffffffffffffffffff
+f777777777777777777777777777f
 ffffffffffffff77bffffffffffff
 ffffffffffffff8ffffffffffffff
 ffffffffffffff7daffffffffffff

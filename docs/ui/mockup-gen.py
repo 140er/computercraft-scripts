@@ -56,8 +56,8 @@ class Canvas:
                 if bg: s.b[y][i] = bg
     def center(s, x, w, y, txt, bg=None):
         s.text(x + max(0, (w - len(txt)) // 2), y, txt[:w], bg)
-    def header(s, name, right="21:14"):
-        s.fill(1, 1, s.w-2, 1, "7")
+    def header(s, name, right="21:14", bg="7"):
+        s.fill(1, 1, s.w-2, 1, bg)
         s.text(1, 1, name)
         s.text(s.w - len(right) - 1, 1, right)
     def alert(s, msg):
@@ -173,32 +173,35 @@ SHOP_ITEMS += [("IRON " + str(i), "0", "empty", "e") for i in range(7, 19)]
 def shop(w, h, selected=False):
     import math
     c = Canvas(w, h)
-    c.fill(0, 0, w, 1, "a")
-    c.text(1, 0, "SHOP > IRON INGOT" if selected else "SHOP")
+    header, tile = 1, 5 if h < 16 else 7 if h >= 24 else 6
     nav = 1 if h < 16 else 3
     bottom = h - nav
     if selected:
-        c.text(1, 1, "stock 21:14")
-        c.tile(0, 2, w, "IN STOCK", "1240", "^ +60 per hour", "b")
+        c.header("SHOP > IRON INGOT", "", "a")
+        y = 2 if h < 16 else header + 2
+        if y > header + 1: c.text(1, header + 1, "stock 21:14")
+        c.tile(0, y, w, "IN STOCK", "1240", "^ +60 per hour", "b", tile)
+        y = 7 if h < 16 else y + tile + 1
+        height = 1 if h < 12 else 3 if h < 16 else min(5, bottom - 2 - y)
         for (x, width), amount in zip(grid(w, 3), [1, 16, 64]):
-            c.button(x, 7 if h < 16 else 8, width, "ORDER " + str(amount), "a", 1 if h < 12 else 3 if h < 16 else 5)
+            c.button(x, y, width, ("" if w < 26 else "ORDER ") + str(amount), "a", height)
         c.text(1, bottom - 1, "Order: delivered")
         if h >= 16: c.text(1, bottom - 2, "stock 21:14")
         c.button(0, bottom, w, "BACK", h=nav)
         return c
-    c.text(w - 12, 0, "stock 21:14")
+    c.header("SHOP", "stock 21:14" if w >= 26 else "", "a")
     tabs = grid(w, max(1, min(7, (w + 1) // 7)))
-    top = 2 + math.ceil(7 / len(tabs))
+    top = header + (3 if w < 26 or h < 12 else 2 + math.ceil(7 / len(tabs)))
     for i, label in enumerate(["ALL", "ORES", "WOOD", "FOOD", "BLOCKS", "TOOLS", "OTHER"]):
         x, width = tabs[i % len(tabs)]
-        c.button(x, 1 + i // len(tabs), width, label, "a" if i == 0 else "7", 1)
+        c.button(x, header + 1 + i // len(tabs), width, label, "a" if i == 0 else "7", 1)
     for (x, width), label in zip(grid(w, 3), ["A-Z", "STOCK", "NAME"]):
         c.button(x, top - 1, width, label, "a" if label == "STOCK" else "7", 1)
     cols = grid(w, max(1, (w + 1) // 19))
-    capacity = len(cols) * max(1, (bottom - top) // 6)
+    capacity = len(cols) * max(1, (bottom - top) // (tile + 1))
     for i, (label, value, sub, bg) in enumerate(SHOP_ITEMS[:capacity]):
         x, width = cols[i % len(cols)]
-        c.tile(x, top + (i // len(cols)) * 6, width, label, value, sub, bg)
+        c.tile(x, top + (i // len(cols)) * (tile + 1), width, label, value, sub, bg, tile)
     c.text(1, bottom - 1, "Order: sent 16")
     for (x, width), label in zip(grid(w, 4), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">", "BACK"]):
         c.button(x, bottom, width, label, h=nav)
@@ -266,10 +269,10 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
         c = Canvas(w, h); c.header("PANEL", "01:00")
         c.text(1, 2, "PAIR NEW CLIENT")
         if pending:
-            c.fill(0, 3, w, 4, "9")
+            c.fill(1, 3, w-2, 4, "9")
             for r, row in enumerate(big("123456")):
-                c.center(0, w, 3+r, row)
-            c.center(0, w, 6, "4:52 left", "9")
+                c.center(1, w-2, 3+r, row)
+            c.center(1, w-2, 6, "4:52 left", "9")
         c.button(0, h-4, w, "NEW CODE", "9")
         c.button(0, h-1, w, "BACK", h=1)
         add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)

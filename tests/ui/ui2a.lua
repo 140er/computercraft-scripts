@@ -49,7 +49,7 @@ return function(test,equal)
       s.input({id=id,x=button.x,y=button.y,session=session})
     end
     press(a,'setup')
-    assert(capture(s.render(57,24,a),57,24).picture().text[1]:find('SETUP',1,true))
+    assert(capture(s.render(57,24,a),57,24).picture().text[2]:find('SETUP',1,true))
     equal(s.render(57,24,b),main)
     equal(s.render(57,24),main)
     press(a,'mine-back');equal(s.render(57,24,a),main)

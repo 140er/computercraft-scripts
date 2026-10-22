@@ -1,30 +1,30 @@
 100x38 Shop, large touch monitor
+                                                                                                    
  SHOP                                                                                   stock 21:14 
      ALL           ORES          WOOD           FOOD         BLOCKS         TOOLS          OTHER    
                A-Z                             STOCK                             NAME               
- IRON INGOT          IRON ORE            RAW IRON             IRON BLOCK          IRON NUGGET       
-   🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏          🬋🬋🬏🬞🬓 🬖🬋🬏              🬵 🬖🬋🬏              🬖🬋🬏🬋🬋🬓                🬚🬋🬃        
-    ▌  🬖🬀🬳🬷🬏▌ ▌          🬇🬋🬐 ▌  🬖🬀             🬳🬷🬏🬗🬋🬐               🬖🬀🬞🬅                 🬂🬂🬓        
-   🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀          🬋🬋🬀🬇🬌 🬍🬋🬃              🬉 🬈🬋🬀              🬍🬋🬃🬉                  🬈🬋🬀        
- ^ +60/h             - steady            v -20/h              - steady            v low             
                                                                                                     
- IRON BARS           IRON 7              IRON 8               IRON 9              IRON 10           
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
-        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
- empty               empty               empty                empty               empty             
+  IRON INGOT         IRON ORE            RAW IRON             IRON BLOCK          IRON NUGGET       
+    🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬋🬋🬏🬞🬓 🬖🬋🬏              🬵 🬖🬋🬏              🬖🬋🬏🬋🬋🬓               🬚🬋🬃         
+     ▌  🬖🬀🬳🬷🬏▌ ▌         🬇🬋🬐 ▌  🬖🬀             🬳🬷🬏🬗🬋🬐               🬖🬀🬞🬅                🬂🬂🬓         
+    🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         🬋🬋🬀🬇🬌 🬍🬋🬃              🬉 🬈🬋🬀              🬍🬋🬃🬉                 🬈🬋🬀         
+  ^ +60/h            - steady            v -20/h              - steady            v low             
                                                                                                     
- IRON 11             IRON 12             IRON 13              IRON 14             IRON 15           
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
-        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
- empty               empty               empty                empty               empty             
                                                                                                     
- IRON 16             IRON 17             IRON 18                                                    
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                                                 
-        ▌ ▌                 ▌ ▌                 ▌ ▌                                                 
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                                                 
- empty               empty               empty                                                      
+                                                                                                    
+  IRON BARS          IRON 7              IRON 8               IRON 9              IRON 10           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                🬖🬋🬏         
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                ▌ ▌         
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                🬈🬋🬀         
+  empty              empty               empty                empty               empty             
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  IRON 11            IRON 12             IRON 13              IRON 14             IRON 15           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                🬖🬋🬏         
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                ▌ ▌         
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                🬈🬋🬀         
+  empty              empty               empty                empty               empty             
                                                                                                     
                                                                                                     
                                                                                                     
@@ -35,35 +35,35 @@
                                                                                                     
  Order: sent 16                                                                                     
                                                                                                     
-           <                        1/1                       >                       BACK          
+           <                        1/2                       >                       BACK          
                                                                                                     
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
 aaaaaaaaaaaaaf77777777777777f7777777777777f77777777777777f7777777777777f77777777777777f7777777777777
 777777777777777777777777777777777faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf777777777777777777777777777777777
-bbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf1111111111111111111
-bbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf1111111111111111111
-bbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf1111111111111111111
-bbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf1111111111111111111
-bbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf1111111111111111111
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
+fbbbbbbbbbbbbbbbbbbfbbbbbbbbbbbbbbbbbbbf11111111111111111111fbbbbbbbbbbbbbbbbbbbf111111111111111111f
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeee
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffff
-eeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
+feeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeeefeeeeeeeeeeeeeeeeeef
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

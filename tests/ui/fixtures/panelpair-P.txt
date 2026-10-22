@@ -1,6 +1,6 @@
 26x20 Panel pairing ready P
- PANEL              01:00 
                           
+ PANEL              01:00 
  PAIR NEW CLIENT          
                           
                           
@@ -19,8 +19,8 @@
          NEW CODE         
                           
            BACK           
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

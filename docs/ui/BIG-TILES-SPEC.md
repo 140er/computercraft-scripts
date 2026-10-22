@@ -150,7 +150,10 @@ Shop item tiles open the order page. Its BACK returns to the item list, whose
 BACK returns to status. AR has BACK to status. Panel ALERTS and PAIR have BACK
 to panel; GLANCE returns to status and MORE opens the drop-point list.
 PAIR has a three-row NEW CODE button above BACK at 26x20 and 29x12.
-A paired display sees its invitation in six big digits with the time left.
+A paired display sees its invitation in six big digits with the time left,
+on a teal block inset one column from each screen edge.
+The panel main page puts the fleet line on row 3, below the header, and moves
+its job blocks down one row. Below 12 rows it drops the fleet line.
 Repeat presses preserve the pending code. Use, expiry or five wrong attempts
 restore the normal pair page. Only the requesting display receives the code;
 the server terminal also shows it. An existing invitation from another display
@@ -169,10 +172,10 @@ unknown IDs stay in OTHER. Tools take precedence over materials. A-Z opens a
 letter picker with ALL to remove the letter filter. STOCK and NAME select the
 sort order. Category, letter and sort changes reset paging for that display.
 Compact controls use one row. The shop measures the kit header and tile extent
-once per height. It uses five-row compact tiles and the kit's grid. The padded
-kit in #177 places the header on row 2; controls start below it and larger tiles
+once per height. Below 16 rows it uses five-row tiles without a sub-line, on the
+kit's grid. Controls start below the row 2 header, and taller padded tiles
 reduce the page capacity instead of covering controls.
-At 29x12 there is one item per page; at 26x20 there are two. Large screens add
+At 29x12 and 26x20 there is one item per page. Large screens add
 columns and rows. Below these sizes, categories open in a separate picker.
 
 Tap an item, then a large 1, 16 or 64 quantity button. An order sends once and
@@ -461,23 +464,12 @@ Lumber, room monitor  (57x24)
                                                          
  LUMBER                                          running 
  ! out of saplings: replanting paused                    
- TREES READY        LOGS TODAY          SAPLINGS         
-       🬖🬋🬏               🬖🬋🬏🬞🬋                🬖🬋🬏        
-        🬖🬀               🬈🬋▌🬛🬋🬏               ▌ ▌        
-       🬍🬋🬃               🬇🬅 🬈🬋🬀               🬈🬋🬀        
- of 4 spots         logs delivered      chest empty      
-                                                         
- TURTLE             FUEL                NEXT GROW        
-        🬵             🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏        🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏   
-       🬳🬷🬏             ▌  🬖🬀 ▌ ▌ ▌        🬛🬋🬏🬠🬐  🬖🬀▌ ▌   
-        🬉             🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀        🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀   
- felling            ok                  min:sec          
                                                          
   TREES READY       LOGS TODAY          SAPLINGS         
-        🬖🬋🬏                                   🬖🬋🬏        
-         🬖🬀                🬋🬋🬃                ▌ ▌        
-        🬍🬋🬃                                   🬈🬋🬀        
-  of 4 spots        no daily source     chest empty      
+        🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
+         🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
+        🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
+  of 4 spots        logs delivered      chest empty      
                                                          
                                                          
                                                          
@@ -497,14 +489,10 @@ Lumber, room monitor  (57x24)
 
 Shop, room monitor  (57x24)
 ```text
+                                                         
  SHOP                                        stock 21:14 
   ALL     ORES    WOOD    FOOD   BLOCKS   TOOLS    OTHER 
        A-Z                STOCK               NAME       
- IRON INGOT         IRON ORE            RAW IRON         
-   🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬋🬋🬏🬞🬓 🬖🬋🬏             🬵 🬖🬋🬏      
-    ▌  🬖🬀🬳🬷🬏▌ ▌         🬇🬋🬐 ▌  🬖🬀            🬳🬷🬏🬗🬋🬐      
-   🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         🬋🬋🬀🬇🬌 🬍🬋🬃             🬉 🬈🬋🬀      
- ^ +60/h            - steady            v -20/h          
                                                          
   IRON INGOT        IRON ORE            RAW IRON         
    🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬋🬋🬏🬞🬓 🬖🬋🬏            🬵 🬖🬋🬏       
@@ -514,17 +502,16 @@ Shop, room monitor  (57x24)
                                                          
                                                          
                                                          
+  IRON BLOCK        IRON NUGGET         IRON BARS        
+      🬖🬋🬏🬋🬋🬓               🬚🬋🬃                🬖🬋🬏        
+       🬖🬀🬞🬅                🬂🬂🬓                ▌ ▌        
+      🬍🬋🬃🬉                 🬈🬋🬀                🬈🬋🬀        
+  - steady          v low               empty            
                                                          
                                                          
-                                                         
- IRON 7             IRON 8              IRON 9           
-       🬖🬋🬏                 🬖🬋🬏                🬖🬋🬏        
-       ▌ ▌                 ▌ ▌                ▌ ▌        
-       🬈🬋🬀                 🬈🬋🬀                🬈🬋🬀        
- empty              empty               empty            
  Order: sent 16                                          
                                                          
-      <             1/2            >            BACK     
+      <             1/3            >            BACK     
                                                          
 ```
 
@@ -533,7 +520,8 @@ Shop order page  (57x24)
                                                          
  SHOP > IRON INGOT                                       
  stock 21:14                                             
- IN STOCK                                                
+                                                         
+  IN STOCK                                               
                       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                       
                        ▌  🬖🬀🬳🬷🬏▌ ▌                       
                       🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀                       
@@ -543,9 +531,6 @@ Shop order page  (57x24)
                                                          
                                                          
      ORDER 1            ORDER 16            ORDER 64     
-                                                         
-                                                         
-                                                         
                                                          
                                                          
                                                          
@@ -777,8 +762,8 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
 
 Panel pairing ready P  (26x20)
 ```text
- PANEL              01:00 
                           
+ PANEL              01:00 
  PAIR NEW CLIENT          
                           
                           
@@ -800,8 +785,8 @@ Panel pairing ready P  (26x20)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -824,8 +809,8 @@ ffffffffffffffffffffffffff
 
 Panel pairing code P  (26x20)
 ```text
- PANEL              01:00 
                           
+ PANEL              01:00 
  PAIR NEW CLIENT          
     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
@@ -847,13 +832,13 @@ Panel pairing code P  (26x20)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777
 ffffffffffffffffffffffffff
+f777777777777777777777777f
 ffffffffffffffffffffffffff
-99999999999999999999999999
-99999999999999999999999999
-99999999999999999999999999
-99999999999999999999999999
+f999999999999999999999999f
+f999999999999999999999999f
+f999999999999999999999999f
+f999999999999999999999999f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -871,8 +856,8 @@ ffffffffffffffffffffffffff
 
 Panel pairing ready S  (29x12)
 ```text
- PANEL                 01:00 
                              
+ PANEL                 01:00 
  PAIR NEW CLIENT             
                              
                              
@@ -886,8 +871,8 @@ Panel pairing ready S  (29x12)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777777
 fffffffffffffffffffffffffffff
+f777777777777777777777777777f
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
@@ -902,8 +887,8 @@ fffffffffffffffffffffffffffff
 
 Panel pairing code S  (29x12)
 ```text
- PANEL                 01:00 
                              
+ PANEL                 01:00 
  PAIR NEW CLIENT             
      🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋       
       ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏      
@@ -917,13 +902,13 @@ Panel pairing code S  (29x12)
 ```
 Background layer (blit letters, see palette):
 ```text
-77777777777777777777777777777
 fffffffffffffffffffffffffffff
+f777777777777777777777777777f
 fffffffffffffffffffffffffffff
-99999999999999999999999999999
-99999999999999999999999999999
-99999999999999999999999999999
-99999999999999999999999999999
+f999999999999999999999999999f
+f999999999999999999999999999f
+f999999999999999999999999999f
+f999999999999999999999999999f
 fffffffffffffffffffffffffffff
 99999999999999999999999999999
 99999999999999999999999999999
@@ -933,76 +918,76 @@ fffffffffffffffffffffffffffff
 
 Shop, compact touch monitor  (29x12)
 ```text
+                             
  SHOP            stock 21:14 
   ALL    ORES   WOOD    FOOD 
 BLOCKS  TOOLS   OTHER        
    A-Z      STOCK     NAME   
- IRON INGOT                  
+                             
+  IRON INGOT                 
         🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         
          ▌  🬖🬀🬳🬷🬏▌ ▌         
         🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
- ^ +60/h                     
-                             
  Order: sent 16              
    <     1/18     >     BACK 
 ```
 Background layer (blit letters, see palette):
 ```text
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+fffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaf
 aaaaaaaf777777f7777777f777777
 7777777f777777f7777777fffffff
 777777777faaaaaaaaaf777777777
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-fffffffffffffffffffffffffffff
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffff
 7777777f777777f7777777f777777
 ```
 
 Shop, pocket touch flow  (26x20)
 ```text
+                          
  SHOP         stock 21:14 
   ALL      ORES     WOOD  
   FOOD    BLOCKS   TOOLS  
  OTHER                    
   A-Z     STOCK     NAME  
- IRON INGOT               
+                          
+  IRON INGOT              
        🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏       
         ▌  🬖🬀🬳🬷🬏▌ ▌       
        🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀       
- ^ +60/h                  
                           
- IRON ORE                 
-        🬋🬋🬏🬞🬓 🬖🬋🬏         
-        🬇🬋🬐 ▌  🬖🬀         
-        🬋🬋🬀🬇🬌 🬍🬋🬃         
- - steady                 
+                          
+                          
+                          
+                          
  Order: sent 16           
                           
-  <     1/9     >    BACK 
+  <     1/18    >    BACK 
                           
 ```
 Background layer (blit letters, see palette):
 ```text
-aaaaaaaaaaaaaaaaaaaaaaaaaa
+ffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaf
 aaaaaaaaf77777777f77777777
 77777777f77777777f77777777
 77777777ffffffffffffffffff
 77777777faaaaaaaaf77777777
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
+fbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbf
+fbbbbbbbbbbbbbbbbbbbbbbbbf
 ffffffffffffffffffffffffff
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-bbbbbbbbbbbbbbbbbbbbbbbbbb
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 777777f777777f77777f777777
 777777f777777f77777f777777
@@ -1011,32 +996,32 @@ ffffffffffffffffffffffffff
 
 Shop, large touch monitor  (100x38)
 ```text
+                                                                                                    
  SHOP                                                                                   stock 21:14 
      ALL           ORES          WOOD           FOOD         BLOCKS         TOOLS          OTHER    
                A-Z                             STOCK                             NAME               
- IRON INGOT          IRON ORE            RAW IRON             IRON BLOCK          IRON NUGGET       
-   🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏          🬋🬋🬏🬞🬓 🬖🬋🬏              🬵 🬖🬋🬏              🬖🬋🬏🬋🬋🬓                🬚🬋🬃        
-    ▌  🬖🬀🬳🬷🬏▌ ▌          🬇🬋🬐 ▌  🬖🬀             🬳🬷🬏🬗🬋🬐               🬖🬀🬞🬅                 🬂🬂🬓        
-   🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀          🬋🬋🬀🬇🬌 🬍🬋🬃              🬉 🬈🬋🬀              🬍🬋🬃🬉                  🬈🬋🬀        
- ^ +60/h             - steady            v -20/h              - steady            v low             
                                                                                                     
- IRON BARS           IRON 7              IRON 8               IRON 9              IRON 10           
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
-        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
- empty               empty               empty                empty               empty             
+  IRON INGOT         IRON ORE            RAW IRON             IRON BLOCK          IRON NUGGET       
+    🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬋🬋🬏🬞🬓 🬖🬋🬏              🬵 🬖🬋🬏              🬖🬋🬏🬋🬋🬓               🬚🬋🬃         
+     ▌  🬖🬀🬳🬷🬏▌ ▌         🬇🬋🬐 ▌  🬖🬀             🬳🬷🬏🬗🬋🬐               🬖🬀🬞🬅                🬂🬂🬓         
+    🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         🬋🬋🬀🬇🬌 🬍🬋🬃              🬉 🬈🬋🬀              🬍🬋🬃🬉                 🬈🬋🬀         
+  ^ +60/h            - steady            v -20/h              - steady            v low             
                                                                                                     
- IRON 11             IRON 12             IRON 13              IRON 14             IRON 15           
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                 🬖🬋🬏        
-        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                 ▌ ▌        
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                 🬈🬋🬀        
- empty               empty               empty                empty               empty             
                                                                                                     
- IRON 16             IRON 17             IRON 18                                                    
-        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                                                 
-        ▌ ▌                 ▌ ▌                 ▌ ▌                                                 
-        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                                                 
- empty               empty               empty                                                      
+                                                                                                    
+  IRON BARS          IRON 7              IRON 8               IRON 9              IRON 10           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                🬖🬋🬏         
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                ▌ ▌         
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                🬈🬋🬀         
+  empty              empty               empty                empty               empty             
+                                                                                                    
+                                                                                                    
+                                                                                                    
+  IRON 11            IRON 12             IRON 13              IRON 14             IRON 15           
+        🬖🬋🬏                 🬖🬋🬏                 🬖🬋🬏                  🬖🬋🬏                🬖🬋🬏         
+        ▌ ▌                 ▌ ▌                 ▌ ▌                  ▌ ▌                ▌ ▌         
+        🬈🬋🬀                 🬈🬋🬀                 🬈🬋🬀                  🬈🬋🬀                🬈🬋🬀         
+  empty              empty               empty                empty               empty             
                                                                                                     
                                                                                                     
                                                                                                     
@@ -1047,8 +1032,53 @@ Shop, large touch monitor  (100x38)
                                                                                                     
  Order: sent 16                                                                                     
                                                                                                     
-           <                        1/1                       >                       BACK          
+           <                        1/2                       >                       BACK          
                                                                                                     
+```
+
+Status, terminal  (51x19)
+```text
+                                                   
+ STATUS                                      21:14 
+ ! ore chest full (drop 3)                         
+                                                   
+  TURTLES     DISPLAYS     DISK         ALERTS     
+     🬋🬋🬏          🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
+     🬇🬋🬐         🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
+     🬋🬋🬀          🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
+  3 ok, 0 l   all fresh    2.1 of 16    ore chest  
+                                                   
+                                                   
+ LOG                                               
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+   MINING       LUMBER        SHOP         MORE    
+                                                   
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
+feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777f777777777777faaaaaaaaaaaaf777777777777
+777777777777f777777777777faaaaaaaaaaaaf777777777777
+777777777777f777777777777faaaaaaaaaaaaf777777777777
 ```
 
 
