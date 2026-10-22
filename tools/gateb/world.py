@@ -152,6 +152,12 @@ class Runtime:
         properties = re.sub(r'(?m)^(rcon\.password|rcon\.port|enable-rcon|enable-query|query.port|server-ip|server-port|level-name|online-mode|max-players|motd)=.*\n?', '', properties)
         (destination/'server.properties').write_text(properties + '\nenable-rcon=false\nenable-query=false\nserver-ip=127.0.0.1\nlevel-name=world\nonline-mode=false\nmax-players=4\nmotd=Gate B runtime test only\n')
         (destination/'eula.txt').write_text('eula=true\n')
+        web=destination/'config/bluemap/webserver.conf'
+        if web.exists(): web.write_text(re.sub(r'(?m)^enabled:.*$', 'enabled: false', web.read_text()))
+        voice=destination/'config/voicechat/voicechat-server.properties'
+        if voice.exists():
+            text=re.sub(r'(?m)^port=.*$', 'port=-1', voice.read_text())
+            voice.write_text(re.sub(r'(?m)^bind_address=.*$', 'bind_address=127.0.0.1', text))
         (destination/'user_jvm_args.txt').write_text('-Xms512M\n-Xmx2G\n-XX:MaxDirectMemorySize=256M\n-XX:ActiveProcessorCount=2\n')
 
     def build_template(self, snapshot=None):
@@ -182,6 +188,8 @@ class Runtime:
                         for helper in list(disk.glob('gateb-*')) + [disk/'.gateb']:
                             if helper.is_dir(): shutil.rmtree(helper)
                             else: helper.unlink(missing_ok=True)
+                        if comp['name']=='probe':
+                            for key in disk.glob('so-keys*'): key.unlink()
                         if comp['role'] in ('server','display','worker'):
                             self.instrument(disk,comp['role'])
                     stage.rename(target)
@@ -190,14 +198,15 @@ class Runtime:
             return {'template':str(target),'manifest':manifest}
 
     def discover(self, world):
-        names = {1:'server',2:'wall',3:'pocket',4:'miner1',5:'miner2',6:'lumber',9:'storage',10:'observer'}
+        names = {1:'server',2:'wall',3:'pocket',4:'miner1',5:'miner2',6:'lumber',9:'storage',10:'probe'}
         comps = {}
         for cid, native in nbt.computers(world):
             if cid not in names:
                 continue
             disk = Path(world)/'computercraft/computer'/str(cid)
             role = (disk/'.so-role').read_text().strip() if (disk/'.so-role').exists() else 'fixture'
-            if cid in (9,10): role='fixture'
+            if cid==9: role='fixture'
+            if cid==10: role='display'
             props = native['block'].get('Properties',{})
             comps[str(cid)] = {'name':names[cid],'role':role,'kind':'turtle' if 'turtle' in native['block']['Name'] else 'computer','pos':native['pos'],'facing':props.get('facing')}
         # Pocket computers tick only in a player's inventory, on client login.
@@ -220,8 +229,7 @@ class Runtime:
         disk.mkdir(parents=True,exist_ok=True)
         (disk/'.so-role').write_text(role)
         shutil.copy2(HERE/'bridge.lua',disk/'gateb-bridge.lua')
-        (disk/'startup.lua').write_text('shell.run("/gateb-bridge.lua")\n')
-        shutil.rmtree(disk/'.gateb',ignore_errors=True)
+        (disk/'startup.lua').write_text('if shell.run("/install.lua", "recover") then shell.run("/gateb-bridge.lua") end\n')
 
     def clone(self, name):
         with locked(self.home/'template.lock'), locked(self.home/'locks'/f'{name}.lock'):
@@ -365,6 +373,11 @@ class Runtime:
             action=q['action'];disk=self.computer_disk(name,q['computer']);cid=disk.name
             commands={'on':'turn-on','off':'shutdown','reboot':'reboot'}
             if action not in commands: raise ValueError('Invalid power action')
+            if action in ('on','reboot'):
+                comp=self.manifest(name)['computers'][cid]
+                if comp['role'] in ('server','display','worker'): self.instrument(disk,comp['role'])
+                (disk/'.gateb/screen.json').unlink(missing_ok=True)
+                shutil.rmtree(disk/'.gateb/in',ignore_errors=True)
             self.command(name,'computercraft '+commands[action]+' #'+cid,timeout)
             return {'action':action,'computer':int(cid)}
         if op=='helpers':
@@ -375,7 +388,7 @@ class Runtime:
                 if enabled: (base/'disabled').unlink(missing_ok=True)
                 else: (base/'disabled').touch()
             return {'enabled':enabled,'pending_inputs':0,'enable_requires_reboot':True}
-        if op in ('input','lua'): return self.bridge(name,q,timeout)
+        if op in ('input','lua','lua_async','lua_job','lua_cancel'): return self.bridge(name,q,timeout)
         raise ValueError('Unknown operation '+op)
 
     def install(self, name, sha, mode='copy'):
@@ -390,17 +403,25 @@ class Runtime:
             finally:
                 archive.stdout.close()
             if archive.wait(): raise RuntimeError('git archive failed')
-        installed={}
+        installed={};errors=[]
+        if mode=='http':
+            current=subprocess.check_output(['git','ls-remote','origin','refs/heads/server-only'],cwd=REPO,text=True).split()[0]
+            if current!=sha: raise RuntimeError('HTTP normal update requires the current server-only tip')
+        if mode in ('http','installer'):
+            unavailable=[cid for cid,comp in self.manifest(name)['computers'].items() if comp['role'] in ('server','display','worker') and (name not in self.status() or (comp.get('requires_client') and name+':client' not in self.status()))]
+            if unavailable: raise RuntimeError('HTTP install needs running computers; connect the client for pockets: '+','.join(unavailable))
         with locked(self.home/'locks'/f'{name}.lock'):
             for cid,comp in self.manifest(name)['computers'].items():
                 role=comp['role']
                 if role not in ('server','display','worker'): continue
                 disk=self.computer_disk(name,cid)
                 online=name in self.status() and (not comp.get('requires_client') or name+':client' in self.status())
+                if mode in ('installer','http') and not online:
+                    raise RuntimeError('Normal installer mode needs online computers; connect the client for pockets')
                 if online:
                     self.request(name,{'op':'power','computer':cid,'action':'off'})
                     time.sleep(.2)
-                if mode=='installer':
+                if mode in ('installer','http'):
                     if not online: raise RuntimeError('Normal installer mode needs an online computer, including a client for pockets')
                     # Execute the exact installer with a pinned resolver response.
                     (disk/'gateb-install.lua').write_text((source/'install.lua').read_text())
@@ -408,12 +429,22 @@ class Runtime:
                     self.request(name,{'op':'power','computer':cid,'action':'on'})
                     code='''local old=http.get
 http.get=function(url,...) if url:find('/branches/server%-only$') then
-return {readAll=function() return '{"commit":{"sha":"SHA"}}' end,close=function() end}
+return {getResponseCode=function() return 200 end,readAll=function() return '{"commit":{"sha":"SHA"}}' end,close=function() end}
 end return old(url,...) end
 local ok,why=pcall(shell.run,'/gateb-install.lua','update');http.get=old
 if not ok then error(why) end
 return true'''.replace('SHA',sha)
-                    self.request(name,{'op':'lua','computer':cid,'code':code},timeout=120)
+                    if mode=='http': code='return shell.run("/install.lua","update")'
+                    job=self.request(name,{'op':'lua_async','computer':cid,'code':code})['job']
+                    deadline=time.monotonic()+180
+                    while time.monotonic()<deadline:
+                        status=self.request(name,{'op':'lua_job','computer':cid,'job':job})
+                        if status['state'] in ('done','failed'): break
+                        time.sleep(.1)
+                    else:
+                        self.request(name,{'op':'lua_cancel','computer':cid,'job':job})
+                        errors.append({'computer':cid,'error':'HTTP installer timed out'})
+                    if status.get('state')=='failed': errors.append({'computer':cid,'error':status.get('error')})
                 else:
                     files=installer_manifest(source,role)
                     oldfiles=[]
@@ -428,10 +459,17 @@ return true'''.replace('SHA',sha)
                     (disk/'.so-files').write_text('{'+','.join(json.dumps(v) for v in files)+'}')
                     (disk/'.so-revision').write_text(sha)
                     installed[cid]={'role':role,'files':hashes}
+                expected=installer_manifest(source,role)
+                if (disk/'.so-revision').read_text().strip()!=sha:
+                    raise RuntimeError('Installer did not record the requested revision on '+cid)
+                hashes={rel:hashlib.sha256((disk/rel).read_bytes()).hexdigest() for rel in expected}
+                if any((disk/rel).read_bytes()!=(source/rel).read_bytes() for rel in expected):
+                    raise RuntimeError('Installed file mismatch on '+cid)
+                installed[cid]={'role':role,'files':hashes}
                 self.instrument(disk,role)
                 if online: self.request(name,{'op':'power','computer':cid,'action':'on'})
-            atomic(self.run(name)/'install.json',{'sha':sha,'mode':mode,'computers':installed})
-        return {'sha':sha,'mode':mode,'computers':list(installed)}
+            atomic(self.run(name)/'install.json',{'sha':sha,'mode':mode,'computers':installed,'errors':errors})
+        return {'sha':sha,'mode':mode,'computers':list(installed),'errors':errors}
 
     def client_stop(self, name):
         for key in (name+':client',name+':xvfb'):
@@ -468,7 +506,7 @@ def main():
     p=sub.add_parser('build-template');p.add_argument('--snapshot')
     for command in ('clone','serve','reset','stop'):
         p=sub.add_parser(command);p.add_argument('run')
-    p=sub.add_parser('install');p.add_argument('run');p.add_argument('sha');p.add_argument('--mode',choices=['copy','installer'],default='copy')
+    p=sub.add_parser('install');p.add_argument('run');p.add_argument('sha');p.add_argument('--mode',choices=['copy','installer','http'],default='copy')
     p=sub.add_parser('api');p.add_argument('run');p.add_argument('request');p.add_argument('--timeout',type=float,default=15)
     p=sub.add_parser('client');p.add_argument('run');p.add_argument('action',choices=['start','shot','stop'])
     p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0)

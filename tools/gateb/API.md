@@ -96,3 +96,19 @@ when that player connects. Headless pocket terminal/input/Lua calls are
 unavailable until client login. The fixture manifest sets `requires_client:true`.
 Client screenshots alone do not prove C3 or C13 positioning or goggles behavior.
 There is no unpaired probe in an imported snapshot unless prepared explicitly.
+
+`lua_async` accepts the same `computer` and `code` as `lua` and returns
+`{job:"ID"}` immediately. Poll `lua_job` with that `job` and computer ID. The
+result has `state:queued|running|done|failed`, `values` and optional `error`.
+`lua_cancel` delivers a terminate event only to that job's coroutine. This
+allows a real HTTP installer to run while the bridge answers staging-file reads
+and cancellation requests. Jobs are in memory and disappear on computer reboot.
+
+Install mode `http` calls the unmodified `shell.run("/install.lua","update")`
+and verifies every role file and recorded revision. It requires the requested
+SHA to be the current server-only tip, a running server and a connected client
+for the pocket. Mode `installer` pins resolution to the requested SHA and uses
+real HTTP for role downloads. Mode `copy` uses the commit's installer manifest.
+Install results include `mode` and `errors`; a failed check raises an error and
+must never count as a pass. Power on/reboot deletes cached screen state before
+sending native power commands, so an old screen cannot satisfy a fresh read.

@@ -13,11 +13,14 @@ local programs={server='so-server.lua',worker='worker.lua',display='display.lua'
 local env=setmetatable({}, {__index=_ENV})
 env._G=env
 local screens={}
+local jobs={}
+local pending={}
+local nextJob=0
 local function capture(base,name)
   if screens[name] then return screens[name].proxy end
   local w,h=base.getSize()
   local win=window.create(base,1,1,w,h,true)
-  local proxy={}
+  local proxy=setmetatable({},getmetatable(base))
   for k,v in pairs(base) do proxy[k]=v end
   for k,v in pairs(win) do proxy[k]=v end
   if base.setTextScale then
@@ -70,6 +73,16 @@ local function bridge()
         local ok,result=pcall(function()
           if q.op=='input' then
             os.queueEvent(q.event,table.unpack(q.args or {}));return {queued=true}
+          elseif q.op=='lua_async' then
+            nextJob=nextJob+1;local id=tostring(nextJob)..'-'..tostring(os.epoch('utc'))
+            jobs[id]={state='queued',code=q.code};pending[#pending+1]=id
+            os.queueEvent('gateb_job');return {job=id}
+          elseif q.op=='lua_job' then
+            local job=assert(jobs[q.job],'Unknown Lua job')
+            return {job=q.job,state=job.state,values=job.values,error=job.error}
+          elseif q.op=='lua_cancel' then
+            local job=assert(jobs[q.job],'Unknown Lua job');job.cancel=true
+            return {job=q.job,cancelling=true}
           elseif q.op=='lua' then
             local fn=assert(load(q.code,'gateb-request','t',env))
             local values=table.pack(fn());values.n=nil;return {values=values}
@@ -83,6 +96,32 @@ local function bridge()
       end
     end
     snapshot();sleep(.1)
+  end
+end
+local function executor()
+  while true do
+    if #pending==0 then os.pullEventRaw('gateb_job') end
+    while #pending>0 do
+      local id=table.remove(pending,1);local job=jobs[id];job.state='running'
+      local fn,why=load(job.code,'gateb-async','t',env)
+      if not fn then job.state='failed';job.error=why
+      else
+        local co=coroutine.create(fn);local event={};local filter
+        while true do
+          local result=table.pack(coroutine.resume(co,table.unpack(event)))
+          if not result[1] then job.state='failed';job.error=tostring(result[2]);break end
+          if coroutine.status(co)=='dead' then
+            job.state='done';job.values={};for i=2,result.n do job.values[i-1]=result[i] end;break
+          end
+          filter=result[2]
+          repeat
+            event=table.pack(os.pullEventRaw())
+            if job.cancel then event={'terminate'};break end
+          until not filter or event[1]==filter or event[1]=='terminate'
+        end
+      end
+      job.code=nil
+    end
   end
 end
 local function frames()
@@ -101,4 +140,4 @@ end
 parallel.waitForAny(function()
   local fn,why=loadfile('/'..assert(programs[role]),env)
   assert(fn,why);fn();while true do sleep(1) end
-end,bridge,frames)
+end,bridge,frames,executor)
