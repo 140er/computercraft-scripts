@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import socket
 import signal
+import shutil
 import struct
 import subprocess
 import sys
@@ -147,6 +148,15 @@ class NBTTests(unittest.TestCase):
             self.assertEqual(next(nbt.computers(temp))[0],4)
 
 
+
+
+class BridgeTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('lua5.2'), 'Lua 5.2 is not installed')
+    def test_role_globals_and_async_cancellation(self):
+        from world import REPO
+        result=subprocess.run(['lua5.2','tools/gateb/test_bridge.lua'],cwd=REPO,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('PASS bridge',result.stdout)
 
 
 class KeeperTests(unittest.TestCase):
