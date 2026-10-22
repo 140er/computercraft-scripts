@@ -116,6 +116,19 @@ The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
 above the drop editor. These links and each screen's `generic` return button
 fit a 26x20 pocket or 29x12 monitor.
 
+The server stores dug marks in compact 16x16x16 sections. At 1 MB of section
+files, every display shows a request to forget old areas, with `allow` and
+`keep` buttons. AR goggles show the same request. Each area is one section.
+Nothing in the world changes. Turtles inspect forgotten blocks if they return.
+
+`allow` forgets the oldest eligible marks, aiming for 650 KB. Running job areas,
+reservations, open leases and worker recovery paths stay protected. If an area
+becomes protected after the request appears, the server keeps it. Recovery
+history stays protected even after a worker is removed from a job.
+`keep` saves everything and remembers the choice across restarts. The server
+asks again only after section files grow by another 50 percent. Sharding onto
+more server storage is a future option. The 80 percent disk guard still applies.
+
 Open the `mining` display screen. Submit these text commands:
 
 ```text

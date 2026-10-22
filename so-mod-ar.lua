@@ -101,6 +101,11 @@ end
 A.scene = function(now)
   local scene = {}
   local function put(id, method, ...) scene[id] = { method = method, args = { ... } } end
+  local retirement = A.call("cells", "retirement")
+  if retirement then
+    put("alert:dug-storage", "drawText2D", A.red, 4, 4,
+      retirement.text .. (retirement.status == "pending" and " Choose allow or keep on a display." or ""), false)
+  end
   local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
   local function label(id, color, p, text)
     put(id, "drawText3D", color, p.x + 0.5, p.y + 1.6, p.z + 0.5, 0, 0, 3, text, true)
@@ -207,8 +212,9 @@ A.scene = function(now)
     end
     if A.layers.alerts and row and (not banners or now - row.since < 5000) then
       local text = type(row.value) == "table" and row.value.text or row.value
-      put("alert:backing", "drawRect2D", A.red, 0, 0, 120, 14)
-      put("alert:" .. row.key, "drawText2D", A.white, 4, 4, tostring(text), false)
+      local top = retirement and 12 or 0
+      put("alert:backing", "drawRect2D", A.red, 0, top, 120, 14)
+      put("alert:" .. row.key, "drawText2D", A.white, 4, 4 + top, tostring(text), false)
     end
   end
   local capacity = fs and fs.getCapacity and fs.getCapacity("/")
@@ -219,12 +225,13 @@ A.scene = function(now)
     { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.green },
     { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.green) or A.grey },
   }
+  local hudTop = retirement and 12 or 0
   for i, tile in ipairs(tiles) do
     local id, x = "hud:" .. tile[1], (i - 1) * 40
-    put(id .. ":backing", "drawRect2D", A.backing, x, 18, 40, 28)
-    put(id .. ":bar", "drawRect2D", tile[4], x, 18, 40, 4)
-    put(id .. ":label", "drawText2D", A.white, x + 2, 24, tile[2], false)
-    put(id .. ":value", "drawText2D", A.white, x + 2, 34, tile[3], false)
+    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 40, 28)
+    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 40, 4)
+    put(id .. ":label", "drawText2D", A.white, x + 2, 24 + hudTop, tile[2], false)
+    put(id .. ":value", "drawText2D", A.white, x + 2, 34 + hudTop, tile[3], false)
   end
   return scene, machines
 end

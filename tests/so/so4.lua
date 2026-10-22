@@ -46,10 +46,10 @@ local function boot(files)
   local makeStore = store.store
   store.store = function(path, ...)
     local handle = makeStore(path, ...)
-    if path ~= "so-data/cells/res" then probe.handles[handle] = true end
+    if path:match("^so%-data/cells/[^/]+/") then probe.handles[handle] = true end
     local save = handle.save
     handle.save = function(value)
-      if path ~= "so-data/cells/res" then probe.saves = probe.saves + 1 end
+      if path:match("^so%-data/cells/[^/]+/") then probe.saves = probe.saves + 1 end
       return save(value)
     end
     return handle

@@ -149,13 +149,38 @@ D.fit = function(picture, w, h)
   return { rows = rows, buttons = buttons }
 end
 
+D.retirement = function(w)
+  local cells = SO.mods.cells
+  local notice = cells and type(cells.retirement) == "function" and cells.retirement()
+  if not notice then return end
+  local rows, line = {}, ""
+  for word in notice.text:gmatch("%S+") do
+    if #line + #word + 1 > w and line ~= "" then
+      rows[#rows + 1], line = { text=line, fg="0", bg="f" }, ""
+    end
+    line = line == "" and word or line .. " " .. word
+  end
+  if line ~= "" then rows[#rows + 1] = { text=line, fg="0", bg="f" } end
+  local buttons = {}
+  if notice.status == "pending" then
+    rows[#rows + 1] = { text="", fg="0", bg="f" }
+    for i, choice in ipairs({ "allow", "keep" }) do
+      buttons[i] = { id="dug." .. choice .. "/" .. notice.id, label=choice, x=(i-1)*8+1, y=#rows, w=#choice }
+    end
+  end
+  return { rows=rows, buttons=buttons }
+end
+
 D.compose = function(role, w, h, session)
+  local banner = D.retirement(w)
+  local offset = banner and #banner.rows or 0
+  local contentH = math.max(1, h - offset)
   local screen = D.screens[role]
   local picture
   if screen then
     local ok, got
-    if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, h, D.now())
-    else ok, got = pcall(screen.render, w, not U and role == "generic" and math.max(1, h - 2) or h,
+    if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, contentH, D.now())
+    else ok, got = pcall(screen.render, w, not U and role == "generic" and math.max(1, contentH - 2) or contentH,
       U and session or (session and session.id)) end
     if ok and type(got) == "table" then picture = got end
   end
@@ -198,6 +223,18 @@ D.compose = function(role, w, h, session)
       copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
     end
     buttons = copy
+  end
+  if banner then
+    local combined, controls = {}, {}
+    for i, row in ipairs(banner.rows) do combined[i] = row end
+    for _, button in ipairs(banner.buttons) do controls[#controls + 1] = button end
+    for i, row in ipairs(rows) do combined[i + offset] = row end
+    for _, button in ipairs(buttons) do
+      local moved = SO.store.copy(button)
+      moved.y = moved.y + offset
+      controls[#controls + 1] = moved
+    end
+    rows, buttons = combined, controls
   end
   local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
   local pictureKey = role .. ":" .. w .. "x" .. h
@@ -468,6 +505,21 @@ D.onInput = function(msg)
   elseif type(text) == "string" then
     id = nil
   else
+    return
+  end
+  if id and id:match("^dug%.") then
+    local session, cells = D.sessions[msg.from], SO.mods.cells
+    if not session or not session.w or not cells or type(cells.decideRetirement) ~= "function" then return end
+    local frame = D.compose(D.drawn(msg.from), session.w, session.h, session)
+    for _, button in ipairs(frame.buttons) do
+      if button.id == id and button.label == id:match("^dug%.(%a+)/")
+        and #button.label == button.w and body.y == button.y and body.x >= button.x and body.x < button.x + button.w then
+        local choice, token = id:match("^dug%.(%a+)/(.+)$")
+        cells.decideRetirement(token, choice)
+        if session.sub then D.sendFrame(msg.from, os.epoch("utc"), true) end
+        return
+      end
+    end
     return
   end
   local drawn = D.drawn(msg.from)
