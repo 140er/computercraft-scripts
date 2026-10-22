@@ -51,6 +51,12 @@ S.run = function()
   local memory = 120000
   local misses = 0
 
+  local function showHostError()
+    if not view.hostError then return end
+    term.setCursorPos(1, 3)
+    term.write(view.hostError)
+  end
+
   local function showPrompt()
     if view.mode == "prompt" then return end
     view.mode = "prompt"
@@ -58,12 +64,14 @@ S.run = function()
     term.setCursorPos(1, 1)
     term.write("Press P to pair")
     print("Press P to pair")
+    showHostError()
   end
 
   local function showCode()
     misses = 0
     view.mode = "code"
     pair.invite(term)
+    showHostError()
   end
 
   local function recall(msg)
@@ -201,12 +209,24 @@ S.run = function()
     deliver(msg)
   end
 
-  local modem = peripheral.find("modem")
-  if modem then
-    rednet.open(peripheral.getName(modem))
-    rednet.host("so", "server")
-  else
-    print("so-server: no modem")
+  local function openModems()
+    local modems = { peripheral.find("modem") }
+    for i = 1, #modems do
+      rednet.open(peripheral.getName(modems[i]))
+    end
+    return #modems
+  end
+
+  if openModems() == 0 then print("so-server: no modem") end
+  local hosted, hostErr = pcall(rednet.host, "so", "server")
+  if not hosted then
+    local found, other = pcall(rednet.lookup, "so", "server")
+    if found and type(other) == "number" then
+      view.hostError = "so/server hostname in use by " .. tostring(other)
+    else
+      view.hostError = "so/server host failed; see log"
+    end
+    print("so-server: " .. view.hostError .. ": " .. tostring(hostErr))
   end
   showPrompt()
   local pairKey = (type(keys) == "table" and keys.p) or 25
@@ -229,6 +249,8 @@ S.run = function()
         end
       end
       timer = os.startTimer(1)
+    elseif ev == "peripheral" or ev == "peripheral_detach" then
+      openModems()
     elseif ev == "key" and a == pairKey and not b then
       showCode()
     elseif ev == "rednet_message" and c == "so" then

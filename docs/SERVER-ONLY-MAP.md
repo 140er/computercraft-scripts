@@ -181,7 +181,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `view.frame` and sends `input`. No exported API. It handles touch, clicks,
   text and resize events. Pairing prompts and digits appear on the display and
   its computer terminal. Failed pairing accepts a new code. Discovery and
-  stale-frame hello/subscribe retries use backoff capped at 30 seconds. Screens
+  stale-frame hello/subscribe retries use backoff capped at 30 seconds. At boot,
+  it prefers the lowest saved paired server ID and retries that ID without DNS.
+  It opens every modem and rescans on attach and detach events. Screens
   at least three rows tall reserve the bottom row for typed input and report
   the remaining height in `hello`. Wall displays also echo input on the terminal.
 
@@ -229,8 +231,12 @@ validation, crash recovery and state preservation.
 
 `so-server.lua` checks disk capacity before loading libraries. It creates `SO`,
 loads root `so-mod-*.lua` files in sorted filename order with the server program
-environment so they share `SO`, then opens the modem
-and hosts rednet protocol `so` as `server`. Missing or invalid modules are skipped.
+environment so they share `SO`, then opens every modem
+and attempts to host rednet protocol `so` as `server`, even if no modem is attached
+yet. Attach and detach events rescan modems without waiting for discovery.
+A hostname collision shows the other host ID on the pairing screen and leaves
+the event loop running. Registration is attempted once per boot. Missing or
+invalid modules are skipped.
 
 One coroutine waits on an unfiltered `os.pullEvent()`:
 

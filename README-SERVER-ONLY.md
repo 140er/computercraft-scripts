@@ -22,6 +22,15 @@ computer_space_limit = 16000000
 A larger value also works. A 1 MB or 8 MB disk cannot run the server.
 Workers and displays download less than 800 KB each.
 
+Servers and displays use all attached modems and detect modem changes without a
+reboot. A wired monitor or AR cable can coexist with a wireless or ender modem.
+
+Each network should have one `so/server` host. If another host already uses that
+name, the server shows its ID and keeps running for paired clients. Reboot after
+the name becomes available to register it. A paired display reconnects directly
+to its saved server ID, even if another server answers discovery. Fresh clients
+still use hostname discovery, so isolate competing networks while pairing.
+
 ## Install and pair
 
 Run this on each machine:
