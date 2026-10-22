@@ -551,7 +551,62 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 
 `cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
 
-Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk loading yields.
+Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
+
+A section value is `{ format = "hex4096", bits = string, used = utcMs }`.
+`bits` has exactly 1024 lowercase hex characters. Cell index
+`x%16 + 16*(y%16) + 256*(z%16)` uses bit `index%4` of character
+`floor(index/4)+1`, with the least significant bit first. Each generation has a
+2048-byte write budget. The loader accepts old numeric-index boolean tables.
+Their next save publishes two compact generations through `so-store`, so the
+backup also shrinks. An interrupted migration recovers the newest valid
+generation in either format. No consent is needed for this lossless conversion.
+Reads refresh LRU time in memory. A section with marks persists that time at
+most once per minute unless its bits change.
+
+`cells.retirement()` returns nil, a pending request
+`{ id, status = "pending", bytes, count, reclaim, text }`, or a decision notice
+`{ status = "allowed"|"kept", text, untilAt }` for 30 seconds.
+At 1000000 bytes of section files, tick proposes eligible sections in LRU order,
+aiming for 650000 bytes. Accounting includes primary, backup and temporary
+generations, with a 500-byte minimum per file. Requests wait for lossless
+migration and for at least one eligible section. The server checks at most once
+per ten seconds. The persisted request serial prevents old buttons from matching
+a new request after a restart.
+
+`cells.decideRetirement(id, choice)` accepts only the current request's `id` and
+`choice = "allow"|"keep"`. It returns true on a decision, or false and an
+optional storage error. A decision must save before any section is deleted.
+`allow` rechecks protection and removes only the offered sections that remain
+eligible and unused since the request. It removes backup and temporary files
+before the primary and evicts the cached section. A crash can leave some
+approved sections intact. Restart never resumes deletion. Forgotten cells become
+unknown, and mining clears their cached block facts so later travel inspects
+them. The request can reclaim less than offered if protections change.
+
+`keep` deletes nothing. The generation store `so-data/dug-policy` records the
+choice and a new request threshold at 150% of current use, including across
+restarts. A completed `allow` also uses that growth step if protected areas keep
+storage above the original threshold. The 80% disk guard remains in force.
+
+`cells.rememberWorker(id, worldPose, dug)` records the worker's last reported
+pose and up to 32 world-frame journal cells in that policy store. Tick and
+reservation-owner release flush updated records. Records remain after job
+removal until a later report replaces them. They protect the dug cells and a
+48-block margin around the pose for the worker's 32-move backtrack and an
+unreported batch of up to 16 moves.
+
+Mining, lumber and lease modules expose `dugProtection(protect)`. Each must
+return true before retirement can proceed. The callback
+`protect(dim, coordinateTree, margin)` protects the bounding box of all nested
+`{x,y,z}` points, expanded by `margin` blocks. Mining covers its running geometry,
+including a 64-block vein margin, and saved worker routes. Lumber protects its
+running farm at every height and its saved worker and service routes. Open
+leases protect their world pose with a 48-block margin. Any reservation protects
+its entire section. Uncertain poses, unresolved recovery and leases without a
+world pose block retirement. Dirty sections are ineligible. These checks repeat
+when `allow` is pressed. `mine.forgetDug(sectionPaths)` invalidates cached block
+facts after retirement. Its argument is a `{ [sectionPath] = true }` set.
 
 Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` without freeing anything. The same sender must send `{ who, confirm = token }` within 30 seconds. A valid confirmation runs `forgetOwner`. Invalid, expired, reused, or mismatched confirmations reply with `err`.
 
@@ -588,6 +643,13 @@ ID as their third argument. Their generic content height excludes two navigation
 rows for mining, lumber, shop, status and AR. Every kit-free destination has a
 visible generic return button on 26x20 pockets and 29x12 monitors.
 Existing callbacks can ignore the added session argument and field.
+Dug-storage requests occupy the top of every role, including `status` and
+`generic`. The server wraps their text and shifts the role below it. Buttons
+`dug.allow/<request-id>` and `dug.keep/<request-id>` carry labels `allow` and
+`keep`. Consent requires a current button, its full visible label, and input
+coordinates inside its drawn rectangle. Stale or clipped buttons do nothing.
+Clients keep the existing `view.frame` and `input` wire formats. AR shows a
+pending request until a player decides, even with event alerts disabled.
 
 Frame signatures and revisions are kept per role, size and session. Status additionally
 keeps revisions, tile paging and alert state per display session. Panel revisions

@@ -243,8 +243,10 @@ local function report(_, id, results, lease)
   row.pose = P.toWorld(row.frame, facts.pose)
   row.inv, row.fuel = facts.inv or row.inv or {}, facts.fuel or row.fuel
   local priorDug,nextDug=S.dugFacts[id] or {},{}
+  local history = {}
   for _, c in ipairs(facts.dug or {}) do
     local world = P.toWorld(row.frame, { x = c.x, y = c.y, z = c.z, f = 0 })
+    history[#history + 1] = world
     if action and action.kind == "recover" and interrupted and interrupted.kind == "dig"
         and M.same(world, interrupted.cell)
         and not call("cells", "isDug", world.x, world.y, world.z, world.dim) then
@@ -261,7 +263,10 @@ local function report(_, id, results, lease)
     if not priorDug[key] then mark(world) end
     nextDug[key]=true
   end
-  if facts.dug then S.dugFacts[id]=nextDug end
+  if facts.dug then
+    S.dugFacts[id]=nextDug
+    call("cells", "rememberWorker", id, row.pose, history)
+  end
   if action then
     local batchResults, cursor, batched = results, old, action.actions ~= nil
     for _, part in ipairs(action.actions or { action }) do
@@ -589,7 +594,9 @@ local function input(event)
       local ok = call("lease","cancelPark",num(2),"mine")
       if not ok then S.error="turtle has open lease" return end
     end
-    call("cells","releaseOwner",owner(num(2))) job.turtles[tostring(num(2))]=nil
+    local released, err = call("cells","releaseOwner",owner(num(2)))
+    if released == false then S.error=tostring(err) return end
+    job.turtles[tostring(num(2))]=nil
     S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
@@ -720,7 +727,32 @@ local function render(w,h)
   if not U then return legacyRender(w) end
   return layout(gather(),w or 57,h or 24,page == "setup")
 end
-return {name="mine",handlers={},tick=function()
+local function dugProtection(protect)
+  for _, row in pairs(job.turtles) do
+    if not S.wired or row.recover or not row.frame then return false end
+    protect(job.dim, row, 48)
+  end
+  if job.running then
+    local route = M.route(job, math.max(0, (job.progress.nextBranch or 0) - 1))
+    protect(job.dim, { job.home, route }, 64)
+  end
+  return true
+end
+local function forgetDug(paths)
+  local dim = job.dim:gsub("[^%w_%-]", function(c) return string.format("%%%02x", string.byte(c)) end)
+  local prefix, visited = "so-data/cells/" .. dim .. "/", 0
+  for key in pairs(S.known) do
+    local x, y, z = key:match("^([^,]+),([^,]+),([^,]+)$")
+    if x then
+      local section = prefix .. string.format("%.0f_%.0f_%.0f", math.floor(tonumber(x)/16)+0,
+        math.floor(tonumber(y)/16)+0, math.floor(tonumber(z)/16)+0)
+      if paths[section] then S.known[key] = nil end
+    end
+    visited = visited + 1
+    if visited % 128 == 0 then SO.breathe() end
+  end
+end
+return {name="mine",handlers={},dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end
