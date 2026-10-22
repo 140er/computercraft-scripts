@@ -731,6 +731,162 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
      MORE      
 ```
 
+Panel pairing ready P  (26x20)
+```text
+ PANEL              01:00 
+                          
+ PAIR NEW CLIENT          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+         NEW CODE         
+                          
+           BACK           
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+77777777777777777777777777
+```
+
+Panel pairing code P  (26x20)
+```text
+ PANEL              01:00 
+                          
+ PAIR NEW CLIENT          
+    🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
+     ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
+    🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀    
+        4:52 left         
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+         NEW CODE         
+                          
+           BACK           
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+77777777777777777777777777
+```
+
+Panel pairing ready S  (29x12)
+```text
+ PANEL                 01:00 
+                             
+ PAIR NEW CLIENT             
+                             
+                             
+                             
+                             
+                             
+                             
+          NEW CODE           
+                             
+            BACK             
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+77777777777777777777777777777
+```
+
+Panel pairing code S  (29x12)
+```text
+ PANEL                 01:00 
+                             
+ PAIR NEW CLIENT             
+     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋       
+      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏      
+     🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀      
+          4:52 left          
+                             
+                             
+          NEW CODE           
+                             
+            BACK             
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+77777777777777777777777777777
+```
+
 
 ### 7.2 AR goggles
 

@@ -1,0 +1,12 @@
+PASS UI0 old and compact frames draw identical cells and tall buttons hit their rectangle
+PASS UI0 kit frames keep last-row navigation after a duplicate resize
+PASS UI0 three-row buttons include every row and exclude adjacent cells
+PASS UI0 palette and scale send exactly one resized hello and restore stock colours
+UI0 tiled frame body 6834 bytes
+PASS UI0 tiled 164x81 frame fits the real serializer without losing cells
+PASS UI0 far persists beside roles and a failed save leaves scale unchanged
+PASS UI0 outage matches the fixture without a server and retries continue
+PASS UI0 stale repaint preserves inverted digits and button labels
+PASS UI0 capture round-trips every spec glyph including inverted sextants
+PASS UI0 generator preserves section 7.1 and reproduces every fixture
+10 tests passed, 0 failed
