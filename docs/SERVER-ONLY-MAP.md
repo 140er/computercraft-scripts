@@ -260,7 +260,22 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
 
-`/.so-role` contains the plain role name. `startup.lua` runs installer recovery,
+Updates fetch and execute the new installer first, so its role list applies in
+that update. The branch API resolves one commit SHA for every download. If it
+fails, the installer tries GitHub's read-only Git refs endpoint, then the saved
+`/.so-revision`. Without a valid SHA it stops without changing installed files.
+There is no fallback to branch file URLs. Fresh installs use the same process.
+An installer from before this bootstrap change still uses its old list and branch
+file URLs for its first update. That update installs the bootstrap installer, and later updates
+use the new list immediately. Fetching the new installer manually before running
+`install update` also skips that transition. An old installer still rejects
+whitespace in `/.so-role`; trim it or fetch the new installer first.
+`/.so-files` records the installed role files. Updates remove files retired from
+that list or the running installer's list, plus unlisted root `so-mod-*.lua` files.
+Those deletions share the backup manifest and roll back with the replacements.
+`/.so-revision` and `/.so-files` also participate in the swap.
+
+`/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
 plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
 The installer uses GPS or manual coordinates and a dimension prompt.
