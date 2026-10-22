@@ -8,10 +8,13 @@ from .lua_data import parse
 from .model import Blocked, values
 from .admission import admit
 
-HTTP_UPDATE = '''local original=http.get;local requests,failures=0,0
+HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local requests,failures=0,0
+  print=function(...) local parts={};for i=1,select('#',...) do parts[i]=tostring(select(i,...)) end
+    local line=table.concat(parts,' ');if line:match('Download failed') or line:match('Install failed') or line:match('Install rolled back') then failures=failures+1 end
+    originalPrint(...) end
   http.get=function(...) requests=requests+1;local r,e,f=original(...)
     if not r or r.getResponseCode()~=200 then failures=failures+1 end;return r,e,f end
-  local ok,ran=pcall(shell.run,"install","update");http.get=original
+  local ok,ran=pcall(shell.run,"install","update");http.get=original;print=originalPrint
   if not ok then error(ran) end
   return {ran=ran,requests=requests,failures=failures}'''
 

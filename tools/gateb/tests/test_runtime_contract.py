@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import shutil
+import subprocess
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -61,6 +63,19 @@ class ContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ctx=Context(Runtime(),"test",{"computers":{"2":{"name":"wall"}}},temp,"a"*40)
             self.assertEqual(ctx.screen_text("wall"),"stale")
+
+    @unittest.skipUnless(shutil.which("lua5.2"),"Lua 5.2 is unavailable")
+    def test_http_observer_records_rollback_even_when_shell_returns_true(self):
+        from checks.context import HTTP_UPDATE
+        source = '''http={get=function() return {getResponseCode=function() return 200 end} end}
+          shell={run=function() http.get("real-request");print("Install rolled back: simulated disk failure");return true end}
+          local saved=http.get;local p=print
+          local fn=assert(load(CODE));local result=fn()
+          assert(result.ran and result.requests==1 and result.failures==1)
+          assert(http.get==saved and print==p)
+        '''.replace("CODE",json.dumps(HTTP_UPDATE))
+        completed=subprocess.run(["lua5.2","-"],input=source,text=True,capture_output=True)
+        self.assertEqual(completed.returncode,0,completed.stderr)
 
     def test_native_keyboard_char_events(self):
         class Runtime:
