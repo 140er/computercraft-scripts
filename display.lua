@@ -20,6 +20,24 @@ local C = {
 C.pair = dofile("so-pair.lua")
 C.pair.open(C.proto, C.store)
 
+local saved = C.store.store("so-keys", function(v)
+  return type(v) == "table" and type(v.keys) == "table"
+end, 200000).value
+if saved then
+  for id in pairs(saved.keys) do
+    local n = tonumber(id)
+    if n and n >= 0 and n % 1 == 0 and C.pair.key(n)
+      and (not C.server or n < C.server) then C.server = n end
+  end
+end
+
+C.openModems = function()
+  local modems = { peripheral.find("modem") }
+  for i = 1, #modems do
+    rednet.open(peripheral.getName(modems[i]))
+  end
+end
+
 C.output = function()
   local mon = peripheral.find("monitor")
   C.out = mon or term
@@ -203,8 +221,7 @@ C.drawPair = function()
 end
 
 C.retry = function()
-  local modem = peripheral.find("modem")
-  if modem then rednet.open(peripheral.getName(modem)) end
+  C.openModems()
   C.output()
   if not C.server or (not C.pair.key(C.server) and C.digits == "") then
     C.server = rednet.lookup("so", "server")
@@ -275,6 +292,8 @@ C.loop = function()
       C.typed = ""
       C.send("input", { text = text, x = 1, y = 1 })
       C.clipDraw()
+    elseif ev == "peripheral" or ev == "peripheral_detach" then
+      C.openModems()
     elseif ev == "monitor_resize" or ev == "term_resize" then
       C.output()
       if C.phase == "pairing" then C.drawPair() else C.sendHello(); C.clipDraw() end

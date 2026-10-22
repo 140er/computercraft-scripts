@@ -1,6 +1,25 @@
 # so protocol
 
-Rednet protocol name is `so`. The server hosts that protocol as `server`. One server runs `so-server.lua` on a computer whose disk is at least 16000000 bytes. Turtles, pocket computers, and monitors keep no state that matters after a reboot. After a reboot the server tells them what to do.
+Rednet protocol name is `so`. The server attempts to host that protocol as `server`. One server runs `so-server.lua` on a computer whose disk is at least 16000000 bytes. Turtles, pocket computers, and monitors keep no state that matters after a reboot. After a reboot the server tells them what to do.
+
+Servers and displays open every attached modem and rescan on `peripheral` and
+`peripheral_detach` events. A wired modem does not exclude a wireless or ender
+modem. The server attempts hostname registration once at boot. If it fails, the
+server stays running and shows the conflicting host ID when lookup returns one.
+Paired clients can still send directly to its computer ID.
+
+A display boots with the lowest numeric server ID in its saved pairing keys,
+including a recovered key generation. It keeps sending to that ID through
+outages, regardless of `so/server` lookup results. It uses hostname discovery
+only when it has no paired server. The wire format is unchanged.
+
+Fresh pairing still uses the shared `so/server` hostname. Two installations in
+ender range, including across dimensions, can collide or answer discovery in a
+different order. This change does not select the intended server for an unpaired
+client. Isolate the networks while pairing. Selecting a server explicitly needs
+a separate setup or discovery change. A server that failed registration needs a
+reboot after the hostname becomes available. A server registered offline may
+also collide when a modem is attached later.
 
 Time is `os.epoch("utc")` in milliseconds. Do not use `os.time` or in-game days.
 
