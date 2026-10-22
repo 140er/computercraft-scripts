@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },
@@ -29,7 +29,9 @@ end
 
 D.roleOf = function(id)
   local role = D.saved.roles[tostring(id)]
-  if role == "shop" or role == "mining" or role == "lumber" or role == "status" or role == "ar" then return role end
+  if role == "shop" or role == "mining" or role == "lumber" or role == "status" or role == "ar" or role == "panel" then return role end
+  local session = D.sessions[id]
+  if U and role == nil and session and session.w == 26 and session.h == 20 then return "status" end
   return "generic"
 end
 
@@ -153,7 +155,7 @@ D.compose = function(role, w, h, session)
   if screen then
     local ok, got
     if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, h, D.now())
-    else ok, got = pcall(screen.render, w, h) end
+    else ok, got = pcall(screen.render, w, h, session) end
     if ok and type(got) == "table" then picture = got end
   end
   if not picture then
@@ -171,12 +173,15 @@ D.compose = function(role, w, h, session)
     }) do
       if not found[button.id] and not (found.new and found.status) then copy[#copy + 1] = button end
     end
+    if D.screens.panel and not found.panel and w >= 39 then
+      copy[#copy + 1] = { id = "panel", x = math.floor((w - 5) / 2) + 1, y = 1, w = 5, label = "PANEL" }
+    end
     buttons = copy
   end
   local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
   local pictureKey = role .. ":" .. w .. "x" .. h
-  local pictures = role == "status" and session and (session.pictures or {}) or D.pictures
-  if role == "status" and session then session.pictures = pictures end
+  local pictures = (role == "status" or role == "panel") and session and (session.pictures or {}) or D.pictures
+  if (role == "status" or role == "panel") and session then session.pictures = pictures end
   local slot = pictures[pictureKey]
   if not slot then
     slot = { rev = 0, sig = "" }
@@ -208,7 +213,7 @@ D.sendFrame = function(id, now, force)
   if U and role == "status" then D.model = D.gather() end
   local body = D.compose(role, session.w, session.h, session)
   body.scale = D.saved.far[tostring(id)] and 1 or 0.5
-  local slot = (body.role == "status" and session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
+  local slot = ((body.role == "status" or body.role == "panel") and session.pictures or D.pictures)[body.role .. ":" .. session.w .. "x" .. session.h]
   local due = force or (now - session.sent >= D.gap) or session.roleSent ~= body.role
     or not slot or session.revSent ~= slot.rev
   if not due then return end
@@ -229,6 +234,7 @@ D.sendFrame = function(id, now, force)
 end
 
 D.register = function(role, render, input)
+  if render == nil and input == nil then return D.screens[role] end
   if type(role) ~= "string" or role == "" then return end
   if type(render) ~= "function" then render = function() end end
   if type(input) ~= "function" then input = function() end end
@@ -364,6 +370,30 @@ D.statusFrame = function(session, w, h, now)
     copy.takeover = session.takeover
     return U.alert(copy, w, h)
   end
+  if w == 26 and h == 20 then
+    local indices = {1,3,4,2,5,6,7,8,9}
+    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 3))
+    local c = U.canvas(w, h)
+    c.header("FLEET", copy.time)
+    for i = 1, 3 do
+      local index = indices[page * 3 + i]
+      local tile = copy.tiles[index]
+      if tile then
+        local y = 2 + (i - 1) * 6
+        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg)
+        if index == 9 then
+          c.fill(1, y + 1, w, 3, tile.bg)
+          c.center(1, w, y + 2, "new client:")
+        end
+      end
+    end
+    c.fill(1, h, w, 1, "7")
+    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 3) .. "  >  PANEL")
+    c.hit("prev", 1, h, 3, 1)
+    c.hit("next", 15, h, 3, 1)
+    c.hit("panel", 19, h, 7, 1)
+    return c.frame()
+  end
   return U.status(copy, w, h)
 end
 
@@ -426,6 +456,8 @@ D.onInput = function(msg)
       session.takeover = D.model and D.model.alerts[#D.model.alerts]
       session.showAlerts = session.takeover ~= nil
     elseif id == "next" then session.page = (session.page or 0) + 1
+    elseif id == "prev" then session.page = (session.page or 0) - 1
+    elseif id == "panel" then D.setRole(msg.from, "panel")
     elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
   end
   local screen = D.screens[drawn]
@@ -436,7 +468,7 @@ D.onInput = function(msg)
   elseif id == "generic" and D.roleOf(msg.from) ~= "generic" then
     D.setRole(msg.from, "generic")
   end
-  local event = { id = id, x = body.x, y = body.y, role = drawn }
+  local event = { id = id, x = body.x, y = body.y, role = drawn, session = session }
   if text ~= nil then event.text = text end
   if screen then pcall(screen.input, event) end
   local session = D.sessions[msg.from]
@@ -552,6 +584,8 @@ D.localTick = function(now)
           event.id="dismiss"
         elseif drawn == "status" and event.id == "next" then
           m.session.page=(m.session.page or 0)+1
+        elseif drawn == "status" and event.id == "prev" then
+          m.session.page=(m.session.page or 0)-1
         elseif drawn == "status" and event.id == "alerts" then
           m.session.takeover=D.model.alerts[#D.model.alerts]
           m.session.showAlerts=m.session.takeover ~= nil
@@ -561,6 +595,7 @@ D.localTick = function(now)
         end
         local screen=D.screens[drawn]
         event.role=drawn
+        event.session=m.session
         if screen then screen.input(event) end
       end
       m.frame = D.compose(m.role,w,h,m.session)
@@ -591,7 +626,7 @@ D.load = function()
   D.box = SO.store.store(D.path, function(v)
     if type(v) ~= "table" or type(v.roles) ~= "table" then return false end
     for _, role in pairs(v.roles) do
-      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" then return false end
+      if role ~= "shop" and role ~= "mining" and role ~= "lumber" and role ~= "status" and role ~= "ar" and role ~= "panel" then return false end
     end
     if v.far ~= nil then
       if type(v.far) ~= "table" then return false end

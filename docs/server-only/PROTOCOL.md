@@ -448,11 +448,20 @@ Discovery runs at most every five seconds. The monitor uses its real size,
 text scale 0.5 and the spec palette. Its status session and role are volatile,
 separate from paired displays, and require no rednet traffic or saved files.
 
-`display.screen(role, render, input)` registers one screen. `role` is a string. A second call for the same role replaces the first. `render(w, h)` is called with the target display size and returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`, and clips the picture to the `hello` size. `input` accepts `{ id, x, y, role }` and optional `text`. `role` in that table is the screen that was showing.
+`display.screen(role, render, input)` registers one screen. `role` is a string.
+A second call for the same role replaces the first. `screen(role)` with no
+callbacks returns the registered `{ render, input }` or nil.
+`render(w, h, session?)` receives the target size and server-local session and
+returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`,
+and clips the picture to the `hello` size. `input` accepts
+`{ id, x, y, role, session }` and optional `text`. The session is the same table
+passed to render; it is never sent on the wire. `role` is the screen that was
+showing. Local monitor input receives its own session through the same field.
+Existing callbacks can ignore the added session argument and field.
 
 Frame signatures and revisions are kept per role and size. Status additionally
-keeps revisions, XS tile paging and alert state per display session. Every status
-frame carries the Big Tiles palette and that display's scale. Existing renderers
+keeps revisions, tile paging and alert state per display session. Panel revisions
+also stay per session. Every status frame carries the Big Tiles palette and that display's scale. Existing renderers
 may ignore the size arguments. Older partial installs without `so-ui.lua` retain
 the legacy status renderer.
 
@@ -483,18 +492,28 @@ at most one takeover for each identity and at most one in 30 seconds. The
 coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
 stay in the alert bar and do not trigger a delayed takeover. The alert bar
 opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
-select mining, lumber, shop or generic. Pocket navigation row 20 is reserved.
+select mining, lumber, shop or generic. At 26x20, glance row 20 shows
+`<  glance n/m  >  PANEL`. Its `prev` and `next` inputs wrap three pages of
+three tiles independently per pocket. The first page shows turtles, alerts and
+ore; later pages show leases, logs, disk, displays, drops and pairing. The `panel`
+input selects panel mode.
 No saved data or wire type changes are required.
 
 Button id `generic` returns that display to the generic screen. Button id
 `status` returns to status from any screen. Generic buttons can select `shop`,
-`mining`, `status`, `lumber` and `ar`. Missing lumber and AR buttons are injected
+`mining`, `status`, `lumber`, `ar` and `panel`. Missing lumber and AR buttons are injected
 for legacy generic screens. The drops list has `new` and `status` buttons, so
 it suppresses that injection and reaches the other roles through ADD NEW.
+Generic screens at least 39 columns wide also gain a PANEL header button
+when the panel screen is loaded, unless they already have one.
+This keeps panel mode reachable on monitors
+when the drops module supplies the generic screen.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids. Old files without `far` remain valid.
-The default role is `generic`. Both settings survive a restart.
+The default role is `generic`, except a 26x20 display without a saved role
+uses `status` when the kit is installed. Saved roles, including `panel`, take precedence. Both settings
+survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
 the next tick for a subscribed display. A failed save keeps the previous setting.
@@ -507,6 +526,33 @@ NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capabl
 outputs repaint the timer once a second. Outputs without palette support retain
 the legacy bottom-right stale marker and repaint on retries. The retry schedule
 still uses jittered exponential backoff capped at 30 seconds.
+
+### panel
+
+`so-mod-panel.lua` exports module metadata and `tick(now)`. It registers the
+`panel` screen and has no wire handlers. It is installed only on the server.
+Search and page selection live in the display session and clear on restart.
+The saved display role can be `panel`; no new saved file or wire type is added.
+
+Tick reads registered screens through `SO.mods.display.screen(role)` and reads
+mining and lumber state from their rendered headers. It gathers the state view's
+`.alert` values for the alert list. Render uses these cached facts and the local
+session. Missing registered screens show grey controls marked `not loaded`.
+
+Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
+`lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
+only this panel's search. START and STOP forward one input to the corresponding
+registered screen. An order applies that search to the registered shop screen,
+renders its first list page, selects its first `item:<name>` and sends exactly
+one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
+which defines the best match. A search with no match sends no order. This uses
+the existing shop search and selection state, shared with full shop screens.
+
+`status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
+`alert-next` wrapping pages. `pair` shows instructions to press P on the server
+and type its code on the new client. `panel-back` returns to the main panel.
+At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
+screens use compact controls. Pairing and job planning are unchanged.
 
 ### lumber
 

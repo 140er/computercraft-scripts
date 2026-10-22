@@ -117,28 +117,44 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
-  clipped frames. Calls are `screen(role, render, input)`, `far(id, on)`, `tick(now)`,
+  clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
   `terminal(model, view, w, h)` and `monitorTouch(side, x, y)`.
   `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
   code or log, `uptime`, `log`, `offset`, `code`, `expires` and `now`.
   `monitorTouch` queues local input for the next tick. Tick discovers a local
   monitor at most every five seconds and draws at scale 0.5 with local navigation,
   without rednet or saved role changes. Tick also draws `SO.terminal` once a second.
+  `screen(role)` returns the registered `{ render, input }` callbacks or nil.
   `far` saves a per-computer flag and returns success plus an optional save error.
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
-  `render(w, h)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
-  coordinates and button id or text. Handlers are `hello`, `view.sub`, `view.get`
+  `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
+  coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
   and `input`. Built-in screens are `generic` and `status`.
   Button id `status` returns any screen to status. Generic screens with their
   own `lumber` and `ar` buttons keep them. The drops list reaches those roles
   through ADD NEW and suppresses header injection; older generic screens retain
-  the fallback buttons.
+  the fallback buttons. Generic screens at least 39 columns wide gain a PANEL
+  header button when the panel screen is loaded and they do not already provide one.
   Render signatures and revisions are isolated by role and size. Status also
-  isolates paging and alert takeover state per display session. Gather runs in
+  isolates paging and alert takeover state per display session. Panel frames also
+  isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
+  glance row pages three tiles at a time with `prev` and `next`; `panel` selects
+  panel mode. Explicit saved roles take precedence. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
   Ore and log totals have no source and use stale tiles. A missing kit retains
   the legacy status renderer for older partial installations.
   See [display](server-only/PROTOCOL.md#display).
+- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
+  `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
+  main/alerts/pair pages and alert paging in each display session. Tick gathers
+  registered screen callbacks and job header states, plus state `.alert` values.
+  Main-page inputs forward START and STOP once to the mining or lumber screen.
+  Orders apply the local search to the shop screen, render its first page, select
+  the first item and send one `order:<count>:<name>` input. Shop's count/name sort
+  defines the best match. Missing screens have grey blocks without action targets.
+  GLANCE returns to status; ALERTS lists state alerts; PAIR explains server pairing.
+  Larger screens arrange the same controls using the kit grid. No saved panel file.
+  See [panel](server-only/PROTOCOL.md#panel).
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Only `tick(now)` is exported beyond module metadata.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
@@ -229,8 +245,8 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
 - Worker adds `worker.lua`. Only turtles install this role.
 - Display adds `display.lua`. Pockets install this role. Computers can choose it.
 - Server adds `so-server.lua`, `so-log.lua`, `so-plan.lua`, `so-mine-plan.lua`,
-  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua`.
-  Current modules are ar, cells, display, drops, lease, lumber, mine, shop and
+  `so-lumber-plan.lua`, `so-ui.lua` and every root `so-mod-*.lua`, including `so-mod-ar.lua` and `so-mod-panel.lua`.
+  Current modules are ar, cells, display, drops, lease, lumber, mine, panel, shop and
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
 
@@ -325,7 +341,8 @@ blocks later saves until restart. Do not save inside tight loops.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
 - `so-drops` holds drop points and failure counts.
 - `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
-  Old files without `far` remain valid. Far displays use scale 1; others use 0.5.
+  Roles include `panel`. Old files without `far` remain valid.
+  Far displays use scale 1; others use 0.5.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
@@ -397,7 +414,7 @@ UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status fixtures
 alert takeover timing and dismissal, contrast, clipping, XS paging, role buttons,
 size-specific revisions, source gathering and server-only kit installation.
 `status-T.txt` uses four 12-column tiles and a log, with status navigation on the
-bottom three rows. Pocket parity covers rows 1 through 19; UI-3b owns row 20.
+bottom three rows. UI-1 pocket parity covers rows 1 through 19; UI-3b covers all 20 rows.
 
 
 UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
@@ -405,6 +422,11 @@ selected drop actions, draft editing, all 64 points through paging, AR switch
 persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
 files and client role lists are unchanged.
+
+UI-3b adds `tests/ui/ui3b.lua`. It checks unchanged status-P and panel-P fixtures
+on all 20 rows, per-pocket paging and search, action forwarding, real shop orders,
+monitor layout, session revisions, role persistence, alert paging, pairing help,
+missing modules, contrast, bounds and server-only installation.
 
 ## Open gaps
 
