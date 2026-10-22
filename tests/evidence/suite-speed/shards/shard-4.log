@@ -1,0 +1,354 @@
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using local-2 slot
+PASS no controller: the dashboard and its keys work and never touch AR
+CHECK-TIME 0.038986 tests/run.lua | no controller: the dashboard and its keys work and never touch AR
+PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+CHECK-TIME 0.029525 tests/run.lua | 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
+PASS goggles: HUD lines, ore icons, and frames that delete instead of clearing
+CHECK-TIME 0.022395 tests/run.lua | goggles: HUD lines, ore icons, and frames that delete instead of clearing
+PASS fleetview draws teletext pixels with the right colours
+CHECK-TIME 0.000840 tests/run.lua | fleetview draws teletext pixels with the right colours
+PASS shaft labels are raised, centered and readable with smaller turtle markers
+CHECK-TIME 0.009180 tests/run.lua | shaft labels are raised, centered and readable with smaller turtle markers
+PASS attach, detach and reattach use peripheral events
+CHECK-TIME 0.030747 tests/run.lua | attach, detach and reattach use peripheral events
+PASS new frames replace old positions and clamp branch width to reach
+CHECK-TIME 0.011598 tests/run.lua | new frames replace old positions and clamp branch width to reach
+PASS local coordinates, old miners and incomplete geometry are handled
+CHECK-TIME 0.011198 tests/run.lua | local coordinates, old miners and incomplete geometry are handled
+PASS key and dashboard touch toggles persist both states across restart
+CHECK-TIME 0.082860 tests/run.lua | key and dashboard touch toggles persist both states across restart
+PASS turtles at the shaft top need no extra position marker or path
+CHECK-TIME 0.011232 tests/run.lua | turtles at the shaft top need no extra position marker or path
+PASS LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+CHECK-TIME 0.025386 tests/run.lua | LOST, STUCK and ERROR show red errors below the label; stale reports stay grey
+PASS controller failure stops 3D calls and leaves the dashboard running
+CHECK-TIME 0.014002 tests/run.lua | controller failure stops 3D calls and leaves the dashboard running
+PASS real miner telemetry supplies world shafts and omits local positions
+CHECK-TIME 0.033025 tests/run.lua | real miner telemetry supplies world shafts and omits local positions
+PASS Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+CHECK-TIME 0.000932 tests/run.lua | Tom's GPU: 3D window, triangles per cube, list, buttons and FLIP
+PASS 3D mock rejects unverified methods
+CHECK-TIME 0.000031 tests/run.lua | 3D mock rejects unverified methods
+PASS hub hands each new miner the direction the fewest others have and keeps it
+CHECK-TIME 0.005024 tests/miner_dirs.lua | hub hands each new miner the direction the fewest others have and keeps it
+PASS pocket panel renames a miner and changes its direction through the hub
+CHECK-TIME 0.010598 tests/miner_dirs.lua | pocket panel renames a miner and changes its direction through the hub
+PASS miner switches to the hub's direction at home and starts that quarter fresh
+CHECK-TIME 0.002586 tests/miner_dirs.lua | miner switches to the hub's direction at home and starts that quarter fresh
+PASS miner keeps going when the hub's direction is the one it has
+CHECK-TIME 0.003232 tests/miner_dirs.lua | miner keeps going when the hub's direction is the one it has
+PASS setup without a role leaves the direction to the hub and takes a name
+CHECK-TIME 0.010807 tests/miner_dirs.lua | setup without a role leaves the direction to the hub and takes a name
+PASS setup digs its own hole and turns around when placed facing the chest
+CHECK-TIME 0.004502 tests/miner_dirs.lua | setup digs its own hole and turns around when placed facing the chest
+PASS setup says why it failed, last on the screen
+CHECK-TIME 0.007056 tests/miner_dirs.lua | setup says why it failed, last on the screen
+PASS miner set up without a direction asks the hub before it starts
+CHECK-TIME 0.002665 tests/miner_dirs.lua | miner set up without a direction asks the hub before it starts
+PASS install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+CHECK-TIME 0.007260 tests/miner_dirs.lua | install reset wipes the machine but keeps the installer and disks, and the hub forgets it
+PASS sha256 and hmac match known vectors
+CHECK-TIME 0.000906 tests/so/so0.lua | sha256 and hmac match known vectors
+PASS so-server refuses on 1 MB and 8 MB disks with the message, boots on 16 MB
+CHECK-TIME 0.021683 tests/so/so0.lua | so-server refuses on 1 MB and 8 MB disks with the message, boots on 16 MB
+PASS two fake machines pair with a code, then exchange hello and ack
+CHECK-TIME 0.058551 tests/so/so0.lua | two fake machines pair with a code, then exchange hello and ack
+PASS a message with a wrong MAC is dropped and logged
+CHECK-TIME 0.060717 tests/so/so0.lua | a message with a wrong MAC is dropped and logged
+PASS a repeated rid gets the saved reply again
+CHECK-TIME 0.062610 tests/so/so0.lua | a repeated rid gets the saved reply again
+PASS an unknown type gets err
+CHECK-TIME 0.066668 tests/so/so0.lua | an unknown type gets err
+PASS a test module so-mod-test.lua receives its message type and its tick runs
+CHECK-TIME 0.065562 tests/so/so0.lua | a test module so-mod-test.lua receives its message type and its tick runs
+PASS so-store refuses a write past its budget and the old file stays intact
+CHECK-TIME 0.000287 tests/so/so0.lua | so-store refuses a write past its budget and the old file stays intact
+PASS the fake turtle digs and moves in the block world
+CHECK-TIME 0.000054 tests/so/so0.lua | the fake turtle digs and moves in the block world
+PASS a string payload, a 1 MB field, and a deep body are dropped and the server still answers
+CHECK-TIME 0.085626 tests/so/so0.lua | a string payload, a 1 MB field, and a deep body are dropped and the server still answers
+PASS three turtles pair one after another and a re-pair needs a fresh code
+CHECK-TIME 0.204023 tests/so/so0.lua | three turtles pair one after another and a re-pair needs a fresh code
+PASS a listener that records pairing and knows the code cannot compute the key
+CHECK-TIME 0.071397 tests/so/so0.lua | a listener that records pairing and knows the code cannot compute the key
+PASS a replay 61s later is dropped and a retry runs the handler once
+CHECK-TIME 0.577333 tests/so/so0.lua | a replay 61s later is dropped and a retry runs the handler once
+PASS a fresh fake computer calls initWithTiming before its first random(32)
+CHECK-TIME 0.041257 tests/so/so0.lua | a fresh fake computer calls initWithTiming before its first random(32)
+PASS a retried pair message gets the saved ack
+CHECK-TIME 0.057858 tests/so/so0.lua | a retried pair message gets the saved ack
+PASS the pair code comes from ccryptolib random bytes
+CHECK-TIME 0.022521 tests/so/so0.lua | the pair code comes from ccryptolib random bytes
+PASS five bad pair MACs burn the code and join can pin the server id
+CHECK-TIME 0.090587 tests/so/so0.lua | five bad pair MACs burn the code and join can pin the server id
+PASS restart after 5000 events restores the same state
+CHECK-TIME 42.693634 tests/so/so1.lua | restart after 5000 events restores the same state
+PASS a killed segment write loses only the event in that write
+CHECK-TIME 0.061353 tests/so/so1.lua | a killed segment write loses only the event in that write
+PASS disk at 80 percent raises the disk alert and refuses a new job
+CHECK-TIME 0.027771 tests/so/so1.lua | disk at 80 percent raises the disk alert and refuses a new job
+PASS a subscriber gets increasing revs and at most 2 frames per second
+CHECK-TIME 0.033355 tests/so/so1.lua | a subscriber gets increasing revs and at most 2 frames per second
+PASS history pages move forward and the raw log stays within its caps
+CHECK-TIME 0.164076 tests/so/so1.lua | history pages move forward and the raw log stays within its caps
+PASS a paired machine keeps its fingerprint and pose across a server restart
+CHECK-TIME 0.081524 tests/so/so1.lua | a paired machine keeps its fingerprint and pose across a server restart
+PASS worker and its libraries fit in 100 KB
+CHECK-TIME 0.000081 tests/so/so2.lua | worker and its libraries fit in 100 KB
+PASS a batch of 16 steps reports the fake world
+CHECK-TIME 0.097034 tests/so/so2.lua | a batch of 16 steps reports the fake world
+PASS lease expiry mid-batch stops at the next step
+CHECK-TIME 0.080177 tests/so/so2.lua | lease expiry mid-batch stops at the next step
+PASS a silent server gets 12 fast beacons, a 32-move return, then slow beacons
+CHECK-TIME 0.209969 tests/so/so2.lua | a silent server gets 12 fast beacons, a 32-move return, then slow beacons
+PASS reboot before a move reports that it did not happen
+CHECK-TIME 0.073444 tests/so/so2.lua | reboot before a move reports that it did not happen
+PASS a batch with a bad MAC is ignored
+CHECK-TIME 0.063273 tests/so/so2.lua | a batch with a bad MAC is ignored
+PASS a new lease stops beaconing and runs
+CHECK-TIME 0.075474 tests/so/so2.lua | a new lease stops beaconing and runs
+PASS a new lease during the return stops walking back
+CHECK-TIME 0.104634 tests/so/so2.lua | a new lease during the return stops walking back
+PASS backtrack digs a block this turtle dug
+CHECK-TIME 0.100277 tests/so/so2.lua | backtrack digs a block this turtle dug
+PASS backtrack stops on a block this turtle did not dig
+CHECK-TIME 0.102101 tests/so/so2.lua | backtrack stops on a block this turtle did not dig
+PASS SO9 server manifest covers every root so file and crypto file
+CHECK-TIME 0.000296 tests/so/so9.lua | SO9 server manifest covers every root so file and crypto file
+PASS SO9 each role contains its static dependencies and thin clients fit 800 KB
+CHECK-TIME 0.011927 tests/so/so9.lua | SO9 each role contains its static dependencies and thin clients fit 800 KB
+PASS SO9 small server disk refuses before HTTP and prints both config lines
+CHECK-TIME 0.000310 tests/so/so9.lua | SO9 small server disk refuses before HTTP and prints both config lines
+PASS SO9 fifth download failure leaves every old file unchanged
+CHECK-TIME 0.003700 tests/so/so9.lua | SO9 fifth download failure leaves every old file unchanged
+PASS SO9 rejects empty, non-200 and invalid Lua responses
+CHECK-TIME 0.008662 tests/so/so9.lua | SO9 rejects empty, non-200 and invalid Lua responses
+PASS SO9 interrupted swaps recover every move for every role
+CHECK-TIME 2.889995 tests/so/so9.lua | SO9 interrupted swaps recover every move for every role
+PASS SO9 interrupted fresh install removes newly introduced files
+CHECK-TIME 0.461142 tests/so/so9.lua | SO9 interrupted fresh install removes newly introduced files
+PASS SO9 rollback can itself be interrupted and resumed
+CHECK-TIME 0.007411 tests/so/so9.lua | SO9 rollback can itself be interrupted and resumed
+PASS SO9 committed transaction finishes cleanup after interruption
+CHECK-TIME 0.005580 tests/so/so9.lua | SO9 committed transaction finishes cleanup after interruption
+PASS SO9 update preserves keys data journal drops display and server config
+CHECK-TIME 0.029713 tests/so/so9.lua | SO9 update preserves keys data journal drops display and server config
+PASS SO9 fresh server writes plain GPS config and recovery startup
+CHECK-TIME 0.016111 tests/so/so9.lua | SO9 fresh server writes plain GPS config and recovery startup
+PASS SO9 server manual coordinates retry invalid input
+CHECK-TIME 0.016496 tests/so/so9.lua | SO9 server manual coordinates retry invalid input
+PASS SO9 thin machines install only their role and launch pairing
+CHECK-TIME 0.010902 tests/so/so9.lua | SO9 thin machines install only their role and launch pairing
+PASS SO9 role picker supports arrows clicks and monitor default touch
+CHECK-TIME 0.021354 tests/so/so9.lua | SO9 role picker supports arrows clicks and monitor default touch
+PASS SO9 reset needs yes and preserves only installer and ROM
+CHECK-TIME 0.005357 tests/so/so9.lua | SO9 reset needs yes and preserves only installer and ROM
+PASS SO9 reset skips mounted and read-only paths and removes keys and data
+CHECK-TIME 0.000686 tests/so/so9.lua | SO9 reset skips mounted and read-only paths and removes keys and data
+PASS SO9 reset reports a failed delete and continues clearing local data
+CHECK-TIME 0.000781 tests/so/so9.lua | SO9 reset reports a failed delete and continues clearing local data
+PASS SO9 update shim calls only role installer
+CHECK-TIME 0.000021 tests/so/so9.lua | SO9 update shim calls only role installer
+PASS SO9 first update uses the new installer list and removes retired role files
+CHECK-TIME 0.031444 tests/so/so9.lua | SO9 first update uses the new installer list and removes retired role files
+PASS SO9 trims saved role whitespace and pins every raw request to one SHA
+CHECK-TIME 0.004346 tests/so/so9.lua | SO9 trims saved role whitespace and pins every raw request to one SHA
+PASS SO9 API failures use only the saved commit or leave the install unchanged
+CHECK-TIME 0.033178 tests/so/so9.lua | SO9 API failures use only the saved commit or leave the install unchanged
+PASS SO9 a failed pinned download never retries from a branch
+CHECK-TIME 0.003361 tests/so/so9.lua | SO9 a failed pinned download never retries from a branch
+PASS SO9 a branch advance cannot change the commit during an update
+CHECK-TIME 0.003883 tests/so/so9.lua | SO9 a branch advance cannot change the commit during an update
+PASS SO9 invalid installer and invalid cached commit leave installed files unchanged
+CHECK-TIME 0.010818 tests/so/so9.lua | SO9 invalid installer and invalid cached commit leave installed files unchanged
+PASS SO9 every deletion and metadata move rolls back across power loss
+CHECK-TIME 2.530162 tests/so/so9.lua | SO9 every deletion and metadata move rolls back across power loss
+PASS SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
+CHECK-TIME 0.012179 tests/so/so9.lua | SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
+SO9 worker peak charged bytes=257884
+SO9 display peak charged bytes=242744
+PASS SO9 worker and display stay below 1 MB during the complete update
+CHECK-TIME 0.008433 tests/so/so9.lua | SO9 worker and display stay below 1 MB during the complete update
+PASS SO9 first update can resolve a SHA through Git refs when the API is blocked
+CHECK-TIME 0.004571 tests/so/so9.lua | SO9 first update can resolve a SHA through Git refs when the API is blocked
+PASS SO9 malformed Git refs cannot select a moving ref or modify an existing install
+CHECK-TIME 0.010812 tests/so/so9.lua | SO9 malformed Git refs cannot select a moving ref or modify an existing install
+PASS SO9 downloaded installer must still define the saved role
+CHECK-TIME 0.003542 tests/so/so9.lua | SO9 downloaded installer must still define the saved role
+PASS SO9 rejects unsafe saved file paths and invalid handoff revisions
+CHECK-TIME 0.014649 tests/so/so9.lua | SO9 rejects unsafe saved file paths and invalid handoff revisions
+PASS SO11 harness reboots with the same disk and id and drops outage messages
+CHECK-TIME 0.000066 tests/so/so11.lua | SO11 harness reboots with the same disk and id and drops outage messages
+PASS SO11 new mining jobs accept every ore by default
+CHECK-TIME 0.022114 tests/so/so11.lua | SO11 new mining jobs accept every ore by default
+SO11 time 60s
+SO11 time 120s
+SO11 time 180s
+SO11 time 240s
+SO11 time 300s
+SO11 power cut in display.tick at 360s
+SO11 time 360s
+SO11 time 420s
+SO11 time 480s
+SO11 time 540s
+SO11 time 600s
+SO11 time 660s
+SO11 time 720s
+SO11 mining 2 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-5} error=nil
+SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
+SO11 lumber phase=waiting cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=28,["y"]=64,["z"]=7}
+SO11 summary dug cells=80 ores delivered=4 trees felled=4 logs=16 leases sent=1293 reports=1293
+SO11 worker 2 recovery park=1s work=idle beacon=held lease
+SO11 worker 3 recovery park=1s work=idle beacon=held lease
+SO11 worker 4 recovery park=1s work=idle beacon=held lease
+SO11 display 5 recovery=25s
+SO11 display 6 recovery=14s
+SO11 elapsed 33 real seconds
+PASS SO11 integration check 1
+CHECK-TIME 32.602380 tests/so/so11.lua | SO11 integration check 1
+PASS SO11 integration check 2
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 2
+PASS SO11 integration check 3
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 3
+PASS SO11 integration check 4
+CHECK-TIME 0.000000 tests/so/so11.lua | SO11 integration check 4
+PASS SO11 integration check 5
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 5
+PASS SO11 integration check 6
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 6
+PASS SO11 integration check 7
+CHECK-TIME 0.000001 tests/so/so11.lua | SO11 integration check 7
+PASS server modules share the shell program environment
+CHECK-TIME 0.024558 tests/run.lua | server modules share the shell program environment
+PASS paged drop editor and typed input at 26x20
+CHECK-TIME 0.600035 tests/so/drop-editor.lua | paged drop editor and typed input at 26x20
+PASS paged drop editor and typed input at 29x12
+CHECK-TIME 0.456681 tests/so/drop-editor.lua | paged drop editor and typed input at 29x12
+PASS drop paging is independent between pocket and monitor
+CHECK-TIME 0.644249 tests/so/drop-editor.lua | drop paging is independent between pocket and monitor
+PASS server and display pair with a wired modem before wireless
+CHECK-TIME 0.069626 tests/so/server-net.lua | server and display pair with a wired modem before wireless
+PASS server opens a wireless modem attached after boot and after detach
+CHECK-TIME 0.102330 tests/so/server-net.lua | server opens a wireless modem attached after boot and after detach
+PASS display opens a wireless modem attached after boot and after detach
+CHECK-TIME 0.120660 tests/so/server-net.lua | display opens a wireless modem attached after boot and after detach
+PASS server boots without modems and pairs after a wireless attachment
+CHECK-TIME 0.063480 tests/so/server-net.lua | server boots without modems and pairs after a wireless attachment
+PASS hostname collision keeps server running and identifies the other host
+CHECK-TIME 0.040728 tests/so/server-net.lua | hostname collision keeps server running and identifies the other host
+PASS paired display boots with other host and uses its saved server
+CHECK-TIME 0.075627 tests/so/server-net.lua | paired display boots with other host and uses its saved server
+PASS paired display boots with no host and uses its saved server
+CHECK-TIME 0.078184 tests/so/server-net.lua | paired display boots with no host and uses its saved server
+PASS paired display boots with backup keys and uses its saved server
+CHECK-TIME 0.087717 tests/so/server-net.lua | paired display boots with backup keys and uses its saved server
+PASS checkpoint retains only the two usable snapshots
+CHECK-TIME 0.001386 tests/so/snapshot-prune.lua | checkpoint retains only the two usable snapshots
+PASS startup removes stale snapshot generations
+CHECK-TIME 0.001466 tests/so/snapshot-prune.lua | startup removes stale snapshot generations
+PASS startup cleanup resumes after interrupted stale-file deletion
+CHECK-TIME 0.007358 tests/so/snapshot-prune.lua | startup cleanup resumes after interrupted stale-file deletion
+PASS previous snapshot still loads after pruning
+CHECK-TIME 0.001370 tests/so/snapshot-prune.lua | previous snapshot still loads after pruning
+PASS partial snapshot and pointer writes preserve the published state
+CHECK-TIME 0.005976 tests/so/snapshot-prune.lua | partial snapshot and pointer writes preserve the published state
+PASS snapshot pruning survives power loss at every disk mutation
+CHECK-TIME 0.034586 tests/so/snapshot-prune.lua | snapshot pruning survives power loss at every disk mutation
+PASS UI1 font decodes all nine cells of every spec glyph
+CHECK-TIME 0.000874 tests/ui/ui1.lua | UI1 font decodes all nine cells of every spec glyph
+PASS UI1 status matches all size fixtures in both layers
+CHECK-TIME 0.009253 tests/ui/ui1.lua | UI1 status matches all size fixtures in both layers
+PASS UI1 takeover matches alert fixture
+CHECK-TIME 0.002517 tests/ui/ui1.lua | UI1 takeover matches alert fixture
+PASS UI1 contrast respects ink including inverted glyph cells
+CHECK-TIME 0.010260 tests/ui/ui1.lua | UI1 contrast respects ink including inverted glyph cells
+PASS UI1 odd sizes and blocks stay inside the canvas
+CHECK-TIME 0.005713 tests/ui/ui1.lua | UI1 odd sizes and blocks stay inside the canvas
+PASS UI1 padded tiles keep titles and full big values inside their rows
+CHECK-TIME 0.011237 tests/ui/ui1.lua | UI1 padded tiles keep titles and full big values inside their rows
+PASS UI1 gathering reads real sources and leaves unsupported totals stale
+CHECK-TIME 0.009939 tests/ui/ui1.lua | UI1 gathering reads real sources and leaves unsupported totals stale
+PASS UI1 roleless machine rows count turtles, open leases and lost workers
+CHECK-TIME 0.011731 tests/ui/ui1.lua | UI1 roleless machine rows count turtles, open leases and lost workers
+PASS UI1 takeover expires at five seconds, dismisses and throttles per session
+CHECK-TIME 0.030009 tests/ui/ui1.lua | UI1 takeover expires at five seconds, dismisses and throttles per session
+PASS UI1 subscribed frames retain all rows and expire takeovers on tick
+CHECK-TIME 0.057084 tests/ui/ui1.lua | UI1 subscribed frames retain all rows and expire takeovers on tick
+PASS UI1 latest changed alert wins and frames fit the wire budget
+CHECK-TIME 0.012695 tests/ui/ui1.lua | UI1 latest changed alert wins and frames fit the wire budget
+PASS UI1 XS cycles tiles and status buttons select their roles
+CHECK-TIME 0.023968 tests/ui/ui1.lua | UI1 XS cycles tiles and status buttons select their roles
+PASS UI1 old renderers receive size and revisions remain independent
+CHECK-TIME 0.002466 tests/ui/ui1.lua | UI1 old renderers receive size and revisions remain independent
+PASS UI1 kit installs only on the server
+CHECK-TIME 0.000043 tests/ui/ui1.lua | UI1 kit installs only on the server
+PASS UI2b lumber matches the M fixture
+CHECK-TIME 0.004689 tests/ui/ui2b.lua | UI2b lumber matches the M fixture
+PASS UI2b setup and back render within every size with spec contrast
+CHECK-TIME 0.019956 tests/ui/ui2b.lua | UI2b setup and back render within every size with spec contrast
+PASS UI2b start and stop taps use the text commands once per tap including refusals
+CHECK-TIME 0.006163 tests/ui/ui2b.lua | UI2b start and stop taps use the text commands once per tap including refusals
+PASS UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+CHECK-TIME 0.005893 tests/ui/ui2b.lua | UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
+PASS UI2b every text command retains configuration and refusal behavior
+CHECK-TIME 0.005306 tests/ui/ui2b.lua | UI2b every text command retains configuration and refusal behavior
+PASS UI2b gather keeps missing timers and daily counters stale
+CHECK-TIME 0.002435 tests/ui/ui2b.lua | UI2b gather keeps missing timers and daily counters stale
+PASS UI2d drops and AR match M mockups cell by cell
+CHECK-TIME 0.007087 tests/ui/ui2d.lua | UI2d drops and AR match M mockups cell by cell
+PASS UI2d selected drop actions and draft editor preserve stored points
+CHECK-TIME 0.004911 tests/ui/ui2d.lua | UI2d selected drop actions and draft editor preserve stored points
+PASS UI2d drop paging exposes all points without overlapping controls
+CHECK-TIME 0.063223 tests/ui/ui2d.lua | UI2d drop paging exposes all points without overlapping controls
+PASS UI2d AR tile toggles once and survives reload
+CHECK-TIME 0.006125 tests/ui/ui2d.lua | UI2d AR tile toggles once and survives reload
+PASS UI2d layouts fit all sizes and respect contrast
+CHECK-TIME 0.028214 tests/ui/ui2d.lua | UI2d layouts fit all sizes and respect contrast
+PASS UI2d status returns from every role and generic keeps header clear
+CHECK-TIME 0.037146 tests/ui/ui2d.lua | UI2d status returns from every role and generic keeps header clear
+PASS UI3c turtle labels and twelve box edges use known state colours
+CHECK-TIME 0.004284 tests/ui/ui3c.lua | UI3c turtle labels and twelve box edges use known state colours
+PASS UI3c lease owners have one blue outline and drops have short labels
+CHECK-TIME 0.001963 tests/ui/ui3c.lua | UI3c lease owners have one blue outline and drops have short labels
+PASS UI3c AR frame with 200 reservations does not sleep or yield
+CHECK-TIME 0.004319 tests/ui/ui3c.lua | UI3c AR frame with 200 reservations does not sleep or yield
+PASS UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars
+CHECK-TIME 0.002624 tests/ui/ui3c.lua | UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars
+PASS UI3c HUD label ranges stay padded and separated with consent and alerts
+CHECK-TIME 0.000791 tests/ui/ui3c.lua | UI3c HUD label ranges stay padded and separated with consent and alerts
+PASS UI3c alert banner expires after five seconds and retains the HUD count
+CHECK-TIME 0.002005 tests/ui/ui3c.lua | UI3c alert banner expires after five seconds and retains the HUD count
+PASS UI3c repeated history alerts renew the banner without changing the count
+CHECK-TIME 0.001524 tests/ui/ui3c.lua | UI3c repeated history alerts renew the banner without changing the count
+PASS UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+CHECK-TIME 0.003534 tests/ui/ui3c.lua | UI3c stable frames retain ids and removing a turtle deletes exactly its ids
+PASS AR labels are compact and nearby drops and turtles have separate heights
+CHECK-TIME 0.003401 tests/so/ar-labels.lua | AR labels are compact and nearby drops and turtles have separate heights
+PASS AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+CHECK-TIME 0.040937 tests/so/ar-labels.lua | AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
+PASS AR turtle total agrees with fleet and status for working and paired idle turtles
+CHECK-TIME 0.005823 tests/so/ar-labels.lua | AR turtle total agrees with fleet and status for working and paired idle turtles
+PASS AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+CHECK-TIME 0.239201 tests/so/ar-labels.lua | AR counts two mining leases, one lumber lease and a paired idle worker after real reports
+FILE-TIME 0.053730 tests/miner_dirs.lua
+FILE-TIME 0.346495 tests/run.lua
+FILE-TIME 0.289362 tests/so/ar-labels.lua
+FILE-TIME 1.700965 tests/so/drop-editor.lua
+FILE-TIME 0.638352 tests/so/server-net.lua
+FILE-TIME 0.052142 tests/so/snapshot-prune.lua
+FILE-TIME 1.487640 tests/so/so0.lua
+FILE-TIME 43.061713 tests/so/so1.lua
+FILE-TIME 32.624565 tests/so/so11.lua
+FILE-TIME 0.906464 tests/so/so2.lua
+FILE-TIME 6.161822 tests/so/so9.lua
+FILE-TIME 0.187789 tests/ui/ui1.lua
+FILE-TIME 0.044442 tests/ui/ui2b.lua
+FILE-TIME 0.146706 tests/ui/ui2d.lua
+FILE-TIME 0.021044 tests/ui/ui3c.lua
+153 tests passed, 0 FAILED, 0 skipped checks, shard 4/4

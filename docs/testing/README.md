@@ -131,3 +131,81 @@ Timing and validation logs live under `tests/evidence/testkit/`. Queue time and
 transport startup are distinct from Lua CPU time. The full suite covers the
 normal-build regressions as well as server-only; focused aliases do not load
 normal-build programs. Real-server Gate B is reserved for the orchestrator.
+
+## Full gate and merge checks
+
+Install the scheduler adapter after updating this checkout:
+
+```sh
+python3 tools/install-test-parts.py
+cc-test
+cc-test --shards 4
+lua5.2 tools/luacheck.lua
+```
+
+Plain `cc-test` runs all checks sequentially. `--shards N` runs the same checks
+through N independent scheduler clients, each taking the next free slot.
+No slot is reserved while waiting for another shard. Each shard has the existing
+20-minute execution deadline. The command fails if any shard fails, times out,
+or lacks its completion summary. It saves each shard log and a combined JSON
+result in the printed directory. Queue and transport time count toward the
+reported wall time. Use fewer shards when fewer slots are free. Older checkouts without these
+files keep their original sequential runner after adapter installation.
+
+CI uses `scripts/test-suite --shards 4` on Linux, with the same Lua runner but
+without the lab slot scheduler. The final summary includes passed, failed and
+skipped counts and the names and reasons of skipped checks. UI PRs
+should run on Linux so the POSIX/Python generator comparison executes.
+
+`tests/run.lua` remains append-only. The full runner stages a copy as
+`tests/full.lua` and substitutes its local test callback at one checked marker.
+It preserves test registration order and discovers new suite files from the
+canonical runner. A missing or ambiguous callback marker fails the gate.
+Whole files form shard groups, except SO11's two recovery scenarios. Each SO11
+scenario initializes lazily inside its first selected assertion, once per
+scenario, so shards do not repeat it. `tests/suite-costs.lua` holds measured
+Linux CPU costs; greedy allocation balances these groups for any shard count.
+New groups default to one second and still run. `CHECK-TIME` and `FILE-TIME`
+lines report Lua CPU seconds; the outer command reports wall seconds.
+
+The merge gate requires the full suite, luacheck global checks, Lua 5.2 syntax,
+Cobalt local limits and the append-only scope check. Luacheck v1.2.0 is pinned
+under `tools/vendor/luacheck`, including its license. It needs only Lua 5.2,
+with no root install, network access or native modules. The checked files are
+`so-*.lua`, `worker.lua` and `display.lua`; legacy normal-build files and vendored
+crypto code are outside this server-only gate. Extra file arguments check
+scratch code with the same config.
+
+Undefined reads, accidental global writes, writes to read-only globals and
+syntax errors fail lint. Unused locals and arguments print warnings. CC globals
+and `SO` are declared explicitly; `SO.mods` module fields remain extensible.
+Only the boot wrappers that replace `print`, `package` and `require` receive
+file-specific write permissions. No blanket global suppression is used.
+Run `python3 tools/suite-selftest.py` for shard coverage, skips, failure
+propagation and scratch global defects. Gate B gameplay remains the
+orchestrator's decision during the server-only freeze.
+
+The Linux profile at `4b6ba5b` passed 617 checks in 348.57 wall seconds.
+The final sequential run passed the same 617 checks in 351.87 seconds.
+The largest measured groups were:
+
+| Group | Lua CPU seconds |
+| --- | ---: |
+| Mining, `so3.lua` | 62.47 |
+| SO11 B recovery | 56.81 |
+| Range regressions | 47.86 |
+| SO1 persistence | 42.64 |
+| SO11 A recovery | 31.34 |
+
+Complete per-file/check timings and gate logs are saved under
+`tests/evidence/suite-speed/`. The profile includes test-body CPU time;
+loading and scheduler overhead are included only in the wall measurement.
+
+The measured `cc-test --shards 4` gate passed all 617 checks in 361.46 wall
+seconds. Only local-2 was initially free. Shards 1, 4 and 2 used it in turn;
+shard 3 eventually acquired Windows after waiting. This contended run did not
+reduce wall time relative to the 348.57-second baseline. It proves scheduler
+and Windows transport coverage, with identical check identities across all
+runs. Repeat the benchmark with several free slots to measure the parallel
+reduction. The measured CPU costs allocate about 86 seconds to each of four
+shards before queue, platform and transport effects.

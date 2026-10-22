@@ -1,3 +1,5 @@
 api.key
 docs/.obsidian/workspace*.json
 docs/.obsidian/cache
+
+__pycache__/

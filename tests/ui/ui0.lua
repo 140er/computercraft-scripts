@@ -319,8 +319,9 @@ return function(test, equal)
     local root = pipe and pipe:read("*l")
     if pipe then pipe:close() end
     if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
-      print("SKIP UI0 generator check: needs a POSIX shell and python3")
-      return
+      return dofile("tests/skips.lua").record(
+        "UI0 generator preserves section 7.1 and reproduces every fixture",
+        "needs a POSIX shell and python3")
     end
     local dir = os.tmpname()
     os.remove(dir)
