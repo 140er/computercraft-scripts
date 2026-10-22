@@ -28,7 +28,7 @@ function L.canDig(block)
     ["minecraft:large_fern"] = true, ["minecraft:dead_bush"] = true,
     ["minecraft:vine"] = true,
   }
-  return type(block) == "table" and (plants[block.name] == true or L.isSapling(block.name))
+  return type(block) == "table" and plants[block.name] == true
 end
 
 function L.scan(area, ground, dim)
@@ -63,6 +63,16 @@ function L.access(point, near, blocked)
     end
   end
   return best
+end
+
+function L.travel(from, target, ground)
+  if from.x ~= target.x or from.z ~= target.z then
+    if from.y ~= ground + 2 then
+      return { dim = from.dim, x = from.x, y = ground + 2, z = from.z }
+    end
+    return { dim = target.dim, x = target.x, y = ground + 2, z = target.z }
+  end
+  return target
 end
 
 function L.distance(a, b)

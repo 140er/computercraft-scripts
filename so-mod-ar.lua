@@ -3,6 +3,7 @@ if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua"
 local A = {
   layers = { turtles = true, leases = true, drops = true, alerts = true },
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
+  alertMs = 300000,
   white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
   teal = 0xFF2DD4BF - 2^32, backing = 0xC00E1626 - 2^32,
@@ -177,7 +178,9 @@ A.scene = function(now)
         local page = history.page({ from = A.cursor or 0, count = 50 })
         for _, event in ipairs(page.entries or {}) do
           A.cursor = event.seq
-          if event.kind:match("%.alert$") then A.alerts[event.kind] = { at = event.seq, since = now } end
+          if event.kind:match("%.alert$") then
+            A.alerts[event.kind] = { at = event.seq, since = event.at or now, expires = (event.at or now) + A.alertMs }
+          end
         end
       until not page.next
     end
@@ -186,11 +189,13 @@ A.scene = function(now)
       if type(key) == "string" and key:match("%.alert$") and value then
         local signature = SO.proto.ser(value)
         local old = A.alerts[key]
-        if not old then A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now }
+        if not old then A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now, expires = now + A.alertMs }
         elseif not history and old.sig ~= signature then
-          A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now }
+          A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now, expires = now + A.alertMs }
         end
-        alerts[#alerts + 1] = { key = key, value = value, at = A.alerts[key].at, since = A.alerts[key].since }
+        if now < A.alerts[key].expires then
+          alerts[#alerts + 1] = { key = key, value = value, at = A.alerts[key].at, since = A.alerts[key].since }
+        end
       end
     end
     table.sort(alerts, function(a, b) return a.at > b.at or (a.at == b.at and a.key < b.key) end)
@@ -226,7 +231,7 @@ end
 A.alerts, A.serial = {}, 0
 A.draw = function(controller, scene)
   local ar, drawn = controller.ar, {}
-  if type(ar.delete) ~= "function" then ar.clear() end
+  if (not controller.drawn or type(ar.delete) ~= "function") and type(ar.clear) == "function" then ar.clear() end
   for id, element in pairs(scene) do
     if element.method == "drawItemIcon3D" then
       if pcall(ar.drawItemIcon3D, id, unpack(element.args)) then drawn[id] = true end

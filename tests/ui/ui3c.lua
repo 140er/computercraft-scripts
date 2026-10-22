@@ -74,7 +74,8 @@ return function(test, equal)
   test("UI3c AR frame with 200 reservations does not sleep or yield", function()
     local b = boot(); b.machine(2, "mining")
     local sleeps = 0
-    b.env.sleep = function() sleeps = sleeps + 1 end
+    b.env.sleep = function() error("server module called sleep") end
+    b.env.SO.breathe = function() sleeps = sleeps + 1 end
     local cells = b.env.dofile("so-mod-cells.lua")
     local route = {}
     for x = 1, 200 do route[x] = { x = x, y = 64, z = 3 } end

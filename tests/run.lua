@@ -511,3 +511,120 @@ if failed > 0 then os.exit(1) end
 dofile("tests/ui/ui5a.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+test("server modules share the shell program environment", function()
+  local H = dofile("tests/so/harness.lua")
+  local net = H.new()
+  local server = net.machine({ id = 70, modem = true, directories = true })
+  server.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
+    "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-ar.lua", "so-mod-cells.lua",
+    "so-mod-display.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
+    "so-mod-mine.lua", "so-mod-shop.lua", "so-mod-state.lua" })
+  for _, name in ipairs({ "x25519", "random", "blake3", "chacha20", "config", "internal/util",
+    "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing" }) do
+    local path = "lib/ccryptolib/" .. name .. ".lua"
+    server.files[path] = read(path)
+  end
+  local global = server.env
+  global._G = global
+  global.loadfile = function(path, mode, env)
+    local source = server.files[path]
+    if not source then return nil, "missing " .. tostring(path) end
+    return load(source, "@" .. path, mode or "bt", env or global)
+  end
+  local program = setmetatable({}, { __index = global })
+  global.runServer = assert(global.loadfile("so-server.lua", nil, program))
+  server.spawn("runServer()")
+  net.advance(3)
+  local output = table.concat(server.log, "\n")
+  assert(server.alive(), tostring(server.error) .. "\n" .. output)
+  assert(not output:find("so-server: skip", 1, true), output)
+  assert(not output:find("failed:", 1, true), output)
+  local count = 0
+  for _, name in ipairs({ "ar", "cells", "display", "drops", "lease", "lumber", "mine", "shop", "state" }) do
+    assert(program.SO.mods[name], "module missing after boot: " .. name)
+    count = count + 1
+  end
+  equal(count, 9, "all server modules loaded and ticked")
+end)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/screen-nav.lua")(test, equal, read, mocks)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/display-client.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/drop-editor.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/worker-boot.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/server-net.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/snapshot-prune.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/mine-travel.lua").run(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/store-recover.lua")(test)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/worker-drop.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/worker-park.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/worker-pending.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/worker-reanchor.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/lumber-loops.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/disk-guard.lua")(test)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/lumber-deliver.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/tick-stall.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/mine-done-return.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/lumber-path.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
+dofile("tests/so/minor-ui.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/mine-dead.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/worker-discard.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+dofile("tests/so/mine-underground.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

@@ -57,7 +57,7 @@ local function terminal(now)
   env.term={blit=function() end}
   env.fs={getCapacity=function() return 16000000 end,exists=function() return true end,
     list=function() return {'so-mod-capture.lua'} end}
-  env.os={epoch=function() return now end,getComputerID=function() return 1 end,
+  env.os={clock=function() return now/1000 end,epoch=function() return now end,getComputerID=function() return 1 end,
     startTimer=function() return 1 end,pullEvent=function() return coroutine.yield() end}
   env.rednet={open=function() end,host=function() end}
   env.peripheral={find=function() end,getNames=function() return {} end}
@@ -70,6 +70,7 @@ local function terminal(now)
     end
     error(path)
   end
+  env.loadfile=function(path) return function() return env.dofile(path) end end
   local co=coroutine.create(assert(loadfile('so-server.lua','t',env)))
   local ok,err=coroutine.resume(co);assert(ok,err)
   s.env=env;s.co=co

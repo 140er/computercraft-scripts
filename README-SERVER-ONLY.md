@@ -20,7 +20,21 @@ computer_space_limit = 16000000
 ```
 
 A larger value also works. A 1 MB or 8 MB disk cannot run the server.
+
+Mining and lumber refuse `start` when the server disk is 80% full or more.
+The screen shows `disk >=80%; free space`. Free space and submit `start` again.
+Existing jobs and recovery continue, so disk use can still grow. Dug marks remain
+on disk across jobs and have no automatic pruning or total byte limit.
 Workers and displays download less than 800 KB each.
+
+Servers and displays use all attached modems and detect modem changes without a
+reboot. A wired monitor or AR cable can coexist with a wireless or ender modem.
+
+Each network should have one `so/server` host. If another host already uses that
+name, the server shows its ID and keeps running for paired clients. Reboot after
+the name becomes available to register it. A paired display reconnects directly
+to its saved server ID, even if another server answers discovery. Fresh clients
+still use hostname discovery, so isolate competing networks while pairing.
 
 ## Install and pair
 
@@ -42,7 +56,20 @@ It tries GPS for two seconds. If GPS does not answer, enter the server's
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
 Press P again for each additional client. Keep any leading zeros in the code.
+Displays show the pairing prompt and digits on the monitor and computer terminal.
+Backspace removes a digit. The sixth digit starts pairing. If it fails, the
+display shows the reason and accepts a new code. Displays keep looking when
+the server is absent and reconnect after it restarts.
 Each machine starts its installed program immediately and on reboot.
+Paired turtles never ask for another code at boot. They show `waiting for server`
+and retry discovery and authenticated hello with backoff capped at 30 seconds.
+If discovery fails, they use their saved server id. Unpaired turtles keep
+retrying discovery while waiting for six digits and Enter at `Code:`.
+
+Display text commands appear on the bottom row while you type. Backspace
+edits the line and Enter sends it and clears it. Wall displays also echo the
+line on the computer terminal. Screens at least three rows tall reserve one
+row for input, leaving the remaining rows for server frames and buttons.
 
 Run `install update` to download the saved role again. `update` calls the same
 installer. Updates preserve pairing keys, the worker journal, drop points,
@@ -60,9 +87,21 @@ pair the machine again after a reset.
 
 The generic display has a drop-point editor. Use `kind` and `side` to cycle
 values, the dimension and coordinate buttons to adjust the draft, and `add`
-to save it. Existing points have `fix` and `remove` buttons.
+to save it. Existing points have `fix` and `remove` buttons. Use `prev` and
+`next` to page through the list. All controls fit a 26x20 pocket or 29x12 monitor,
+with the bottom row left for typed input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
-Sides are `front` and `down`. Drop-point dimensions are integers.
+Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
+-1 Nether, 1 End. Set each drop point to the chest's own coordinates. With
+`front`, the turtle stands beside the chest at the same height and faces it.
+With `down`, it stands directly above the chest. Leave the access cell clear.
+
+On the generic screen, type `1250 64 -900` and press Enter to set the draft,
+then tap `add`. Type `-1 1250 64 -900` to also set the dimension. To add
+immediately, type `add ore 1250 64 -900 front 0`. The command is
+`add <kind> <x> <y> <z> [front|down] [dim]`; omitted fields keep the draft's
+side and dimension. Coordinates and dimension must be integers. Invalid input
+shows an error and leaves the draft unchanged.
 
 The server chooses the nearest usable point in the same dimension, then falls
 back to `any`. Without a usable point the worker holds. Three failed inspections
@@ -72,6 +111,10 @@ The registry holds at most 64 points. See the
 requests and field definitions.
 
 ## Mining
+
+The generic screen has `mining`, `lumber`, `shop`, `status` and `ar` buttons
+above the drop editor. These links and each screen's `generic` return button
+fit a 26x20 pocket or 29x12 monitor.
 
 Open the `mining` display screen. Submit these text commands:
 
@@ -87,12 +130,16 @@ start
 stop
 ```
 
-`home` sets the chest-side position. `bottom` sets the shaft bottom.
+`home` sets the chest-side position and is required before the first `start`.
+`bottom` sets the shaft bottom.
 Branch length defaults to 64 blocks. `thorough` inspects walls, while `fast`
-uses faster branches. `ores` selects the supported ore names.
+uses faster branches. `ores` selects the supported ore names and accepts spaces
+around commas, such as `ores diamond, iron`.
 `add` anchors a paired worker at its world position and facing.
-Remove a worker only after its lease has closed. `stop` allows an already sent
-batch to finish. The screen shows worker state, pose, fuel, ore count and errors.
+`remove` can cancel a stationary recovery or park inspection and releases the
+worker's lane and reservations. Other open leases must finish first. `stop` allows
+an already sent batch to finish. The screen shows worker state, pose, fuel, ore
+count and errors.
 
 ## Lumber
 
@@ -106,12 +153,40 @@ start
 stop
 ```
 
-`area` sets farm bounds and soil height. `saplings` sets the turtle access cell
-for the sapling chest. `add` anchors one paired worker with an axe.
+`area` sets farm bounds and soil height. `saplings` sets the sapling chest's own
+coordinates. With `front`, the planner chooses the nearest eligible cell beside
+the chest at the same height and faces the turtle towards it to take saplings.
+With `down`, the turtle stands at `<x> <y+1> <z>` and takes saplings from below.
+Leave these access cells clear. The planner excludes cells at or below soil
+height, known obstacles, chest cells and planted spots at soil height plus one.
+Distance is Manhattan distance from the turtle's current position. Ties use
+north, east, south, west order. If no eligible cell remains, the turtle holds
+with `no access to saplings chest`.
+
+`add` anchors one paired worker with an axe. To replace it, stop work and wait
+for its lease to report. If `add` says it is parking the old turtle, wait for
+the report and repeat `add`. Do not remove the old turtle before that report.
+Service trips cross the farm at soil height plus two and descend at the chest
+access cell. Keep that flight path clear. Travel protects saplings and tree
+bases. A blocked service route holds until the operator fixes it and starts again.
 Work stays stopped until configured and started. `stop` parks after the current
-lease reports. Dark oak is excluded. Empty sapling chests disable replanting
+lease reports. Log delivery counts require a successful drop and an inventory
+decrease. Failed wood, fuel and sapling chest inspections mark drop points broken
+after three failures. Repair the chest, use `fix` in the generic drop editor if
+marked broken, and send `start` on the lumber screen. Sapling service reuses a
+matching drop point or adds a `storage` point to that editor. Remove unused old
+sapling points there after changing the coordinates.
+Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
 The screen shows work state, deliveries, saplings, spots, fuel and alerts.
+Three failed moves or digs stop work and emit an alert for the screen and AR.
+Fix the obstruction or tool, then type `start`. Other holds also show this
+recovery instruction. Refuelling starts with the distance to the fuel chest
+along the flight-height route plus 32 fuel remaining.
+At the wood chest, the turtle also drops sticks, apples, leaves and excess
+saplings. It keeps one sapling per known spot of each species, including the
+current tree. It unloads when fewer than three slots remain, even mid-tree,
+and clears junk at the end of each round.
 
 ## Shop and the Storage Room turtle
 
@@ -122,8 +197,37 @@ does not pair with this server.
 
 The server discovers the Storage Room turtle and polls stock automatically.
 Until discovery the shop screen says `Storage room not found, still looking`.
-Type text to filter item names. Matching ignores case and treats spaces as
-underscores. Item buttons order 1, 16 or 64 items. Replies appear as `Order:`
-lines. Orders are not retried automatically and time out after two minutes.
+Type text to filter item names on that display. Matching ignores case and treats
+spaces as underscores. Tap `clear`, or submit a lone space or `*`, to clear it.
+After five minutes without stock, the server clears stale stock and looks for
+a Storage Room turtle again. Rooms use the legacy unpaired protocol; there is
+no saved room selector, so isolate competing storage networks.
+Item buttons order 1, 16 or 64 items. Replies appear as `Order:` lines. Orders are not retried automatically and time out after two minutes.
 The storage protocol commands are `stock` and `order`; they are not shop text
 commands. See the [shop protocol](docs/server-only/PROTOCOL.md#shop).
+
+Workers refuse drop and suck steps unless the target is an inventory. A missing
+chest returns `no inventory` and keeps the items in the turtle.
+
+Mining discards excess junk into adjacent empty cells, keeping one suitable stack
+for sealing. Workers check the target before each discard and refuse inventories
+or occupied cells. Ore chests receive ore, not excess cobble or deepslate.
+
+Idle turtles stay put when their park lease expires during a server outage. They
+beacon every 30 seconds. Only turtles whose last lease was work use fast beacons
+and backtrack along their saved moves.
+
+After a reboot, workers resolve an interrupted move from saved fuel or GPS
+evidence before reporting their pose. If a move or turn cannot be resolved, the
+worker shows `pose uncertain: re-add turtle <id>`, stays put and refuses new steps.
+Its hello reports the pending operation and uncertainty. Inspect its position and
+facing, then enter `add <id> <x> <y> <z> <n|e|s|w>` on its mining or lumber screen.
+This re-anchors that turtle, clears its old movement history and uncertainty, and
+starts a fresh assignment at the supplied pose. The worker must save and confirm
+the anchor before work resumes. Rebooting alone does not guess a pose.
+
+If the server is reset or its pairing keys are replaced while its computer ID
+stays the same, clients show an "Old key kept" pairing prompt. Press P on the
+server and type the new code on each client. Turtles also require Enter. The
+client keeps its old key until pairing succeeds. A normal authenticated reply
+restores the client screen, so a false prompt does not require a reset.

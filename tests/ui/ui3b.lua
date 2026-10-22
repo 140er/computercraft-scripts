@@ -87,6 +87,16 @@ return function(test,equal)
     assert(#diff==0,table.concat(diff,'\n'))
     equal(s.frame(3,57,24).role,'generic')
   end)
+  test('UI3b client input height keeps full Big Tiles pocket navigation',function()
+    local s=setup()
+    s.display.handlers.hello({from=2,body={w=26,h=19,fullH=20}})
+    local f;s.display.handlers['view.get']({from=2},function(_,body) f=body end)
+    equal(f.role,'status');equal(#f.rows,20)
+    local panel
+    for _,button in ipairs(f.buttons) do if button.id=='panel' then panel=button end end
+    assert(panel and panel.y==20,'last-row panel navigation must remain reachable')
+    s.tap(2,panel.id);equal(s.frame(2).role,'panel')
+  end)
   test('UI3b glance pages cover all tiles independently and wrap both ways',function()
     local s=setup();s.frame(2);s.frame(3)
     local seen={}
@@ -163,6 +173,9 @@ return function(test,equal)
       end
       return {value=jobs[path],save=function(value) jobs[path]=value;saves[path]=(saves[path] or 0)+1;return true end}
     end
+    s.env.SO.mods.state={canStart=function() return true end}
+    jobs["so-data/mine/job"]={home={x=0,y=64,z=0,facing=0},homeSet=true,
+      dim="minecraft:overworld",bottom=-58,length=48,mode="thorough",ores={},turtles={},progress={done=0,nextBranch=1}}
     s.env.SO.mods.lease={onReport=function() end}
     local mine=assert(loadfile('so-mod-mine.lua','t',s.env))()
     local lumber=assert(loadfile('so-mod-lumber.lua','t',s.env))()

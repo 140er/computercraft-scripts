@@ -17,7 +17,7 @@ local function setup(saplings, fuel, side)
   local s = n.machine({ id = 1, modem = true })
   s.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-plan.lua",
     "so-lumber-plan.lua", "so-mod-lease.lua", "so-mod-cells.lua", "so-mod-drops.lua",
-    "so-mod-display.lua", "so-mod-lumber.lua" })
+    "so-mod-display.lua", "so-mod-lumber.lua", "so-mod-state.lua" })
   libs(s)
   s.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["2"]=KEY}}})
   s.boot("so-server.lua")
@@ -61,7 +61,7 @@ local function setup(saplings, fuel, side)
     screens[role] = { render = render, input = input }
     return register(role, render, input)
   end
-  s.env.SO.mods.state = { emit = function(kind, data) events[#events+1] = {kind=kind,data=data} return true end }
+  s.env.SO.mods.state = { canStart = s.env.SO.mods.state.canStart, emit = function(kind, data) events[#events+1] = {kind=kind,data=data} return true end }
   for x = 0, 8 do for z = 0, 8 do n.world[x..",0,"..z] = "minecraft:dirt" end end
   n.world["3,2,2"] = "minecraft:stone"
   for _, spot in ipairs(TREES) do

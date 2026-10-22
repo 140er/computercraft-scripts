@@ -27,9 +27,13 @@ and listeners use `listener(sender, message)`.
   `request` waits, so never call it from the server's handlers or ticks.
 - [so-pair.lua](../so-pair.lua) pairs machines with X25519 and saves their keys.
   Calls are `open(proto, store)`, `derive(code, serverId, clientId)`,
-  `pending()`, `clear()`, `key(id)`, `remember(id, key)`,
-  `session(clientPubHex)`, `invite(screen)` and `join(code, serverId)`.
+  `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
+  `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)` and
+  `repairHint(sender, payload, serverId)`. The hint check only authorizes a prompt;
+  it never removes a saved key.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
+  `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
+  as their server id when discovery fails.
 - [so-store.lua](../so-store.lua) owns generation-based persistence.
   Calls are `copy(value)`, `read(path)` and `store(path, valid, limit)`.
   `store` returns `{ value, save = function(value) }`; `save` returns success
@@ -49,18 +53,32 @@ and listeners use `listener(sender, message)`.
 - [so-mine-plan.lua](../so-mine-plan.lua) builds mining routes and next-step actions.
   Calls are `key(p)`, `same(a, b)`, `ore(d, ores)`, `junk(d)`, `distance(a, b)`,
   `cell(p, dir)`, `turn(p, want)`, `route(job, branch)`, `sealable(item)`,
-  `cleanup(inv, all)`, `travel(from, goal, point)`, `next(job, row, lookup, inv, fuel)`,
+  `cleanup(inv, all, side?)`, `travel(from, goal, point, job?, row?)`,
+  `supplyRoute(job, row, stand, point?, lookup?)`, `supplyDistance(job, row, stand?, lookup?)`,
+  `next(job, row, lookup, inv, fuel)`,
   `lane(job, exit)`, `inLane(job, pos)` and `lanePass(job, row)`.
   `lane` lists the shared shaft column and bottom spine through the furthest
   assigned junction, plus an optional exit. `inLane` tests that geometry;
   `lanePass` lists the cells crossed in the planned pass through its exit.
+  `supplyRoute` returns the departure cell and every movement cell through the branch,
+  spine and shaft to the stand. A supplied lookup returns false for known dug cells
+  and connects a side vein to the last reached route waypoint, searching at most 512 cells.
+  No connection returns nil. Its second result is that access path. A supplied
+  `row.access` reuses the path without another search.
+  `supplyDistance` counts those moves and returns infinity when no route exists.
+  Contextual `travel` returns the remaining outbound or reverse trip cells.
   `ores` is the supported ore-name set. The optional `ore` filter uses those names.
   `next` batches known straight travel and turns, ending at inspect or dig report
   boundaries. Multi-action results include `actions` with one-based `first` step indices.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
-  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`
-  and `distance(a, b)`.
+  `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`,
+  `travel(from, target, ground)` and `distance(a, b)`. `travel` returns the next
+  service waypoint, with horizontal travel at ground plus two. `access` takes the chest's own coordinates. For `front`,
+  it chooses the nearest unblocked horizontal neighbour by Manhattan distance
+  and faces the chest. Ties use north, east, south, west order. For `down`,
+  it uses the cell directly above the chest. It returns nil if all candidates
+  are blocked. The lumber caller supplies the known-obstacle checks.
 
 - [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
@@ -85,11 +103,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [so-mod-state.lua](../so-mod-state.lua), `state`, folds events into registry,
   jobs and views. Calls are `emit(kind, data)`, `get(path)`, `job(data)`,
-  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`,
+  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`,
   `history.page(q)` and `tick(now)`. `view` is a callable table.
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
-  No wire handlers. Built-in views are `fleet`, `turtle/<id>`, `log` and `status`.
+  `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
+  or more and show `disk >=80%; free space`. Existing work, recovery and stop
+  remain available. No wire handlers. Built-in views are `fleet`, `turtle/<id>`,
+  `log` and `status`.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
   and `lumber.logs` events from one history page of at most 50 entries per tick.
@@ -100,11 +121,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [daily](server-only/PROTOCOL.md#daily).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
-  `status(id)`, `inRange(id, pos)` and `tick(now)`.
+  `status(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
   Reports release lease-owned cells; silence leaves reservations in place.
+  `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
+  all leases with `pose uncertain`, including recovery parks.
+  `reanchor(id, worldPose)` sends an authenticated `worker.anchor` for an uncertain
+  journal and retries until a matching hello confirms it. Mining/lumber `add`
+  use it to replace an uncertain worker assignment with the operator-supplied pose.
   See [lease](server-only/PROTOCOL.md#lease).
 - [so-mod-cells.lua](../so-mod-cells.lua), `cells`, owns reservations and dug marks.
   Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
@@ -120,11 +146,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
   `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
+  Points use the chest's own coordinates. `front` accesses it from beside it
+  at the same height; `down` accesses it from directly above.
   Handler `drops.edit` edits points. Tick registers the generic screen.
   The Big Tiles list selects the first broken point by default, or the first
   point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
   opens the draft editor and navigation to mining, lumber, shop and AR. BACK
   returns the list to status and the editor to the list. Long lists have paging.
+  Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
+  The kit-free editor fits below two navigation rows and above local input;
+  its paging is per display.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
@@ -146,7 +177,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   through ADD NEW and suppresses header injection; older generic screens retain
   the fallback buttons. Generic screens at least 39 columns wide gain a PANEL
   header button when the panel screen is loaded and they do not already provide one.
-  Render signatures and revisions are isolated by role and size. Status also
+  Input includes sender ID `from`. Sessions retain the client ID as `id`.
+  Kit-free callbacks receive that ID instead of the session. Their generic
+  frames reserve two navigation rows and keep a visible return button.
+  Render signatures and revisions are isolated by role, size and session. Status also
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
   glance row pages three tiles at a time with `prev` and `next`; `panel` selects
@@ -155,7 +189,6 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
   the legacy status renderer for older partial installations.
-  See [display](server-only/PROTOCOL.md#display).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
   `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. Tick gathers
@@ -175,6 +208,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
   List controls are `prev`, `next`, `clear`, `search` and `status` for BACK.
   Submitted text resets paging. The kit-free renderer retains the legacy list.
+  Search is
+  per display with a visible clear button. Five minutes without stock resumes
+  discovery; the legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
@@ -187,8 +223,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  New jobs default to `ores = {}`, which accepts all ores. Completed routes
-  unload remaining ore through the configured drop before parking.
+  New jobs require `home` before `start`; saved homes remain configured. Ore
+  filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
+  lease through `lease.cancelPark`, releasing the lane and reservations. Stale
+  lane waiters lose their place when they leave the queue. Completed routes
+  unload remaining ore through the configured drop before parking. Junk cleanup
+  uses guarded `discard` into adjacent empty cells, preferring known open tunnel
+  cells. Failed targets are skipped until movement. Ore unloads exclude junk.
   A lane pass reserves its full route through the shaft and spine plus its exit in one
   call. Intermediate batches retain the reservation until the worker leaves.
   Saved rows include `lane = { cells, entered, target?, release? }` while holding the lane
@@ -197,6 +238,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   lowest id; a waiter with three intervening grants has priority. Waiting rows
   show `wait lane`. Side veins wait until the worker leaves the shared lane.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
+  Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
+  its fuel covers the saved return route, the paused position's route home, and 64 more moves.
+  Supply trips save `path` and `reserve` in the trip record. They use the lane queue
+  and reserve the shared corridor, surface approach and branch exit through the
+  chest turnaround and return. Private branch cells use normal movement batches.
+  Route searches read only the in-memory block lookup. With no remembered route
+  (restart, underground re-add), a worker below the surface uses the direct path
+  down to the bottom level, to the spine and up the shaft for its reserve and trip.
+  An underground re-add joins its route at the nearest cell past the shaft top.
+  Rows save `counted`, the branch already added to `progress.done`. Home routes and vein access
+  cache by pose, route waypoint and mine geometry; stationary ticks and chest
+  candidates reuse them. Fuel reports use the saved trip path and reserve.
+  Trips using the shared corridor defer report planning to tick. Moves outside the lane release one private
+  cell per report for trips using the shared corridor, keeping reservation cleanup
+  below the cells burst threshold. Trips wholly on the surface retain normal batching.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
@@ -215,6 +271,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Restart recovery sends a stationary park using the saved frame without a
   volatile lease pose or range proof. Its report rebuilds the world pose before
   work resumes. Work leases still require the range and reservation checks.
+  Three failed moves or digs hold and emit `lumber.alert`. Holds show that
+  `start` is required after fixing the cause. Fuel trips reserve the route
+  distance plus 32 fuel. Wood service removes junk and excess saplings while
+  preserving one per known spot of each species and the current tree.
+  Log delivery counts require a successful drop report and an inventory decrease.
+  Wood and supply inspections call `drops.note`. Sapling service reuses a matching
+  drop point or registers a stable `storage` point for the drop editor.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).
 
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
@@ -225,12 +288,32 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
-  dimensions filter world elements. See [AR](server-only/PROTOCOL.md#ar).
+  dimensions filter world elements. Alerts expire after five minutes, renewed
+  by new events. First controller attachment clears old elements when supported.
+  See [AR](server-only/PROTOCOL.md#ar).
 
 ### Thin clients
 
 - [worker.lua](../worker.lua) executes `lease.batch`, sends `hello`, `step.report`
-  and `beacon`, journals steps, and backs up after lease expiry. No exported API.
+  and `beacon`, journals steps, and backs up after work lease expiry. No exported API.
+  A single `inspectDown` marks a stationary park. When it expires, the worker
+  stays put and beacons every 30 seconds, retaining its move history.
+  Paired boots retry discovery and hello with backoff capped at 30 seconds,
+  using the saved server id if discovery fails. They show `waiting for server`
+  until an authenticated reply arrives. A `pair.required` hint also offers a code
+  prompt while retaining the saved key until a new pairing succeeds. Otherwise
+  only unpaired boots prompt for a code. That prompt keeps retrying discovery
+  while accepting digits and Enter. Idle workers send hello every 30 seconds
+  without authenticated replies to detect a later server key reset.
+  Drop and suck operations on every side require an adjacent inventory. Missing
+  inventories return `no inventory` and leave items in the turtle.
+  At boot, pending moves use saved fuel or GPS to resolve their outcome. Turns
+  or missing evidence stay uncertain. The worker reports that fact, keeps the
+  pending entry, and refuses further steps without moving or backtracking.
+  An operator re-adds it with its actual pose to clear uncertainty. The worker
+  saves that anchor and clears old move/dug history before confirming it.
+  `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
+  adjacent inventories. The default side is down.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
@@ -242,6 +325,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   palettes restore stock colours. A changed scale sends one resized hello.
   Buttons accept optional height `h`, default 1. The client draws the outage
   tile and timers without a server, preserving inverted digit cells.
+  Pairing prompts and digits appear on the display and
+  its computer terminal. Failed pairing accepts a new code. A `pair.required`
+  hint shows the same prompt without deleting the old key. Authenticated frames
+  dismiss the hint and restore the normal screen. Discovery and
+  stale-frame hello/subscribe retries use backoff capped at 30 seconds. At boot,
+  it prefers the lowest saved paired server ID and retries that ID without DNS.
+  It opens every modem and rescans on attach and detach events. Screens
+  at least three rows tall reserve the bottom row for typed input and report
+  the remaining height in `hello`. The optional `fullH` advertises physical height
+  so Big Tiles can use every row, including pocket glance navigation. Kit frames
+  use that full height; kit-free frames retain the input row. Wall displays
+  also echo input on the terminal.
 
 ## Installer roles and files
 
@@ -264,7 +359,22 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
 
-`/.so-role` contains the plain role name. `startup.lua` runs installer recovery,
+Updates fetch and execute the new installer first, so its role list applies in
+that update. The branch API resolves one commit SHA for every download. If it
+fails, the installer tries GitHub's read-only Git refs endpoint, then the saved
+`/.so-revision`. Without a valid SHA it stops without changing installed files.
+There is no fallback to branch file URLs. Fresh installs use the same process.
+An installer from before this bootstrap change still uses its old list and branch
+file URLs for its first update. That update installs the bootstrap installer, and later updates
+use the new list immediately. Fetching the new installer manually before running
+`install update` also skips that transition. An old installer still rejects
+whitespace in `/.so-role`; trim it or fetch the new installer first.
+`/.so-files` records the installed role files. Updates remove files retired from
+that list or the running installer's list, plus unlisted root `so-mod-*.lua` files.
+Those deletions share the backup manifest and roll back with the replacements.
+`/.so-revision` and `/.so-files` also participate in the swap.
+
+`/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
 plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
 The installer uses GPS or manual coordinates and a dimension prompt.
@@ -286,8 +396,13 @@ validation, crash recovery and state preservation.
 ## One event loop
 
 `so-server.lua` checks disk capacity before loading libraries. It creates `SO`,
-loads root `so-mod-*.lua` files in sorted filename order, then opens the modem
-and hosts rednet protocol `so` as `server`. Missing or invalid modules are skipped.
+loads root `so-mod-*.lua` files in sorted filename order with the server program
+environment so they share `SO`, then opens every modem
+and attempts to host rednet protocol `so` as `server`, even if no modem is attached
+yet. Attach and detach events rescan modems without waiting for discovery.
+A hostname collision shows the other host ID on the pairing screen and leaves
+the event loop running. Registration is attempted once per boot. Missing or
+invalid modules are skipped.
 
 One coroutine waits on an unfiltered `os.pullEvent()`:
 
@@ -304,14 +419,20 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
    Monitor touches queue local input. The one-second timer expires reply-cache
    entries, refreshes pairing state and calls every `tick(now)` in filename order.
    It rearms after the ticks; missed seconds do not produce catch-up ticks.
+   If any event arrives more than 3 s (`os.clock`) after the last tick, the
+   loop logs, ticks and starts a fresh timer, so a lost timer cannot stop
+   planning.
 
 Handlers, listeners and ticks run inside `pcall`; a failure logs and the loop
 continues. Never wait inside them. `sleep(0)`, `sleep(n)`, `rednet.lookup`,
 `rednet.receive` and filtered `os.pullEvent` calls consume unrelated events
-while this single coroutine waits. That can discard reports, beacons or keys.
-Yield only during a real burst of work, never on the first call. Copy
-`so-mod-cells.lua`'s `S.pause` pattern, which resets after an idle gap and yields
-only after accumulated work or elapsed burst time.
+while this single coroutine waits. That can discard reports, beacons, keys or
+the tick timer itself (Gate B C7). To yield during a long burst, call
+`SO.breathe()`: it queues a marker and re-queues every event it pulls before
+the marker, so nothing is lost. Yield only during a real burst of work, never
+on the first call. Copy `so-mod-cells.lua`'s `S.pause` pattern, which resets
+after an idle gap and breathes only after accumulated work or elapsed burst
+time. `tests/so/tick-stall.lua` fails if any `so-mod-*.lua` calls `sleep`.
 
 ## Wire names
 
@@ -340,8 +461,9 @@ cursors `from` and `next`, despite the older timestamp wording in Message types.
 
 Save only through `so-store`. It recovers the newest valid generation among
 `path`, `path.tmp` and `path.bak`. Saves verify the temporary file before moving
-it into place. A budget rejection leaves the store usable; a disk-write failure
-blocks later saves until restart. Do not save inside tight loops.
+it into place. Budget and free-space rejections change no files. After a disk-write
+failure, the next save recovers surviving generations and retries without a reboot.
+Do not save inside tight loops.
 
 - `so-keys` holds paired keys on server and clients. Pairing loads
   `lib/ccryptolib/` for X25519 and randomness.
@@ -349,7 +471,10 @@ blocks later saves until restart. Do not save inside tight loops.
 - `so-data/log/<segment>` holds events. `so-data/snap/<snapshot>` and
   `so-data/snap/latest` hold folded state and its snapshot pointer.
   Segments are at most 64 KB, retained segment bytes at most 1 MB, and snapshots
-  occur every 2000 events or when retention needs one. New jobs stop at 80% disk use.
+  occur every 2000 events or when retention needs one. After saving `latest`,
+  cleanup removes snapshots older than `n-1`, including `.tmp` and `.bak` files.
+  Startup repeats cleanup using the recovered pointer. Snapshots `n` and `n-1`
+  remain available for loading. New jobs stop at 80% disk use.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
@@ -360,6 +485,9 @@ blocks later saves until restart. Do not save inside tight loops.
 - `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
   Recent ore uses UTC-second buckets `{ total, counts = { [epochMs] = count } }`.
   Bucket keys and timestamp keys are decimal strings. Only the server installs it.
+  Section files have no aggregate disk bound or automatic pruning. Owner release
+  removes reservations only. Marks remain available for recovery across jobs.
+- `so-drops` holds drop points and failure counts. `so-display` holds screen roles.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
@@ -389,8 +517,8 @@ prints its elapsed time. The harness adds `net.kill(machine)` and
 `net.boot(machine)`, which returns a fresh machine with the same disk and id.
 Optional machine settings enable inventory drops, fluid handling, action time, directory
 listing, monitor size and server wait observations. Existing defaults stay the
-same. SO11 treats every handler, listener or tick wait as a check 7 failure,
-including the cells module's accumulated `sleep(0)` burst yields.
+same. SO11 treats every handler, listener or tick wait as a check 7 failure.
+`SO.breathe()` does not count as a wait.
 SO11 scenario B uses length-48 mining branches and grown trees, cuts inside a server call at the first observed instant after 240 seconds with three open work leases, then checks four minutes of recovery after two minutes down, including lane exclusion and exactly-once interrupted dug reports.
 
 Add a suite as `tests/so/<name>.lua` and append this block at the very end of

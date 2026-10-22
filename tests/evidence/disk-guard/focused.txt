@@ -1,0 +1,4 @@
+mining refuses start at 80% and resumes below it on 26x20
+lumber refuses start at 80% and resumes below it on 26x20
+mining refuses start at 80% and resumes below it on 29x12
+lumber refuses start at 80% and resumes below it on 29x12

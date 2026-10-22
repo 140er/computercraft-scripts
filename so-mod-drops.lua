@@ -4,6 +4,8 @@ local S = {
   points = {},
   box = nil,
   rev = 0,
+  views = {},
+  message = "type x y z, then add",
   wired = false,
   cap = 64,
   strikes = 3,
@@ -276,27 +278,91 @@ S.button = function(id, x, y, label)
   return { id = id, x = x, y = y, w = #label, label = label }
 end
 
-S.legacyRender = function()
+S.view = function(id)
+  id = id or 0
+  if not S.views[id] then S.views[id] = { page = 1, pages = 1 } end
+  return S.views[id]
+end
+
+S.legacyRender = function(w, h, clientId)
+  w, h = w or 26, h or 9
   local rows = { S.row("drops") }
   local buttons = {}
-  for i = 1, #S.points do
+  local view = S.view(clientId)
+  local count = math.max(1, math.floor((h - 7) / 2))
+  view.pages = math.max(1, math.ceil(#S.points / count))
+  view.page = math.min(view.page, view.pages)
+  local first = (view.page - 1) * count + 1
+  for i = first, math.min(#S.points, first + count - 1) do
     local p = S.points[i]
-    local text = p.id .. " " .. p.kind .. " " .. p.side
-    if p.fails >= S.strikes then text = text .. " broken" end
-    rows[#rows + 1] = S.row(text)
+    local detail = " " .. p.kind .. " " .. p.side .. (p.fails >= S.strikes and " broken" or "")
+    rows[#rows + 1] = S.row(p.id:sub(1, math.max(1, w - #detail)) .. detail)
+    rows[#rows + 1] = S.row("")
     buttons[#buttons + 1] = S.button("fix:" .. p.id, 1, #rows, "fix")
     buttons[#buttons + 1] = S.button("remove:" .. p.id, 6, #rows, "remove")
   end
+  rows[#rows + 1] = S.row("          " .. view.page .. "/" .. view.pages)
+  buttons[#buttons + 1] = S.button("prev", 1, #rows, "prev")
+  buttons[#buttons + 1] = S.button("next", 6, #rows, "next")
   local d = S.draft
-  rows[#rows + 1] = S.row(string.format("draft %d %d %d %d %s %s", d.dim, d.x, d.y, d.z, d.side, d.kind))
-  local names = { "kind", "side", "dim+", "dim-", "x+", "x-", "y+", "y-", "z+", "z-", "add" }
-  local x = 1
-  for i = 1, #names do
-    local label = names[i]
-    buttons[#buttons + 1] = S.button(label, x, #rows, label)
-    x = x + #label + 1
+  rows[#rows + 1] = S.row(string.format("draft %s %s dim %d", d.kind, d.side, d.dim))
+  rows[#rows + 1] = S.row(string.format("%d %d %d", d.x, d.y, d.z))
+  for _, names in ipairs({ { "kind", "side", "add", "dim+", "dim-" },
+      { "x+", "x-", "y+", "y-", "z+", "z-" } }) do
+    rows[#rows + 1] = S.row("")
+    local x = 1
+    for _, label in ipairs(names) do
+      buttons[#buttons + 1] = S.button(label, x, #rows, label)
+      x = x + #label + 1
+    end
   end
+  rows[#rows + 1] = S.row(S.message)
   return { rev = S.rev, rows = rows, buttons = buttons }
+end
+
+S.addDraft = function()
+  local d = S.draft
+  local ok, err = S.add({
+    id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind),
+    dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind,
+  })
+  S.message = ok and "point added" or (S.errText[err] or tostring(err))
+end
+
+S.typed = function(text)
+  local words = {}
+  for word in text:gmatch("%S+") do words[#words + 1] = word end
+  local d = S.draft
+  local dim, x, y, z, kind, side = d.dim, nil, nil, nil, d.kind, d.side
+  local direct = words[1] == "add"
+  if direct then
+    if #words < 5 or #words > 7 then S.message = "add kind x y z [side/dim]" return end
+    kind = words[2]
+    if not S.kinds[kind] then S.message = "bad kind" return end
+    x, y, z = tonumber(words[3]), tonumber(words[4]), tonumber(words[5])
+    if words[6] then
+      if S.face[words[6]] then
+        side = words[6]
+        if words[7] then dim = tonumber(words[7]) end
+      elseif #words == 6 then
+        dim = tonumber(words[6])
+      else
+        S.message = "bad side" return
+      end
+    end
+  elseif #words == 3 then
+    x, y, z = tonumber(words[1]), tonumber(words[2]), tonumber(words[3])
+  elseif #words == 4 then
+    dim, x, y, z = tonumber(words[1]), tonumber(words[2]), tonumber(words[3]), tonumber(words[4])
+  else
+    S.message = "use x y z or dim x y z" return
+  end
+  if not S.whole(dim) or not S.whole(x) or not S.whole(y) or not S.whole(z) then
+    S.message = "dim/x/y/z: integers only" return
+  end
+  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side }
+  S.message = "draft set; tap add"
+  if direct then S.addDraft() end
 end
 
 S.selectedPoint = function()
@@ -305,9 +371,9 @@ S.selectedPoint = function()
   return S.points[1] and S.points[1].id
 end
 
-S.gather = function()
+S.gather = function(view)
   return { points = S.clone(S.points), selected = S.selectedPoint(), draft = SO.store.copy(S.draft),
-    editing = S.editing, page = S.page or 1 }
+    editing = S.editing, message = S.message, page = view and view.page or 1 }
 end
 
 S.listSize = function(count, w, h)
@@ -333,6 +399,7 @@ S.layout = function(model, w, h)
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
     end
+    C.put(1, h-1, model.message or "")
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
     return C.frame()
@@ -374,26 +441,35 @@ S.layout = function(model, w, h)
   return C.frame()
 end
 
-S.render = function(w, h)
-  if not U then return S.legacyRender() end
+S.render = function(w, h, session)
+  if not U then return S.legacyRender(w, h, session) end
   w, h = w or 57, h or 24
-  local model = S.gather()
+  local view = S.view(type(session) == "table" and session.id or session)
+  local model = S.gather(view)
   model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
-  S.page = model.page
+  view.page = model.page
   local frame = S.layout(model, w, h)
   frame.rev = S.rev
   return frame
 end
 
 S.input = function(ev)
-  if type(ev) ~= "table" or type(ev.id) ~= "string" then return end
+  if type(ev) ~= "table" then return end
+  if type(ev.text) == "string" then S.typed(ev.text); if U then S.editing = true end; return end
+  if type(ev.id) ~= "string" then return end
   if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" or ev.id == "panel" then
     S.editing = false return
   end
   if ev.id == "new" then S.editing = true return end
   if ev.id == "list" then S.editing = false return end
-  if ev.id == "next" then S.page = (S.page or 1) + 1 return end
-  if ev.id == "prev" then S.page = math.max(1, (S.page or 1)-1) return end
+  if not U and (ev.id == "prev" or ev.id == "next") then
+    local view = S.view(ev.from)
+    view.page = math.max(1, math.min(view.pages, view.page + (ev.id == "next" and 1 or -1)))
+    return
+  end
+  local view = S.view(ev.from or (ev.session and ev.session.id))
+  if ev.id == "next" then view.page = view.page + 1 return end
+  if ev.id == "prev" then view.page = math.max(1, view.page-1) return end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then S.selected = selected return end
   if ev.id == "fix" then local id = S.selectedPoint(); if id then S.selected = id; S.fix(id) end return end
@@ -415,11 +491,7 @@ S.input = function(ev)
     return
   end
   if ev.id == "add" then
-    local d = S.draft
-    S.add({
-      id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind),
-      dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind,
-    })
+    S.addDraft()
     return
   end
   local step = S.nudge[ev.id]

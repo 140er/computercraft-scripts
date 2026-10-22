@@ -1,0 +1,12 @@
+Lumber recovering
+Logs delivered 0
+Saplings 0
+Spots 0 planted 0
+Fuel 0
+disk >=80%; free space
+
+generic
+
+
+
+>

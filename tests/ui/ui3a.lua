@@ -39,8 +39,9 @@ local function server()
   end,clear=function() s.clears=s.clears+1;s.code=nil end,
     invite=function() s.invites=s.invites+1;s.code=s.invites==1 and "482915" or "123456"
       s.expires=s.now+300000;env.print("pair invite");return s.code end}
+  env.rednet={host=function() end}
   env.peripheral={find=function() end}
-  env.os={epoch=function() return s.now end,getComputerID=function() return 1 end,
+  env.os={clock=function() return s.now/1000 end,epoch=function() return s.now end,getComputerID=function() return 1 end,
     startTimer=function() return 99 end,pullEvent=function() return coroutine.yield() end}
   env.dofile=function(path)
     if path=="so-pair.lua" then return pair end
@@ -53,6 +54,7 @@ local function server()
     end
     error(path)
   end
+  env.loadfile=function(path) return function() return env.dofile(path) end end
   s.thread=coroutine.create(assert(loadfile("so-server.lua","t",env)))
   function s.event(...)
     local ok,err=coroutine.resume(s.thread,...);assert(ok,err)

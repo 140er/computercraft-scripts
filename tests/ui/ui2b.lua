@@ -7,7 +7,8 @@ local function screen(job)
   end}}},{__index=_G})
   env.os = {epoch=function() return 1000000 end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
-  env.SO.mods.state={emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
+  env.SO.mods.lease={status=function() return {} end}
+  env.SO.mods.state={canStart=function() return true end,emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
   env.SO.mods.cells={releaseOwner=function() s.released=s.released+1 end}
   local mod=assert(loadfile('so-mod-lumber.lua','t',env))()
   mod.tick(1000000)
@@ -103,7 +104,7 @@ return function(test,equal)
     end
   end)
   test('UI2b every text command retains configuration and refusal behavior',function()
-    local j=job();local s=screen(j)
+    local j=job();j.turtle.id=2;local s=screen(j)
     local function cmd(text,alert)
       s.input({text=text});if alert then equal(j.alert,alert) end
     end

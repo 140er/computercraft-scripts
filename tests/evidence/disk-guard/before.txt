@@ -1,0 +1,9 @@
+mining refuses start at 80% and resumes below it on 26x20
+lua5.2: tests/so/disk-guard.lua:107: started above disk threshold
+stack traceback:
+	[C]: in function 'assert'
+	tests/so/disk-guard.lua:107: in function 'fn'
+	/tmp/storage-baseline.lua:15: in function 'test'
+	tests/so/disk-guard.lua:82: in function <tests/so/disk-guard.lua:79>
+	/tmp/storage-baseline.lua:15: in main chunk
+	[C]: in ?

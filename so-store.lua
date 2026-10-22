@@ -1,6 +1,6 @@
 -- so-store.lua - atomic save and load, ported from atomic.lua.
 -- A write over the byte budget fails before it touches the current file.
--- That rejection leaves the store usable. A failed disk write does not.
+-- Failed disk writes recover their surviving generations on the next save.
 
 local M = {}
 
@@ -32,21 +32,29 @@ end
 function M.store(path, valid, limit)
   assert(type(valid) == "function", "valid")
   local budget = limit or 900000
-  local generation, current, source, exists = 0, nil, nil, false
-  for _, file in ipairs({ path, path .. ".tmp", path .. ".bak" }) do
-    exists = exists or fs.exists(file)
-    local t = M.read(file)
-    if type(t) == "table" and t.schema == 1 and type(t.generation) == "number"
-      and t.generation % 1 == 0 and t.generation > generation and valid(t.value) then
-      generation, current, source = t.generation, t.value, file
+  local generation, current, source
+  local function recover(allowEmpty)
+    local newest, value, picked, exists = 0, nil, nil, false
+    for _, file in ipairs({ path, path .. ".tmp", path .. ".bak" }) do
+      exists = exists or fs.exists(file)
+      local t = M.read(file)
+      if type(t) == "table" and t.schema == 1 and type(t.generation) == "number"
+        and t.generation % 1 == 0 and t.generation > newest and valid(t.value) then
+        newest, value, picked = t.generation, t.value, file
+      end
     end
+    assert(value or not exists or allowEmpty, "no valid generation: " .. path)
+    generation, current, source = newest, value, picked
   end
-  assert(current or not exists, "no valid generation: " .. path)
-  local poisoned = false
+  recover()
+  local needsRecovery = false
   return {
     value = current,
     save = function(value)
-      if poisoned then return false, "storage requires restart" end
+      if needsRecovery then
+        local recovered, recoveryErr = pcall(recover, generation == 0 and current == nil)
+        if not recovered then return false, recoveryErr end
+      end
       local text
       local prepared, prepErr = pcall(function()
         assert(valid(value), "invalid state")
@@ -55,6 +63,11 @@ function M.store(path, valid, limit)
       end)
       if not prepared then return false, prepErr end
       if #text > budget then return false, "budget exceeded" end
+      local checked, spaceErr = pcall(function()
+        local free = fs.getFreeSpace(path)
+        assert(type(free) ~= "number" or free >= #text + 8192, "disk full")
+      end)
+      if not checked then return false, spaceErr end
       local h
       local ok, err = pcall(function()
         if source and source ~= path then
@@ -63,8 +76,6 @@ function M.store(path, valid, limit)
           source = path
         end
         if fs.exists(path .. ".tmp") then fs.delete(path .. ".tmp") end
-        local free = fs.getFreeSpace(path)
-        assert(type(free) ~= "number" or free >= #text + 8192, "disk full")
         h = assert(fs.open(path .. ".tmp", "w"), "open failed")
         h.write(text)
         h.close()
@@ -77,7 +88,7 @@ function M.store(path, valid, limit)
         generation, source = generation + 1, path
       end)
       if h then pcall(h.close) end
-      if not ok then poisoned = true end
+      needsRecovery = not ok
       return ok, err
     end,
   }

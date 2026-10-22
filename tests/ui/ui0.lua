@@ -43,7 +43,7 @@ local function client(w, h)
   }
   env.dofile = function(path)
     if path == "so-pair.lua" then return { open = function() end, key = function() return "key" end } end
-    if path == "so-store.lua" then return {} end
+    if path == "so-store.lua" then return {store=function() return {} end} end
     if path == "so-proto.lua" then
       return { build = function(_, t, body) return { t = t, body = body } end,
         encode = function(msg) return msg end, decode = function(msg) return msg end, macOk = function() return true end }
@@ -116,6 +116,17 @@ return function(test, equal)
     equal(out.picture().bg[1], "eeeeeeee")
   end)
 
+  test("UI0 kit frames keep last-row navigation after a duplicate resize", function()
+    local c = client(26, 20)
+    c.onFrame({body={palette=dofile("so-ui.lua").palette,
+      buttons={{id="panel",label="PANEL",x=19,y=20,w=7}}}})
+    assert(c.hit(19,20), "kit navigation must use the full screen")
+    local loop=coroutine.create(c.loop)
+    assert(coroutine.resume(loop))
+    assert(coroutine.resume(loop,"monitor_resize","right"))
+    assert(c.hit(19,20), "duplicate resize must keep the last row clickable")
+  end)
+
   test("UI0 three-row buttons include every row and exclude adjacent cells", function()
     local c = client(8, 5)
     c.onFrame({ body = { buttons = { { id = "buy", x = 2, y = 2, w = 3, h = 3 } } } })
@@ -138,7 +149,7 @@ return function(test, equal)
     c.onFrame({ body = { rows = {}, palette = palette, scale = 0.5 } })
     equal(state.scale, 0.5)
     equal(#state.sends, before + 1)
-    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 24, label = "screen" } })
+    equal(state.sends[#state.sends], { t = "hello", body = { w = 57, h = 23, fullH = 24, label = "screen" } })
     for i = 0, 15 do equal(out.palette[2 ^ i], { palette[i] }) end
     local loop = coroutine.create(c.loop)
     assert(coroutine.resume(loop))

@@ -1,0 +1,16 @@
+PASS checkpoint retains only the two usable snapshots
+PASS startup removes stale snapshot generations
+PASS startup cleanup resumes after interrupted stale-file deletion
+PASS previous snapshot still loads after pruning
+PASS partial snapshot and pointer writes preserve the published state
+PASS snapshot pruning survives power loss at every disk mutation
+PASS space precheck changes no files and the same store retries
+PASS space precheck leaves recovered temporary and backup sources untouched
+PASS store retries after a failure at every save mutation
+PASS a partial first save retries on the same store
+PASS logging resumes after nearly full disk is freed without reboot
+PASS mining refuses start at 80% and resumes below it on 26x20
+PASS lumber refuses start at 80% and resumes below it on 26x20
+PASS mining refuses start at 80% and resumes below it on 29x12
+PASS lumber refuses start at 80% and resumes below it on 29x12
+15 combined focused tests passed

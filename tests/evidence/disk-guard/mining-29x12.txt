@@ -1,0 +1,12 @@
+generic Mining stopped
+bottom -58 length 64 thorough
+disk >=80%; free space
+
+
+
+
+
+
+
+
+>

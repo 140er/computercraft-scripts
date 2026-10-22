@@ -1,0 +1,11 @@
+PASS luac5.2 -p on all changed Lua files
+so-mod-lumber.lua   31 locals (deepest at function line 205) ok
+so-mod-mine.lua    52 locals (deepest at function line 200) ok
+so-mod-state.lua   16 locals (deepest at function line 308) ok
+run.lua            37 locals (deepest at function line 381) ok
+disk-guard.lua     27 locals (deepest at function line 99) ok
+so3.lua            40 locals (deepest at function line 842) ok
+so7.lua            31 locals (deepest at function line 39) ok
+PASS tests/run.lua append-only (4 new lines)
+PASS no test file deleted
+PASS check-scope

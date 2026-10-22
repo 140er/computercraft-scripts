@@ -1,6 +1,25 @@
 # so protocol
 
-Rednet protocol name is `so`. The server hosts that protocol as `server`. One server runs `so-server.lua` on a computer whose disk is at least 16000000 bytes. Turtles, pocket computers, and monitors keep no state that matters after a reboot. After a reboot the server tells them what to do.
+Rednet protocol name is `so`. The server attempts to host that protocol as `server`. One server runs `so-server.lua` on a computer whose disk is at least 16000000 bytes. Turtles, pocket computers, and monitors keep no state that matters after a reboot. After a reboot the server tells them what to do.
+
+Servers and displays open every attached modem and rescan on `peripheral` and
+`peripheral_detach` events. A wired modem does not exclude a wireless or ender
+modem. The server attempts hostname registration once at boot. If it fails, the
+server stays running and shows the conflicting host ID when lookup returns one.
+Paired clients can still send directly to its computer ID.
+
+A display boots with the lowest numeric server ID in its saved pairing keys,
+including a recovered key generation. It keeps sending to that ID through
+outages, regardless of `so/server` lookup results. It uses hostname discovery
+only when it has no paired server. The wire format is unchanged.
+
+Fresh pairing still uses the shared `so/server` hostname. Two installations in
+ender range, including across dimensions, can collide or answer discovery in a
+different order. This change does not select the intended server for an unpaired
+client. Isolate the networks while pairing. Selecting a server explicitly needs
+a separate setup or discovery change. A server that failed registration needs a
+reboot after the hostname becomes available. A server registered offline may
+also collide when a modem is attached later.
 
 Time is `os.epoch("utc")` in milliseconds. Do not use `os.time` or in-game days.
 
@@ -54,7 +73,13 @@ A paired computer sends `hello` to the server.
 
 `body.role` is an optional string. `body.label` is an optional string.
 
-`body.w` and `body.h` are optional positive integers. They are the display size in character cells, from `getSize`. The display module reads them. It does not treat `body.role` as the screen assignment.
+`body.w` and `body.h` are optional positive integers. They are the available frame size in character cells. `display.lua` uses
+`getSize` and reserves the bottom row for local input on screens at least
+three rows tall, so `body.h` is one less than the physical height there.
+Optional `body.fullH` advertises the physical height. The Big Tiles server uses
+that height and kit frames fill every row, including pocket glance navigation.
+Kit-free frames retain the local input row. The display module reads these sizes.
+It does not treat `body.role` as the screen assignment.
 
 A turtle also sends these fields.
 
@@ -92,11 +117,31 @@ The server sends `lease.batch` to a turtle.
 
 A step is a table.
 
-`op` is one of `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckDown`, `drop`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
+`op` is one of `discard`, `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
 
 `slot` is optional. It is an integer from 1 to 16. `select` uses it. Other ops use the already selected slot.
 
-`n` is an optional integer. `refuel`, `drop`, `dropDown`, `suck`, and `suckDown` use it as a count.
+`n` is an optional integer. `refuel`, `drop`, `dropUp`, `dropDown`, `suck`, `suckUp`, and `suckDown` use it as a count.
+
+Drop and suck operations require `peripheral.hasType(side, "inventory")` on the
+target side. Otherwise the worker returns `ok = false, err = "no inventory"`
+without calling the turtle transfer operation. Drops into open space are refused.
+
+On reboot the worker resolves a pending movement from the saved fuel level. A
+fuel difference of one means it ran; no difference means it did not. With
+unlimited fuel, a GPS fix saved before the move and another at boot can resolve
+the displacement. A turn, an old pending entry without evidence, or a conflicting
+observation stays uncertain. The worker retains the pending entry and sends
+`journal.recovery = { n, op, outcome }` on hello. `outcome` is `applied`,
+`not applied`, or `uncertain`. `journal.uncertain = true` marks an unknown pose;
+`journal.pose` then contains only the last committed pose. The worker stays still
+and refuses subsequent steps with `pose uncertain` until an operator re-adds it.
+The server discards its cached journal pose and refuses new leases while uncertain.
+
+`discard` accepts `side = "front" | "up" | "down"`, defaulting to `down`,
+and optional count `n`. It drops only after inspection establishes an empty cell.
+An adjacent inventory always refuses discard, even if inspection reports air.
+Occupied or uncertain cells return a failed result and keep the items.
 
 ### step.report
 
@@ -109,6 +154,8 @@ The turtle sends `step.report` to the server.
 `results[i].counts` is an optional array of 16 numbers, the item count in slots 1 to 16 after the step.
 
 `results[i].err` is `expired` when the step was not run because `lease.batch` `expires` had passed. Later steps in that batch use the same error.
+
+`body.uncertain = true` omits `body.pose` when an interrupted step could not be resolved.
 
 `body.pose` is `{ x, y, z, f }` in the journal frame after the last step. `body.journal` is the journal id. `body.fuel` is the numeric fuel level, or `-1` for unlimited. `body.inv` is the occupied-slot list `{ { slot, name, count }, ... }`. `body.dug` is the last 32 dug cells `{ { x, y, z }, ... }` in the journal frame. The worker reads these facts once after the batch, including when a step failed or expired.
 
@@ -140,7 +187,11 @@ The server sends `view.frame` to a display.
 
 `body.rev` is a number. It grows when the picture changes. A repeat of the same picture keeps the same `rev`.
 
-`body.role` is `shop`, `mining`, `status`, or `generic`. It is the screen that was drawn.
+Frame signatures and revisions are tracked per role and client. Unchanged
+frames wait for the four-second keepalive even when other displays have different
+sizes or pages.
+
+`body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`
 or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
@@ -175,7 +226,7 @@ A paired computer sends `drops.edit` to the server. The payload is the table fro
 
 `body.op` is `add`, `remove`, or `fix`.
 
-For `add`, `body.id` is a string of letters, digits, underscore, and hyphen. `body.dim`, `body.x`, `body.y`, and `body.z` are integers. `body.side` is `front` or `down`. `body.kind` is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`.
+For `add`, `body.id` is a string of letters, digits, underscore, and hyphen. `body.dim`, `body.x`, `body.y`, and `body.z` are integers. The x, y and z fields are the chest's own coordinates. `body.side` is `front` or `down`. `front` accesses the chest from a neighbouring cell at the same height while facing it; `down` accesses it from directly above. `body.kind` is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`.
 
 For `remove` and `fix`, `body.id` is that point id.
 
@@ -216,9 +267,9 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 ### shop
 
-`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, search text, order replies and trend samples in memory. Restarting the server clears them.
+`so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, per-display search text, order replies and trend samples in memory. Restarting the server clears them.
 
-The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`.
+The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`. After five minutes without a stock reply or stock broadcast from the selected turtle, it clears stale stock and resumes discovery. DNS replies and order replies do not extend that deadline. The legacy room has no server-only configuration or pairing record to select a preferred turtle; discovery uses the first DNS or stock responder.
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
@@ -227,6 +278,7 @@ The Big Tiles screen uses `render(w, h)`. It lists items sorted by descending co
 Tapping `item:<itemName>` opens an order page with an IN STOCK tile and buttons `order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`. Button `items` returns to the list. Tiles are blue normally, amber for falling stock or counts of 16 or fewer, and coral when empty. Trend rates estimate the hourly change from the oldest sample using the retained minute-sample intervals. The latest order reply lines share one status line. Without `so-ui.lua`, the legacy list and its order buttons remain available.
 
 An order button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows reply text with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
+The screen shows storage state and items sorted by descending count, with item name as the tie breaker. Submitted text filters names for that display without case sensitivity; spaces match underscores. The visible `clear` button, a lone space, or `*` clears that display's filter. Each item has buttons for 1, 16 and 64. A button sends `{ cmd = "order", text = itemName, n = count, rid = number }` on `roomsorter` once. The module matches replies by sender and request id. It shows each reply line with `Order: ` until the next order. Orders are never retried automatically. An unanswered order shows a timeout after two minutes.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
@@ -252,6 +304,8 @@ SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
 `state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
 
+`state.canStart()` returns true below 80% disk use. At 80% or more it returns false and `"disk >=80%; free space"`. It reads current capacity and free space on every call and writes nothing. Mining and lumber call it before `start` changes their jobs. A missing guard refuses start too. Recovery, stop and ongoing work remain available.
+
 `state.tick(now)` flushes held view frames. `now` is utc milliseconds. The server passes it once a second.
 
 #### Events
@@ -276,7 +330,7 @@ Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` s
 
 #### Log files
 
-Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads the newest valid snapshot and applies later segment events. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
+Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads snapshot `n` from the recovered `latest` pointer, or `n-1` if `n` is invalid, and applies later segment events. After `latest` saves, cleanup deletes older numbered snapshots and their `.tmp` and `.bak` files. Startup repeats this cleanup. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
 
 When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
 
@@ -310,7 +364,14 @@ state history retention cannot be reconstructed. There are no new wire types.
 
 An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
-`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact. `lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
+`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact.
+
+`lease.cancelPark(id, "mine")` retires an open mining lease only when its sole
+step is `inspectDown`. It returns true when cancelled or already closed, otherwise
+false and `"turtle has open lease"`. Cancellation releases reservations owned by
+the lease and ignores later reports without calling the planner callback.
+
+`lease.inRange(id, pos)` checks the distance from the server against that turtle's range plus 8 blocks. A known dimension mismatch returns false. The first known turtle pose sets its range. Later observations only increase it. The initial fallback is 16 blocks.
 
 The server position comes from the plain `so-server.cfg` table `{ pos = { dim, x, y, z } }`, read through `so-store`. Without it, the module tries `gps.locate(2)`. Without either position, every range check returns true and the module logs that once at load.
 
@@ -341,12 +402,15 @@ commands through that screen's `input.text`:
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
 - `bottom <y>` and `length <n>` set the shaft bottom and branch length.
 - `mode thorough|fast` selects wall inspection or faster branches.
-- `ores diamond,iron,...` accepts the supported names from `so-mine-plan.lua`.
+- `ores diamond, iron,...` accepts spaces around commas and the supported names from `so-mine-plan.lua`.
   Only selected ores start wall veins. Empty or missing lists accept all ores.
   Ores blocking the route are still dug.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
-- `remove <id>` removes a worker once its lease has closed.
-- `start` and `stop` control planning. An already sent batch finishes after stop.
+- `remove <id>` removes a worker after its lease closes or cancels its stationary
+  recovery or park inspection. It releases the worker's lane and reservations.
+  Movement and digging leases still prevent removal.
+- `start` checks the disk guard before requiring a configured `home`. Existing saved homes remain configured.
+  `stop` lets an already sent batch finish. A valid command clears the prior command error.
 
 Adding a worker sends a recovery park lease. Startup also sends each saved worker
 one recovery park lease before planning. Reports supply the real journal pose,
@@ -356,6 +420,9 @@ or dug cell must pass the range check and reservation check before dispatch.
 Lost and expired workers retain their reservations until a recovery report.
 A completed route unloads remaining ore through the configured ore drop, returns
 to its branch tip and parks. A missing or failed drop uses the existing retry delay.
+A finished worker recovered away from its branch tip, for example one moved by
+hand or saved after an older worker backed along its path, travels back to the
+tip before it parks.
 The screen shows each worker's state, pose, fuel, ore count, and last error.
 Lost workers and workers outside their proven radio range appear in red.
 
@@ -390,12 +457,48 @@ A fresh ten-block shaft therefore cannot be dug in two leases with this worker.
 Thorough mode checks branch walls. Ore recognition also accepts `_ore` names, `:raw_` names, and
 `c:ores` or `forge:ores` tags. The planner follows up to 64 ore blocks per vein.
 It scoops lava sources with an empty bucket before trying sealing blocks.
-It seals other lava and water before movement. Extra junk drops at the current
-position about every ten digs. One stack of suitable blocks stays for sealing.
+It seals other lava and water before movement. About every ten digs, extra junk
+uses guarded `discard` into an adjacent empty cell, preferring known open tunnel
+cells. Failed targets are skipped until the turtle moves. Junk stays aboard when
+no adjacent cell is safe, and ore unloads exclude junk. One suitable stack stays
+for sealing.
 
 Workers with fewer than two free slots visit an ore drop. Workers whose fuel is
-below the distance home plus 64 visit a fuel drop and refuel towards 2000.
-Trips return to the position where work stopped. Trips route around their chest. Full inventories unload before a fuel pickup.
+below the mine route home plus 64 visit a fuel drop and refuel towards 2000,
+or the return route plus reserve if that needs more fuel.
+An empty fuel chest ends the pickup if the worker has enough fuel to return to
+the paused position along the saved route and still meet that position's route home plus 64.
+Otherwise the existing chest retry and hold rules apply.
+Trips return to the position where work stopped. Underground trips return along
+the branch to its spine junction, follow the spine to the shaft, and climb the shaft
+before taking a shortest axis path around the chest to a free stand. Return trips
+reverse the saved path. A side vein first connects through known dug cells to the
+last reached mining waypoint. If that connection cannot be found within 512 cells,
+for example after a restart empties the lookup or a re-add underground, a worker
+below the surface plans the direct path: down or up its own column to the bottom
+level, straight to the spine, then along the spine and up the shaft. That path
+sets the fuel reserve and the trip digs it. Above the surface the trip still
+waits with `no known mine route`. A worker added below the surface joins its
+new route at the nearest cell after the shaft top instead of climbing to it. Searches use only the in-memory
+block lookup, never the durable cells API. Home routes and vein access cache until
+the pose, route waypoint or mine geometry changes. A stationary turtle does not
+repeat the search on each tick; stand candidates reuse the cached access path.
+Only the final approach can open new cells.
+A trip reserves the shared corridor, surface approach and adjacent branch exit
+before entering the lane, and retains them through the chest turnaround until
+it returns to its paused position. Private branch cells use normal movement
+batch reservations, keeping the lane grant independent of branch length. This uses
+the same queue as other miners and prevents opposing surface approaches from
+blocking each other. Supply trips sharing the lane run one at a time and defer
+report planning to tick. Known shaft and spine travel still batches, while moves
+outside the lane release one private cell per report when the trip uses the
+shared corridor. Trips wholly on the surface keep normal batching. This limits reservation-map
+copies during cleanup and keeps the server handler from yielding.
+Saved trip records include `shared`, whether they cross the lane, `path`,
+starting at the paused position, and `reserve`,
+the fuel needed there for the route home plus 64. Older trip records use the mine
+geometry when possible and hold if the recovered position is outside that route.
+Full inventories unload before a fuel pickup.
 Ore unloading includes mined fuel items. Front drops use a free neighbour
 at the same height. Down drops use the cell above the chest. The drop module's
 numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
@@ -412,6 +515,10 @@ the alert until a transfer succeeds or the drop changes.
 
 The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
 `{ level, branch, done }` through `SO.mods.state.emit` when available.
+`progress.done` and `mine.progress` count each branch once. Rows save the counted
+branch as `counted`, so recovery after a restart or a finished row re-entering
+`done` does not count it again. Rows saved before `counted` existed take their
+branch as counted when they load in state `done`.
 `so-mine-plan.lua` owns the pure movement decisions, geometry, ore recognition,
 and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a batch
 description without network, storage, or server calls. `row.pose` and `row.goal`
@@ -421,6 +528,8 @@ report rather than assuming the returned expected `pose`. Multi-action batches
 also return `actions`, each with a one-based `first` index into `steps`.
 `ore(data, ores)` accepts an optional list of supported ore names and matches
 block names or ore subtype tags before applying the ore classifier.
+`cleanup(inv, all, side)` returns select/discard steps for junk, retaining one
+sealing stack unless `all` is true. `side` defaults to `down`.
 
 ### cells
 
@@ -465,19 +574,22 @@ The next display tick routes it to the drawn screen and handles navigation.
 Discovery runs at most every five seconds. The monitor uses its real size,
 text scale 0.5 and the spec palette. Its status session and role are volatile,
 separate from paired displays, and require no rednet traffic or saved files.
-
 `display.screen(role, render, input)` registers one screen. `role` is a string.
 A second call for the same role replaces the first. `screen(role)` with no
 callbacks returns the registered `{ render, input }` or nil.
 `render(w, h, session?)` receives the target size and server-local session and
 returns `{ rows, buttons, palette? }`. The module sets `rev` and `body.role`,
 and clips the picture to the `hello` size. `input` accepts
-`{ id, x, y, role, session }` and optional `text`. The session is the same table
+`{ from, id, x, y, role, session }` and optional `text`. The session is the same table
 passed to render; it is never sent on the wire. `role` is the screen that was
 showing. Local monitor input receives its own session through the same field.
+The session includes client `id`. Kit-free render callbacks receive the client
+ID as their third argument. Their generic content height excludes two navigation
+rows for mining, lumber, shop, status and AR. Every kit-free destination has a
+visible generic return button on 26x20 pockets and 29x12 monitors.
 Existing callbacks can ignore the added session argument and field.
 
-Frame signatures and revisions are kept per role and size. Status additionally
+Frame signatures and revisions are kept per role, size and session. Status additionally
 keeps revisions, tile paging and alert state per display session. Panel revisions
 also stay per session. Every status frame carries the Big Tiles palette and that display's scale. Existing renderers
 may ignore the size arguments. Older partial installs without `so-ui.lua` retain
@@ -590,9 +702,19 @@ screens use compact controls. Pairing and job planning are unchanged.
 The `lumber` display accepts these text commands:
 
 - `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
-- `saplings <x> <y> <z> <front|down>` sets the turtle access cell for the sapling chest.
+- `saplings <x> <y> <z> <front|down>` sets the sapling chest's own coordinates and access side.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
 - `start` begins work. `stop` parks after the current lease reports.
+
+For `front`, `L.access` chooses a horizontal neighbour at the chest's height
+and faces the turtle towards the chest for `suck`. It chooses the eligible cell
+with the shortest Manhattan distance from the turtle's current position.
+Ties use north, east, south, west order. For `down`, the only candidate is
+`{ x = x, y = y + 1, z = z }`, and the turtle uses `suckDown`.
+The lumber caller excludes cells at or below soil height, known obstacles,
+chest cells and planted spots at soil height plus one. Keep access cells clear;
+these checks use the planner's known state. If no eligible cell remains,
+the turtle holds with `no access to saplings chest`.
 
 The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
@@ -603,9 +725,40 @@ anchor shows `waiting for reported pose`.
 
 The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
 
+Service trips use `L.travel(from, target, ground)` in both directions. Horizontal
+travel stays at soil height plus two. Vertical travel uses the departure or
+arrival column. Chest trips descend only at the access cell; return trips
+restore the saved pose in its own column. Travel never digs saplings or
+propagules, and service travel never digs at soil height plus one or lower.
+Old saved detours are cleared for service trips. Blocked service routes hold
+instead of bypassing the obstacle. A failed lease send releases the lumber
+reservations and holds work while the next tick attempts a stationary park.
+
+Replacing a turtle requires its lease to be closed. A different turtle also
+requires a stationary park report for the old one. If needed, `add` parks the
+old turtle and asks the operator to retry after its report. Until then, the
+old turtle remains assigned. Replacement clears the cached park state.
+Idle park expiry still needs the worker fix that prevents journal backup.
+
 Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
 
-An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. Saplings stay in the turtle. A `hold` result parks and raises an alert. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned.
+An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. The wood chest also receives sticks, apples, leaves and excess saplings. The turtle keeps one sapling per known spot of that species, with at least one for the current tree. Inventory pressure also interrupts harvesting to unload. Round-end unloading includes junk even without logs. A failed junk drop holds and raises an alert.
+
+Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
+
+Wood deliveries count the reported inventory decrease only when every step in the
+select, inspect and drop batch succeeds. Failed inspections call `drops.note` for
+wood, fuel and sapling chests. Supply trips inspect before taking items. A failed
+inspection holds the turtle. Repair the chest and send `start` to retry. Three
+failed inspections mark the drop point broken in the generic editor. Use `fix`
+there after repairing it. Successful inspections clear earlier failure counts.
+
+Sapling service reuses a registered point at the same coordinates, dimension and
+side. If none exists, it registers a `storage` point with the stable id
+`lumber_saplings_<dim>_<x>_<y>_<z>_<side>`. These points share the 64-point limit.
+A broken point or failed registration holds the turtle and asks for `start` after
+the drop point is fixed. Changing the sapling coordinates leaves old points in
+the editor, where the operator can remove them.
 
 The screen callback accepts `render(w, h)` and draws Big Tiles from job state.
 It shows eligible spots, delivered logs, carried saplings, turtle phase, fuel,
@@ -624,6 +777,8 @@ SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
 `drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken }`. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
 
+Drop points use the chest's own coordinates. The caller positions the turtle
+beside the chest facing it for `front`, or directly above it for `down`.
 `drops.steps(point)` takes a point. Side `front` returns `{ { op = "inspect" }, { op = "drop" } }`. Side `down` returns `{ { op = "inspectDown" }, { op = "dropDown" } }`. A call with no string `id` returns `{}`, including `steps({ name = "minecraft:cobble", n = 1, where = "front" })`.
 
 `drops.add(point)` takes `{ id, dim, x, y, z, side, kind }`. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
@@ -647,6 +802,16 @@ The display module still injects its legacy LUMBER and AR header buttons
 into the editor, plus PANEL on screens at least 39 columns wide when that
 role is registered. The editor's BACK returns to the list. The list's BACK returns to status. Gather copies module state
 before the private pure layout builds the requested display size.
+The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
+buttons fit 26x20 pockets and 29x12 monitors below navigation and above the
+bottom input row. Draft and feedback are shared between displays; paging is per display.
+Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
+and `add <kind> <x> <y> <z> [front|down] [dim]` to set and save it.
+Omitted side and dimension keep the draft values. Dimension may be supplied
+without side. All coordinates and dimensions must be finite integers. Dimension
+0 is overworld, -1 Nether, 1 End. Invalid text leaves the draft unchanged and
+shows an error. Button `add` and typed `add` show save failures in the editor.
+No client or wire fields change.
 
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
 
@@ -677,7 +842,7 @@ boolean values. A failed save leaves the current switches unchanged.
 - `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
   owner derived from the machine registry using `cells.list(owner, math.huge)`.
   It includes all that owner's cells in the server dimension. Scene gathering
-  does not call `cells.counts()`, whose reservation scan can sleep in a tick.
+  does not call `cells.counts()`, whose reservation scan can breathe during a burst.
 - `drops` draws a small box and uppercase `KIND id` label per point.
   Broken points use coral; other points use white.
 - The HUD has three 40-pixel tiles for TURTLES ok, ALERTS count and DISK percent.
@@ -694,6 +859,10 @@ boolean values. A failed save leaves the current switches unchanged.
 World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
 `FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`, stale
 `FF4A5468` and white `FFF2F4F8`. HUD backing is `C00E1626`.
+Alerts expire five minutes after the event timestamp, or first observation when
+no timestamp is available. Repeated events renew the deadline and the short
+banner. Expired snapshot values stay hidden until a new event arrives.
+Text-only controllers show the newest retained alert.
 
 Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
 map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
@@ -701,9 +870,10 @@ map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to
 
 Tick discovers controllers at most once every five seconds without waiting.
 It compares scenes and draws changes at most once per second. Stable element
-ids let it delete removed elements with `ar.delete`; it clears each frame only
-when delete is missing. Each frame ends with one `ar.update()`. Colours are
-signed ARGB integers. Drawing errors drop that controller until later discovery.
+ids let it delete removed elements with `ar.delete`. On first attachment it calls
+`ar.clear()` when available to remove elements left before server boot. Later
+frames clear only when delete is missing. Each frame ends with one `ar.update()`.
+Colours are signed ARGB integers. Drawing errors drop that controller until later discovery.
 The layers do not draw item icons.
 
 ## Plan helpers
@@ -718,7 +888,9 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 
 `P.inRange(lease, id, cells)` calls `lease.inRange(id, cell)` for every cell and returns false if any check fails. It returns true if the lease module or its range function is missing.
 
-`P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. An expired lease makes the worker beacon and back up its last moves.
+`P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. A single `inspectDown` step marks a stationary park lease in the worker journal.
+If it expires, the worker stays put and beacons every 30 seconds. An expired
+work lease still starts fast beacons and backtracking along the last 32 moves.
 
 `P.fuelValue(name)` returns fuel per item for Minecraft coal and charcoal as 80, coal blocks as 800, lava buckets as 1000, and blaze rods as 120. Other names return 0. `P.free(inv)` returns the number of empty slots among the turtle's 16 slots using the occupied-slot report list.
 
@@ -797,3 +969,40 @@ The core does not call Advanced Peripherals, cc_ar, or Tom's Peripherals.
 - SO10 owns `so-mod-ar.lua`.
 - W3-B owns `so-mod-lease.lua`. It sends `lease.batch` and handles `step.report`, `beacon`, and `history.page`.
 - W4-0 owns worker report facts, lease recovery facts, and the shared `so-plan.lua` helpers. It adds no planner.
+
+Worker uncertainty is also exposed by `lease.status(id).uncertain`. While it is
+true, `lease.send` returns `nil, "pose uncertain"`, including recovery parks.
+Uncertain beacons carry `uncertain = true` and omit `pose`.
+
+### worker.anchor
+
+Mining or lumber `add <id> <x> <y> <z> <n|e|s|w>` can replace an existing uncertain
+assignment. Both screens and the worker show `pose uncertain: re-add turtle <id>`.
+The operator supplies the turtle's actual position and facing. Normal duplicate
+mining adds still fail; lumber retains its normal configuration guards otherwise.
+
+`lease.reanchor(id, worldPose)` requires an uncertain worker and sends an
+authenticated `worker.anchor` with `{ journal, pose = { x, y, z, f } }`.
+`journal` identifies the uncertain worker journal. The worker accepts only its
+paired server, only while uncertain, and only when that journal id matches.
+It saves the supplied pose as a fresh journal, clears pending steps, moves and dug
+history, then sends hello with `journal.recovery = { outcome = "anchored", journal }`.
+Duplicate anchor requests re-send hello without resetting the journal, so a lost
+confirmation can recover. A failed save retains uncertainty. The server retries
+the anchor once per second
+and keeps refusing leases until that matching hello arrives. Old lease callbacks
+are cancelled during re-anchoring. Work then starts from the new assignment.
+
+### Re-pairing after a server key reset
+
+When authentication fails for `hello`, `beacon` or `step.report`, the server
+sends `{ t = "pair.required", from = serverId }` on `so`. This is an unsigned
+hint outside the authenticated envelope. It is not proof that a key was lost.
+Clients only show it for their saved server ID, and keep the saved key and
+normal authenticated message handling. An authenticated display frame or worker
+reply dismisses the prompt. A forged hint can show a prompt but cannot delete or replace keys,
+change the server ID, authorize work or reset the turtle journal.
+
+Press P on the server, then enter its new code on the client. Displays accept
+six digits; turtles also require Enter. Failed pairing retains the old key.
+Only a successful authenticated pairing saves the replacement key.

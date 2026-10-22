@@ -1,0 +1,6 @@
+checkpoint retains only the two usable snapshots
+startup removes stale snapshot generations
+startup cleanup resumes after interrupted stale-file deletion
+previous snapshot still loads after pruning
+partial snapshot and pointer writes preserve the published state
+snapshot pruning survives power loss at every disk mutation
