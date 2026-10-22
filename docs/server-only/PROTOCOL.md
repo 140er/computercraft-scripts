@@ -527,6 +527,21 @@ anchor shows `waiting for reported pose`.
 
 The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
 
+Service trips use `L.travel(from, target, ground)` in both directions. Horizontal
+travel stays at soil height plus two. Vertical travel uses the departure or
+arrival column. Chest trips descend only at the access cell; return trips
+restore the saved pose in its own column. Travel never digs saplings or
+propagules, and service travel never digs at soil height plus one or lower.
+Old saved detours are cleared for service trips. Blocked service routes hold
+instead of bypassing the obstacle. A failed lease send releases the lumber
+reservations and holds work while the next tick attempts a stationary park.
+
+Replacing a turtle requires its lease to be closed. A different turtle also
+requires a stationary park report for the old one. If needed, `add` parks the
+old turtle and asks the operator to retry after its report. Until then, the
+old turtle remains assigned. Replacement clears the cached park state.
+Idle park expiry still needs the worker fix that prevents journal backup.
+
 Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
 
 An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. The wood chest also receives sticks, apples, leaves and excess saplings. The turtle keeps one sapling per known spot of that species, with at least one for the current tree. Inventory pressure also interrupts harvesting to unload. Round-end unloading includes junk even without logs. A failed junk drop holds and raises an alert.

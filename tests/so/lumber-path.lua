@@ -14,7 +14,7 @@ return function(test, equal)
         j.turtle.pose.y = height
         local back = { dim = j.dim, x = 0, y = height, z = 0, facing = 1 }
         j.service = { kind = 'wood', stage = 'travel', resume = 'waiting',
-          point = { x = 6, y = 0, z = 0, side = side }, back = back }
+          point = { x = 6, y = 1, z = 0, side = side }, back = back }
         j.detour = { dim = j.dim, x = 5, y = 1, z = 0 }
         local returned = false
         for n = 1, 150 do
@@ -26,7 +26,19 @@ return function(test, equal)
             for i, step in ipairs(q.steps) do
               if step.op == 'forward' or step.op == 'back' then equal(at.y, 2, 'horizontal flight height') end
               equal(step.op:match('^dig') == nil, true, 'does not dig farm')
-              results[i] = { ok = not step.op:match('^inspect') }
+              if step.op == 'down' then
+                local target = j.service.stage == 'return' and back or j.service.access
+                equal((at.x == back.x and at.z == back.z) or (at.x == target.x and at.z == target.z), true, 'descent stays in departure or arrival column')
+              end
+              local inspect = ({ inspect = 'forward', inspectDown = 'down', inspectUp = 'up' })[step.op]
+              local block
+              if inspect then
+                local x, y = P.ahead(at, inspect)
+                if y == 1 and x > 0 and x < 5 then
+                  block = { name = x % 2 == 0 and 'minecraft:oak_sapling' or 'minecraft:oak_log', tags = { ['minecraft:logs'] = x % 2 ~= 0 } }
+                end
+              end
+              results[i] = { ok = not inspect or block ~= nil, data = block }
               if results[i].ok then at = P.apply(at, step.op) end
             end
             f.report(false, results)
@@ -43,13 +55,27 @@ return function(test, equal)
   test('lumber service does not dig an unknown log base', function()
     local f = setup()
     f.job.turtle.pose.y = 2
+    f.job.obstacles = {}
     f.job.service = { kind = 'wood', stage = 'travel', resume = 'scan',
-      point = { x = 0, y = -1, z = 0, side = 'down' } }
+      point = { x = 0, y = 0, z = 0, side = 'down' } }
     f.tick(1)
     f.report(false, { { ok = true, data = { name = 'minecraft:oak_log', tags = { ['minecraft:logs'] = true } } } })
     equal(f.queued() == nil, true, 'no dig sent')
+    f.tick(2)
     equal(f.job.blocked ~= nil, true, 'blocked route holds')
   end)
+  for _, name in ipairs({ 'minecraft:oak_sapling', 'minecraft:mangrove_propagule', 'minecraft:oak_log' }) do
+    test('lumber return protects ' .. name, function()
+      local f = setup()
+      f.job.obstacles = {}
+      f.job.service = { kind = 'wood', stage = 'return', resume = 'scan',
+        back = { dim = f.job.dim, x = 0, y = 1, z = 0 } }
+      f.tick(1)
+      f.report(false, { { ok = true, data = { name = name, tags = { ['minecraft:logs'] = name:match('_log$') ~= nil } } } })
+      equal(f.queued() == nil, true, 'does not send dig')
+      equal(f.job.blocked, 'blocked')
+    end)
+  end
   test('lumber failed send releases reservations and parks', function()
     local f = setup()
     local releases = 0
@@ -63,10 +89,26 @@ return function(test, equal)
     f.tick(2)
     equal(f.queued().opts.ms, P.park.ms)
   end)
+  for _, failure in ipairs({ 'unavailable', 'held', 'range' }) do
+    test('lumber parks after pre-send failure ' .. failure, function()
+      local f = setup()
+      f.tick(1)
+      f.report(false)
+      local reserve, range = f.mods.cells.reserveMany, f.mods.lease.inRange
+      if failure == 'unavailable' then f.mods.cells.reserveMany = nil
+      elseif failure == 'held' then f.mods.cells.reserveMany = function() return false end
+      else f.mods.lease.inRange = function() return false end end
+      f.tick(2)
+      equal(f.job.blocked ~= nil, true)
+      f.mods.cells.reserveMany, f.mods.lease.inRange = reserve, range
+      f.tick(3)
+      equal(f.queued().opts.ms, P.park.ms)
+    end)
+  end
   test('lumber replacement waits for old lease and confirmed park', function()
     local f = setup()
     f.tick(1)
-    f.report(false, { { ok = false } })
+    f.report(false)
     f.input('stop')
     f.input('add 3 8 2 0 e')
     equal(f.job.turtle.id, 2, 'old turtle retained while parking')

@@ -133,19 +133,33 @@ S.send = function(steps, action, cells, recover, ms)
   end
   if not recover and not P.inRange(lease, j.turtle.id, cells) then
     j.blocked = "out of range"
+    S.idlePark, S.parkAt = nil, nil
     S.alert("out of range")
     return false
   end
   local reservations = S.module("cells")
-  if type(reservations.reserveMany) ~= "function" then S.alert("cells unavailable") return false end
+  if type(reservations.reserveMany) ~= "function" then
+    j.blocked = "hold"
+    S.idlePark, S.parkAt = nil, nil
+    S.alert("cells unavailable")
+    return false
+  end
   local ok = reservations.reserveMany(S.owner(), cells)
-  if not ok then S.alert("cells held") return false end
+  if not ok then
+    j.blocked = "hold"
+    S.idlePark, S.parkAt = nil, nil
+    S.alert("cells held")
+    return false
+  end
   local pose = j.turtle.pose
   for _, step in ipairs(steps) do pose = P.apply(pose, step.op) end
   local id, err = lease.send(j.turtle.id, steps, {
     owner = "lumber", recover = recover == true, ms = ms, pose = pose,
   })
   if not id then
+    S.release()
+    S.idlePark, S.parkAt = nil, nil
+    j.blocked = "hold"
     if err == "lost" then S.recover = true end
     S.alert("lease " .. tostring(err))
     return false
@@ -210,6 +224,13 @@ S.noteChest = function(point, result)
   local drops = S.module("drops")
   if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
   return type(name) == "string" and name ~= ""
+end
+
+S.moveService = function(target)
+  if S.job.detour then S.job.detour = nil S.save() end
+  local waypoint = L.travel(S.job.turtle.pose, target, S.job.ground)
+  if not S.moveDirect(waypoint) then return false end
+  return S.moveDirect(target)
 end
 
 S.service = function(kind, resume)
@@ -339,7 +360,8 @@ S.report = function(id, turtleId, results, lease)
     elseif j.service and j.service.stage == "travel" and j.service.access
       and S.cellKey(action.cell) == S.cellKey(j.service.access) then
       j.service.access, j.detour = nil, nil
-    elseif action.cell.y > (j.ground or -math.huge) and L.canDig(block) then
+    elseif action.cell.y > (j.ground or -math.huge)
+      and (not j.service or action.cell.y > j.ground + 1) and L.canDig(block) then
       local dig = ({ up = "digUp", down = "digDown", forward = "dig" })[action.move]
       S.op(dig, "motion", { j.turtle.pose, action.cell })
     else
@@ -347,7 +369,7 @@ S.report = function(id, turtleId, results, lease)
       if j.phase == "scan" and not j.service and scan
         and action.cell.x == scan.x and action.cell.y == scan.y and action.cell.z == scan.z then
         j.cursor = j.cursor + 1
-      elseif action.move == "forward" then
+      elseif action.move == "forward" and not j.service then
         local target = j.service and (j.service.stage == "return" and j.service.back or j.service.access) or scan
         if target then
           j.detour = { dim = j.dim, x = target.x, y = j.turtle.pose.y + 1, z = target.z }
@@ -490,7 +512,7 @@ S.workService = function()
       end
       S.save()
     end
-    if not S.move(service.access) then return end
+    if not S.moveService(service.access) then return end
     service.stage = service.kind == "wood" and "drop" or "check"
     S.save()
   end
@@ -534,7 +556,7 @@ S.workService = function()
     if not item then j.blocked = "fuel" S.alert("no usable fuel") return end
     S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = item.count } }, "refuel")
   elseif service.stage == "return" then
-    if service.back and not S.move(service.back) then return end
+    if service.back and not S.moveService(service.back) then return end
     j.phase = service.resume
     j.service = nil
     S.save()
@@ -640,6 +662,19 @@ S.input = function(ev)
     local status = type(lease.status) == "function" and lease.status(id) or {}
     local reanchor = status.uncertain and j.turtle and j.turtle.id == id
     if (j.running or S.pending) and not reanchor then S.alert("stop before configuring") return end
+    if j.turtle and not reanchor then
+      local lease = S.module("lease")
+      if type(lease.status) ~= "function" or lease.status(j.turtle.id).open then
+        S.alert("old turtle has open lease; retry add after report")
+        return
+      end
+      if j.turtle.id ~= id and not S.idlePark then
+        S.park()
+        S.alert("parking old turtle; retry add after report")
+        return
+      end
+    end
+    S.idlePark, S.parkAt = nil, nil
     local pose = { dim = j.dim, x = x, y = y, z = z, facing = f }
     if status.uncertain then
       local ok, err = lease.reanchor(id, pose)
