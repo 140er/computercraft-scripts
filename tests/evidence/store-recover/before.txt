@@ -1,0 +1,10 @@
+space precheck changes no files and the same store retries
+lua5.2: tests/so/store-recover.lua:12: spawn:1: storage requires restart
+stack traceback:
+	[C]: in function 'assert'
+	tests/so/store-recover.lua:12: in function 'run'
+	tests/so/store-recover.lua:29: in function 'fn'
+	/tmp/storage-baseline.lua:15: in function 'test'
+	tests/so/store-recover.lua:20: in function <tests/so/store-recover.lua:3>
+	/tmp/storage-baseline.lua:15: in main chunk
+	[C]: in ?

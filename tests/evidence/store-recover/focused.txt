@@ -1,0 +1,5 @@
+space precheck changes no files and the same store retries
+space precheck leaves recovered temporary and backup sources untouched
+store retries after a failure at every save mutation
+a partial first save retries on the same store
+logging resumes after nearly full disk is freed without reboot
