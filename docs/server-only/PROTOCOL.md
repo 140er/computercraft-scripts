@@ -308,7 +308,12 @@ at the bottom level. Branch junctions are four blocks apart in `thorough` mode
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
 New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
-The module registers `display.screen("mining", render, input)`. Send these text
+The module registers `display.screen("mining", render, input)`. `render(w, h)`
+returns a Big Tiles frame. Input ids `start` and `stop` use the text commands
+below. `setup` opens the settings page and `mine-back` returns to mining.
+`status` is the main BACK navigation id. Both pages accept text commands.
+Daily ore totals have no source and show a stale `-` tile. A missing UI kit
+retains the legacy renderer. Send these text
 commands through that screen's `input.text`:
 
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
