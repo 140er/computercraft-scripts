@@ -15,6 +15,25 @@ local function setup(opts)
   local net=H.new()
   local server=net.machine({id=1,modem=true}) server.install(S.files) tree(server)
   server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  if opts.routeGuard then
+    server.files["so-mine-plan.lua"] = server.files["so-mine-plan.lua"]:gsub("\nreturn M%s*$", "\n"..[[
+local supply = M.supplyRoute
+routeSearches = {}
+M.supplyRoute = function(job,row,stand,point,lookup)
+  local cells, prior = SO.mods.cells, SO.mods.cells.isDug
+  cells.isDug = function() error("route planning queried durable dug cells") end
+  if stand == job.home then
+    local key = M.key(row.pose)..":"..tostring(row.index)..":"..tostring(row.route)
+    routeSearches[key] = (routeSearches[key] or 0)+1
+  end
+  local ok, path, access = pcall(supply,job,row,stand,point,lookup)
+  cells.isDug = prior
+  if not ok then error(path) end
+  return path,access
+end
+return M
+]])
+  end
   server.boot("so-server.lua") net.flush()
   local render,input
   local display=server.env.SO.mods.display
@@ -768,6 +787,87 @@ return function(test,equal)
     end
     run(s,240)
     equal(grants,{5,3,4,2})
+  end)
+
+  test("mine supply trips share the shaft and retrace both branches",function()
+    local s=setup()
+    s.add(3,2)
+    local M=dofile("so-mine-plan.lua")
+    local disk=persisted(s)
+    disk.running=true
+    local chest={name="minecraft:chest",inv={}}
+    s.net.world["-3,0,0"]=chest
+    assert(s.server.env.SO.mods.drops.add({id="ore",dim=0,x=-3,y=0,z=0,side="front",kind="ore"}))
+    local allowed={}
+    for _,w in ipairs(s.turtles) do
+      local row=disk.turtles[tostring(w.id)]
+      row.branch=w.id-2 row.route=M.route(disk,row.branch) row.index=#row.route+1
+      row.pose=row.route[#row.route] row.anchor=row.pose row.frame=nil
+      row.inv={}
+      for slot=1,16 do
+        w.inv[slot]={name="minecraft:diamond",count=64}
+        row.inv[slot]={slot=slot,name="minecraft:diamond",count=64}
+      end
+      w.pos={x=row.pose.x,y=row.pose.y,z=row.pose.z} w.heading=row.pose.facing
+      for _,p in ipairs(row.route) do allowed[M.key(p)]=true end
+      for y=-2,0 do allowed["0,"..y..",-1"]=true end
+      s.server.env.SO.mods.cells.releaseOwner("mine:"..w.id)
+    end
+    assert(s.server.env.SO.store.store("so-data/mine/job",function() return true end).save(disk))
+    s.server=s.net.boot(s.server)
+    local cells=s.server.env.SO.mods.cells
+    local visited,returns={},{}
+    for _,w in ipairs(s.turtles) do
+      s.server.env.SO.mods.lease.handlers.hello({from=w.id,body={pose={x=0,y=0,z=-20}}})
+      for _,op in ipairs({"forward","back","up","down"}) do
+        local move=w.env.turtle[op]
+        w.env.turtle[op]=function(...)
+          local ok,err=move(...)
+          if ok then
+            local p=w.pos
+            assert(p.y==0 or allowed[M.key(p)],"supply trip left the dug mine")
+            for _,other in ipairs(s.turtles) do
+              if other~=w then assert(not M.same(p,other.pos),"supply turtles collided") end
+            end
+            if M.inLane(disk,p) then
+              equal(cells.owner(0,0,-1),"mine:"..w.id)
+              equal(cells.owner(0,-2,-1),"mine:"..w.id)
+              visited[w.id]=true
+            end
+            if visited[w.id] and p.x==3 and p.y==-2 and p.z==-(5+(w.id-2)*4) then returns[w.id]=true end
+          end
+          return ok,err
+        end
+      end
+    end
+    run(s,300)
+    assert(visited[2] and visited[3],"both supply trips must use the shared lane")
+    assert(returns[2] and returns[3],"both supply trips must return to their branch tips")
+    equal(persisted(s).turtles["2"].state,"done")
+    equal(persisted(s).turtles["3"].state,"done")
+  end)
+
+  test("mine route planning avoids durable lookups and reuses a stopped pose",function()
+    local s=setup({routeGuard=true})
+    digWorld(s)
+    local move=s.turtle.env.turtle.forward
+    local blocked=0
+    s.turtle.env.turtle.forward=function()
+      local p=s.turtle.pos
+      if p.x==1 and p.y==-2 and p.z==-5 then blocked=blocked+1 return false,"blocked" end
+      return move()
+    end
+    s.input("start") run(s,40)
+    assert(not table.concat(s.server.log,"\n"):find("route planning queried durable dug cells",1,true),
+      "route planning queried durable dug cells")
+    assert(blocked>2,"worker never retried a stationary obstruction")
+    equal(s.turtle.pos,{x=1,y=-2,z=-5})
+    local searches=0
+    for _,count in pairs(s.server.env.routeSearches) do
+      equal(count,1,"stationary planning rebuilt the home route")
+      searches=searches+1
+    end
+    assert(searches>2,"worker did not exercise route planning")
   end)
 
 end

@@ -91,10 +91,19 @@ function M.lanePass(job,row)
     local key=M.key(p)
     if not seen[key] then cells[#cells+1]={dim=job.dim,x=p.x,y=p.y,z=p.z} seen[key]=true end
   end
+  if row.trip and row.trip.path then
+    -- Reserve the turnaround too, so a second turtle cannot block the return at the chest.
+    local first
+    for i, p in ipairs(row.trip.path) do
+      if M.inLane(job,p) then first=math.max(1,i-1) break end
+    end
+    if first then for i=first,#row.trip.path do add(row.trip.path[i]) end end
+    return cells
+  end
   if entered then add(cursor) end
   local function walk(goal,trip,vein)
     local order=not vein and job.home.facing%2==0 and not M.inLane(job,goal) and "yzx" or "yxz"
-    local path=trip and M.travel(cursor,goal,trip.point) or P.path(cursor,goal,{order=order}).cells
+    local path=trip and M.travel(cursor,goal,trip.point,job,row) or P.path(cursor,goal,{order=order}).cells
     for _,p in ipairs(path or {}) do
       if M.inLane(job,p) then entered=true add(p)
       elseif entered then add(p) return true end
@@ -132,13 +141,86 @@ function M.cleanup(inv, all)
   end
   return steps
 end
-function M.travel(from, goal, point)
+function M.supplyRoute(job, row, stand, point, lookup)
+  local top = P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing}, "forward")
+  local bottom = {dim=job.dim,x=top.x,y=job.bottom,z=top.z,facing=top.facing}
+  local access = row.access or {row.pose}
+  local back = access[#access]
+  if not row.access and lookup and row.route and back.y ~= top.y and not M.inLane(job, back) then
+    local anchor = row.route[math.max(1, (row.index or 1)-1)]
+    if anchor and not M.same(back, anchor) then
+      local queue, parents, visited, head = {back}, {[M.key(back)]=false}, {[M.key(back)]=true}, 1
+      local found
+      while queue[head] and head <= 512 do
+        local cell = queue[head] head = head + 1
+        if M.same(cell, anchor) then found = cell break end
+        for _, delta in ipairs({{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}) do
+          local nextCell = {dim=job.dim,x=cell.x+delta[1],y=cell.y+delta[2],z=cell.z+delta[3]}
+          local key = M.key(nextCell)
+          if not visited[key] then
+            visited[key] = true
+            if (not point or not M.same(nextCell, point)) and lookup(nextCell) == false then
+              parents[key] = cell queue[#queue+1] = nextCell
+            end
+          end
+        end
+      end
+      if not found then return nil end
+      access = {}
+      while found do table.insert(access, 1, found) found = parents[M.key(found)] end
+      back = anchor
+    end
+  end
+  local junction = {dim=job.dim,x=back.x,y=job.bottom,z=back.z}
+  if top.facing % 2 == 0 then junction.x = top.x else junction.z = top.z end
+  local waypoints
+  if M.inLane(job, back) then
+    waypoints = back.x == top.x and back.z == top.z and {top, stand} or {bottom, top, stand}
+  elseif back.y == top.y then waypoints = {stand}
+  else waypoints = {junction, bottom, top, stand} end
+  local cells, pose = {}, back
+  for _, cell in ipairs(access) do
+    if point and M.same(cell,point) then return nil end
+    cells[#cells+1] = cell
+  end
+  for i, waypoint in ipairs(waypoints) do
+    local part = i == #waypoints and M.travel(pose, waypoint, point) or P.path(pose, waypoint, {order="yxz"}).cells
+    if not part then return nil end
+    for _, cell in ipairs(part) do
+      if point and M.same(cell, point) then return nil end
+      local repeated
+      for n, old in ipairs(cells) do if M.same(old,cell) then repeated=n break end end
+      if repeated then while #cells>repeated do table.remove(cells) end
+      else cells[#cells+1] = cell end
+    end
+    pose = waypoint
+  end
+  return cells, access
+end
+function M.supplyDistance(job, row, stand, lookup)
+  local cells = M.supplyRoute(job, row, stand or job.home, nil, lookup)
+  return cells and #cells-1 or math.huge
+end
+function M.travel(from, goal, point, job, row)
+  if job and job.home and row and row.trip then
+    local trip = row.trip
+    local cells = trip.path or M.supplyRoute(job, {pose=trip.back}, trip.stand, point)
+    if not cells then return nil end
+    local first, last, step = 1, #cells, 1
+    if trip.stage == "back" then first, last, step = #cells, 1, -1 end
+    local found, out = false, {}
+    for i = first, last, step do
+      if found then out[#out+1] = cells[i]
+      elseif M.same(cells[i], from) then found = true end
+    end
+    return found and out or nil
+  end
   local function join(waypoints, order)
     local cells, pose = {}, from
     for _, waypoint in ipairs(waypoints) do
       local path = P.path(pose, waypoint, { order = order })
       for _, cell in ipairs(path.cells) do
-        if M.same(cell, point) then return nil end
+        if point and M.same(cell, point) then return nil end
         cells[#cells + 1] = cell
       end
       pose = path.pose
@@ -165,7 +247,7 @@ local function nextOne(job, row, lookup, inv, fuel)
   local out = { steps = {}, cells = {}, pose = p }
   if not goal or M.same(p, goal) then out.kind = "arrived" return out end
   if row.trip then
-    local route = M.travel(p, goal, row.trip.point)
+    local route = M.travel(p, goal, row.trip.point, job, row)
     if not route or not route[1] then out.kind, out.error = "hold", "no route around drop" return out end
     goal = route[1]
   end
@@ -205,7 +287,7 @@ local function nextOne(job, row, lookup, inv, fuel)
 end
 function M.next(job, row, lookup, inv, fuel)
   local out = { kind = "batch", steps = {}, cells = {}, actions = {}, pose = row.pose }
-  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip, veins = row.veins }
+  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip, veins = row.veins, branch = row.branch, route = row.route, index = row.index }
   while #out.steps < 16 do
     local action = nextOne(job, cursor, lookup, inv, fuel)
     if #action.steps == 0 or #out.steps + #action.steps > 16 then
@@ -225,7 +307,8 @@ function M.next(job, row, lookup, inv, fuel)
     out.pose = action.pose
     if action.kind ~= "move" and action.kind ~= "turn" then break end
     cursor.pose = action.pose
-    if action.kind == "move" and not row.trip and row.pose.y == row.goal.y then break end
+    if action.kind == "move" and (not row.trip and row.pose.y == row.goal.y
+        or row.trip and row.trip.shared~=false and not M.inLane(job,action.pose)) then break end
   end
   if #out.actions == 1 then return out.actions[1] end
   return out
