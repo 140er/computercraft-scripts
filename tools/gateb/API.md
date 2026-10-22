@@ -128,3 +128,11 @@ computer at `[-8,64,0]`; it uses the same installer as other computers.
 preparation, including canopy cells beyond the four roots. C8 has no predefined
 low-fuel fault fixture. Such a check must supply and verify its own native setup
 or report blocked. The runtime does not silently alter check requirements.
+
+Pool ownership is optional: `pool up 2 --prefix driver-20261022` starts
+`driver-20261022-1` and `driver-20261022-2`, and returns their names in each
+resource row's `run` field. `pool down --prefix driver-20261022` stops only that
+prefix's numbered worlds. Python callers use `Runtime.pool("up", 2,
+prefix="driver-20261022")`. Status with a prefix filters to that owner's worlds;
+plain `pool status` still reports every runtime process. Default up/down owns
+`pool-1` through `pool-4`.

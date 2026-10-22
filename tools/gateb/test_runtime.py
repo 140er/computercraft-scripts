@@ -83,6 +83,19 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(result['prepared'])
         self.assertTrue((self.runtime.run('one')/'fixture-proof.json').exists())
 
+    def test_pool_prefix_isolates_start_status_and_stop(self):
+        for name in ('driver-123-1','driver-123-2','pool-1','driver-123-other-1'):
+            self.runtime.run(name).mkdir()
+            atomic(self.runtime.run(name)/'run.json',{'port':25600})
+        with patch.object(self.runtime,'serve') as serve,patch.object(self.runtime,'status',return_value={'driver-123-1':999999,'pool-1':999998}):
+            result=self.runtime.pool('up',2,prefix='driver-123')
+            self.assertEqual([call.args[0] for call in serve.call_args_list],['driver-123-1','driver-123-2'])
+            self.assertEqual([row['run'] for row in result],['driver-123-1'])
+        with patch.object(self.runtime,'stop') as stop:
+            self.runtime.pool('down',prefix='driver-123')
+            self.assertEqual(set(call.args[0] for call in stop.call_args_list),{'driver-123-1','driver-123-2'})
+        with self.assertRaises(ValueError): self.runtime.pool('up',1,prefix='../bad')
+
     def test_ports_are_unique_under_concurrency_and_skip_bound_socket(self):
         with socket.socket() as occupied:
             occupied.bind(('127.0.0.1',0));port=occupied.getsockname()[1]

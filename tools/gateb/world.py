@@ -552,17 +552,23 @@ class Runtime:
         from client import client_action
         return client_action(self,name,action)
 
-    def pool(self, action, count=0):
+    def pool(self, action, count=0, prefix=None):
+        owner=prefix or 'pool'
+        self.run(owner+'-1')
+        def owned(name):
+            return re.fullmatch(re.escape(owner)+r'-[1-4]',name) is not None
         if action=='up':
             if not 1<=count<=4: raise ValueError('Pool size must be 1..4')
             for i in range(1,count+1):
-                name='pool-'+str(i)
+                name=owner+'-'+str(i)
                 if not self.run(name).exists(): self.clone(name)
                 self.serve(name)
         elif action=='down':
-            for run in (self.home/'runs').glob('pool-*'): self.stop(run.name)
+            for run in (self.home/'runs').iterdir():
+                if owned(run.name): self.stop(run.name)
         status=[]
         for key,pid in self.status().items():
+            if prefix is not None and not owned(key.partition(':')[0]): continue
             try: rss=int(next(v.split()[1] for v in Path(f'/proc/{pid}/status').read_text().splitlines() if v.startswith('VmRSS:')))
             except (OSError,StopIteration): rss=None
             status.append({'run':key,'pid':pid,'rss_kib':rss,'port':self.state(key)['port'] if ':' not in key else None})
@@ -578,14 +584,14 @@ def main():
     p=sub.add_parser('install');p.add_argument('run');p.add_argument('sha');p.add_argument('--mode',choices=['copy','installer','http'],default='copy')
     p=sub.add_parser('api');p.add_argument('run');p.add_argument('request');p.add_argument('--timeout',type=float,default=15)
     p=sub.add_parser('client');p.add_argument('run');p.add_argument('action',choices=['start','shot','stop'])
-    p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0)
+    p=sub.add_parser('pool');p.add_argument('action',choices=['up','down','status']);p.add_argument('count',type=int,nargs='?',default=0);p.add_argument('--prefix')
     args=parser.parse_args();start=time.monotonic()
     try:
         runtime=Runtime(args.home)
         if args.command=='build-template': result=runtime.build_template(args.snapshot)
         elif args.command=='api': result=runtime.request(args.run,json.loads(args.request),args.timeout)
         elif args.command=='install': result=runtime.install(args.run,args.sha,args.mode)
-        elif args.command=='pool': result=runtime.pool(args.action,args.count)
+        elif args.command=='pool': result=runtime.pool(args.action,args.count,args.prefix)
         elif args.command=='client': result=runtime.client(args.run,args.action)
         else: result=getattr(runtime,args.command)(args.run)
         print(json.dumps({'ok':True,'result':result,'elapsed_s':round(time.monotonic()-start,3)}))
