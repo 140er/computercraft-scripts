@@ -18,6 +18,8 @@ def full_local_suite(locks, slots, command):
         if slot is None:
             continue
         argv = command(int(pid))
+        if any(arg == "--shards" or arg.startswith("--shards=") for arg in argv):
+            return slot
         if any(arg == "--part" or arg.startswith("--part=") for arg in argv):
             continue
         if slot == "test-suite.lock" and any(Path(arg).name == "keeper.py" for arg in argv):

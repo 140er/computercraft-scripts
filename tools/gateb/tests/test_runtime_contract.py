@@ -21,6 +21,7 @@ class ContractTests(unittest.TestCase):
         slots={(253,1,456):"test-suite-local-2.lock"}
         self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test"]))
         self.assertIsNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test","--part","mine"]))
+        self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:["python3","cc-test","--part","mine","--shards","2"]))
         slots={(253,1,456):"test-suite.lock"}
         self.assertIsNone(full_local_suite(locks,slots,lambda pid:["python3","/repo/tools/gateb/keeper.py"]))
         self.assertIsNotNone(full_local_suite(locks,slots,lambda pid:[]))
