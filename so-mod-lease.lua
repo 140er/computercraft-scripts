@@ -19,7 +19,7 @@ S.journalPose = function(p)
 end
 
 S.facts = function(body)
-  local facts = { pose = S.journalPose(body.pose) }
+  local facts = { pose = not body.uncertain and S.journalPose(body.pose) or nil, uncertain = body.uncertain == true or nil }
   if type(body.journal) == "string" then facts.journal = body.journal end
   if S.number(body.fuel) then facts.fuel = body.fuel end
   if type(body.inv) == "table" then
@@ -92,6 +92,7 @@ end
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
+  if row.uncertain then return nil, "pose uncertain" end
   if row.lost and not (type(opts) == "table" and opts.recover == true) then return nil, "lost" end
   if row.open then return nil, "busy" end
   if type(steps) ~= "table" or #steps < 1 or #steps > 16 then return nil, "steps" end
@@ -139,7 +140,7 @@ end
 S.status = function(id)
   local row = S.row(id)
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt }
+    pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain }
 end
 
 S.inRange = function(id, pos)
@@ -173,11 +174,13 @@ S.report = function(msg)
   row.seen = os.epoch("utc")
   row.lost = false
   lease.report = S.facts(body)
+  row.uncertain = lease.report.uncertain
+  if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
   local cells = S.module("cells")
   if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
-  if allOk and lease.pose then
+  if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
     S.emit("pose", pose)
@@ -190,7 +193,9 @@ S.beacon = function(msg)
   local row = S.row(msg.from)
   row.lost = true
   row.seen = os.epoch("utc")
-  S.journalSeen(row, msg.body.pose, msg.body.journal)
+  row.uncertain = msg.body.uncertain == true or nil
+  if row.uncertain then row.pose, row.poseAt = nil, nil
+  else S.journalSeen(row, msg.body.pose, msg.body.journal) end
   S.emit("machine", { id = msg.from, fuel = msg.body.fuel, seen = row.seen, journal = row.journal })
 end
 
@@ -199,7 +204,11 @@ S.hello = function(msg)
   row.lost = false
   row.seen = os.epoch("utc")
   local journal = msg.body.journal
-  if type(journal) == "table" then S.journalSeen(row, journal.pose, journal.id) end
+  if type(journal) == "table" then
+    row.uncertain = journal.uncertain == true or nil
+    if row.uncertain then row.pose, row.poseAt = nil, nil
+    else S.journalSeen(row, journal.pose, journal.id) end
+  end
   S.observe(row, msg.body.pose or msg.body.gps)
 end
 

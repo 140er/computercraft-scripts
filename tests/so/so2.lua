@@ -293,7 +293,7 @@ return function(test, equal)
     equal(slow[14].at - slow[13].at, 30000)
   end)
 
-  test("reboot mid-step puts the unfinished step on hello", function()
+  test("reboot before a move reports that it did not happen", function()
     local net, server, turtle = S.boot({ gps = { 8, 64, -2 } })
     S.lease(server, {
       lease = "mid",
@@ -313,8 +313,9 @@ return function(test, equal)
     assert(not turtle.error, tostring(turtle.error))
     local hello = S.sent(turtle, "hello")
     hello = hello[#hello]
-    equal(hello.body.journal.pending.op, "forward")
-    equal(hello.body.journal.pending.lease, "mid")
+    equal(hello.body.journal.pending, nil)
+    equal(hello.body.journal.recovery.op, "forward")
+    equal(hello.body.journal.recovery.outcome, "not applied")
     equal(#hello.body.journal.moves, 0)
     equal(hello.body.gps, { x = 8, y = 64, z = -2 })
     equal(turtle.pos.z, 0)

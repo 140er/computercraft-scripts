@@ -115,6 +115,10 @@ end
 W.markPending = function(op)
   W.bump()
   W.journal.pending = { n = W.journal.seq, op = op, lease = W.lease }
+  if C.moves[op] and op ~= "turnLeft" and op ~= "turnRight" then
+    W.journal.pending.fuel = W.fuelRaw()
+    if W.journal.pending.fuel == "unlimited" then W.journal.pending.gps = W.gpsFix() end
+  end
   W.save()
 end
 
@@ -174,6 +178,37 @@ W.gpsFix = function()
   return { x = x, y = y, z = z }
 end
 
+W.resolvePending = function()
+  local pending = W.journal.pending
+  if not pending or not C.moves[pending.op] then return end
+  local moved
+  if pending.op ~= "turnLeft" and pending.op ~= "turnRight" then
+    local fuel = W.fuelRaw()
+    if type(fuel) == "number" and type(pending.fuel) == "number" then
+      if fuel == pending.fuel then moved = false
+      elseif fuel == pending.fuel - 1 then moved = true end
+    elseif type(pending.gps) == "table" then
+      local fix, before = W.gpsFix(), pending.gps
+      if fix then
+        local dx, dy, dz = fix.x-before.x, fix.y-before.y, fix.z-before.z
+        if dx == 0 and dy == 0 and dz == 0 then moved = false
+        elseif pending.op == "up" and dx == 0 and dy == 1 and dz == 0 then moved = true
+        elseif pending.op == "down" and dx == 0 and dy == -1 and dz == 0 then moved = true
+        elseif (pending.op == "forward" or pending.op == "back") and dy == 0
+          and ((math.abs(dx) == 1 and dz == 0) or (dx == 0 and math.abs(dz) == 1)) then moved = true end
+      end
+    end
+  end
+  W.journal.recovery = { n = pending.n, op = pending.op,
+    outcome = moved == nil and "uncertain" or moved and "applied" or "not applied" }
+  W.journal.uncertain = moved == nil or nil
+  if moved ~= nil then
+    if moved then W.apply(pending.op) W.pushMove(pending.op) end
+    W.journal.pending = nil
+  end
+  W.save()
+end
+
 W.hello = function()
   local key = W.pair.key(W.server)
   if not key then return end
@@ -198,7 +233,8 @@ W.beacon = function()
     id = os.getComputerID(),
     fuel = W.fuelBeacon(),
     journal = W.journal.id,
-    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
+    pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
+    uncertain = W.journal.uncertain,
   }))
 end
 
@@ -207,7 +243,8 @@ W.report = function(results)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
     lease = W.lease, results = results,
-    pose = { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f },
+    pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
+    uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
   })
   while not W.proto.encode(msg) do
@@ -348,6 +385,14 @@ W.startBatch = function(msg)
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
   local n = #body.steps
   if n < 1 or n > 16 then return end
+  if W.journal.uncertain then
+    W.lease = body.lease
+    local results = {}
+    for i = 1, n do results[i] = { ok = false, err = "pose uncertain", counts = W.counts() } end
+    W.report(results)
+    W.enterSlow()
+    return
+  end
   W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
   W.mode = "idle"
   W.lease = body.lease
@@ -390,7 +435,7 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
-  if W.journal.park then
+  if W.journal.park or W.journal.uncertain then
     W.enterSlow()
     W.beacon()
     return
@@ -408,7 +453,7 @@ end
 
 W.enterSlow = function()
   W.mode = "slow"
-  W.stepName = "slow"
+  W.stepName = W.journal.uncertain and "pose uncertain" or "slow"
   W.nextPing = os.epoch("utc") + C.slowGap
   W.paint()
 end
@@ -582,6 +627,7 @@ W.boot = function()
   W.pair.open(W.proto, store)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
+  W.resolvePending()
   W.mode = "idle"
   W.stepName = "idle"
   local saved = W.pair.peer()
@@ -611,6 +657,7 @@ W.boot = function()
     end
   end
   W.stepName = "idle"
+  if W.journal.uncertain then W.enterSlow() end
   W.hello()
   W.paint()
   W.loop()

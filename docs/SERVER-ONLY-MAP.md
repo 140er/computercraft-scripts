@@ -99,6 +99,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
   Reports release lease-owned cells; silence leaves reservations in place.
+  `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
+  all leases with `pose uncertain`, including recovery parks.
   See [lease](server-only/PROTOCOL.md#lease).
 - [so-mod-cells.lua](../so-mod-cells.lua), `cells`, owns reservations and dug marks.
   Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
@@ -199,6 +201,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   that prompt keeps retrying discovery while accepting digits and Enter.
   Drop and suck operations on every side require an adjacent inventory. Missing
   inventories return `no inventory` and leave items in the turtle.
+  At boot, pending moves use saved fuel or GPS to resolve their outcome. Turns
+  or missing evidence stay uncertain. The worker reports that fact, keeps the
+  pending entry, and refuses further steps without moving or backtracking.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws

@@ -184,3 +184,9 @@ one suitable stack stays for sealing.
 Idle turtles stay put when their park lease expires during a server outage. They
 beacon every 30 seconds. Only turtles whose last lease was work use fast beacons
 and backtrack along their saved moves.
+
+After a reboot, workers resolve an interrupted move from saved fuel or GPS
+evidence before reporting their pose. If a move or turn cannot be resolved, the
+worker shows `pose uncertain`, stays put and refuses new steps. Its hello reports
+the pending operation and uncertainty. An operator must inspect and reconcile
+the saved journal before work can resume; rebooting alone does not guess a pose.
