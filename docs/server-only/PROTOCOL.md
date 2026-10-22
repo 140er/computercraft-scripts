@@ -816,10 +816,19 @@ which defines the best match. A search with no match sends no order. This uses
 the existing shop search and selection state, shared with full shop screens.
 
 `status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
-`alert-next` wrapping pages. `pair` shows instructions to press P on the server
-and type its code on the new client. `panel-back` returns to the main panel.
+`alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
+button is NEW CODE. Only a paired display with a matching session ID can
+request it through authenticated `input`. The server-local `SO.pairCode(id)`
+returns `{ code, expires }` for that requester, or nil if another display or
+the terminal owns a pending invitation. It calls the same invitation path as P.
+Repeated requests from the owner preserve the code, expiry and bad-attempt count.
+The session holds the invitation. Its own signed `view.frame` shows six kit
+big digits and remaining minutes and seconds. No invitation enters shared
+screen data or broadcast frames. Other displays keep the normal pair page.
+Use, expiry, five bad attempts or terminal cancellation restore that page.
+`panel-back` returns to the main panel.
 At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
-screens use compact controls. Pairing and job planning are unchanged.
+screens use compact controls. The pairing handshake and job planning are unchanged.
 
 ### lumber
 
@@ -1032,7 +1041,7 @@ work lease still starts fast beacons and backtracking along the last 32 moves.
 
 ## Pairing and so-keys
 
-The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. Re-pairing an id that already has a key needs a new press of P.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. A paired display can also create an invitation through the panel NEW CODE button. Re-pairing an id that already has a key needs a fresh invitation.
 
 `pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 

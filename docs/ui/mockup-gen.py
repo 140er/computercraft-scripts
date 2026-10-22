@@ -231,6 +231,19 @@ add(c, "AR layer switches (1 = on, 0 = off)")
 c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
 
+for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
+    for pending in [False, True]:
+        c = Canvas(w, h); c.header("PANEL", "01:00")
+        c.text(1, 2, "PAIR NEW CLIENT")
+        if pending:
+            c.fill(0, 3, w, 4, "9")
+            for r, row in enumerate(big("123456")):
+                c.center(0, w, 3+r, row)
+            c.center(0, w, 6, "4:52 left", "9")
+        c.button(0, h-4, w, "NEW CODE", "9")
+        c.button(0, h-1, w, "BACK", h=1)
+        add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)
+
 import argparse
 from pathlib import Path
 import runpy
@@ -238,11 +251,11 @@ import runpy
 map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--fixtures", type=Path)
+parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).resolve().parents[2] / "tests/ui/fixtures")
 args = parser.parse_args()
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]

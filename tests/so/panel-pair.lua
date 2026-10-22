@@ -1,0 +1,225 @@
+local H = dofile("tests/so/harness.lua")
+
+local function install(machine, files)
+  machine.install(files)
+  for _, name in ipairs({"x25519", "random", "blake3", "chacha20", "config", "internal/util",
+    "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing"}) do
+    local path = "lib/ccryptolib/" .. name .. ".lua"
+    local file = assert(io.open(path, "rb"))
+    machine.files[path] = file:read("*a")
+    file:close()
+  end
+end
+
+local function setup(w, h, kit)
+  local net = H.new()
+  local server = net.machine({id=1, modem=true})
+  install(server, {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua",
+    "so-plan.lua", "so-mine-plan.lua", "so-lumber-plan.lua", "so-mod-state.lua", "so-mod-display.lua",
+    "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-shop.lua", "so-mod-ar.lua",
+    "so-mod-cells.lua", "so-mod-lease.lua"})
+  if kit then server.install({"so-ui.lua", "so-mod-panel.lua", "so-mod-daily.lua"}) end
+  server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld", x=0, y=64, z=0}})
+  server.boot("so-server.lua")
+  net.flush()
+  assert(not server.error, tostring(server.error))
+  local client = net.machine({id=2, modem=true, monitor=w==29, width=w, height=h, capacity=1000000})
+  install(client, {"display.lua", "so-proto.lua", "so-pair.lua", "so-store.lua"})
+  client.env.term.write = function(text)
+    local x, y = client.cx or 1, client.cy or 1
+    local row = (client.screen[y] or "") .. string.rep(" ", w)
+    client.screen[y] = (row:sub(1, x-1) .. text .. row:sub(x+#text)):sub(1, w)
+    client.cx = x + #text
+  end
+  local key = string.rep("a", 64)
+  assert(server.env.SO.pair.remember(client.id, key))
+  client.files["so-keys"] = H.encode({schema=1, generation=1, value={keys={["1"]=key}}})
+  client.boot("display.lua")
+  net.flush()
+  net.advance(2)
+  local function frame()
+    assert(not server.error, tostring(server.error))
+    assert(not client.error, tostring(client.error))
+    for i=#server.sent,1,-1 do
+      local packet = server.sent[i]
+      if packet.id==client.id and packet.payload.t=="view.frame" then return packet.payload.body end
+    end
+    error("display received no frame")
+  end
+  local function button(label, target)
+    local picture = frame()
+    for _, b in ipairs(picture.buttons) do
+      local y = b.y + math.floor((b.h or 1)/2)
+      local lines = {}
+      for row=b.y,b.y+(b.h or 1)-1 do lines[#lines+1]=(client.screen[row] or ""):sub(b.x,b.x+b.w-1) end
+      local text = table.concat(lines,"\n")
+      if (not target or b.id==target) and (b.label==label or text:find(label,1,true))
+          and b.x>=1 and b.y>=1 and b.y+(b.h or 1)-1<=h and b.x+b.w-1<=w and #label<=b.w then
+        assert(text:find(label,1,true), label .. " is overwritten")
+        for _, other in ipairs(picture.buttons) do
+          if other~=b then
+            assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y+(b.h or 1)<=other.y
+              or other.y+(other.h or 1)<=b.y, label .. " overlaps another button")
+          end
+        end
+        return b
+      end
+    end
+    error("no visible " .. label .. " button on " .. picture.role .. " at " .. w .. "x" .. h)
+  end
+  local function press(label, target)
+    local b = button(label, target)
+    client.inbox[#client.inbox+1] = table.pack(w==29 and "monitor_touch" or "mouse_click",
+      w==29 and "monitor" or 1, b.x, b.y)
+    net.flush()
+  end
+  local function typeText(text)
+    for ch in text:gmatch(".") do client.inbox[#client.inbox+1] = table.pack("char", ch) end
+    client.inbox[#client.inbox+1] = table.pack("key", 28)
+    net.flush()
+  end
+  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText}
+end
+
+local U = dofile("so-ui.lua")
+
+local function readCode(s, w)
+  local code = ""
+  local x = 1 + math.floor((w-18)/2)
+  for i=1,6 do
+    local found
+    for digit=0,9 do
+      local glyph = U.glyph(tostring(digit), "f", "9")
+      local matches = true
+      for row=1,3 do
+        if (s.client.screen[row+3] or ""):sub(x,x+2) ~= glyph[row].text then matches=false end
+      end
+      if matches then assert(not found,"ambiguous digit");found=tostring(digit) end
+    end
+    assert(found,"missing big digit")
+    code=code..found
+    x=x+3
+  end
+  return code
+end
+
+local function newClient(s, id, code)
+  local client = s.net.machine({id=id, modem=true, width=26, height=20, capacity=1000000})
+  install(client,{"display.lua","so-proto.lua","so-pair.lua","so-store.lua"})
+  client.boot("display.lua")
+  s.net.flush()
+  for digit in code:gmatch(".") do client.env.os.queueEvent("char",digit) end
+  s.net.flush()
+  assert(not client.error,tostring(client.error))
+  return client
+end
+
+return function(test, equal)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h = table.unpack(size)
+    test("panel pairing button, big digits and single use at "..w.."x"..h,function()
+      local s=setup(w,h,true)
+      if s.frame().role=="status" then s.press("MORE") end
+      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      local code=readCode(s,w)
+      equal(code,s.server.env.SO.pair.pending())
+      equal(s.server.env.SO.terminal.code,code)
+      equal(s.server.env.SO.terminal.mode,"code")
+      local expires=s.server.env.SO.terminal.expires
+      s.net.advance(2)
+      assert(s.frame().rows[7].text:find("4:58 left",1,true))
+      s.press("NEW CODE")
+      equal(readCode(s,w),code)
+      equal(s.server.env.SO.terminal.expires,expires)
+      local joined=newClient(s,3,code)
+      assert(s.server.env.SO.pair.key(joined.id),"client did not pair")
+      equal(s.server.env.SO.pair.pending(),nil)
+      s.net.advance(2)
+      assert(not s.frame().rows[7].text:find("left",1,true))
+      local late=newClient(s,4,code)
+      s.net.advance(8)
+      equal(s.server.env.SO.pair.key(late.id),nil)
+      s.button("NEW CODE")
+      local used=0
+      for _,bytes in pairs(joined.files) do used=used+#bytes end
+      assert(used<1000000,"client disk limit")
+    end)
+    test("panel expiry and code privacy at "..w.."x"..h,function()
+      local s=setup(w,h,true)
+      if s.frame().role=="status" then s.press("MORE") end
+      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      local code=readCode(s,w)
+      local pair=s.server.env.SO.pair
+      equal(s.server.env.SO.pairCode(99),nil)
+      assert(pair.remember(5,string.rep("b",64)))
+      equal(s.server.env.SO.pairCode(5),nil)
+      local display=s.server.env.SO.mods.display
+      display.handlers.hello({from=5,body={w=w,h=h}})
+      display.handlers.input({from=5,body={id="panel",x=1,y=1}})
+      display.handlers.input({from=5,body={id="pair",x=1,y=1}})
+      display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
+      local other
+      display.handlers["view.get"]({from=5},function(_,body) other=body end)
+      for row=4,6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
+      local proto=s.server.env.SO.proto
+      for _,packet in ipairs(s.server.sent) do
+        if packet.payload.t=="view.frame" then
+          assert(packet.id~=nil,"broadcast frame")
+          assert(proto.macOk(pair.key(packet.id),packet.payload),"unsigned frame")
+        end
+      end
+      s.net.advance(300)
+      equal(pair.pending(),nil)
+      assert(not s.frame().rows[7].text:find("left",1,true))
+      equal(s.server.env.SO.terminal.mode,"normal")
+      s.press("NEW CODE")
+      assert(pair.pending(),"new invitation after expiry")
+      equal(#readCode(s,w),6)
+    end)
+  end
+  test("panel pairing fixtures",function()
+    local R=dofile("tests/ui/render.lua")
+    local env=setmetatable({SO={mods={},pair={key=function() return true end,
+      pending=function() return "123456" end},pairCode=function() end},
+      os={epoch=function() return 0 end}}, {__index=_G})
+    local panel=assert(loadfile("so-mod-panel.lua","t",env))()
+    local render
+    env.SO.mods.display={screen=function(_,fn) if fn then render=fn end end}
+    panel.tick(0)
+    for _,size in ipairs({{26,20,"P"},{29,12,"S"}}) do
+      local w,h,suffix=table.unpack(size)
+      for _,pending in ipairs({false,true}) do
+        local session={id=2,panel={page="pair"}}
+        if pending then session.panel.invitation={code="123456",expires=292000} end
+        local frame=render(w,h,session)
+        local out=R.capture(w,h)
+        for y,row in ipairs(frame.rows) do
+          local fg,bg={},{}
+          for _,run in ipairs(row.runs) do
+            fg[#fg+1]=string.rep(run[2],run[1]);bg[#bg+1]=string.rep(run[3],run[1])
+          end
+          fg,bg=table.concat(fg),table.concat(bg)
+          out.setCursorPos(1,y);out.blit(row.text..string.rep(" ",#fg-#row.text),fg,bg)
+        end
+        local differences=R.diff("tests/ui/fixtures/panel"..(pending and "code-" or "pair-")..suffix..".txt",out)
+        assert(#differences==0,table.concat(differences,"\n"))
+      end
+    end
+  end)
+  test("repeat panel requests preserve five bad attempt limit",function()
+    local s=setup(26,20,true)
+    if s.frame().role=="status" then s.press("MORE") end
+      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+    local bad=newClient(s,9,"abcdef")
+    local env=bad.env
+    local proto=assert(env.dofile("so-proto.lua"))
+    local msg=proto.build(string.rep("cd",32),"pair",{pub=string.rep("ef",32)})
+    for i=1,5 do
+      env.rednet.send(1,msg,"so");s.net.flush()
+      if i<5 then s.press("NEW CODE");assert(s.server.env.SO.pair.pending(),"burned early") end
+    end
+    equal(s.server.env.SO.pair.pending(),nil)
+    s.net.advance(2)
+    assert(not s.frame().rows[7].text:find("left",1,true))
+  end)
+end

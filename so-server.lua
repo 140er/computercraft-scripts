@@ -80,6 +80,7 @@ S.run = function()
   SO.terminal = view
   local memory = 120000
   local misses = 0
+  local codeOwner
 
   local function showHostError()
     if not view.hostError then return end
@@ -100,10 +101,22 @@ S.run = function()
 
   local function showCode()
     misses = 0
+    codeOwner = nil
     view.mode = "code"
     view.code = pair.invite(not term.blit and term or nil)
     view.expires = os.epoch("utc")+300000
     if not term.blit then showHostError() end
+  end
+
+  SO.pairCode = function(id)
+    if not pair.key(id) then return nil end
+    if pair.pending() then
+      if codeOwner ~= id then return nil end
+    else
+      showCode()
+      codeOwner = id
+    end
+    return { code = view.code, expires = view.expires }
   end
 
   local function recall(msg)

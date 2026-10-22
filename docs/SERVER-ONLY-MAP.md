@@ -17,8 +17,11 @@ and listeners use `listener(sender, message)`.
 ### Core and shared libraries
 
 - [so-server.lua](../so-server.lua) boots the server, loads modules, authenticates
-  dispatch and runs the event loop. No exported API. Built-in handlers are
-  `pair(msg, reply)` and `hello(msg, reply)`.
+  dispatch and runs the event loop. Built-in handlers are
+  `pair(msg, reply)` and `hello(msg, reply)`. `SO.pairCode(id)` returns
+  `{ code, expires }` only for a paired requester. It reuses that requester's
+  pending invitation and returns nil while another requester or the terminal
+  owns one. New invitations use `pair.invite` and also appear on the terminal.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
@@ -239,7 +242,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Orders call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
-  GLANCE returns to status; ALERTS lists state alerts; PAIR explains server pairing.
+  GLANCE returns to status; ALERTS lists state alerts; PAIR offers NEW CODE.
+  Authenticated display input calls `SO.pairCode(from)` and keeps its result in
+  that session. Big digits and remaining time clear on use, expiry or burn.
+  Code frames use the display's own key; other displays never receive them.
   Larger screens arrange the same controls using the kit grid. No saved panel file.
   See [panel](server-only/PROTOCOL.md#panel).
   Dug-storage requests appear above every role, including status and generic.

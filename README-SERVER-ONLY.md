@@ -70,7 +70,11 @@ It tries GPS for two seconds. If GPS does not answer, enter the server's
 
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
-Press P again for each additional client. Keep any leading zeros in the code.
+An already-paired display can also open PANEL, PAIR and press NEW CODE.
+Its panel and the server terminal show the code and time left. Other displays
+cannot see that invitation. Pressing NEW CODE again keeps the pending code.
+After use or expiry, press NEW CODE for the next client.
+Keep any leading zeros in the code.
 Displays show the pairing prompt and digits on the monitor and computer terminal.
 Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when
