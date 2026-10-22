@@ -43,6 +43,26 @@ test("skips", function() return dofile("tests/skips.lua").record("skips", "fixtu
         combined = json.loads((Path(logs) / 'result.json').read_text())
         assert (combined['passed'], combined['failed'], combined['skipped']) == (1, 0, 1), combined
         assert combined['skipped_checks'] == ['skips: fixture'], combined
+    (staged / 'tests/so').mkdir()
+    shutil.copy2(root / 'tests/so/clock-so11.lua', staged / 'tests/so/clock-so11.lua')
+    (staged / 'tests/so/so11.lua').write_text('''return function(test)
+  test("SO11 integration", function() end)
+  test("SO11 B integration", function() end)
+end
+''')
+    (staged / 'tests/full.lua').write_text(fixture + '''
+dofile("tests/so/so11.lua")(test, equal)
+dofile("tests/so/clock-so11.lua")(test, equal)
+''')
+    outputs = []
+    for shard in range(1, 5):
+        result = subprocess.run(['lua5.2', 'tests/suite.lua', '--shard=%d/4' % shard],
+                                cwd=staged, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        outputs.append(result.stdout)
+    for name in ('SO11 integration', 'SO11 B integration'):
+        for suffix in ('', ' at 4x'):
+            assert sum(text.count('PASS ' + name + suffix + '\n') for text in outputs) == 1
     (staged / 'scratch.lua').write_text('accidental = absent\nlocal unused = 1\n')
     result = subprocess.run(['lua5.2', 'tools/luacheck.lua', str(staged / 'scratch.lua')],
                             cwd=root, capture_output=True, text=True)
@@ -68,4 +88,4 @@ result = subprocess.run(['lua5.2', '-'], input=probe, cwd=root, capture_output=T
 assert result.returncode == 0, result.stdout + result.stderr
 assert '0 tests passed, 0 FAILED, 1 skipped checks' in result.stdout, result.stdout
 assert 'SKIPPED UI0 generator preserves section 7.1 and reproduces every fixture' in result.stdout
-print('PASS shard coverage, skip counts including non-POSIX UI0, failure propagation and global/unused lint checks')
+print('PASS shard coverage including SO11 A/B at both rates, skip counts including non-POSIX UI0, failure propagation and global/unused lint checks')

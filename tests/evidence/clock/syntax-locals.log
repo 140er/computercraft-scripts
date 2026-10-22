@@ -52,3 +52,4 @@ worker.lua         18 locals (deepest at function line 245) ok
 PASS all changed Lua files remain below 185 active locals; maximum 64
 
 Final source recheck: all 51 changed Lua files pass luac5.2 -p and cobaltlocals.py; maximum 64 active locals (limit <185).
+Shard coverage fix: clock-so11.lua passes Lua syntax and Cobalt locals (8); suite-costs.lua passes (0). Total changed Lua files now 52; maximum remains 64.

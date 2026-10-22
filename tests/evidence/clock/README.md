@@ -51,3 +51,9 @@ generator, with no skips. `lease-orderings.log` and
 comparisons and five caught scratch mutations. The model retains the documented
 fixed-clock module-reload collision; whole-server reboot continuity has its
 own clock regression.
+
+The first rebased four-shard run reported 637 passes, but its group selection
+omitted SO11 B at 4x. The rate wrapper now owns each callback's source, so
+the suite keeps all eighteen accelerated checks together. The shard self-test
+checks that SO11 A/B register exactly once at each rate across four shards.
+The PR records the corrected exact-head run.
