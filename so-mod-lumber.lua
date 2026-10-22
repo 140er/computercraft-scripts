@@ -197,6 +197,12 @@ S.moveDirect = function(target)
 end
 
 S.move = function(target)
+  if S.job.service then
+    if S.job.detour then S.job.detour = nil S.save() end
+    local waypoint = L.travel(S.job.turtle.pose, target, S.job.ground)
+    if not S.moveDirect(waypoint) then return false end
+    return S.moveDirect(target)
+  end
   local detour = S.job.detour
   if detour then
     if not S.moveDirect(detour) then return false end
@@ -224,13 +230,6 @@ S.noteChest = function(point, result)
   local drops = S.module("drops")
   if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
   return type(name) == "string" and name ~= ""
-end
-
-S.moveService = function(target)
-  if S.job.detour then S.job.detour = nil S.save() end
-  local waypoint = L.travel(S.job.turtle.pose, target, S.job.ground)
-  if not S.moveDirect(waypoint) then return false end
-  return S.moveDirect(target)
 end
 
 S.service = function(kind, resume)
@@ -512,7 +511,7 @@ S.workService = function()
       end
       S.save()
     end
-    if not S.moveService(service.access) then return end
+    if not S.move(service.access) then return end
     service.stage = service.kind == "wood" and "drop" or "check"
     S.save()
   end
@@ -556,7 +555,7 @@ S.workService = function()
     if not item then j.blocked = "fuel" S.alert("no usable fuel") return end
     S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = item.count } }, "refuel")
   elseif service.stage == "return" then
-    if service.back and not S.moveService(service.back) then return end
+    if service.back and not S.move(service.back) then return end
     j.phase = service.resume
     j.service = nil
     S.save()
