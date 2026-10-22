@@ -133,7 +133,7 @@ alert and outage states.
 Server: its own terminal (normal and pairing), and a monitor attached to the server, which shows the status
 screen locally without rednet.
 Panel: on server-only the handheld panel is the pocket's **panel mode** (start and stop jobs, quick orders,
-alerts, pairing help). Main's panel.lua stays main-only. The `panel` role also works on any monitor, so a
+alerts, pairing codes). Main's panel.lua stays main-only. The `panel` role also works on any monitor, so a
 touch panel can hang by the server.
 Pocket: **glance mode** (3 tiles, paged) and panel mode. Switch with the nav row.
 MORE opens the generic drop-point list from glance, status and the panel header.
@@ -148,6 +148,12 @@ Mining and lumber have SETUP and BACK buttons. SETUP has a BACK to its main page
 Shop item tiles open the order page. Its BACK returns to the item list, whose
 BACK returns to status. AR has BACK to status. Panel ALERTS and PAIR have BACK
 to panel; GLANCE returns to status and MORE opens the drop-point list.
+PAIR has a three-row NEW CODE button above BACK at 26x20 and 29x12.
+A paired display sees its invitation in six big digits with the time left.
+Repeat presses preserve the pending code. Use, expiry or five wrong attempts
+restore the normal pair page. Only the requesting display receives the code;
+the server terminal also shows it. An existing invitation from another display
+or the terminal must finish before this display can create one.
 The 15x10 status page has separate NEXT and MORE buttons. At 39x19, status
 offers MINING, SHOP and MORE; lumber is reached through MORE. Other non-pocket
 status sizes offer MINING, LUMBER, SHOP and MORE.
@@ -723,6 +729,162 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
                
      NEXT      
      MORE      
+```
+
+Panel pairing ready P  (26x20)
+```text
+ PANEL              01:00 
+                          
+ PAIR NEW CLIENT          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+         NEW CODE         
+                          
+           BACK           
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+77777777777777777777777777
+```
+
+Panel pairing code P  (26x20)
+```text
+ PANEL              01:00 
+                          
+ PAIR NEW CLIENT          
+    🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
+     ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
+    🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀    
+        4:52 left         
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+         NEW CODE         
+                          
+           BACK           
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+99999999999999999999999999
+99999999999999999999999999
+99999999999999999999999999
+77777777777777777777777777
+```
+
+Panel pairing ready S  (29x12)
+```text
+ PANEL                 01:00 
+                             
+ PAIR NEW CLIENT             
+                             
+                             
+                             
+                             
+                             
+                             
+          NEW CODE           
+                             
+            BACK             
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+77777777777777777777777777777
+```
+
+Panel pairing code S  (29x12)
+```text
+ PANEL                 01:00 
+                             
+ PAIR NEW CLIENT             
+     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋       
+      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏      
+     🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀      
+          4:52 left          
+                             
+                             
+          NEW CODE           
+                             
+            BACK             
+```
+Background layer (blit letters, see palette):
+```text
+77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+fffffffffffffffffffffffffffff
+99999999999999999999999999999
+99999999999999999999999999999
+99999999999999999999999999999
+77777777777777777777777777777
 ```
 
 

@@ -1,0 +1,25 @@
+Rebased onto origin/server-only at 0dcec24.
+Only the two original pairing commits were replayed. The base's test runner
+was kept byte for byte, followed by the four pairing-test lines.
+Docs preserve both the current base content and pairing additions.
+Product code is unchanged. The pairing fixture paths are now explicit literals
+so the testkit can include them in its closed input set.
+
+cc-test --part panel initially failed. Its selected suites covered the
+server-only panel, but its coverage target was the legacy panel.lua.
+It also identified the computed fixture paths as undeclared reads.
+The fixture paths were fixed. Canonical module/suite names avoid the alias issue.
+
+cc-test --part so-mod-panel: 15 passed, 0 failed, 0 undeclared reads.
+Its pack-ROM emulator passed. One slot attempt was busy before it ran.
+cc-test --part panel-pair: first emulator attempt crashed with a native
+CraftOS-PC segmentation fault in fs_handle_gc. The raw stderr is saved.
+Sequential retry: pack-ROM emulator passed; 6 tests passed, 0 failed,
+0 undeclared reads. Queue waits are included in the retry log.
+
+Lua syntax passed for all five changed Lua files.
+Cobalt local counts passed, maximum 44, below 185.
+Append-only scope check passed, four appended lines and no test deletions.
+No real-server or gameplay tests were run for this rebase.
+
+Plain cc-test: exit 0, 581 tests passed, automatically selected the Windows slot.

@@ -1,0 +1,5 @@
+part: panel-pair; suites: tests/so/panel-pair.lua
+part: generated 40 input files; private cwd /tmp/cc-part-rfivzv00
+cc-test: reserving local-2 for emulator + Lua part
+Emulator FAIL: Expecting value: line 1 column 1 (char 0) (10.387s)
+Evidence: /tmp/craftos-evidence-pm04o65i

@@ -92,9 +92,23 @@ P.render = function(w, h, session)
   local page = session.panel.page
   if page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
-    local y = h < 12 and 4 or 5
-    for _,line in ipairs({"Press P on the server", "then type the code on", "the new client."}) do
-      for start=1,#line,math.max(1,w-2) do c.put(2,y,line:sub(start,start+math.max(1,w-2)-1));y=y+1 end
+    local invitation = session.panel.invitation
+    if invitation and (P.now() >= invitation.expires or SO.pair.pending() ~= invitation.code) then
+      session.panel.invitation = nil
+      invitation = nil
+    end
+    if session.panel.pairBusy and not SO.pair.pending() then session.panel.pairBusy = nil end
+    if session.panel.pairBusy then c.center(1,w,5,"CODE IN USE") end
+    if invitation then
+      c.fill(1,4,w,4,"9")
+      c.big(1,4,w,invitation.code,"9")
+      local left = math.max(0,math.ceil((invitation.expires-P.now())/1000))
+      c.center(1,w,7,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
+    end
+    if session.id and SO.pair.key(session.id) and type(SO.pairCode) == "function" then
+      c.button(1,h < 12 and h-1 or h-3,w,"NEW CODE","pair-code","9",h < 12 and 1 or 3)
+    else
+      c.put(2,5,"Press P on the server")
     end
     c.button(1,h,w,"BACK","panel-back","7",1)
   elseif page == "alerts" then
@@ -153,6 +167,10 @@ P.input = function(event)
   if type(event.text) == "string" then panel.search = event.text:sub(1,256);return end
   if id == "panel-back" then panel.page="main"
   elseif id == "pair" or id == "alerts" then panel.page=id
+  elseif id == "pair-code" and panel.page == "pair" and event.from == session.id
+      and SO.pair.key(event.from) and type(SO.pairCode) == "function" then
+    panel.invitation = SO.pairCode(event.from)
+    panel.pairBusy = panel.invitation == nil
   elseif id == "alert-next" then panel.alertPage=(panel.alertPage or 0)+1
   elseif id == "alert-prev" then panel.alertPage=(panel.alertPage or 0)-1
   elseif panel.page == "main" then

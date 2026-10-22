@@ -159,7 +159,7 @@ return function(test,equal)
             (bg=='9' or bg=='e' or bg=='a') and fg=='f','contrast '..fg..'/'..bg)
         end end
         if page=='pair' and w>=26 then
-          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('new client',1,true))
+          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
         end
       end
     end

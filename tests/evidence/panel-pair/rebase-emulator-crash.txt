@@ -1,0 +1,18 @@
+Could not load X11 library: Failed loading libX11.so: libX11.so: cannot open shared object file: No such file or directory. Copying is not available.
+Uh oh, CraftOS-PC has crashed! Reason: Segmentation fault (11). Please report this to https://www.craftos-pc.cc/bugreport. Paste the following text under the 'Screenshots' section:
+OS: Linux
+Address is 0x20 from 0x75f0329e3014
+Last C function: fs_handle_gc
+[bt]: (1) /home/jeffrey/work/craftos-so-evaluation/squashfs-root/usr/lib/libcraftos2-lua.so(lua_gettop+0x4) [0x75f0329e3014]
+[bt]: (2) /home/jeffrey/work/craftos-so-evaluation/squashfs-root/usr/lib/libcraftos2-lua.so(lua_gettop+0x4) [0x75f0329e3014]
+[bt]: (3) craftos(+0xd3cbe) [0x5f3f15bb1cbe]
+[bt]: (4) craftos(+0xd3f8d) [0x5f3f15bb1f8d]
+[bt]: (5) craftos(+0x49e10) [0x5f3f15b27e10]
+[bt]: (6) craftos(+0x4a885) [0x5f3f15b28885]
+[bt]: (7) craftos(+0x6db10) [0x5f3f15b4bb10]
+[bt]: (8) craftos(+0xf36b1) [0x5f3f15bd16b1]
+[bt]: (9) craftos(+0x6df97) [0x5f3f15b4bf97]
+[bt]: (10) craftos(main+0x18fd) [0x5f3f15b1c17d]
+[bt]: (11) /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x75f031c2a1ca]
+[bt]: (12) /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x8b) [0x75f031c2a28b]
+[bt]: (13) craftos(+0x4356e) [0x5f3f15b2156e]
