@@ -9,7 +9,7 @@ local function fixture()
   end
   local function key(x,y,z) return x..","..y..","..z end
   local s = { job=job, calls=calls, status=status, range=true, saves=0, saveOK=true }
-  local env = setmetatable({os={epoch=function() return 1000 end}, SO={mods={},
+  local env = setmetatable({os={epoch=function() return 1000 end}, SO={now=function() return 1000 end,mods={},
     breathe=function() end, store={copy=copy,store=function()
       return {value=job,save=function() s.saves=s.saves+1 return s.saveOK,"scratch disk full" end}
     end}}}, {__index=_G})

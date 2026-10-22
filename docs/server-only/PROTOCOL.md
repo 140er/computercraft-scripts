@@ -21,7 +21,37 @@ a separate setup or discovery change. A server that failed registration needs a
 reboot after the hostname becomes available. A server registered offline may
 also collide when a modem is attached later.
 
-Time is `os.epoch("utc")` in milliseconds. Do not use `os.time` or in-game days.
+Durations use `SO.now()` in integer game milliseconds on the server. Workers
+and displays each use their local `now()` helper over `os.clock()`. One game
+second is 20 computer ticks. It takes 0.25 real seconds at `/tick rate 80` when
+the server sustains that rate. Timers and turtle actions use the same ticks.
+
+CC:Tweaked 1.120.2 resets `os.clock()` at computer startup. The server uses
+`so-store.clock()` to add a durable offset. Its first boot starts at UTC to
+preserve existing UTC-based saved timers and ages. It writes a `ticks-v1`
+upper reservation to `so-data/clock` before returning time within it. A server start
+resumes at that reservation, consuming at most one extra game second. Offline
+server time pauses. The clock and all job/state generations form one backup;
+restore them together. A checkpoint failure refuses further clock reads.
+Clients persist recovery facts rather than lease deadlines, so their clocks
+can reset on reboot. Server recovery sends a new stationary lease.
+
+`os.epoch("ingame") / 72` has nominal game-millisecond units but follows
+Minecraft daylight time, including `/time` changes and disabled daylight
+cycling. `os.time()` is the hour within that day. Neither is a monotonic
+interval clock. The checked native implementations are
+[OSAPI](https://github.com/cc-tweaked/CC-Tweaked/blob/v1.21.1-1.120.2/projects/core/src/main/java/dan200/computercraft/core/apis/OSAPI.java)
+and [ServerComputer](https://github.com/cc-tweaked/CC-Tweaked/blob/v1.21.1-1.120.2/projects/common/src/main/java/dan200/computercraft/shared/computer/core/ServerComputer.java).
+The testkit's pack ROM does not replace CraftOS-PC's native clock APIs.
+
+UTC remains the clock for envelope `at`, freshness and replay/cache retention,
+history `at`, Amsterdam headers, stock sample dates and daily calendar dates.
+History also carries `gameAt` for elapsed alert and recent-ore windows. Legacy
+events use their original timestamp on the initially UTC-seeded timeline.
+All other ages, leases, retries, park and planting waits, throttles and uptime
+use the game clock. `tests/so/clock-utc.tsv` lists the permitted UTC expressions;
+`tools/check-clock.py` rejects any other UTC read in every `so-*.lua` and both
+clients.
 
 Every rednet payload is the table returned by `so-proto.encode`. `encode` checks the table and returns a copy. `decode` accepts a table and returns nil for anything else. A string payload is dropped. `so-proto.ser` is only the canonical bytes for the MAC.
 
@@ -115,7 +145,7 @@ The server sends `err` when no built-in handler and no module handler matches `t
 
 The server sends `lease.batch` to a turtle.
 
-`body.lease` is a string. `body.expires` is utc milliseconds. `body.steps` is an array of 1 to 16 steps. SO3 checks the length.
+`body.lease` is a string. `body.expires` is UTC milliseconds for legacy workers. `body.ttl` is the remaining game milliseconds for updated workers. `body.steps` is an array of 1 to 16 steps. SO3 checks the length.
 
 A step is a table.
 
@@ -261,7 +291,7 @@ A module returns one table.
 }
 ```
 
-`msg` is the decoded envelope. `reply(t, body)` sends one reply. `now` is utc milliseconds. `tick` runs once each second from `os.startTimer(1)`. A late timer does not run the missed seconds. `tick` returns quickly.
+`msg` is the decoded envelope. `reply(t, body)` sends one reply. `now` is `SO.now()` game milliseconds. `tick` runs once each second from `os.startTimer(1)`. A late timer does not run the missed seconds. `tick` returns quickly.
 
 Built-in `pair` and `hello` run first. Module handlers for that same type run next, in file name order. All of them run. Unknown `t` gets `err`.
 
@@ -322,17 +352,17 @@ SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
 `state.view.sub({ name = string, notify = function })` subscribes to that view. On a change, SO1 calls `notify(frame)`. The frame `rev` is greater than the previous frame for that subscriber. Two frames for one subscriber are at least 500 ms apart, so a subscriber gets at most 2 frames per second. `tick` sends a frame that was held back once the gap has passed.
 
-`state.history.page({ from = number, count = number })` returns `{ entries, next }`. `entries` is `{ seq, at, kind, data }` in ascending `seq`, starting after `from`. Omit `from` to start at the oldest retained event. `count` defaults to 20 and is clamped to 1..50. `next` is the last `seq` in this page when another page exists, and nil on the last page. Pass `next` as `from` to read the following page. `limit` is accepted as an alias of `count`.
+`state.history.page({ from = number, count = number })` returns `{ entries, next }`. `entries` is `{ seq, at, gameAt?, kind, data }` in ascending `seq`, starting after `from`. Omit `from` to start at the oldest retained event. `count` defaults to 20 and is clamped to 1..50. `next` is the last `seq` in this page when another page exists, and nil on the last page. Pass `next` as `from` to read the following page. `limit` is accepted as an alias of `count`.
 
 `state.job(data)` is `emit("job", data)`, except when the disk is 80% full or more. Then it returns false and `"disk"` and does not write the job. `emit("job", data)` follows the same rule.
 
 `state.canStart()` returns true below 80% disk use. At 80% or more it returns false and `"disk >=80%; free space"`. It reads current capacity and free space on every call and writes nothing. Mining and lumber call it before `start` changes their jobs. A missing guard refuses start too. Recovery, stop and ongoing work remain available.
 
-`state.tick(now)` flushes held view frames. `now` is utc milliseconds. The server passes it once a second.
+`state.tick(now)` flushes held view frames. `now` is `SO.now()` game milliseconds. The server passes it once a second.
 
 #### Events
 
-Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` starts at 1. `at` is utc milliseconds.
+Every accepted `emit` is one event `{ seq, at, gameAt?, kind, data }` in the log. `seq` starts at 1. `at` is utc milliseconds.
 
 `kind` `machine` merges a registry row. `data` is `{ id, role, fp, seen, fuel, pose }`. `id` is the computer id. Fields left out stay as they were. Missing `seen` becomes the event time. Missing `fp` becomes the sha256 hex of that computer's paired key when the key is known.
 
@@ -346,7 +376,7 @@ Every accepted `emit` is one event `{ seq, at, kind, data }` in the log. `seq` s
 
 `turtle/<id>` is one machine row, or nil when that id is unknown.
 
-`log` is the last 50 retained events, oldest first. Each entry is `{ seq, at, kind, data }`.
+`log` is the last 50 retained events, oldest first. Each entry is `{ seq, at, gameAt?, kind, data }`.
 
 `status` is `{ capacity, used, free, ratio, alerts, accepting }`. `ratio` is `used / capacity`. `alerts` contains `"disk"` when `ratio` is 0.8 or more. `accepting` is false in that case.
 
@@ -362,14 +392,14 @@ SO1 handles no wire types. SO5 owns wire `view.get`, `view.sub`, `view.frame`, a
 
 `so-mod-daily.lua` is server-only. `daily.today()` returns a copied
 `{ date, ore, oreByName, oreRecent, logs }`. `oreByName` maps full item names
-to counts. `oreRecent` counts events in `(now - 600000, now]` from today's ore.
+to counts. `oreRecent` counts events in `(SO.now() - 600000, SO.now()]` from today's ore, using event `gameAt` or legacy `at`.
 `tick(now)` consumes at most one 50-entry state history page without waiting.
 It counts `mine.ore { id, name, count }` and `lumber.logs { id, count }` by
 event timestamp, ignores other days, and resets totals at Amsterdam midnight.
 
 The store `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
 `cursor` is the last consumed sequence, including ignored events. `recent`
-maps decimal UTC seconds to `{ total, counts }`; `counts` maps decimal UTC
+maps decimal game seconds to `{ total, counts }`; `counts` maps decimal game
 milliseconds to ore counts. At most 601 second buckets remain. Counts and
 cursor save together at most once a minute, plus on a day change. A restart
 replays retained history after the saved cursor. Events already removed by
@@ -377,6 +407,19 @@ state history retention cannot be reconstructed. There are no new wire types.
 
 
 ### lease
+
+Lease IDs include the durable clock to distinguish batches across server boots.
+`lease.batch` carries `ttl`, the remaining game milliseconds at send time.
+The server's internal `expires` is a game-clock deadline. Wire `expires`
+remains UTC plus that remaining duration for old workers. Retries recompute
+the remaining duration. Updated workers anchor it on receipt, including time
+spent queued behind another batch, and take the earlier deadline on a repeated
+lease ID. A missing `ttl` converts the legacy UTC remainder once at receipt.
+Legacy retries also match the original UTC expiry, so an old server can reuse
+a lease ID after reboot without inheriting the previous deadline.
+Transport delay before receipt is not charged by `ttl`. Mixed versions retain
+20 TPS behavior; accelerated Gate B requires all roles updated.
+
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
 
@@ -386,7 +429,7 @@ state history retention cannot be reconstructed. There are no new wire types.
 
 An accepted `step.report` clears lost. A matching `step.report` closes the lease and calls `cells.releaseOwner(leaseId)` when present. Every result must have a boolean `ok`, and there must be one result per step. Only a full successful report emits `pose` with the turtle id and expected pose. It also updates the known range. The callback runs once. Unknown, closed, or wrong-sender reports have no effects. Ignored reports log once per turtle.
 
-`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local utc millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in utc milliseconds, or 0 before contact.
+`lease.status(id)` returns `{ open, lost, range, seen, pose, journal, poseAt }`. `pose` is the newest valid journal pose `{ x, y, z, f }` observed in an accepted report, beacon, or hello. Hello supplies `body.journal.pose` and `body.journal.id`. `journal` is the latest valid journal id. `poseAt` is the local game-millisecond time when the pose was observed, or nil before any valid pose. A changed journal id without a valid pose clears `pose` and `poseAt` so planners cannot reuse coordinates from the old frame. `open` is the lease id or nil. `seen` is the last accepted report, beacon, or hello time in game milliseconds, or 0 before contact.
 
 `lease.cancelPark(id, "mine")` retires an open mining lease only when its sole
 step is `inspectDown`. It returns true when cancelled or already closed, otherwise
@@ -469,7 +512,7 @@ several batches of at most 16 steps; intermediate reports retain every lane
 reservation. After the worker leaves the lane, its next tick releases the
 reservation before another worker enters. Rapid report bursts defer additional
 planning to tick instead of yielding inside a report callback.
-Queued workers use oldest UTC wait time, then lowest id. A worker skipped by
+Queued workers use oldest game-clock wait time, then lowest id. A worker skipped by
 three grants has priority. The screen shows `wait lane` while blocked.
 The saved turtle row includes `lane = { cells, entered, target?, release? }` and
 `laneWait = { at, passes }`. `target` preserves an active vein crossing;
@@ -543,7 +586,7 @@ The first exhausted retry emits `mine.alert { id, text }`, where text is
 `ore chest full` or `fuel chest empty`, and the screen shows that error.
 No usable drop point uses the same retry policy and retains the drop hold text.
 A successful transfer clears the retry state. Saved turtle rows use
-`dropRetry = { key, tries, alerted, after }`, where `after` is a UTC epoch in ms.
+`dropRetry = { key, tries, alerted, after }`, where `after` is a game-clock deadline in ms.
 Each retry after the threshold sets a new one-minute deadline without repeating
 the alert until a transfer succeeds or the drop changes.
 
@@ -587,7 +630,7 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
 
-A section value is `{ format = "hex4096", bits = string, used = utcMs }`.
+A section value is `{ format = "hex4096", bits = string, used = gameMs }`.
 `bits` has exactly 1024 lowercase hex characters. Cell index
 `x%16 + 16*(y%16) + 256*(z%16)` uses bit `index%4` of character
 `floor(index/4)+1`, with the least significant bit first. Each generation has a
@@ -651,7 +694,7 @@ SO5 owns this API on `SO.mods.display`.
 The server terminal uses `display.terminal(model, view, w, h)` to return a
 Big Tiles frame. The model is the status model. The view supplies `id`,
 `mode` as normal, code or log, `uptime`, `log`, `offset`, `code`,
-`expires` and `now`. Times are UTC milliseconds and the log offset counts
+`expires` and `now`. Times use game milliseconds and the log offset counts
 back from the newest line. `SO.terminal` holds the runtime view. Display tick
 draws it once per second. Prints enter a volatile 200-line log, with long lines
 split into pieces of at most 4096 bytes. L opens the full log, L or Esc returns,

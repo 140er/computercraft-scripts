@@ -1,0 +1,1 @@
+PASS shard coverage including SO11 A/B at both rates, skip counts including non-POSIX UI0, failure propagation and global/unused lint checks

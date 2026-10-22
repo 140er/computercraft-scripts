@@ -658,3 +658,9 @@ print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED")
 if failed > 0 then os.exit(1) end
 
 if not __suite_test then dofile("tests/skips.lua").summary(passed, failed) end
+
+dofile("tests/so/clock-utc.lua")(test)
+dofile("tests/so/clock.lua")(test, equal)
+dofile("tests/so/clock-so11.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

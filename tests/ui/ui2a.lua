@@ -4,7 +4,7 @@ local function setup()
     turtles={},progress={done=3,nextBranch=8},dim='minecraft:overworld',running=false}
   local render,input,saves
   saves=0
-  local env=setmetatable({os=setmetatable({epoch=function() return 0 end},{__index=os}),SO={mods={state={canStart=function() return true end},lease={onReport=function() end,status=function() return {} end,
+  local env=setmetatable({os=setmetatable({epoch=function() return 0 end},{__index=os}),SO={now=function() return 0 end,mods={state={canStart=function() return true end},lease={onReport=function() end,status=function() return {} end,
     send=function() return 'park' end},cells={reserve=function() return true end,releaseOwner=function() end},
     display={screen=function(_,r,i) render,input=r,i end}},store={store=function()
       return {value=job,save=function() saves=saves+1 return true end} end}}},{__index=_G})

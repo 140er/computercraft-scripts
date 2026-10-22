@@ -25,7 +25,7 @@ S.request = function(kind, name, count, view)
   end
   S.rid = S.rid + 1
   local rid = S.rid
-  S.pending[rid] = { kind = kind, sender = S.turtle, at = os.epoch("utc"), view = view }
+  S.pending[rid] = { kind = kind, sender = S.turtle, at = SO.now(), view = view }
   if kind == "order" then
     S.latestOrder = rid
     S.orders = { "sent " .. tostring(count) .. " " .. name }
@@ -38,7 +38,8 @@ end
 
 S.stock = function(message)
   if type(message.totals) == "table" then
-    S.heardAt = os.epoch("utc")
+    S.heardAt = SO.now()
+    S.heardDate = os.epoch("utc")
     local totals = {}
     for name, count in pairs(message.totals) do
       if type(name) == "string" and type(count) == "number" and count >= 0
@@ -81,7 +82,7 @@ end
 
 S.broadcast = function(sender, message)
   if type(message) ~= "table" or type(message.totals) ~= "table" then return end
-  if not S.turtle then S.turtle = sender S.selectedAt = os.epoch("utc") end
+  if not S.turtle then S.turtle = sender S.selectedAt = SO.now() end
   if sender == S.turtle then S.stock(message) end
 end
 
@@ -89,7 +90,7 @@ S.dns = function(sender, message)
   if not S.turtle and type(message) == "table" and message.sType == "lookup response"
       and message.sProtocol == "roomsorter" then
     S.turtle = sender
-    S.selectedAt = os.epoch("utc")
+    S.selectedAt = SO.now()
   end
 end
 
@@ -244,9 +245,9 @@ S.gather = function(client)
   local m = { found = S.turtle ~= nil, search = search, page = view.page, items = {},
     order = view.order or "", orderDetail = view.orderDetail, ordered = view.ordered,
     categories = view.categories, category = view.category, letter = view.letter, letters = view.letters, sort = view.sort,
-    stale = S.heardAt == nil or os.epoch("utc") - S.heardAt >= 30000, time = "-" }
+    stale = S.heardAt == nil or SO.now() - S.heardAt >= 30000, time = "-" }
   if S.heardAt then
-    m.time = U and U.clock(S.heardAt).hm or "-"
+    m.time = U and U.clock(S.heardDate).hm or "-"
   end
   local query = search:lower():gsub("%s+", "_")
   for name, count in pairs(S.totals) do

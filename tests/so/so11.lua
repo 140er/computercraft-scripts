@@ -25,9 +25,9 @@ S.libs = function(m)
     local f = assert(io.open(path, "rb")) m.files[path] = f:read("*a") f:close()
   end
 end
-S.run = function()
+S.run = function(rate)
   local began=os.time()
-  local g = { net = H.new(), failures = {}, workers = {}, displays = {}, digs = {}, reports = 0,
+  local g = { net = H.new({tickRate=rate}), failures = {}, workers = {}, displays = {}, digs = {}, reports = 0,
     leases = 0, recover = {}, resumed = {}, beacons = {}, stale = {}, pictures = {},
     trees = {}, frameAt = {}, expires = {} }
   local n = g.net
@@ -372,9 +372,9 @@ S.run = function()
   return g
 end
 
-S.runBusy = function()
+S.runBusy = function(rate)
   local began=os.time()
-  local g = { net = H.new(), failures = {}, workers = {}, displays = {}, digs = {}, reports = 0,
+  local g = { net = H.new({tickRate=rate}), failures = {}, workers = {}, displays = {}, digs = {}, reports = 0,
     leases = 0, recover = {}, resumed = {}, beacons = {}, stale = {}, pictures = {},
     trees = {}, frameAt = {}, expires = {} }
   g.active, g.cutLeases, g.marks, g.interrupted, g.settled, g.batchDigs, g.outageMoves = {}, {}, {}, {}, {}, {}, {}
@@ -850,7 +850,7 @@ S.recoveryRetry = function()
   local n=H.new()
   local m=n.machine({id=1,modem=true})
   m.install({"so-mod-lease.lua","so-proto.lua"})
-  m.env.SO={mods={},store={read=function() end,copy=S.copy},pair={key=function() return string.rep("ab",32) end}}
+  m.env.SO={ now = function() return m.env.os.epoch("utc") end,mods={},store={read=function() end,copy=S.copy},pair={key=function() return string.rep("ab",32) end}}
   m.env.SO.proto=m.env.dofile("so-proto.lua")
   local lease=m.env.dofile("so-mod-lease.lua")
   local id=assert(lease.send(2,{{op="inspectDown"}},{recover=true}))
@@ -878,7 +878,7 @@ S.lumberDug = function()
   assert(store.store("so-data/lumber/job",function() return true end).save({
     dim=world.dim,spots={},running=false,phase="climb",turtle={id=4,pose=world,frame=plan.frame(world,pose)},
   }))
-  m.env.SO={store=store,mods={lease={
+  m.env.SO={ now = function() return m.env.os.epoch("utc") end,store=store,mods={lease={
     status=function() return {} end,
     onReport=function(_,fn) callback=fn end,
     send=function() return "recovery" end,
@@ -897,7 +897,7 @@ S.lumberDug = function()
   assert(marks["20,65,1"]==1,"lumber recovery must mark journal digs once in world coordinates")
 end
 
-local function suite(test, equal)
+local function suite(test, equal, _, _, rate)
   test("SO11 harness reboots with the same disk and id and drops outage messages",function()
     local n=H.new()
     local m=n.machine({id=1,modem=true})
@@ -922,7 +922,7 @@ local function suite(test, equal)
   local g
   for check=1,7 do
     test("SO11 integration check "..check,function()
-      g = g or S.run()
+      g = g or S.run(rate)
       local failures={}
       for _,message in ipairs(g.failureList) do if message:match("^check "..check..":") then failures[#failures+1]=message end end
       assert(#failures==0,table.concat(failures,"\n"))
@@ -933,7 +933,7 @@ local function suite(test, equal)
   local busy
   for check=1,7 do
     test("SO11 B integration check "..check,function()
-      busy = busy or S.runBusy()
+      busy = busy or S.runBusy(rate)
       local failures={}
       for _,message in ipairs(busy.failureList) do
         if message:match("^check "..check..":") then failures[#failures+1]=message end

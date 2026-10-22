@@ -9,7 +9,7 @@ local function daily(events, now, saved)
   env.os = {epoch=function() return s.now end}
   env.sleep = function() error('daily slept') end
   env.coroutine = {yield=function() error('daily yielded') end}
-  env.SO = {mods={state={history={page=function(q)
+  env.SO = { now = function() return env.os.epoch("utc") end,mods={state={history={page=function(q)
     s.pages=s.pages+1
     assert(q.count<=50,'unbounded history request')
     local entries={}
@@ -37,7 +37,7 @@ local function screens(now,today)
   local s={now=now,registered={}}
   local env=setmetatable({}, {__index=_G})
   env.os=setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
-  env.SO={mods={},proto=dofile('so-proto.lua'),pair={key=function() return 'key' end},
+  env.SO={ now = function() return env.os.epoch("utc") end,mods={},proto=dofile('so-proto.lua'),pair={key=function() return 'key' end},
     store={copy=copy,store=function() return {save=function() return true end} end}}
   if today then env.SO.mods.daily={today=function() return copy(today) end} end
   env.rednet={send=function() end}
@@ -64,7 +64,8 @@ local function terminal(now)
   env.dofile=function(path)
     if path=='so-ui.lua' then return U end
     if path=='so-pair.lua' then return {open=function() end} end
-    if path=='so-store.lua' or path=='so-proto.lua' then return {} end
+    if path=='so-store.lua' then return {clock=function() return function() return now end end} end
+    if path=='so-proto.lua' then return {} end
     if path=='so-mod-capture.lua' then
       return {name='capture',handlers={},tick=function() s.view=env.SO.terminal end}
     end
@@ -142,7 +143,7 @@ return function(test,equal)
     machine.install({'so-ui.lua','so-store.lua','so-log.lua','so-mod-state.lua','so-mod-daily.lua'})
     local env=machine.env
     local function boot()
-      env.SO={mods={},store=env.dofile('so-store.lua')}
+      env.SO={ now = function() return env.os.epoch("utc") end,mods={},store=env.dofile('so-store.lua')}
       env.SO.mods.state=env.dofile('so-mod-state.lua')
       return env.dofile('so-mod-daily.lua')
     end

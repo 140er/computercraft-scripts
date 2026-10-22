@@ -92,7 +92,7 @@ H.tail = function(evs)
   local i = start
   while i <= #evs do
     local ev = evs[i]
-    out[#out + 1] = { seq = ev.seq, at = ev.at, kind = ev.kind, data = ev.data }
+    out[#out + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data }
     i = i + 1
   end
   return out
@@ -134,7 +134,7 @@ H.apply = function(S, ev)
     if ev.data.fp ~= nil then row.fp = ev.data.fp end
     if ev.data.fuel ~= nil then row.fuel = ev.data.fuel end
     if ev.data.journal ~= nil then row.journal = ev.data.journal end
-    row.seen = ev.data.seen ~= nil and ev.data.seen or ev.at
+    row.seen = ev.data.seen ~= nil and ev.data.seen or ev.gameAt or ev.at
     if type(ev.data.pose) == "table" then row.pose = H.machine({ pose = ev.data.pose }).pose end
   elseif ev.kind == "pose" and type(ev.data) == "table" and type(ev.data.id) == "number" then
     local row = H.ensure(S, ev.data.id)
@@ -203,7 +203,7 @@ do
 end
 
 H.flush = function()
-  local now, i = os.epoch("utc"), 1
+  local now, i = SO.now(), 1
   local evs = H.events()
   while i <= #S.subs do
     local sub = S.subs[i]
@@ -248,7 +248,7 @@ local function emit(kind, data)
   if kind == "machine" and type(stored) == "table" and stored.fp == nil then
     stored.fp = H.fp(stored.id)
   end
-  local ev = { at = os.epoch("utc"), kind = kind, data = stored }
+  local ev = { at = os.epoch("utc"), gameAt = SO.now(), kind = kind, data = stored }
   if disklog then
     local ok, err = disklog.append(ev)
     if not ok then return false, err end
@@ -326,7 +326,7 @@ local history = {
     local entries, i = {}, start
     while i <= #evs and #entries < count do
       local ev = evs[i]
-      entries[#entries + 1] = { seq = ev.seq, at = ev.at, kind = ev.kind, data = ev.data }
+      entries[#entries + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data }
       i = i + 1
     end
     local nxt
@@ -336,7 +336,7 @@ local history = {
 }
 
 local function hello(msg)
-  local body, now = msg.body, os.epoch("utc")
+  local body, now = msg.body, SO.now()
   local role = body.role
   if role == "worker" then role = "turtle" end
   if role == nil and type(body.w) == "number" and type(body.h) == "number" then role = "display" end

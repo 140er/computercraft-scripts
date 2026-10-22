@@ -4,7 +4,7 @@ local function boot(present)
   local machine = net.machine({ id = 1, capacity = 16000000 })
   machine.install({ "so-store.lua", "so-mod-ar.lua", "so-mod-cells.lua", "so-mod-drops.lua", "so-mod-display.lua" })
   local env = machine.env
-  env.SO = { mods = {}, store = env.dofile("so-store.lua"), proto = { ser = H.encode } }
+  env.SO = { now = function() return env.os.epoch("utc") end, mods = {}, store = env.dofile("so-store.lua"), proto = { ser = H.encode } }
   local mods = env.SO.mods
   mods.cells, mods.drops = env.dofile("so-mod-cells.lua"), env.dofile("so-mod-drops.lua")
   local machines = {

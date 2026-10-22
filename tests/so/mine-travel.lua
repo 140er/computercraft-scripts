@@ -115,7 +115,7 @@ function S.run(test, equal)
     local path=assert(M.supplyRoute(job,row,stand,{x=-3,y=64,z=0}))
     row.trip={path=path,back=row.pose,stand=stand,stage="out"}
     local env=setmetatable({
-      SO={store={store=function() return {value={},save=function() return true end} end}},
+      SO={now=function() return 0 end,store={store=function() return {value={},save=function() return true end} end}},
       fs={makeDir=function() end,list=function() return {} end},
       os={epoch=function() return 0 end},
       sleep=function() error("supply lane reservation yielded") end,

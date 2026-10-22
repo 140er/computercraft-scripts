@@ -16,6 +16,11 @@ The checker uses exact finite schedule enumeration rather than TLA+. The executa
 
 `formal/lease_orderings.lua` wraps the actual contents of `so-mod-lease.lua` in a factory. Each trace starts with fresh module locals. Restart calls the factory again while preserving the reservation stub. The reference model separately tracks open lease, sequence, uncertainty, expected callback history, and reservation owners. Every event compares implementation state and effects with the reference state.
 
+The model supplies `SO.now()` as game milliseconds. Module reload keeps that
+clock fixed and resets module locals. A whole server boot also advances the
+durable clock reservation; that separate boundary is covered by the clock
+regressions, not this module-only model.
+
 The environment assumes one paired worker, successful synchronous nonblocking rednet sends, a working copy operation, and a cells module whose release removes the named owner. The harness records a synthetic reservation on every accepted send. This tests the lease module's release policy; it does not execute the real cells persistence code or prove planner recovery. The callback records completions and does not dispatch more work.
 
 ## Bounds
@@ -35,7 +40,7 @@ The checker compares the observable projection after every event. It does not en
 
 ## Code mapping and falsification
 
-The covered implementation is `so-mod-lease.lua` at sync commit `0f73a4ea74815bc21158585a498da446f5072034`. The evidence records its current SHA-256. Changes to these functions require review of the corresponding transition and mutation anchor.
+The covered implementation is `so-mod-lease.lua` at sync commit `a073aefa612a93db6f7d3e89a8ae1288961849cb`. The evidence records its current SHA-256. Changes to these functions require review of the corresponding transition and mutation anchor.
 
 | Property | Implementation and reference transition | Broken scratch implementation |
 | --- | --- | --- |
@@ -49,20 +54,22 @@ Each mutation edits the actual Lua source into a temporary file and executes it 
 
 The malformed case supplies an empty result array; arbitrary invalid result fields are outside this bound. Reservation retention on restart is conditional on the external durable-cells assumption, not a persistence proof. Callback uniqueness is per currently open record; it does not claim globally unique lease IDs across restarts.
 
-## Finding: lease IDs repeat after restart
+## Finding: module reload can repeat IDs at a fixed clock
 
 The explicit trace calls the real module in this order:
 
 ```text
-send_a -> returns 2-1
-restart -> S.seq returns to zero
-send_b -> returns 2-1
+send_a -> returns 2-0-1
+restart -> S.seq returns to zero, clock remains zero
+send_b -> returns 2-0-1
 report_a -> closes send_b and invokes its callback
 ```
 
-`S.seq` starts at zero on module load. `S.send` builds `<worker>-<sequence>`, and `S.report` correlates only the sender and that string before validating the result shape. A delayed old report with the same shape can therefore match a new open lease at this boundary. The model records this implemented behavior rather than claiming cross-restart report identity safety.
+`S.seq` starts at zero on module load. `S.send` builds `<worker>-<gameMs>-<sequence>`, and `S.report` correlates only the sender and that string before validating the result shape. A delayed old report with the same shape can therefore match a new open lease at this boundary. The model records this implemented behavior rather than claiming cross-restart report identity safety.
 
-This is a module-level finding. Authentication, freshness, replay-cache restart behavior and planner recovery may constrain whether the trace reaches the handler in a complete deployment. This checker neither proves nor dismisses that end-to-end case. No product change accompanies the finding.
+This is a module-level finding. Authentication, freshness, replay-cache restart behavior and planner recovery may constrain whether the trace reaches the handler in a complete deployment. This checker neither proves nor dismisses that end-to-end case. A whole server boot resumes at the durable clock reservation and therefore
+uses a later time component. The fixed-clock module-reload finding remains
+within this model's stated assumptions.
 
 ## Evidence maintenance
 

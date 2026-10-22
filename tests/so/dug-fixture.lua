@@ -15,7 +15,7 @@ F.setup = function(files, count)
     "so-lumber-plan.lua", "so-mod-lumber.lua", "so-mod-lease.lua" })
   for path, bytes in pairs(files or {}) do m.files[path] = bytes end
   if count then F.seed(m, count) end
-  m.env.SO = { mods = {}, store = m.env.dofile("so-store.lua"), breathe = function() end,
+  m.env.SO = { now = function() return m.env.os.epoch("utc") end, mods = {}, store = m.env.dofile("so-store.lua"), breathe = function() end,
     pair = { key = function() return "key" end }, proto = {
       build = function(_, t, body) return { t=t, body=body } end, encode = function(v) return v end,
     } }

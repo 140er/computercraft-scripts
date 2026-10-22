@@ -1,6 +1,7 @@
 -- Linux Lua CPU seconds from tests/evidence/suite-speed/full-baseline.log.
 -- New groups default to one second until remeasured.
 return {
+  ["tests/so/clock-so11.lua"] = 88.150885,
   ["tests/miner_dirs.lua"] = 0.056526,
   ["tests/miner_lost.lua"] = 0.174591,
   ["tests/parts/so-mod-mine.lua"] = 0.020787,

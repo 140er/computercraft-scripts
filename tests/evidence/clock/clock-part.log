@@ -1,0 +1,15 @@
+part: tests/so/clock.lua; suites: tests/so/clock.lua
+part: generated 25 input files; private cwd /tmp/cc-part-rq3n3tn_
+cc-test: using local-2 slot
+PASS clock harness separates game ticks, UTC and each computer boot
+PASS clock preserves legacy UTC timers and reserves monotonic reboot time
+PASS clock refuses to issue unreserved time after a checkpoint failure
+PASS clock lease expiry, fast beacons, backtracking and parks match at 1x and 4x
+PASS clock legacy lease fallback and repeated leases retain the original deadline
+PASS clock legacy servers can reuse a lease ID after reboot with a new UTC expiry
+PASS clock a delayed retry cannot extend a batch queued behind other work
+PASS clock a worker reboot clears local deadlines and a server reboot changes lease IDs
+PASS clock daily dates stay UTC while the recent-ore window uses game time
+PASS clock recovery retry sends only the remaining game duration and a legacy UTC expiry
+part: 10 passed, 0 failed, 0 undeclared reads; Lua CPU 0.632s
+part: local Lua wall 0.639s (excludes slot queue)

@@ -2,7 +2,7 @@ local R = dofile('tests/ui/render.lua')
 local H = dofile('tests/so/harness.lua')
 local function screen(job, noDaily)
   local s = {saved=0, released=0, events={}, persisted=H.encode(job)}
-  local env = setmetatable({SO={mods={},store={store=function()
+  local env = setmetatable({SO={now=function() return 1000000 end,mods={},store={store=function()
     return {value=job,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.os = {epoch=function() return 1000000 end}

@@ -12,7 +12,7 @@ local C = {
   pairError = nil,
   attempt = 0,
   timer = nil,
-  lastFrame = os.epoch("utc"),
+  lastFrame = math.floor(os.clock() * 1000 + 0.5),
   retryAt = 0,
   stock = {},
   out = nil,
@@ -20,8 +20,10 @@ local C = {
   store = dofile("so-store.lua"),
 }
 
+C.now = function() return math.floor(os.clock() * 1000 + 0.5) end
+
 C.pair = dofile("so-pair.lua")
-C.pair.open(C.proto, C.store)
+C.pair.open(C.proto, C.store, C.now)
 
 local saved = C.store.store("so-keys", function(v)
   return type(v) == "table" and type(v.keys) == "table"
@@ -89,7 +91,7 @@ end
 C.arm = function(seconds)
   if C.timer then os.cancelTimer(C.timer) end
   C.timer = os.startTimer(seconds)
-  C.retryAt = os.epoch("utc") + seconds * 1000
+  C.retryAt = C.now() + seconds * 1000
 end
 
 C.send = function(kind, body)
@@ -225,7 +227,7 @@ C.drawStale = function()
   for r = 0, 6 do draw(x, y + r, string.rep(" ", 21), "f", "e") end
   local function center(text, row) draw(x + math.floor((21 - #text) / 2), row, text, "f", "e") end
   center("NO SERVER", y + 1)
-  local seconds = math.max(0, math.floor((os.epoch("utc") - C.lastFrame) / 1000))
+  local seconds = math.max(0, math.floor((C.now() - C.lastFrame) / 1000))
   local value = math.floor(seconds / 60) .. string.format(":%02d", seconds % 60)
   if #value > 7 then value = "9999:59" end
   for r = 0, 2 do
@@ -247,7 +249,7 @@ C.drawStale = function()
     end
   end
   center("since last frame", y + 5)
-  local retry = math.max(0, math.ceil((C.retryAt - os.epoch("utc")) / 1000))
+  local retry = math.max(0, math.ceil((C.retryAt - C.now()) / 1000))
   draw(2, C.h - 1, "retrying in " .. retry .. " s", "0", "c")
   if not C.out.setPaletteColour then draw(C.w - 4, C.h, "stale", "0", "c") end
 end
@@ -303,7 +305,7 @@ C.onFrame = function(msg)
   end
   C.fullFrame = type(body.palette) == "table"
   C.viewH = C.fullFrame and C.h or (C.h >= 3 and C.h - 1 or C.h)
-  C.lastFrame = os.epoch("utc")
+  C.lastFrame = C.now()
   C.rows = type(body.rows) == "table" and body.rows or {}
   C.buttons = type(body.buttons) == "table" and body.buttons or {}
   C.repair = nil

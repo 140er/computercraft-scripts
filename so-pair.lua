@@ -87,7 +87,8 @@ local function loadCrypto()
   end
 end
 
-M.open = function(proto, store)
+M.open = function(proto, store, now)
+  S.now = now or function() return math.floor(os.clock() * 1000 + 0.5) end
   S.proto = proto
   loadCrypto()
   S.box = store.store("so-keys", function(v)
@@ -108,7 +109,7 @@ end
 M.pending = function()
   local slot = S.pending
   if type(slot) ~= "table" then return nil end
-  if os.epoch("utc") >= slot.exp then
+  if S.now() >= slot.exp then
     S.pending = nil
     return nil
   end
@@ -167,7 +168,7 @@ M.invite = function(screen)
   local sk = S.rnd.random(32)
   S.pending = {
     code = code,
-    exp = os.epoch("utc") + S.life,
+    exp = S.now() + S.life,
     sk = sk,
     pk = S.x.publicKey(sk),
   }

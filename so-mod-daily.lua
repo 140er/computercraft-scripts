@@ -7,7 +7,7 @@ D.valid = function(v)
 end
 D.box = SO.store.store("so-data/daily", D.valid)
 D.value = D.box.value or { date = "", cursor = 0, ore = 0, oreByName = {}, logs = 0, recent = {} }
-D.lastSave = os.epoch("utc")
+D.lastSave = SO.now()
 D.recent = function(now)
   local total, cutoff = 0, now - 600000
   for second, bucket in pairs(D.value.recent) do
@@ -23,7 +23,8 @@ D.recent = function(now)
   end
   return total
 end
-D.tick = function(now)
+D.tick = function(gameNow)
+  local now = os.epoch("utc")
   local date = U.clock(now).date
   local changed = date ~= D.value.date
   if changed then
@@ -41,10 +42,11 @@ D.tick = function(now)
             if ev.kind == "mine.ore" and type(data.name) == "string" then
               D.value.ore = D.value.ore + count
               D.value.oreByName[data.name] = (D.value.oreByName[data.name] or 0) + count
-              if ev.at > now - 600000 and ev.at <= now then
-                local second = tostring(math.floor(ev.at / 1000))
+              local atGame = ev.gameAt or ev.at
+              if atGame > gameNow - 600000 and atGame <= gameNow then
+                local second = tostring(math.floor(atGame / 1000))
                 local bucket = D.value.recent[second] or { total = 0, counts = {} }
-                local at = tostring(ev.at)
+                local at = tostring(atGame)
                 bucket.total = bucket.total + count
                 bucket.counts[at] = (bucket.counts[at] or 0) + count
                 D.value.recent[second] = bucket
@@ -56,15 +58,15 @@ D.tick = function(now)
       end
     end
   end
-  D.recent(now)
-  if changed or now - D.lastSave >= 60000 then
-    D.lastSave = now
+  D.recent(gameNow)
+  if changed or gameNow - D.lastSave >= 60000 then
+    D.lastSave = gameNow
     D.box.save(D.value)
   end
 end
 D.today = function()
   local v = D.value
   return { date = v.date, ore = v.ore, oreByName = SO.store.copy(v.oreByName),
-    oreRecent = D.recent(os.epoch("utc")), logs = v.logs }
+    oreRecent = D.recent(SO.now()), logs = v.logs }
 end
 return { name = "daily", handlers = {}, tick = D.tick, today = D.today }
