@@ -129,6 +129,25 @@ return function(test,equal)
     assert(text[20]:find('1 broken',1,true));assert(text[14]:find('2.1 of 16 MB',1,true))
     assert(d.far(2,true));equal(frame(2).scale,1)
   end)
+  test('UI1 roleless machine rows count turtles, open leases and lost workers',function()
+    local _,s,frame=server()
+    s.machines={
+      ['2']={id=2,fuel=812,seen=1000,pose={dim='minecraft:overworld',x=12,y=60,z=-9,facing=0}},
+      ['4']={id=4,fuel=640,seen=500,pose={dim='minecraft:overworld',x=0,y=61,z=-1,facing=1}},
+      ['9']={id=9,role='display',seen=1000},
+    }
+    local got=capture(frame(2),57,24)
+    local expectedModel=model()
+    expectedModel.tiles[1].value='2'
+    expectedModel.tiles[1].sub='1 ok, 1 lost'
+    expectedModel.tiles[1].bg='e'
+    expectedModel.tiles[2].value='1'
+    local expected=capture(U.status(expectedModel,57,24),57,24)
+    for y=4,8 do
+      for x=1,38 do equal(got.cells[y][x],expected.cells[y][x]) end
+    end
+    assert(got.picture().text[8]:find('1 ok, 1 lost',1,true))
+  end)
   test('UI1 takeover expires at five seconds, dismisses and throttles per session',function()
     local _,s,frame,tap=server()
     s.values['mine.alert']={text='first'}
