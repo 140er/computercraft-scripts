@@ -1,20 +1,3 @@
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
-cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
 cc-test: using local-1 slot
 PASS no controller: the dashboard and its keys work and never touch AR
 PASS 3D VIEW draws the fleet with teletext pixels, turns, and BACK returns
@@ -292,8 +275,8 @@ PASS SO9 a branch advance cannot change the commit during an update
 PASS SO9 invalid installer and invalid cached commit leave installed files unchanged
 PASS SO9 every deletion and metadata move rolls back across power loss
 PASS SO9 failed swaps restore deletions and committed cleanup errors remain recoverable
-SO9 worker peak charged bytes=257848
-SO9 display peak charged bytes=242656
+SO9 worker peak charged bytes=257884
+SO9 display peak charged bytes=242744
 PASS SO9 worker and display stay below 1 MB during the complete update
 PASS SO9 first update can resolve a SHA through Git refs when the API is blocked
 PASS SO9 malformed Git refs cannot select a moving ref or modify an existing install
@@ -315,8 +298,8 @@ SO11 time 540s
 SO11 time 600s
 SO11 time 660s
 SO11 time 720s
-SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
 SO11 mining 2 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-5} error=nil
+SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
 SO11 lumber phase=waiting cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=28,["y"]=64,["z"]=7}
 SO11 summary dug cells=80 ores delivered=4 trees felled=4 logs=16 leases sent=1293 reports=1293
 SO11 worker 2 recovery park=1s work=idle beacon=held lease
@@ -324,7 +307,7 @@ SO11 worker 3 recovery park=1s work=idle beacon=held lease
 SO11 worker 4 recovery park=1s work=idle beacon=held lease
 SO11 display 5 recovery=25s
 SO11 display 6 recovery=14s
-SO11 elapsed 31 real seconds
+SO11 elapsed 27 real seconds
 PASS SO11 integration check 1
 PASS SO11 integration check 2
 PASS SO11 integration check 3
@@ -348,8 +331,8 @@ SO11 B time 420s mine=mining,mining lumber=scan
 SO11 B time 480s mine=mining,mining lumber=scan
 SO11 B time 540s mine=ore,done lumber=base
 SO11 B time 600s mine=ore,done lumber=roundEnd
-SO11 B mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=48,["y"]=60,["z"]=-9} error=nil
 SO11 B mining 2 state=ore pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=18,["y"]=60,["z"]=-5} error=nil
+SO11 B mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=48,["y"]=60,["z"]=-9} error=nil
 SO11 B lumber phase=roundEnd cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=2,["x"]=28,["y"]=64,["z"]=6}
 SO11 B summary dug cells=127 ores delivered=4 trees felled=3 logs=15 leases sent=1931 reports=1929
 SO11 B worker 2 recovery park=1s work=3.45s beacon=114.75s
@@ -358,7 +341,7 @@ SO11 B worker 4 recovery park=1s work=3.45s beacon=114.3s
 SO11 B display 5 recovery=1s
 SO11 B display 6 recovery=17s
 SO11 B interrupted report cells=1
-SO11 B elapsed 52 real seconds
+SO11 B elapsed 50 real seconds
 PASS SO11 B integration check 1
 PASS SO11 B integration check 2
 PASS SO11 B integration check 3
@@ -607,34 +590,35 @@ PASS UI2a gather uses mining facts and leaves daily ore stale
 PASS UI2a compact mining keeps full worker coordinates at 26x20
 PASS UI2a compact mining keeps full worker coordinates at 29x12
 501 tests passed
-PASS UI2c shop and order pages match unchanged M fixtures
+PASS UI2c shop and order pages match the touch M fixtures
+PASS UI2c touch fixtures match at compact pocket and large sizes
 PASS UI2c one order tap sends once and renders send nothing
 PASS UI2c direct orders use stock and name ranking without changing display state
 PASS UI2c paging visits every item once and clamps at both ends
 PASS UI2c all sizes keep both pages inside bounds with readable contrast
 PASS UI2c gathering uses stock and history and keeps discovery visible
-507 tests passed
+508 tests passed
 PASS UI2b lumber matches the M fixture
 PASS UI2b setup and back render within every size with spec contrast
 PASS UI2b start and stop taps use the text commands once per tap including refusals
 PASS UI2b navigation and unknown taps leave alerts events and saved jobs unchanged
 PASS UI2b every text command retains configuration and refusal behavior
 PASS UI2b gather keeps missing timers and daily counters stale
-513 tests passed
+514 tests passed
 PASS UI2d drops and AR match M mockups cell by cell
 PASS UI2d selected drop actions and draft editor preserve stored points
 PASS UI2d drop paging exposes all points without overlapping controls
 PASS UI2d AR tile toggles once and survives reload
 PASS UI2d layouts fit all sizes and respect contrast
 PASS UI2d status returns from every role and generic keeps header clear
-519 tests passed
+520 tests passed
 PASS UI3a normal and pairing match unchanged fixtures
 PASS UI3a keys, expiry, used codes, bounded log and timer-only redraw
 PASS UI3a display tick paints the terminal with uptime and palette
 PASS UI3a local monitor answers drawn dug consent buttons once
 PASS UI3a local monitor rejects a queued stale consent button
 PASS UI3a monitor discovers at most every five seconds and navigates locally
-525 tests passed
+526 tests passed
 PASS UI3c turtle labels and twelve box edges use known state colours
 PASS UI3c lease owners have one blue outline and drops have short labels
 PASS UI3c AR frame with 200 reservations does not sleep or yield
@@ -643,7 +627,7 @@ PASS UI3c HUD label ranges stay padded and separated with consent and alerts
 PASS UI3c alert banner expires after five seconds and retains the HUD count
 PASS UI3c repeated history alerts renew the banner without changing the count
 PASS UI3c stable frames retain ids and removing a turtle deletes exactly its ids
-533 tests passed
+534 tests passed
 PASS UI3b roleless pockets default to status and glance matches all twenty fixture rows
 PASS UI3b explicit generic selection survives a display module restart at both compact sizes
 PASS UI3b client input height keeps full Big Tiles pocket navigation
@@ -658,10 +642,11 @@ PASS UI3b alert list pages through all state alerts and pairing help returns
 PASS UI3b partial installs without the kit keep the legacy role picker
 PASS UI3b custom generic headers stay clear when panel is not loaded
 PASS UI3b server local monitor panel forwards controls once
+PASS UI3b monitor panels browse shop without a search field or quick orders
 PASS UI3b panel installs only on the server
-548 tests passed
+550 tests passed
 PASS UI5b MORE navigation switches only the tapped display once
-549 tests passed
+551 tests passed
 PASS UI5a Amsterdam clock covers both 2026 DST boundaries and midnight
 PASS UI5a status shop panel and server log use Amsterdam time
 PASS UI5a daily totals window copies midnight and saved cursor survive restart
@@ -669,7 +654,7 @@ PASS UI5a real state history and daily store recover together from disk
 PASS UI5a ten thousand pending events consume only one bounded page without a yield
 PASS UI5a status mining and lumber show daily counters and stale fallback
 PASS UI5a daily module installs only on the server
-556 tests passed
+558 tests passed
 PASS mining refuses start without its disk guard or configured home
 PASS uncertain workers cannot receive a mining batch
 PASS radio range refusal sends only a stationary park
@@ -677,12 +662,12 @@ PASS a completed branch is counted once when recovery revisits it
 PASS disk failure stops a mining job
 PASS retirement refuses recovery and protects a confirmed worker pose
 PASS expired reports keep the worker in recovery
-563 tests passed
+565 tests passed
 PASS hello registers an idle paired turtle in fleet, status, terminal and panel
 PASS hello throttles unchanged and small fuel updates but records journal and significant fuel changes
 PASS paired display hello registers a display without adding a turtle
 PASS worker screen fits 39x13 and shows id, connection and elapsed seen time
-567 tests passed
+569 tests passed
 range-batch bottom 48: both branches reached; max range ticks 0; cut descents 0
 PASS range-batch Gate B C5 two miners reach their branches
 range-batch bottom 16: both branches reached; max range ticks 0; cut descents 3
@@ -699,9 +684,47 @@ PASS range-batch supply travel extends proof in both directions
 PASS range-batch lumber supply crosses the initial radius and returns
 PASS range-batch a parked shaft cell does not block an unrelated spine pass
 PASS range-batch keeps atomic actions and stops at the first unsafe action
-577 tests passed
+579 tests passed
+PASS map scene glyphs, colours and controls at 26x20
+PASS map scene glyphs, colours and controls at 29x12
+PASS map scene glyphs, colours and controls at 57x24
+PASS map scene glyphs, colours and controls at 164x81
+PASS map and MAP navigation follow the kit header on row 2 at 26x20
+PASS map and MAP navigation follow the kit header on row 2 at 29x12
+PASS map snapshots copy mining and lumber world data
+PASS local monitor map controls keep a separate session
+PASS map renders complete large frames inside the protocol limit
+PASS map uses bounded dug scans at maximum manual zoom
+PASS all-level dug scans skip empty shaft heights and retain the frame budget
+PASS map view state and scan caches belong to each display
+PASS map heading arrows use worker state and lost range colours
+PASS real display client opens and controls the map at 26x20
+PASS real display client opens and controls the map at 29x12
+PASS real display client opens and controls the map at 57x24
+PASS display MAP and BACK use drawn targets at 26x20
+PASS display MAP and BACK use drawn targets at 29x12
+PASS display MAP and BACK use drawn targets at 57x24
+PASS display MAP and BACK use drawn targets at 15x10
+599 tests passed
+PASS panel pairing button, big digits and single use at 26x20
+PASS panel expiry and code privacy at 26x20
+PASS panel pairing button, big digits and single use at 29x12
+PASS panel expiry and code privacy at 29x12
+PASS panel pairing fixtures
+PASS repeat panel requests preserve five bad attempt limit
+605 tests passed
+PASS touch shop browse and one order at 29x12
+PASS touch shop browse and one order at 26x20
+PASS touch shop browse and one order at 57x24
+PASS touch shop browse and one order at 100x38
+PASS touch shop client sends one roomsorter order at 26x20
+PASS touch shop client sends one roomsorter order at 29x12
+PASS touch shop client sends one roomsorter order at 100x38
+PASS touch shop reports failures missing room and stale stock
+613 tests passed
 PASS AR labels are compact and nearby drops and turtles have separate heights
 PASS AR keeps the nearest drop labels per kind and bounds turtle labels while keeping boxes
 PASS AR turtle total agrees with fleet and status for working and paired idle turtles
 PASS AR counts two mining leases, one lumber lease and a paired idle worker after real reports
-581 tests passed
+617 tests passed
+EXIT 0

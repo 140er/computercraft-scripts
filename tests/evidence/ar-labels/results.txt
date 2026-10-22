@@ -1,13 +1,10 @@
-Full suite source commit: 1ec086568c2382ee7d05771f179362ebda792d10.
-Plain cc-test: PASS, 581 tests, local-1 slot, exit 0.
-Focused UI, AR, navigation and drop checks: PASS, 129 checks.
+Full suite source commit: 770e927e319b33c578e185e5c5dc737732b6e6c8, stacked on #177 at e0b3cc0.
+cc-test --slot local: PASS, 617 tests, local-1 slot, exit 0. The local slot was forced because the UI0 generator check only runs on POSIX. The log has no "SKIP UI0" line, and "UI0 generator preserves section 7.1 and reproduces every fixture" passed. Log: full-suite.txt.
+Focused run (ar-labels, so10, ui3c, ui0, hello-visible, ui3b, panel-pair): PASS, 72 checks.
 cc-test --part so-mod-ar --lua-only: PASS, 4 checks, no undeclared reads.
-cc-test --part so-mod-ar: PASS, pack-ROM emulator product and peripheral contracts, then 4 AR checks.
-The module run initially encountered busy local emulator slots, then succeeded on local-2.
 luac5.2 -p: PASS for all changed Lua files against origin/server-only.
 python3 tools/cobaltlocals.py: PASS, maximum 64 locals, below 185.
-sh tools/check-scope.sh origin/server-only HEAD: PASS, tests/run.lua append-only with 4 new lines, no test file deleted.
-The #177 HUD spacing check remains green.
-The first full-suite attempt is invalid because a merge changed its local checkout while it ran. Its log is retained and does not count as a passing run.
-Real goggles validation is pending the orchestrator's Gate B run. The native emulator uses an older core and mocked AR, not a real CC:AR renderer.
+sh tools/check-scope.sh origin/server-only HEAD: PASS, tests/run.lua append-only, no test file deleted.
+Rebase: kept b611e8a, da771be and 729bd9e. The two merge commits were dropped; #175 is in server-only. The panel fleet-line hunk from da771be was dropped because #177 now places that line on row 3.
+Real goggles validation is pending the orchestrator's Gate B run.
 The final evidence commit changes only saved test results.
