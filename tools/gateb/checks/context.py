@@ -168,8 +168,9 @@ class Context:
     def drops(self):
         for kind in ("ore", "fuel", "wood"):
             fixture = self.fixture(kind)
-            point = {"kind": kind, "dim": 0, "side": fixture.get("side", "front"), **dict(zip(("x", "y", "z"), fixture["pos"]))}
-            self.lua("server", "return SO.mods.drops.add(textutils.unserializeJSON(" + json.dumps(json.dumps(point)) + "))")
+            point = {"id": "gateb_" + kind, "kind": kind, "dim": 0, "side": fixture.get("side", "front"), **dict(zip(("x", "y", "z"), fixture["pos"]))}
+            if self.lua("server", "return SO.mods.drops.add(textutils.unserializeJSON(" + json.dumps(json.dumps(point)) + "))") is not True:
+                raise Blocked(f"Cannot configure native {kind} drop point")
 
     def mining(self, start=True):
         self.drops()

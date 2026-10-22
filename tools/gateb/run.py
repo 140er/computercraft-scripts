@@ -11,9 +11,11 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 
 from checks import ACCELERATED, GROUPS, IDS, load
 from checks.context import Context, sanitize
+from checks.admission import admit
 from checks.model import Blocked, Result, Verdict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -115,6 +117,7 @@ def execute(ctx, check, runtime_dir, prepare=True):
     try:
         ctx.runtime_dir = runtime_dir
         if prepare:
+            admit()
             ctx.cli("reset", ctx.run, timeout=180)
             install = ctx.cli("install", ctx.run, ctx.commit, "--mode", "copy", timeout=180)
             ctx.record("installed-build.json", install)
@@ -189,17 +192,18 @@ def main(argv=None):
         runtime = Runtime()
         cli = Context(runtime, "", {}, output, commit)
         cli.runtime_dir = args.runtime_dir.resolve()
-        token = datetime.now().strftime("%Y%m%d%H%M%S")
+        token = datetime.now().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:8]
         groups = [[c for c in checks if c in selected] for checks in GROUPS.values()]
         groups = [checks for checks in groups if checks]
-        worlds = [f"driver-{token}-{i+1}" for i in range(min(args.worlds, len(groups))) ]
+        prefix = f"driver-{token}"
+        worlds = [f"{prefix}-{i+1}" for i in range(min(args.worlds, len(groups))) ]
         client_lock, group_lock = threading.Lock(), threading.Lock()
         results, created, finished = [], [], set()
         try:
-            for world in worlds:
-                cli.cli("clone", world)
-                created.append(world)
-                cli.cli("serve", world, timeout=180)
+            admit()
+            created.extend(worlds)
+            resources = cli.cli("pool", "up", len(worlds), "--prefix", prefix, timeout=180 * len(worlds))
+            cli.record("pool-start.json", resources)
             def worker(world):
                 output_results = []
                 while True:

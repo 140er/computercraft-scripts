@@ -22,7 +22,11 @@ Exit status is 0 for a passing run or no affected checks, 1 for failed or blocke
 checks, and 2 for invalid arguments or unavailable runtime setup. A report with
 no selected checks has status `not_run`.
 
-The runner creates private named worlds and stops them in `finally`. It resets
+The runner requests private named worlds through `pool up N --prefix <run-id>`
+and stops only those worlds in `finally`. Before pool startup and every reset,
+it refuses load1 at or above 8 and any full or unclassified local test-slot owner.
+Module-only `--part` runs remain eligible. The pool keeper still makes the atomic
+memory and load admission decision. It resets
 each world to the native template before each check and verifies the installed
 commit before acting. Groups share a worker queue across the requested worlds.
 Mining runs C5, C7, C8 and C10. Screens run C1 through C4 and C14. Services run
