@@ -291,7 +291,7 @@ ffffffffffffffffffffffffff
 
 Pocket, panel mode  (26x20)
 ```text
- PANEL              21:14 
+ PANEL              22:14 
                           
  MINING   stopped         
                           
@@ -369,10 +369,10 @@ Lumber, room monitor  (57x24)
  LUMBER                                          running 
  ! out of saplings: replanting paused                    
  TREES READY        LOGS TODAY          SAPLINGS         
-       🬖🬋🬏               🬖🬋🬏🬞🬋                🬖🬋🬏        
-        🬖🬀               🬈🬋▌🬛🬋🬏               ▌ ▌        
-       🬍🬋🬃               🬇🬅 🬈🬋🬀               🬈🬋🬀        
- of 4 spots         to wood chest       chest empty      
+       🬖🬋🬏                                    🬖🬋🬏        
+        🬖🬀                 🬋🬋🬃                ▌ ▌        
+       🬍🬋🬃                                    🬈🬋🬀        
+ of 4 spots         no daily source     chest empty      
                                                          
  TURTLE             FUEL                NEXT GROW        
         🬵             🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏        🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏   

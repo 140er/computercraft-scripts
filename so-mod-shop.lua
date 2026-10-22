@@ -145,8 +145,7 @@ S.gather = function()
   local m = { found = S.turtle ~= nil, search = S.search, page = S.page, items = {},
     order = table.concat(S.orders, "; "), time = "-" }
   if S.sampleAt then
-    local minutes = math.floor(S.sampleAt / 60000) % 1440
-    m.time = string.format("%02d:%02d", math.floor(minutes / 60), minutes % 60)
+    m.time = U and U.clock(S.sampleAt).hm or "-"
   end
   local query = S.search:lower():gsub("%s+", "_")
   for name, count in pairs(S.totals) do

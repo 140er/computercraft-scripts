@@ -506,9 +506,22 @@ local function gather()
   end
   table.sort(m.turtles, function(a,b) return a.id < b.id end)
   table.sort(waitIds)
+  local today = call("daily", "today")
+  local names, oreSub = {}, "no daily source"
+  if today then
+    for name, count in pairs(today.oreByName) do names[#names + 1] = { name = name, count = count } end
+    table.sort(names, function(a,b) return a.count > b.count or (a.count == b.count and a.name < b.name) end)
+    local parts = {}
+    for i = 1, math.min(2, #names) do
+      local short = names[i].name:gsub("^.-:", ""):gsub("^deepslate_", ""):gsub("_ore$", "")
+      if short == "diamond" then short = "dia" end
+      parts[#parts + 1] = short .. " " .. names[i].count
+    end
+    oreSub = table.concat(parts, " ")
+  end
   m.tiles = {
     {"BUSY", busy .. "/" .. #m.turtles, busy .. " digging", "d"},
-    {"ORE TODAY", "-", "no daily source", "c"},
+    {"ORE TODAY", today and tostring(today.ore) or "-", oreSub, today and "b" or "c"},
     {"DEPTH", tostring(job.bottom), "bottom " .. job.bottom, "d"},
     {"LANE", tostring(waiting), waiting > 0 and (table.concat(waitIds,",") .. " waiting") or "clear", waiting > 0 and "1" or "d"},
     {"MIN FUEL", tostring(minimum or "-"), fuelId and ("#" .. fuelId) or "no fuel report", minimum and "d" or "c"},

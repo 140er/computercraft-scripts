@@ -1,4 +1,35 @@
 local U = {}
+U.clock = function(epochMs)
+  local seconds = math.floor(epochMs / 1000)
+  local function calendar(days)
+    local z = days + 719468
+    local era = math.floor(z / 146097)
+    local doe = z - era * 146097
+    local yoe = math.floor((doe - math.floor(doe / 1460) + math.floor(doe / 36524) - math.floor(doe / 146096)) / 365)
+    local year = yoe + era * 400
+    local doy = doe - (365 * yoe + math.floor(yoe / 4) - math.floor(yoe / 100))
+    local mp = math.floor((5 * doy + 2) / 153)
+    local day = doy - math.floor((153 * mp + 2) / 5) + 1
+    local month = mp + (mp < 10 and 3 or -9)
+    return year + (month <= 2 and 1 or 0), month, day
+  end
+  local year = calendar(math.floor(seconds / 86400))
+  local function switch(month)
+    local days = month == 3 and 90 or 304
+    local y = year - 1
+    local leap = year % 4 == 0 and (year % 100 ~= 0 or year % 400 == 0)
+    local last = 365 * (year - 1970) + math.floor(y / 4) - math.floor(y / 100) + math.floor(y / 400) - 477
+      + days - 1 + (leap and 1 or 0)
+    return (last - (last + 4) % 7) * 86400 + 3600
+  end
+  local offset = seconds >= switch(3) and seconds < switch(10) and 7200 or 3600
+  seconds = seconds + offset
+  local y, month, day = calendar(math.floor(seconds / 86400))
+  local h, m, sec = math.floor(seconds / 3600) % 24, math.floor(seconds / 60) % 60, seconds % 60
+  return { h = h, m = m, s = sec, date = string.format("%04d-%02d-%02d", y, month, day),
+    hm = string.format("%02d:%02d", h, m), hms = string.format("%02d:%02d:%02d", h, m, sec) }
+end
+
 U.palette = {
   [0] = 0xF2F4F8, 0xFFC24B, 0xE57FD8, 0x99B2F2,
   0xDEDE6C, 0x7FCC19, 0xF2B2CC, 0x1F2B45,
