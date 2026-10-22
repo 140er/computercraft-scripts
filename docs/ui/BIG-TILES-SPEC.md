@@ -1087,11 +1087,12 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 The same palette as ARGB with alpha FF (green FF3DDC84, amber FFFFC24B, coral FFFF6B5E, blue FF5AB0FF,
 teal FF2DD4BF, stale FF4A5468, white FFF2F4F8). HUD backing C00E1626. Text uses a conservative 6 px character advance and 8 px height.
 
-- World: above each turtle a label (`drawText3D`, size 3) `#2 MINING` in its state colour, and a box
+- World: above each turtle a label (`drawText3D`, size 0.5) `#2` in its state colour, and a box
   around it (12 `drawLine3D` edges) in the same colour. Lease reservations are one outline box per owner, in
-  blue. Drop points are a small box plus `ORE 3`, coral when broken.
+  blue. Drop points are a small box plus `O` or `F`, coral when broken. Nearby labels stack 0.25 blocks
+  apart. Keep the nearest 16 turtle labels and eight drop labels per kind from the server position.
 - HUD (top left, `drawRect2D` backing plus `drawText2D`): three tiles in a row, 56 px wide and 30 px tall, with 8 px gaps and 4 px inner padding:
-  turtles ok, alerts, disk %. Each one has a coloured bar 4 px tall on top in its state colour, so the HUD
+  turtles total, alerts, disk %. Each one has a coloured bar 4 px tall on top in its state colour, so the HUD
   reads at a glance. Labels start 8 px below the tile top and values start 18 px below it. The HUD starts at x=4, y=18, with another 12 px reserved above it when dug consent is visible. The alert banner stays above the HUD and below the consent line.
 - An alert shows as a coral banner across the top for 5 s (`drawRect2D` plus `drawText2D`), then only the
   HUD count.
@@ -1100,9 +1101,9 @@ teal FF2DD4BF, stale FF4A5468, white FFF2F4F8). HUD backing C00E1626. Text uses 
 
 ```text
 HUD:   [==== green ====][==== coral ====][==== green ====]
-       | TURTLES 3 ok  || ALERTS 1      || DISK 13%      |
-world:         #2 MINING        (green label, green box)
-               #3 WAIT LANE     (amber label, amber box)
+       | TURTLES 3     || ALERTS 1      || DISK 13%      |
+world:         #2               (green label, green box)
+               #3               (amber label, amber box)
 alert: ==========  ORE CHEST FULL (drop 3)  ==========   5 s
 ```
 
