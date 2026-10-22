@@ -45,7 +45,10 @@ and listeners use `listener(sender, message)`.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
   `replay(startPose, steps, results)`, `path(from, to, opts)`, `chunk(steps, n)`,
-  `inRange(lease, id, cells)`, `fuelValue(name)` and `free(inv)`.
+  `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)` and `free(inv)`.
+  `rangeBatch` returns the longest prefix within range of complete `action.actions`,
+  rebuilding its steps, cells and final pose. It returns the original action when
+  all cells fit, or nil when no complete action fits. Atomic actions stay whole.
   `park` is a ten-minute `inspectDown` lease template. Renew it with less than
   one minute remaining. Paths assume success; callers reserve cells and split
   work into batches of at most 16. See [plan helpers](server-only/PROTOCOL.md#plan-helpers).
@@ -127,6 +130,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Handlers are `step.report`, `beacon`, `hello` and `history.page`.
+  Range starts at 16 and only grows with known world poses or successful reports.
+  Work may extend eight blocks beyond that proof.
   Reports release lease-owned cells; silence leaves reservations in place.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
@@ -261,11 +266,26 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   cells. Failed targets are skipped until movement. Ore unloads exclude junk.
   A lane pass reserves its full route through the shaft and spine plus its exit in one
   call. Intermediate batches retain the reservation until the worker leaves.
+  Mining and supply batches stop at the furthest complete action within proven
+  range plus eight blocks. Only the sent prefix enters `inflight`; the next
+  report extends the proof before the remaining route is planned.
   Saved rows include `lane = { cells, entered, target?, release? }` while holding the lane
   and `laneWait = { at, passes }` while queued. Exit cleanup runs from tick;
   rapid report bursts defer further planning to tick. Oldest waiters go first, then
   lowest id; a waiter with three intervening grants has priority. Waiting rows
   show `wait lane`. Side veins wait until the worker leaves the shared lane.
+  A range-blocked or held worker retreats through known free cells to leave the
+  lane, then releases its pass and queue entry while retaining its occupied cell.
+  Saved `yield = { path, cursor, stage, state, error, action?, pass, after, retryAfter? }`
+  resumes the old pose and facing before normal work once the range check passes
+  or the hold retry is due, with fuel for the return. Retreat reserves fuel for
+  both directions and searches at most 512 known cells, without digging. Failed
+  escape moves invalidate their target and try another known exit; failed returns
+  retreat again and wait a minute before another return attempt.
+  Without a safe retreat, the worker releases the pass and keeps its physical
+  cell protected. Other passes can use the remaining lane when their cells do
+  not intersect that occupied cell. A turtle that cannot physically move can
+  still obstruct its cell.
   Saved turtle rows may contain `dropRetry = { key, tries, alerted, after }`.
   Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
   its fuel covers the saved return route, the paused position's route home, and 64 more moves.
