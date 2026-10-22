@@ -386,13 +386,24 @@ Trips return to the position where work stopped. Underground trips return along
 the branch to its spine junction, follow the spine to the shaft, and climb the shaft
 before taking a shortest axis path around the chest to a free stand. Return trips
 reverse the saved path. A side vein first connects through known dug cells to the
-last reached mining waypoint. If that connection cannot be found within 4096 cells,
-the trip waits instead of cutting a new tunnel. Only the final approach can open new cells.
-A trip reserves its full route before entering the shared lane and retains it
-through the chest turnaround until it returns to its paused position. This uses
+last reached mining waypoint. If that connection cannot be found within 512 cells,
+the trip waits instead of cutting a new tunnel. Searches use only the in-memory
+block lookup, never the durable cells API. Home routes and vein access cache until
+the pose, route waypoint or mine geometry changes. A stationary turtle does not
+repeat the search on each tick; stand candidates reuse the cached access path.
+Only the final approach can open new cells.
+A trip reserves the shared corridor, surface approach and adjacent branch exit
+before entering the lane, and retains them through the chest turnaround until
+it returns to its paused position. Private branch cells use normal movement
+batch reservations, keeping the lane grant independent of branch length. This uses
 the same queue as other miners and prevents opposing surface approaches from
-blocking each other. Supply trips sharing the lane run one at a time.
-Saved trip records include `path`, starting at the paused position, and `reserve`,
+blocking each other. Supply trips sharing the lane run one at a time and defer
+report planning to tick. Known shaft and spine travel still batches, while moves
+outside the lane release one private cell per report when the trip uses the
+shared corridor. Trips wholly on the surface keep normal batching. This limits reservation-map
+copies during cleanup and keeps the server handler from yielding.
+Saved trip records include `shared`, whether they cross the lane, `path`,
+starting at the paused position, and `reserve`,
 the fuel needed there for the route home plus 64. Older trip records use the mine
 geometry when possible and hold if the recovered position is outside that route.
 Full inventories unload before a fuel pickup.

@@ -60,7 +60,9 @@ and listeners use `listener(sender, message)`.
   `lanePass` lists the cells crossed in the planned pass through its exit.
   `supplyRoute` returns the departure cell and every movement cell through the branch,
   spine and shaft to the stand. A supplied lookup returns false for known dug cells
-  and connects a side vein to the last reached route waypoint. No connection returns nil.
+  and connects a side vein to the last reached route waypoint, searching at most 512 cells.
+  No connection returns nil. Its second result is that access path. A supplied
+  `row.access` reuses the path without another search.
   `supplyDistance` counts those moves and returns infinity when no route exists.
   Contextual `travel` returns the remaining outbound or reverse trip cells.
   `ores` is the supported ore-name set. The optional `ore` filter uses those names.
@@ -153,7 +155,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Fuel trips aim for 2000. If the chest empties sooner, the worker returns once
   its fuel covers the saved return route, the paused position's route home, and 64 more moves.
   Supply trips save `path` and `reserve` in the trip record. They use the lane queue
-  and retain the full trip reservation through the chest turnaround and return.
+  and reserve the shared corridor, surface approach and branch exit through the
+  chest turnaround and return. Private branch cells use normal movement batches.
+  Route searches read only the in-memory block lookup. Home routes and vein access
+  cache by pose, route waypoint and mine geometry; stationary ticks and chest
+  candidates reuse them. Fuel reports use the saved trip path and reserve.
+  Trips using the shared corridor defer report planning to tick. Moves outside the lane release one private
+  cell per report for trips using the shared corridor, keeping reservation cleanup
+  below the cells burst threshold. Trips wholly on the surface retain normal batching.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).

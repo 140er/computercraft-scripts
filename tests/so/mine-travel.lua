@@ -83,5 +83,55 @@ function S.run(test, equal)
     equal(M.supplyRoute(job,row,job.home,{x=0,y=-4,z=-1}),nil)
   end)
 
+  test("mine supply bounds an unknown vein search and reuses known access",function()
+    local job={dim="minecraft:overworld",home={x=0,y=12,z=0,facing=0},bottom=-8,
+      mode="thorough",length=8,turtles={{branch=0}}}
+    local row={pose={dim=job.dim,x=1,y=-8,z=-5},
+      route={{dim=job.dim,x=1000,y=-8,z=-5}},index=2}
+    local looked=0
+    equal(M.supplyRoute(job,row,job.home,nil,function() looked=looked+1 return false end),nil)
+    assert(looked<=512*6,"vein search exceeded its lookup budget: "..looked)
+    row.route={{dim=job.dim,x=0,y=-8,z=-5}}
+    local path,access=M.supplyRoute(job,row,job.home,nil,function(p)
+      if p.y==-8 and p.z==-5 and p.x==0 then return false end
+    end)
+    assert(path and access and #access==2,"known vein access was not retained")
+    local size=#access
+    local cached={pose=row.pose,route=row.route,index=row.index,access=access}
+    local second=assert(M.supplyRoute(job,cached,{x=-4,y=12,z=0},nil,function()
+      error("cached access triggered another search")
+    end))
+    equal(#access,size,"route assembly mutated cached access")
+    assert(M.same(second[2],access[2]))
+    equal(M.supplyRoute(job,cached,job.home,access[2]),nil)
+  end)
+
+  test("mine long supply passes reserve the shared corridor without yielding",function()
+    local job={dim="minecraft:overworld",home={x=0,y=64,z=0,facing=0},bottom=60,
+      mode="thorough",length=48,turtles={{branch=1}}}
+    local route=M.route(job,1)
+    local row={pose=route[#route],route=route,index=#route+1}
+    local stand={dim=job.dim,x=-2,y=64,z=0}
+    local path=assert(M.supplyRoute(job,row,stand,{x=-3,y=64,z=0}))
+    row.trip={path=path,back=row.pose,stand=stand,stage="out"}
+    local env=setmetatable({
+      SO={store={store=function() return {value={},save=function() return true end} end}},
+      fs={makeDir=function() end,list=function() return {} end},
+      os={epoch=function() return 0 end},
+      sleep=function() error("supply lane reservation yielded") end,
+    },{__index=_G})
+    local file=assert(io.open("so-mod-cells.lua"))
+    local code=file:read("*a") file:close()
+    local cells=assert(load(code,"@so-mod-cells.lua","t",env))()
+    local pass=M.lanePass(job,row)
+    assert(cells.reserveMany("mine:2",pass))
+    local entered=false
+    for _,cell in ipairs(path) do
+      entered=entered or M.inLane(job,cell)
+      if entered then equal(cells.owner(cell.x,cell.y,cell.z,cell.dim),"mine:2") end
+    end
+    equal(cells.owner(row.pose.x,row.pose.y,row.pose.z,job.dim),nil)
+  end)
+
 end
 return S

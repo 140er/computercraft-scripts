@@ -1,6 +1,7 @@
 local P = dofile("so-plan.lua")
 local M = dofile("so-mine-plan.lua")
 local S = { wired = false, pending = {}, known = {}, dugFacts = {}, burst = { n = 0 }, error = nil }
+S.homeRoutes = setmetatable({}, {__mode="k"})
 local unloadKeep = {
   ["minecraft:bucket"] = true, ["minecraft:lava_bucket"] = true,
   ["minecraft:water_bucket"] = true, ["minecraft:torch"] = true,
@@ -59,11 +60,20 @@ local function dropFailure(id, row, kind, point)
     retry.after = os.epoch("utc") + 60000
   end
 end
-local function supplyKnown(cell)
-  if lookup(cell) == false or call("cells","isDug",cell.x,cell.y,cell.z,cell.dim) then return false end
+local function homeRoute(row)
+  local key = M.key(row.pose)
+  local cached = S.homeRoutes[row]
+  if cached and cached.key == key and cached.index == row.index and cached.route == row.route
+      and cached.home == job.home and cached.bottom == job.bottom and cached.dim == job.dim then return cached end
+  local path, access = M.supplyRoute(job,row,job.home,nil,lookup)
+  cached = {key=key,index=row.index,route=row.route,home=job.home,bottom=job.bottom,dim=job.dim,
+    reserve=path and #path-1+64 or math.huge,
+    row={pose=row.pose,route=row.route,index=row.index,access=access}}
+  S.homeRoutes[row] = cached
+  return cached
 end
 local function fuelReserve(row)
-  return M.supplyDistance(job,row,nil,supplyKnown)+64
+  return homeRoute(row).reserve
 end
 local function tripReserve(t)
   local back = {pose=t.back}
@@ -85,6 +95,8 @@ local function trip(id, row, kind)
   end
   local point = SO.store.copy(picked.point)
   point.dim = job.dim
+  local route = homeRoute(row)
+  if route.reserve == math.huge then row.error = "no known mine route" return false end
   local candidates = {}
   if point.side == "down" then candidates[1] = { dim = job.dim, x = point.x, y = point.y+1, z = point.z }
   else
@@ -92,15 +104,17 @@ local function trip(id, row, kind)
       local p = { dim = job.dim, x = point.x, y = point.y, z = point.z, facing = f }
       local c = M.cell(p, "back") c.facing = f candidates[#candidates+1] = c
     end
-    table.sort(candidates, function(a,b) return M.supplyDistance(job,row,a) < M.supplyDistance(job,row,b) end)
+    table.sort(candidates, function(a,b) return M.supplyDistance(job,route.row,a) < M.supplyDistance(job,route.row,b) end)
   end
   for _, stand in ipairs(candidates) do
     local held = call("cells", "owner", stand.x, stand.y, stand.z, stand.dim)
     local known = S.known[M.key(stand)]
     if (not held or held == owner(id)) and (known == nil or known == false) then
-      local path = M.supplyRoute(job,row,stand,point,supplyKnown)
+      local path = M.supplyRoute(job,route.row,stand,point)
       if path then
-        row.trip = { kind = kind, point = point, stand = stand, back = SO.store.copy(row.pose), stage = "out", path = path, reserve = fuelReserve(row) }
+        local shared=false
+        for _,cell in ipairs(path) do if M.inLane(job,cell) then shared=true break end end
+        row.trip = { kind = kind, point = point, stand = stand, back = SO.store.copy(row.pose), stage = "out", path = path, reserve = route.reserve, shared = shared }
         row.state = kind return true
       end
     end
@@ -294,7 +308,7 @@ local function report(_, id, results, lease)
   local limit,workers,lane=4,0,false
   for _,peer in pairs(job.turtles) do workers=workers+1 lane=lane or peer.lane~=nil end
   if lane and workers>1 then limit=2 end
-  if action and action.kind~="park" and action.kind~="recover" and job.running and S.burst.n<limit
+  if action and action.kind~="park" and action.kind~="recover" and (not row.trip or row.trip.shared==false) and job.running and S.burst.n<limit
       and (not S.handoffAt or now-S.handoffAt>50) then plan(id,row) end
 end
 local function send(id, row, action)

@@ -15,6 +15,25 @@ local function setup(opts)
   local net=H.new()
   local server=net.machine({id=1,modem=true}) server.install(S.files) tree(server)
   server.files["so-server.cfg"] = H.encode({pos={dim="minecraft:overworld",x=0,y=0,z=0}})
+  if opts.routeGuard then
+    server.files["so-mine-plan.lua"] = server.files["so-mine-plan.lua"]:gsub("\nreturn M%s*$", "\n"..[[
+local supply = M.supplyRoute
+routeSearches = {}
+M.supplyRoute = function(job,row,stand,point,lookup)
+  local cells, prior = SO.mods.cells, SO.mods.cells.isDug
+  cells.isDug = function() error("route planning queried durable dug cells") end
+  if stand == job.home then
+    local key = M.key(row.pose)..":"..tostring(row.index)..":"..tostring(row.route)
+    routeSearches[key] = (routeSearches[key] or 0)+1
+  end
+  local ok, path, access = pcall(supply,job,row,stand,point,lookup)
+  cells.isDug = prior
+  if not ok then error(path) end
+  return path,access
+end
+return M
+]])
+  end
   server.boot("so-server.lua") net.flush()
   local render,input
   local display=server.env.SO.mods.display
@@ -826,6 +845,29 @@ return function(test,equal)
     assert(returns[2] and returns[3],"both supply trips must return to their branch tips")
     equal(persisted(s).turtles["2"].state,"done")
     equal(persisted(s).turtles["3"].state,"done")
+  end)
+
+  test("mine route planning avoids durable lookups and reuses a stopped pose",function()
+    local s=setup({routeGuard=true})
+    digWorld(s)
+    local move=s.turtle.env.turtle.forward
+    local blocked=0
+    s.turtle.env.turtle.forward=function()
+      local p=s.turtle.pos
+      if p.x==1 and p.y==-2 and p.z==-5 then blocked=blocked+1 return false,"blocked" end
+      return move()
+    end
+    s.input("start") run(s,40)
+    assert(not table.concat(s.server.log,"\n"):find("route planning queried durable dug cells",1,true),
+      "route planning queried durable dug cells")
+    assert(blocked>2,"worker never retried a stationary obstruction")
+    equal(s.turtle.pos,{x=1,y=-2,z=-5})
+    local searches=0
+    for _,count in pairs(s.server.env.routeSearches) do
+      equal(count,1,"stationary planning rebuilt the home route")
+      searches=searches+1
+    end
+    assert(searches>2,"worker did not exercise route planning")
   end)
 
 end

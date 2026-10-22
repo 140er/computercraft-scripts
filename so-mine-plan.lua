@@ -93,7 +93,11 @@ function M.lanePass(job,row)
   end
   if row.trip and row.trip.path then
     -- Reserve the turnaround too, so a second turtle cannot block the return at the chest.
-    for _, p in ipairs(row.trip.path) do add(p) end
+    local first
+    for i, p in ipairs(row.trip.path) do
+      if M.inLane(job,p) then first=math.max(1,i-1) break end
+    end
+    if first then for i=first,#row.trip.path do add(row.trip.path[i]) end end
     return cells
   end
   if entered then add(cursor) end
@@ -140,21 +144,24 @@ end
 function M.supplyRoute(job, row, stand, point, lookup)
   local top = P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing}, "forward")
   local bottom = {dim=job.dim,x=top.x,y=job.bottom,z=top.z,facing=top.facing}
-  local back = row.pose
-  local access = {back}
-  if lookup and row.route and back.y ~= top.y and not M.inLane(job, back) then
+  local access = row.access or {row.pose}
+  local back = access[#access]
+  if not row.access and lookup and row.route and back.y ~= top.y and not M.inLane(job, back) then
     local anchor = row.route[math.max(1, (row.index or 1)-1)]
     if anchor and not M.same(back, anchor) then
-      local queue, parents, head = {back}, {[M.key(back)]=false}, 1
+      local queue, parents, visited, head = {back}, {[M.key(back)]=false}, {[M.key(back)]=true}, 1
       local found
-      while queue[head] and head <= 4096 do
+      while queue[head] and head <= 512 do
         local cell = queue[head] head = head + 1
         if M.same(cell, anchor) then found = cell break end
         for _, delta in ipairs({{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}) do
           local nextCell = {dim=job.dim,x=cell.x+delta[1],y=cell.y+delta[2],z=cell.z+delta[3]}
           local key = M.key(nextCell)
-          if parents[key] == nil and (not point or not M.same(nextCell, point)) and lookup(nextCell) == false then
-            parents[key] = cell queue[#queue+1] = nextCell
+          if not visited[key] then
+            visited[key] = true
+            if (not point or not M.same(nextCell, point)) and lookup(nextCell) == false then
+              parents[key] = cell queue[#queue+1] = nextCell
+            end
           end
         end
       end
@@ -171,7 +178,11 @@ function M.supplyRoute(job, row, stand, point, lookup)
     waypoints = back.x == top.x and back.z == top.z and {top, stand} or {bottom, top, stand}
   elseif back.y == top.y then waypoints = {stand}
   else waypoints = {junction, bottom, top, stand} end
-  local cells, pose = access, back
+  local cells, pose = {}, back
+  for _, cell in ipairs(access) do
+    if point and M.same(cell,point) then return nil end
+    cells[#cells+1] = cell
+  end
   for i, waypoint in ipairs(waypoints) do
     local part = i == #waypoints and M.travel(pose, waypoint, point) or P.path(pose, waypoint, {order="yxz"}).cells
     if not part then return nil end
@@ -184,7 +195,7 @@ function M.supplyRoute(job, row, stand, point, lookup)
     end
     pose = waypoint
   end
-  return cells
+  return cells, access
 end
 function M.supplyDistance(job, row, stand, lookup)
   local cells = M.supplyRoute(job, row, stand or job.home, nil, lookup)
@@ -296,7 +307,8 @@ function M.next(job, row, lookup, inv, fuel)
     out.pose = action.pose
     if action.kind ~= "move" and action.kind ~= "turn" then break end
     cursor.pose = action.pose
-    if action.kind == "move" and not row.trip and row.pose.y == row.goal.y then break end
+    if action.kind == "move" and (not row.trip and row.pose.y == row.goal.y
+        or row.trip and row.trip.shared~=false and not M.inLane(job,action.pose)) then break end
   end
   if #out.actions == 1 then return out.actions[1] end
   return out
