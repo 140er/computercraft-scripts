@@ -668,8 +668,8 @@ S.input = function(ev)
         S.alert("old turtle has open lease; retry add after report")
         return
       end
-      if j.turtle.id ~= id and not S.idlePark then
-        S.park()
+      if j.turtle.id ~= id and (S.recover or not S.idlePark) then
+        S.park(S.recover)
         S.alert("parking old turtle; retry add after report")
         return
       end
