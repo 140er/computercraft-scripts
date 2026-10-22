@@ -1,11 +1,13 @@
 local R = dofile('tests/ui/render.lua')
+local H = dofile('tests/so/harness.lua')
 local function screen(job)
-  local s = {saved=0, released=0}
+  local s = {saved=0, released=0, events={}, persisted=H.encode(job)}
   local env = setmetatable({SO={mods={},store={store=function()
-    return {value=job,save=function() s.saved=s.saved+1 return true end}
+    return {value=job,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.os = {epoch=function() return 1000000 end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
+  env.SO.mods.state={emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
   env.SO.mods.cells={releaseOwner=function() s.released=s.released+1 end}
   local mod=assert(loadfile('so-mod-lumber.lua','t',env))()
   mod.tick(1000000)
@@ -85,6 +87,19 @@ return function(test,equal)
         assert(tapped.saved-before<=1)
       end
       if not configured then equal(a.alert,'configure area and turtle') end
+    end
+  end)
+  test('UI2b navigation and unknown taps leave alerts events and saved jobs unchanged',function()
+    for _,id in ipairs({'status','unknown','generic','alerts','area 0 0 1 1 64'}) do
+      local j=job();local s=screen(j)
+      local before,events,persisted=H.encode(j),H.encode(s.events),s.persisted
+      local alert,saves=j.alert,s.saved
+      s.input({id=id})
+      equal(j.alert,alert)
+      equal(H.encode(j),before)
+      equal(H.encode(s.events),events)
+      equal(s.persisted,persisted)
+      equal(s.saved,saves)
     end
   end)
   test('UI2b every text command retains configuration and refusal behavior',function()
