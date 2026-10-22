@@ -529,6 +529,7 @@ if failed > 0 then os.exit(1) end
 
 dofile("tests/so/worker-boot.lua")(test, equal)
 dofile("tests/so/server-net.lua")(test, equal)
+dofile("tests/so/store-recover.lua")(test)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
 

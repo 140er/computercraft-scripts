@@ -303,8 +303,9 @@ cursors `from` and `next`, despite the older timestamp wording in Message types.
 
 Save only through `so-store`. It recovers the newest valid generation among
 `path`, `path.tmp` and `path.bak`. Saves verify the temporary file before moving
-it into place. A budget rejection leaves the store usable; a disk-write failure
-blocks later saves until restart. Do not save inside tight loops.
+it into place. Budget and free-space rejections change no files. After a disk-write
+failure, the next save recovers surviving generations and retries without a reboot.
+Do not save inside tight loops.
 
 - `so-keys` holds paired keys on server and clients. Pairing loads
   `lib/ccryptolib/` for X25519 and randomness.
