@@ -105,7 +105,8 @@ saved evidence; integrity evidence contains only comparison outcomes.
 
 ## Test fixtures
 
-Small extracts under `tests/fixtures` come from the saved 0f73a4e Gate B run.
+Small extracts under `tests/fixtures` come from saved Gate B runs, including
+0f73a4e and the driver's d803bc7 native mining run.
 Each extract names its source and original commit. These are regression inputs,
 not Gate B evidence for the driver or a newer build. Synthetic samples test
 specific failures, including late lane grants, input replay, turns without

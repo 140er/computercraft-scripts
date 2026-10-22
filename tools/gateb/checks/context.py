@@ -112,7 +112,8 @@ class Context:
             except Blocked:
                 pass
         state = {"epoch": time.time(), "mine": mine, "lumber": lumber, "workers": workers}
-        if self.tick_rate != 20: state["game_ms"] = self.game_clock()
+        if self.tick_rate != 20 or getattr(self, "measure_game_clock", False):
+            state["game_ms"] = self.game_clock()
         return state
 
     def sample(self, name, seconds, stop=None, observe=None):

@@ -14,6 +14,7 @@ def evaluate(data):
 
 
 def run(ctx):
+    ctx.measure_game_clock = True
     cold = cold_cells(ctx, "C7")
     ctx.mining()
     before = ctx.count_items("ore", "raw_iron")

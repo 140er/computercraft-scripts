@@ -10,6 +10,7 @@ def evaluate(data):
 
 
 def run(ctx):
+    ctx.measure_game_clock = True
     cold = cold_cells(ctx, "C5")
     ctx.mining()
     miners = [ctx.computer(n) for n in ("miner1", "miner2")]
