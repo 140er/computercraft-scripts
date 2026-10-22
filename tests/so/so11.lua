@@ -74,9 +74,7 @@ S.run = function()
       if g.bootAt and protocol=="so" and payload.t=="view.frame" then g.frameAt[id]=n.time end
       return wireSend(id,payload,protocol)
     end
-    local load=m.env.dofile
-    m.env.dofile=function(path)
-      local result=load(path)
+    local function observe(path,result)
       if path=="so-mod-lease.lua" then
         local send=result.send
         result.send=function(id,steps,opts)
@@ -95,6 +93,12 @@ S.run = function()
         end
       end
       return result
+    end
+    local load=m.env.loadfile
+    m.env.loadfile=function(path,mode,env)
+      local chunk,err=load(path,mode,env)
+      if not chunk then return nil,err end
+      return function(...) return observe(path,chunk(...)) end
     end
   end
   observeServer(server)
@@ -421,9 +425,7 @@ S.runBusy = function()
       if g.bootAt and protocol=="so" and payload.t=="view.frame" then g.frameAt[id]=n.time end
       return wireSend(id,payload,protocol)
     end
-    local load=m.env.dofile
-    m.env.dofile=function(path)
-      local result=load(path)
+    local function observe(path,result)
       if path=="so-mod-cells.lua" then
         local mark=result.markDug
         result.markDug=function(x,y,z,dim)
@@ -469,6 +471,12 @@ S.runBusy = function()
         end
       end
       return result
+    end
+    local load=m.env.loadfile
+    m.env.loadfile=function(path,mode,env)
+      local chunk,err=load(path,mode,env)
+      if not chunk then return nil,err end
+      return function(...) return observe(path,chunk(...)) end
     end
   end
   observeServer(server)
