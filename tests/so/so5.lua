@@ -191,7 +191,7 @@ return function(test, equal)
     assertTables(client)
     local hello = payloads(client, "hello")[1]
     equal(hello.body.w, 26)
-    equal(hello.body.h, 20)
+    equal(hello.body.h, 19)
     equal(payloads(client, "view.sub")[1].body, {})
     local first = payloads(server, "view.frame", 2)
     assert(#first >= 1, "no frame")
