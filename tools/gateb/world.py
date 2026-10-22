@@ -293,7 +293,7 @@ class Runtime:
             if name in self.status():
                 pid=self.status()[name]
                 log=run/'console.log'
-                if log.exists() and re.search(r'Done \([\d.]+s\)!',log.read_text(errors='replace')):
+                if state.get('pid')==pid and state.get('ready'):
                     return {'run':name,'pid':pid,'warm':True}
                 raise RuntimeError('Server exists but has not reached its ready marker')
             for cid in self.manifest(name)['computers']:
@@ -311,6 +311,7 @@ class Runtime:
             if len(args)!=1: raise RuntimeError('Expected one NeoForge unix_args.txt')
             argv+=['@'+str(args[0]),'nogui']
             info=keeper.call(self.home,{'op':'start','key':name,'argv':argv,'cwd':str(run),'log':str(log),'fifo':str(fifo),'memory_kib':3*1024*1024})
+            state.update(pid=info['pid'],ready=False);atomic(run/'run.json',state)
             deadline=time.monotonic()+timeout
             while time.monotonic()<deadline:
                 if name not in self.status(): raise RuntimeError('Server exited; inspect '+str(log))
@@ -318,6 +319,7 @@ class Runtime:
                     handle.seek(start);text=handle.read()
                 if re.search(r'Done \([\d.]+s\)!',text):
                     self.command(name,'forceload add '+' '.join(map(str,self.manifest(name)['forceload'])))
+                    state['ready']=True;atomic(run/'run.json',state)
                     return {**info,'run':name,'port':state['port'],'warm':True}
                 time.sleep(.25)
             self.stop(name)
