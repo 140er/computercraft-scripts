@@ -1,4 +1,5 @@
 """Own the suite flock and child processes for one runtime pool."""
+import ctypes
 import fcntl
 import json
 import os
@@ -35,6 +36,13 @@ def main(home, suite_lock):
     except BlockingIOError:
         (home / 'keeper-error').write_text('The shared test-suite lock is held by another test run')
         return
+    parent_pid=os.getpid()
+    def child_guard():
+        # Keep the flock until the child exits, even if the keeper crashes.
+        if sys.platform.startswith('linux'):
+            ctypes.CDLL(None).prctl(1,signal.SIGTERM)
+            if os.getppid()!=parent_pid: os._exit(1)
+
     children = {}
     handles = {}
     sockpath = home / 'keeper.sock'
@@ -88,9 +96,9 @@ def main(home, suite_lock):
                                 if available < q['memory_kib']:
                                     raise RuntimeError('At least 3 GiB available memory is required per new server/client')
                             log = open(q['log'], 'ab', buffering=0)
-                            stdin = os.open(q['fifo'], os.O_RDWR | os.O_NONBLOCK) if q.get('fifo') else open(os.devnull, 'rb')
+                            stdin = os.open(q['fifo'], os.O_RDWR) if q.get('fifo') else open(os.devnull, 'rb')
                             try:
-                                process = subprocess.Popen(q['argv'], cwd=q['cwd'], env=q.get('env'), stdin=stdin, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                                process = subprocess.Popen(q['argv'], cwd=q['cwd'], env=q.get('env'), stdin=stdin, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, pass_fds=(lock.fileno(),), preexec_fn=child_guard)
                             except Exception:
                                 log.close()
                                 stdin.close() if hasattr(stdin,'close') else os.close(stdin)

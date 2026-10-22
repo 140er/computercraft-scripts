@@ -30,7 +30,7 @@ class RuntimeTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.runtime=Runtime(self.temp.name)
-        self.manifest={'version':1,'computers':{'1':{'name':'server','role':'server','pos':[0,64,0]}}}
+        self.manifest={'prepared':True,'version':1,'computers':{'1':{'name':'server','role':'server','pos':[0,64,0]}}}
         run=self.runtime.run('one');run.mkdir(parents=True)
         atomic(run/'manifest.json',self.manifest)
 

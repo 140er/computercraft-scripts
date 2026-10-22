@@ -112,3 +112,11 @@ real HTTP for role downloads. Mode `copy` uses the commit's installer manifest.
 Install results include `mode` and `errors`; a failed check raises an error and
 must never count as a pass. Power on/reboot deletes cached screen state before
 sending native power commands, so an old screen cannot satisfy a fresh read.
+
+Template preparation starts a disposable server under the shared suite lock.
+It clears old job/journal state on the copy, preserves existing pairing except
+for probe computer 10, moves miners to surface starts, equips and fuels all
+three workers, refills supply chests, plants the oak fixture and saves cleanly.
+`prepared:true` in the manifest records completed native preparation. Cloning
+refuses an unfinished template. The unpaired `probe` is a normal display-role
+computer at `[-8,64,0]`; it uses the same installer as other computers.

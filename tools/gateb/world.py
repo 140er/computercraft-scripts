@@ -195,7 +195,31 @@ class Runtime:
                     stage.rename(target)
                 except Exception:
                     shutil.rmtree(stage,ignore_errors=True);raise
+            manifest=self.prepare_template()
             return {'template':str(target),'manifest':manifest}
+
+    def prepare_template(self):
+        from fixtures import clean_disks, prepare
+        name='template-build'
+        run=self.run(name)
+        if run.exists():
+            if name in self.status(): raise RuntimeError('Template build is already running')
+            shutil.rmtree(run)
+        copytree(self.home/'template',run)
+        port=self.allocate_port(name)
+        with (run/'server.properties').open('a') as handle: handle.write(f'\nserver-port={port}\n')
+        atomic(run/'run.json',{'version':1,'name':name,'port':port})
+        clean_disks(self,name)
+        try:
+            self.serve(name)
+            manifest=prepare(self,name)
+        finally:
+            self.stop(name)
+        target=self.home/'template'
+        shutil.rmtree(target/'world');copytree(run/'world',target/'world')
+        shutil.copy2(run/'manifest.json',target/'manifest.json')
+        shutil.copy2(run/'fixture-proof.json',target/'fixture-proof.json')
+        return manifest
 
     def discover(self, world):
         names = {1:'server',2:'wall',3:'pocket',4:'miner1',5:'miner2',6:'lumber',9:'storage',10:'probe'}
@@ -222,7 +246,7 @@ class Runtime:
                  'wall':{'from':[-3,64,-1],'to':[-1,65,-1],'size':[3,2]},
                  'mine':{'home':[-5,64,4,'s'],'facing':'south','bottom':48,'length':16,'starts':{cid:{'pos':comps[cid]['pos'],'facing':comps[cid]['facing']} for cid in ('4','5') if cid in comps}},
                  'farm':{'area':[5,5,9,9],'ground':63,'dig_cells':[[x,64,z] for x,z in ((5,5),(9,5),(5,9),(9,9))],'species':'minecraft:oak'},
-                 'forceload':[-16,-64,31,31],'source':'copied saved Gate B snapshot'}
+                 'forceload':[-16,-64,31,31],'prepared':False,'source':'copied saved Gate B snapshot'}
         return validate_manifest(value)
 
     def instrument(self, disk, role):
@@ -238,6 +262,8 @@ class Runtime:
                 raise RuntimeError('Run already exists')
             if not (self.home/'template/manifest.json').exists():
                 raise RuntimeError('Build the template first')
+            manifest=json.loads((self.home/'template/manifest.json').read_text())
+            if not manifest.get('prepared'): raise RuntimeError('Template preparation did not finish')
             copytree(self.home/'template', target)
             port = self.allocate_port(name)
             with (target/'server.properties').open('a') as handle:
@@ -249,7 +275,12 @@ class Runtime:
         run = self.run(name);state=self.state(name)
         with locked(self.home/'locks'/f'{name}.lock'):
             self.ensure_keeper()
-            if name in self.status(): return {'run':name,'pid':self.status()[name],'warm':True}
+            if name in self.status():
+                pid=self.status()[name]
+                log=run/'console.log'
+                if log.exists() and re.search(r'Done \([\d.]+s\)!',log.read_text(errors='replace')):
+                    return {'run':name,'pid':pid,'warm':True}
+                raise RuntimeError('Server exists but has not reached its ready marker')
             fifo=run/'console.fifo'
             fifo.unlink(missing_ok=True);os.mkfifo(fifo,0o600)
             log=run/'console.log'
@@ -410,65 +441,70 @@ class Runtime:
         if mode in ('http','installer'):
             unavailable=[cid for cid,comp in self.manifest(name)['computers'].items() if comp['role'] in ('server','display','worker') and (name not in self.status() or (comp.get('requires_client') and name+':client' not in self.status()))]
             if unavailable: raise RuntimeError('HTTP install needs running computers; connect the client for pockets: '+','.join(unavailable))
-        with locked(self.home/'locks'/f'{name}.lock'):
-            for cid,comp in self.manifest(name)['computers'].items():
-                role=comp['role']
-                if role not in ('server','display','worker'): continue
-                disk=self.computer_disk(name,cid)
-                online=name in self.status() and (not comp.get('requires_client') or name+':client' in self.status())
-                if mode in ('installer','http') and not online:
-                    raise RuntimeError('Normal installer mode needs online computers; connect the client for pockets')
-                if online:
-                    self.request(name,{'op':'power','computer':cid,'action':'off'})
-                    time.sleep(.2)
-                if mode in ('installer','http'):
-                    if not online: raise RuntimeError('Normal installer mode needs an online computer, including a client for pockets')
-                    # Execute the exact installer with a pinned resolver response.
-                    (disk/'gateb-install.lua').write_text((source/'install.lua').read_text())
-                    self.instrument(disk,role)
-                    self.request(name,{'op':'power','computer':cid,'action':'on'})
-                    code='''local old=http.get
-http.get=function(url,...) if url:find('/branches/server%-only$') then
-return {getResponseCode=function() return 200 end,readAll=function() return '{"commit":{"sha":"SHA"}}' end,close=function() end}
-end return old(url,...) end
-local ok,why=pcall(shell.run,'/gateb-install.lua','update');http.get=old
-if not ok then error(why) end
-return true'''.replace('SHA',sha)
-                    if mode=='http': code='return shell.run("/install.lua","update")'
-                    job=self.request(name,{'op':'lua_async','computer':cid,'code':code})['job']
-                    deadline=time.monotonic()+180
-                    while time.monotonic()<deadline:
-                        status=self.request(name,{'op':'lua_job','computer':cid,'job':job})
-                        if status['state'] in ('done','failed'): break
-                        time.sleep(.1)
+        try:
+            with locked(self.home/'locks'/f'{name}.lock'):
+                for cid,comp in self.manifest(name)['computers'].items():
+                    role=comp['role']
+                    if role not in ('server','display','worker'): continue
+                    disk=self.computer_disk(name,cid)
+                    online=name in self.status() and (not comp.get('requires_client') or name+':client' in self.status())
+                    if mode in ('installer','http') and not online:
+                        raise RuntimeError('Normal installer mode needs online computers; connect the client for pockets')
+                    if online:
+                        self.request(name,{'op':'power','computer':cid,'action':'off'})
+                        time.sleep(.2)
+                    if mode in ('installer','http'):
+                        if not online: raise RuntimeError('Normal installer mode needs an online computer, including a client for pockets')
+                        # Execute the exact installer with a pinned resolver response.
+                        (disk/'gateb-install.lua').write_text((source/'install.lua').read_text())
+                        self.instrument(disk,role)
+                        self.request(name,{'op':'power','computer':cid,'action':'on'})
+                        code='''local old=http.get
+    http.get=function(url,...) if url:find('/branches/server%-only$') then
+    return {getResponseCode=function() return 200 end,readAll=function() return '{"commit":{"sha":"SHA"}}' end,close=function() end}
+    end return old(url,...) end
+    local ok,why=pcall(shell.run,'/gateb-install.lua','update');http.get=old
+    if not ok then error(why) end
+    return true'''.replace('SHA',sha)
+                        if mode=='http': code='return shell.run("/install.lua","update")'
+                        job=self.request(name,{'op':'lua_async','computer':cid,'code':code})['job']
+                        deadline=time.monotonic()+180
+                        while time.monotonic()<deadline:
+                            status=self.request(name,{'op':'lua_job','computer':cid,'job':job})
+                            if status['state'] in ('done','failed'): break
+                            time.sleep(.1)
+                        else:
+                            self.request(name,{'op':'lua_cancel','computer':cid,'job':job})
+                            errors.append({'computer':cid,'error':'HTTP installer timed out'})
+                        if status.get('state')=='failed': errors.append({'computer':cid,'error':status.get('error')})
                     else:
-                        self.request(name,{'op':'lua_cancel','computer':cid,'job':job})
-                        errors.append({'computer':cid,'error':'HTTP installer timed out'})
-                    if status.get('state')=='failed': errors.append({'computer':cid,'error':status.get('error')})
-                else:
-                    files=installer_manifest(source,role)
-                    oldfiles=[]
-                    if (disk/'.so-files').exists(): oldfiles=re.findall(r'"([^"]+)"',(disk/'.so-files').read_text())
-                    for rel in oldfiles+[p.name for p in disk.glob('so-mod-*.lua')]:
-                        if rel not in files:
-                            (disk/safe_relative(rel)).unlink(missing_ok=True)
-                    hashes={}
-                    for rel in files:
-                        dest=disk/safe_relative(rel);dest.parent.mkdir(parents=True,exist_ok=True)
-                        shutil.copy2(source/rel,dest);hashes[rel]=hashlib.sha256(dest.read_bytes()).hexdigest()
-                    (disk/'.so-files').write_text('{'+','.join(json.dumps(v) for v in files)+'}')
-                    (disk/'.so-revision').write_text(sha)
+                        if (disk/'.so-old').exists() or (disk/'.so-new').exists():
+                            raise RuntimeError('Recover the interrupted installer before using file-copy mode')
+                        files=installer_manifest(source,role)
+                        oldfiles=[]
+                        if (disk/'.so-files').exists(): oldfiles=re.findall(r'"([^"]+)"',(disk/'.so-files').read_text())
+                        for rel in oldfiles+[p.name for p in disk.glob('so-mod-*.lua')]:
+                            if rel not in files:
+                                (disk/safe_relative(rel)).unlink(missing_ok=True)
+                        hashes={}
+                        for rel in files:
+                            dest=disk/safe_relative(rel);dest.parent.mkdir(parents=True,exist_ok=True)
+                            shutil.copy2(source/rel,dest);hashes[rel]=hashlib.sha256(dest.read_bytes()).hexdigest()
+                        (disk/'.so-files').write_text('{'+','.join(json.dumps(v) for v in files)+'}')
+                        (disk/'.so-revision').write_text(sha)
+                        installed[cid]={'role':role,'files':hashes}
+                    expected=installer_manifest(source,role)
+                    if (disk/'.so-revision').read_text().strip()!=sha:
+                        raise RuntimeError('Installer did not record the requested revision on '+cid)
+                    hashes={rel:hashlib.sha256((disk/rel).read_bytes()).hexdigest() for rel in expected}
+                    if any((disk/rel).read_bytes()!=(source/rel).read_bytes() for rel in expected):
+                        raise RuntimeError('Installed file mismatch on '+cid)
                     installed[cid]={'role':role,'files':hashes}
-                expected=installer_manifest(source,role)
-                if (disk/'.so-revision').read_text().strip()!=sha:
-                    raise RuntimeError('Installer did not record the requested revision on '+cid)
-                hashes={rel:hashlib.sha256((disk/rel).read_bytes()).hexdigest() for rel in expected}
-                if any((disk/rel).read_bytes()!=(source/rel).read_bytes() for rel in expected):
-                    raise RuntimeError('Installed file mismatch on '+cid)
-                installed[cid]={'role':role,'files':hashes}
-                self.instrument(disk,role)
-                if online: self.request(name,{'op':'power','computer':cid,'action':'on'})
-            atomic(self.run(name)/'install.json',{'sha':sha,'mode':mode,'computers':installed,'errors':errors})
+                    self.instrument(disk,role)
+                    if online: self.request(name,{'op':'power','computer':cid,'action':'reboot' if mode in ('http','installer') else 'on'})
+        except (OSError,ValueError,RuntimeError,KeyError) as exc:
+            errors.append({'computer':cid,'error':str(exc)})
+        atomic(self.run(name)/'install.json',{'sha':sha,'mode':mode,'computers':installed,'errors':errors})
         return {'sha':sha,'mode':mode,'computers':list(installed),'errors':errors}
 
     def client_stop(self, name):
