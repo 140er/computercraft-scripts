@@ -78,6 +78,22 @@ the name becomes available to register it. A paired display reconnects directly
 to its saved server ID, even if another server answers discovery. Fresh clients
 still use hostname discovery, so isolate competing networks while pairing.
 
+## Turtle tools
+
+Workers report equipped tool names without moving or digging. Mining readiness
+requires a pickaxe and lumber requires an axe. Missing tools appear in NEEDS YOU.
+Older workers without equipment queries show `tools unknown` and keep working.
+The turtle terminal shows its label, assigned job, current step, fuel and reason.
+
+Automatic swaps default to off. To enable them on a worker, add
+`autoToolSwap=true` to its plain `so-worker.cfg` table and reboot. Keep any existing
+`dim` field. Put one replacement tool in an inventory slot. The worker swaps only
+into an empty side or a side holding a tool, keeping its modem equipped. The old
+tool goes into inventory. A failed swap keeps the old tool and appears in NEEDS YOU;
+retries wait 30 game seconds. Tools stay in inventory during cleanup and unloading.
+Swaps check equipment first, so a replay after reboot does not swap the old tool back.
+Tool durability is not checked.
+
 ## Install and pair
 
 Run this on each machine:

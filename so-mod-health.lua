@@ -48,6 +48,16 @@ local function attention(facts)
   for id, row in pairs(facts.machines or {}) do
     local lease = (facts.leases or {})[tostring(id)] or {}
     local role = owners[tostring(id)] or "mining"
+    local kind = owners[tostring(id)] == "mining" and "pickaxe" or owners[tostring(id)] == "lumber" and "axe"
+    if kind and type(lease.tools) == "table" then
+      local equipped = false
+      for _, name in pairs(lease.tools) do
+        if type(name) == "string" and name:match("_"..kind.."$") then equipped = true end
+      end
+      if not equipped or lease.toolError then
+        add("tool/"..id,2,"T"..id.." "..(lease.toolError or ("needs "..kind)),role,{"setup"})
+      end
+    end
     if lease.uncertain then
       add("pose/"..id,1,"T"..id.." pose uncertain",role,{"setup"})
     elseif lease.lost or ((row.role == "worker" or row.role == "turtle") and facts.now-(row.seen or 0)>180000) then

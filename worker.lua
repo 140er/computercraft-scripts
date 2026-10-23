@@ -167,6 +167,43 @@ W.inv = function()
   return items
 end
 
+W.isTool = function(name)
+  return type(name) == "string" and (name:match("_pickaxe$") or name:match("_axe$")
+    or name:match("_shovel$") or name:match("_hoe$") or name:match("_sword$")) ~= nil
+end
+
+W.tools = function()
+  if type(turtle.getEquippedLeft) ~= "function" or type(turtle.getEquippedRight) ~= "function" then return nil end
+  local left, right = turtle.getEquippedLeft(), turtle.getEquippedRight()
+  return { left = left and left.name or false, right = right and right.name or false }
+end
+
+W.tool = function(step)
+  local tools = W.tools()
+  local kind = step.kind
+  if kind ~= "pickaxe" and kind ~= "axe" then return false, "bad tool" end
+  if not tools then return false, "tools unknown" end
+  for _, name in pairs(tools) do
+    if type(name) == "string" and name:match("_" .. kind .. "$") then return true end
+  end
+  if not W.autoToolSwap then return false, "tool swaps disabled" end
+  local slot
+  for _, item in ipairs(W.inv()) do
+    if item.name:match("_" .. kind .. "$") and item.count == 1 then slot = item.slot break end
+  end
+  if not slot then return false, "needs " .. kind end
+  local side
+  for _, candidate in ipairs({ "left", "right" }) do
+    if tools[candidate] == false or W.isTool(tools[candidate]) then side = candidate break end
+  end
+  if not side then return false, "no tool side free" end
+  local selected = turtle.getSelectedSlot()
+  if not turtle.select(slot) then return false, "tool slot unavailable" end
+  local ok, err = turtle[side == "left" and "equipLeft" or "equipRight"]()
+  turtle.select(selected)
+  return ok, err
+end
+
 W.counts = function()
   local counts = {}
   for slot = 1, 16 do counts[slot] = turtle.getItemCount(slot) end
@@ -234,7 +271,8 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true, setupFence = true },
+    capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap },
+    tools = W.tools(),
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -244,6 +282,7 @@ W.hello = function()
   if type(label) == "string" and #label > 0 then body.label = label end
   if where then body.gps = where end
   W.transmit(W.server, W.proto.build(key, "hello", body))
+  W.lastHello = W.now()
 end
 
 W.beacon = function()
@@ -262,7 +301,8 @@ W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true },
+    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap },
+    tools = W.tools(),
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -294,16 +334,15 @@ W.paint = function()
   local seen = age and (age < 60 and age .. "s ago" or math.floor(age / 60) .. "m ago") or "-"
   term.clear()
   term.setCursorPos(1, 1)
-  term.write("lease " .. (W.lease or "-"))
+  term.write((os.getComputerLabel() or ("turtle " .. os.getComputerID())):sub(1, 32))
   term.setCursorPos(1, 2)
-  term.write("step " .. (W.stepName or "-"))
+  term.write(W.job and (W.job .. " " .. (W.stepName or "idle")) or ("step " .. (W.stepName or "-")))
   term.setCursorPos(1, 3)
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
-  term.write("seen " .. seen)
-  term.setCursorPos(1, 9)
-  term.write("turtle " .. os.getComputerID())
-  term.setCursorPos(1, 10)
+  local width = term.getSize()
+  term.write((W.reason or ("seen " .. seen)):sub(1, width))
+  term.setCursorPos(1, 5)
   term.write(age and age < 60 and ("server " .. W.server .. " ok") or "waiting for server")
   if W.repair then
     term.setCursorPos(1, 6)
@@ -357,7 +396,11 @@ W.accept = function(sender, payload)
   if not W.proto.fresh(msg) then return end
   W.repair, W.codeText, W.pairError = nil, nil, nil
   W.seen = W.now()
-  if msg.t == "worker.anchor" then W.reanchor(msg.body)
+  if msg.t == "worker.status" then
+    if type(msg.body.job) == "string" and type(msg.body.reason) == "string" then
+      W.job, W.reason = msg.body.job:sub(1, 16), msg.body.reason:sub(1, 48)
+    end
+  elseif msg.t == "worker.anchor" then W.reanchor(msg.body)
   elseif msg.t == "lease.batch" then
     local body = msg.body
     if type(body) ~= "table" then return end
@@ -433,6 +476,17 @@ W.exec = function(step)
     local fix = W.gpsFix()
     result.ok, result.data, result.err = fix ~= nil, fix, not fix and "no GPS" or nil
     return result
+  end
+  if op == "tool" then
+    result.ok, result.err = W.tool(step)
+    result.ok = result.ok == true
+    if result.ok then result.err = nil end
+    return result
+  end
+  if op == "equipLeft" or op == "equipRight" then result.err = "use tool step" return result end
+  if op == "discard" or op == "drop" or op == "dropUp" or op == "dropDown" or op == "refuel" then
+    local item = turtle.getItemDetail()
+    if item and W.isTool(item.name) then result.err = "tool kept" return result end
   end
   local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
@@ -518,7 +572,7 @@ W.startBatch = function(msg)
     W.report(results)
     return
   end
-  W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true
+  W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true or body.steps[1].op == "tool"
     or n == 1 and body.steps[1].op == "inspectDown")
   W.mode = "idle"
   local deadline = msg.deadline
@@ -535,9 +589,15 @@ W.startBatch = function(msg)
     local step = body.steps[i]
     local op = "?"
     if type(step) == "table" and type(step.op) == "string" then op = step.op end
-    W.stepName = tostring(i)
+    W.stepName = op
     W.paint()
-    local saved=W.markPending(op)
+    local saved = W.markPending(op)
+    if op == "tool" and not saved then
+      results[i] = {ok=false,err="tool journal save failed",counts=W.counts()}
+      for j = i+1, n do results[j] = {ok=false,err="tool journal save failed",counts=W.counts()} end
+      W.journal.pending = nil
+      break
+    end
     if body.journal ~= nil and not saved then
       W.refuse(results,i,n)
       break
@@ -669,8 +729,8 @@ end
 
 W.onWake = function()
   local now = W.now()
+  if not W.lastHello or now - W.lastHello >= 30000 then W.hello() end
   if W.mode == "idle" then
-    if not W.seen or now - W.seen >= 30000 then W.hello() end
     if W.expires and now >= W.expires then W.enterFast() end
     return
   end
@@ -758,6 +818,8 @@ W.boot = function()
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
   W.store = store
+  local config = store.read("so-worker.cfg")
+  W.autoToolSwap = type(config) == "table" and config.autoToolSwap == true or false
   W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()

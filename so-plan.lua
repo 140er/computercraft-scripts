@@ -202,4 +202,12 @@ function P.missing(checks)
   return missing
 end
 
+function P.toolCheck(tools, kind, id)
+  local known = type(tools) == "table"
+  local equipped = known and ((type(tools.left) == "string" and tools.left:match("_"..kind.."$"))
+    or (type(tools.right) == "string" and tools.right:match("_"..kind.."$")))
+  return {ok=not known or not not equipped, text=(id and ("#"..id.." ") or "")
+    ..(not known and "tools unknown" or equipped and (kind.." ready") or ("needs "..kind))}
+end
+
 return P

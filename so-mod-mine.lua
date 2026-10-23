@@ -516,6 +516,7 @@ end
 plan = function(id,row)
   local status = call("lease", "status", id)
   if not status then return end
+  call("lease", "describe", id, "mine", row.error or row.state or "idle")
   if status.uncertain then
     row.state, row.error = "hold", "pose uncertain: re-add turtle " .. id
     row.laneWait=nil
@@ -527,6 +528,18 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  if type(mod("lease").ensureTool) == "function" then
+    local equipped, reason = call("lease", "ensureTool", id, "pickaxe")
+    if not equipped then
+      row.state, row.error = "hold", reason
+      local current = call("lease", "status", id)
+      if not current or not current.open then park(id,row,false) end
+      return
+    end
+    if row.error and (row.error == "needs pickaxe" or row.error:match("^tool swap failed:")) then
+      row.state, row.error = "stopped", nil
+    end
+  end
   if row.lane and row.lane.release then return end
   if not row.yield and (row.state=="range" or row.state=="hold")
       and (row.lane or M.inLane(job,row.pose)) then beginYield(id,row) save() end
@@ -568,7 +581,8 @@ plan = function(id,row)
       elseif t.kind == "ore" then
         local steps = {}
         for _, item in ipairs(row.inv) do
-          if not M.junk(item) and not unloadKeep[item.name] then
+          if not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
+              and not item.name:match("_shovel$") and not item.name:match("_hoe$") and not item.name:match("_sword$") then
             steps[#steps+1]={op="select",slot=item.slot}
             local drop = call("drops","steps",t.point) or {}
             for _, step in ipairs(drop) do steps[#steps+1]=step end
@@ -666,7 +680,8 @@ plan = function(id,row)
     if not row.goal and last and not M.same(row.pose,last) then row.goal=last end
     if not row.goal then
       for _, item in ipairs(row.inv) do
-        if not M.junk(item) and not unloadKeep[item.name] and P.fuelValue(item.name) == 0 then
+        if not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
+              and not item.name:match("_shovel$") and not item.name:match("_hoe$") and not item.name:match("_sword$") and P.fuelValue(item.name) == 0 then
           if trip(id,row,"ore") then save() plan(id,row)
           else park(id,row,false) end
           return
@@ -731,6 +746,8 @@ local function readiness()
   if #ids==0 then checks[#checks+1]={ok=false,text="fuel missing"} end
   for _,id in ipairs(ids) do
     local row=job.turtles[tostring(id)]
+    local status=call("lease","status",id)
+    checks[#checks+1]=P.toolCheck(status and status.tools,"pickaxe",id)
     local fueled=type(row.fuel)=="number" and row.fuel~=0
     checks[#checks+1]={ok=fueled, text=fueled and ("fuel #"..id.." "..row.fuel) or ("fuel missing #"..id)}
   end

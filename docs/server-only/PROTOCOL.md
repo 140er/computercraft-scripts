@@ -144,6 +144,11 @@ A turtle also sends these fields.
 
 `body.fuel` is a number, or the string `unlimited`.
 
+`body.tools` is optional `{left=string|false,right=string|false}`, with equipped
+item names or false for an empty side. Missing queries on older workers omit it.
+Unknown equipment does not fail readiness. `body.capabilities.autoToolSwap` is
+true only when `so-worker.cfg` has `autoToolSwap=true` at boot.
+
 `body.free` is how many of the 16 slots are empty.
 
 `body.inv` lists the occupied slots. Each entry is `{ slot = number, name = string, count = number }`.
@@ -156,6 +161,12 @@ refuses automatic add and drop coordinates.
 `body.journal` is the turtle's journal. `journal.id` is a string. `journal.seq` is a number. `journal.pose` is `{ x = number, y = number, z = number, f = number }` in the turtle's own frame since boot. `f` is 0 north, 1 east, 2 south, 3 west. `journal.moves` is the last 32 completed moves, oldest first. Each move is `{ n = number, op = string, ok = true }`. `op` is `forward`, `back`, `up`, `down`, `turnLeft`, or `turnRight`. `journal.dug` is the last 32 cells this turtle dug. Each entry is `{ x = number, y = number, z = number }`. `journal.pending` is optional. It is `{ n = number, op = string, lease = string }` when a step was started and not finished.
 
 The server answers `ack`.
+
+### worker.status
+
+The server sends authenticated `{job=string,reason=string}` to a paired worker.
+It supplies the assigned job and current planner reason for the turtle terminal.
+It is read-only and does not alter a lease or journal. The worker clips both fields.
 
 ### ack
 
@@ -179,7 +190,15 @@ The server sends `lease.batch` to a turtle.
 
 A step is a table.
 
-`op` is one of `discard`, `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
+`op` is one of `tool`, `discard`, `forward`, `back`, `up`, `down`, `turnLeft`, `turnRight`, `dig`, `digUp`, `digDown`, `place`, `placeUp`, `placeDown`, `suck`, `suckUp`, `suckDown`, `drop`, `dropUp`, `dropDown`, `refuel`, `select`, `inspect`, `inspectUp`, `inspectDown`.
+
+`tool` takes `kind="pickaxe"` or `kind="axe"`. It first checks whether the tool
+is equipped, making retry after reboot idempotent. Changes require worker opt-in,
+a single replacement item, and an empty or tool side. It never replaces a modem.
+The old upgrade returns to inventory through the native equip call; a rejected
+swap leaves it equipped. Tool steps save pending journal facts before equipping.
+Direct `equipLeft` and `equipRight` ops are refused. Drop, discard and refuel ops
+refuse a selected tool so spare and displaced tools remain onboard.
 
 `slot` is optional. It is an integer from 1 to 16. `select` uses it. Other ops use the already selected slot.
 
@@ -211,6 +230,10 @@ An adjacent inventory always refuses discard, even if inspection reports air.
 Occupied or uncertain cells return a failed result and keep the items.
 
 ### step.report
+
+Updated workers include `body.tools` and `body.capabilities.autoToolSwap` as in
+hello. The lease module keeps equipment facts in memory and exposes a failed
+swap through `status(id).toolError` until the required tool is equipped.
 
 The turtle sends `step.report` to the server.
 
