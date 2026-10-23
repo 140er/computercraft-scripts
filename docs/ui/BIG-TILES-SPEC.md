@@ -469,7 +469,7 @@ Lumber, room monitor  (57x24)
         🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
          🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
         🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
-  of 4 spots                            chest empty      
+  of 4 spots                                             
                                                          
                                                          
                                                          

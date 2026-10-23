@@ -204,14 +204,15 @@ return function(test,equal)
     s.env.SO.store.store=function(path)
       if path=='so-data/lumber/job' then
         jobs[path]={dim='minecraft:overworld',spots={},running=false,ground=64,
-          area={x1=0,z1=0,x2=4,z2=4},turtle={id=4},inv={}}
+          area={x1=0,z1=0,x2=4,z2=4},turtle={id=4},fuel=4000,saplings={x=-10,y=64,z=0,side='down'},inv={}}
       end
       return {value=jobs[path],save=function(value) jobs[path]=value;saves[path]=(saves[path] or 0)+1;return true end}
     end
     s.env.SO.mods.state={canStart=function() return true end}
     jobs["so-data/mine/job"]={home={x=0,y=64,z=0,facing=0},homeSet=true,
-      dim="minecraft:overworld",bottom=-58,length=48,mode="thorough",ores={},turtles={},progress={done=0,nextBranch=1}}
-    s.env.SO.mods.lease={onReport=function() end}
+      dim="minecraft:overworld",bottom=-58,length=48,mode="thorough",ores={},turtles={["3"]={pose={x=0,y=64,z=0},fuel=4000}},progress={done=0,nextBranch=1}}
+    s.env.SO.mods.lease={onReport=function() end,status=function() return {open="park"} end}
+    s.env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=64,z=0,kind="any"}} end}
     local mine=assert(loadfile('so-mod-mine.lua','t',s.env))()
     local lumber=assert(loadfile('so-mod-lumber.lua','t',s.env))()
     s.env.SO.mods.mine=mine;s.env.SO.mods.lumber=lumber

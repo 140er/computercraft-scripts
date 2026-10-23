@@ -2,10 +2,11 @@ local R = dofile('tests/ui/render.lua')
 local H = dofile('tests/so/harness.lua')
 local function screen(job, noDaily)
   local s = {saved=0, released=0, events={}, persisted=H.encode(job)}
-  local env = setmetatable({SO={now=function() return 1000000 end,mods={},store={store=function()
+  local env = setmetatable({SO={pair={key=function() return "paired" end},now=function() return 1000000 end,mods={},store={store=function()
     return {value=job,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.os = {epoch=function() return 1000000 end}
+  env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=0,z=0,kind="any"}} end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
   if not noDaily then env.SO.mods.daily={today=function() return {logs=96} end} end
   env.SO.mods.lease={status=function() return {} end}
@@ -23,7 +24,7 @@ local function job()
   return {dim='minecraft:overworld',spots={a={},b={},c={plantedAt=900000},d={plantedAt=950000}},
     running=true,phase='felling',logs=96,fuel=1210,inv={},nextRound=1380000,
     alert='out of saplings: replanting paused',turtle={id=4},
-    area={x1=0,z1=0,x2=4,z2=4},ground=64}
+    area={x1=0,z1=0,x2=4,z2=4},ground=64,saplings={x=1,y=65,z=1,side='down'}}
 end
 local function capture(frame,w,h)
   local out=R.capture(w,h)
@@ -65,7 +66,7 @@ return function(test,equal)
     end
     s.input({id='setup'});local frame=s.render(57,24)
     local text=table.concat(capture(frame,57,24).picture().text,'\n')
-    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS -','TURTLE 4','area x1 z1 x2 z2 ground','saplings x y z front|down','add id x y z n|e|s|w'}) do assert(text:find(part,1,true),part) end
+    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS 1,65,1','TURTLE 4','paired turtle ready'}) do assert(text:find(part,1,true),part) end
     equal(frame.buttons[#frame.buttons].id,'lumber-back')
     s.input({id='lumber-back'});equal(s.render(57,24).buttons[2].id,'start')
     s.input({id='setup'})
@@ -88,7 +89,7 @@ return function(test,equal)
         equal(tapped.saved-before,typed.saved-typedBefore)
         assert(tapped.saved-before<=1)
       end
-      if not configured then equal(a.alert,'configure area and turtle') end
+      if not configured then equal(a.alert,'area not set') end
     end
   end)
   test('UI2b navigation and unknown taps leave alerts events and saved jobs unchanged',function()
@@ -119,6 +120,7 @@ return function(test,equal)
       cmd('add 2 0 65 0 '..facing);equal(j.turtle.pose.facing,n)
     end
     equal(s.released,4)
+    j.fuel=1210
     cmd('start');equal(j.running,true);equal(j.alert,nil)
     cmd('stop');s.state.pending={}
     cmd('area 0 0 1 1 64','stop before configuring');cmd('add 2 0 65 0 n','stop before configuring')
@@ -128,7 +130,7 @@ return function(test,equal)
     for _,text in ipairs({'add -1 0 65 0 n','add 2 0 65 0 up','add 2 x 65 0 n'}) do cmd(text,'invalid turtle') end
     for _,text in ipairs({'','wat','start extra','stop extra','area 0','saplings 0','add 0'}) do cmd(text,'invalid command') end
     for _,missing in ipairs({'area','turtle','ground'}) do
-      local bad=job();bad[missing]=nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,'configure area and turtle')
+      local bad=job();bad[missing]=nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing; fuel missing')
     end
   end)
   test('UI2b gather keeps missing timers and daily counters stale',function()

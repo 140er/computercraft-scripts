@@ -1,0 +1,3 @@
+range-batch: escape requires fuel for the return and keeps only the occupied cell
+PASS range-batch retreat keeps fuel for its return
+1 passed, 0 failed, 0 skipped checks

@@ -175,7 +175,7 @@ return function(test, equal)
     run(g, function(v) return delivered(v)==16 end)
     local alerts=0
     for _, ev in ipairs(g.events) do
-      if ev.kind=="lumber.alert" and ev.data.text=="out of saplings" then alerts=alerts+1 end
+      if ev.kind=="lumber.alert" and ev.data.reason=="empty" then alerts=alerts+1 end
     end
     equal(alerts,1)
     for _, spot in ipairs(TREES) do equal(g.net.world[spot[1]..",1,"..spot[2]],nil) end

@@ -4,10 +4,11 @@ local function setup()
     turtles={},progress={done=3,nextBranch=8},dim='minecraft:overworld',running=false}
   local render,input,saves
   saves=0
-  local env=setmetatable({os=setmetatable({epoch=function() return 0 end},{__index=os}),SO={now=function() return 0 end,mods={state={canStart=function() return true end},lease={onReport=function() end,status=function() return {} end,
+  local env=setmetatable({os=setmetatable({epoch=function() return 0 end},{__index=os}),SO={pair={key=function() return "paired" end},now=function() return 0 end,mods={drops={list=function() return {{id="ready",dim=0,x=100000,y=0,z=0,kind="any"}} end},state={canStart=function() return true end},lease={onReport=function() end,status=function() return {} end,
     send=function() return 'park' end},cells={reserve=function() return true end,releaseOwner=function() end},
     display={screen=function(_,r,i) render,input=r,i end}},store={store=function()
       return {value=job,save=function() saves=saves+1 return true end} end}}},{__index=_G})
+  job.turtles["9"]={pose={x=10,y=64,z=0,facing=0},fuel=4000,state="stopped"}
   local mine=assert(loadfile('so-mod-mine.lua','t',env))();mine.tick()
   local layout,gather
   for i=1,20 do local name,value=debug.getupvalue(render,i)

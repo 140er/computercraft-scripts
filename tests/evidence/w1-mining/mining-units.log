@@ -1,0 +1,9 @@
+PASS mining refuses start without its disk guard or configured home
+PASS uncertain workers cannot receive a mining batch
+PASS radio range refusal sends only a stationary park
+PASS a completed branch is counted once when recovery revisits it
+PASS disk failure stops a mining job
+PASS retirement refuses recovery and protects a confirmed worker pose
+PASS expired reports keep the worker in recovery
+PASS single mode continues assigning beyond the default continuous budget
+8 passed, 0 failed, 0 skipped checks

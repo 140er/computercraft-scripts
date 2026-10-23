@@ -193,6 +193,8 @@ home <x> <y> <z> <n|e|s|w>
 bottom <y>
 length <n>
 mode thorough|fast
+branches <n>
+continuous on|off
 ores diamond,iron,...
 add <id> <x> <y> <z> <n|e|s|w>
 remove <id>
@@ -201,9 +203,21 @@ stop
 ```
 
 `home` sets the chest-side position and is required before the first `start`.
+`start` requires an ore drop, a fuel drop, an added paired turtle with a
+reported pose and fuel, and the existing disk guard. Broken drops do not pass.
+SETUP shows each missing item in red. A home stays unset until `home` is sent.
 `bottom` sets the shaft bottom.
 Branch length defaults to 64 blocks. `thorough` inspects walls, while `fast`
-uses faster branches. `ores` selects the supported ore names and accepts spaces
+uses faster branches. `branches <n>` enables continuous mining and sets the
+whole job's branch budget from 1 to 4096. The default budget is eight.
+`continuous off` keeps the existing one-branch-per-worker behavior and is the
+default for new and saved jobs. `continuous on` uses the saved budget.
+Completed miners unload, count their branch once, return through its junction
+and take the next unassigned branch. They park when the budget is assigned.
+Assignments, return routes and counts survive restarts. `stop` pauses after the
+current batch and preserves the remaining work. Increasing `branches` and
+starting again lets finished miners continue.
+`ores` selects the supported ore names and accepts spaces
 around commas, such as `ores diamond, iron`.
 `add` anchors a paired worker at its world position and facing.
 `remove` can cancel a stationary recovery or park inspection and releases the
@@ -223,6 +237,9 @@ start
 stop
 ```
 
+`start` requires farm bounds and soil height, wood and fuel drops, a configured
+sapling chest, an added paired turtle with reported fuel, and the disk guard.
+SETUP lists missing items in red and configured items in green.
 `area` sets farm bounds and soil height. `saplings` sets the sapling chest's own
 coordinates. With `front`, the planner chooses the nearest eligible cell beside
 the chest at the same height and faces the turtle towards it to take saplings.
@@ -231,7 +248,7 @@ Leave these access cells clear. The planner excludes cells at or below soil
 height, known obstacles, chest cells and planted spots at soil height plus one.
 Distance is Manhattan distance from the turtle's current position. Ties use
 north, east, south, west order. If no eligible cell remains, the turtle holds
-with `no access to saplings chest`.
+with a named `saplings #<id> unreachable` alert.
 
 `add` anchors one paired worker with an axe. To replace it, stop work and wait
 for its lease to report. If `add` says it is parking the old turtle, wait for
@@ -248,6 +265,9 @@ matching drop point or adds a `storage` point to that editor. Remove unused old
 sapling points there after changing the coordinates.
 Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
+Chest alerts distinguish unconfigured, broken, unreachable, full and empty
+containers. Alerts name the point and coordinates. Full and empty require an
+inspection of a chest, barrel or shulker box and a failed item transfer.
 The screen shows work state, deliveries, saplings, spots, fuel and alerts.
 Three failed moves or digs stop work and emit an alert for the screen and AR.
 Fix the obstruction or tool, then type `start`. Other holds also show this

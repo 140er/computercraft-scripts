@@ -154,4 +154,52 @@ function P.free(inv)
   return n
 end
 
+function P.chestPresent(result)
+  local block=result and result.ok and result.data
+  if type(block)~="table" or type(block.name)~="string" then return false end
+  return block.name:find("chest",1,true) ~= nil or block.name:find("barrel",1,true) ~= nil
+    or block.name:find("shulker_box",1,true) ~= nil
+    or (block.tags and (block.tags["c:chests"] or block.tags["forge:chests"])) == true
+end
+
+function P.transferFailure(kind, result)
+  local err=type(result.err)=="string" and result.err:lower() or "failed"
+  if err=="no space for items" then return (kind=="ore" or kind=="wood") and "full" or "inventory full" end
+  if err=="no items to take" then return "empty" end
+  if err=="failed" then return (kind=="ore" or kind=="wood") and "full" or "empty" end
+  return err
+end
+
+function P.chestError(kind, reason, point)
+  if not point then return "no " .. kind .. " chest set" end
+  if point.id and #tostring(point.id)>8 then
+    return kind .. " " .. reason .. " " .. point.x .. "," .. point.y .. "," .. point.z .. " #" .. point.id
+  end
+  return kind .. (point.id and (" #" .. point.id) or " chest") .. " " .. reason .. " at " .. point.x .. "," .. point.y .. "," .. point.z
+end
+
+function P.chestCheck(points, kind, near)
+  local best, broken, distance, brokenDistance
+  for _, point in ipairs(points or {}) do
+    if point.dim == near.dim and (point.kind == kind or point.kind == "any") then
+      local d = math.abs(point.x-near.x) + math.abs(point.y-near.y) + math.abs(point.z-near.z)
+      if point.broken then
+        if not broken or d < brokenDistance then broken, brokenDistance = point, d end
+      elseif not best or point.kind==kind and best.kind~=kind
+          or point.kind==best.kind and (d < distance or d==distance and point.id<best.id) then
+        best, distance = point, d
+      end
+    end
+  end
+  local point = best or broken
+  return {ok=best ~= nil, text=point and P.chestError(kind, best and "ready" or "broken", point)
+    or "no " .. kind .. " chest set"}
+end
+
+function P.missing(checks)
+  local missing = {}
+  for _, check in ipairs(checks) do if not check.ok then missing[#missing+1] = check.text end end
+  return missing
+end
+
 return P

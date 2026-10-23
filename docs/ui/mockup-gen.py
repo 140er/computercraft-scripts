@@ -152,7 +152,7 @@ add(c, "Mining, room monitor")
 
 # --- Lumber, M
 c = Canvas(57, 24); c.header("LUMBER", "running")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","","d"),("SAPLINGS","0","chest empty","e")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","","d"),("SAPLINGS","0","","e")]):
     c.tile(x, 3, w, lab, val, sub, bg)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","","b")]):
     c.tile(x, 11, w, lab, val, sub, bg)

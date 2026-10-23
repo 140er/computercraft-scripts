@@ -85,7 +85,10 @@ and listeners use `listener(sender, message)`.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
   `replay(startPose, steps, results)`, `path(from, to, opts)`, `chunk(steps, n)`,
-  `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)` and `free(inv)`.
+  `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)`, `free(inv)`,
+  `chestPresent(result)`, `transferFailure(kind, result)`, `chestError(kind, reason, point)`,
+  `chestCheck(points, kind, near)` and `missing(checks)`.
+  `chestCheck` returns `{ok,text}` without writes. `missing` returns unmet text in order.
   `rangeBatch` returns the longest prefix within range of complete `action.actions`,
   rebuilding its steps, cells and final pose. It returns the original action when
   all cells fit, or nil when no complete action fits. Atomic actions stay whole.
@@ -213,6 +216,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
   `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
   `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
+  `pick` also returns `reason = "none"|"broken"` and `failedPoint` when no point is usable.
+  `drops.alert` includes the reason and named point with its coordinates.
   Points use the chest's own coordinates. `front` accesses it from beside it
   at the same height; `down` accesses it from directly above.
   Handler `drops.edit` edits points. Tick registers the generic screen.
@@ -342,7 +347,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
   `mapView()` returns copied geometry fields and worker poses/states for the map.
-  New jobs require `home` before `start`; saved homes remain configured. Ore
+  `start` requires home, usable ore and fuel points, an added paired worker and
+  reported fuel. SETUP shows compact state-coloured readiness rows.
+  Saved homes remain configured. `branches <n>` enables continuous mining with a
+  job budget of 1..4096 branches, default eight. `continuous` defaults off.
+  A returning worker saves its next claim as `{branch,junction}` before retreating
+  through the shared lane. Branch claims and counted completions survive restart. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
   lease through `lease.cancelPark`, releasing the lane and reservations. Stale
   lane waiters lose their place when they leave the queue. Completed routes
@@ -687,7 +697,7 @@ Optional machine settings enable inventory drops, fluid handling, action time, d
 listing, monitor size and server wait observations. Existing defaults stay the
 same. SO11 treats every handler, listener or tick wait as a check 7 failure.
 `SO.breathe()` does not count as a wait.
-SO11 scenario B uses length-48 mining branches and grown trees, cuts inside a server call at the first observed instant after 240 seconds with three open work leases, then checks four minutes of recovery after two minutes down, including lane exclusion and exactly-once interrupted dug reports.
+SO11 scenario B uses length-48 mining branches and grown trees, cuts inside a server call at the first observed instant after 240 seconds with three open work leases and a dig in flight, then checks four minutes of recovery after two minutes down, including lane exclusion and exactly-once interrupted dug reports.
 
 Add a suite as `tests/so/<name>.lua` and append this block at the very end of
 `tests/run.lua`. Change nothing above it:

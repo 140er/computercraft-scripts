@@ -24,12 +24,40 @@ S.emit = function(kind, value)
   local state = S.module("state")
   if type(state.emit) == "function" then state.emit(kind, value) end
 end
-S.alert = function(text)
+S.alert = function(text, point, reason)
   if S.job.alert ~= text then
     S.job.alert = text
-    S.emit("lumber.alert", { text = text })
+    S.emit("lumber.alert", { text = text, point = point, reason = reason })
     S.save()
   end
+end
+S.chestAlert = function(kind, reason, point)
+  S.alert(P.chestError(kind, reason, point), point, reason)
+end
+S.readiness = function()
+  local j = S.job
+  local checks = {{ok=j.area ~= nil,text=j.area and "area ready" or "area not set"},{ok=j.ground ~= nil,text=j.ground and ("ground "..j.ground) or "ground not set"}}
+  local drops, lease = S.module("drops"), S.module("lease")
+  local points = type(drops.list)=="function" and drops.list() or {}
+  local dim = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[j.dim]
+  local p = j.turtle and j.turtle.pose or {x=0,y=j.ground or 0,z=0}
+  local near = {dim=dim,x=p.x,y=p.y,z=p.z}
+  for _,kind in ipairs({"wood","fuel"}) do checks[#checks+1]=P.chestCheck(points,kind,near) end
+  local saplings
+  for _,point in ipairs(points) do
+    if j.saplings and point.dim==dim and point.x==j.saplings.x and point.y==j.saplings.y
+        and point.z==j.saplings.z and point.side==j.saplings.side then saplings=point break end
+  end
+  checks[#checks+1]={ok=j.saplings ~= nil and not (saplings and saplings.broken),
+    text=not j.saplings and "no saplings chest set" or saplings and saplings.broken
+      and P.chestError("saplings","broken",saplings) or "saplings chest ready"}
+  local id=j.turtle and j.turtle.id
+  local status=id and type(lease.status)=="function" and lease.status(id)
+  local paired=id ~= nil and SO.pair and SO.pair.key(id) ~= nil and status and not status.uncertain and not status.lost
+  checks[#checks+1]={ok=paired, text=paired and "paired turtle ready" or "paired turtle missing"}
+  local fueled=id ~= nil and type(j.fuel)=="number" and j.fuel~=0
+  checks[#checks+1]={ok=fueled,text=fueled and ("fuel "..j.fuel) or "fuel missing"}
+  return checks
 end
 S.count = function(predicate)
   local n = 0
@@ -227,7 +255,7 @@ S.saplingPoint = function(point)
   if drops.add(saved) then return saved end
 end
 S.noteChest = function(point, result)
-  local name = result and result.ok and type(result.data) == "table" and result.data.name or nil
+  local name = P.chestPresent(result) and result.data.name or nil
   local drops = S.module("drops")
   if point and point.id and type(drops.note) == "function" then drops.note(point.id, name) end
   return type(name) == "string" and name ~= ""
@@ -242,7 +270,7 @@ S.service = function(kind, resume)
       local saved = S.saplingPoint(point)
       if not saved or saved.broken then
         j.blocked = "hold"
-        S.alert("hold saplings chest; fix drop point and start")
+        S.chestAlert("saplings", saved and "broken" or "unavailable", saved or point)
         return false
       end
       point = { id = saved.id, dim = j.dim, x = point.x, y = point.y, z = point.z, side = point.side }
@@ -252,7 +280,12 @@ S.service = function(kind, resume)
     local near = { dim = ({ ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1,
       ["minecraft:the_end"] = 1 })[j.dim], x = j.turtle.pose.x, y = j.turtle.pose.y, z = j.turtle.pose.z }
     local picked = near.dim ~= nil and type(drops.pick) == "function" and drops.pick(kind, near)
-    point = picked and picked.point
+    if not picked or not picked.point then
+      j.blocked = "hold"
+      S.chestAlert(kind, picked and picked.reason or "none", picked and picked.failedPoint)
+      return false
+    end
+    point = picked.point
     if point then
       point = { id = point.id, dim = j.dim, x = point.x, y = point.y, z = point.z, side = point.side, kind = point.kind }
     end
@@ -260,10 +293,10 @@ S.service = function(kind, resume)
   if not point then
     if kind == "saplings" then
       j.noSaplings = true
-      S.alert("out of saplings")
+      S.chestAlert("saplings", "none")
     else
       j.blocked = "hold"
-      S.alert("hold " .. kind .. "; fix chest, then start")
+      S.chestAlert(kind, "none")
     end
     return false
   end
@@ -454,7 +487,7 @@ S.report = function(id, turtleId, results, lease)
         j.service.stage = "take"
       else
         j.blocked = "hold"
-        S.alert("hold " .. j.service.kind .. " chest; fix chest and start")
+        S.chestAlert(j.service.kind, "broken", j.service.point)
       end
     end
   elseif action == "suck" then
@@ -467,18 +500,19 @@ S.report = function(id, turtleId, results, lease)
         service.stage = "check"
       else
         j.noSaplings = true
-        S.alert("out of saplings")
+        S.chestAlert("saplings", ok and "wrong saplings; inventory full" or P.transferFailure("saplings",result), service.point)
         service.stage = "return"
       end
     elseif service then
-      service.stage = "refuel"
+      if not ok then j.blocked="fuel" S.chestAlert("fuel",P.transferFailure("fuel",result),service.point)
+      else service.stage = "refuel" end
     end
   elseif action == "refuel" then
     if j.service then
-      if not ok then j.blocked = "fuel" S.alert("no usable fuel") else j.service.stage = "return" end
+      if not ok then j.blocked = "fuel" S.chestAlert("fuel", "no usable fuel", j.service.point) else j.service.stage = "return" end
     end
   elseif action == "junk" then
-    if not ok then j.blocked = "hold" S.alert("junk drop failed; fix chest, then start") end
+    if not ok then j.blocked = "hold" S.chestAlert("wood", inspected and P.transferFailure("wood",result) or "broken", j.service.point) end
   elseif type(action) == "table" and action.kind == "drop" then
     local after = S.count(function(name) return name:match("_log$") ~= nil end)
     local count = math.max(0, action.before - after)
@@ -487,7 +521,7 @@ S.report = function(id, turtleId, results, lease)
       S.emit("lumber.logs", { id = turtleId, count = count })
     elseif not ok or not inspected then
       j.blocked = "hold"
-      S.alert("hold wood; fix chest and start")
+      S.chestAlert("wood", inspected and P.transferFailure("wood",result) or "broken", j.service.point)
     end
   end
   if not S.pending then S.release() end
@@ -500,7 +534,7 @@ S.workService = function()
     local saved = S.saplingPoint(service.point)
     if not saved or saved.broken then
       j.blocked = "hold"
-      S.alert("hold saplings chest; fix drop point and start")
+      S.chestAlert("saplings", saved and "broken" or "unavailable", saved or service.point)
       return
     end
     service.point.id = saved.id
@@ -510,7 +544,7 @@ S.workService = function()
       service.access = L.access(service.point, j.turtle.pose, S.occupied)
       if not service.access then
         j.blocked = "hold"
-        S.alert("no access to " .. service.kind .. " chest")
+        S.chestAlert(service.kind, "unreachable", service.point)
         return
       end
       S.save()
@@ -527,7 +561,7 @@ S.workService = function()
     if not slot then
       if service.kind == "saplings" then
         j.noSaplings, service.stage = true, "return"
-        S.alert("out of saplings")
+        S.alert("inventory full")
       else
         j.blocked = "full"
         S.alert("inventory full")
@@ -556,7 +590,7 @@ S.workService = function()
     })
   elseif service.stage == "refuel" then
     local item = S.slot(function(name) return P.fuelValue(name) > 0 end)
-    if not item then j.blocked = "fuel" S.alert("no usable fuel") return end
+    if not item then j.blocked = "fuel" S.chestAlert("fuel", "no usable fuel", service.point) return end
     S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = item.count } }, "refuel")
   elseif service.stage == "return" then
     if service.back and not S.move(service.back) then return end
@@ -647,10 +681,12 @@ S.input = function(ev)
     local state = S.module("state")
     local ok, err = false, "disk guard unavailable"
     if type(state.canStart) == "function" then ok, err = state.canStart() end
-    if not ok then S.admission = err return end
+    if not ok then S.admission = err S.emit("lumber.alert",{text=err}) return end
     S.admission = nil
-    if not j.area or not j.turtle or not j.ground then S.alert("configure area and turtle") return end
+    local missing=P.missing(S.readiness())
+    if #missing>0 then S.alert(table.concat(missing,"; ")) return end
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
+    if type(state.get)=="function" and state.get("lumber.alert") then S.emit("lumber.alert",false) end
     S.recover = true
   elseif words[1] == "area" and #words == 6 then
     if j.running or S.pending then S.alert("stop before configuring") return end
@@ -744,16 +780,16 @@ S.gather = function()
   return {
     state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
     alert = S.admission or j.alert, setup = S.setup, setupPage = S.setupPage,
+    readiness = S.readiness(),
     details = {
       "AREA " .. (j.area and (j.area.x1 .. "," .. j.area.z1 .. " to " .. j.area.x2 .. "," .. j.area.z2) or "-"),
       "GROUND " .. tostring(j.ground or "-"), "SAPLINGS " .. point(j.saplings),
       "TURTLE " .. (j.turtle and (j.turtle.id .. " at " .. point(j.turtle.pose)) or "-"),
-      "area x1 z1 x2 z2 ground", "saplings x y z front|down", "add id x y z n|e|s|w",
     },
     tiles = {
       {"TREES READY", tostring(ready), "of " .. known .. " spots", "d"},
       {"LOGS TODAY", today and tostring(today.logs) or "-", today and "" or "no daily source", today and "d" or "c"},
-      {"SAPLINGS", tostring(saplings), saplings == 0 and "chest empty" or "carried", saplings == 0 and "e" or "d"},
+      {"SAPLINGS", tostring(saplings), "", saplings == 0 and "e" or "d"},
       {"TURTLE", j.turtle and tostring(j.turtle.id) or "-", j.phase or "-", j.turtle and "d" or "c"},
       {"FUEL", tostring(j.fuel or "-"), type(j.fuel) == "number" and (j.fuel < 80 and "low" or "ok") or "no source", j.fuel and (type(j.fuel) == "number" and j.fuel < 80 and "1" or "d") or "c"},
       {"NEXT GROW", grow, seconds and "" or "no timer", seconds and "b" or "c"},
@@ -765,22 +801,26 @@ S.layout = function(model, w, h)
   local U = S.ui
   local C = U.canvas(w, h)
   C.header("LUMBER", model.state)
-  C.alert(model.alert and ("! " .. model.alert))
   local compact = w < 39 or h < 20
   local navRows = w < 26 and 2 or 1
   local bottom = compact and math.max(1, h - navRows + 1) or h - 3
   if model.setup then
     local lines = {}
+    for _, check in ipairs(model.readiness) do lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"} end
     for _, line in ipairs(model.details) do
       for first = 1, #line, math.max(1, w - 2) do
-        lines[#lines + 1] = line:sub(first, first + math.max(1, w - 2) - 1)
+        lines[#lines + 1] = {text=line:sub(first, first + math.max(1, w - 2) - 1),bg="f"}
       end
     end
     local count = math.max(1, bottom - 3)
     local pages = math.ceil(#lines / count)
     local offset = ((model.setupPage or 0) % math.max(1, pages)) * count
     for i = 1, count do
-      if lines[offset + i] and i + 2 < bottom then C.put(2, i + 2, lines[offset + i], "0", "f") end
+      if lines[offset + i] and i + 2 < bottom then
+        local line=lines[offset+i]
+        C.fill(1,i+2,w,1,line.bg)
+        C.put(2,i+2,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+      end
     end
     local left = 1
     if pages > 1 then
@@ -814,6 +854,11 @@ S.layout = function(model, w, h)
       local y = bottom + (w < 26 and math.floor((i - 1) / 2) or 0)
       C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
     end
+  end
+  if not model.setup then
+    local count=#C.buttons
+    C.alert(model.alert and ((compact and "" or "! ") .. model.alert))
+    if #C.buttons>count then table.insert(C.buttons,1,table.remove(C.buttons)) end
   end
   return C.frame()
 end

@@ -456,9 +456,8 @@ Lease records, callbacks, beacon journals, and observed ranges live in memory. A
 
 `so-mod-mine.lua` plans work for paired workers. It starts stopped. Its job lives in
 `so-data/mine/job` through `so-store`. The job contains `dim`, `home`, `bottom`,
-`length`, `mode`, `ores`, `turtles`, and `progress`. `home` is the chest side of
-the shaft. The shaft is one block forward from it. Each turtle gets one branch
-at the bottom level. Branch junctions are four blocks apart in `thorough` mode
+`length`, `branches`, `continuous`, `mode`, `ores`, `turtles`, and `progress`. `home` is the chest side of
+the shaft. The shaft is one block forward from it. Each turtle gets a branch at the bottom level. Branch junctions are four blocks apart in `thorough` mode
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
 New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
@@ -480,7 +479,12 @@ commands through that screen's `input.text`:
 - `remove <id>` removes a worker after its lease closes or cancels its stationary
   recovery or park inspection. It releases the worker's lane and reservations.
   Movement and digging leases still prevent removal.
-- `start` checks the disk guard before requiring a configured `home`. Existing saved homes remain configured.
+- `branches <n>` sets a job budget of 1..4096 branches and enables continuous mining.
+  `continuous on|off` changes that flag. Its default is off; the budget defaults to eight.
+- `start` checks the disk guard, home, usable ore and fuel drop points, at least one
+  added paired worker without an uncertain or lost pose, and a nonzero reported fuel
+  value for every added worker. Refusal emits `mine.alert {text, missing}` with an
+  ordered list. Existing saved homes remain configured.
   `stop` lets an already sent batch finish. A valid command clears the prior command error.
 
 Adding a worker sends a recovery park lease. Startup also sends each saved worker
@@ -589,8 +593,11 @@ numeric dimensions map to `minecraft:overworld` as 0, `minecraft:the_nether` as
 After three failed transfers at the same drop, the worker parks and retries
 once per 60000 ms. Failed drop inspections call `drops.note(id, nil)` once each.
 The first exhausted retry emits `mine.alert { id, text }`, where text is
-`ore chest full` or `fuel chest empty`, and the screen shows that error.
-No usable drop point uses the same retry policy and retains the drop hold text.
+`ore #<point> full at x,y,z` or `fuel #<point> empty at x,y,z` after an inspected
+container reports a failed transfer. Unconfigured points report `no <kind> chest set`.
+Broken points and unreachable access cells report their cause, id and coordinates
+immediately. Alerts include `reason` and `point` alongside `id` and `text`.
+Only item-transfer failures use the three-attempt threshold.
 A successful transfer clears the retry state. Saved turtle rows use
 `dropRetry = { key, tries, alerted, after }`, where `after` is a game-clock deadline in ms.
 Each retry after the threshold sets a new one-minute deadline without repeating
@@ -602,6 +609,12 @@ The module emits `mine.ore` with `{ id, name, count }` and `mine.progress` with
 branch as `counted`, so recovery after a restart or a finished row re-entering
 `done` does not count it again. Rows saved before `counted` existed take their
 branch as counted when they load in state `done`.
+In continuous mode a finished worker claims the next branch before returning to its
+old junction. `returning = {branch, junction}` saves that claim with the old route.
+The planner reserves the shared pass through the old junction to the new branch,
+then replaces the route at the junction. `progress.nextBranch` counts all claims,
+including returns in flight, and cannot exceed the budget. At the budget workers
+park at branch ends. A higher budget followed by `start` reopens finished workers.
 `so-mine-plan.lua` owns the pure movement decisions, geometry, ore recognition,
 and inventory rules. Its `next(job, row, lookup, inventory, fuel)` returns a batch
 description without network, storage, or server calls. `row.pose` and `row.goal`
@@ -906,6 +919,14 @@ screens use compact controls. The pairing handshake and job planning are unchang
 
 ### lumber
 
+`start` checks the disk guard, configured area and ground height, usable wood and
+fuel drops, a configured unbroken sapling chest, an added paired worker without
+an uncertain or lost pose, and reported nonzero fuel. Refusals name every missing
+item in order. Empty sapling chests still permit felling after start.
+SETUP uses compact red and green readiness rows. Chest alerts use the mining
+cause format and include the drop point and reason in `lumber.alert`.
+
+
 `SO.mods.lumber` plans a tree farm for one paired worker with an axe. It is stopped until the operator configures it and sends `start`. It uses `so-plan.lua` and the pure helpers in `so-lumber-plan.lua`.
 
 The `lumber` display accepts these text commands:
@@ -923,7 +944,7 @@ Ties use north, east, south, west order. For `down`, the only candidate is
 The lumber caller excludes cells at or below soil height, known obstacles,
 chest cells and planted spots at soil height plus one. Keep access cells clear;
 these checks use the planner's known state. If no eligible cell remains,
-the turtle holds with `no access to saplings chest`.
+the turtle holds with a named `saplings #<id> unreachable at x,y,z` alert.
 
 The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
@@ -951,7 +972,7 @@ Idle park expiry still needs the worker fix that prevents journal backup.
 
 Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
 
-An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "out of saplings" }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. The wood chest also receives sticks, apples, leaves and excess saplings. The turtle keeps one sapling per known spot of that species, with at least one for the current tree. Inventory pressure also interrupts harvesting to unload. Round-end unloading includes junk even without logs. A failed junk drop holds and raises an alert.
+An empty sapling chest disables replanting while felling continues. It emits `lumber.alert` with `{ text = "saplings #<id> empty at x,y,z", reason = "empty", point }` once. Wood goes to `drops.pick("wood", pose)` using `drops.steps(point)` after each round or when fewer than three inventory slots remain. The wood chest also receives sticks, apples, leaves and excess saplings. The turtle keeps one sapling per known spot of that species, with at least one for the current tree. Inventory pressure also interrupts harvesting to unload. Round-end unloading includes junk even without logs. A failed junk drop holds and raises an alert.
 
 Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
 
@@ -982,7 +1003,10 @@ id `status`. Calls without dimensions retain the legacy rows. Successful deliver
 
 SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
-`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension and fewer than 3 inspect failures. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `alert` is `drops: hold <kind>`. That call also emits `drops.alert` with `{ kind, text }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
+`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension and fewer than 3 inspect failures. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
+matching points have three inspection strikes. `failedPoint` identifies the nearest
+broken point. The alert names the kind, cause and point coordinates. That call also
+emits `drops.alert` with `{ kind, text, reason, point }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
 `drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken }`. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
 
@@ -1102,6 +1126,13 @@ The layers do not draw item icons.
 Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It does not use `SO`, rednet, waits, or storage. Facing is 0 north, 1 east, 2 south, and 3 west. North decreases z and east increases x.
 
 `P.frame(worldPose, journalPose)` anchors a journal frame at a known world pose. World poses use `{ dim, x, y, z, facing }` and journal poses use `{ x, y, z, f }`. The frame is `{ dim, rot, ox, oy, oz }`. `rot` is the clockwise quarter-turn count. `P.toWorld(frame, journalPose)` converts to a world pose. `P.toJournal(frame, worldPose)` is its inverse.
+
+`P.chestPresent(result)` recognizes inspected chests, barrels and shulker boxes.
+`P.transferFailure(kind, result)` keeps explicit transfer errors such as `no inventory`.
+`P.chestError(kind, reason, point)` formats a named chest cause with coordinates.
+For ids longer than eight characters, cause and coordinates precede the full id.
+`P.chestCheck(points, kind, near)` reads same-dimension points and returns `{ok,text}`.
+`P.missing(checks)` returns every unmet text in order. These helpers write no state.
 
 `P.ahead(pose, dir)` returns the x, y, z of the cell `forward`, `back`, `up`, or `down`. `P.apply(pose, op)` returns a new pose after a move or turn. Other operations leave the pose unchanged. Both accept world or journal poses and preserve the facing field convention. `P.replay(startPose, steps, results)` applies only operations with a corresponding successful result.
 
