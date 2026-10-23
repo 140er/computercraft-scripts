@@ -689,6 +689,10 @@ dofile("tests/ui/build-nav.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
 
+dofile("tests/so/log-perf.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
+
 dofile("tests/so/pair2.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
