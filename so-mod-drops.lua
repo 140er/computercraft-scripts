@@ -779,7 +779,7 @@ S.layout = function(model, w, h)
     C.listRow(i-first+4, text, p.fails >= 3 and 'e' or 'd')
     C.hit('select:'..p.id, 1, i-first+4, w, 1)
   end
-  if model.setupActions then C.button(math.max(1,w-12),2,8,"TEST","testing","9",1) end
+  if model.setupActions and w>=26 then C.button(w-12,2,8,"TEST","testing","9",1) end
   if pages > 1 then
     C.button(1, actionY-1, math.floor(w/2), "PREV", "prev", '7', 1)
     C.button(math.floor(w/2)+1, actionY-1, w-math.floor(w/2), "NEXT", "next", '7', 1)
