@@ -870,18 +870,20 @@ end
 
 S.mapView = function()
   local j = S.job
-  local spots, now = {}, SO.now()
+  local spots, now, grow = {}, SO.now(), nil
   for key, spot in pairs(j.spots) do
     if #spots >= 512 then break end
     local x, z = key:match("^(%-?%d+),(%-?%d+)$")
     if x then
-      spots[#spots + 1] = { x = tonumber(x), z = tonumber(z),
-        ready = (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 }
+      local left = (spot.plantedAt or 0) == 0 and 0 or 600000 - (now - spot.plantedAt)
+      spots[#spots + 1] = { x = tonumber(x), z = tonumber(z), ready = left <= 0 }
+      if left > 0 and (not grow or left < grow) then grow = left end
     end
   end
   table.sort(spots, function(a, b) return a.x < b.x or a.x == b.x and a.z < b.z end)
   return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),spots=spots,
-    turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),
+    running=j.running,grow=grow,
+    turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),phase=j.phase,
       state=j.blocked or (j.running and "lumber" or "idle")}}
 end
 return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }

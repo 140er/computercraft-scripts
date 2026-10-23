@@ -83,7 +83,10 @@ local function walk(s, equal, id, w, h, role)
     local f = s.get(id)
     equal(f.role, expected, "role changed at " .. w .. "x" .. h)
     equal(s.saved(id), saved, "saved role changed at " .. w .. "x" .. h)
-    local page = ((f.rows[2] and f.rows[2].text or "") .. "  "):match("^%s*(.-)%s%s") or ""
+    -- Route A screens name the page in row 1 before a hairline; Big Tiles headers sit in row 2.
+    local head = f.rows[1] and f.rows[1].text or ""
+    local row = head:find("%-%-%-") and head or (f.rows[2] and f.rows[2].text or "")
+    local page = (row .. "  "):match("^%s*(.-)%s%s") or ""
     pages[page] = true
     local pick
     for _, b in ipairs(f.buttons) do
@@ -134,7 +137,8 @@ return function(test, equal)
         for page in pairs(pages) do reached[page] = true end
       end
     end
-    for _, page in ipairs({"FLEET", "STATUS", "PANEL", "MINING", "MINING SETUP", "LUMBER", "SHOP",
+    -- Status is STATUS at every size since route A; the pocket's FLEET tab is in tests/ui/r3pocket.lua.
+    for _, page in ipairs({"STATUS", "PANEL", "MINING", "MINING SETUP", "LUMBER", "SHOP",
         "SHOP >", "SHOP A-Z", "DROP POINTS", "ADD DROP POINT", "AR GOGGLES", "MAP", "UNASSIGNED"}) do
       local found = false
       for name in pairs(reached) do found = found or name:sub(1, #page) == page end
@@ -295,9 +299,8 @@ return function(test, equal)
     equal(frame(3, 57, 24).role, "mining")
     local old = frame(4, 26, 19)
     equal(old.role, "pocket")
-    local found = {}
-    for _, b in ipairs(old.buttons) do found[b.id] = b.y end
-    assert(found.alerts and found.alerts <= 19, "26x19 pockets keep their fleet rows")
+    equal(#old.rows, 19)
+    assert(old.rows[1].text:find("^ FLEET"), "26x19 pockets keep the fleet page")
     equal({d.assign(2, "panel")}, {true, "display 2: panel"})
     equal(frame(2, 26, 20).role, "panel")
     d, frame = boot()

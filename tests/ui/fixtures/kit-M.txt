@@ -1,0 +1,73 @@
+57x24 Route A kit primitives
+ MINING   overview   setup  -------------------- running 
+                                                         
+ SECTION --------------- 5   +------------------------+  
+ ore ·················· 214  |                        |  
+ fuel ················· 412  | |  |  +--+  ---+    |  |  
+ |||·······                  | |  |  |  |     |    |  |  
+ |||||||··· 7/10             | +--+  +--+  +--+    |  |  
+ ♠♠♠♠♠♠♠♠♣♣ 9/12             |    |  |  |  |       |  |  
+                             |    |  +--+  +---    |  |  
+  plain   primary   stop   mu|ed   on   off           |  
+                             +------------------------+  
+    START          STOP                                  
+                                                         
+ ! #6 lost 184,-58,-369                                  
+                                                         
+ +--+   |  ---+ ---+ |  | +--- +--- ---+ +--+ +--+       
+ |  |   |     |    | |  | |    |       | |  | |  |       
+ |  |   |  +--+ ---+ +--+ +--+ +--+    | +--+ +--+       
+ |  |   |  |       |    |    | |  |    | |  |    |       
+ +--+   |  +--- ---+    | ---+ +--+    | +--+ ---+       
+                                                         
+ ------------------------------------------------------- 
+ ► ◄ ▲ ▼ • × ♠ ♣ º ¦ · @                                 
+ ▲ ► • 3 min                                             
+0000000000000000000088888880cccccccccccccccccccc0ddddddd0
+000000000000000000000000000000000000000000000000000000000
+088888880ccccccccccccccc08000eeeeeeeeeeeeeeeeeeeeeeeeee00
+08880cccccccccccccccccc000000e000000000000000000000000e00
+088880ccccccccccccccccc011100e000000000000000000000000e00
+03338888888000000000000000000e000000000000000000000000e00
+03333333888000000000000000000e000000000000000000000000e00
+0dddddddd88000000000000000000e000000000000000000000000e00
+00000000000000000000000000000e000000000000000000000000e00
+0000000009999999990eeeeee0888e8880ffff0888880000000000e00
+00000000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeee00
+099999999999900eeeeeeeeeeee000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+0e0000000008888888888880000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+033330003003333033330300303333033330333303333033330000000
+030030003000003000030300303000030000000303003030030000000
+030030003003333033330333303333033330000303333033330000000
+030030003003000000030000300003030030000303003000030000000
+033330003003333033330000303333033330000303333033330000000
+000000000000000000000000000000000000000000000000000000000
+0ccccccccccccccccccccccccccccccccccccccccccccccccccccccc0
+0d010e0b000e0d0809030b09000000000000000000000000000000000
+011111111111000000000000000000000000000000000000000000000
+fffffffff7777777777ffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777f777777777f777777f7777777f9999fffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777777777777ff777777777777ffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

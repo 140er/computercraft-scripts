@@ -1,35 +1,54 @@
-51x19 Status, terminal
+51x19 Status, 51x19 terminal size
+ STATUS  ----------------------------------- 21:14 
                                                    
- STATUS                                      21:14 
- ! ore chest full (drop 3)                         
+ ! #6 lost 184,-58,-369 · 3 min                    
+ ! drop 3 junk broken                              
                                                    
-  TURTLES     DISPLAYS     DISK         ALERTS     
-     🬋🬋🬏          🬵        🬞🬓 🬋🬋🬏🬹 🬏       🬞🬓      
-     🬇🬋🬐         🬳🬷🬏        ▌ 🬇🬋🬐🬞🬅         ▌      
-     🬋🬋🬀          🬉        🬇🬌 🬋🬋🬀🬀🬉🬄       🬇🬌      
-  3 ok, 0 l   all fresh    2.1 of 16    ore chest  
+ TURTLES -------------------------------------- 5  
+ ► 2  mining     b8    160,-373                    
+ ► 3  wait lane  b9    142,-377                    
+ ▼ 4  unload     lane  120,-352                    
+ ► 6  lost       b7    184,-369                    
+ ► 5  felling    farm  101,-347                    
                                                    
+ JOBS -------------------------------------------  
+ mining  running  |||||||··· 7/10                  
+ lumber  running  ♠♠♠♠♠♠♠♠♣♣ 9/12                  
                                                    
- LOG                                               
-                                                   
-                                                   
-                                                   
-                                                   
-                                                   
-                                                   
-                                                   
+ TODAY ----------------    SERVER ---------------  
+ ore ··············· 214   disk ||···········  13% 
+ logs ··············· 96   leases ·············· 3 
+000000000ccccccccccccccccccccccccccccccccccc0888880
+000000000000000000000000000000000000000000000000000
+0e0000000008888888888888888888800000000000000000000
+0e0000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccccc0800
+0d0000000000000008800008888888800000000000000000000
+010000111111111008800008888888800000000000000000000
+0d0000000000000008888008888888800000000000000000000
+0e0000eeee0000000880000eeeeeeee00000000000000000000
+0d0000000000000008888008888888800000000000000000000
+000000000000000000000000000000000000000000000000000
+088880ccccccccccccccccccccccccccccccccccccccccccc00
+000000000ddddddd00333333388800000000000000000000000
+000000000ddddddd00dddddddd8800000000000000000000000
+000000000000000000000000000000000000000000000000000
+0888880cccccccccccccccc00008888880ccccccccccccccc00
+08880ccccccccccccccc0000000888803388888888888000000
+088880ccccccccccccccc0000008888880cccccccccccccc000
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777f
-feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
-fdddddddddddfddddddddddddfddddddddddddfeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff

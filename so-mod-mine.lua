@@ -867,10 +867,12 @@ local function forgetDug(paths)
 end
 local function mapView()
   local view = {dim=job.dim,home=SO.store.copy(job.home),homeSet=job.homeSet,bottom=job.bottom,
-    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={}}
+    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={},
+    running=job.running,done=job.progress.done or 0}
   for id,row in pairs(job.turtles) do
     view.branches=math.max(view.branches,(row.branch or 0)+1)
-    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim}
+    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim,
+      branch=row.branch,lane=row.lane~=nil,ores=row.ores or 0}
   end
   return view
 end

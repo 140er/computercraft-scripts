@@ -1,3 +1,5 @@
+Superseded by [SCHEMATIC-SPEC.md](SCHEMATIC-SPEC.md) (route A); kept for the screens not ported yet and for history.
+
 # Big Tiles (direction B): build spec for server-only-ui
 
 Base: `server-only-ui` at 9b06d2f. This replaces section B of the design doc. Every mockup below was

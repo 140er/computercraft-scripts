@@ -6,6 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
+  budget = 15000,
   order = { "status", "pocket", "mining", "lumber", "shop", "generic", "ar", "panel", "map" },
   known = {},
   box = nil,
@@ -112,19 +113,20 @@ D.far = function(id, on)
 end
 
 D.palette = U and U.palette or {
-  [0] = 0xF2F4F8, 0xFFC24B, 0xE57FD8, 0x99B2F2,
-  0xDEDE6C, 0x7FCC19, 0xF2B2CC, 0x1F2B45,
-  0x8A97B5, 0x2DD4BF, 0xB69CFF, 0x5AB0FF,
-  0x4A5468, 0x3DDC84, 0xFF6B5E, 0x0E1626,
+  [0] = 0xE6EAF2, 0xFFC24B, 0xE57FD8, 0x9DB0D2,
+  0xDEDE6C, 0x7FCC19, 0xF2B2CC, 0x18223A,
+  0x7886A3, 0x2DD4BF, 0xB69CFF, 0x5AB0FF,
+  0x28344D, 0x3DDC84, 0xFF6B5E, 0x0B111C,
 }
 
+-- A blank cell's fg never shows, so a space joins the previous run whatever its fg.
 D.compact = function(row)
   local runs = {}
   for x = 1, #row.text do
     local fg = #row.fg == 1 and row.fg or row.fg:sub(x, x)
     local bg = #row.bg == 1 and row.bg or row.bg:sub(x, x)
     local last = runs[#runs]
-    if last and last[2] == fg and last[3] == bg then last[1] = last[1] + 1
+    if last and last[3] == bg and (last[2] == fg or row.text:byte(x) == 32) then last[1] = last[1] + 1
     else runs[#runs + 1] = { 1, fg, bg } end
   end
   local compact = { text = row.text:gsub(" +$", ""), runs = runs }
@@ -402,10 +404,139 @@ D.gather = function()
       chips=chips(tostring(#points),"d",broken,"broken","1")},
     {label="PAIR",value="",sub="press P on server",bg="9"},
   }
+  if D.drawsStatus() then D.facts(model, machines, points, today, capacity, free) end
   model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
   return model
+end
+
+-- The route A facts cost a mapView of each job; gather them only while a display shows status.
+D.drawsStatus = function()
+  if D.monitor and D.localRole() == "status" then return true end
+  for id, session in pairs(D.sessions) do
+    local role = session.w and D.roleOf(id)
+    if role == "status" or role == "pocket" then return true end
+  end
+  return false
+end
+
+D.call = function(name, fn, ...)
+  local mod = SO.mods[name]
+  if type(mod) ~= "table" or type(mod[fn]) ~= "function" then return end
+  local ok, got = pcall(mod[fn], ...)
+  if ok then return got end
+end
+
+D.phases = { scan = "scanning", base = "felling", climb = "felling", descend = "felling",
+  plant = "planting", plantPlace = "planting" }
+
+-- Turtle rows for route A status: mining first, then lumber, then the rest, each by id.
+D.turtles = function(model, machines, mine, wood)
+  local now, jobs, list = D.now(), {}, {}
+  for id, row in pairs(mine and mine.turtles or {}) do jobs[tostring(id)] = { 0, row } end
+  if wood and wood.turtle then jobs[tostring(wood.turtle.id)] = { 1, wood.turtle } end
+  local busy, workers, lane = 0, 0, nil
+  for id, machine in pairs(machines or {}) do
+    if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
+      local job = jobs[tostring(id)] or { 2, {} }
+      local row, status = job[2], D.call("lease", "status", tonumber(id)) or {}
+      local pose = row.pose or machine.pose or {}
+      local word = tostring(row.state or "idle")
+      if job[1] == 1 and word == "lumber" then word = D.phases[row.phase] or "working" end
+      if status.lost then word = "lost" end
+      local t = { id = tonumber(id) or id, order = job[1], facing = pose.facing, state = word, tone = U.tone(word),
+        where = job[1] == 1 and "farm" or row.lane and "lane" or row.branch and "b" .. (row.branch + 1) or "-",
+        x = pose.x, y = pose.y, z = pose.z, fuel = machine.fuel, ore = row.ores or 0,
+        ago = math.max(0, now - (machine.seen or now)), lost = status.lost and true or false }
+      list[#list + 1] = t
+      if job[1] == 0 then
+        workers = workers + 1
+        if t.tone == "d" then busy = busy + 1 end
+        if row.lane then lane = t end
+      end
+    end
+  end
+  table.sort(list, function(a, b)
+    if a.order ~= b.order then return a.order < b.order end
+    local x, y = tonumber(a.id), tonumber(b.id)
+    if x and y then return x < y end
+    return tostring(a.id) < tostring(b.id)
+  end)
+  model.turtles = list
+  if mine then
+    model.mining = { state = mine.running and "running" or "stopped", done = mine.done or 0, total = mine.branches or 0,
+      busy = busy, workers = workers, lane = lane }
+  end
+end
+
+-- Route A status facts beside the tiles (docs/server-only/PROTOCOL.md#display).
+D.facts = function(model, machines, points, today, capacity, free)
+  local now, mine, wood = D.now(), D.call("mine", "mapView"), D.call("lumber", "mapView")
+  local started = type(SO.terminal) == "table" and SO.terminal.started
+  local up = started and math.floor((now - started) / 60000)
+  model.server = { id = D.self() or "?", up = up and string.format("%dh%02d", math.floor(up / 60), up % 60) or "-" }
+  D.turtles(model, machines, mine, wood)
+  if wood then
+    local ready, spots, state = 0, wood.spots or {}, wood.turtle and wood.turtle.state
+    for _, spot in ipairs(spots) do if spot.ready then ready = ready + 1 end end
+    local grow = wood.grow and math.floor(wood.grow / 1000)
+    model.lumber = { ready = ready, spots = #spots, grow = grow and string.format("%d:%02d", math.floor(grow / 60), grow % 60),
+      state = not wood.running and "stopped" or (state and state ~= "lumber" and state ~= "idle") and state or "running" }
+  end
+  local flags = {}
+  for _, t in ipairs(model.turtles) do
+    if t.lost then
+      flags[#flags + 1] = { text = "#" .. t.id .. " lost", short = U.age(t.ago),
+        detail = (t.x and (t.x .. "," .. t.y .. "," .. t.z .. " " .. U.g.dot .. " ") or "") .. U.age(t.ago, true) }
+    end
+  end
+  for i = #model.alerts, 1, -1 do flags[#flags + 1] = { text = model.alerts[i].text, detail = model.alerts[i].detail } end
+  model.drops = {}
+  for i, p in ipairs(points) do
+    local d = { id = p.id or i, kind = tostring(p.kind or "drop"), x = p.x or 0, y = p.y or 0, z = p.z or 0, broken = p.broken and true or false }
+    model.drops[i] = d
+    if d.broken then flags[#flags + 1] = { text = "drop " .. d.id .. " " .. d.kind .. " broken", brief = "drop " .. d.id .. " broken" } end
+  end
+  model.flags = flags
+  if today then
+    local names = {}
+    for name, count in pairs(today.oreByName or {}) do
+      names[#names + 1] = { (name:gsub("^.-:", ""):gsub("^deepslate_", ""):gsub("^raw_", ""):gsub("_ore$", "")), count }
+    end
+    table.sort(names, function(a, b) return a[2] > b[2] or a[2] == b[2] and a[1] < b[1] end)
+    model.today = { ore = today.ore or 0, logs = today.logs or 0, recent = today.oreRecent or 0, names = names }
+  end
+  if type(capacity) == "number" and capacity > 0 and type(free) == "number" then
+    model.disk = { used = capacity - free, cap = capacity }
+  end
+  local leases = 0
+  for _, t in ipairs(model.turtles) do
+    local status = D.call("lease", "status", tonumber(t.id)) or {}
+    if status.open then leases = leases + 1 end
+  end
+  model.leases = leases
+  model.displays = {}
+  for _, row in ipairs(D.listing()) do
+    local session = D.sessions[row.id]
+    if row.size ~= "-" then
+      model.displays[#model.displays + 1] = { id = row.id, role = row.role, size = row.size,
+        ago = session and session.sent and math.max(0, now - session.sent) or 0 }
+    end
+  end
+  model.events = {}
+  local log = type(SO.terminal) == "table" and type(SO.terminal.log) == "table" and SO.terminal.log or {}
+  -- Pairing codes reach the terminal log but belong only to the terminal and the asking pocket.
+  for i = #log, math.max(1, #log - 39), -1 do
+    if #model.events >= 10 then break end
+    local time, text = tostring(log[i]):match("^(%d%d:%d%d:%d%d) (.*)$")
+    if not time then time, text = "", tostring(log[i]) end
+    if not text:lower():find("pair code", 1, true) then
+      model.events[#model.events + 1] = { time = time, text = text, tone = U.mark(text) }
+    end
+  end
+  local map = SO.mods.map
+  model.thumb = type(map) == "table" and type(map.thumb) == "function" and map.thumb or nil
 end
 
 D.legacyStatus = function()
@@ -474,7 +605,14 @@ D.statusFrame = function(session, w, h, now, pocket)
   local copy = {}
   for k, v in pairs(model) do copy[k] = v end
   copy.page = session.page or 0
-  return U.status(copy, w, pocket and w == 26 and 20 or h)
+  copy.name = pocket and "FLEET" or nil
+  local frame = U.status(copy, w, pocket and w == 26 and 20 or h)
+  -- Big walls with many rows can pass the 16 KB frame limit; redraw them with fewer rows.
+  if w * h > 4000 and #SO.proto.ser(D.fit(frame, w, h)) > D.budget then
+    copy.tight = true
+    frame = U.status(copy, w, h)
+  end
+  return frame
 end
 
 D.hello = function(msg)

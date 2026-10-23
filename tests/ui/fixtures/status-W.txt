@@ -1,0 +1,115 @@
+100x38 Status, wall 100x38 at scale 0.5
+ STATUS  ------------------------------------------------------------------------ server #1 · 21:14 
+                                                                                                    
+ ! #6 lost 184,-58,-369 · 3 min                          |        10 ······················         
+ ! drop 3 junk broken                                    |           ¦       3                      
+                                                         |         9 +------►··············         
+ TURTLES ------------------------------------------- 5   |           |             2                
+                       position        fuel   ore  seen  |         8 +------------►········         
+ ► 2  mining     b8    160,-58,-373     812    14  now   |           |                     6        
+ ► 3  wait lane  b9    142,-58,-377     640     9  now   |         7 +--------------------►         
+ ▼ 4  unload     lane  120,-58,-352     590    31  now   |           |         ·                    
+ ► 6  lost       b7    184,-58,-369     412    22  3m    |         6 +---------------------         
+ ► 5  felling    farm  101,65,-347     1210     0  now   |           |                              
+                                                         |         5 +---------------------         
+ JOBS ------------------------------------------------   |           |               ··             
+ mining  running  |||||||··· 7/10  busy 2/4  lane ▼4     |         4 +---------------------         
+ lumber  running  ♠♠♠♠♠♠♠♠♣♣ 9/12  grow 6:20             |           |                              
+                                                         |   +---+  4▼---------------------         
+ TODAY -------------------    SERVER -----------------   |   ♠♠♣♠|   |    ·                         
+ ore ·················· 214   disk |········· 2.1/16 MB  |   | 5 •   +---------------------         
+ iron ·················· 88   leases ················ 3  |   ♠►♠♣|   |              ·               
+ coal ·················· 61   displays ·············· 4  |   ♠♣♠♠•   +---------------------         
+ logs ·················· 96   up ················· 3h12  |   |   |   |                              
+ ore 10 min ··········· +12                              |   +---+---º                              
+                                                         |         +----                            
+ DROPS --------------------------------------------- 5   |  server@ ••×junk                         
+ • 1  ore       117,64,-337   ok                         |                                          
+ • 2  fuel      120,64,-337   ok                         |                                          
+ × 3  junk      123,64,-337   broken                     |                                          
+ • 4  wood      110,64,-344   ok                         |                                          
+ • 5  saplings  110,64,-348   ok                         | DISPLAYS ---------------------------- 4  
+                                                         |  7  status  57x24    now                 
+ EVENTS ----------------------------------------------   |  8  status  100x38   now                 
+ 21:14:11 • #3 waits for the lane                        |  9  map     57x24    now                 
+ 21:14:05 • drop 3 junk: chest missing                   | 10  pocket  26x20    now                 
+ 21:14:02 • #2 reported 14 ore                           |                                          
+ 21:13:40 • #6 lease expired, lane released              |                                          
+ 21:12:30 • 16 IRON INGOT sent                           |                                          
+                                                                                                    
+000000000cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0888888888888888880
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0e0000000008888888888888888888800000000000000000000000000c00000000880b888888888888888888888000000000
+0e0000000000000000000000000000000000000000000000000000000c00000000000b000000010000000000000000000000
+000000000000000000000000000000000000000000000000000000000c00000000080b3333331b8888888888888000000000
+088888880ccccccccccccccccccccccccccccccccccccccccccc08000c00000000000b0000000000000d0000000000000000
+000000000000000000000008888888800000000888800088800888800c00000000080b333333333333db8888888000000000
+0d0000000000000008800000000000000000000000000000000888000c00000000000b000000000000000000000e00000000
+010000111111111008800000000000000000000000000000000888000c00000000080b33333333333333333333e000000000
+0d0000000000000008888000000000000000000000000000000888000c00000000000b000000000300000000000000000000
+0e0000eeee00000008800000000000000000001111100000000ee0000c00000000080b333333333333333333333000000000
+0d0000000000000008888000000000000000000000000000000888000c00000000000b000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000c00000000080b333333333333333333333000000000
+088880cccccccccccccccccccccccccccccccccccccccccccccccc000c00000000000b000000000000000330000000000000
+000000000ddddddd0033333338880000000888888880088880bb00000c00000000080b333333333333333333333000000000
+000000000ddddddd00dddddddd8800000008888888880000000000000c00000000000b000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000c000ccccc00dd333333333333333333333000000000
+0888880ccccccccccccccccccc00008888880ccccccccccccccccc000c000dd8dc000b000030000000000000000000000000
+08880cccccccccccccccccc0000000888803888888888000000000000c000c0d00000b333333333333333333333000000000
+088880cccccccccccccccccc0000008888880cccccccccccccccc0000c000ddd8c000b000000000000003000000000000000
+088880cccccccccccccccccc000000888888880cccccccccccccc0000c000d8dd0000b333333333333333333333000000000
+088880cccccccccccccccccc000000880ccccccccccccccccc0000000c000c000c000b000000000000000000000000000000
+088888888880ccccccccccc0000000000000000000000000000000000c000ccccc3339000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000c000000000333330000000000000000000000000000
+0888880ccccccccccccccccccccccccccccccccccccccccccccc08000c008888889000eeeee0000000000000000000000000
+000000000000000088888888888000880000000000000000000000000c000000000000000000000000000000000000000000
+000000000000000088888888888000880000000000000000000000000c000000000000000000000000000000000000000000
+0e0e00eeee00000088888888888000eeeeee000000000000000000000c000000000000000000000000000000000000000000
+000000000000000088888888888000880000000000000000000000000c000000000000000000000000000000000000000000
+000000000000000088888888888000880000000000000000000000000c0888888880cccccccccccccccccccccccccccc0800
+000000000000000000000000000000000000000000000000000000000c000000000000088888000088800000000000000000
+08888880cccccccccccccccccccccccccccccccccccccccccccccc000c000000000000088888800088800000000000000000
+088888888010000000000000000000000000000000000000000000000c000000000000088888000088800000000000000000
+0888888880e0000000000000000000000000000000000000000000000c000000000000088888000088800000000000000000
+088888888080000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000
+0888888880e0000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

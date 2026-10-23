@@ -207,8 +207,8 @@ return function(test, equal)
     assert(restarted.far(2, false))
     equal(again(57, 24).scale, 0.5)
     assert(restarted.far(0, true))
-    equal(display.palette[0], 0xF2F4F8)
-    equal(display.palette[15], 0x0E1626)
+    equal(display.palette[0], 0xE6EAF2)
+    equal(display.palette[15], 0x0B111C)
     display.screen("status", function() return { rows = {}, palette = display.palette,
       buttons = { { id = "buy", x = 1, y = 2, w = 3, h = 3 } } } end)
     local body = frame(8, 3)
@@ -334,7 +334,8 @@ return function(test, equal)
     local section = spec:match("\n(Status, room monitor.-)\n\n\n### 7%.2")
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
-    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
+    -- Status moved to docs/ui/schematic (tests/ui/s0.lua checks those fixtures).
+    local names = "panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

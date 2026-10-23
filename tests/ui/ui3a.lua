@@ -172,7 +172,7 @@ return function(test,equal)
     s.monitor.setTextScale=function(scale) equal(scale,0.5) end
     s.now=4999;s.display.tick(s.now);equal(s.finds,1)
     s.now=5000;s.display.tick(s.now);equal(s.finds,2)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
     local U=dofile("so-ui.lua")
     local inputs=0
     s.display.screen("mining",function(w,h)
@@ -181,7 +181,7 @@ return function(test,equal)
       return c.frame()
     end,function() inputs=inputs+1 end)
     for y=1,24,3 do for x=1,57,7 do s.display.monitorTouch("left",x,y) end;s.now=s.now+100;s.display.tick(s.now) end
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
     s.allowSave=true
     equal({s.display.assign(1,"mining")},{true,"display 1: mining"})
     s.now=6000;s.display.tick(s.now)
@@ -189,7 +189,7 @@ return function(test,equal)
     s.display.monitorTouch("left",1,22);s.now=7000;s.display.tick(s.now)
     assert(s.monitor.picture().text[2]:find("MINING",1,true));equal(inputs,1)
     assert(s.display.assign(1,"-"));s.now=8000;s.display.tick(s.now)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
     s.monitor=nil;s.now=10000;s.display.tick(s.now)
   end)
 end
