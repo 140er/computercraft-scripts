@@ -419,15 +419,22 @@ Only an empty report from that output chest triggers an order. The server orders
 64 `minecraft:charcoal`, or 64 `minecraft:coal` when charcoal stock is below 64.
 It requires stock less than 30 seconds old. A saved ten-minute cooldown covers
 the physical chest across workers, point aliases and server restarts. The server
-saves the cooldown before sending. A power cut at that boundary can skip an
-order until the cooldown ends. It cannot send the same order again on restart.
+saves the cooldown and outstanding order before sending. Only one fuel order
+can be outstanding. A matching delivery or refusal, or a worker observing usable
+fuel at that output, ends the wait. The cooldown, acknowledgements, configuration
+changes and restarts never replace a waiting order. A power cut before send can
+leave it waiting; `delivery unconfirmed` stays in attention until it is resolved.
 
 Missing storage, stale stock, low stock, refused orders, failed sends and policy
 save failures appear in NEEDS attention. An acknowledgement is not delivery.
 After two minutes without an explicit delivery reply or a successful worker
-pickup, attention shows `delivery unconfirmed`. Mining retries its fuel trip
-on its normal schedule. Lumber retries an empty fuel chest once a minute while
-this policy is on. Turning it off leaves the normal manual fuel hold in place.
+pickup of usable fuel, attention shows `delivery unconfirmed`. Mining retries
+its fuel trip on its normal schedule. Lumber retries once a minute while this
+policy is on. It temporarily retains non-fuel pickups in tracked slots while
+searching for fuel, then returns them to the output before refueling. Job cargo
+stays in its original slots. These pickup records survive restart. A full
+inventory or failed return stays in attention and keeps its retry. Turning auto
+off leaves the normal manual fuel hold in place.
 
 ### Room input sinks
 

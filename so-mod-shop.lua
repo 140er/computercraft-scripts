@@ -86,12 +86,13 @@ S.fuelSave = function(nextPolicy)
   end
   return ok, err
 end
-S.fuelAlert = function(reason, point)
+S.fuelAlert = function(reason, point, failed)
   reason = tostring(reason):sub(1,160)
   local text = "Fuel " .. reason .. " #" .. tostring(point and point.id or "output"):sub(1,64)
-  if S.fuel.alert and S.fuel.alert.text == text then return end
+  if S.fuel.alert and S.fuel.alert.text == text and not (failed and S.fuel.waiting) then return end
   local nextPolicy = SO.store.copy(S.fuel)
   nextPolicy.alert = {reason=reason,text=text,point=point}
+  if failed then nextPolicy.waiting = nil end
   S.fuelSave(nextPolicy)
   local state = SO.mods.state
   if state and state.emit then state.emit("shop.alert", nextPolicy.alert) end
@@ -109,11 +110,14 @@ S.fuelConfig = function(auto, output)
     if not picked then return false, "fuel output point missing or broken" end
     nextPolicy.output = picked
   end
-  nextPolicy.alert, nextPolicy.waiting = nil, nil
+  if not nextPolicy.waiting then nextPolicy.alert = nil end
   return S.fuelSave(nextPolicy)
 end
-S.fuelAvailable = function(point)
-  if S.fuelKey(point) ~= S.fuelKey(S.fuel.output) then return end
+S.fuelAvailable = function(point, orderRid)
+  local waiting = S.fuel.waiting
+  if orderRid ~= nil and (waiting and waiting.rid ~= orderRid or not waiting and orderRid ~= false) then return end
+  local expected = S.fuel.waiting and S.fuel.waiting.point or S.fuel.output
+  if S.fuelKey(point) ~= S.fuelKey(expected) then return end
   if not S.fuel.waiting and not S.fuel.alert then return end
   local nextPolicy = SO.store.copy(S.fuel)
   nextPolicy.waiting, nextPolicy.alert = nil, nil
@@ -124,6 +128,7 @@ S.fuelEmpty = function(point)
   if not S.fuel.output then S.fuelAlert("output not set", point) return false end
   local key, now = S.fuelKey(point), SO.now()
   if key ~= S.fuelKey(S.fuel.output) then return false end
+  if S.fuel.waiting then return true, "waiting" end
   if now < (S.fuel.cooldowns[key] or 0) then return true, "cooldown" end
   if not S.turtle then S.fuelAlert("storage room missing",point) return true end
   if not S.heardAt or now - S.heardAt >= 30000 then S.fuelAlert("stock stale",point) return true end
@@ -145,7 +150,7 @@ S.fuelEmpty = function(point)
   -- Save before sending so a power cut cannot repeat the order.
   if not S.fuelSave(nextPolicy) then return true end
   local rid, err = S.request("order", name, 64, nil, nextPolicy.serial)
-  if not rid then S.fuelAlert(err,point) end
+  if not rid then S.fuelAlert(err,point,true) end
   return true
 end
 S.fuelAlerts = function()
@@ -193,7 +198,10 @@ S.reply = function(sender, message)
       status = "delivered"
     end
     if fuelReply then
-      if status == "failed" then S.fuelAlert("order refused: " .. (text ~= "" and text or "empty reply"), waiting.point)
+      if status == "failed" then
+        local refused = lower:match("^not in storage") or lower:match("^none in storage")
+          or lower:match("^not enough") or lower:match("^which one") or lower:match("^refused") or lower:match("^failed")
+        S.fuelAlert((refused and "order refused: " or "reply unconfirmed: ") .. (text ~= "" and text or "empty reply"), waiting.point, refused)
       elseif status == "delivered" then S.fuelAvailable(waiting.point) end
     end
     if pending then

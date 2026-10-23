@@ -285,6 +285,14 @@ local function rerouteYield(id,row,action)
   end
 end
 local plan
+local function confirmFuel(row, orderRid)
+  for _, item in ipairs(row.inv or {}) do
+    if item.count > 0 and P.fuelValue(item.name) > 0 then
+      call("shop", "fuelAvailable", row.trip.point, orderRid or false)
+      return
+    end
+  end
+end
 local function report(_, id, results, lease)
   local row = job.turtles[tostring(id)]
   if not row then return end
@@ -299,6 +307,8 @@ local function report(_, id, results, lease)
   local old = row.pose
   row.pose = P.toWorld(row.frame, facts.pose)
   row.inv, row.fuel = facts.inv or row.inv or {}, facts.fuel or row.fuel
+  if action and action.kind == "recover" and interrupted and interrupted.kind == "refuel"
+      and interrupted.fuelOrder and row.trip and row.trip.kind == "fuel" then confirmFuel(row,interrupted.fuelOrder) end
   local priorDug,nextDug=S.dugFacts[id] or {},{}
   local history = {}
   for _, c in ipairs(facts.dug or {}) do
@@ -390,7 +400,9 @@ local function report(_, id, results, lease)
             if not inspected then failed = true end
           elseif step.op == "drop" or step.op == "dropDown" or step.op == "suck" or step.op == "suckDown" then
             if not result.ok then failed = true reason=P.transferFailure(row.trip.kind,result)
-            elseif row.trip.kind == "fuel" then call("shop", "fuelAvailable", row.trip.point) end
+            elseif row.trip.kind == "fuel" then
+              confirmFuel(row,action.fuelOrder)
+            end
           end
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
@@ -434,6 +446,11 @@ local function send(id, row, action)
   if not ok then
     row.state, row.error = row.laneWait and "wait lane" or "waiting", err or "cells unavailable"
     return false
+  end
+  if action.kind == "refuel" then
+    local op = action.steps[#action.steps].op
+    local policy = (op == "suck" or op == "suckDown") and call("shop","fuelConfig")
+    action.fuelOrder = policy and policy.waiting and policy.waiting.rid or false
   end
   row.inflight = action
   if not save() then row.inflight = nil return false end

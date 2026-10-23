@@ -382,10 +382,18 @@ The durable `so-data/fuel-policy` stores `{auto,output,cooldowns,serial?,waiting
 Cooldown keys use dimension and chest coordinates, independent of point id or
 access side. Deadlines use `SO.now()` and last 600000 ms. Save precedes send.
 The ledger retains at most 64 unexpired chest entries and refuses overflow.
-Turning the policy off or selecting another output preserves cooldowns.
+Turning the policy off or selecting another output preserves cooldowns and the
+outstanding order. `fuelEmpty` sends nothing while any order is waiting, even
+after its cooldown expires. A matching confirmed refusal or failed send clears
+the saved wait while retaining its failure alert. Unknown replies keep waiting.
+Timeouts only alert; they never authorize another order.
 
-`shop.fuelAvailable(point)` clears the waiting delivery and fuel alert after a
-successful pickup at the bound output. Explicit delivery replies also clear it.
+`shop.fuelAvailable(point, orderRid?)` clears the waiting delivery and fuel alert after a
+pickup of usable fuel at the outstanding order's output. Its saved coordinates
+remain authoritative after the configured output changes. Worker pickup reports
+pass the order id saved before `suck`; false means no order was outstanding.
+A stale id or false cannot clear a later pending order. Explicit matching
+delivery replies also clear it.
 A Getting or Crafting acknowledgement does not. After 120000 ms the saved
 waiting order raises `delivery unconfirmed`, including after restart.
 The waiting order saves its request id and sender. Late delivery replies match
@@ -395,8 +403,16 @@ The saved request serial prevents reuse of a prior fuel request id.
 `shop.alert` events contain `{reason,text,point}` and clear with false. A policy
 save failure sends nothing and remains visible through `fuelAlerts()`.
 Lumber saves a minute retry deadline after an empty report handled by this
-policy. It retries only while running and auto is on. Leases and reservations
-continue through the existing job recovery path.
+policy or a pickup without usable fuel. Its fuel service saves `takeSlot` and
+`takeOrder` before a pickup and records non-fuel slot/name pairs in `rejected`. It continues in
+empty slots until usable fuel arrives, then returns only those recorded items
+through inspected drops before refueling. Failed returns retain their records
+and minute retry. A restart recovers the tracked slots from the worker inventory;
+non-fuel pickups never clear the outstanding order. Mining also requires usable
+fuel in the reported inventory before calling `fuelAvailable`; its saved pickup
+action carries `fuelOrder` for interrupted-report recovery.
+Retries require a running job and auto on. Leases and reservations continue
+through the existing job recovery path.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 

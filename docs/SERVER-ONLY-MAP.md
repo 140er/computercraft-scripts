@@ -380,13 +380,20 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
   turtle to the shop screen. Calls are `tick(now)`, `order(search, count)`,
-  `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point)` and
+  `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)` and
   `fuelAlerts()`. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
   saved ten-minute cooldown per physical chest across mining/lumber and restarts.
   Exact charcoal or coal orders require 64 fresh stock. Save precedes send.
+  At most one fuel order is outstanding, across cooldowns, flag/output changes
+  and restarts. A confirmed refusal, delivery or observed usable fuel ends the
+  saved wait. Pickup actions save the expected order id, so old inventory reports
+  cannot complete a later order. Unknown replies and timeouts cannot authorize a second order.
   Saved waiting orders raise delivery-unconfirmed attention after two minutes.
-  Failure causes appear in `shop.alert` and `fuelAlerts`; pickup clears them.
+  Failure causes appear in `shop.alert` and `fuelAlerts`; usable pickup clears
+  them. Lumber saves pickup slots, retains non-fuel items while searching, and
+  returns only those items before refueling. Missing fuel and failed returns
+  retain their minute retry and recover through the saved service record.
   `order` sends one order for the match with the highest stock, breaking ties
   by name. Counts are 1, 16 or 64. Missing matches or storage send nothing.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.

@@ -101,8 +101,59 @@ return function(test,equal)
     assert(s.shop.fuelConfig().auto)
     assert(s.shop.fuelEmpty(duplicate)) equal(#s.orders(),1)
     s.net.time=599999 s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    s.shop.fuelAvailable(duplicate)
+    s.shop.fuelEmpty(output) equal(#s.orders(),1)
     s.net.time=600000 s.stock({["minecraft:charcoal"]=1,["minecraft:coal"]=64,["mod:charcoal"]=9999})
     s.shop.fuelEmpty(output) equal(#s.orders(),2) equal(s.orders()[2].text,"minecraft:coal")
+  end)
+  test("paused room keeps one outstanding fuel order across cooldowns and restarts",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local order=s.orders()[1]
+    for minute=10,60,10 do
+      s.net.time=minute*60000
+      s.shop.listen.roomsorter(9,{"Getting 64 charcoal",rid=order.rid})
+      s.stock() s.shop.tick(s.net.time)
+      if minute==20 then s.restart() s.stock() end
+      s.shop.fuelEmpty(output)
+      equal(#s.orders(),1)
+      equal(s.shop.fuelConfig().waiting.rid,order.rid)
+    end
+    equal(s.shop.fuelAlerts()[1].reason,"delivery unconfirmed")
+    s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=order.rid})
+    s.shop.fuelEmpty(output) equal(#s.orders(),2)
+  end)
+  test("an old pickup report cannot complete a later fuel order",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local first=s.orders()[1]
+    s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=first.rid})
+    s.net.time=600000 s.stock() s.shop.fuelEmpty(output)
+    local nextOrder=s.orders()[2]
+    s.shop.fuelAvailable(output,first.rid)
+    s.shop.fuelAvailable(output,false)
+    equal(s.shop.fuelConfig().waiting.rid,nextOrder.rid)
+    s.shop.fuelAvailable(output,nextOrder.rid)
+    equal(s.shop.fuelConfig().waiting,nil)
+  end)
+  test("unknown room replies do not release an outstanding fuel order",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local order=s.orders()[1]
+    s.shop.listen.roomsorter(9,{"Queued while paused",rid=order.rid})
+    assert(s.shop.fuelConfig().waiting)
+    s.net.time=600000 s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    assert(s.shop.fuelAlerts()[1].reason:find("reply unconfirmed",1,true))
+  end)
+  test("only a saved confirmed failure permits the next fuel order",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local order=s.orders()[1]
+    s.net.time=600000 s.stock() s.failSave=true
+    s.shop.listen.roomsorter(9,{"Not enough charcoal",rid=order.rid})
+    assert(s.shop.fuelConfig().waiting)
+    s.shop.fuelEmpty(output) equal(#s.orders(),1)
+    s.failSave=false
+    s.shop.listen.roomsorter(9,{"Not enough charcoal",rid=order.rid})
+    equal(s.shop.fuelConfig().waiting,nil)
+    assert(s.shop.fuelAlerts()[1].reason:find("order refused",1,true))
+    s.restart() s.stock() s.shop.fuelEmpty(output) equal(#s.orders(),2)
   end)
   test("room fuel distinguishes missing storage stale stock low stock and save failure",function()
     local s=fixture() s.enable()
@@ -160,6 +211,11 @@ return function(test,equal)
     local first=s.orders()[1]
     local other=s.m.env.SO.store.copy(output) other.id="second" other.x=1
     assert(s.drops.add(other)) assert(s.shop.fuelConfig(nil,"second"))
+    s.shop.fuelEmpty(other) equal(#s.orders(),1)
+    equal(s.shop.fuelConfig().waiting.point.id,"output")
+    assert(s.shop.fuelConfig(false)) assert(s.shop.fuelConfig(true))
+    s.shop.fuelEmpty(other) equal(#s.orders(),1)
+    s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=first.rid})
     s.shop.fuelEmpty(other) equal(#s.orders(),2)
     s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=first.rid})
     equal(s.shop.fuelConfig().waiting.point.id,"second")
@@ -256,6 +312,9 @@ return function(test,equal)
     callback("lease",2,{{ok=true,data={name="minecraft:chest"}},{ok=true},{ok=false,err="No items to take"}},
       {report={pose={x=0,y=2,z=0,f=0},inv={},fuel=1}})
     equal(#s.orders(),1) equal(standing,"mine:2")
+    callback("lease",2,{{ok=true,data={name="minecraft:chest"}},{ok=true},{ok=true}},
+      {report={pose={x=0,y=2,z=0,f=0},inv={{slot=1,name="minecraft:iron_ingot",count=64}},fuel=1}})
+    assert(s.shop.fuelConfig().waiting,"mining non-fuel pickup cleared the fuel order")
   end)
   test("ordinary worker unloads ore and logs into the opted-in room chest under 1 MB",function()
     local F=dofile("tests/so/worker-fixture.lua")
@@ -292,7 +351,71 @@ return function(test,equal)
     q=assert(s.queued()) equal(q.steps[#q.steps].op,"inspectDown")
     s.report(false,{{ok=true,data={name="minecraft:chest"}}})
     s.tick(60000) q=assert(s.queued()) equal(q.steps[#q.steps].op,"suckDown")
+    s.job.inv={{slot=1,name="minecraft:charcoal",count=64}}
     s.report(false)
     equal(policy.shop.fuelConfig().waiting,nil)
   end)
+  test("lumber recovers usable fuel from an interrupted pickup without another suck",function()
+    local policy=fixture() policy.stock() policy.enable() policy.shop.fuelEmpty(output)
+    local logs={slot=1,name="minecraft:oak_log",count=8}
+    local s=dofile("tests/so/lumber-fixture.lua")("scan",1,{logs})
+    s.mods.shop=policy.shop s.env.SO.now=function() return policy.net.time end
+    s.job.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
+      stage="take",resume="scan",back={x=0,y=2,z=0,facing=1}}
+    s.tick(0) equal(s.queued().steps[2].op,"suckDown")
+    s.job.inv={logs,{slot=2,name="minecraft:charcoal",count=64}} s.expire()
+    local mod=assert(loadfile("so-mod-lumber.lua","t",s.env))()
+    s.tick=mod.tick s.tick(0) s.report(false)
+    s.tick(0)
+    equal(s.queued().steps,{{op="select",slot=2},{op="refuel",n=64}})
+    equal(policy.shop.fuelConfig().waiting,nil)
+  end)
+  for _,restart in ipairs({false,true}) do
+    test("lumber returns iron and refuels when charcoal arrives"..(restart and " after restart" or ""),function()
+      local policy=fixture() policy.stock() policy.enable() policy.shop.fuelEmpty(output)
+      local logs={slot=1,name="minecraft:oak_log",count=8}
+      local iron={slot=2,name="minecraft:iron_ingot",count=64}
+      local coal={slot=3,name="minecraft:charcoal",count=64}
+      local s=dofile("tests/so/lumber-fixture.lua")("scan",1,{logs})
+      s.mods.shop=policy.shop s.env.SO.now=function() return policy.net.time end
+      s.job.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
+        stage="take",resume="scan",back={x=0,y=2,z=0,facing=1}}
+      s.tick(0) equal(s.queued().steps[1].slot,2)
+      s.job.inv={logs,iron} s.report(false)
+      equal(s.job.blocked,"fuel") equal(s.job.fuelRetry,60000)
+      assert(policy.shop.fuelConfig().waiting)
+      equal(s.job.service.rejected["2"],iron.name)
+      if restart then
+        local mod=assert(loadfile("so-mod-lumber.lua","t",s.env))()
+        s.tick=mod.tick s.tick(0) s.report(false)
+      end
+      policy.net.time=60000 s.tick(60000)
+      equal(s.queued().steps[1].op,"inspectDown")
+      s.report(false,{{ok=true,data={name="minecraft:chest"}}})
+      s.tick(60000) equal(s.queued().steps[1].slot,3)
+      s.job.inv={logs,iron,coal} s.report(false)
+      equal(policy.shop.fuelConfig().waiting,nil) equal(s.job.fuelRetry,nil)
+      s.tick(60000)
+      local q=assert(s.queued())
+      equal(q.steps,{{op="select",slot=2},{op="inspectDown"},{op="dropDown",n=64}})
+      if restart then
+        s.report(false,{{ok=true},{ok=true,data={name="minecraft:chest"}},{ok=false,err="No space for items"}})
+        equal(s.job.blocked,"fuel") equal(s.job.fuelRetry,120000)
+        policy.net.time=600000 policy.stock() policy.shop.fuelEmpty(output)
+        equal(#policy.orders(),2)
+        s.tick(policy.net.time)
+        equal(s.queued().steps[1].slot,2)
+        equal(policy.shop.fuelConfig().waiting.rid,policy.orders()[2].rid)
+      end
+      s.job.inv={logs,coal}
+      s.report(false,{{ok=true},{ok=true,data={name="minecraft:chest"}},{ok=true}})
+      s.tick(policy.net.time) s.tick(policy.net.time)
+      equal(s.queued().steps,{{op="select",slot=3},{op="refuel",n=64}})
+      s.job.inv={logs} s.job.fuel=5121 s.report(false)
+      equal(s.job.service.stage,"return") equal(s.job.inv[1],logs)
+      equal(#policy.orders(),restart and 2 or 1)
+      if restart then equal(policy.shop.fuelConfig().waiting.rid,policy.orders()[2].rid) end
+    end)
+  end
+
 end
