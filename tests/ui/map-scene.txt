@@ -52,9 +52,11 @@ spot 104 -344 ready
 spot 107 -350 ready
 spot 107 -347 growing
 spot 107 -344 ready
-view 26x20 all fit focus 117 -337
-view 29x12 -58 zoom 0 150 -370
-view 57x24 all fit focus 160 -373
-view 39x19 -58 fit focus 120 -362
-view 15x10 all fit
-view 100x38 all zoom -1 140 -360 focus 162 -373
+view map-57x24 57x24 all fit
+view map-100x38 100x38 all fit
+view map-26x20 26x20 all fit
+view map-sel-57x24 57x24 -58 1x1 158 -367 turtle 6
+view map-39x19 39x19 all fit drop 3
+view map-29x12 29x12 -58 2x2 150 -366 cell 150 -366
+view map-15x10 15x10 all fit
+view schematic-map-XL 164x81 all fit

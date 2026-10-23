@@ -18,7 +18,7 @@ def lines(name):
 
 
 def load_map():
-    s = {"dug": [], "reserve": [], "turtles": [], "drops": [], "spots": [], "poses": {}}
+    s = {"dug": [], "reserve": [], "turtles": [], "drops": [], "spots": [], "poses": {}, "views": []}
     for p in lines("map-scene.txt"):
         k = p[0]
         if k == "server":
@@ -45,6 +45,19 @@ def load_map():
             s["area"] = dict(x1=int(p[1]), z1=int(p[2]), x2=int(p[3]), z2=int(p[4]), ground=int(p[5]))
         elif k == "spot":
             s["spots"].append(dict(x=int(p[1]), z=int(p[2]), ready=p[3] == "ready"))
+        elif k == "view":
+            # view NAME WxH LEVEL fit|SXxSZ CX CZ [turtle ID | drop ID | server | shaft | cell X Z]
+            w, h = map(int, p[2].split("x"))
+            v = dict(name=p[1], w=w, h=h, level="all" if p[3] == "all" else int(p[3]), scale=None, centre=None)
+            rest = p[4:]
+            if rest[0] != "fit":
+                v["scale"], v["centre"] = tuple(map(int, rest[0].split("x"))), (int(rest[1]), int(rest[2]))
+                rest = rest[3:]
+            else:
+                rest = rest[1:]
+            v["pick"] = None if not rest else (rest[0], rest[1]) if rest[0] in ("turtle", "drop") else \
+                ("cell", int(rest[1]), int(rest[2])) if rest[0] == "cell" else (rest[0],)
+            s["views"].append(v)
     for i, d in enumerate(s["drops"]):
         d["id"] = i + 1
     return s
@@ -91,5 +104,8 @@ ST = load_status(S)
 for t in ST["turtles"]:
     pose = S["poses"][str(t["id"])]
     word = "lost" if ST["leases"].get(t["id"]) == "lost" else PHASE.get(t["state"], t["state"])
+    lease = ST["leases"].get(t["id"])
     S["turtles"].append(dict(id=str(t["id"]), x=pose["x"], y=pose["y"], z=pose["z"], f=pose["f"],
-                             state=word, col=tone(word)))
+                             state=word, col=tone(word), fuel=t["fuel"], ore=t["ore"], ago=t["ago"],
+                             lease="expired" if lease == "lost" else lease or "-"))
+S["turtles"].sort(key=lambda t: int(t["id"]))

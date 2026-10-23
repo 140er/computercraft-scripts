@@ -286,17 +286,20 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
   `lumber.mapView()`, registry workers, lease state, drop points and
   `cells.reserved`, only within ten seconds of a render.
-  `render(w, h, session)` keeps `level`, `fit`, `zoom`, `cx`, `cz`, `focus` and
-  its raster and frame caches in `session.map`. Terrain is sextant pixels, one
-  block per pixel at zoom 0, one colour per character; markers are whole
-  characters. Dug planes per section column and level are shared by all
-  displays, read at most 16 sections per tick, and rechecked with at most 64
-  memory-only probes per tick after the dug serial changes. An unchanged view
-  returns its cached frame. Frames over the 16 KB budget fall back to solid
-  character cells. Landscape screens use a right control rail; narrow screens
-  use two bottom rows. `map-pick` focuses a character; the header shows what
-  is under it. The map is its own role with no BACK. `tests/ui/map-scene.txt`
-  feeds both `map-mockup.py` and `tests/so/map.lua`.
+  `render(w, h, session)` keeps `level`, `fit`, `sx`, `sz`, `cx`, `cz`, `pick` and
+  its cell and frame caches in `session.map`. Route A text cells: each covers
+  `sx` by `sz` blocks and takes `-` `|` `+` from block adjacency (dots when only
+  planned, blue when held); the branch axis snaps to the gap. North is up at every
+  size and facing; a fixed `↑N` compass ends row 1, outside the map. Markers,
+  greedy labels, branch numbers, tap callouts and a wall roster strip follow
+  `docs/ui/SCHEMATIC-SPEC.md` section 10. Dug planes per section column and level
+  are shared by all displays and the `thumb` and `crop` exports, read at most 16
+  sections per tick, and rechecked with at most 64 memory-only probes per tick after
+  the dug serial changes. An unchanged view returns its cached frame. A frame over
+  15000 bytes draws one zoom step out. Exports `thumb(C, x, y, w, h)` (status wall)
+  and `crop(C, x, y, w, h, focus)` (alert). The map is its own role with no BACK.
+  `docs/ui/schematic/mapdraw.py` and `mapscreen.py` are its Python twins; the
+  `view` lines in `tests/ui/map-scene.txt` feed both them and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the `panel` and
   `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
@@ -769,7 +772,7 @@ prompt through key events, the role list, and the roles-T, unassigned-M and
 unassigned-XS fixtures. Tests that need a role use `display.command`.
 
 S0 adds `tests/ui/s0.lua` and route A. `docs/ui/schematic/screens.py --fixtures`
-writes the route A fixtures (`kit-M`, `schematic-map-XL`, `status-M/W/XL/T/L/P/XS`);
+writes the route A fixtures (`kit-M`, `status-M/W/XL/T/L/P/XS`, and since S2 the map's);
 the test checks that output equals the committed files (Linux, python3) and renders
 a PNG when a CC font is found. Fixtures gain an fg layer: `WxH title`, H text, H fg
 and H bg rows; `tests/ui/render.lua` still loads two-layer fixtures and compares fg
@@ -791,12 +794,14 @@ bounds. It also checks the JOBS fallbacks, one action per tap, alert paging,
 takeover timing, the crop call and its failure, the grey palette and row-only
 repaint, the R prompt and frame sizes.
 
-R5 rewrites `tests/so/map.lua`. It renders every `map-*` fixture from the
-scene in `tests/ui/map-scene.txt` through the real cells module, checks a lit
-pixel for every visible dug mark, pan, zoom, FIT, focus, the level control,
-per-tick read and probe bounds, an idle map with no reads, the 16 KB frame
-budget at 164x81, and that the cells map queries write nothing. On Linux it
-also checks that the generator reproduces every map fixture and `map-mockups.md`.
+R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
+`view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the
+real cells module and compares text, fg and bg, then checks the compass and that north
+stays up for all four mine facings, line glyphs, dots and held colours, pan, zoom, FIT,
+picks and callouts, the level control, per-tick read and probe bounds, an idle map with
+no reads, frames under 16 KB at 164x81, `thumb` against the status-W fixture, `crop`,
+and that the cells map queries write nothing. On Linux it also checks that the
+generator reproduces every map fixture.
 
 S1 rewrites `tests/ui/ui2c.lua` for the route A shop. It loads `tests/ui/shop-stock.tsv`
 (110 real item ids with history, stack and expected category) into the real module, taps
