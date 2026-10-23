@@ -22,7 +22,7 @@ def run(ctx):
         if not verify:
             raise Blocked("Goggles fixture needs a native command proving worn goggles linked to this controller")
         linked = "GATEB_GOGGLES_LINKED" in ctx.command(verify)["output"]
-        count = ctx.lua("server", 'local n=0;for _,m in pairs(SO.mods.state.get("machines") or {}) do if m.role=="worker" then n=n+1 end end;return n')
+        count = ctx.lua("server", 'local n=0;for _,m in pairs(SO.mods.state.get("machines") or {}) do if m.role=="worker" or m.role=="turtle" then n=n+1 end end;return n')
         ctx.navigate("pocket", "ar")
         before = ctx.read_store("server", "so-data/ar")
         ctx.screenshot("C13-layers-before.png")

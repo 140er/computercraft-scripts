@@ -34,8 +34,8 @@ def run(ctx):
             ctx.command(f"data modify block {fuel} Items set value []")
         ctx.mining()
         def has_fault(rows):
-            return any(t.get("dropRetry", {}).get("tries", 0) >= 3 and message in t.get("error", "") for t in rows[-1]["mine"].get("turtles", {}).values())
-        rows = ctx.sample(f"C8-{kind}-fault-samples.jsonl", ctx.game_seconds(300), has_fault)
+            return any(t.get("dropRetry", {}).get("tries", 0) >= 5 and message in t.get("error", "") for t in rows[-1]["mine"].get("turtles", {}).values())
+        rows = ctx.sample(f"C8-{kind}-fault-samples.jsonl", ctx.game_seconds(600), has_fault)
         matching = [(r.get("game_ms", r["epoch"] * 1000 * ctx.tick_rate / 20) / 1000, ident, t) for r in rows for ident,t in r["mine"].get("turtles", {}).items() if message in t.get("error", "")]
         affected = matching[0][1] if matching else None
         retries = []
