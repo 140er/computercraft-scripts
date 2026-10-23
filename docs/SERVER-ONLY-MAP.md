@@ -64,7 +64,8 @@ and listeners use `listener(sender, message)`.
 - [so-store.lua](../so-store.lua) owns generation-based persistence.
   Calls are `copy(value)`, `read(path)`, `clock()` and `store(path, valid, limit)`.
   `clock()` returns the server's durable game-millisecond function.
-  `store` returns `{ value, save = function(value) }`; `save` returns success
+  `store` returns `{ value, bytes, save = function(value) }`; `bytes` is the size
+  of the recovered generation and updates after a successful save. `save` returns success
   and an optional error. `read` reads a plain Lua table without generation recovery.
 - [so-log.lua](../so-log.lua) stores bounded event segments and snapshots for state.
   `open(store)` returns `{ snap, events(), fits(ev), append(ev), due(pressure?),
@@ -167,6 +168,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   events and 262144 bytes in memory. `canWork()` refuses new movement leases
   until retry drains that queue. Overflow prints an explicit refusal. Pressure
   keeps unchanged heartbeats in memory and reduces event-count checkpoints.
+  Optional `so-server.cfg` `state.coalesceHeartbeats=true` keeps routine hello
+  freshness and small fuel changes in memory at all disk pressures. It defaults
+  to false. Real role, journal, fingerprint and significant fuel changes still
+  emit events. Snapshots include freshness; restored machines get boot-time grace.
+  View revisions can advance without an event sequence change in this mode.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
   and `lumber.logs` events from one history page of at most 50 entries per tick.

@@ -40,6 +40,20 @@ Mining and lumber refuse `start` when the server disk is 80% full or more.
 The screen shows `disk >=80%; free space`. Free space and submit `start` again.
 At 85% the server shows `DISK pressure`, keeps heartbeat updates in memory and
 checkpoints every 10000 events instead of 2000. Retention checkpoints still run.
+
+Event saves remain synchronous. New log segments target 8 KB to reduce rewrite
+work. The schema, 64 KB single-event limit, retention budget and generation
+recovery stay compatible with `install rollback`. Completed appends survive a
+crash during the next write. The event whose write was interrupted may be absent.
+
+To omit routine heartbeat events, add `state = { coalesceHeartbeats = true }`
+to the existing `so-server.cfg` table and restart the server. The setting defaults
+to false. Role, journal, fingerprint and significant fuel changes still create
+events. Views receive current contact times and fuel without routine log writes.
+Snapshots save those values on the existing event-count and retention cadence.
+There is no time-based snapshot, so idle freshness can remain volatile until
+another checkpoint. After restart, restored machines receive a fresh boot-time
+contact timestamp before normal stale thresholds apply.
 Tap DISK on status for bytes in log, snapshots, cells, jobs, keys and other files.
 The ledger counts all file generations and refreshes every 30 seconds. Other
 includes code, filesystem allocation and files outside those stores.

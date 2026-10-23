@@ -1,6 +1,9 @@
 -- so-mod-state.lua - event log, machine registry, and views.
 
 local H = { backlog = {}, backlogBytes = 0, pendingSizes = {} }
+local config = type(SO) == "table" and SO.store and SO.store.read and SO.store.read("so-server.cfg") or {}
+H.coalesce = type(config) == "table" and type(config.state) == "table"
+  and config.state.coalesceHeartbeats == true
 
 H.copy = function(v)
   if type(v) ~= "table" then return v end
@@ -163,7 +166,7 @@ end
 
 H.apply = function(S, ev)
   S.seq = ev.seq
-  S.rev = ev.seq
+  S.rev = math.max(S.rev + 1, ev.seq)
   S.values[ev.kind] = ev.data
   if ev.kind == "machine" and type(ev.data) == "table" and type(ev.data.id) == "number" then
     local row = H.ensure(S, ev.data.id)
@@ -173,6 +176,7 @@ H.apply = function(S, ev)
     if ev.data.journal ~= nil then row.journal = ev.data.journal end
     row.seen = ev.data.seen ~= nil and ev.data.seen or ev.gameAt or ev.at
     if type(ev.data.pose) == "table" then row.pose = H.machine({ pose = ev.data.pose }).pose end
+    if H.coalesce then row.eventFuel = row.fuel end
   elseif ev.kind == "pose" and type(ev.data) == "table" and type(ev.data.id) == "number" then
     local row = H.ensure(S, ev.data.id)
     local pose = ev.data
@@ -242,6 +246,14 @@ do
   while i <= #evs do
     if evs[i].seq > S.seq then H.apply(S, evs[i]) end
     i = i + 1
+  end
+end
+
+if H.coalesce then
+  for _, row in pairs(S.machines) do
+    if row.eventFuel == nil then row.eventFuel = row.fuel end
+    -- Snapshot age must not mark every restored client offline at boot.
+    row.seen = math.max(row.seen or 0, SO.now())
   end
 end
 
@@ -429,8 +441,21 @@ local function hello(msg)
   if not (type(fuel) == "number" and fuel == fuel and math.abs(fuel) < math.huge)
     and fuel ~= "unlimited" then fuel = nil end
   local row = S.machines[tostring(msg.from)]
-  local changed = row and fuel ~= nil and (type(fuel) ~= type(row.fuel)
-    or type(fuel) == "number" and (math.abs(fuel - row.fuel) >= 100 or (fuel == 0) ~= (row.fuel == 0)))
+  local oldFuel = row and (H.coalesce and row.eventFuel or row.fuel)
+  local changed = row and fuel ~= nil and (type(fuel) ~= type(oldFuel)
+    or type(fuel) == "number" and (math.abs(fuel - oldFuel) >= 100 or (fuel == 0) ~= (oldFuel == 0)))
+  if H.coalesce then
+    local fp = H.fp(msg.from)
+    if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
+      or fp ~= nil and fp ~= row.fp or changed then
+      emit("machine", { id=msg.from, role=role, fuel=fuel, seen=now, journal=journal, fp=fp })
+    elseif row.seen ~= now or fuel ~= nil and row.fuel ~= fuel then
+      row.seen, row.fuel = now, fuel or row.fuel
+      S.rev = S.rev + 1
+      H.touch()
+    end
+    return
+  end
   if row and H.disk().pressure and role == row.role and journal == row.journal then
     row.seen, row.fuel = now, fuel or row.fuel return
   end
