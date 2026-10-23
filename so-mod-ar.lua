@@ -5,8 +5,8 @@ local A = {
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000,
   labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
-  strands = 3, strandRadius = 0.025, thickLimit = 16,
-  arrow = { start = 0.55, base = 1.2, tip = 1.75, half = 0.3, hatches = 6 },
+  strands = 5, strandRadius = 0.02, thickLimit = 16,
+  arrow = { start = 0.55, base = 1.2, tip = 1.65, half = 0.22, hatches = 24 },
   white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
   teal = 0xFF2DD4BF - 2^32, backing = 0xC00E1626 - 2^32,
@@ -127,7 +127,7 @@ A.scene = function(now)
     px, pz = px / plen, pz / plen
     local qx, qy, qz = dy * pz - dz * py, dz * px - dx * pz, dx * py - dy * px
     for k = 2, n do
-      local a = 2 * math.pi * (k - 1) / n
+      local a = math.pi / 2 * (k - 2)
       local ox, oy, oz = A.strandRadius * (math.cos(a) * px + math.sin(a) * qx),
         A.strandRadius * (math.cos(a) * py + math.sin(a) * qy), A.strandRadius * (math.cos(a) * pz + math.sin(a) * qz)
       put(id .. ":s" .. k, "drawLine3D", color, x + ox, y + oy, z + oz, u + ox, v + oy, w + oz)

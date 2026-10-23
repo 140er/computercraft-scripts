@@ -1161,15 +1161,19 @@ boolean values. A failed save leaves the current switches unchanged.
 - cc_ar 3D lines have no width, so strokes are bundles. Shapes are turtles
   (box and arrow), lease outlines and drop boxes. The nearest 16 shapes,
   ordered by centre distance from the configured server position, then id, are
-  drawn thick. A thick box edge is three parallel strands: the edge itself plus
-  two copies offset 0.025 blocks at 120 and 240 degrees around it. The shaft is
-  bundled the same way. A thick head has two flat edges and two upright edges
-  from the tip, plus six flat and six upright hatches that narrow towards the
-  tip, so it reads as a filled cross from any side. Other shapes use one strand
-  per edge and a three-line arrow. A thick turtle has 55 lines, a thin one 15,
+  drawn thick. A thick box edge is a five-strand cross: the edge itself plus
+  four copies offset 0.02 blocks along two perpendicular axes around it. Seen
+  from any side, the projected strands sit at most 0.02 blocks apart, about
+  3 pixels at 3 blocks and less further away, so the default 2.5-pixel lines
+  merge into one band about 0.04 blocks wide. The shaft is bundled the same way.
+  A thick head has two flat edges and two upright edges from the tip, plus 24
+  flat and 24 upright hatches about 0.019 blocks apart that narrow towards the
+  tip, so it reads as a solid cross from any side. Other shapes use one strand
+  per edge and a three-line arrow. A thick turtle has 117 lines, a thin one 15,
   each plus a label when within the label limit. A thick lease or drop box has
-  36 lines, a thin one 12. Strand ids are `<edge>:s2` and `<edge>:s3`, the head
-  uses `:heading:1` to `:4`, `:h0` to `:h5` and `:v0` to `:v5`.
+  60 lines, a thin one 12. A frame with 16 thick and 4 thin turtles has 1932
+  lines. Strand ids are `<edge>:s2` to `<edge>:s5`, the head uses
+  `:heading:1` to `:4`, `:h0` to `:h23` and `:v0` to `:v23`.
 - World labels sit above their blocks and stack 0.25 blocks apart when their
   horizontal positions are within two blocks. Labels use at most eight characters.
   The nearest 16 turtle labels and eight drop labels per kind remain visible,
