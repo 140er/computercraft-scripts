@@ -140,7 +140,7 @@ return function(test, equal)
     b.mods.ar.tick(122001)
     equal(b.ar.elements["alert:test1.alert"][3], 4)
   end)
-  test("display exposes the AR role on the drops generic screen and retains it", function()
+  test("display takes the AR role only from the server command and retains it", function()
     local b = boot(false)
     local display = b.env.dofile("so-mod-display.lua")
     display.screen("generic", function() return { rows = {}, buttons = {} } end, function() end)
@@ -148,11 +148,13 @@ return function(test, equal)
     display.handlers.hello({ from = 9, body = { w = 40, h = 20 } })
     local frame
     local function get() display.handlers["view.get"]({ from = 9 }, function(_, got) frame = got end) end
+    assert(display.assign(9, "drops"))
     get()
-    local found = false
-    for _, button in ipairs(frame.buttons) do if button.id == "ar" then found = true end end
-    assert(found)
+    for _, button in ipairs(frame.buttons) do assert(button.id ~= "ar") end
     display.handlers.input({ from = 9, body = { id = "ar", x = 8, y = 1 } })
+    get()
+    equal(frame.role, "generic")
+    assert(display.assign(9, "ar"))
     get()
     equal(frame.role, "ar")
     display = b.env.dofile("so-mod-display.lua")

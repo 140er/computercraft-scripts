@@ -17,7 +17,7 @@ Map, projected levels 26x20  (26x20)
                           
         F W S@            
                           
- BACK   FIT     +     -   
+  FIT       +        -    
   ^      <      v     >   
            ALL            
 ```
@@ -40,7 +40,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffafafa9ffffffffffff
 ffffffffffffffffffffffffff
-777777f999999f77777f777777
+99999999f77777777f77777777
 777777f777777f77777f777777
 77777777777777777777777777
 ```
@@ -56,7 +56,7 @@ Map, projected levels 29x12  (29x12)
               H              
                              
            FWS@              
- BACK    FIT      +      -   
+   FIT        +         -    
    ^      <       v      >   
              ALL             
 ```
@@ -71,7 +71,7 @@ fffffffffffddf7ffffffffffffff
 fffffffffffddf9ffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffaaa9ffffffffffffff
-7777777f999999f7777777f777777
+999999999f777777777f777777777
 7777777f777777f7777777f777777
 77777777777777777777777777777
 ```
@@ -99,7 +99,7 @@ Map, projected levels 57x24  (57x24)
                                                          
                                                          
                                                          
-     BACK           FIT            +              -      
+       FIT                  +                  -         
       ^              <             v              >      
                            ALL                           
 ```
@@ -126,7 +126,7 @@ fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-77777777777777f9999999999999f77777777777777f7777777777777
+999999999999999999f7777777777777777777f777777777777777777
 77777777777777f7777777777777f77777777777777f7777777777777
 777777777777777777777777777777777777777777777777777777777
 ```

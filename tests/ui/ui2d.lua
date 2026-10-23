@@ -44,7 +44,7 @@ return function(test,equal)
     local d,_,screens=boot();local ui=screens.generic
     for i=1,2 do assert(d.add({id='p'..i,kind='ore',dim=0,x=i,y=64,z=0,side='front'}));for _=1,3 do d.note('p'..i) end end
     ui.render(57,24);ui.input({id='fix'});assert(not d.list()[1].broken);assert(d.list()[2].broken)
-    local fixed=ui.render(57,24);assert(capture(fixed,57,24).picture().text[12]:find('FIX #1',1,true))
+    local fixed=ui.render(57,24);assert(capture(fixed,57,24).picture().text[23]:find('FIX #1',1,true))
     ui.input({id='select:p2'});ui.input({id='fix'});assert(not d.list()[2].broken)
     ui.input({id='remove'});equal(#d.list(),1);equal(d.list()[1].id,'p1')
     ui.input({id='new'});local f=ui.render(15,10);local found={};for _,b in ipairs(f.buttons) do found[b.id]=true end
@@ -69,7 +69,7 @@ return function(test,equal)
     end
     local n=0;for _ in pairs(seen) do n=n+1 end;equal(n,64)
     ui.render(57,24);ui.input({id='prev'})
-    local first=ui.render(57,24).buttons[1].id;equal(first,'select:p40')
+    local first=ui.render(57,24).buttons[1].id;equal(first,'select:p35')
     ui.input({id='select:p64'});ui.input({id='remove'});equal(#d.list(),63)
   end)
   test('UI2d AR tile toggles once and survives reload',function()
@@ -77,7 +77,7 @@ return function(test,equal)
     e.SO.store.store=function(...) local b=store(...);local save=b.save;b.save=function(v) n=n+1;return save(v) end;return b end
     local ar=e.dofile('so-mod-ar.lua');ar.tick(0);screens.ar.input({id='drops'});equal(n,1)
     local reloaded=e.dofile('so-mod-ar.lua');reloaded.tick(0)
-    assert(capture(screens.ar.render(57,24),57,24).picture().text[9]:find('layer off',1,true))
+    assert(capture(screens.ar.render(57,24),57,24).picture().text[17]:find('layer off',1,true))
   end)
   test('UI2d layouts fit all sizes and respect contrast',function()
     local _,_,screens,s,a=boot();assert(s.layout and a.layout,'pure layouts')
@@ -96,7 +96,7 @@ return function(test,equal)
       end
     end
   end)
-  test('UI2d status returns from every role and generic keeps header clear',function()
+  test('UI2d taps keep each role and the drop list draws no links',function()
     local _,_,screens,_,_,e=boot();local display=e.dofile('so-mod-display.lua');e.SO.mods.display=display
     for _,role in ipairs({'mining','lumber','shop','ar','generic'}) do
       display.screen(role,screens[role] and screens[role].render or function() return {rows={},buttons={}} end,screens[role] and screens[role].input)
@@ -104,11 +104,13 @@ return function(test,equal)
     local function frame() local f;display.handlers['view.get']({from=2},function(_,v) f=v end);return f end
     local function tap(id) display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
     display.handlers.hello({from=2,body={w=57,h=24}})
-    for _,role in ipairs({'mining','lumber','shop','ar'}) do tap('generic');local nav={};for _,b in ipairs(frame().buttons) do nav[b.id]=true end;assert(nav[role],role);tap(role);equal(frame().role,role);tap('status');equal(frame().role,'status') end
-    tap('generic');tap('list');local f=frame();assert(f.rows[2].text:find('DROP POINTS',1,true))
+    equal(frame().role,'unassigned')
+    for _,role in ipairs({'mining','lumber','shop','ar','generic'}) do
+      assert(display.assign(2,role))
+      for _,id in ipairs({'status','generic','mining','lumber','shop','ar','panel','map','map-back'}) do tap(id);equal(frame().role,role) end
+    end
+    assert(display.assign(2,'drops'));tap('list');local f=frame();assert(f.rows[2].text:find('DROP POINTS',1,true))
     local found={};for _,b in ipairs(f.buttons) do found[b.id]=true;assert(b.y>1) end
-    assert(found.status and found.new);tap('status');equal(frame().role,'status');tap('generic')
-    display.screen('generic',function() return {rows={},buttons={}} end);f=frame();found={};for _,b in ipairs(f.buttons) do found[b.id]=true end
-    assert(found.ar and found.lumber,'legacy fallback')
+    assert(found.new and not found.status and not found.mining and not found.panel and not found.map)
   end)
 end

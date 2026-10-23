@@ -17,7 +17,7 @@
  21:14:11 mine: #3 wait lane                       
                                                    
                                                    
- [P] pair a client     [L] full log                
+ [P] pair a client   [R] roles   [L] full log      
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 f7777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffff

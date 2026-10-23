@@ -157,21 +157,21 @@ return function(test,equal)
   end
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h=size[1],size[2]
-    test("map and MAP navigation follow the kit header on row 2 at "..w.."x"..h,function()
+    test("map follows the kit header on row 2 and other headers carry no MAP link at "..w.."x"..h,function()
       local s=setup(false,true)
       local kit=s.machine.env.dofile("so-ui.lua")
       s.display.screen("panel",function(cw,ch)
         local c=kit.canvas(cw,ch) c.header("PANEL","22:14") return c.frame()
       end,function() end)
       s.display.handlers.hello({from=22,body={w=w,h=h,fullH=h}})
-      s.display.handlers.input({from=22,body={id="generic",x=1,y=1}})
-      s.display.handlers.input({from=22,body={id="panel",x=1,y=1}})
+      assert(s.display.assign(22,"panel"))
       local frame
       s.display.handlers["view.get"]({from=22,body={}},function(_,body) frame=body end)
-      local target=button(frame,"map",w,h)
-      equal(target.y,2)
-      equal(frame.rows[1].text:match("%S"),nil,"blank padding above navigation")
-      assert(frame.rows[2].text:find("22:14",1,true),"MAP preserves the panel clock")
+      equal(frame.role,"panel")
+      for _,b in ipairs(frame.buttons) do assert(b.id~="map","header MAP link") end
+      equal(frame.rows[1].text:match("%S"),nil,"blank padding above the header")
+      assert(frame.rows[2].text:find("22:14",1,true),"panel clock stays in its header")
+      assert(not frame.rows[2].text:find("MAP",1,true),"no MAP in the panel header")
       local session={}
       frame=s.screen.render(w,h,session)
       equal(session.map.headerRow,2)
@@ -214,13 +214,16 @@ return function(test,equal)
       s.display.monitorTouch("monitor",b.x,b.y)
       s.display.tick(1000)
     end
-    press("map") equal(D.monitor.role,"map")
+    equal(D.monitor.role,"status")
+    for _,b in ipairs(D.monitor.frame.buttons) do assert(b.id~="map","status links to map") end
+    assert(s.display.assign(1,"map")) s.display.tick(1000) equal(D.monitor.role,"map")
     press("map-out") press("map-e") press("map-level")
     equal(D.monitor.session.map.fit,false)
     local other={}
     s.screen.render(26,20,other)
     equal(other.map.fit,true) equal(other.map.level,"all")
-    press("map-back") equal(D.monitor.role,"status")
+    for _,b in ipairs(D.monitor.frame.buttons) do assert(b.id~="map-back","map links back") end
+    assert(s.display.assign(1,"-")) s.display.tick(2000) equal(D.monitor.role,"status")
   end)
   test("map renders complete large frames inside the protocol limit",function()
     local s=setup()
@@ -318,22 +321,24 @@ return function(test,equal)
           w==26 and 1 or "monitor",b.x,b.y)
         net.flush()
       end
-      local original=frame().role
-      press("map") equal(frame().role,"map") equal(#frame().rows,h)
-      for _,id in ipairs({"map-out","map-in","map-n","map-w","map-s","map-e","map-level","map-fit"}) do press(id) end
-      press("map-back") equal(frame().role,original)
+      equal(frame().role,w==26 and "pocket" or "unassigned")
+      assert(server.env.SO.mods.display.command("2 map")) net.advance(1)
+      equal(frame().role,"map") equal(#frame().rows,h)
+      for _,id in ipairs({"map-out","map-in","map-n","map-w","map-s","map-e","map-level","map-fit"}) do
+        press(id) equal(frame().role,"map")
+      end
+      for _,b in ipairs(frame().buttons) do assert(b.id~="map-back","map links back") end
       assert(not server.error and not client.error,"map event loop remains healthy")
     end)
   end
   for _,size in ipairs({{26,20},{29,12},{57,24},{15,10}}) do
     local w,h=size[1],size[2]
-    test("display MAP and BACK use drawn targets at "..w.."x"..h,function()
+    test("map is a role of its own and no screen links to it at "..w.."x"..h,function()
       local s=setup()
       local d=s.display
       for _,role in ipairs({"status","generic","mining","lumber","shop","ar","panel"}) do
         d.screen(role,function(cw,ch)
           local c=U.canvas(cw,ch) c.header(role:upper(),"ok")
-          if role~="generic" then c.button(1,ch,cw,"MORE","generic","7",1) end
           return c.frame()
         end,function() end)
       end
@@ -348,17 +353,15 @@ return function(test,equal)
         d.handlers.input({from=22,body={id=id,x=b.x,y=b.y}})
       end
       for _,role in ipairs({"generic","status","mining","lumber","shop","ar","panel"}) do
-        if frame().role~="generic" then press("generic") end
-        if role~="generic" then
-          d.handlers.input({from=22,body={id=role,x=1,y=1}})
-        end
+        assert(d.assign(22,role))
         equal(frame().role,role)
-        press("map") equal(frame().role,"map")
-        press("map-out") press("map-n") press("map-level")
-        press("map-back") equal(frame().role,role)
-        d.handlers.input({from=22,body={id="generic",x=1,y=1}})
+        for _,b in ipairs(frame().buttons) do assert(b.id~="map","MAP link on "..role) end
+        d.handlers.input({from=22,body={id="map",x=w-1,y=2}})
+        equal(frame().role,role)
       end
-      press("map")
+      assert(d.assign(22,"map"))
+      press("map-out") press("map-n") press("map-level")
+      equal(frame().role,"map")
       local reboot=s.machine.env.dofile("so-mod-display.lua")
       reboot.screen("map",s.screen.render,s.screen.input)
       reboot.handlers.hello({from=22,body={w=w,h=h,fullH=h}})

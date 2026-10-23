@@ -1,0 +1,39 @@
+51x19 Server terminal, role command (R)
+                                                   
+ SO SERVER #1                                roles 
+                                                   
+ ID    SIZE    ROLE                                
+ 1     57x24   status                              
+ 2     26x20   pocket                              
+ 5     57x24   mining                              
+ 6     57x24   unassigned                          
+ 7     15x10   status                              
+ 9     -       drops                               
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+ display 7: status                                 
+ > 6 shop_                [Enter] set  [Esc] back  
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777

@@ -723,7 +723,7 @@ S.legacyRender = function(w)
   row("Fuel " .. tostring(j.fuel or "?"))
   row(S.admission or ("Alert " .. tostring(j.alert or "-")), S.admission ~= nil or j.blocked ~= nil)
   if j.blocked then row("Fix cause, then type start", true) end
-  return { rows = rows, buttons = { { id = "generic", x = 1, y = 8, w = 7, label = "generic" } } }
+  return { rows = rows, buttons = {} }
 end
 
 S.gather = function()
@@ -807,11 +807,10 @@ S.layout = function(model, w, h)
         end
       end
     end
-    local buttons = U.grid(w, h, w < 26 and 2 or 4)
-    if w == 57 and h == 24 then buttons = {{x=1,w=13},{x=15,w=13},{x=29,w=14},{x=44,w=14}} end
-    for i, b in ipairs({{"START", "start", "9"}, {"STOP", "stop", "e"}, {"SETUP", "setup", "7"}, {"BACK", "status", "7"}}) do
-      local col = buttons[(i - 1) % #buttons + 1]
-      local y = bottom + (w < 26 and math.floor((i - 1) / 2) or 0)
+    local buttons = U.grid(w, h, w < 26 and 2 or 3)
+    for i, b in ipairs({{"START", "start", "9"}, {"STOP", "stop", "e"}, {"SETUP", "setup", "7"}}) do
+      local col = i > #buttons and {x = 1, w = w} or buttons[i]
+      local y = bottom + math.floor((i - 1) / #buttons)
       C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
     end
   end

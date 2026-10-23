@@ -1,4 +1,4 @@
-57x24 Drop points (generic)
+57x24 Drop points (drops role)
                                                          
  DROP POINTS                                    5 points 
  ID  KIND     WHERE          SIDE   STATE                
@@ -10,7 +10,6 @@
                                                          
                                                          
                                                          
-   FIX #5        REMOVE        ADD NEW          BACK     
                                                          
                                                          
                                                          
@@ -21,7 +20,8 @@
                                                          
                                                          
                                                          
-  MINING      LUMBER       SHOP         AR       PANEL   
+                                                         
+      FIX #5             REMOVE             ADD NEW      
                                                          
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 f7777777777777777777777777777777777777777777777777777777f
@@ -33,9 +33,6 @@ dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 effffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-9999999999999f7777777777777f77777777777777f77777777777777
-9999999999999f7777777777777f77777777777777f77777777777777
-9999999999999f7777777777777f77777777777777f77777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -44,6 +41,9 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+999999999999999999f7777777777777777777f777777777777777777
+999999999999999999f7777777777777777777f777777777777777777
+999999999999999999f7777777777777777777f777777777777777777

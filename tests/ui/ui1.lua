@@ -219,13 +219,13 @@ return function(test,equal)
     s.now=35000
     assert(capture(frame(2),57,24).picture().text[3]:find('newest',1,true))
   end)
-  test('UI1 XS cycles tiles and status buttons select their roles',function()
+  test('UI1 XS cycles tiles and role ids never change the saved role',function()
     local _,_,frame,tap=server()
     local a=capture(frame(2,15,10),15,10).picture();tap(2,'next')
     local b=capture(frame(2,15,10),15,10).picture();assert(a.text[4]~=b.text[4])
-    for _,role in ipairs({'mining','lumber','shop','generic'}) do
+    for _,role in ipairs({'mining','lumber','shop','generic','panel','map','status','pocket'}) do
       local d,s,f,t=server();d.screen(role,function() return {rows={{text=role,fg='0',bg='f'}}} end)
-      f(2);t(2,role);equal(s.saved.roles['2'],role)
+      f(2);t(2,role);equal(s.saved.roles['2'],'status');equal(f(2).role,'status')
     end
   end)
   test('UI1 old renderers receive size and revisions remain independent',function()

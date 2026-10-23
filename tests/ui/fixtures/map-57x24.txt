@@ -20,7 +20,7 @@
                                                          
                                                          
                                                          
-     BACK           FIT            +              -      
+       FIT                  +                  -         
       ^              <             v              >      
                            ALL                           
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -44,6 +44,6 @@ fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-77777777777777f9999999999999f77777777777777f7777777777777
+999999999999999999f7777777777777777777f777777777777777777
 77777777777777f7777777777777f77777777777777f7777777777777
 777777777777777777777777777777777777777777777777777777777

@@ -10,7 +10,7 @@ BLOCKS  TOOLS   OTHER
          ▌  🬖🬀🬳🬷🬏▌ ▌         
         🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
  Order: sent 16              
-   <     1/18     >     BACK 
+    <       1/18        >    
 fffffffffffffffffffffffffffff
 faaaaaaaaaaaaaaaaaaaaaaaaaaaf
 aaaaaaaf777777f7777777f777777
@@ -22,4 +22,4 @@ fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffff
-7777777f777777f7777777f777777
+777777777f777777777f777777777

@@ -10,7 +10,7 @@ return function(test, equal)
             server.opts.directories=true
             F.seed(server,500)
           end)
-          if role~="generic" then s.press(role) end
+          s.assign(role)
           local cells=s.server.env.SO.mods.cells
           local before=cells.counts().dug
           local request=assert(cells.retirement())

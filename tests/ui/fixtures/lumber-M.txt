@@ -20,7 +20,7 @@
                                                          
                                                          
                                                          
-    START         STOP          SETUP           BACK     
+      START               STOP               SETUP       
                                                          
                                                          
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -43,7 +43,7 @@ fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

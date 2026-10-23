@@ -209,7 +209,7 @@ A display sends `view.get` to the server.
 
 A display sends `view.sub` to the server.
 
-`body` is `{}`. `body.role` is ignored. The server uses the role stored for that computer. A computer with no stored role is `generic`.
+`body` is `{}`. `body.role` is ignored. The server uses the role stored for that computer. A 26x20 computer with no stored role is `pocket`; any other is `unassigned`.
 
 SO5 sends the current `view.frame` when the display subscribes, and again every 4 seconds while the subscription lasts. It also sends a frame when the picture changes. A repeat may keep the same `rev`.
 
@@ -223,7 +223,7 @@ Frame signatures and revisions are tracked per role and client. Unchanged
 frames wait for the four-second keepalive even when other displays have different
 sizes or pages.
 
-`body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
+`body.role` is `status`, `pocket`, `mining`, `lumber`, `shop`, `generic` (the drop-point list), `ar`, `panel`, `map` or `unassigned`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`
 or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
@@ -250,7 +250,7 @@ A display sends `input` to the server. It does not wait.
 
 `body.id` is the button id, or absent when the player submitted text. `body.text` is that text, or absent for a button. `body.x` and `body.y` are 1-based character coordinates.
 
-`body.role` is ignored. The server uses the role stored for that computer.
+`body.role` is ignored. The server uses the role stored for that computer. No input changes that role.
 
 ### drops.edit
 
@@ -317,7 +317,7 @@ Stock older than 30 seconds shows STALE STOCK.
 
 Tapping `item:<itemName>` opens an IN STOCK tile and quantity buttons
 `order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`.
-`items` returns to the same list page; `status` returns from the list to status.
+`items` returns to the same list page. The list footer is `<`, page and `>`; it has no BACK.
 Tiles keep the existing blue, amber, empty and trend states. Stale tiles use gray.
 Without `so-ui.lua`, the legacy list and its direct order buttons remain available.
 
@@ -465,7 +465,7 @@ New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay
 The module registers `display.screen("mining", render, input)`. `render(w, h)`
 returns a Big Tiles frame. Input ids `start` and `stop` use the text commands
 below. `setup` opens the settings page and `mine-back` returns to mining.
-`status` is the main BACK navigation id. Both pages accept text commands.
+The main page has START, STOP and SETUP and no BACK. Both pages accept text commands.
 Daily ore totals have no source and show a stale `-` tile. A missing UI kit
 retains the legacy renderer. Send these text
 commands through that screen's `input.text`:
@@ -699,19 +699,67 @@ SO5 owns this API on `SO.mods.display`.
 
 The server terminal uses `display.terminal(model, view, w, h)` to return a
 Big Tiles frame. The model is the status model. The view supplies `id`,
-`mode` as normal, code or log, `uptime`, `log`, `offset`, `code`,
-`expires` and `now`. Times use game milliseconds and the log offset counts
+`mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
+`expires` and `now`. Role mode also reads `displays`, `input` and `notice`.
+Times use game milliseconds and the log offset counts
 back from the newest line. `SO.terminal` holds the runtime view. Display tick
-draws it once per second. Prints enter a volatile 200-line log, with long lines
+draws it once per second; `display.drawTerminal(now?)` draws it at once.
+Prints enter a volatile 200-line log, with long lines
 split into pieces of at most 4096 bytes. L opens the full log, L or Esc returns,
 and Up or Down scrolls. P opens or renews the existing five-minute invite.
 Esc clears it. Used or expired invites return to the normal page.
 
+#### Display roles
+
+A display shows one role. Only the server changes it:
+
+- R on the server terminal opens role mode. It lists every known display as
+  `ID  SIZE  ROLE` and reads one line: `<id> <role>` assigns, `<id> -` clears.
+  Enter applies it with `display.command`, prints `role: <result>` to the log
+  and shows the result above the prompt, wrapped to two rows when long. A list
+  longer than the screen ends with `+N more`. Backspace edits, Esc leaves. Keys
+  such as P and L type into the prompt instead of acting, and a panel's NEW
+  CODE request does not close it. Kit-free servers draw the same prompt as
+  plain rows.
+- `display.command(text)` parses that line and calls `display.assign`.
+- `display.assign(id, role)` returns `true, "display <id>: <role>"` or
+  `false, <reason>`. Role nil or `-` clears the saved role. Roles are
+  `status`, `pocket`, `mining`, `lumber`, `shop`, `drops`, `ar`, `panel` and
+  `map`; `drops` is saved as `generic`, which also stays accepted. Reasons are
+  `bad display id`, `no display <id>`, `roles: <list>`, `<role> not loaded`,
+  `pocket needs so-ui.lua`, `save failed: <error>` and
+  `use <id> <role> or <id> -`. An id is a display when it has a session size,
+  a saved role or a `display` registry row, or is the server's own id.
+  Assignment saves through `so-store`, resets the display's status paging and
+  pocket page, and the next tick sends the new frame. It never renders. Until
+  that frame is sent, button taps from the display are ignored, so a tap on
+  the old role's frame cannot reach the new role. Typed text still arrives. The local monitor does the same.
+
+Tests and the gateb driver use the same calls, for example
+`SO.mods.display.command("7 mining")`.
+
+A 26x20 display with no saved role gets `pocket`; so does 26x19, which older
+pocket clients report without `fullH`. Before R1 every navigation tap was
+saved, so a pocket keeps a saved role only when the command set it; other
+displays keep any saved role. Any other display with no
+saved role draws `unassigned`: an UNASSIGNED header and a teal block with its
+id in big digits, without buttons. A saved role whose screen is not
+registered, or whose renderer fails, draws the same block under the role name.
+Kit-free servers draw `display <id>` and the role name as text.
+
+The pocket role has two pages in the display session. The glance page is the
+26x20 status layout, at any height on a 26-wide pocket; its bottom-row `panel`
+input opens the panel page. The panel
+page is the `panel` screen with GLANCE (`glance`) in place of the status link.
+Neither changes the saved role. At other sizes the glance page uses the status
+layout.
+
 `display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
-The next display tick routes it to the drawn screen and handles navigation.
-Discovery runs at most every five seconds. The monitor uses its real size,
-text scale 0.5 and the spec palette. Its status session and role are volatile,
-separate from paired displays, and require no rednet traffic or saved files.
+The next display tick routes it to the drawn screen. Discovery runs at most
+every five seconds. The monitor uses its real size, text scale 0.5 and the
+spec palette. It draws the role saved under the server's own id, or status
+when there is none. Its session is volatile and
+separate from paired displays and needs no rednet traffic.
 `display.screen(role, render, input)` registers one screen. `role` is a string.
 A second call for the same role replaces the first. `screen(role)` with no
 callbacks returns the registered `{ render, input }` or nil.
@@ -723,12 +771,10 @@ passed to render; it is never sent on the wire. `role` is the screen that was
 showing. Local monitor input receives its own session through the same field.
 The session includes client `id` and `keyboard`, true only when hello reports
 `body.keyboard == true`. Monitor clients report false. A missing flag uses touch
-controls. Monitor panels open the shop with a SHOP button; keyboard panels retain
-typed quick search and quantities. Kit-free render callbacks receive the client
-ID as their third argument. Their generic content height excludes two navigation
-rows for mining, lumber, shop, status and AR. Every kit-free destination has a
-visible generic return button on 26x20 pockets and 29x12 monitors.
-Existing callbacks can ignore the added session argument and field.
+controls. Monitor panels run jobs only; keyboard panels retain typed quick
+search and quantities. Kit-free render callbacks receive the client ID as their
+third argument and the full content height. No screen draws buttons to another
+role. Existing callbacks can ignore the added session argument and field.
 Dug-storage requests occupy the top of every role, including `status` and
 `generic`. The server wraps their text and shifts the role below it. Buttons
 `dug.allow/<request-id>` and `dug.keep/<request-id>` carry labels `allow` and
@@ -780,29 +826,20 @@ Alert identity is the state key plus its serialized value. Each display sees
 at most one takeover for each identity and at most one in 30 seconds. The
 coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
 stay in the alert bar and do not trigger a delayed takeover. The alert bar
-opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
-select mining, lumber, shop or generic. At 26x20, glance row 20 shows
-`<  glance n/m  >  PANEL`. Its `prev` and `next` inputs wrap three pages of
-three tiles independently per pocket. The first page shows turtles, alerts and
-ore; later pages show leases, logs, disk, displays, drops and pairing. The `panel`
-input selects panel mode.
-No saved data or wire type changes are required.
-
-Button id `generic` returns that display to the generic screen. Button id
-`status` returns to status from any screen. Generic buttons can select `shop`,
-`mining`, `status`, `lumber`, `ar` and `panel`. Missing lumber and AR buttons are injected
-for legacy generic screens. The drops list has `new` and `status` buttons, so
-it suppresses that injection and reaches the other roles through ADD NEW.
-Generic screens at least 39 columns wide also gain a PANEL header button
-when the panel screen is loaded, unless they already have one.
-This keeps panel mode reachable on monitors
-when the drops module supplies the generic screen.
+opens the latest alert until tapped. XS `next` cycles the tiles. Status has
+no other buttons; its tiles use the rows the navigation row used to take.
+At 26x20, glance row 20 shows `<  glance n/m  >`, plus `PANEL` in the pocket
+role. Its `prev` and `next` inputs wrap pages of two tiles independently per
+display. The first page shows turtles and alerts; later pages show ore, leases,
+logs, disk, displays, drops and pairing.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
-in `so-display`, with string computer ids. Old files without `far` remain valid.
-The default role is `generic`, except a 26x20 display without a saved role
-uses `status` when the kit is installed. Saved roles, including `panel` and `map`, take precedence. Both settings
-survive a restart.
+in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
+for roles set by the command. Old files without `far` or `locked` remain valid.
+Roles saved before R1 keep working on every display except pockets, which
+return to `pocket` until the operator assigns them. `pocket` is a new saved
+value; a server older than R1 rejects a file that contains it and ignores
+`locked`. All settings survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
 the next tick for a subscribed display. A failed save keeps the previous setting.
@@ -821,10 +858,7 @@ still uses jittered exponential backoff capped at 30 seconds.
 `so-mod-map.lua` is installed only on the server. It registers
 `display.screen("map", render, input)` during tick. It adds no wire type.
 The saved display role may be `map`; older role and far settings remain valid.
-The display composer draws a teal `MAP` button at the right of every Big Tiles
-header while the map screen is registered. Input `map` remembers the drawn role
-in `session.mapReturn`. Input `map-back` restores that role, or status after a
-restart. This also works on the server's local monitor.
+The map is a role of its own. No other screen links to it and it has no BACK.
 
 `mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
 branches, turtles }`. `branches` covers assigned branches and progress.
@@ -860,8 +894,8 @@ last as `^ > v <`, with an id to the right at one block per cell when it fits.
 Busy uses green `d`, idle amber `1`, lost/range/stale coral `e`, and done blue `b`.
 Markers at the same projected cell overlap; turtles take precedence.
 
-Drawn inputs are `map-fit`, `map-in`, `map-out`, `map-n`, `map-w`, `map-s`,
-`map-e` and `map-level`. Zoom ranges from 1 to 4096 blocks per cell. Panning
+Drawn inputs are `map-fit`, `map-in`, `map-out` on row H-2, `map-n`, `map-w`,
+`map-s`, `map-e` on row H-1 and `map-level` on row H. Zoom ranges from 1 to 4096 blocks per cell. Panning
 moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
 the padded kit. Controls occupy the bottom three rows at every
 size, including 26x20 and 29x12. The header shows north and blocks per cell.
@@ -889,7 +923,9 @@ one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
 which defines the best match. A search with no match sends no order. This uses
 the existing shop search and selection state, shared with full shop screens.
 
-`status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
+In the pocket role `glance` (GLANCE) returns to the pocket's glance page; the
+panel role has no GLANCE. Monitor panels without a keyboard show only the job
+blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
 `alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
 request it through authenticated `input`. The server-local `SO.pairCode(id)`
@@ -975,8 +1011,7 @@ and the next scan countdown. A missing countdown uses a stale tile. The logs
 tile uses the delivered total because no daily total exists. START and STOP
 use the text commands above. SETUP lists the area, ground, sapling chest, turtle
 and their text commands, with NEXT on small screens. Its BACK button returns
-to lumber; the main BACK has
-id `status`. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
+to lumber; the main page has START, STOP and SETUP and no BACK. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
@@ -1003,17 +1038,14 @@ and state, with green or coral state stripes. A row tap selects the point for
 FIX and REMOVE. The default is the first broken point, or the first point if
 none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
 existing draft editor with kind, side, dimension and coordinate controls.
-The list offers MINING, LUMBER, SHOP, AR and PANEL on its bottom row. SHOP uses purple;
-the other buttons use slate. At 57x24 they occupy rows 22 through 24 with
-widths 11, 11, 11, 10 and 10 and one-column gaps. Other sizes use the grid rule,
-with one-row navigation in compact layouts. The editor keeps ADD and BACK.
-The display module still injects its legacy LUMBER and AR header buttons
-into the editor, plus PANEL on screens at least 39 columns wide when that
-role is registered. The editor's BACK returns to the list. The list's BACK returns to status. Gather copies module state
+FIX, REMOVE and ADD NEW sit on the bottom rows in three grid columns, three
+rows tall on full layouts. Compact layouts use one row, or two below 26
+columns with ADD NEW on its own row. The list fills the rows above them. There
+is no link to another role. The editor keeps ADD and BACK; its BACK returns to
+the list. Gather copies module state
 before the private pure layout builds the requested display size.
 The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
-buttons fit 26x20 pockets and 29x12 monitors below navigation and above the
-bottom input row. Draft and feedback are shared between displays; paging is per display.
+buttons fit 26x20 pockets and 29x12 monitors above the bottom input row. Draft and feedback are shared between displays; paging is per display.
 Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
 and `add <kind> <x> <y> <z> [front|down] [dim]` to set and save it.
 Omitted side and dimension keep the draft values. Dimension may be supplied
@@ -1028,13 +1060,12 @@ The list is saved through `so-store` in the file `so-drops`. A change emits `dro
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
 `tick(now)` and has no wire handlers. Without a controller it does not draw.
-It registers `display.screen("ar", render, input)`. The generic screen reaches
-AR through its fallback button or the drops draft editor. The `ar` role
-survives restart through `so-display`.
+It registers `display.screen("ar", render, input)`. A display gets the `ar`
+role from the server command; it survives restart through `so-display`.
 
 The screen shows the controller count and one tile per layer. Each tile shows
 1 and "layer on" in green, or 0 and "layer off" in grey. Tapping a tile toggles
-its layer once. Small screens use compact tiles. BACK returns to status.
+its layer once. Tiles use two columns; small screens use compact rows. There is no BACK.
 Gather copies the layer state before the private pure layout renders it.
 All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with

@@ -16,7 +16,7 @@
                                                    
                                                    
                                                    
-   MINING       LUMBER        SHOP         MORE    
+                                                   
                                                    
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 f7777777777777777777777777777777777777777777777777f
@@ -34,6 +34,6 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777f777777777777faaaaaaaaaaaaf777777777777
-777777777777f777777777777faaaaaaaaaaaaf777777777777
-777777777777f777777777777faaaaaaaaaaaaf777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

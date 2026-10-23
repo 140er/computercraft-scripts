@@ -20,7 +20,7 @@
  #2      mining     12,60,-9      812   14               
  #3      wait lane   0,61,-1      640    9               
                                                          
-    START         STOP          SETUP           BACK     
+      START               STOP               SETUP       
                                                          
                                                          
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -43,7 +43,7 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 777777777777777777777777777777777777777777777777777777777
 dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
+999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

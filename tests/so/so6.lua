@@ -41,7 +41,7 @@ local function setup(extra)
   end
   net.advance(1)
   send("hello", { w = 120, h = 100 })
-  send("input", { id = "shop", x = 1, y = 2 })
+  assert(server.env.SO.mods.display.command("2 shop"))
   return net, server, client, send, frame
 end
 

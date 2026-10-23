@@ -114,13 +114,20 @@ local function newClient(s, id, code)
   return client
 end
 
+-- A pocket opens its panel page; any other display gets the panel role from the server.
+local function openPanel(s)
+  if s.frame().role=="pocket" then s.press("PANEL") return end
+  assert(s.server.env.SO.mods.display.command(s.client.id.." panel"))
+  s.net.advance(1)
+end
+
 return function(test, equal)
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h = table.unpack(size)
     test("panel pairing button, big digits and single use at "..w.."x"..h,function()
       local s=setup(w,h,true)
-      if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
       local code=readCode(s,w)
       equal(code,s.server.env.SO.pair.pending())
       equal(s.server.env.SO.terminal.code,code)
@@ -146,8 +153,8 @@ return function(test, equal)
     end)
     test("panel expiry and code privacy at "..w.."x"..h,function()
       local s=setup(w,h,true)
-      if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
       local code=readCode(s,w)
       local pair=s.server.env.SO.pair
       equal(s.server.env.SO.pairCode(99),nil)
@@ -155,7 +162,7 @@ return function(test, equal)
       equal(s.server.env.SO.pairCode(5),nil)
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=5,body={w=w,h=h}})
-      display.handlers.input({from=5,body={id="panel",x=1,y=1}})
+      if w==26 then display.handlers.input({from=5,body={id="panel",x=1,y=1}}) else assert(display.assign(5,"panel")) end
       display.handlers.input({from=5,body={id="pair",x=1,y=1}})
       display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
       local other
@@ -211,8 +218,8 @@ return function(test, equal)
   end)
   test("repeat panel requests preserve five bad attempt limit",function()
     local s=setup(26,20,true)
-    if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+    openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
     local bad=newClient(s,9,"abcdef")
     local env=bad.env
     local proto=assert(env.dofile("so-proto.lua"))
