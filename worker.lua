@@ -271,7 +271,7 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap },
+    capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap or nil },
     tools = W.tools(),
     fuel = W.fuelBody(),
     free = W.free(),
@@ -301,7 +301,7 @@ W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap },
+    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap or nil },
     tools = W.tools(),
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
