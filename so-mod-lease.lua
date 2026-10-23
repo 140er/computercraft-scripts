@@ -310,7 +310,7 @@ end
 S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    tools = SO.store.copy(row.tools), toolError = row.toolError,
+    tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
@@ -419,7 +419,8 @@ S.ensureTool = function(id, kind)
   for _, name in pairs(row.tools) do
     if type(name) == "string" and name:match("_"..kind.."$") then row.toolError = nil return true end
   end
-  if row.autoToolSwap and not row.open and not row.uncertain and not row.lost
+  if not row.autoToolSwap then return true, "needs "..kind end
+  if not row.open and not row.uncertain and not row.lost
     and SO.now() >= (row.toolRetry or 0) then
     row.toolRetry = SO.now()+30000
     S.send(id, {{op="tool",kind=kind}}, {owner="tools"})

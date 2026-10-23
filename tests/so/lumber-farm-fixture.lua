@@ -11,7 +11,7 @@ local function libs(m)
     f:close()
   end
 end
-local function setup(saplings, fuel, side, count, starts)
+local function setup(saplings, fuel, side, count, starts, tools)
   count = count or 1
   side = side or "down"
   local n = H.new()
@@ -105,6 +105,11 @@ local function setup(saplings, fuel, side, count, starts)
         end
         return move()
       end
+    end
+    if tools then
+      worker.env.turtle.getEquippedLeft = function() return {name=tools.left} end
+      worker.env.turtle.getEquippedRight = function() return {name=tools.right} end
+      worker.files["so-worker.cfg"] = "{autoToolSwap=false}"
     end
     worker.boot("worker.lua")
   end

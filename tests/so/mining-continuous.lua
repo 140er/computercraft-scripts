@@ -15,13 +15,18 @@ local function setup()
   local s={net=net,server=server,turtles={}}
   s.command=function(text) server.env.SO.mods.display.screen("mining").input({text=text}) end
   s.job=function() return server.env.SO.store.read("so-data/mine/job").value end
-  s.add=function(id,x)
+  s.add=function(id,x,tools)
     local key=string.rep("a",64)
     assert(server.env.SO.pair.remember(id,key))
     local turtle=net.machine({id=id,modem=true,turtle=true,x=x,fuel=4000,capacity=1000000})
     turtle.install({"worker.lua","so-store.lua","so-pair.lua","so-proto.lua"})
     for path,data in pairs(server.files) do if path:find("lib/ccryptolib/",1,true)==1 then turtle.files[path]=data end end
     turtle.files["so-keys"]=H.encode({schema=1,generation=1,value={keys={["1"]=key}}})
+    if tools then
+      turtle.env.turtle.getEquippedLeft=function() return {name=tools.left} end
+      turtle.env.turtle.getEquippedRight=function() return {name=tools.right} end
+      turtle.files["so-worker.cfg"]="{autoToolSwap=false}"
+    end
     turtle.boot("worker.lua") net.flush()
     s.command("add "..id.." "..x.." 0 0 n") net.advance(1)
     s.turtles[#s.turtles+1]=turtle
@@ -33,6 +38,29 @@ local function setup()
   return s
 end
 return function(test,equal)
+  test("default-off tool checks let a miner without a pickaxe start and finish its branch",function()
+    local s=setup()
+    local worker=s.add(2,0,{left="minecraft:diamond_axe",right="computercraft:wireless_modem"})
+    local drops=s.server.env.SO.mods.drops
+    for i,kind in ipairs({"ore","fuel"}) do
+      assert(drops.add({id=kind,dim=0,x=-10-i,y=-1,z=0,side="down",kind=kind}))
+    end
+    s.command("home 0 0 0 n") s.command("bottom -2") s.command("length 2") s.command("mode fast")
+    for y=-2,0 do s.net.world["0,"..y..",-1"]="minecraft:stone" end
+    local lease=s.server.env.SO.mods.lease
+    equal(lease.status(2).autoToolSwap,false)
+    equal(lease.ensureTool(2,"pickaxe"),true)
+    s.command("start");assert(s.job().running,"informational readiness blocked start")
+    for _=1,120 do
+      s.net.advance(1)
+      assert(s.server.alive(),tostring(s.server.error));assert(worker.alive(),tostring(worker.error))
+      if s.job().progress.done>=1 then break end
+    end
+    equal(s.job().progress.done,1)
+    equal(s.net.world["0,-2,-1"],nil)
+    equal(worker.screen[4],"needs pickaxe")
+  end)
+
   for _,mode in ipairs({"fast","thorough"}) do
     test("continuous mining finishes six unique branches with two miners and restart in "..mode,function()
       local s=setup()

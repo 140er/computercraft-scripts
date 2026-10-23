@@ -152,7 +152,7 @@ S.readiness = function()
     local id = row.turtle.id
     local status = type(lease.status)=="function" and lease.status(id)
     paired = paired and SO.pair and SO.pair.key(id) ~= nil and status and not status.uncertain and not status.lost
-    checks[#checks+1]=P.toolCheck(status and status.tools,"axe",id)
+    checks[#checks+1]=P.toolCheck(status and status.tools,"axe",id,status and status.autoToolSwap)
     fueled = fueled and type(row.fuel)=="number" and row.fuel~=0
   end
   paired, fueled = #rows > 0 and paired, #rows > 0 and fueled
@@ -1329,7 +1329,10 @@ S.tickRow = function(row, now)
   S.row = row
   local j, lease = S.row, S.module("lease")
   local status = lease.status(j.turtle.id)
-  if type(lease.describe) == "function" then lease.describe(j.turtle.id,"lumber",j.alert or j.blocked or j.phase or "idle") end
+  local tool = P.toolCheck(status.tools,"axe")
+  if type(lease.describe) == "function" then
+    lease.describe(j.turtle.id,"lumber",not tool.ok and tool.text or j.alert or j.blocked or j.phase or "idle")
+  end
   if status.uncertain then
     if j.inflight or j.uncertain then S.suspendService() end
     j.blocked = "pose uncertain"

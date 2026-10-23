@@ -516,7 +516,8 @@ end
 plan = function(id,row)
   local status = call("lease", "status", id)
   if not status then return end
-  call("lease", "describe", id, "mine", row.error or row.state or "idle")
+  local tool = P.toolCheck(status.tools,"pickaxe")
+  call("lease", "describe", id, "mine", not tool.ok and tool.text or row.error or row.state or "idle")
   if status.uncertain then
     row.state, row.error = "hold", "pose uncertain: re-add turtle " .. id
     row.laneWait=nil
@@ -747,7 +748,7 @@ local function readiness()
   for _,id in ipairs(ids) do
     local row=job.turtles[tostring(id)]
     local status=call("lease","status",id)
-    checks[#checks+1]=P.toolCheck(status and status.tools,"pickaxe",id)
+    checks[#checks+1]=P.toolCheck(status and status.tools,"pickaxe",id,status and status.autoToolSwap)
     local fueled=type(row.fuel)=="number" and row.fuel~=0
     checks[#checks+1]={ok=fueled, text=fueled and ("fuel #"..id.." "..row.fuel) or ("fuel missing #"..id)}
   end

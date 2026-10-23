@@ -146,7 +146,8 @@ A turtle also sends these fields.
 
 `body.tools` is optional `{left=string|false,right=string|false}`, with equipped
 item names or false for an empty side. Missing queries on older workers omit it.
-Unknown equipment does not fail readiness. `body.capabilities.autoToolSwap` is
+Unknown equipment does not fail readiness. Missing equipment is informational
+when automatic swaps are disabled; START and ongoing planning remain unchanged. `body.capabilities.autoToolSwap` is
 true only when `so-worker.cfg` has `autoToolSwap=true` at boot.
 
 `body.free` is how many of the 16 slots are empty.

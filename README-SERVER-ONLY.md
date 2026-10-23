@@ -81,7 +81,8 @@ still use hostname discovery, so isolate competing networks while pairing.
 ## Turtle tools
 
 Workers report equipped tool names without moving or digging. Mining readiness
-requires a pickaxe and lumber requires an axe. Missing tools appear in NEEDS YOU.
+checks for a pickaxe and lumber checks for an axe. Missing tools appear in NEEDS YOU.
+With automatic swaps off, these warnings never block START or interrupt planning.
 Older workers without equipment queries show `tools unknown` and keep working.
 The turtle terminal shows its label, assigned job, current step, fuel and reason.
 
