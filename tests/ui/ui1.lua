@@ -6,9 +6,9 @@ local function model()
     okShort='3 ok',lostShort='0 lost',oreShort='+12 / 10 min', log={},
     terminalSubs={'ok','fresh','2.1 MB','see log'}, tiles={} }
   local data = {
-    {'TURTLES','3','3 ok, 0 lost','d'}, {'LEASES','2','open now','b'}, {'ALERTS','1','ore chest full','e'},
-    {'ORE TODAY','214','+12 last 10 min','b'}, {'LOGS TODAY','96','4 trees','d'}, {'DISK','13%','2.1 of 16 MB','d'},
-    {'DISPLAYS','4','all fresh','d'}, {'DROPS','5','1 broken','1'}, {'PAIR','','press P on server','9'},
+    {'TURTLES','3','3 ok, 0 lost','d'}, {'LEASES','2','','b'}, {'ALERTS','1','ore chest full','e'},
+    {'ORE TODAY','214','+12','b'}, {'LOGS TODAY','96','','d'}, {'DISK','13%','2.1 of 16 MB','d'},
+    {'DISPLAYS','4','all fresh','d'}, {'DROPS','5','1 broken','1'}, {'PAIR','','','9'},
   }
   for i,t in ipairs(data) do m.tiles[i]={label=t[1],value=t[2],sub=t[3],bg=t[4]} end
   return m
@@ -49,6 +49,19 @@ local function server()
   return d,s,frame,tap
 end
 return function(test,equal)
+  test('UI1 screen strings contain no instruction verbs or return hints',function()
+    for _,path in ipairs({'so-ui.lua','so-mod-display.lua','so-mod-panel.lua','so-mod-ar.lua',
+        'so-mod-mine.lua','so-mod-lumber.lua','so-mod-drops.lua','so-mod-shop.lua','so-mod-map.lua'}) do
+      local file=assert(io.open(path));local source=file:read('*a');file:close()
+      for _,text in source:gmatch("(['\"])(.-)%1") do
+        text=text:lower()
+        for _,verb in ipairs({'press','choose','tap'}) do
+          assert(not text:find('%f[%a]'..verb..' '),path..': '..text)
+        end
+        assert(not text:find('back to ',1,true),path..': '..text)
+      end
+    end
+  end)
   test('UI1 font decodes all nine cells of every spec glyph',function()
     local file=assert(io.open('docs/ui/BIG-TILES-SPEC.md')); local spec=file:read('*a');file:close()
     local count,inversions=0,0
@@ -141,7 +154,7 @@ return function(test,equal)
       assert(f.rows[1].text=='')
       local text=table.concat((function() local rows={} for _,r in ipairs(f.rows) do rows[#rows+1]=r.text end return rows end)(),'\n')
       assert(text:find('TURTLES',1,true))
-      if size[2]>=38 then assert(text:find('3 ok, 0 lost',1,true));assert(text:find('press P on server',1,true)) end
+      if size[2]>=38 then assert(text:find('3 ok, 0 lost',1,true));assert(text:find('PAIR',1,true)) end
     end
   end)
   test('UI1 gathering reads real sources and leaves unsupported totals stale',function()

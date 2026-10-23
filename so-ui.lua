@@ -195,12 +195,9 @@ U.status = function(model, w, h)
   local function draw(index, x, y, width, height)
     local t = tiles[index]
     if not t then return end
-    C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height)
     if index == 9 then
-      local left, right = math.max(2,x), math.min(w-1,x+width-1)
-      C.fill(left+1,y+2,math.max(0,right-left-1),3,t.bg)
-      C.center(left+1,math.max(0,right-left-1),y+3,'new client:')
-    end
+      C.button(math.max(2,x),y+1,math.max(0,math.min(w-1,x+width-1)-math.max(2,x)+1),'PAIR','pair','9',3)
+    else C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height) end
   end
   if size == 'P' then
     for i,index in ipairs({1,3}) do draw(index,1,4+(i-1)*8,w,7) end
@@ -241,7 +238,6 @@ U.alert = function(model, w, h)
   C.center(1,w,12,(a.text or model.alert or ''):upper())
   C.center(1,w,14,a.detail or '')
   C.center(1,w,16,a.sub or '')
-  C.center(1,w,h-3,'(back to the screen in 5 s, or tap)')
   C.hit('dismiss',1,1,w,h)
   return C.frame()
 end

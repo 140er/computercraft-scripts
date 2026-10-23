@@ -361,7 +361,7 @@ S.typed = function(text)
     S.message = "dim/x/y/z: integers only" return
   end
   S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side }
-  S.message = "draft set; tap add"
+  S.message = "draft ready"
   if direct then S.addDraft() end
 end
 

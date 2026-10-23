@@ -68,10 +68,10 @@ end
 
 local function model()
   local m={time='21:14',alerts={},oreShort='+12 / 10 min',tiles={}}
-  for i,t in ipairs({{'TURTLES','3','3 ok, 0 lost','d'},{'LEASES','2','open now','b'},
-    {'ALERTS','1','ore chest full','e'},{'ORE TODAY','214','+12 last 10 min','b'},
-    {'LOGS TODAY','96','4 trees','d'},{'DISK','13%','2.1 of 16 MB','d'},
-    {'DISPLAYS','4','all fresh','d'},{'DROPS','5','1 broken','1'},{'PAIR','','press P on server','9'}}) do
+  for i,t in ipairs({{'TURTLES','3','3 ok, 0 lost','d'},{'LEASES','2','','b'},
+    {'ALERTS','1','ore chest full','e'},{'ORE TODAY','214','+12','b'},
+    {'LOGS TODAY','96','','d'},{'DISK','13%','2.1 of 16 MB','d'},
+    {'DISPLAYS','4','all fresh','d'},{'DROPS','5','1 broken','1'},{'PAIR','','','9'}}) do
     m.tiles[i]={label=t[1],value=t[2],sub=t[3],bg=t[4]}
   end
   return m
@@ -124,12 +124,34 @@ return function(test,equal)
       end end
       local text=out.picture().text
       for _,y in ipairs({5,13}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
+      for _,button in ipairs(s.frame(2).buttons) do if button.id=='pair' then seen.PAIR=true end end
       assert(text[20]:find('glance '..page..'/5',1,true));s.tap(2,'next')
     end
     for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS','PAIR'}) do assert(seen[label],label) end
     assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/5',1,true))
     s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 5/5',1,true))
     assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/5',1,true))
+  end)
+  test('UI3b status PAIR opens the panel pair page through its drawn button',function()
+    for _,size in ipairs({{26,20},{29,12},{57,24},{15,10},{100,38}}) do
+      local s=setup(); local w,h=unpack(size);local found
+      s.frame(2,w,h);s.tap(2,"status")
+      for _=1,10 do
+        local f=s.frame(2,w,h)
+        for _,button in ipairs(f.buttons) do if button.id=='pair' then found=button end end
+        if found then break end
+        for _,button in ipairs(f.buttons) do if button.id=='next' then s.tap(2,button.id) end end
+      end
+      -- Compact status grids expose a subset of tiles.
+      if found then
+        local f=s.frame(2,w,h)
+        local text=table.concat(capture(f,w,h).picture().text,'\n')
+        assert(text:find('PAIR',1,true));equal(found.h,3)
+        s.display.handlers.input({from=2,body={id=found.id,x=found.x,y=found.y+1}})
+        local page=s.frame(2,w,h);equal(page.role,'panel')
+        assert(table.concat(capture(page,w,h).picture().text,'\n'):find('PAIR NEW',1,true))
+      else assert(w==29,'PAIR must be reachable through paging') end
+    end
   end)
   test('UI3b panel fixture matches and controls dispatch once per tap',function()
     local s=setup();s.now=(21*60+14)*60000;s.frame(2);s.tap(2,'panel');s.tap(2,nil,'iron')
@@ -159,7 +181,7 @@ return function(test,equal)
             (bg=='9' or bg=='e' or bg=='a') and fg=='f','contrast '..fg..'/'..bg)
         end end
         if page=='pair' and w>=26 then
-          local text=table.concat(out.picture().text,'\n');assert(text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
+          local text=table.concat(out.picture().text,'\n');assert(not text:find('Press P on the server',1,true));assert(text:find('PAIR NEW CLIENT',1,true))
         end
       end
     end

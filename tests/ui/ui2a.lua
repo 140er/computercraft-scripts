@@ -32,7 +32,7 @@ return function(test,equal)
     local s=setup();assert(s.layout,'pure layout missing')
     local m={running=true,tiles={
       {'BUSY','2/2','both digging','d'},{'ORE TODAY','214','iron 120 dia 3','b'},
-      {'DEPTH','-12','bottom -16','d'},{'LANE','1','#3 waiting','1'},
+      {'DEPTH','-12','','d'},{'LANE','1','#3 waiting','1'},
       {'MIN FUEL','640','#3','d'},{'BRANCHES','3/8','48 long','b'}},turtles={
       {id=2,state='mining',pos='12,60,-9',fuel='812',ore='14',stripe='d'},
       {id=3,state='wait lane',pos=' 0,61,-1',fuel='640',ore='9',stripe='1'}}}

@@ -1060,7 +1060,8 @@ boolean values. A failed save leaves the current switches unchanged.
   ordered by distance from the configured server position, then element id.
   Without server coordinates, element id determines the order. Boxes and arrows
   remain visible when their labels exceed these limits.
-- The HUD has three padded 56-pixel tiles for TURTLES total, ALERTS count and DISK percent.
+- The HUD starts at `(4,72)` in GUI units, below the Difficulty overlay.
+  Its three 56-unit tiles have eight-unit gaps for TURTLES total, ALERTS count and DISK percent.
   Each has a translucent backing, white text and a four-pixel state bar.
   TURTLES uses the same machine registry and role filter as the status screen,
   including paired idle workers. Its bar uses the status screen's lost-lease
@@ -1068,11 +1069,13 @@ boolean values. A failed save leaves the current switches unchanged.
   Lost turtles, active alerts and disk use of at least 80 percent use coral;
   healthy tiles use green. Unknown disk use is stale.
 - `alerts` shows the newest active `.alert` value in a coral banner for five
-  seconds after observation. Retained history detects repeated identical
+  seconds after observation, as the first row inside the HUD. The tile row moves
+  down 14 GUI units while the strip is visible. Retained history detects repeated identical
   alerts; without history a changed serialized value renews the banner.
   Expiry deletes the banner while the HUD keeps the active alert-key count.
   The switch hides the banner without hiding the HUD count. Controllers without
-  `drawRect2D` retain a text-only alert instead of the timed banner.
+  `drawRect2D` show the same five-second text row. Dug-storage notices sit below the tiles.
+  `drawRect2D` receives opposite corners, including the tile bars.
 
 World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
 `FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`, stale
@@ -1080,7 +1083,7 @@ World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
 Alerts expire five minutes after the event timestamp, or first observation when
 no timestamp is available. Repeated events renew the deadline and the short
 banner. Expired snapshot values stay hidden until a new event arrives.
-Text-only controllers show the newest retained alert.
+Text-only controllers use the same five-second alert deadline.
 
 Known `so-server.cfg` `pos.dim` filters world elements. Numeric drop dimensions
 map 0 to `minecraft:overworld`, -1 to `minecraft:the_nether`, and 1 to

@@ -267,7 +267,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   main/alerts/pair pages and alert paging in each display session. MORE in its
   header opens the generic drop-point list. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
-  Main-page inputs forward START and STOP once to the mining or lumber screen.
+  The status PAIR button opens the panel pair page directly. Unavailable NEW CODE
+  controls are grey and have no action target. Main-page inputs forward START
+  and STOP once to the mining or lumber screen.
   Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
@@ -403,6 +405,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the nearest 16 turtle labels and eight drop labels per kind are drawn, using
   the server position. Boxes and arrows remain. The HUD counts all registered
   workers like status, including paired idle workers; its bar marks lost leases.
+  The HUD starts at GUI `(4,72)`. A five-second alert strip is its first row,
+  and retirement notices sit below the tiles. Rectangle arguments are opposite corners.
   Dug-storage requests remain visible until a player decides, including with
   the optional event-alert layer off. Decision notices last 30 seconds.
   See [AR](server-only/PROTOCOL.md#ar).
