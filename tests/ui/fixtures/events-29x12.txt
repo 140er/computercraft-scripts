@@ -1,0 +1,25 @@
+29x12 EVENTS
+    HEALTH        NEEDS 1    
+ EVENTS                      
+          KIND ALL           
+ 6s drops                    
+ 6s drops                    
+ 6s drops                    
+ 6s drops                    
+ 6s mine.ore                 
+ 6s mine.alert ore chest full
+ 8s machine                  
+  PREV      BACK      NEXT   
+ EVENTS    ALERTS    ERRORS  
+77777777777777f11111111111111
+f777777777777777777777777777f
+77777777777777777777777777777
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+bffffffffffffffffffffffffffff
+777777777f777777777f777777777
+777777777f777777777f777777777

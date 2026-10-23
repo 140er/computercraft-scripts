@@ -1,0 +1,16 @@
+Self-review covered persistence generations and write failure retry, history cursor boundaries,
+backward-compatible defaults, display session isolation, local monitor routing,
+installer role coverage, and isolation from mining, lumber and pairing modules.
+New behavior is server-side. Worker and display downloads are unchanged.
+
+Static checks passed: luac5.2 syntax; clock UTC allow-list; luacheck 0 errors
+with one existing unused-argument warning; Cobalt maximum 46 locals, below 185.
+
+Linux tests/ui/ui0.lua passed all 10 checks with 0 skips, including fixture
+regeneration. Visibility fixtures come from registered product renderers at
+26x20 and 29x12 through docs/ui/visibility-fixtures.lua.
+
+Gate B was not run. The orchestrator owns native C3 execution. Shared display
+and installer changes also map to C4, C1 and C14 in tools/gateb/run.py.
+The emulator artifact is Pack-ROM evidence, not a native Minecraft run or
+CraftOS-PC sandbox screenshot.

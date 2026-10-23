@@ -210,7 +210,7 @@ H.checkpoint = function(S, payload)
   if not latest then return false, lerr or "snapshot" end
   local pointed, perr = latest.save({ n = n, seq = S.seq, first = drop })
   if not pointed then return false, perr end
-  S.snapN = n
+  S.snapN, S.snap = n, payload
   H.pruneSnaps(n)
   while S.first < drop do
     S.sizes[S.first] = nil
@@ -296,6 +296,10 @@ M.open = function(store)
     due = function() return H.due(S) end,
     checkpoint = function(payload) return H.checkpoint(S, payload) end,
     rawBytes = function() return H.raw(S) end,
+    status = function()
+      return { available=true, seq=S.seq, segments=math.max(0,S.last-S.first+1), bytes=H.raw(S),
+        snapshot=S.snapN, snapshotAt=S.snap and S.snap.gameAt, due=H.due(S) }
+    end,
   }
 end
 

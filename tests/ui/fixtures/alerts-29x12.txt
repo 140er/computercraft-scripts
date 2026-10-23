@@ -1,0 +1,25 @@
+29x12 ALERTS
+    HEALTH        NEEDS 1    
+ ALERTS                      
+                             
+ 6s mine.alert ore chest full
+                             
+                             
+                             
+                             
+                             
+                             
+  PREV      BACK      NEXT   
+ EVENTS    ALERTS    ERRORS  
+77777777777777f11111111111111
+f777777777777777777777777777f
+fffffffffffffffffffffffffffff
+effffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+777777777f777777777f777777777
+777777777f777777777f777777777

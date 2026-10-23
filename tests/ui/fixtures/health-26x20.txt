@@ -1,0 +1,41 @@
+26x20 HEALTH
+   HEALTH       NEEDS 1   
+ HEALTH                   
+                          
+ Uptime 6s                
+ Tick 1000ms / wall 1000ms
+ Tick cost 0ms            
+ Events #7 / 1 seg        
+ Event bytes 1065         
+ Snapshot none            
+ Disk 2% / 15626991B free 
+ Modems 1                 
+ Paired 1 online / 0 lost 
+ Leases 0 open            
+ Clock reserve 1s         
+ Errors 1 / 115B          
+ Last: tick fixture failed
+                          
+                          
+  PREV     BACK     NEXT  
+ EVENTS   ALERTS   ERRORS 
+7777777777777f111111111111
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+bfffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+77777777f77777777f77777777
+77777777f77777777f77777777

@@ -19,3 +19,4 @@ so-server.lua	if slot and slot.hs and os.epoch("utc") - slot.at <= memory
 so-server.lua	if os.epoch("utc") - slot.at > memory then by[rid] = nil end
 so-store.lua	local origin = box.value and box.value.ceiling or os.epoch("utc")
 worker.lua	if ttl == nil and type(body.expires) == "number" then ttl = math.max(0, body.expires - os.epoch("utc")) end
+so-server.lua	local wall = os.epoch("utc")

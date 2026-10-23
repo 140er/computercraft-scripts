@@ -163,6 +163,11 @@ P.render = function(w, h, session)
       end
     end
   end
+  if page == "main" and SO.mods.health and w >= 26 and h >= 12 then
+    local cols = U.grid(w,h,2)
+    c.button(cols[1].x,1,cols[1].w,"HEALTH","health","7",1)
+    c.button(cols[2].x,1,cols[2].w,"NEEDS "..SO.mods.health.count(),"attention","1",1)
+  end
   return c.frame()
 end
 
@@ -172,6 +177,9 @@ P.input = function(event)
   session.panel = session.panel or {search="",page="main"}
   local panel,id = session.panel,event.id
   if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
+  if event.open and SO.mods.health and (id == "health" or id == "attention" or id == "alerts") then
+    event.open(id);return
+  end
   if id == "panel-back" then panel.page="main"
   elseif id == "pair" or id == "alerts" then panel.page=id
   elseif id == "pair-code" and panel.page == "pair" and event.from == session.id
