@@ -98,18 +98,20 @@ S.candidates = function()
   local out = {}
   for id, row in pairs(S.turtles) do
     local assigned = false
-    for _, name in ipairs({"mine", "lumber"}) do
+    for _, name in ipairs({"mine", "lumber", "build"}) do
       local mod = S.module(name)
       if mod and mod.assigned and mod.assigned(id) then assigned = true end
     end
-    if row.worker and SO.pair.key(id) and not assigned then out[#out + 1] = id end
+    local drops=S.module("drops")
+    if drops and drops.busy and drops.busy(id) then assigned=true end
+    if row.worker and SO.pair.key(id) and not assigned and not row.open and not row.probeOwner then out[#out + 1] = id end
   end
   table.sort(out)
   return out
 end
 
 S.locate = function(id, dim, done)
-  for _, name in ipairs({"mine", "lumber"}) do
+  for _, name in ipairs({"mine", "lumber", "build"}) do
     local mod = S.module(name)
     if mod and mod.assigned and mod.assigned(id) then done(nil, "turtle already assigned") return end
   end
@@ -288,7 +290,7 @@ S.send = function(id, steps, opts)
   S.seq = S.seq + 1
   local lease = {
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
-    owner = opts.owner, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
+    owner = opts.owner, journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
   if #steps == 1 and steps[1].op == "inspectDown" then
     lease.retryAt = SO.now() + 1000
@@ -296,6 +298,7 @@ S.send = function(id, steps, opts)
   local wire, err = SO.proto.encode(SO.proto.build(key, "lease.batch", {
     lease = lease.id, ttl = math.max(0, lease.expires - SO.now()),
     expires = os.epoch("utc") + math.max(0, lease.expires - SO.now()), steps = lease.steps,
+    journal = lease.journal,
   }))
   if not wire then return nil, err end
   row.open = lease
@@ -307,7 +310,7 @@ end
 S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
+    parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
 
@@ -389,6 +392,7 @@ S.hello = function(msg)
   row.lost = false
   row.seen = SO.now()
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
+  row.setupFence = type(msg.body.capabilities) == "table" and msg.body.capabilities.setupFence == true
   row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
   local journal = msg.body.journal
   if type(journal) == "table" then
@@ -428,6 +432,7 @@ S.tick = function(now)
         local wire = SO.proto.encode(SO.proto.build(key, "lease.batch", {
           lease = lease.id, ttl = math.max(0, lease.expires - now),
           expires = os.epoch("utc") + math.max(0, lease.expires - now), steps = lease.steps,
+    journal = lease.journal,
         }))
         if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
       end

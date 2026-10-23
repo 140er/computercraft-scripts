@@ -6,7 +6,7 @@
  Tick 1000ms / wall 1000ms
  Tick cost 0ms            
  Events #7 / 1 seg        
- Event bytes 1065         
+ Event bytes 1080         
  Snapshot none            
  Disk 2% / 15528923B free 
  Modems 1                 

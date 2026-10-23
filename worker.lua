@@ -123,7 +123,7 @@ W.markPending = function(op)
     W.journal.pending.fuel = W.fuelRaw()
     if W.journal.pending.fuel == "unlimited" then W.journal.pending.gps = W.gpsFix() end
   end
-  W.save()
+  return W.save()
 end
 
 W.pushMove = function(op)
@@ -234,7 +234,7 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true },
+    capabilities = { parkBatch = true, setupFence = true },
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -262,7 +262,7 @@ W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results, capabilities = { parkBatch = true },
+    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true },
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -511,6 +511,13 @@ W.startBatch = function(msg)
     W.enterSlow()
     return
   end
+  if body.journal ~= nil and body.journal ~= W.journal.id then
+    W.lease = body.lease
+    local results = {}
+    for i=1,n do results[i]={ok=false,err="journal changed"} end
+    W.report(results)
+    return
+  end
   W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true
     or n == 1 and body.steps[1].op == "inspectDown")
   W.mode = "idle"
@@ -530,7 +537,11 @@ W.startBatch = function(msg)
     if type(step) == "table" and type(step.op) == "string" then op = step.op end
     W.stepName = tostring(i)
     W.paint()
-    W.markPending(op)
+    local saved=W.markPending(op)
+    if body.journal ~= nil and not saved then
+      W.refuse(results,i,n)
+      break
+    end
     W.breathe(C.pause)
     if W.now() >= W.expires then
       W.refuse(results, i, n)

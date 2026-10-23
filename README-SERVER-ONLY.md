@@ -498,3 +498,36 @@ The next unassigned mining branch appears in blue in AR and amber on the map.
 AR trails show active progress and up to 64 recent completed branches.
 For C13 label trials, set `arLabelScale = 0.6` in `so-server.cfg` and restart.
 Allowed scales are 0.5 to 0.7; the default stays 0.5 until measured in-game.
+
+### Chest setup
+
+The drop editor's TEST button opens chest setup. SCAN lists adjacent chests,
+barrels and shulker boxes around an unassigned, idle turtle. Choose its facing
+with N, E, S or W when GPS has not established it. Select a found coordinate,
+choose the kind, then ADD. The scan restores the original facing and transfers
+no items. A chest above the turtle uses DOWN access from above the chest.
+
+New setup movement requires `setupMovement = true` in `so-server.cfg`. It is off
+by default. Workers must advertise `capabilities.parkBatch` and `capabilities.setupFence`. GPS must identify
+the turtle's dimension and position, and the server must know its journal pose.
+Assigned mining, lumber and builder turtles are excluded.
+
+Select a drop point, open TEST, then press TEST #id. A free turtle visits the
+access cell, inspects the block and returns to its starting pose. Visits never
+dig, use at most a 64-block outward distance and refuse mining lanes, reserved
+cells and routes beyond radio range. A blocked move stops the visit. Its route
+stays reserved until a fresh GPS fix and a worker acknowledgment permit RELEASE. After a server restart,
+`release <turtle-id>` on the drop editor releases the saved setup route using
+that fresh fix. Uncertain workers need their normal explicit reanchor first.
+
+The editor also accepts `scan <turtle-id>` and `test <point-id>`. Successful
+visits save `{at, block}` on the point. Missing inventories clear verification
+and count toward the existing broken-point limit. FIX remains required for a
+broken point. Readiness rows show "verified by visit" or "unverified";
+unverified points remain usable. Verification records an observation, so a
+later removed chest can still fail during normal work.
+
+Pairing shows a panel notice for 30 game seconds. Mining and lumber setup list
+unassigned turtles with labels, ids on ADD HERE, and fuel. Labels use at most
+16 characters. Refused mining commands appear in the panel's mining block;
+an accepted command clears the reason.

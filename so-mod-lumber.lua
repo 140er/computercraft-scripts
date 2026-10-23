@@ -1059,12 +1059,12 @@ S.input = function(ev)
     S.admission = "GPS probe"
     lease.locate(integer(2), j.dim, function(pose, err)
       S.admission = nil
-      if not pose then S.admission = err return end
+      if not pose then S.admission = err S.alert(err) return end
       S.input({text=string.format("add %d %d %d %d %s", integer(2), pose.x, pose.y, pose.z, ({[0]="n","e","s","w"})[pose.facing])})
     end)
     return
   end
-  if words[1] == "stop" and #words == 1 then j.running = false
+  if words[1] == "stop" and #words == 1 then j.running, j.alert, S.admission = false, nil, nil S.emit("lumber.alert",false)
   elseif words[1] == "start" and #words == 1 then
     local state = S.module("state")
     local ok, err = false, "disk guard unavailable"
@@ -1128,7 +1128,9 @@ S.input = function(ev)
       paused = row and row.paused or nil,
     }
     S.row = nil
+    j.alert,S.admission=nil,nil
     if not S.save() then j.turtles[tostring(id)] = previous return end
+    S.emit("lumber.alert",false)
     if lease.clearProbe then
       local ok, clearErr = lease.clearProbe(id)
       if not ok then S.alert(clearErr) return end
@@ -1155,6 +1157,8 @@ S.input = function(ev)
     j.turtles[tostring(id)] = nil
     S.row = nil
   else S.alert("invalid command") return end
+  j.alert,S.admission=nil,nil
+  S.emit("lumber.alert",false)
   S.save()
 end
 
@@ -1229,7 +1233,13 @@ S.layout = function(model, w, h)
   if model.setup then
     local lines = {}
     for _, check in ipairs(model.readiness) do lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"} end
-    for _, id in ipairs(model.available or {}) do lines[#lines+1] = { id = id } end
+    if #(model.available or {}) > 0 then lines[#lines+1]={text="UNASSIGNED",bg="7"} end
+    for _, id in ipairs(model.available or {}) do
+      local state=S.module("state")
+      local machine=state.get and state.get("machines/"..id) or {}
+      lines[#lines+1]={text=(machine.label or ("#"..id)).." FUEL "..tostring(machine.fuel or "?"),bg="f"}
+      lines[#lines+1]={id=id}
+    end
     for _, line in ipairs(model.details) do
       for first = 1, #line, math.max(1, w - 2) do
         lines[#lines + 1] = {text=line:sub(first, first + math.max(1, w - 2) - 1),bg="f"}

@@ -453,4 +453,4 @@ local function protect(fn)
   end
   return true
 end
-return {name="build",handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}
+return {name="build",assigned=function(id) return j.turtle and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}

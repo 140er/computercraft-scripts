@@ -1621,3 +1621,36 @@ The screen accepts `area x1 y1 z1 x2 y2 z2`, `shape <kind>`, `material <name>`,
 Reservations use `build:<id>`. Supply uses existing storage drop points.
 Saved intents and target inspection reconcile placement after restart.
 See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.
+
+### Setup observations
+
+`pair.done` is a server state event with `{id, at, role?, label?}`. Successful
+pairing emits it; the next hello fills the role and clipped label while keeping
+its original `SO.now()` timestamp. It contains no pairing credentials.
+Machine events and registry views also carry the optional 16-character label.
+
+Drop points accept optional `verified = {at, block}` in `so-drops` and in
+`drops.list()` results. The editor saves it only after an authenticated setup
+visit inspects a chest, barrel or shulker box at that point. A missing inventory
+clears it and increments the normal failure count. Unverified points remain
+usable. Readiness describes the last successful visit without adding a gate.
+
+Chest setup reuses `lease.batch` and `step.report`, with no new worker operation.
+`so-server.cfg.setupMovement` defaults to false. All setup batches require
+`capabilities.parkBatch` and `capabilities.setupFence` and set their first step's `park=true`. Setup only uses
+unassigned idle turtles. The whole route is reserved under `setup:<id>` before
+sending its first step, including the occupied cell, outward path and return.
+The route excludes the mining shaft and spine. Every report must match the
+expected world pose in the starting journal frame before another step is sent.
+Blocked moves and missing reports keep reservations. Fresh GPS and a certain
+journal are required to release them. RELEASE sends a fenced GPS batch and waits
+for its successful report before freeing the route. Setup never digs or transfers items.
+
+Setup batches also include optional `lease.batch.body.journal`, the exact worker
+journal id expected before execution. Workers advertising `setupFence=true`
+reject a mismatched id without running a step. They persist the next journal id
+before executing fenced work and refuse the batch if that save fails. RELEASE
+uses a fenced GPS step. Its report proves the worker advanced its journal, so a
+delayed setup batch with the previous id cannot move after reservations are
+released, including across a server restart. Older workers remain compatible
+with ordinary leases but cannot run chest setup.

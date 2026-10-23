@@ -141,7 +141,7 @@ A.scene = function(now)
       if status.lost then lostCount = lostCount + 1 end
       if A.layers.turtles and p and A.sameDim(p.dim) then
         local key = "turtle:" .. id
-        label(key, color, p, "#" .. id, "turtle", "turtle")
+        label(key, color, p, machine.label or ("#" .. id), "turtle", "turtle")
         box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
         local d = A.dirs[p.facing or p.f or 0]
         if d then

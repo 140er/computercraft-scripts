@@ -102,7 +102,7 @@ H.machine = function(row)
   if type(row.pose) == "table" then
     pose = { dim = row.pose.dim, x = row.pose.x, y = row.pose.y, z = row.pose.z, facing = row.pose.facing }
   end
-  return { id = row.id, role = row.role, fp = row.fp, seen = row.seen, fuel = row.fuel, pose = pose }
+  return { id = row.id, role = row.role, label = row.label, fp = row.fp, seen = row.seen, fuel = row.fuel, pose = pose }
 end
 
 H.builtin = function(name)
@@ -171,6 +171,7 @@ H.apply = function(S, ev)
   if ev.kind == "machine" and type(ev.data) == "table" and type(ev.data.id) == "number" then
     local row = H.ensure(S, ev.data.id)
     if ev.data.role ~= nil then row.role = ev.data.role end
+    if type(ev.data.label) == "string" then row.label = ev.data.label end
     if ev.data.fp ~= nil then row.fp = ev.data.fp end
     if ev.data.fuel ~= nil then row.fuel = ev.data.fuel end
     if ev.data.journal ~= nil then row.journal = ev.data.journal end
@@ -432,6 +433,7 @@ local history = {
 
 local function hello(msg)
   local body, now = msg.body, SO.now()
+  local label = type(body.label) == "string" and body.label:gsub("[%c]", ""):sub(1,16) or nil
   local role = body.role
   if role == "worker" then role = "turtle" end
   if role == nil and type(body.w) == "number" and type(body.h) == "number" then role = "display" end
@@ -440,6 +442,11 @@ local function hello(msg)
   local fuel = body.fuel
   if not (type(fuel) == "number" and fuel == fuel and math.abs(fuel) < math.huge)
     and fuel ~= "unlimited" then fuel = nil end
+  local paired=S.values["pair.done"]
+  if type(paired)=="table" and paired.id==msg.from and type(paired.at)=="number" and now-paired.at<30000
+    and (paired.role ~= role or paired.label ~= label) then
+    emit("pair.done",{id=msg.from,role=role,label=label,at=paired.at})
+  end
   local row = S.machines[tostring(msg.from)]
   local oldFuel = row and (H.coalesce and row.eventFuel or row.fuel)
   local changed = row and fuel ~= nil and (type(fuel) ~= type(oldFuel)
@@ -460,8 +467,8 @@ local function hello(msg)
     row.seen, row.fuel = now, fuel or row.fuel return
   end
   if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
-    or changed or now - (row.seen or 0) >= 60000 then
-    emit("machine", { id = msg.from, role = role, fuel = fuel, seen = now, journal = journal })
+    or label ~= nil and label ~= row.label or changed or now - (row.seen or 0) >= 60000 then
+    emit("machine", { id = msg.from, role = role, label = label, fuel = fuel, seen = now, journal = journal })
   end
 end
 

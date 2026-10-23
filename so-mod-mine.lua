@@ -744,7 +744,7 @@ local function view(session)
   session.mining = session.mining or { page = "main" }
   return session.mining
 end
-local function input(event)
+local function command(event)
   if type(event.text) ~= "string" then
     if event.id == "workers-next" or event.id == "workers-prev" then
       local v = view(event.session) v.workers = (v.workers or 0)+(event.id == "workers-next" and 1 or -1) return
@@ -785,8 +785,9 @@ local function input(event)
     if not lease or not lease.locate then S.error = "GPS unavailable; use explicit add" return end
     S.error = "GPS probe"
     lease.locate(id, job.dim, function(pose, err)
-      if not pose then S.error = err return end
-      input({text=string.format("add %d %d %d %d %s", id, pose.x, pose.y, pose.z, ({[0]="n","e","s","w"})[pose.facing])})
+      if not pose then S.error = err emit("mine.alert",{text=err}) return end
+      command({text=string.format("add %d %d %d %d %s", id, pose.x, pose.y, pose.z, ({[0]="n","e","s","w"})[pose.facing])})
+      emit("mine.alert",S.error and {text=S.error} or false)
     end)
     return
   end
@@ -870,6 +871,15 @@ local function input(event)
   S.error=nil
   save()
 end
+local function input(event)
+  command(event)
+  if type(event.text) == "string" or event.id == "start" or event.id == "stop" or tostring(event.id):match("^here:") then
+    local current=call("state","get","mine.alert")
+    if S.error then
+      if type(current) ~= "table" or current.text ~= S.error then emit("mine.alert",{text=S.error}) end
+    elseif current then emit("mine.alert",false) end
+  end
+end
 local function legacyRender(w)
   local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
@@ -898,7 +908,8 @@ local function gather()
     if type(row.fuel) == "number" and (not minimum or row.fuel < minimum) then minimum, fuelId = row.fuel, id end
     if not m.alert and row.error then m.alert = row.error end
     local p = row.pose or row.anchor or job.home
-    m.turtles[#m.turtles + 1] = { id = tonumber(id), state = state, stripe = stripe,
+    local machine = call("state","get","machines/"..id) or {}
+    m.turtles[#m.turtles + 1] = { label = machine.label, id = tonumber(id), state = state, stripe = stripe,
       pos = U and U.turtle.pose(p):match("^(%S+) ") or "-", fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0),
       branch = row.branch, done = U and U.branchProgress(job,row), total = job.length }
   end
@@ -942,7 +953,12 @@ local function layout(m, w, h, setup, offset)
     for _,check in ipairs(m.readiness) do
       lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"}
     end
-    for _,id in ipairs(m.available or {}) do lines[#lines+1]={id=id} end
+    if #m.available > 0 then lines[#lines+1]={text="UNASSIGNED",bg="7"} end
+    for _,id in ipairs(m.available or {}) do
+      local machine=call("state","get","machines/"..id) or {}
+      lines[#lines+1]={text=(machine.label or ("#"..id)).." FUEL "..tostring(machine.fuel or "?"),bg="f"}
+      lines[#lines+1]={id=id}
+    end
     for _,line in ipairs(m.setup) do
       for x=1,math.max(1,#line),math.max(1,w-2) do
         lines[#lines+1]={text=line:sub(x,x+math.max(1,w-2)-1),bg="f"}
@@ -1001,8 +1017,8 @@ local function layout(m, w, h, setup, offset)
         local row = m.turtles[page*capacity+i]
         local y = listY+1+(i-1)*2
         if row and y+1 < buttonY then
-          local text = w < 39 and string.format("#%s %s %s",row.id,row.pos,row.state)
-            or string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore)
+          local text = w < 39 and string.format("%s %s %s",row.label or ("#"..row.id),row.pos,row.state)
+            or string.format("%-8s%-11s%-14s%-4s%4s",row.label or ("#"..row.id),row.state,row.pos,row.fuel,row.ore)
           c.listRow(y,text,row.stripe)
           c.hit("turtle:"..row.id,1,y,w,2)
           if row.branch ~= nil and row.done == nil then c.put(2,y+1,"-")

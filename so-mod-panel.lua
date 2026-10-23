@@ -34,6 +34,17 @@ P.refresh = function()
     end
   end
   if count > 0 then P.fleet = "TURTLES " .. (count-lost) .. " ok, " .. lost .. " lost" end
+  P.reasons = {}
+  for role,key in pairs({mining="mine.alert",lumber="lumber.alert"}) do
+    local reason=state and state.get and state.get(key)
+    if type(reason)=="table" then P.reasons[role]=reason.text end
+  end
+  local paired=state and state.get and state.get("pair.done")
+  P.paired=nil
+  if type(paired)=="table" and type(paired.at)=="number" and P.now()-paired.at < 30000 then
+    local machine=machines[tostring(paired.id)] or {}
+    P.paired="Paired "..(machine.role or "client").." #"..paired.id..(machine.label and (" "..machine.label) or "")
+  end
   P.alerts = {}
   local view = state and state.view
   local meta = type(view) == "table" and getmetatable(view)
@@ -51,7 +62,10 @@ P.block = function(c, role, x, y, w, height, compact)
   local loaded = P.states[role] ~= "not loaded"
   c.put(x+1,y,role:upper():sub(1,w-2))
   local offset = loaded and 10 or math.min(10,math.max(1,w-10))
-  c.put(x+offset,y,P.states[role]:sub(1,math.max(0,w-offset)))
+  local reason=P.reasons and P.reasons[role]
+  if reason then
+    c.fill(x,y,w,1,"e") c.put(x+1,y,reason:sub(1,math.max(0,w-2)),"f","e")
+  else c.put(x+offset,y,P.states[role]:sub(1,math.max(0,w-offset))) end
   local halves = U.grid(w, height, 2)
   if w == 26 then halves = {{x=1,w=12},{x=14,w=13}} end
   for i,cmd in ipairs({"start","stop"}) do
@@ -134,7 +148,7 @@ P.render = function(w, h, session)
     end
   else
     local top = P.fleet and h >= 12 and 4 or 3
-    if top == 4 then c.put(2,3,P.fleet:sub(1,w-2)) end
+    if top == 4 then c.put(2,3,(P.paired or P.fleet):sub(1,w-2)) end
     local cols = U.grid(w,h)
     if h < 19 and #cols == 1 then
       P.block(c,"mining",1,top,w,h,true)
