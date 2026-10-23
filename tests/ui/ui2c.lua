@@ -178,6 +178,12 @@ local FIXTURES = {
   { "tests/ui/fixtures/shop-pick-39x19.txt", "pick", 39, 19 },
   { "tests/ui/fixtures/shop-pick-29x12.txt", "pick", 29, 12 },
   { "tests/ui/fixtures/shop-pick-26x20.txt", "pick", 26, 20 },
+  -- The Big Tiles names, kept because test files are never deleted, now hold route A pages.
+  { "tests/ui/fixtures/shop-M.txt", "browse", 57, 24 },
+  { "tests/ui/fixtures/shoporder-M.txt", "item", 57, 24 },
+  { "tests/ui/fixtures/shop-compact.txt", "browse", 29, 12 },
+  { "tests/ui/fixtures/shop-pocket.txt", "browse", 26, 20 },
+  { "tests/ui/fixtures/shop-large.txt", "browse", 100, 38 },
 }
 
 local function read(path)

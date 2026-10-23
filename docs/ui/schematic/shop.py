@@ -361,3 +361,11 @@ def page(name, kw, w, h, title):
 
 FIXTURES = [("shop-%s-%dx%d" % (name, w, h), page(name, kw, w, h, "Shop %s, %s %dx%d" % (what, where, w, h)))
             for name, what, kw in PAGES for w, h, where in SIZES if name != "pick" or w < 52]
+# The Big Tiles shop fixture names stay (test files are never deleted) and hold route A pages.
+KW = {name: (what, kw) for name, what, kw in PAGES}
+FIXTURES += [(old, page(name, KW[name][1], w, h, "Shop %s, %s %dx%d" % (KW[name][0], where, w, h)))
+             for old, name, w, h, where in (("shop-M", "browse", 57, 24, "room monitor"),
+                                            ("shoporder-M", "item", 57, 24, "room monitor"),
+                                            ("shop-compact", "browse", 29, 12, "compact monitor"),
+                                            ("shop-pocket", "browse", 26, 20, "pocket"),
+                                            ("shop-large", "browse", 100, 38, "large wall"))]

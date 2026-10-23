@@ -785,7 +785,9 @@ also checks that the generator reproduces every map fixture and `map-mockups.md`
 S1 rewrites `tests/ui/ui2c.lua` for the route A shop. It loads `tests/ui/shop-stock.tsv`
 (110 real item ids with history, stack and expected category) into the real module, taps
 to every page and compares the `shop-browse`, `-item`, `-low`, `-find` and `-pick` fixtures
-at 57x24, 39x19, 100x38, 29x12 and 26x20 cell by cell, with the contrast rule. It also
+at 57x24, 39x19, 100x38, 29x12 and 26x20 cell by cell, with the contrast rule. The old
+Big Tiles names (`shop-M`, `shoporder-M`, `shop-compact`, `shop-pocket`, `shop-large`)
+hold route A pages too. It also
 checks the category table on real ids and tags, filters and picker counts, every sort and
 paging through every item once, keypad and keyboard search, one order per tap for each
 amount, order replies and timeouts, `matches`, `best` and `order`, bounds at odd sizes,
