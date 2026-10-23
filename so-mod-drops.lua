@@ -437,6 +437,8 @@ S.plan = function(C, m, x0, y0, pw, ph, draft)
   end
   if draft then items[#items + 1] = { draft.x, draft.z } end
   if #items == 0 then return y0 - 1 end
+  -- North is up, as on the map; the compass sits on the row above the plan.
+  if y0 > 2 then C.put(x0 + pw - 2, y0 - 1, "\24N", "8") end
   for _, k in ipairs({ "server", "shaft" }) do if m[k] then items[#items + 1] = { m[k].x, m[k].z } end end
   local bx1, bx2 = span(1)
   local bz1, bz2 = span(2)
