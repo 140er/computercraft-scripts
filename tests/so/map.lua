@@ -2,10 +2,14 @@ local H = dofile("tests/so/harness.lua")
 local R = dofile("tests/ui/render.lua")
 local U = dofile("so-ui.lua")
 
--- docs/ui/map-scene.txt is the one scene behind the generator's fixtures and these tests.
+-- tests/ui/map-scene.txt is the one scene behind the generator's fixtures and these tests.
+local FIXTURES = {["26x20"]="tests/ui/fixtures/map-26x20.txt", ["29x12"]="tests/ui/fixtures/map-29x12.txt",
+  ["57x24"]="tests/ui/fixtures/map-57x24.txt", ["39x19"]="tests/ui/fixtures/map-39x19.txt",
+  ["15x10"]="tests/ui/fixtures/map-15x10.txt", ["100x38"]="tests/ui/fixtures/map-100x38.txt"}
+
 local function loadScene()
   local s = {dug={}, reserve={}, turtles={}, drops={}, spots={}, views={}}
-  for line in io.lines("docs/ui/map-scene.txt") do
+  for line in io.lines("tests/ui/map-scene.txt") do
     local a, n = {}, {}
     for word in line:gmatch("%S+") do
       a[#a+1] = word
@@ -164,7 +168,7 @@ return function(test,equal)
       local frame, most = s.settle(w, h, session)
       assert(most <= 16 + 24, "dug reads per frame "..most)
       local out = picture(frame, w, h)
-      local diffs = R.diff(R.load("tests/ui/fixtures/map-"..w.."x"..h..".txt"), out.picture())
+      local diffs = R.diff(R.load(assert(FIXTURES[w.."x"..h], "fixture path")), out.picture())
       equal(#diffs, 0, table.concat(diffs, "\n"))
       local v, level, area = session.map, session.map.level, s.scene.area
       local farm = level == "all" or level >= s.scene.ground and level <= s.scene.ground + 8
@@ -433,10 +437,10 @@ return function(test,equal)
   end)
 
   test("map generator writes every map fixture and the map mockups", function()
-    local pipe = io.popen("pwd")
-    local root = pipe and pipe:read("*l")
-    if pipe then pipe:close() end
-    if not root or root:sub(1, 1) ~= "/" or not os.execute("python3 -V > /dev/null 2>&1") then
+    local started, pipe = pcall(io.popen, "pwd")
+    local root = started and pipe and pipe:read("*l")
+    if started and pipe then pipe:close() end
+    if not root or root:sub(1, 1) ~= "/" or not os.execute("test -f docs/ui/mockup-gen.py && python3 -V > /dev/null 2>&1") then
       return dofile("tests/skips.lua").record("map generator writes every map fixture and the map mockups",
         "needs a POSIX shell and python3")
     end
@@ -446,11 +450,12 @@ return function(test,equal)
     local command = "cd '" .. dir .. "' && python3 -I '" .. root .. "/docs/ui/mockup-gen.py'"
     assert(os.execute(command .. " > /dev/null"))
     assert(os.execute(command .. " --fixtures fixtures"))
-    local function read(path) local f = assert(io.open(path, "rb")) local text = f:read("*a") f:close() return text end
-    equal(read(dir .. "/map-mockups.md"), read("docs/ui/map-mockups.md"))
+    local function same(a, b) return os.execute("cmp -s '" .. a .. "' '" .. b .. "'") end
+    assert(same(dir .. "/map-mockups.md", root .. "/docs/ui/map-mockups.md"), "map-mockups.md differs from the generator")
     for _, v in ipairs(loadScene().views) do
       local name = "map-" .. v.w .. "x" .. v.h .. ".txt"
-      equal(read(dir .. "/fixtures/" .. name), read("tests/ui/fixtures/" .. name))
+      assert(FIXTURES[v.w .. "x" .. v.h], "fixture path for " .. name)
+      assert(same(dir .. "/fixtures/" .. name, root .. "/tests/ui/fixtures/" .. name), name .. " differs from the generator")
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)

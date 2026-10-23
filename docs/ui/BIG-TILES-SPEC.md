@@ -231,7 +231,7 @@ button cycles ALL, the mine level and the surface. UP and DN step one block. ALL
 Each display session owns its view. Section reads are budgeted per tick and shared between displays;
 the map caches its raster and frame and redraws only when the view or the data changes.
 
-`mockup-gen.py` calls `map-mockup.py`, which draws the scene in `map-scene.txt` at 26x20, 29x12,
+`mockup-gen.py` calls `map-mockup.py`, which draws the scene in `tests/ui/map-scene.txt` at 26x20, 29x12,
 57x24, 39x19, 15x10 and 100x38. See [map mockups](map-mockups.md). The scene is a north-facing mine
 with a shaft, a spine held as a lane, seven finished 64-block branches, two branches in progress with
 held cells ahead of their turtles, a planned tenth branch, ore veins at three levels, a farm with

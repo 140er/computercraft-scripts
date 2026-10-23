@@ -1,4 +1,4 @@
-# Top-down map mockups. Mirrors so-mod-map.lua on the scene in map-scene.txt;
+# Top-down map mockups. Mirrors so-mod-map.lua on the scene in tests/ui/map-scene.txt;
 # tests/so/map.lua renders the same scene through the real module and compares.
 import math
 from pathlib import Path
@@ -255,7 +255,7 @@ def render(Canvas, s, view):
 
 
 def generate(Canvas):
-    s = load_scene(Path(__file__).with_name("map-scene.txt"))
+    s = load_scene(Path(__file__).resolve().parents[2] / "tests/ui/map-scene.txt")
     scenes = []
     for view in s["views"]:
         w, h = view["w"], view["h"]

@@ -271,7 +271,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   returns its cached frame. Frames over the 16 KB budget fall back to solid
   character cells. Landscape screens use a right control rail; narrow screens
   use two bottom rows. `map-pick` focuses a character; the header shows what
-  is under it. The map is its own role with no BACK. `docs/ui/map-scene.txt`
+  is under it. The map is its own role with no BACK. `tests/ui/map-scene.txt`
   feeds both `map-mockup.py` and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
@@ -720,7 +720,7 @@ prompt through key events, the role list, and the roles-T, unassigned-M and
 unassigned-XS fixtures. Tests that need a role use `display.command`.
 
 R5 rewrites `tests/so/map.lua`. It renders every `map-*` fixture from the
-scene in `docs/ui/map-scene.txt` through the real cells module, checks a lit
+scene in `tests/ui/map-scene.txt` through the real cells module, checks a lit
 pixel for every visible dug mark, pan, zoom, FIT, focus, the level control,
 per-tick read and probe bounds, an idle map with no reads, the 16 KB frame
 budget at 164x81, and that the cells map queries write nothing. On Linux it
