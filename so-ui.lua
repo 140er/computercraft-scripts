@@ -668,4 +668,33 @@ U.fleetRows = function(C, model, top, step)
 end
 -- Line digits draw "-" as the middle stroke alone: a pair code not issued yet reads "------".
 U.segments["-"] = "g"
+-- Job screens (S3); docs/ui/schematic/kit.py has the same three calls.
+-- Header with tabs: the full labels when they fit beside the right word, then the short labels,
+-- then without the right word. active is the tab's index. Returns whether the right word shows.
+U.roleBar = function(C, name, tabs, short, active, right, rfg)
+  right = right or ""
+  local function last(list)
+    local x = 2 + #name + 2
+    for _, t in ipairs(list) do x = x + #t + 3 end
+    return x
+  end
+  if last(tabs) + #right + 2 > C.w then tabs = short end
+  if last(tabs) + #right + 2 > C.w then right = "" end
+  C.bar(name, tabs, tabs[active], right, rfg)
+  return right ~= ""
+end
+-- - value +: chips with ids id- and id+ around a value centred in vw cells. Returns the next column.
+U.stepper = function(C, x, y, value, id, vw)
+  vw = vw or 8
+  C.chip(x, y, "-", id .. "-")
+  value = tostring(value):sub(1, vw)
+  C.put(x + 5 + math.floor((vw - #value) / 2), y, value, "0")
+  return C.chip(x + 6 + vw, y, "+", id .. "+")
+end
+-- Screen-wide chips of equal width over columns 2 to w-1; items are { label, id, kind }.
+U.actions = function(C, y, items, gap)
+  gap = gap or 1
+  local bw = math.floor((C.w - 2 - gap * (#items - 1)) / #items)
+  for i, item in ipairs(items) do C.chip(2 + (i - 1) * (bw + gap), y, item[1], item[2], item[3], bw) end
+end
 return U

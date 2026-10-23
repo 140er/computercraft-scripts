@@ -204,6 +204,9 @@ the map packs its own runs the same way and steps out when a frame would pass 15
 | `C.box(x, y, w, h, fg)` | `box` | hairline frame |
 | `C.digits(x, y, text, fg?, w?, h?, gap?)` | `digits` | line digits; returns the width |
 | `C.put(x, y, text, fg, bg?)` | `cv.put` | text with its own fg; bg kept when omitted |
+| `U.roleBar(C, name, tabs, short, active, right?, rfg?)` | `role_bar` | header with tabs; short labels, then no right word, when they do not fit; returns whether the right word shows |
+| `U.stepper(C, x, y, value, id, vw?)` | `stepper` | `-` chip, value centred in `vw` cells, `+` chip (ids `id-`, `id+`); returns the next column |
+| `U.actions(C, y, items, gap?)` | `actions` | equal chips over columns 2 to w-1; items are `{ label, id, kind }` |
 
 Helpers: `U.tone(word)`, `U.mark(line)`, `U.age(ms, long?)` (`now`, `3m`/`3 min`, `2h`/`2 h`),
 `U.arrow(facing)`, `U.filled(n, part, whole)`, `U.g` (glyph bytes), `U.chips` (chip colours),
@@ -345,3 +348,67 @@ FLEET.
 - **R:** `DISPLAYS` with the count, then id, size (muted) and role (muted when unassigned),
   `+N more` when they do not fit, the last result above the prompt (two rows when long), and
   `> 6 shop_` with `[Enter] set  [Esc] back` at the right.
+
+## 19. Mining
+
+`so-mod-mine.lua` draws it; `schematic/jobs.py` is the twin. Fixtures `mining-M/W/L/P/XS`,
+`miningsetup-M/L/P` and `miningores-M/P`.
+
+- **Header:** `MINING overview setup`, the state word at the right in its tone. Narrow
+  screens use the short tabs `main setup` and drop the state word into the first leader.
+  Tabs need 24 columns; the 15-wide monitor shows the overview only.
+- **Overview, room and wall:** a job diagram, not a map. One row per branch, the newest
+  at the top: the muted number, the spine `+` (blue `b` while a turtle holds the lane,
+  steel otherwise), dug cells `-` in steel and planned cells `·` muted, one cell per
+  block at most. Under the last branch the spine `|` and the shaft `º` with `shaft`.
+  Turtles sit on their branch at their depth, the arrow turned to the job's frame; a
+  working turtle has one blue held cell ahead and its id, others their id and state
+  word (`3 wait`, `6 lost`) in their tone. A turtle in the lane sits on the spine with
+  its id to the left. Leaders on the right: busy, lane (`#id` in blue), depth, done,
+  ore today, lowest fuel (amber under 500). TURTLES lists arrow, id, state, branch,
+  position (coral when lost), fuel and ore. START and STOP on the last row; the one
+  that does nothing now is muted. Walls cap the diagram at 24 rows and the table at
+  12 (`+N more`); the facts and the table follow the diagram instead of the far edge.
+- **Overview, column (24 to 51 columns, 14 rows and up):** the diagram over the
+  leaders, in two columns from 30 columns wide and one below.
+- **Overview, tiny:** leaders only.
+- **Setup:** label column at 2, controls at 13 (10 below 36 columns). `home` is a value;
+  `bottom` and `length` are steppers (`Y -58`, `64`); `mode` is a pair of chips, the
+  active one plain and the other off; `ores` shows `all` or the list with an `edit` chip
+  (on while open); `turtles` lists ids. Room monitors draw a preview of the first ten
+  branches and the footprint (`40 × 64`) behind a rule, or the ore chips while the list
+  is open. Narrow screens wrap the ore chips under the ores row. A branch count and
+  turtle add or remove are text commands only: the job has no branch limit, and adding
+  a turtle needs its position.
+
+## 20. Lumber
+
+`so-mod-lumber.lua` draws it. Fixtures `lumber-M/W/L/P/XS` and `lumbersetup-M/P`.
+
+- **Overview:** the farm plan in a hairline outline at up to four columns per block
+  (two on the room monitor), two rows per block on walls, squeezed when it does not fit,
+  at most 64 by 32 cells. Trees are `♠` (green, ready) and `♣` (muted, growing), one per
+  cell. The sapling chest and nearby `wood` drop points sit where they are, `•` (or a
+  coral `×` when broken) with their kind beside them, on the side away from the farm.
+  The turtle's arrow carries its id above-right, or below when that touches something.
+  Room monitors list the turtle under the plan and the leaders (ready, growing, next
+  grow, logs, saplings, fuel) behind a rule; columns put four leaders under the plan.
+- **Setup:** area, ground, sapling chest and turtle as values; narrow screens put each
+  value under its label.
+
+## 21. Drop points
+
+`so-mod-drops.lua` draws it. Fixtures `drops-M/L/P/XS` and `dropsadd-M/P/XS`.
+
+- **List:** `DROP POINTS` (`DROPS` below 30 columns) with the count, or `◄ 1/2 ►` when
+  it pages. Columns id, kind, where, side; the selected row has the panel background;
+  a broken point's id and kind are coral. Up to two flags (`! 3 junk broken`) follow the
+  table. FIX (primary when the selection is broken, muted otherwise), REMOVE (stop)
+  and ADD sit on the last row and act on the selection. At most 24 rows per page.
+- **Plan (room monitors):** behind a rule, the chests around home at one block per cell
+  when they fit, labelled by row number, with `@ server`, `º shaft` and the farm edge for
+  context. The selected chest is inverted. Every chest is a one-cell target that
+  selects it. At most 48 by 32 cells.
+- **Editor:** `ADD DROP POINT`, chips for kind and side, steppers for dim, x, y and z,
+  ADD and BACK. Room monitors draw the plan with the draft as an inverted teal `•`.
+  Results show in the row above the actions: `point added` in green, errors as a flag.

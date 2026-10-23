@@ -479,12 +479,23 @@ at the bottom level. Branch junctions are four blocks apart in `thorough` mode
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
 New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
-The module registers `display.screen("mining", render, input)`. `render(w, h)`
-returns a Big Tiles frame. Input ids `start` and `stop` use the text commands
-below. `setup` opens the settings page and `mine-back` returns to mining.
-The main page has START, STOP and SETUP and no BACK. Both pages accept text commands.
-Daily ore totals have no source and show a stale `-` tile. A missing UI kit
-retains the legacy renderer. Send these text
+The module registers `display.screen("mining", render, input)`. `render(w, h, session)`
+returns a route A frame (the mining section of the [spec](../ui/SCHEMATIC-SPEC.md)). The header has
+the tabs `tab:overview` (`tab:main` where the short labels are drawn) and `tab:setup`;
+the tab belongs to the display session, and the Big Tiles ids `setup` and
+`mine-back` still switch it. Input ids `start` and `stop` use the text commands
+below. On the setup tab `set-bottom-` and `set-bottom+` send `bottom` one block
+lower or higher, `set-length-` and `set-length+` send `length` 8 shorter or longer
+(1 to 4096), `mode-fast` and `mode-thorough` send `mode`, `ores-edit` opens the ore
+list and `ore-<name>` sends `ores` with that ore switched; the last selected ore
+cannot be switched off. Each tap is exactly its text command and saves once.
+Both tabs accept text commands. Without a daily module the ore leader shows `-`.
+A missing UI kit retains the legacy renderer.
+`facts()` returns `{ state, done, total, busy, workers, depth, lane?, fuel?, alert? }`
+with `lane = { id, facing }` (the world facing of the turtle holding the lane) and
+`fuel = { value, id }` (the lowest reported fuel), for the pocket's JOBS page.
+A 120x18 render for a session without `id` keeps the Big Tiles rows `so-mod-panel`
+probes until it reads `facts()`. Send these text
 commands through that screen's `input.text`:
 
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
@@ -1167,13 +1178,17 @@ A broken point or failed registration holds the turtle and asks for `start` afte
 the drop point is fixed. Changing the sapling coordinates leaves old points in
 the editor, where the operator can remove them.
 
-The screen callback accepts `render(w, h)` and draws Big Tiles from job state.
-It shows eligible spots, delivered logs, carried saplings, turtle phase, fuel,
-and the next scan countdown. A missing countdown uses a stale tile. The logs
-tile uses the delivered total because no daily total exists. START and STOP
-use the text commands above. SETUP lists the area, ground, sapling chest, turtle
-and their text commands, with NEXT on small screens. Its BACK button returns
-to lumber; the main page has START, STOP and SETUP and no BACK. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
+The screen callback accepts `render(w, h, session)` and draws route A from job
+state (the lumber section of the [spec](../ui/SCHEMATIC-SPEC.md)): the farm plan with its trees, the
+sapling chest and nearby `wood` drop points, the turtle, and leaders for ready
+trees, growing trees, the next grow, today's logs, carried saplings and fuel. A
+missing countdown or daily module shows `-`. START and STOP use the text commands
+above. The tabs `tab:overview` (or `tab:main`) and `tab:setup` belong to the display
+session; the old ids `setup` and `lumber-back` still switch them and `setup-next`
+does nothing. The setup tab lists the area, ground, sapling chest and turtle.
+`facts()` returns `{ state, ready, spots, grow?, saplings, fuel?, alert? }`. A 120x18
+render for a session without `id` keeps the Big Tiles rows `so-mod-panel` probes.
+Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
@@ -1195,19 +1210,23 @@ beside the chest facing it for `front`, or directly above it for `down`.
 
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
-The generic Big Tiles screen shows short row numbers, kind, coordinates, side
-and state, with green or coral state stripes. A row tap selects the point for
-FIX and REMOVE. The default is the first broken point, or the first point if
-none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
-existing draft editor with kind, side, dimension and coordinate controls.
-FIX, REMOVE and ADD NEW sit on the bottom rows in three grid columns, three
-rows tall on full layouts. Compact layouts use one row, or two below 26
-columns with ADD NEW on its own row. The list fills the rows above them. There
-is no link to another role. The editor keeps ADD and BACK; its BACK returns to
-the list. Gather copies module state
-before the private pure layout builds the requested display size.
+The generic screen is route A (the drop points section of the [spec](../ui/SCHEMATIC-SPEC.md)): a
+table of row numbers, kind, coordinates and side, the broken points as flags, and
+on room monitors a plan of the chests around home with the server (from
+`so-server.cfg`), the shaft and the farm edge. A row tap or a chest tap on the plan
+(`select:<id>`) selects the point. The default is the first broken point, or the
+first point if none are broken. FIX (`fix`), REMOVE (`remove`) and ADD (`new`) sit
+on the last row and act on the selected point once per tap. ADD opens the draft
+editor; until the draft has been edited it starts at the selected point. The
+editor has `kind` and `side` chips, `dim-`/`dim+`, `x-`/`x+`, `y-`/`y+`, `z-`/`z+`
+steppers, ADD (`add`) and BACK (`list`); on room monitors a plan marks the draft.
+Tapping ADD for a point that already exists says `id exists`; typed `add` replies as
+before. A second REMOVE before the next frame does nothing. The plan shows the points
+in the selected point's dimension. Long lists page with `prev`
+and `next` in the header. Page, selection and the editor belong to the display
+session; the draft and its feedback are shared. There is no link to another role.
 The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
-buttons fit 26x20 pockets and 29x12 monitors above the bottom input row. Draft and feedback are shared between displays; paging is per display.
+buttons fit 26x20 pockets and 29x12 monitors above the bottom input row.
 Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
 and `add <kind> <x> <y> <z> [front|down] [dim]` to set and save it.
 Omitted side and dimension keep the draft values. Dimension may be supplied

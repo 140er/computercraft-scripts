@@ -1,0 +1,73 @@
+57x24 Mining setup, room monitor 57x24
+ MINING   overview   setup  -------------------- running 
+                                                         
+ home       120,64,-340 n            |  10 +············ 
+                                     |   9 +············ 
+ bottom      -    Y -58    +         |   8 +············ 
+                                     |   7 +············ 
+ length      -      64     +         |   6 +············ 
+                                     |   5 +············ 
+ mode        fast   thorough         |   4 +············ 
+                                     |   3 +············ 
+ ores       all               edit   |   2 +············ 
+                                     |   1 +············ 
+ turtles    #2 #3 #4 #6              |     |             
+                                     |     º             
+                                     |                   
+                                     |  40 × 64          
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+           START                         STOP            
+                                                         
+0000000008888888888000000000cccccccccccccccccccc0ddddddd0
+000000000000000000000000000000000000000000000000000000000
+0888800000000000000000000000000000000c0088038888888888880
+0000000000000000000000000000000000000c0008038888888888880
+0888888000000000000000000000000000000c0008038888888888880
+0000000000000000000000000000000000000c0008038888888888880
+0888888000000000000000000000000000000c0008038888888888880
+0000000000000000000000000000000000000c0008038888888888880
+0888800000008888880000000000000000000c0008038888888888880
+0000000000000000000000000000000000000c0008038888888888880
+0888800000000000000000000000000000000c0008038888888888880
+0000000000000000000000000000000000000c0008038888888888880
+0888888800000000000000000000000000000c0000030000000000000
+0000000000000000000000000000000000000c0000090000000000000
+0000000000000000000000000000000000000c0000000000000000000
+0000000000000000000000000000000000000c0088888880000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888888888888888888888888000eeeeeeeeeeeeeeeeeeeeeeeeee0
+000000000000000000000000000000000000000000000000000000000
+ffffffffffffffffffff7777777ffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffff7777777777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff777777ffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777fff77777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

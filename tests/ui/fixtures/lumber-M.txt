@@ -1,49 +1,73 @@
-57x24 Lumber, room monitor
+57x24 Lumber, room monitor 57x24
+ LUMBER   overview   setup  -------------------- running 
                                                          
- LUMBER                                          running 
- ! out of saplings: replanting paused                    
-                                                         
-  TREES READY       LOGS TODAY          SAPLINGS         
-        🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
-         🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
-        🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
-  of 4 spots        logs delivered      chest empty      
-                                                         
-                                                         
-                                                         
-  TURTLE            FUEL                NEXT GROW        
-         🬵            🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏       🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏    
-        🬳🬷🬏            ▌  🬖🬀 ▌ ▌ ▌       🬛🬋🬏🬠🬐  🬖🬀▌ ▌    
-         🬉            🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀       🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀    
-  felling           ok                  min:sec          
-                                                         
-                                                         
-                                                         
-                                                         
-      START               STOP               SETUP       
+                                        |                
+ +-----------------------+              | ready ··· 9/12 
+ |                       |              |                
+ |   ♠     ♠     ♣     ♠ |              | growing ···· 3 
+ |                       |              |                
+ |          5            |   • saplings | next grow 6:20 
+ |   ♠     ►     ♠     ♣ |              |                
+ |                       |              | logs ······ 96 
+ |                       |              |                
+ |   ♠     ♣     ♠     ♠ |   • wood     | saplings ·· 14 
+ |                       |              |                
+ |                       |              | fuel ···· 1210 
+ +-----------------------+              |                
+                                        |                
+                                        |                
+ ► 5  felling    101,65,-347            |                
                                                          
                                                          
+                                                         
+                                                         
+           START                         STOP            
+                                                         
+0000000000000000000088888880cccccccccccccccccccc0ddddddd0
+000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000c0000000000000000
+0ccccccccccccccccccccccccc00000000000000c0888880ccc0dddd0
+0c00000000000000000000000c00000000000000c0000000000000000
+0c000d00000d00000800000d0c00000000000000c088888880cccc000
+0c00000000000000000000000c00000000000000c0000000000000000
+0c0000000000d000000000000c00000888888880c0888888888000000
+0c000d00000d00000d0000080c00000000000000c0000000000000000
+0c00000000000000000000000c00000000000000c088880cccccc0000
+0c00000000000000000000000c00000000000000c0000000000000000
+0c000d00000800000d00000d0c00000888800000c0888888880cc0000
+0c00000000000000000000000c00000000000000c0000000000000000
+0c00000000000000000000000c00000000000000c088880cccc000000
+0ccccccccccccccccccccccccc00000000000000c0000000000000000
+0000000000000000000000000000000000000000c0000000000000000
+0000000000000000000000000000000000000000c0000000000000000
+0d00000000000000088888888888000000000000c0000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888888888888888888888888000eeeeeeeeeeeeeeeeeeeeeeeeee0
+000000000000000000000000000000000000000000000000000000000
+fffffffff7777777777ffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
-feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
-999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
-999999999999999999feeeeeeeeeeeeeeeeeeef777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777fff77777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

@@ -1,0 +1,73 @@
+57x24 Add a drop point, room monitor 57x24
+ ADD DROP POINT  --------------------------------------  
+                                                         
+ kind              ore           |                       
+                                 |                       
+ side             front          |                       
+                                 |   •5                  
+ dim         -      0      +     |                       
+                                 |                       
+ x           -     126     +     |                       
+                                 |   •4                  
+ y           -      64     +     |                       
+                                 |                       
+ z           -     -337    +     |             ºshaft    
+                                 |                       
+                                 |                       
+                                 |                       
+                                 |          •1 •2 ×3 •   
+                                 |      @server          
+                                 |                       
+                                 |                       
+                                 |                       
+                                                         
+            ADD                          BACK            
+                                                         
+00000000000000000cccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+088880000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+088880000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00008000000000000000000
+088800000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+080000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00008000000000000000000
+080000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+080000000000000000000000000000000c00000000000009888880000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c0000000000080080ee0f000
+000000000000000000000000000000000c00000098888880000000000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000c00000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999999999999999999999999000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff77777777777777777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff77777777777777777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffff9fff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777fff77777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

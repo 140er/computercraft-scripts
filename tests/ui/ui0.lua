@@ -338,8 +338,9 @@ return function(test, equal)
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
     -- Status, the shop and the map moved to docs/ui/schematic (tests/ui/s0.lua, tests/ui/ui2c.lua and tests/so/map.lua check them).
-    -- The pocket pages, alert, outage, unassigned and terminal fixtures moved too (tests/ui/s4.lua).
-    local names = "panel-P mining-M lumber-M drops-M ar-M panelpair-P panelcode-P panelpair-S panelcode-S"
+    -- The pocket pages, alert, outage, unassigned and terminal fixtures moved too (tests/ui/s4.lua),
+    -- and mining, lumber and drops (tests/ui/s3.lua).
+    local names = "panel-P ar-M panelpair-P panelcode-P panelpair-S panelcode-S"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

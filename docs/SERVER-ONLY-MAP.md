@@ -117,7 +117,10 @@ and listeners use `listener(sender, message)`.
   `section`, `rule`, `leader`, `ticks`, `progress`, `chip`, `flag`, `box` and `digits`,
   with helpers `tone(word)`, `mark(line)`, `age(ms, long?)`, `arrow(facing)`,
   `filled(n, part, whole)`, glyph bytes `g`, chip colours `chips`, `palette` and the
-  no-server ramp `stale`. `docs/ui/schematic/kit.py` mirrors them call for call.
+  no-server ramp `stale`. `roleBar(C, name, tabs, short, active, right?, rfg?)`,
+  `stepper(C, x, y, value, id, vw?)` and `actions(C, y, items, gap?)` draw job headers
+  with tabs, `- value +` steppers and equal action chips.
+  `docs/ui/schematic/kit.py` mirrors them call for call.
   `status(model, w, h)` is route A at every size. The Big Tiles calls below stay
   for screens not ported yet. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
@@ -218,11 +221,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   at the same height; `down` accesses it from directly above.
   Handler `drops.edit` edits points. Tick registers the generic screen, which
   operators assign as `drops`.
-  The Big Tiles list selects the first broken point by default, or the first
-  point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
-  opens the draft editor. FIX, REMOVE and ADD NEW sit on the bottom rows and
-  the list fills the rest; ADD NEW wraps to its own row below 26 columns. The
-  editor's BACK returns to the list. Long lists have paging.
+  The route A list selects the first broken point by default, or the first
+  point when none are broken. Row taps and chest taps on the room monitor's plan
+  select FIX and REMOVE targets. ADD opens the draft editor, starting at the
+  selection until the draft is edited. Page, selection and editor are per display;
+  the draft is shared. The editor's BACK returns to the list. Long lists page in
+  the header.
   Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
   The kit-free editor fits above local input; its paging is per display.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
@@ -357,15 +361,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
-  Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)` and `mapView()`;
+  Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)`, `mapView()` and `facts()`;
   no wire handlers. Protection covers the running mine and saved worker routes.
   `forgetDug` clears block lookup entries for a set of retired section paths.
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
-  Mining uses Big Tiles with START, STOP and SETUP. SETUP has a local
-  BACK button; the page belongs to the display session. Kit-free callers share
-  the default page. Typed commands work on both pages. Daily ore totals and the top
-  two ore names come from `daily.today()`, with a stale tile when missing.
+  Mining is route A: an overview tab with the job diagram and a setup tab with
+  steppers and toggles (`set-*`, `mode-*`, `ore-*`) that send the text commands.
+  The tab belongs to the display session. Kit-free callers share the default page.
+  Typed commands work on both tabs. Daily ore totals come from `daily.today()`,
+  with `-` when missing. `facts()` returns the job state for other screens.
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
@@ -420,19 +425,19 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
-  Calls are `tick(now)` and `dugProtection(protect)`; no wire handlers.
+  Calls are `tick(now)`, `dugProtection(protect)`, `mapView()` and `facts()`; no wire handlers.
   Protection covers the running farm at every height, saved service routes and
   worker recovery. Mining and lumber pass world-frame journal cells to cells.
   Tick registers `display.screen("lumber", render, input)` and
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
-  Screen callbacks are `render(w, h)` and `input(event)`; reports use
+  Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
   `mapView()` returns copied dimension, area, ground, sapling chest, up to 512
   sorted tree spots `{ x, z, ready }`, `running`, `grow` (ms to the next ready
   spot) and turtle pose, state and phase fields for the map and status.
-  The Big Tiles screen gathers job state into a pure layout. START and STOP use
-  the text command path. SETUP pages configuration commands; its BACK returns
-  to lumber. The main page has no BACK. Missing grow timers use a stale tile.
+  The route A screen draws the farm plan and its facts; START and STOP use the
+  text command path. The setup tab lists the configuration; tabs belong to the
+  display session. Missing grow timers show `-`.
   Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
   tile when missing. Calls without a size retain
   the legacy rows for older callers.
@@ -752,7 +757,7 @@ missing modules, the fleet chips from a real gather, exact-item orders and the
 JOBS page over the real mining and lumber modules. The route A pages moved to S4.
 
 
-UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
+UI-2d adds `tests/ui/ui2d.lua`. It checks the ar-M fixture, the route A drop list,
 selected drop actions, draft editing, all 64 points through paging, AR switch
 persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
@@ -794,6 +799,15 @@ bounds. It also checks the JOBS fallbacks, one action per tap, alert paging,
 takeover timing, the crop call and its failure, the grey palette and row-only
 repaint, the R prompt and frame sizes.
 
+S3 adds `tests/ui/s3.lua` and `tests/ui/jobs-scene.txt`. `docs/ui/schematic/jobs.py`
+writes the mining, lumber and drops fixtures (`mining-*`, `miningsetup-*`, `miningores-*`,
+`lumber-*`, `lumbersetup-*`, `drops-*`, `dropsadd-*`). The test builds each job from the
+scene files, draws it with the real module and compares every fixture cell by cell. It
+also checks that each setup control equals its typed command with one save, that FIX,
+REMOVE and ADD act on the selected point once per tap, `facts()`, the pocket probe,
+crowded jobs, missing modules, odd sizes, contrast, frames under 16 KB at 164x81 and
+generator parity.
+
 R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
 `view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the
 real cells module and compares text, fg and bg, then checks the compass and that north
@@ -818,8 +832,7 @@ generator reproduces every shop fixture. `tests/parts/so-mod-shop.lua` runs it w
 
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
-history work, stale fallbacks and server-only installation. `lumber-M.txt` now
-shows a stale daily tile because its fixture setup has no daily module.
+history work, stale fallbacks and server-only installation.
 `panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
 
 

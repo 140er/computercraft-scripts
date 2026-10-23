@@ -40,40 +40,45 @@ local function capture(frame,w,h)
   end
   return out
 end
+-- The route A rule for coloured glyphs (docs/ui/SCHEMATIC-SPEC.md, section 3).
+local function contrast(out)
+  for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
+    local ch,fg,bg=cell[1],cell[2],cell[3]
+    local ok=ch==' ' or (bg=='f' or bg=='7') and (('0389d1eba2'):find(fg,1,true) or fg=='c' and ('-|+\183\166'):find(ch,1,true))
+      or bg=='c' and (fg=='0' or fg=='3') or not ('f7c'):find(bg,1,true) and fg=='f'
+    assert(ok,'contrast '..fg..'/'..bg..' '..ch)
+  end end
+end
+local function ids(frame) local out={} for _,b in ipairs(frame.buttons) do out[b.id]=b end return out end
 return function(test,equal)
-  test('UI2b lumber matches the M fixture',function()
+  test('UI2b lumber draws the route A header, its facts and its alert',function()
     local s=screen(job())
     s.state.recover=false
-    local frame=s.render(57,24)
-    local diff=R.diff('tests/ui/fixtures/lumber-M.txt',capture(frame,57,24))
-    assert(#diff==0,table.concat(diff,'\n'))
-    equal(frame.buttons[#frame.buttons].id,'setup')
+    local frame=s.render(57,24,{id=1})
+    local text=capture(frame,57,24).picture().text
+    assert(text[1]:find('^ LUMBER   overview   setup') and text[1]:find('running $'),text[1])
+    assert(text[4]:find('ready',1,true) and text[4]:find('2/4',1,true),text[4])
+    assert(text[21]:find('! out of saplings: replanting paused',1,true),text[21])
+    local found=ids(frame)
+    assert(found['tab:setup'] and found.start and found.stop)
   end)
-  test('UI2b setup and back render within every size with spec contrast',function()
+  test('UI2b both tabs render within every size with spec contrast',function()
     local s=screen(job())
-    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{1,1}}) do
-      for _,setup in ipairs({false,true}) do
-        s.input({id=setup and 'setup' or 'lumber-back'})
-        local out=capture(s.render(unpack(size)),unpack(size))
-        for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-          local fg,bg=cell[2],cell[3]
-          if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-          assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-            (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','contrast '..fg..'/'..bg)
-        end end
+    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{29,12},{1,1}}) do
+      for _,tab in ipairs({'tab:overview','tab:setup'}) do
+        local session={id=1};s.input({id=tab,session=session})
+        contrast(capture(s.render(size[1],size[2],session),unpack(size)))
       end
     end
-    s.input({id='setup'});local frame=s.render(57,24)
+    local session={id=2}
+    s.input({id='tab:setup',session=session});local frame=s.render(57,24,session)
     local text=table.concat(capture(frame,57,24).picture().text,'\n')
-    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS -','TURTLE 4','area x1 z1 x2 z2 ground','saplings x y z front|down','add id x y z n|e|s|w'}) do assert(text:find(part,1,true),part) end
-    equal(frame.buttons[#frame.buttons].id,'lumber-back')
-    s.input({id='lumber-back'});equal(s.render(57,24).buttons[2].id,'start')
-    s.input({id='setup'})
-    local first=capture(s.render(15,10),15,10).picture()
-    s.input({id='setup-next'})
-    local second=capture(s.render(15,10),15,10).picture()
-    assert(first.text[3]~=second.text[3])
-    s.input({id='lumber-back'});assert(not s.state.gather().setup)
+    for _,part in ipairs({'area       0,0 4,4','ground     64','saplings   -','turtle     -'}) do assert(text:find(part,1,true),part) end
+    equal(s.render(57,24,{id=3}).buttons[1].id,'tab:overview')
+    s.input({id='lumber-back',session=session});assert(capture(s.render(57,24,session),57,24).picture().text[4]:find('ready',1,true))
+    s.input({id='setup',session=session});assert(capture(s.render(57,24,session),57,24).picture().text[3]:find('area',1,true))
+    s.input({id='setup-next',session=session});s.input({id='tab:main',session=session})
+    assert(capture(s.render(57,24,session),57,24).picture().text[4]:find('ready',1,true))
     equal(s.saved,0)
   end)
   test('UI2b start and stop taps use the text commands once per tap including refusals',function()
@@ -133,8 +138,8 @@ return function(test,equal)
   end)
   test('UI2b gather keeps missing timers and daily counters stale',function()
     local j=job();j.nextRound=nil;local s=screen(j,true);s.render(57,24)
-    local m=s.state.gather()
-    equal(m.tiles[2],{'LOGS TODAY','-','no daily source','c'});equal(m.tiles[6],{'NEXT GROW','-','no timer','c'})
-    j.nextRound=999000;equal(s.state.gather().tiles[6][2],'0:00')
+    local A=s.state.screen;local f=A.facts(A.gather())
+    equal(f[4],{'logs','-','8'});equal(f[3],{'next grow','-','8'})
+    j.nextRound=999000;equal(A.facts(A.gather())[3],{'next grow','0:00','0'})
   end)
 end

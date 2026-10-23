@@ -172,3 +172,34 @@ def digits(cv, x, y, text, fg="0", w=4, h=5, gap=2):
     for i, d in enumerate(text):
         digit(cv, x + i * (w + gap), y, d, fg, w, h)
     return len(text) * (w + gap) - gap
+
+
+# ---------------------------------------------------------------- job screens (S3)
+
+def role_bar(cv, name, tabs, short, active, right="", rfg="8"):
+    """Header with tabs: the full labels when they fit beside the right word, then the short
+    labels, then without the right word. active is the tab's index. Returns whether right shows."""
+    def end(ts):
+        return 2 + len(name) + 2 + sum(len(t) + 3 for t in ts)
+    if end(tabs) + len(right) + 2 > cv.w:
+        tabs = short
+    if end(tabs) + len(right) + 2 > cv.w:
+        right = ""
+    bar(cv, name, tabs, tabs[active], right, rfg)
+    return right != ""
+
+
+def stepper(cv, x, y, value, bid, vw=8):
+    """- value +: chips with ids bid- and bid+ around a value centred in vw cells. Returns the next column."""
+    chip(cv, x, y, "-", bid + "-")
+    value = str(value)[:vw]
+    cv.put(x + 5 + (vw - len(value)) // 2, y, value, "0")
+    return chip(cv, x + 6 + vw, y, "+", bid + "+")
+
+
+def actions(cv, y, items, gap=1):
+    """Screen-wide chips of equal width over columns 2 to w-1; items are (label, id, kind)."""
+    n = len(items)
+    bw = (cv.w - 2 - gap * (n - 1)) // n
+    for i, (label, bid, kind) in enumerate(items):
+        chip(cv, 2 + i * (bw + gap), y, label, bid, kind, bw)
