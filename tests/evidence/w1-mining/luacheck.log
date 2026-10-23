@@ -1,12 +1,2 @@
-WARN so-mine-plan.lua:255:47 W212 unused argument 'fuel'
-WARN so-mod-drops.lua:343:14 W311 value assigned to variable 'x' is unused
-WARN so-mod-drops.lua:343:17 W311 value assigned to variable 'y' is unused
-WARN so-mod-drops.lua:343:20 W311 value assigned to variable 'z' is unused
-WARN tests/so/lumber-loops.lua:31:11 W211 unused variable 'q'
-WARN tests/so/mine-underground.lua:142:21 W311 value assigned to variable 'input' is unused
-WARN tests/so/mine-underground.lua:191:13 W311 value assigned to variable 'turtle' is unused
-WARN tests/so/so11.lua:730:14 W213 unused loop variable 'w'
-WARN tests/so/so11.lua:754:14 W213 unused loop variable 'w'
-WARN tests/so/so3.lua:336:9 W213 unused loop variable 'cell'
-WARN tests/ui/ui3b.lua:281:11 W213 unused loop variable 'i'
-luacheck: 0 errors, 11 warnings, 25 files
+luacheck: 0 errors, 0 warnings, 23 files
+luacheck: 0 errors, 0 warnings, 4 files

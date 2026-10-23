@@ -611,13 +611,13 @@ S.runBusy = function(rate)
   for _, cmd in ipairs({"home 0 64 0 n","bottom 60","length 48","add 2 0 64 0 n","add 3 2 64 0 n","start"}) do text(5,cmd) end
   role(5,"shop") role(6,"status")
   g.start=n.time
-  local function snapshot()
+  local function snapshot(dugKeys)
     local mods=g.server.env.SO.mods
     local view=mods.state.view()
     local machines=S.copy(mods.state.get("machines"))
     for _, row in pairs(machines) do row.seen=nil end
     local cells={}
-    for key in pairs(g.digs) do
+    for key in pairs(dugKeys or g.digs) do
       local x,y,z=key:match("([^,]+),([^,]+),([^,]+)")
       cells[key]=mods.cells.isDug(tonumber(x),tonumber(y),tonumber(z))
     end
@@ -734,7 +734,7 @@ S.runBusy = function(rate)
       for id in pairs(g.displays) do record(4,g.stale[id],"display "..id.." never stale during outage") end
       g.bootAt=n.time g.server=n.boot(server)
       n.flush()
-      local after=snapshot()
+      local after=snapshot(g.before.cells)
       for _, field in ipairs({"values","machines","cells","reservations","drops","roles","mine","lumber"}) do
         local diff=S.diff(g.before[field],after[field],field)
         record(5,not diff,diff or field)

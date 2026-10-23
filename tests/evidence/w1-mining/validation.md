@@ -34,6 +34,10 @@ The full-run fixture updates configure real paired workers, reported fuel and
 required drops before admission. SO11 B now waits for a dig in flight alongside
 three open work leases, so the power cut still proves interrupted dug replay
 after readiness adds setup time. Its exactly-once assertions are unchanged.
+The reboot comparison samples the same pre-cut cell set on both sides. Digs
+completed during the outage are checked by interrupted-dig replay, rather than
+being added to the baseline persistence sample. All 18 SO11 A/B checks passed
+at 4x after this correction.
 
 The final full-suite logs are saved outside the checkout under
 `~/work/fix-round/evidence/w1-mining/`, in a folder named for the tested head.
