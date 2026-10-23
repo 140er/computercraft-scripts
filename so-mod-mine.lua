@@ -716,6 +716,7 @@ local function input(event)
   if type(event.text) ~= "string" then
     if event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
     elseif event.id == "setup-next" then local v=view(event.session) v.offset=(v.offset or 0)+1 return
+    elseif type(event.id) == "string" and event.id:match("^here:%d+$") then event = { text = "add " .. event.id:match("%d+$") }
     elseif event.id == "mine-back" then view(event.session).page = "main" return
     elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
   end
@@ -724,6 +725,18 @@ local function input(event)
   local cmd=a[1]
   local dirs={n=0,e=1,s=2,w=3}
   local function num(i) local n=tonumber(a[i]) if n and n%1==0 and math.abs(n)<30000000 then return n end end
+  if cmd == "add" and #a == 2 and num(2) and num(2) >= 0 then
+    local id = num(2)
+    if job.turtles[tostring(id)] then S.error = "already added" return end
+    local lease = mod("lease")
+    if not lease or not lease.locate then S.error = "GPS unavailable; use explicit add" return end
+    S.error = "GPS probe"
+    lease.locate(id, job.dim, function(pose, err)
+      if not pose then S.error = err return end
+      input({text=string.format("add %d %d %d %d %s", id, pose.x, pose.y, pose.z, ({[0]="n","e","s","w"})[pose.facing])})
+    end)
+    return
+  end
   if cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
   elseif cmd=="bottom" and num(2) then job.bottom=num(2)
   elseif cmd=="length" and num(2) and num(2)>0 and num(2)<=4096 then job.length=num(2)
@@ -743,6 +756,7 @@ local function input(event)
     local id=num(2)
     local status=call("lease","status",id)
     local uncertain=status and status.uncertain
+    if status and status.probing then S.error="GPS probe pending" return end
     if job.turtles[tostring(id)] and not uncertain then S.error="already added" return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
     if uncertain then
@@ -751,9 +765,20 @@ local function input(event)
       call("cells","releaseOwner",owner(id))
       S.pending[id],S.dugFacts[id]=nil,nil
     end
+    local claimed, claimErr = call("lease", "claimProbe", id, owner(id), pose)
+    if claimed == false then S.error = claimErr return end
     S.error=nil
+    local previous = job.turtles[tostring(id)]
     job.turtles[tostring(id)]={anchor=pose,pose=pose,state="recovering",recover=true,inv={}}
-    reservePose(id,job.turtles[tostring(id)]) save() park(id,job.turtles[tostring(id)],true)
+    if not reservePose(id,job.turtles[tostring(id)]) or not save() then
+      S.error = S.error or job.turtles[tostring(id)].error
+      job.turtles[tostring(id)] = previous
+      return
+    end
+    local cleared, clearErr = call("lease", "clearProbe", id)
+    if cleared == false then S.error = clearErr return end
+    park(id,job.turtles[tostring(id)],true)
+    return
   elseif cmd=="remove" and num(2) then
     local status=call("lease","status",num(2))
     if status and status.open then
@@ -801,7 +826,7 @@ local function legacyRender(w)
   return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
 end
 local function gather()
-  local m = { running = job.running, alert = S.error, turtles = {}, tiles = {}, setup = {} }
+  local m = { available = call("lease", "candidates") or {}, running = job.running, alert = S.error, turtles = {}, tiles = {}, setup = {} }
   local busy, waiting, minimum, fuelId, waitIds = 0, 0, nil, nil, {}
   for id, row in pairs(job.turtles) do
     local state = row.laneWait and "wait lane" or row.state
@@ -854,19 +879,23 @@ local function layout(m, w, h, setup, offset)
     for _,check in ipairs(m.readiness) do
       lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"}
     end
+    for _,id in ipairs(m.available or {}) do lines[#lines+1]={id=id} end
     for _,line in ipairs(m.setup) do
       for x=1,math.max(1,#line),math.max(1,w-2) do
         lines[#lines+1]={text=line:sub(x,x+math.max(1,w-2)-1),bg="f"}
       end
     end
-    local count=math.max(1,h-3)
+    local count=math.max(1,h-4)
     local pages=math.max(1,math.ceil(#lines/count))
     local first=((offset or 0)%pages)*count
     for i=1,count do
       local line=lines[first+i]
-      if line and i+2<h then
-        c.fill(1,i+2,w,1,line.bg)
-        c.put(2,i+2,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+      if line and i+3<h then
+        if line.id then c.button(1,i+3,w,"ADD HERE #"..line.id,"here:"..line.id,"9",1)
+        else
+          c.fill(1,i+3,w,1,line.bg)
+          c.put(2,i+3,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+        end
       end
     end
     local left=1
@@ -919,7 +948,9 @@ local function layout(m, w, h, setup, offset)
       x, available = x+width+1, available-width
     end
   end
-  if not setup then
+  if setup then
+    if m.alert then c.fill(2,3,w-2,1,"e") c.put(2,3,m.alert:sub(1,math.max(0,w-2)),"f","e") end
+  else
     local count=#c.buttons
     c.alert(m.alert)
     if #c.buttons>count then table.insert(c.buttons,1,table.remove(c.buttons)) end
@@ -964,7 +995,7 @@ local function mapView()
   end
   return view
 end
-return {name="mine",handlers={},mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+return {name="mine",assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end

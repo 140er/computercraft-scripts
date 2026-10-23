@@ -217,15 +217,18 @@ A.scene = function(now)
         elseif not history and old.sig ~= signature then
           A.serial = A.serial + 1 A.alerts[key] = { sig = signature, at = A.serial, since = now, expires = now + A.alertMs }
         end
-        if now < A.alerts[key].expires then
+        if key == "disk.alert" or now < A.alerts[key].expires then
           alerts[#alerts + 1] = { key = key, value = value, at = A.alerts[key].at, since = A.alerts[key].since }
         end
       end
     end
-    table.sort(alerts, function(a, b) return a.at > b.at or (a.at == b.at and a.key < b.key) end)
+    table.sort(alerts, function(a, b)
+      if (a.key == "disk.alert") ~= (b.key == "disk.alert") then return a.key == "disk.alert" end
+      return a.at > b.at or (a.at == b.at and a.key < b.key)
+    end)
     alertCount = #alerts
     local row = alerts[1]
-    if A.layers.alerts and row and now - row.since < 5000 then
+    if row and (row.key == "disk.alert" or A.layers.alerts and now - row.since < 5000) then
       local text = type(row.value) == "table" and row.value.text or row.value
       put("alert:backing", "drawRect2D", A.red, A.hudX, hudTop, A.hudX + A.hudWidth, hudTop + 14)
       put("alert:" .. row.key, "drawText2D", A.white, A.hudX + 4, hudTop + 3,

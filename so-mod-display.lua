@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map", "health", "attention", "alerts", "events", "errors" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map", "health", "attention", "alerts", "events", "errors", "disk" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },
@@ -277,6 +277,16 @@ D.compose = function(role, w, h, session)
     for _,button in ipairs(frame.buttons) do controls[#controls+1]=button end
     rows,buttons=copy,controls
   end
+  if U and role == "status" and screen and screen.render == D.statusRender and not (session and (session.showAlerts or session.takeover and D.now() < (session.alertUntil or 0))) then
+    local found = false
+    for _, button in ipairs(buttons) do if button.id == "disk" then found = true end end
+    if not found then
+      local c = U.canvas(w,1)
+      c.button(1,1,6,"DISK","disk","7",1)
+      rows[1] = c.frame().rows[1]
+      buttons[#buttons+1] = {id="disk",x=1,y=1,w=6,h=1,label="DISK"}
+    end
+  end
   if banner then
     local combined, controls = {}, {}
     for i, row in ipairs(banner.rows) do combined[i] = row end
@@ -404,6 +414,7 @@ D.gather = function()
   local capacity = fs and fs.getCapacity and fs.getCapacity("/")
   local free = fs and fs.getFreeSpace and fs.getFreeSpace("/")
   local ratio = type(capacity) == "number" and capacity > 0 and type(free) == "number" and (capacity-free)/capacity
+  local diskState = state and state.disk and state.disk() or {}
   local disk = ratio and tostring(math.floor(ratio*100)) .. "%" or "-"
   local diskSub = ratio and string.format("%.1f of %.0f MB",(capacity-free)/1000000,capacity/1000000) or "no source"
   model.okShort, model.lostShort = tostring(turtles-lost) .. " ok", tostring(lost) .. " lost"
@@ -415,7 +426,7 @@ D.gather = function()
     {label="ALERTS",value=tostring(#model.alerts),sub=model.alert or "none",bg=#model.alerts > 0 and "e" or "d"},
     {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent) or "no source",bg=today and "b" or "c"},
     {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "" or "no source",bg=today and "d" or "c"},
-    {label="DISK",value=disk,sub=diskSub,bg=ratio and (ratio >= 0.8 and "e" or "d") or "c"},
+    {label="DISK",value=disk,sub=diskSub,bg=(diskState.pending or 0) > 0 and "e" or ratio and (ratio >= 0.8 and "e" or "d") or "c"},
     {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
     {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
     {label="PAIR",value="",sub="",bg="9"},
@@ -459,6 +470,23 @@ D.legacyStatus = function()
   }
 end
 
+D.diskRender = function(w, h)
+  local state = SO.mods.state
+  local disk = state and state.disk and state.disk() or {}
+  local c = U.canvas(w,h)
+  c.header("DISK", math.floor((disk.ratio or 0)*100).."%")
+  c.alert(disk.pending and disk.pending > 0 and (disk.pending .. " events pending") or disk.pressure and "DISK pressure")
+  for i, key in ipairs({"log","snapshots","cells","jobs","keys","other"}) do
+    local bytes = disk.stores and disk.stores[key] or 0
+    c.put(2,i+3,key:upper())
+    local text = tostring(bytes)
+    c.put(math.max(2,w-#text),i+3,text)
+  end
+  c.put(2,10,"USED " .. tostring(disk.used or 0))
+  c.button(1,h,w,"BACK","status","7",1)
+  return c.frame()
+end
+
 D.statusRender = function(w, h)
   if not U then return D.legacyStatus() end
   return U.status(D.model or { tiles = {}, time = "" }, w, h)
@@ -496,6 +524,7 @@ D.statusFrame = function(session, w, h, now)
         local y = 4 + (i - 1) * 8
         if index == 9 then c.button(2,y+1,w-2,"PAIR","pair","9",3)
         else c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7) end
+        if index == 6 then c.hit("disk",3,y+1,4,1) end
       end
     end
     c.button(1, h-1, w, "MORE", "generic", "7", 1)
@@ -606,7 +635,7 @@ D.onInput = function(msg)
       session.panel.page = "pair"
       D.setRole(msg.from, "panel")
     elseif id == "panel" then D.setRole(msg.from, "panel")
-    elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
+    elseif id == "mining" or id == "lumber" or id == "shop" or id == "disk" then D.setRole(msg.from, id) end
   end
   local screen = D.screens[drawn]
   if id == "map" and D.screens.map then
@@ -808,6 +837,7 @@ D.load = function()
   if D.box.value and D.box.value.far then
     for id, on in pairs(D.box.value.far) do D.saved.far[tostring(id)] = on end
   end
+  if U then D.register("disk", D.diskRender, function() end) end
   D.register("status", D.statusRender, function() end)
   D.register("generic", D.genericRender, function() end)
 end

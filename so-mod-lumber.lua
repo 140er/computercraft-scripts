@@ -666,6 +666,9 @@ S.input = function(ev)
     if ev.id == "setup" then S.setup, S.setupPage = true, 0 return end
     if ev.id == "setup-next" then S.setupPage = (S.setupPage or 0) + 1 return end
     if ev.id == "lumber-back" then S.setup = false return end
+    if type(ev.id) == "string" and ev.id:match("^here:%d+$") then
+      S.input({text="add " .. ev.id:match("%d+$")}) return
+    end
     if ev.id ~= "start" and ev.id ~= "stop" then return end
     text = ev.id
   end
@@ -675,6 +678,19 @@ S.input = function(ev)
   local function integer(i)
     local n = tonumber(words[i])
     if n and n == n and n % 1 == 0 and math.abs(n) < 30000000 then return n end
+  end
+  if words[1] == "add" and #words == 2 and integer(2) and integer(2) >= 0 then
+    if j.turtle then S.alert("turtle already assigned") return end
+    if j.running or S.pending then S.alert("stop before configuring") return end
+    local lease = S.module("lease")
+    if not lease.locate then S.alert("GPS unavailable; use explicit add") return end
+    S.admission = "GPS probe"
+    lease.locate(integer(2), j.dim, function(pose, err)
+      S.admission = nil
+      if not pose then S.admission = err return end
+      S.input({text=string.format("add %d %d %d %d %s", integer(2), pose.x, pose.y, pose.z, ({[0]="n","e","s","w"})[pose.facing])})
+    end)
+    return
   end
   if words[1] == "stop" and #words == 1 then j.running = false
   elseif words[1] == "start" and #words == 1 then
@@ -707,6 +723,7 @@ S.input = function(ev)
     if not id or id < 0 or not x or not y or not z or f == nil then S.alert("invalid turtle") return end
     local lease = S.module("lease")
     local status = type(lease.status) == "function" and lease.status(id) or {}
+    if status.probing then S.alert("GPS probe pending") return end
     local reanchor = status.uncertain and j.turtle and j.turtle.id == id
     if (j.running or S.pending) and not reanchor then S.alert("stop before configuring") return end
     if j.turtle and not reanchor then
@@ -734,9 +751,20 @@ S.input = function(ev)
       local released, err = S.release()
       if released == false then S.alert("save failed: " .. tostring(err)) return end
     end
+    if lease.claimProbe then
+      local ok, err = lease.claimProbe(id, "lumber:" .. id, pose)
+      if not ok then S.alert(err) return end
+    end
+    local previous, inv, fuel = j.turtle, j.inv, j.fuel
     j.turtle = { id = id, anchor = pose, pose = pose }
     j.inv, j.fuel = {}, 0
     S.recover = true
+    if not S.save() then j.turtle, j.inv, j.fuel = previous, inv, fuel return end
+    if lease.clearProbe then
+      local ok, err = lease.clearProbe(id)
+      if not ok then S.alert(err) return end
+    end
+    return
   else S.alert("invalid command") return end
   S.save()
 end
@@ -781,6 +809,7 @@ S.gather = function()
     state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
     alert = S.admission or j.alert, setup = S.setup, setupPage = S.setupPage,
     readiness = S.readiness(),
+    available = type(S.module("lease").candidates) == "function" and S.module("lease").candidates() or {},
     details = {
       "AREA " .. (j.area and (j.area.x1 .. "," .. j.area.z1 .. " to " .. j.area.x2 .. "," .. j.area.z2) or "-"),
       "GROUND " .. tostring(j.ground or "-"), "SAPLINGS " .. point(j.saplings),
@@ -807,19 +836,23 @@ S.layout = function(model, w, h)
   if model.setup then
     local lines = {}
     for _, check in ipairs(model.readiness) do lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"} end
+    for _, id in ipairs(model.available or {}) do lines[#lines+1] = { id = id } end
     for _, line in ipairs(model.details) do
       for first = 1, #line, math.max(1, w - 2) do
         lines[#lines + 1] = {text=line:sub(first, first + math.max(1, w - 2) - 1),bg="f"}
       end
     end
-    local count = math.max(1, bottom - 3)
+    local count = math.max(1, bottom - 4)
     local pages = math.ceil(#lines / count)
     local offset = ((model.setupPage or 0) % math.max(1, pages)) * count
     for i = 1, count do
-      if lines[offset + i] and i + 2 < bottom then
+      if lines[offset + i] and i + 3 < bottom then
         local line=lines[offset+i]
-        C.fill(1,i+2,w,1,line.bg)
-        C.put(2,i+2,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+        if line.id then C.button(1,i+3,w,"ADD HERE #"..line.id,"here:"..line.id,"9",1)
+        else
+          C.fill(1,i+3,w,1,line.bg)
+          C.put(2,i+3,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+        end
       end
     end
     local left = 1
@@ -855,7 +888,9 @@ S.layout = function(model, w, h)
       C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
     end
   end
-  if not model.setup then
+  if model.setup then
+    if model.alert then C.fill(2,3,w-2,1,"e") C.put(2,3,model.alert:sub(1,math.max(0,w-2)),"f","e") end
+  else
     local count=#C.buttons
     C.alert(model.alert and ((compact and "" or "! ") .. model.alert))
     if #C.buttons>count then table.insert(C.buttons,1,table.remove(C.buttons)) end
@@ -920,4 +955,4 @@ S.mapView = function()
     turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),
       state=j.blocked or (j.running and "lumber" or "idle")}}
 end
-return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }
+return { name = "lumber", assigned = function(id) return S.job.turtle and S.job.turtle.id == id end, handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }

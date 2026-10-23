@@ -127,14 +127,17 @@ return function(test)
           return handle
         end
       end
-      run(m, [[assert(not state.emit("value", 2)); assert(state.get("value")==1)]])
+      run(m, [[assert(state.emit("value", 2)); assert(state.get("value")==2); assert(state.disk().pending==1); assert(not state.canWork())]])
       m.files.ballast = nil
       m.capacity, m.env.fs.open = 16000000, open
       run(m, [[assert(state.emit("value", 3)); assert(state.get("value")==3)
+        state.tick(); assert(state.disk().pending==0); assert(state.canWork())
         local rows=state.history.page({}).entries
-        assert(#rows==2 and rows[1].data==1 and rows[2].data==3)
+        assert(#rows==3 and rows[1].data==1 and rows[2].data==2 and rows[3].data==3)
         state=dofile("so-mod-state.lua")
-        assert(state.get("value")==3)]])
+        assert(state.get("value")==3)
+        rows=state.history.page({}).entries
+        assert(#rows==3 and rows[1].seq==1 and rows[2].seq==2 and rows[3].seq==3)]])
     end
   end)
 end

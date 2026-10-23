@@ -48,6 +48,144 @@ S.journalSeen = function(row, pose, journal)
   if type(journal) == "string" then row.journal = journal end
 end
 
+S.fix = function(row, fix, pose, journal)
+  if not S.position(fix) or fix.x % 1 ~= 0 or fix.y % 1 ~= 0 or fix.z % 1 ~= 0 then
+    row.fix = nil return
+  end
+  local previous = row.fix
+  row.fix = { dim = fix.dim, x = fix.x, y = fix.y, z = fix.z, at = SO.now(), pose = S.journalPose(pose), journal = journal }
+  if previous and previous.dim ~= fix.dim then row.rotation = nil previous = nil end
+  if not previous or not previous.pose or not row.fix.pose then return end
+  local dx, dz = pose.x - previous.pose.x, pose.z - previous.pose.z
+  if dx == 0 and dz == 0 then
+    if fix.x ~= previous.x or fix.z ~= previous.z or fix.y-previous.y ~= pose.y-previous.pose.y then row.rotation = nil end
+    return
+  end
+  local wx, wz = fix.x - previous.x, fix.z - previous.z
+  for rot = 0, 3 do
+    if dx == wx and dz == wz and fix.y - previous.y == pose.y - previous.pose.y then
+      row.rotation = { journal = journal, rot = rot }
+      return
+    end
+    dx, dz = -dz, dx
+  end
+  row.rotation = nil
+end
+
+S.world = function(id, dim)
+  local row = S.row(id)
+  if not SO.pair.key(id) then return nil, "turtle not paired" end
+  if row.uncertain or row.anchor then return nil, "pose uncertain; use explicit add" end
+  if row.lost then return nil, "turtle lost; wait for hello" end
+  if row.open and not (#row.open.steps == 1 and row.open.steps[1].op == "inspectDown") then return nil, "turtle has open lease" end
+  local fix = row.fix
+  if not fix or SO.now() - fix.at > 60000 or not row.poseAt or fix.at < row.poseAt then
+    return nil, "no fresh GPS; use explicit add"
+  end
+  local config = SO.store.read("so-server.cfg")
+  local serverDim = S.pos and S.pos.dim or config and config.pos and config.pos.dim
+  if not serverDim then return nil, "GPS dimension unknown; use explicit add" end
+  if not fix.dim then return nil, "GPS dimension unknown; set so-worker.cfg" end
+  if dim ~= serverDim or dim ~= fix.dim then return nil, "GPS dimension mismatch" end
+  local pose = { dim = dim, x = fix.x, y = fix.y, z = fix.z }
+  if row.rotation and row.pose then
+    pose.facing = (row.pose.f + row.rotation.rot) % 4
+  end
+  return pose
+end
+
+S.candidates = function()
+  local out = {}
+  for id, row in pairs(S.turtles) do
+    local assigned = false
+    for _, name in ipairs({"mine", "lumber"}) do
+      local mod = S.module(name)
+      if mod and mod.assigned and mod.assigned(id) then assigned = true end
+    end
+    if row.worker and SO.pair.key(id) and not assigned then out[#out + 1] = id end
+  end
+  table.sort(out)
+  return out
+end
+
+S.locate = function(id, dim, done)
+  for _, name in ipairs({"mine", "lumber"}) do
+    local mod = S.module(name)
+    if mod and mod.assigned and mod.assigned(id) then done(nil, "turtle already assigned") return end
+  end
+  local pose, err = S.world(id, dim)
+  if not pose then done(nil, err) return end
+  if pose.facing ~= nil then done(pose) return end
+  local row, cells = S.row(id), S.module("cells")
+  if row.open then done(nil, "turtle has open lease") return end
+  if not row.parkBatch then done(nil, "probe needs worker update; use explicit add") return end
+  if not row.pose or not cells then done(nil, "facing unknown; use explicit add") return end
+  local owner, area = "gps:" .. id, { pose }
+  for f = 0, 3 do
+    local p = SO.store.copy(pose) p.facing = f
+    local x, y, z = p.x+({[0]=0,1,0,-1})[f], p.y, p.z+({[0]=-1,0,1,0})[f]
+    area[#area + 1] = { dim = dim, x = x, y = y, z = z }
+  end
+  local reserved, why = cells.reserveMany(owner, area)
+  if not reserved then done(nil, why or "probe area reserved") return end
+  local expected = SO.store.copy(row.pose)
+  expected.x = expected.x+({[0]=0,1,0,-1})[expected.f]
+  expected.z = expected.z+({[0]=-1,0,1,0})[expected.f]
+  row.probeOwner = owner
+  row.probe = { before = pose, done = done, owner = owner, pose = expected }
+  local lid, reason = S.send(id, {{op="forward",park=true}, {op="gps"}}, {owner="gps", ms=15000})
+  if not lid then row.probe = nil S.clearProbe(id) done(nil, reason) end
+end
+
+S.claimProbe = function(id, owner, pose)
+  local cells = S.module("cells")
+  local from = "gps:" .. id
+  if not cells or not cells.list or #cells.list(from,1) == 0 then return true end
+  if cells.owner(pose.x,pose.y,pose.z,pose.dim) == from then
+    return cells.handoff(from,owner,pose.x,pose.y,pose.z,pose.dim)
+  end
+  return cells.reserve(owner,pose.x,pose.y,pose.z,pose.dim)
+end
+
+S.clearProbe = function(id)
+  local row, cells = S.row(id), S.module("cells")
+  local owner = "gps:" .. id
+  local held = row.probeOwner or cells and cells.list and #cells.list(owner,1) > 0
+  if not held then return true end
+  if row.open then return false, "GPS probe has open lease" end
+  local ok, err = cells.releaseOwner(owner)
+  if ok == false then return false, err end
+  row.probeOwner = nil
+  return true
+end
+
+S.probed = function(row, results, lease)
+  local probe = row.probe
+  if not probe then return end
+  row.probe = nil
+  local fix = results and results[2] and results[2].data
+  local valid = results and results[1].ok and results[2].ok and not row.uncertain
+    and lease.report and row.pose and row.pose.x == probe.pose.x and row.pose.y == probe.pose.y
+    and row.pose.z == probe.pose.z and row.pose.f == probe.pose.f and S.position(fix) and fix.dim == probe.before.dim
+  local before = probe.before
+  local dx, dy, dz = valid and fix.x-before.x, valid and fix.y-before.y, valid and fix.z-before.z
+  local f = dy == 0 and (dx == 1 and dz == 0 and 1 or dx == -1 and dz == 0 and 3
+    or dz == 1 and dx == 0 and 2 or dz == -1 and dx == 0 and 0)
+  if f ~= false and f ~= nil then
+    row.rotation = { journal = row.journal, rot = (f-row.pose.f)%4 }
+    S.fix(row, fix, row.pose, row.journal)
+    local p = {dim=before.dim,x=fix.x,y=fix.y,z=fix.z,facing=f}
+    probe.done(p)
+  elseif results and not results[1].ok and S.position(fix)
+    and fix.x == before.x and fix.y == before.y and fix.z == before.z then
+    local ok, err = S.clearProbe(lease.turtleId)
+    probe.done(nil, not ok and err or "probe blocked; use explicit add")
+  else
+    row.fix = nil
+    probe.done(nil, "probe pose unknown; use explicit add")
+  end
+end
+
 S.distance = function(p)
   if not S.pos or not S.position(p) then return nil end
   if S.pos.dim ~= nil and p.dim ~= nil and S.pos.dim ~= p.dim then return nil end
@@ -135,6 +273,9 @@ S.send = function(id, steps, opts)
   if not S.number(ms) or ms <= 0 then return nil, "ms" end
   if opts.owner ~= nil and type(opts.owner) ~= "string" then return nil, "owner" end
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
+  local state = S.module("state")
+  if state and state.canWork and not state.canWork() and not opts.recover
+    and not (#steps == 1 and steps[1].op == "inspectDown") then return nil, "DISK events pending" end
   local key = SO.pair.key(id)
   if not key then return nil, "no key" end
   if not row.posed then
@@ -166,6 +307,7 @@ end
 S.status = function(id)
   local row = S.row(id)
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
+    probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
 
@@ -222,10 +364,11 @@ S.report = function(msg)
   if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
+    if row.pose and pose.facing ~= nil then row.rotation = { rot = (pose.facing-row.pose.f)%4 } end
     S.emit("pose", pose)
     S.observe(row, pose)
   end
-  S.notify(lease, results)
+  if lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
 end
 
 S.beacon = function(msg)
@@ -242,8 +385,12 @@ S.hello = function(msg)
   local row = S.row(msg.from)
   row.lost = false
   row.seen = SO.now()
+  row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
+  row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
   local journal = msg.body.journal
   if type(journal) == "table" then
+    if journal.seq and row.seq and journal.seq < row.seq then row.rotation, row.fix = nil, nil end
+    row.seq = journal.seq
     row.uncertain = journal.uncertain == true or nil
     if row.uncertain then row.pose, row.poseAt = nil, nil row.journal = journal.id
     else
@@ -252,6 +399,11 @@ S.hello = function(msg)
       row.anchor = nil
       S.journalSeen(row, journal.pose, journal.id)
     end
+  end
+  S.fix(row, msg.body.gps, row.pose, row.journal)
+  if type(journal) == "table" and journal.recovery and journal.recovery.outcome == "anchored"
+    and row.fix and row.pose and row.fix.x == row.pose.x and row.fix.y == row.pose.y and row.fix.z == row.pose.z then
+    row.rotation = { journal = row.journal, rot = 0 }
   end
   S.observe(row, msg.body.pose or msg.body.gps)
 end
@@ -265,7 +417,7 @@ S.tick = function(now)
     if lease and now > lease.expires + 10000 then
       row.open = nil
       lease.status = "expired"
-      S.notify(lease, nil)
+      if lease.owner == "gps" then S.probed(row, nil, lease) else S.notify(lease, nil) end
     elseif lease and lease.retryAt and now >= lease.retryAt and now < lease.expires then
       lease.retryAt = now + 1000
       local key = SO.pair.key(lease.turtleId)
@@ -317,6 +469,8 @@ return {
   tick = S.tick,
   send = S.send,
   reanchor = S.reanchor,
+  clearProbe = S.clearProbe, claimProbe = S.claimProbe,
+  locate = S.locate, world = S.world, candidates = S.candidates,
   onReport = function(owner, fn)
     if type(owner) ~= "string" or type(fn) ~= "function" then return false end
     S.callbacks[owner] = fn

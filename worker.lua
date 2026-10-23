@@ -190,7 +190,11 @@ W.gpsFix = function()
   if not ok or type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
     return nil
   end
-  return { x = x, y = y, z = z }
+  local fix = { x = x, y = y, z = z }
+  local config = W.store.read("so-worker.cfg")
+  if type(config) == "table" and type(config.dim) == "string"
+    and config.dim:match("^[%w_]+:[%w_./%-]+$") then fix.dim = config.dim end
+  return fix
 end
 
 W.resolvePending = function()
@@ -230,6 +234,7 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
+    capabilities = { parkBatch = true },
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -257,7 +262,7 @@ W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results,
+    lease = W.lease, results = results, capabilities = { parkBatch = true },
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -424,6 +429,11 @@ W.exec = function(step)
     return result
   end
   local op = step.op
+  if op == "gps" then
+    local fix = W.gpsFix()
+    result.ok, result.data, result.err = fix ~= nil, fix, not fix and "no GPS" or nil
+    return result
+  end
   local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
@@ -501,7 +511,8 @@ W.startBatch = function(msg)
     W.enterSlow()
     return
   end
-  W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
+  W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true
+    or n == 1 and body.steps[1].op == "inspectDown")
   W.mode = "idle"
   local deadline = msg.deadline
   if W.lease == body.lease and W.legacyExpires == msg.legacyExpires and W.expires then
@@ -735,6 +746,7 @@ W.boot = function()
   end
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
+  W.store = store
   W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
