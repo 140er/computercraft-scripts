@@ -1,0 +1,39 @@
+39x19 Shop search keypad, wall monitor
+                                       
+ FIND                      stock 21:14 
+                                       
+  IRON_                                
+                                       
+                                       
+  A    B     C     D     E    F     G  
+                                       
+                                       
+  H    I     J     K     L    M     N  
+                                       
+                                       
+  O    P     Q     R     S    T     U  
+                                       
+                                       
+  V    W     X     Y     Z   DEL   CLR 
+                                       
+                                       
+       BACK              14 FOUND      
+fffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffff
+f0000000000000000000000000000000000000f
+fffffffffffffffffffffffffffffffffffffff
+77777f7777f77777f77777f77777f7777f77777
+77777f7777f77777f77777f77777f7777f77777
+fffffffffffffffffffffffffffffffffffffff
+77777f7777f77777f77777f77777f7777f77777
+77777f7777f77777f77777f77777f7777f77777
+fffffffffffffffffffffffffffffffffffffff
+77777f7777f77777f77777f77777f7777f77777
+77777f7777f77777f77777f77777f7777f77777
+fffffffffffffffffffffffffffffffffffffff
+77777f7777f77777f77777f77777f7777f77777
+77777f7777f77777f77777f77777f7777f77777
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+7777777777777777777faaaaaaaaaaaaaaaaaaa

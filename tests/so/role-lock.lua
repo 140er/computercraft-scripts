@@ -135,7 +135,8 @@ return function(test, equal)
       end
     end
     for _, page in ipairs({"FLEET", "STATUS", "PANEL", "MINING", "MINING SETUP", "LUMBER", "SHOP",
-        "SHOP >", "SHOP A-Z", "DROP POINTS", "ADD DROP POINT", "AR GOGGLES", "MAP", "UNASSIGNED"}) do
+        "ALL ITEMS", "ORES", "LOW STOCK", "FIND", "IRON INGOT", "DROP POINTS", "ADD DROP POINT", "AR GOGGLES", "MAP",
+        "UNASSIGNED"}) do
       local found = false
       for name in pairs(reached) do found = found or name:sub(1, #page) == page end
       assert(found, "unreached page " .. page)

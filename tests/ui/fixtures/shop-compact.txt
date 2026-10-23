@@ -1,25 +1,25 @@
-29x12 Shop, compact touch monitor
+29x12 Shop home, compact monitor
                              
  SHOP            stock 21:14 
-  ALL    ORES   WOOD    FOOD 
-BLOCKS  TOOLS   OTHER        
-   A-Z      STOCK     NAME   
+   CATEGORY  ITEMS   TOTAL   
+   ORES         25    5690   
+   WOOD         10    3194   
+   STONE        14   19199   
+   PLANTS        6     734   
+   FOOD          8     605   
+   TOOLS        11     208   
+   REDSTONE      7     977   
                              
-  IRON INGOT                 
-        🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         
-         ▌  🬖🬀🬳🬷🬏▌ ▌         
-        🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
- Order: sent 16              
-    <       1/18        >    
+ ALL    <    1/2    >   FIND 
 fffffffffffffffffffffffffffff
 faaaaaaaaaaaaaaaaaaaaaaaaaaaf
-aaaaaaaf777777f7777777f777777
-7777777f777777f7777777fffffff
-777777777faaaaaaaaaf777777777
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+f777777777777777777777777777f
+fbfffffffffffffffffffffffffff
+fb77777777777777777777777777f
+fbfffffffffffffffffffffffffff
+fb77777777777777777777777777f
+fbfffffffffffffffffffffffffff
+fb77777777777777777777777777f
+fbfffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-777777777f777777777f777777777
+77777f77777f77777f77777f77777

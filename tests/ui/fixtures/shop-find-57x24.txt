@@ -1,0 +1,49 @@
+57x24 Shop search keypad, room monitor
+                                                         
+ FIND                                        stock 21:14 
+                                                         
+  IRON_                                                  
+                                                         
+                                                         
+   A       B        C       D       E       F        G   
+                                                         
+                                                         
+                                                         
+   H       I        J       K       L       M        N   
+                                                         
+                                                         
+                                                         
+   O       P        Q       R       S       T        U   
+                                                         
+                                                         
+                                                         
+   V       W        X       Y       Z      DEL      CLR  
+                                                         
+                                                         
+                                                         
+                                                         
+            BACK                       14 FOUND          
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f0000000000000000000000000000000000000000000000000000000f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+7777777f77777777f7777777f7777777f7777777f77777777f7777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777777777777777777777777faaaaaaaaaaaaaaaaaaaaaaaaaaaa

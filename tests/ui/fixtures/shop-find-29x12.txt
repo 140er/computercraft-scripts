@@ -1,0 +1,25 @@
+29x12 Shop search keypad, compact monitor
+                             
+ FIND            stock 21:14 
+  IRON_                      
+ A   B    C   D   E   F    G 
+                             
+ H   I    J   K   L   M    N 
+                             
+ O   P    Q   R   S   T    U 
+                             
+ V   W    X   Y   Z  DEL  CLR
+                             
+     BACK         14 FOUND   
+fffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaf
+f000000000000000000000000000f
+777f7777f777f777f777f7777f777
+fffffffffffffffffffffffffffff
+777f7777f777f777f777f7777f777
+fffffffffffffffffffffffffffff
+777f7777f777f777f777f7777f777
+fffffffffffffffffffffffffffff
+777f7777f777f777f777f7777f777
+fffffffffffffffffffffffffffff
+77777777777777faaaaaaaaaaaaaa

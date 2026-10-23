@@ -1,0 +1,49 @@
+57x24 Shop item page, room monitor
+                                                         
+ IRON INGOT                                  stock 21:14 
+                                                         
+                    TREND                       ^ +60/h  
+  IN STOCK                                      🬎🬎🬎🬂🬂🬀   
+   🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                         🬝🬎🬎🬆🬂🬂           
+    ▌  🬖🬀🬳🬷🬏▌ ▌                  🬎                       
+   🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀          🬝🬎🬎🬂🬂🬀                          
+  19 stacks + 24    🬂🬂🬀                                  
+                                  🬎🬎🬂🬂🬀                  
+                                                         
+  21:14    16  sent                     STACK 64         
+  20:52    64  delivered                ORES > INGOT     
+  20:31    16  delivered                CRAFT 3          
+  19:47     1  failed                                    
+                                                         
+                                                         
+                                                         
+                                                         
+     1          16         64        STACK        ALL    
+                                                         
+ Order: sent  Getting 16 Iron ingot...                   
+                                                         
+                          BACK                           
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbbbbbbbbbbbbbbbbbf7777777777777777777777777777777777777f
+fbbbbbbbbbbbbbbbbbffffffffffffffffffffffffffffffdddddddff
+fbbbbbbbbbbbbbbbbbffffffffffffffffffffffdddddddddddddddff
+fbbbbbbbbbbbbbbbbbfffffffffffffffdffffffdddddddddddddddff
+fbbbbbbbbbbbbbbbbbfffffffdddddddddffffffdddddddddddddddff
+fbbbbbbbbbbbbbbbbbffddddddddddddddffffffdddddddddddddddff
+fbbbbbbbbbbbbbbbbbffdddddddddddddddddddddddddddddddddddff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+aaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaa
+aaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaa
+aaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaafaaaaaaaaaafaaaaaaaaaaa
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777

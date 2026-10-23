@@ -1,0 +1,41 @@
+26x20 Shop search keypad, pocket
+                          
+ FIND         stock 21:14 
+                          
+  IRON_                   
+                          
+                          
+ A   B   C  D   E   F   G 
+                          
+                          
+ H   I   J  K   L   M   N 
+                          
+                          
+ O   P   Q  R   S   T   U 
+                          
+                          
+ V   W   X  Y   Z  DEL CLR
+                          
+                          
+                          
+    BACK        14 FOUND  
+ffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaf
+ffffffffffffffffffffffffff
+f000000000000000000000000f
+ffffffffffffffffffffffffff
+777f777f777f77f777f777f777
+777f777f777f77f777f777f777
+ffffffffffffffffffffffffff
+777f777f777f77f777f777f777
+777f777f777f77f777f777f777
+ffffffffffffffffffffffffff
+777f777f777f77f777f777f777
+777f777f777f77f777f777f777
+ffffffffffffffffffffffffff
+777f777f777f77f777f777f777
+777f777f777f77f777f777f777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777777777777faaaaaaaaaaaa

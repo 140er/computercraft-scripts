@@ -1,0 +1,77 @@
+100x38 Shop category list, ores, large monitor
+                                                                                                    
+ ORES                                                                                   stock 21:14 
+                                                                                                    
+    ALL        ORE         RAW        INGOT        NUGGET         BLOCK        GEM         DUST     
+   NAME                   COUNT  STACKS     TREND   NAME                   COUNT  STACKS     TREND  
+   Coal                    2104    32.9  v -128/h   Diamond                   47     0.7         -  
+   Iron Ingot              1240    19.4   ^ +60/h   Dust Iron                 32     0.5         -  
+   Raw Copper               410     6.4   ^ +31/h   Iron Block                27     0.4         -  
+   Lapis Lazuli             388     6.1         -   Gold Ore                  24     0.4    v -6/h  
+   Iron Ore                 312     4.9         -   Coal Block                18     0.3         -  
+   Copper Ingot             286     4.5         -   Emerald                   12     0.2         -  
+   Gold Nugget              210     3.3         -   Raw Gold                  12     0.2         -  
+   Copper Ore               140     2.2         -   Ingot Osmium               9     0.1    v -6/h  
+   Gold Ingot               131     2.0    v -9/h   Iron Nugget                5     0.1    v -1/h  
+   Deepslate Iron Ore        96     1.5   ^ +16/h   Raw Iron Block             4     0.1         -  
+   Zinc Ingot                75     1.2   ^ +15/h   Netherite Scrap            2     0.0         -  
+   Zinc Ore                  58     0.9         -   Quartz                     0     0.0   v -20/h  
+   Raw Iron                  48     0.8   v -20/h                                                   
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                BACK                                                
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaf7777777777f77777777777f777777777777f7777777777777f7777777777777f7777777777f777777777777f
+f777777777777777777777777aaaaaaa77777777777777777f777777777777777777777777aaaaaaa77777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffffdfffffffffffffffffffffffffffffffffffffffffffffffff
+fd77777777777777777777777777777777777777777777777fd77777777777777777777777777777777777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffffdfffffffffffffffffffffffffffffffffffffffffffffffff
+fd77777777777777777777777777777777777777777777777fd77777777777777777777777777777777777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffffdfffffffffffffffffffffffffffffffffffffffffffffffff
+fd77777777777777777777777777777777777777777777777f177777777777777777777777711111177777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffff1ffffffffffffffffffffffff111111fffffffffffffffffff
+fd77777777777777777777777777777777777777777777777f177777777777777777777777711111177777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffff1ffffffffffffffffffffffff111111fffffffffffffffffff
+fd77777777777777777777777777777777777777777777777f177777777777777777777777711111177777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffff1ffffffffffffffffffffffff111111fffffffffffffffffff
+fd77777777777777777777777777777777777777777777777fe777777777777777777777777eeeeee77777777777777777ff
+fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777

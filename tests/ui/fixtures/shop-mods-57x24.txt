@@ -1,0 +1,49 @@
+57x24 Shop mod items by namespace, room monitor
+                                                         
+ MODS                                        stock 21:14 
+                                                         
+   ALL     CREATE     AE2     COMPUTERCR     MEKANISM    
+   NAME                          COUNT  STACKS     TREND 
+   Andesite Alloy                   96     1.5         - 
+   Basic Control Circuit            14     0.2         - 
+   Certus Quartz Crystal            62     1.0         - 
+   Cogwheel                         40     0.6         - 
+   Disk                              6     0.1         - 
+   Fluix Crystal                    18     0.3         - 
+   Shaft                           128     2.0         - 
+   Steel Casing                      2     0.0         - 
+   Wireless Modem Normal             3     0.0         - 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                          BACK                           
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaf7777777777f7777777f77777777777777f7777777777777f
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777

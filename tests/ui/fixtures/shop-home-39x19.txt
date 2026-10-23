@@ -1,0 +1,39 @@
+39x19 Shop home, wall monitor
+                                       
+ SHOP                      stock 21:14 
+                                       
+   CATEGORY  ITEMS   TOTAL LOW         
+   ORES         25    5690   7         
+   WOOD         10    3194   2         
+   STONE        14   19199             
+   PLANTS        6     734   2         
+   FOOD          8     605   1         
+   TOOLS        11     208   1         
+   REDSTONE      7     977   4         
+   MOBS          8     733   1         
+   MODS          9     369   4         
+   OTHER         6     500   3         
+   LOW          21                     
+   EMPTY         4                     
+                                       
+                                       
+        ALL                FIND        
+fffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777f
+fbfffffffffffffffffffffffff1111fbbfffff
+fb777777777777777777777777711117b77777f
+fbffffffffffffffffffffffffffffffbbbbbbf
+fb777777777777777777777777711117b77777f
+fbfffffffffffffffffffffffff1111fbffffff
+fb777777777777777777777777711117b77777f
+fbfffffffffffffffffffffffff1111fbffffff
+fb777777777777777777777777711117b77777f
+fbfffffffffffffffffffffffff1111fbffffff
+fb777777777777777777777777711117b77777f
+f1fffffffffffffffffffffffffffffffffffff
+fe777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+7777777777777777777f7777777777777777777

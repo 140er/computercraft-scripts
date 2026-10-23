@@ -1,0 +1,41 @@
+26x20 Shop search results, pocket
+                          
+ FIND IRON    stock 21:14 
+                          
+   NAME          COUNT ^v 
+   Iron Ingot     1240  ^ 
+   Iron Ore        312  - 
+   Deepslate Iro    96  ^ 
+   Raw Iron         48  v 
+   Dust Iron        32  - 
+   Iron Block       27  - 
+   Iron Nugget       5  v 
+   Raw Iron Bloc     4  - 
+   Iron Shovel       3  - 
+   Iron Pickaxe      2  - 
+   Iron Sword        2  - 
+   Iron Axe          1  - 
+   Iron Chestpla     1  - 
+   Iron Helmet       1  - 
+                          
+           BACK           
+ffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaf
+ffffffffffffffffffffffffff
+f7777777777777777aaaaaa77f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+f1ffffffffffffffff11111fff
+f177777777777777771111177f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+fdffffffffffffffffffffffff
+fd77777777777777777777777f
+ffffffffffffffffffffffffff
+77777777777777777777777777

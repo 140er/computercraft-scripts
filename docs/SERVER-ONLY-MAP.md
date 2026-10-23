@@ -129,6 +129,8 @@ and listeners use `listener(sender, message)`.
   Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
   `tile`, `button`, `listRow`, `search` and `frame`. Coordinates are one-based.
   `frame()` returns compact rows, rectangular buttons and the palette.
+  `sparkline(C, x, y, width, height, samples, ink)` draws a sextant area chart of
+  `samples` scaled between their minimum and maximum, `ink` on navy.
   See [display](server-only/PROTOCOL.md#display) for the status model.
 
 ### Server modules
@@ -286,8 +288,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   Main-page inputs forward START and STOP once to the mining or lumber screen.
-  Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
-  the best match; ordering leaves shop display state unchanged. Missing screens
+  Keyboard-equipped panels call `shop.order(search, count)` once; `shop.best` defines
+  the match. Ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
   ALERTS lists state alerts; PAIR offers NEW CODE.
@@ -315,23 +317,24 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Exports `tick(now)`, `order(search, count)` and
-  `matches(search, limit?)`. `matches` is read-only: up to `limit` (default 10)
-  `{ name, count, label }` items whose id contains the search, by stock then id.
-  `order` sends one order for an exact item id, else for the first match, and
-  returns that id. Counts are 1, 16 or 64. Missing matches or storage send nothing
-  and return nil.
+  turtle to the shop screen. Exports `tick(now)`, `matches(search, limit?)`,
+  `best(search)` and `order(search, count)`. `matches` is read-only: up to `limit`
+  (default 10) stocked `{ name, count, label }` items whose ID or display name contains
+  the search, by stock then ID. `best` is a stocked exact ID, else the first match.
+  `order` sends one order of 1, 16 or 64 to it and returns that ID, or nil and a reason.
+  None of them changes a display's browse state.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
   Tick registers the shop screen, discovers storage and polls stock.
-  Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
-  `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
-  List controls are `category:<name>`, `letters`, `letter:<A-Z|ALL>`,
-  `sort:count`, `sort:name`, `prev` and `next`. The list has no BACK.
-  Small screens use `categories` to open a category picker. No shop search field
-  is drawn. The kit-free renderer retains its item list and direct order buttons.
-  Browse state and order feedback belong to each display. Orders send once and
-  disable quantities until another item selection. Sent does not imply delivery.
+  Render callbacks use `render(w, h, session)`. Pages are home (category table, LOW,
+  EMPTY, MOVING), list (subcategory chips, sortable NAME/COUNT/STACKS/TREND table),
+  item (count tile, sextant trend chart, recent orders, five order buttons) and the
+  FIND keypad. Input ids are in the [shop section](server-only/PROTOCOL.md#shop).
+  `S.rules` maps item IDs to ten categories and their subcategories, then tags, then
+  MODS by namespace or OTHER. Each order tap sends one order; renders send nothing.
+  Browse state and order feedback belong to each display. Sent does not imply delivery.
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
+  Stock replies may add `labels`, `stacks` and `tags` (additive, from `roomsorter.lua`).
+  The kit-free renderer retains its item list and direct order buttons.
   The legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
@@ -656,7 +659,8 @@ Do not save inside tight loops.
 Lease records, owner callbacks, observed ranges, lost flags and journal facts
 are memory-only. Reply/replay caches, display sessions and pictures, state
 subscriptions and custom view functions, cell confirmation tokens, and shop
-stock, search, order replies and trend samples also clear on restart.
+stock, learned labels, stacks and tags, browse state, recent orders and trend samples
+also clear on restart.
 Durable reservations survive. Planners must recover them with park leases
 before issuing new work after a server restart.
 
@@ -729,6 +733,14 @@ orders, one-row controls, contrast and bounds at 26x20 and 26x19, missing
 modules, alert paging, the fleet chips from a real gather and job facts from
 the real mining and lumber screens.
 
+
+`tests/ui/ui2c.lua` drives the real shop with `tests/ui/shop-stock.tsv` and compares
+every `shop-*` fixture (home, list, item and find at 57x24, 39x19, 26x20, 29x12 and
+100x38; search results; low stock; mods). It checks every stock ID's category, sorting,
+paging, keypad and keyboard search, one order per tap for each amount, `order`/`best`,
+replies, staleness and bounds and contrast at odd sizes. `docs/ui/shop-mockup.py`
+generates those fixtures and `docs/ui/shop-mockups.md`; `mockup-gen.py` calls it.
+`tests/parts/so-mod-shop.lua` runs it as the shop part.
 
 UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
 selected drop actions, draft editing, all 64 points through paging, AR switch

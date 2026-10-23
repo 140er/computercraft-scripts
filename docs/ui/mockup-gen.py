@@ -238,59 +238,6 @@ c.alert("! out of saplings: replanting paused")
 for (x, w), (label, bg) in zip(cols, [("START", "9"), ("STOP", "e"), ("SETUP", "7")]): c.button(x, 20, w, label, bg)
 add(c, "Lumber, room monitor")
 
-def grid(w, n):
-    import math
-    available = w - n + 1
-    return [(math.floor((i - 1) * available / n + .5) + i - 1,
-             math.floor(i * available / n + .5) - math.floor((i - 1) * available / n + .5))
-            for i in range(1, n + 1)]
-
-SHOP_ITEMS = [("IRON INGOT", "1240", "^ +60/h", "b"),
-              ("IRON ORE", "312", "- steady", "b"), ("RAW IRON", "48", "v -20/h", "1"),
-              ("IRON BLOCK", "27", "- steady", "b"), ("IRON NUGGET", "5", "v low", "1"),
-              ("IRON BARS", "0", "empty", "e")]
-SHOP_ITEMS += [("IRON " + str(i), "0", "empty", "e") for i in range(7, 19)]
-
-def shop(w, h, selected=False):
-    import math
-    c = Canvas(w, h)
-    header, tile = 1, 5 if h < 16 else 7 if h >= 24 else 6
-    nav = 1 if h < 16 else 3
-    bottom = h - nav
-    if selected:
-        c.header("SHOP > IRON INGOT", "", "a")
-        y = 2 if h < 16 else header + 2
-        if y > header + 1: c.text(1, header + 1, "stock 21:14")
-        c.tile(0, y, w, "IN STOCK", "1240", "^ +60 per hour", "b", tile)
-        y = 7 if h < 16 else y + tile + 1
-        height = 1 if h < 12 else 3 if h < 16 else min(5, bottom - 2 - y)
-        for (x, width), amount in zip(grid(w, 3), [1, 16, 64]):
-            c.button(x, y, width, ("" if w < 26 else "ORDER ") + str(amount), "a", height)
-        c.text(1, bottom - 1, "Order: delivered")
-        if h >= 16: c.text(1, bottom - 2, "stock 21:14")
-        c.button(0, bottom, w, "BACK", h=nav)
-        return c
-    c.header("SHOP", "stock 21:14" if w >= 26 else "", "a")
-    tabs = grid(w, max(1, min(7, (w + 1) // 7)))
-    top = header + (3 if w < 26 or h < 12 else 2 + math.ceil(7 / len(tabs)))
-    for i, label in enumerate(["ALL", "ORES", "WOOD", "FOOD", "BLOCKS", "TOOLS", "OTHER"]):
-        x, width = tabs[i % len(tabs)]
-        c.button(x, header + 1 + i // len(tabs), width, label, "a" if i == 0 else "7", 1)
-    for (x, width), label in zip(grid(w, 3), ["A-Z", "STOCK", "NAME"]):
-        c.button(x, top - 1, width, label, "a" if label == "STOCK" else "7", 1)
-    cols = grid(w, max(1, (w + 1) // 19))
-    capacity = len(cols) * max(1, (bottom - top) // (tile + 1))
-    for i, (label, value, sub, bg) in enumerate(SHOP_ITEMS[:capacity]):
-        x, width = cols[i % len(cols)]
-        c.tile(x, top + (i // len(cols)) * (tile + 1), width, label, value, sub, bg, tile)
-    c.text(1, bottom - 1, "Order: sent 16")
-    for (x, width), label in zip(grid(w, 3), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">"]):
-        c.button(x, bottom, width, label, h=nav)
-    return c
-
-add(shop(57, 24), "Shop, room monitor")
-add(shop(57, 24, True), "Shop order page")
-
 # --- Generic / drops page
 c = Canvas(57, 24); c.header("DROP POINTS", "5 points")
 c.fill(0, 2, 57, 1, "7"); c.text(1, 2, "ID  KIND     WHERE          SIDE   STATE")
@@ -354,9 +301,6 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
         c.button(0, h-1, w, "BACK", h=1)
         add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)
 
-add(shop(29, 12), "Shop, compact touch monitor", True)
-add(shop(26, 20), "Shop, pocket touch flow", True)
-add(shop(100, 38), "Shop, large touch monitor")
 status(51,19,[0,6,5,2],4,"Status, terminal")
 
 # --- Displays without a role show their id; the operator assigns one on the server
@@ -386,6 +330,7 @@ from pathlib import Path
 import runpy
 
 map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
+shop_mockup = runpy.run_path(str(Path(__file__).with_name("shop-mockup.py")))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).resolve().parents[2] / "tests/ui/fixtures")
@@ -393,7 +338,7 @@ args = parser.parse_args()
 
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S status-T unassigned-M unassigned-XS roles-T".split()
     named = [(stem, canvas, title) for canvas, title, stem in FIXTURES if stem]
     named += [(stem, canvas, title) for stem, (canvas, title, _) in zip(names, [f for f in FIXTURES if not f[2]])]
     for stem, canvas, title in named:
@@ -402,10 +347,12 @@ if args.fixtures:
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
     map_mockup["write"](Canvas, args.fixtures, fixtures=True)
+    shop_mockup["write"](Canvas, big, sextant, args.fixtures, fixtures=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
 map_mockup["write"](Canvas, Path("."))
+shop_mockup["write"](Canvas, big, sextant, Path("."))
 # font table
 ft = []
 for ch in "0123456789%-:/":

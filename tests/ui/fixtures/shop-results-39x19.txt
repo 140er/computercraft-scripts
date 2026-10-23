@@ -1,0 +1,39 @@
+39x19 Shop search results, wall monitor
+                                       
+ FIND IRON                 stock 21:14 
+                                       
+   NAME               COUNT      TREND 
+   Iron Ingot          1240    ^ +60/h 
+   Iron Ore             312          - 
+   Deepslate Iron Or     96    ^ +16/h 
+   Raw Iron              48    v -20/h 
+   Dust Iron             32          - 
+   Iron Block            27          - 
+   Iron Nugget            5     v -1/h 
+   Raw Iron Block         4          - 
+   Iron Shovel            3          - 
+   Iron Pickaxe           2          - 
+   Iron Sword             2          - 
+   Iron Axe               1          - 
+   Iron Chestplate        1          - 
+                                       
+  BACK        <        1/2        >    
+fffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffff
+f77777777777777777777aaaaaaa7777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777f
+f1ffffffffffffffffffff111111fffffffffff
+f1777777777777777777771111117777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+777777777f777777777f777777777f777777777

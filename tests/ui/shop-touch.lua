@@ -38,7 +38,7 @@ end
 T.capture = function(frame,w,h)
   local out=R.capture(w,h)
   assert(#frame.rows==h)
-  assert((frame.rows[1].text.."\n"..frame.rows[2].text):find("SHOP",1,true),"shop header overwritten")
+  assert(frame.rows[2].runs[2] and frame.rows[2].runs[2][3]=="a","shop header overwritten")
   for y,row in ipairs(frame.rows) do
     local fg,bg={},{}
     for _,run in ipairs(row.runs) do
@@ -74,8 +74,6 @@ T.run = function(test,equal)
       local function frame(session)
         local f=s.render(w,h,session or a)
         T.capture(f,w,h)
-        assert(not T.text(f):lower():find("search",1,true))
-        for _,button in ipairs(f.buttons) do assert(button.id~="search" and button.id~="clear") end
         return f
       end
       local function press(id,session)
@@ -88,45 +86,45 @@ T.run = function(test,equal)
         end
         error("missing button "..id)
       end
+      local function items()
+        local names={}
+        for _,button in ipairs(frame().buttons) do
+          local name=button.id:match("^item:(.*)$")
+          if name then names[#names+1]=name end
+        end
+        return names
+      end
       local other=H.encode(frame(b))
-      press("category:wood")
-      for _,button in ipairs(frame().buttons) do
-        local name=button.id:match("^item:(.*)$")
-        if name then assert(name:find("log") or name:find("planks") or name:find("sapling") or name:find("stick")) end
+      press("cat:wood")
+      for _,name in ipairs(items()) do
+        assert(name:find("log") or name:find("planks") or name:find("sapling") or name:find("stick"),name)
       end
-      press("category:all");press("sort:name")
-      local names={}
-      for _,button in ipairs(frame().buttons) do
-        if button.id:match("^item:") then names[#names+1]=button.id end
-      end
-      equal(names[1],"item:minecraft:acacia_log")
-      press("next")
-      assert(H.encode(frame())~=H.encode(s.render(w,h,{id=4})),"page did not change")
-      press("prev");press("sort:count")
-      press("letters");press("letter:I")
-      for _,button in ipairs(frame().buttons) do
-        local name=button.id:match("^item:minecraft:(.*)$")
-        if name then equal(name:sub(1,1),"i") end
-      end
-      press("letters");press("letter:ALL");press("category:ores");press("sort:name")
-      press("letters");press("letter:I")
-      local item
-      for _,button in ipairs(frame().buttons) do if button.id:match("^item:") then item=button.id:sub(6);break end end
-      assert(item)
+      press("sort:name")
+      equal(items()[1],"minecraft:acacia_log")
+      press("sub:planks")
+      equal(items(),{"minecraft:oak_planks"})
+      press("sub:all");press("back");press("all")
+      local first=H.encode(frame())
+      if #items()<40 then press("next") end
+      assert(#items()==40 or H.encode(frame())~=first,"page did not change")
+      press("back");press("cat:ores");press("sub:ingot");press("sort:name")
+      local item=items()[1]
+      equal(item,"minecraft:gold_ingot")
       press("item:"..item)
       local id="order:16:"..item
       press(id)
-      s.input({id=id,session=a})
       for i=1,3 do frame() end
       equal(#s.sends,1);equal(s.sends[1].body.cmd,"order");equal(s.sends[1].body.text,item)
       equal(s.sends[1].body.n,16);equal(s.sends[1].id,90);equal(s.sends[1].protocol,"roomsorter")
       assert(T.text(frame()):find("Order: sent",1,true))
-      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Getting 16 iron ingot..."})
+      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Getting 16 gold ingot..."})
       assert(T.text(frame()):find("Order: sent",1,true))
       equal(H.encode(frame(b)),other,"another display changed")
-      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Delivered 16 iron ingot"})
+      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Delivered 16 gold ingot"})
       assert(T.text(frame()):find("Order: delivered",1,true))
       equal(H.encode(frame(b)),other)
+      press("items")
+      equal(items()[1],"minecraft:gold_ingot")
     end)
   end
   for _,size in ipairs({{26,20},{29,12},{100,38}}) do
@@ -146,8 +144,8 @@ T.run = function(test,equal)
       for _,id in ipairs({"generic","shop","status"}) do display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
       s.net.flush();equal(s.frame().role,size[1]==26 and "pocket" or "unassigned")
       assert(display.assign(2,"shop"));s.net.advance(1);equal(s.frame().role,"shop")
-      s.press("ORES");s.press("NAME");s.press("A-Z");s.press("I")
-      s.press("IRON INGOT");s.press("ORDER 16")
+      s.press("ORES");s.press("INGOT")
+      s.press("Iron Ingot");s.press("16")
       local orders={}
       for _,packet in ipairs(s.server.sent) do
         if packet.protocol=="roomsorter" and packet.payload.cmd=="order" then orders[#orders+1]=packet end
@@ -155,7 +153,7 @@ T.run = function(test,equal)
       equal(#orders,1);equal(orders[1].id,90);equal(orders[1].payload.n,16)
       equal(orders[1].payload.text,"minecraft:iron_ingot")
       equal(other(),before)
-      assert(not T.text(s.frame()):lower():find("search",1,true))
+      s.press("BACK");equal(s.frame().role,"shop")
       s.press("BACK");equal(s.frame().role,"shop")
       for _,b in ipairs(s.frame().buttons) do assert(b.id~="status" and b.id~="generic") end
       local used=0

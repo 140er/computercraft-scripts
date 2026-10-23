@@ -1,0 +1,25 @@
+29x12 Shop item page, compact monitor
+                             
+ IRON INGOT      stock 21:14 
+                   ^ +60/h   
+  IN STOCK              🬝🬂   
+  🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         🬀     
+   ▌  🬖🬀🬳🬷🬏▌ ▌      🬎🬨       
+  🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀    🬆🬀 ▐       
+                     🬉🬀      
+                             
+  1    16    64   STACK  ALL 
+ Order: sent  Getting 16 Iro 
+            BACK             
+fffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fbbbbbbbbbbbbbbbf7777777777ff
+fbbbbbbbbbbbbbbbffffffffddfff
+fbbbbbbbbbbbbbbbfffffffdddfff
+fbbbbbbbbbbbbbbbffffddfdddfff
+fbbbbbbbbbbbbbbbffddddfdddfff
+fbbbbbbbbbbbbbbbffddddddddfff
+fffffffffffffffffffffffffffff
+aaaaafaaaaafaaaaafaaaaafaaaaa
+fffffffffffffffffffffffffffff
+77777777777777777777777777777

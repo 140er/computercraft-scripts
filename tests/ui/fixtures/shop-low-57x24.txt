@@ -1,0 +1,49 @@
+57x24 Shop low stock by trend, room monitor
+                                                         
+ LOW STOCK                                   stock 21:14 
+                                                         
+   NAME                          COUNT  STACKS     TREND 
+   Ingot Osmium                      9     0.1    v -6/h 
+   Iron Nugget                       5     0.1    v -1/h 
+   Disk                              6     0.1         - 
+   Wireless Modem Normal             3     0.0         - 
+   Basic Control Circuit            14     0.2         - 
+   Steel Casing                      2     0.0         - 
+   Book                             12     0.2         - 
+   Bucket                            6     0.4         - 
+   Chest                             9     0.1         - 
+   Comparator                        3     0.0         - 
+   Dandelion                         7     0.1         - 
+   Emerald                          12     0.2         - 
+   Ender Pearl                       6     0.4         - 
+   Hopper                            5     0.1         - 
+   Name Tag                          2     0.0         - 
+   Netherite Scrap                   2     0.0         - 
+   Piston                            8     0.1         - 
+   Raw Gold                         12     0.2         - 
+                                                         
+     BACK            <            1/2             >      
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777777777777777777777777777777777777777777777aaaaaaaaaaf
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+77777777777777f7777777777777f77777777777777f7777777777777

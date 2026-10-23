@@ -1,0 +1,49 @@
+57x24 Shop category list, ores, room monitor
+                                                         
+ ORES                                        stock 21:14 
+                                                         
+  ALL   ORE   RAW   INGOT   NUGGET   BLOCK   GEM   DUST  
+   NAME                          COUNT  STACKS     TREND 
+   Coal                           2104    32.9  v -128/h 
+   Iron Ingot                     1240    19.4   ^ +60/h 
+   Raw Copper                      410     6.4   ^ +31/h 
+   Lapis Lazuli                    388     6.1         - 
+   Iron Ore                        312     4.9         - 
+   Copper Ingot                    286     4.5         - 
+   Gold Nugget                     210     3.3         - 
+   Copper Ore                      140     2.2         - 
+   Gold Ingot                      131     2.0    v -9/h 
+   Deepslate Iron Ore               96     1.5   ^ +16/h 
+   Zinc Ingot                       75     1.2   ^ +15/h 
+   Zinc Ore                         58     0.9         - 
+   Raw Iron                         48     0.8   v -20/h 
+   Diamond                          47     0.7         - 
+   Dust Iron                        32     0.5         - 
+   Iron Block                       27     0.4         - 
+   Gold Ore                         24     0.4    v -6/h 
+                                                         
+     BACK            <            1/2             >      
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaf77777f77777f7777777f77777777f7777777f77777f777777f
+f7777777777777777777777777777777aaaaaaa77777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+77777777777777f7777777777777f77777777777777f7777777777777

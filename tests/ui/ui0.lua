@@ -334,7 +334,9 @@ return function(test, equal)
     local section = spec:match("\n(Status, room monitor.-)\n\n\n### 7%.2")
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
-    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
+    local names = "status-M status-L status-P panel-P mining-M lumber-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S status-T unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
+      .. " shop-home-57x24 shop-home-39x19 shop-home-26x20 shop-home-29x12 shop-home-100x38 shop-list-57x24 shop-list-39x19 shop-list-26x20 shop-list-29x12 shop-list-100x38 shop-item-57x24 shop-item-39x19 shop-item-26x20 shop-item-29x12 shop-item-100x38 shop-find-57x24 shop-find-39x19 shop-find-26x20 shop-find-29x12 shop-find-100x38 shop-results-57x24 shop-results-39x19 shop-results-26x20 shop-low-57x24 shop-mods-57x24"
+      .. " shop-M shoporder-M shop-compact shop-pocket shop-large"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

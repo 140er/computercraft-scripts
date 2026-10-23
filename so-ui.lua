@@ -262,4 +262,28 @@ U.fleetRows = function(C, model, top, step)
     end
   end
 end
+-- Sextant area chart of samples in width x height cells: ink on navy, lowest sample one pixel tall.
+U.sparkline = function(C, x, y, width, height, samples, ink)
+  local n, pw, ph = #samples, width * 2, height * 3
+  if n == 0 or width < 1 or height < 1 then return end
+  local lo, hi = samples[1], samples[1]
+  for i = 2, n do lo, hi = math.min(lo, samples[i]), math.max(hi, samples[i]) end
+  local cells, bit = {}, { 1, 2, 4, 8, 16, 32 }
+  for px = 0, pw - 1 do
+    local v = samples[math.floor(px * n / pw) + 1]
+    local tall = hi == lo and math.ceil(ph / 2) or math.floor((v - lo) * (ph - 1) / (hi - lo) + 0.5) + 1
+    for py = ph - tall, ph - 1 do
+      local key = math.floor(py / 3) * width + math.floor(px / 2)
+      cells[key] = (cells[key] or 0) + bit[px % 2 + 2 * (py % 3) + 1]
+    end
+  end
+  for r = 0, height - 1 do
+    for c = 0, width - 1 do
+      local bits = cells[r * width + c] or 0
+      if bits == 0 or bits == 63 then C.put(x + c, y + r, " ", nil, bits == 0 and "f" or ink)
+      elseif bits < 32 then C.put(x + c, y + r, string.char(128 + bits), ink, "f")
+      else C.put(x + c, y + r, string.char(191 - bits), "f", ink) end
+    end
+  end
+end
 return U

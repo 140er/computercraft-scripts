@@ -305,38 +305,64 @@ The module finds the existing, unpaired Storage Room turtle through DNS or the s
 
 The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
-The Big Tiles screen uses `render(w, h, session)`. Stock is shared; category,
-letter, sort, page, selection and order feedback belong to the display session.
-It draws category tabs derived from item IDs, an A-Z letter picker, STOCK and
-NAME sort buttons, item tiles and paging. Small screens open a category picker.
-No shop search field is drawn. Submitted text remains a compatible name filter;
-spaces match underscores, and a lone space or `*` clears it. Category taps clear
-that filter. Count sort descends by stock and breaks ties by item ID. Name sort
-uses the displayed name and then item ID. The stock time uses Amsterdam time.
-Stock older than 30 seconds shows STALE STOCK.
+Stock replies from an updated `roomsorter.lua` also carry `labels`, `stacks` and `tags`,
+keyed by item ID: the display name, the stack size and up to eight `c:`, `forge:` or
+`minecraft:` tags. The turtle learns them when an item first passes through its own
+slots, so they fill in over time and reset when the turtle restarts. The fields are
+additive: older servers ignore them, and the shop falls back to names, stack sizes and
+categories derived from the item ID when a room sends none. `version` is unchanged.
+`recipes` (`{ name, can }` entries) gives the craftable count on the item page.
 
-Tapping `item:<itemName>` opens an IN STOCK tile and quantity buttons
-`order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`.
-`items` returns to the same list page. The list footer is `<`, page and `>`; it has no BACK.
-Tiles keep the existing blue, amber, empty and trend states. Stale tiles use gray.
-Without `so-ui.lua`, the legacy list and its direct order buttons remain available.
+The Big Tiles screen uses `render(w, h, session)`. Stock is shared; the page, list,
+category, subcategory, sort, page number, search text, selection and order feedback
+belong to the display session. Every page stays inside the shop role:
 
-An order sends `{ cmd = "order", text = itemName, n = count, rid = number }`
-on `roomsorter` once. Quantity buttons then become inactive until the user
-returns to the list and selects an item again. Replies match sender and request
-ID. Each reply updates only the initiating display's latest order. The status is
-sent after dispatch and on a Getting or Crafting reply, delivered only after an
-explicit Delivered or sent-to-output-chest reply, and failed on refusal or a
-two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is
-the final observable state there. The screen never infers delivery from stock
-changes and never retries orders. `shop.order(search, count)` remains a direct
-one-order API for keyboard panel and pocket quick orders and leaves shop displays
-unchanged. An exact item id wins over a better-stocked partial match; the call
-returns the id it sent, or nil. `shop.matches(search, limit?)` is read-only and
-returns up to `limit` (default 10) `{ name, count, label }` items whose id
-contains the search, most stock first, then by id.
+| Page | Header | Contents | Controls |
+| --- | --- | --- | --- |
+| home | `SHOP` | category table (items, total, low count, bar), LOW and EMPTY rows, MOVING items when rows are free | `cat:<id>`, `low`, `empty`, `item:<id>`, `all`, `search`, `prev`, `next` |
+| list | category, `ALL ITEMS`, `LOW STOCK`, `EMPTY` or `FIND <text>` | subcategory chips, sortable table: name, count, stacks, trend | `sub:<id>`, `sort:name`, `sort:count`, `sort:trend`, `item:<id>`, `back`, `prev`, `next` |
+| item | item name | count tile, trend chart, recent orders, stack, type and craftable count | `order:<1, 16, 64, stack or all>:<id>`, `items` |
+| search | `FIND` | query box, A-Z keypad | `key:<A-Z, DEL or CLR>`, `found`, `back` |
 
-Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
+`back` on a list returns to the keypad for search results and home otherwise. `items`
+returns to the page that opened the item. Typed text from a keyboard display opens the
+search results directly; spaces match underscores, and a lone space or `*` clears it.
+Search matches the item ID and display name in every category.
+
+Categories are ORES, WOOD, STONE, PLANTS, FOOD, TOOLS, REDSTONE, MOBS, MODS and OTHER,
+with subcategories such as ores ore, raw, ingot, nugget, block, gem and dust. An ordered
+rule table in `so-mod-shop.lua` matches the ID after its namespace; tools and redstone
+come before materials. IDs no rule matches use the item's tags, then MODS by namespace
+or OTHER. `tests/ui/shop-stock.tsv` lists real IDs with their expected category, and
+`tests/ui/ui2c.lua` checks every one.
+
+An item is empty at 0, low below `min(16, stack)` and ok otherwise. Items that left
+storage within the sampled hour stay listed as empty. Count sort descends by stock and
+breaks ties by item ID; name sort uses the display name, then the ID; trend sort puts the
+largest hourly change first. The stock time uses Amsterdam time. Stock older than 30
+seconds shows STALE STOCK and grey state stripes. Without `so-ui.lua`, the legacy list
+and its direct order buttons remain available.
+
+Each tap on an order button sends one `{ cmd = "order", text = itemName, n = count, rid = number }`
+on `roomsorter`. STACK sends the item's stack size and ALL its current count; ALL is
+inactive at 0. Renders never send. Replies match sender and request ID. Each reply
+updates only the initiating display's latest order and the item's recent order list
+(eight entries, in memory). The status is sent after dispatch and on a Getting or
+Crafting reply, delivered only after an explicit Delivered or sent-to-output-chest
+reply, and failed on refusal or a two-minute timeout. Legacy rooms currently
+acknowledge queued work, so sent is the final observable state there. The screen never
+infers delivery from stock changes and never retries orders.
+
+Other modules use three read-only or one-order calls. The panel and pocket SHOP pages use them too.
+`shop.matches(search, limit?)` returns up to `limit` (default 10) `{ name, count, label }`
+stocked items whose ID or display name contains the search, most stock first, then by ID;
+`label` is the display name in capitals. `shop.best(search)` returns a stocked exact ID,
+else the first match, and its count. `shop.order(search, count)` sends one order of 1, 16
+or 64 to that item and returns its ID, or nil and a reason (`bad count`, `no match`,
+`storage room not found`). None of them changes any display's browse state; the order
+joins the item's recent orders like any other.
+
+Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample. The item page charts the same samples.
 
 ### state
 
@@ -989,11 +1015,9 @@ session. Missing registered screens show grey controls marked `not loaded`.
 Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
 `lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
 only this panel's search. START and STOP forward one input to the corresponding
-registered screen. An order applies that search to the registered shop screen,
-renders its first list page, selects its first `item:<name>` and sends exactly
-one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
-which defines the best match. A search with no match sends no order. This uses
-the existing shop search and selection state, shared with full shop screens.
+registered screen. An order calls `shop.order(search, count)` once: a stocked exact ID,
+else the stocked match with the highest count, ties by ID, gets exactly one order. A search
+with no match sends no order. Shop displays keep their own pages and selections.
 
 The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
 blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and

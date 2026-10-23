@@ -1,0 +1,77 @@
+100x38 Shop home, large monitor
+                                                                                                    
+ SHOP                                                                                   stock 21:14 
+                                                                                                    
+   CATEGORY  ITEMS   TOTAL LOW                                                                      
+   ORES         25    5690   7                                                                      
+                                                                                                    
+   WOOD         10    3194   2                                                                      
+                                                                                                    
+   STONE        14   19199                                                                          
+                                                                                                    
+   PLANTS        6     734   2                                                                      
+                                                                                                    
+   FOOD          8     605   1                                                                      
+                                                                                                    
+   TOOLS        11     208   1                                                                      
+                                                                                                    
+   REDSTONE      7     977   4                                                                      
+                                                                                                    
+   MOBS          8     733   1                                                                      
+                                                                                                    
+   MODS          9     369   4                                                                      
+                                                                                                    
+   OTHER         6     500   3                                                                      
+                                                                                                    
+   LOW          21                                                                                  
+                                                                                                    
+   EMPTY         4                                                                                  
+                                                                                                    
+                                                                                                    
+   MOVING                                                                   COUNT  STACKS     TREND 
+   Cobblestone                                                               9842     153  ^ +348/h 
+   Oak Log                                                                   1536    24.0  ^ +138/h 
+   Coal                                                                      2104    32.9  v -128/h 
+   Redstone                                                                   862    13.5   ^ +63/h 
+   Iron Ingot                                                                1240    19.4   ^ +60/h 
+   Raw Copper                                                                 410     6.4   ^ +31/h 
+                                                                                                    
+                       ALL                                               FIND                       
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+fbfffffffffffffffffffffffff1111fbbbbbbbbbbbbbbbbbbbbffffffffffffffffffffffffffffffffffffffffffffffff
+fbfffffffffffffffffffffffff1111fbbbbbbbbbbbbbbbbbbbbffffffffffffffffffffffffffffffffffffffffffffffff
+fb777777777777777777777777711117bbbbbbbbbbb77777777777777777777777777777777777777777777777777777777f
+fb777777777777777777777777711117bbbbbbbbbbb77777777777777777777777777777777777777777777777777777777f
+fbffffffffffffffffffffffffffffffbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fbffffffffffffffffffffffffffffffbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
+fb777777777777777777777777711117bbb7777777777777777777777777777777777777777777777777777777777777777f
+fb777777777777777777777777711117bbb7777777777777777777777777777777777777777777777777777777777777777f
+fbfffffffffffffffffffffffff1111fbbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbfffffffffffffffffffffffff1111fbbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fb777777777777777777777777711117b777777777777777777777777777777777777777777777777777777777777777777f
+fb777777777777777777777777711117b777777777777777777777777777777777777777777777777777777777777777777f
+fbfffffffffffffffffffffffff1111fbbbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbfffffffffffffffffffffffff1111fbbbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fb777777777777777777777777711117bbb7777777777777777777777777777777777777777777777777777777777777777f
+fb777777777777777777777777711117bbb7777777777777777777777777777777777777777777777777777777777777777f
+fbfffffffffffffffffffffffff1111fbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbfffffffffffffffffffffffff1111fbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fb777777777777777777777777711117bb77777777777777777777777777777777777777777777777777777777777777777f
+fb777777777777777777777777711117bb77777777777777777777777777777777777777777777777777777777777777777f
+f1ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f1ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fe7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+fe7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+fdffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd7777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+77777777777777777777777777777777777777777777777777f7777777777777777777777777777777777777777777777777

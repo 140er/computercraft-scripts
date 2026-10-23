@@ -1,0 +1,49 @@
+57x24 Shop search results, room monitor
+                                                         
+ FIND IRON                                   stock 21:14 
+                                                         
+   NAME                          COUNT  STACKS     TREND 
+   Iron Ingot                     1240    19.4   ^ +60/h 
+   Iron Ore                        312     4.9         - 
+   Deepslate Iron Ore               96     1.5   ^ +16/h 
+   Raw Iron                         48     0.8   v -20/h 
+   Dust Iron                        32     0.5         - 
+   Iron Block                       27     0.4         - 
+   Iron Nugget                       5     0.1    v -1/h 
+   Raw Iron Block                    4     0.1         - 
+   Iron Shovel                       3       -         - 
+   Iron Pickaxe                      2       -         - 
+   Iron Sword                        2       -         - 
+   Iron Axe                          1       -         - 
+   Iron Chestplate                   1       -         - 
+   Iron Helmet                       1       -         - 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                          BACK                           
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777aaaaaaa77777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+f1fffffffffffffffffffffffffffffff111111ffffffffffffffffff
+f1777777777777777777777777777777711111177777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fdfffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fd777777777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777
