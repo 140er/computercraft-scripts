@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map", "health", "attention", "alerts", "events", "errors", "disk" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map", "health", "attention", "alerts", "events", "errors", "disk", "build" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },

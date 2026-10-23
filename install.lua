@@ -14,7 +14,7 @@ local ROLES = {
   server = { program = "so-server.lua",
     "so-server.lua", "so-errors.lua", "so-mod-health.lua", "so-log.lua", "so-plan.lua", "so-mine-plan.lua",
     "so-lumber-plan.lua", "so-ui.lua", "so-mod-ar.lua", "so-mod-cells.lua", "so-mod-display.lua",
-    "so-mod-daily.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
+    "so-mod-build.lua", "so-mod-daily.lua", "so-mod-drops.lua", "so-mod-lease.lua", "so-mod-lumber.lua",
     "so-mod-map.lua", "so-mod-mine.lua", "so-mod-panel.lua", "so-mod-shop.lua", "so-mod-state.lua",
   },
 }

@@ -682,3 +682,9 @@ if failed > 0 then os.exit(1) end
 dofile("tests/so/w1-addhere-disk.lua")(test, equal, read, mocks)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+dofile("tests/parts/so-mod-build.lua")(test, equal)
+dofile("tests/so/build-worker.lua")(test, equal)
+dofile("tests/ui/build-nav.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end

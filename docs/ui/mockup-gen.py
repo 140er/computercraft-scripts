@@ -219,7 +219,8 @@ c.fill(0, 2, 57, 1, "7"); c.text(1, 2, "ID  KIND     WHERE          SIDE   STATE
 rows = [("1  ore      10,64,-2       front  ok","d"),("2  fuel     12,64,-2       front  ok","d"),("3  wood     -4,64,10       front  ok","d"),("4  saplings -6,64,10       front  ok","d"),("5  any       0,64,4        down   broken","e")]
 for i, (t, bg) in enumerate(rows): c.fill(0, 3+i, 1, 1, bg); c.text(1, 3+i, t)
 c.button(0, 10, 13, "FIX #5", "9"); c.button(14, 10, 13, "REMOVE"); c.button(28, 10, 14, "ADD NEW"); c.button(43, 10, 14, "BACK")
-c.button(0, 21, 11, "MINING"); c.button(12, 21, 11, "LUMBER"); c.button(24, 21, 11, "SHOP", "a"); c.button(36, 21, 10, "AR"); c.button(47, 21, 10, "PANEL")
+for (x, width), label in zip(grid(57, 6), ["MINING", "LUMBER", "SHOP", "AR", "PANEL", "BUILD"]):
+    c.button(x, 21, width, label, "a" if label == "SHOP" else "7")
 add(c, "Drop points (generic)")
 M[-1] += "\nThe navigation row was added on Jeffrey's request."
 
@@ -284,6 +285,25 @@ add(shop(26, 20), "Shop, pocket touch flow", True)
 add(shop(100, 38), "Shop, large touch monitor")
 status(51,19,[0,6,5,2],4,"Status, terminal")
 
+
+for w, h in [(26, 20), (29, 12)]:
+    for setup in [False, True]:
+        c = Canvas(w, h); c.header("BUILD", "stopped")
+        if setup:
+            c.text(1, 3, "AREA -"); c.text(1, 6, "MATERIAL -"); c.text(1, 7, "TURTLE -")
+            for (x, width), label in zip(grid(w, 2), ["FLOOR", "BACK"]):
+                c.button(x, h-3, width, label)
+        else:
+            c.fill(0, 3, w, 5, "d"); c.center(0, w, 3, "FLOOR", "d")
+            for r, row in enumerate(big("0")): c.center(0, w, 4+r, row, "d")
+            c.text(1, 8, "OF 0")
+            if h >= 16:
+                c.text(1, 10, "MATERIAL -"); c.text(1, 12, "TURTLE -")
+            height = 3 if h >= 16 else 1
+            for (x, width), label, bg in zip(grid(w, 4), ["START", "STOP", "SETUP", "BACK"], ["9", "e", "7", "7"]):
+                c.button(x, h-height, width, label, bg, height)
+        add(c, "Builder " + ("setup" if setup else "job") + f" {w}x{h}", True)
+
 import argparse
 from pathlib import Path
 import runpy
@@ -296,7 +316,7 @@ args = parser.parse_args()
 
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T build-26x20 buildsetup-26x20 build-29x12 buildsetup-29x12".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]

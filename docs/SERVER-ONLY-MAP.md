@@ -234,8 +234,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Handler `drops.edit` edits points. Tick registers the generic screen.
   The Big Tiles list selects the first broken point by default, or the first
   point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
-  opens the draft editor. The list links to mining, lumber, shop, AR and panel;
-  links wrap into two rows below 39 columns and three below 26. BACK
+  opens the draft editor. The list links to mining, lumber, shop, AR, panel and build;
+  links wrap into two rows below 41 columns and three below 26. BACK
   returns the list to status and the editor to the list. Long lists have paging.
   The kit editor also offers `FROM #N` to copy the chest cell from a fresh,
   proven turtle pose. DOWN selects the block below the turtle.
@@ -345,6 +345,20 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
   The legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
+
+- [so-mod-build.lua](../so-mod-build.lua), `build`, builds opt-in blueprints on one
+  paired turtle. Public calls are `expand(blueprint)`, `import(text)`, `tick()` and
+  `dugProtection(protect)`. Blueprints have inclusive `x1,y1,z1,x2,y2,z2`, `shape`
+  and optional `dim`. `expand` returns bottom-up cells or `nil, error`; `import`
+  accepts main builder floor/platform and wall/walls text. Jobs save to
+  `so-data/build/job`. Tick registers `display.screen("build", render, input)` and
+  `lease.onReport("build", report)`. Owner tags are `build:<id>`. Travel and target
+  cells use reservations, range prefixes and the mining lane geometry. Builder
+  never digs. Material comes from a storage drop point. Empty stock retries every
+  ten seconds on `SO.now`. Builder requires the worker `parkBatch` capability and
+  marks every lease for stationary expiry, including after a worker reboot.
+  Recovery reads worker pose and inspects the current
+  target before another placement. MORE links to BUILD. See [builder jobs](server-only/BUILD.md).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
   `assigned(id)` reports whether its job owns that worker.
@@ -467,7 +481,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [worker.lua](../worker.lua) executes `lease.batch`, sends `hello`, `step.report`
   and `beacon`, journals steps, and backs up after work lease expiry. No exported API.
-  A single `inspectDown` marks a stationary park. When it expires, the worker
+  A single `inspectDown`, or `park=true` on the first batch step, marks a
+  stationary park. Workers advertise `capabilities.parkBatch=true` in hello and
+  reports. Builder requires that capability. When the batch expires, the worker
   stays put and beacons every 30 seconds, retaining its move history.
   Paired boots retry discovery and hello with backoff capped at 30 seconds,
   using the saved server id if discovery fails. They show `waiting for server`

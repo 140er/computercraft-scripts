@@ -1,0 +1,41 @@
+26x20 Builder job 26x20
+                          
+ BUILD            stopped 
+                          
+          FLOOR           
+           🬖🬋🬏            
+           ▌ ▌            
+           🬈🬋🬀            
+                          
+ OF 0                     
+                          
+ MATERIAL -               
+                          
+ TURTLE -                 
+                          
+                          
+                          
+                          
+                          
+START   STOP  SETUP  BACK 
+                          
+ffffffffffffffffffffffffff
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+999999feeeeeef77777f777777
+999999feeeeeef77777f777777
+999999feeeeeef77777f777777

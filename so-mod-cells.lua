@@ -389,7 +389,7 @@ S.protection = function()
     protect(worker.pose.dim, worker.pose, 48)
     protect(worker.pose.dim, worker.dug, 0)
   end
-  for _, name in ipairs({ "mine", "lumber", "lease" }) do
+  for _, name in ipairs({ "mine", "lumber", "lease", "build" }) do
     local mod = SO.mods[name]
     if mod and (type(mod.dugProtection) ~= "function" or mod.dugProtection(protect) ~= true) then return nil end
   end
