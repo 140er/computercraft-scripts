@@ -48,6 +48,19 @@ return function(test, equal, read)
       end,
       move = function(a, b)
         a, b = norm(a), norm(b)
+        if dirs[a] then
+          assert(not dirs[b] and not disk[b], "destination exists " .. b)
+          for _, group in ipairs({ disk, dirs }) do
+            local moved = {}
+            for path, value in pairs(group) do
+              if path == a or path:sub(1, #a + 1) == a .. "/" then moved[path] = value end
+            end
+            for path, value in pairs(moved) do
+              group[b .. path:sub(#a + 1)], group[path] = value, nil
+            end
+          end
+          return
+        end
         assert(disk[a] ~= nil, "missing source " .. a)
         assert(disk[b] == nil, "destination exists " .. b)
         disk[b], disk[a] = disk[a], nil
@@ -104,6 +117,27 @@ return function(test, equal, read)
         readAll = function() return body end, close = function() end }
     end }
     m.run = function(command) return assert(load(m.source or source, "@install.lua", "t", e))(command) end
+    m.boot = function()
+      local run = e.shell.run
+      e.shell.run = function(path, ...)
+        local bytes = disk[norm(path)]
+        if path:match("install%.lua$") or path == "/startup.lua" then
+          if not bytes then return false end
+          local chunk = assert(load(bytes, "@" .. path, "t", e))
+          local ok, err = pcall(chunk, ...)
+          assert(ok, err)
+          return true
+        end
+        return run(path, ...)
+      end
+      if disk["startup.lua"] then assert(load(disk["startup.lua"], "@startup.lua", "t", e))() end
+      for _, name in ipairs(e.fs.list("/startup")) do
+        local bytes = disk["startup/" .. name]
+        if bytes then assert(load(bytes, "@startup/" .. name, "t", e))() end
+      end
+      e.shell.run = run
+    end
+
     return m
   end
   local function installed(role)
@@ -254,7 +288,7 @@ return function(test, equal, read)
     local m = installed("worker")
     local delete = m.env.fs.delete
     m.env.fs.delete = function(p)
-      if p == "/.so-old" and m.files[".so-new/committed"] then coroutine.yield("power cut") end
+      if p == "/.so-prev" and m.files[".so-new/committed"] then coroutine.yield("power cut") end
       delete(p)
     end
     local co = coroutine.create(function() m.run("update") end)
@@ -291,7 +325,7 @@ return function(test, equal, read)
   test("SO9 server manual coordinates retry invalid input", function()
     local m = machine("server")
     m.env.gps.locate = function() end
-    local input = { "bad", "-4 70 12", "minecraft:the_nether" }
+    local input = { "bad", "-4 70 12", "minecraft:the_nether", "" }
     m.env.read = function() return table.remove(input, 1) end
     m.run()
     local cfg = m.env.textutils.unserialize(m.files["so-server.cfg"])
@@ -484,7 +518,10 @@ return function(test, equal, read)
       end
       local probe, count = setup(), 0
       local move = probe.env.fs.move
-      probe.env.fs.move = function(a, b) move(a, b); count = count + 1 end
+      probe.env.fs.move = function(a, b)
+        move(a, b)
+        if not probe.files[".so-new/committed"] then count = count + 1 end
+      end
       probe.run("update")
       equal(probe.files["so-mod-retired.lua"], nil)
       equal(probe.files["retired-util.lua"], nil)
@@ -517,7 +554,7 @@ return function(test, equal, read)
       if committed then
         local delete = m.env.fs.delete
         m.env.fs.delete = function(p)
-          if p == "/.so-old" and m.files[".so-new/committed"] then error("cleanup failed") end
+          if p == "/.so-prev" and m.files[".so-new/committed"] then error("cleanup failed") end
           delete(p)
         end
         m.run("update")
@@ -595,4 +632,148 @@ return function(test, equal, read)
     equal(ok, false)
     unchanged(m, before)
   end)
+  test("SO9 rollback restores exact files manifest commit and preserves live data", function()
+    for _, role in ipairs({ "worker", "display", "server" }) do
+      local m = installed(role)
+      m.files[".so-files"] = m.env.textutils.serialize(files(role))
+      m.files[".so-revision"] = string.rep("b", 40)
+      m.files["so-mod-retired.lua"] = "return {}"
+      local before = snapshot(m)
+      m.remote["install.lua"] = source:gsub('"so%-store%.lua",', '"so-store.lua", "lib/added.lua",')
+      m.remote["lib/added.lua"] = "return {}"
+      m.run("update")
+      equal(m.files[".so-prev/.so-revision"], before[".so-revision"])
+      assert(m.files[".so-prev/manifest"])
+      m.files["so-keys"] = "new pairing"
+      m.files["so-server.cfg"] = "new config"
+      m.files["so-data/mine/job"] = "new job"
+      m.files["so-journal"] = "new journal"
+      before["so-keys"], before["so-server.cfg"] = "new pairing", "new config"
+      before["so-data/mine/job"], before["so-journal"] = "new job", "new journal"
+      local calls = m.calls
+      m.source = m.files["install.lua"]
+      m.run("rollback")
+      unchanged(m, before)
+      equal(m.calls, calls)
+      equal(m.env.fs.exists("/.so-prev"), false)
+    end
+  end)
+  test("SO9 pinned bootstrap retains the previous release without a handoff update flag", function()
+    local m = installed("worker")
+    m.source = source:gsub(", updating = updating", "")
+    local previous = m.files["worker.lua"]
+    m.run("update")
+    equal(m.files[".so-prev/worker.lua"], previous)
+    assert(m.files[".so-prev/manifest"])
+  end)
+  test("SO9 retains only the most recent release within the client disk budget", function()
+    for _, role in ipairs({ "worker", "display" }) do
+      local m = installed(role)
+      m.run("update")
+      local previous = m.files[role == "worker" and "worker.lua" or "display.lua"]
+      m.remote[role .. ".lua"] = "return {}"
+      m.sha = string.rep("c", 40)
+      m.run("update")
+      equal(m.files[".so-prev/.so-revision"], string.rep("a", 40))
+      equal(m.files[".so-prev/" .. role .. ".lua"], previous)
+      m.run("rollback")
+      assert(m.peak < 1000000, "client disk budget")
+      print("SO9 " .. role .. " retained-release rollback peak charged bytes=" .. m.peak)
+    end
+  end)
+  test("SO9 every rollback filesystem step recovers to a complete bootable release", function()
+    for _, role in ipairs({ "worker", "display", "server" }) do
+      local stop, total = 1, nil
+      repeat
+        local m = installed(role)
+        m.files[".so-revision"] = string.rep("b", 40)
+        m.files["startup.lua"] = 'if shell.run("/install.lua", "recover") then shell.run("/' .. roles[role].program .. '") end'
+        local previous = snapshot(m)
+        m.run("update")
+        local current = snapshot(m)
+        local count, originals = 0, {}
+        local function step()
+          count = count + 1
+          if count == stop then coroutine.yield("power cut") end
+        end
+        for _, name in ipairs({ "open", "makeDir", "move", "delete" }) do
+          local original = m.env.fs[name]
+          originals[name] = original
+          m.env.fs[name] = function(...)
+            local result = original(...)
+            if name == "open" and result then
+              for _, method in ipairs({ "write", "close" }) do
+                local call = result[method]
+                if call then result[method] = function(...) local out = call(...); step(); return out end end
+              end
+            end
+            step()
+            return result
+          end
+        end
+        m.source = m.files["install.lua"]
+        local co = coroutine.create(function() m.run("rollback") end)
+        local ok, err = coroutine.resume(co)
+        assert(ok, err)
+        local cut = coroutine.status(co) == "suspended"
+        for name, original in pairs(originals) do m.env.fs[name] = original end
+        m.boot()
+        assert(#m.runs > 0, "role did not boot at step " .. stop)
+        local expected = m.files[".so-revision"] == string.rep("b", 40) and previous or current
+        for path, bytes in pairs(expected) do
+          if path:sub(1, 1) ~= "." or path == ".so-files" or path == ".so-role" or path == ".so-revision" then
+            equal(m.files[path], bytes, path .. " cut " .. stop)
+          end
+        end
+        for _, path in ipairs(files(role)) do
+          if path:match("%.lua$") then assert(load(m.files[path], "@" .. path)) end
+        end
+        assert(load(m.files["startup.lua"], "@startup.lua"))
+        equal(m.files["so-keys"], "secret")
+        equal(m.env.fs.exists("/.so-new"), false)
+        equal(m.env.fs.exists("/.so-old"), false)
+        if not cut then total = count end
+        stop = stop + 1
+      until total
+    end
+  end)
+  test("SO9 rollback refuses a missing release or incompatible protocol", function()
+    local m = installed("worker")
+    local before = snapshot(m)
+    equal(pcall(m.run, "rollback"), false)
+    unchanged(m, before)
+    m.run("update")
+    m.files[".so-protocol"] = "2"
+    before = snapshot(m)
+    equal(pcall(m.run, "rollback"), false)
+    unchanged(m, before)
+  end)
+  test("SO9 dimension menu accepts known ids and rejects typos before saving", function()
+    for input, dim in pairs({ [""] = "minecraft:overworld", ["0"] = "minecraft:overworld",
+      ["-1"] = "minecraft:the_nether", ["1"] = "minecraft:the_end",
+      ["minecraft:overworld"] = "minecraft:overworld", ["minecraft:the_nether"] = "minecraft:the_nether",
+      ["minecraft:the_end"] = "minecraft:the_end" }) do
+      local m = machine("server")
+      local answers = { "overworld", "minecraft:typo", input, "" }
+      m.env.read = function() return assert(table.remove(answers, 1)) end
+      m.run()
+      local cfg = m.env.textutils.unserialize(m.files["so-server.cfg"])
+      equal(cfg.pos.dim, dim)
+      local output = table.concat(m.log, "\n")
+      assert(output:find("Invalid dimension", 1, true))
+      assert(output:find("1 2 3", 1, true))
+      assert(output:find("Save this? (Enter / n)", 1, true))
+    end
+  end)
+  test("SO9 rejects invalid GPS and manual bounds and allows correcting confirmation", function()
+    local m = machine("server")
+    m.env.gps.locate = function() return math.huge, 64, 0 end
+    local answers = { "30000001 64 0", "0 -2049 0", "0 2049 0", "0 64 0.5", "0 nan 0",
+      "1 64 2", "", "n", "-30000000 -2048 30000000", "1", "" }
+    m.env.read = function() return assert(table.remove(answers, 1)) end
+    m.run()
+    local pos = m.env.textutils.unserialize(m.files["so-server.cfg"]).pos
+    equal(pos, { x = -30000000, y = -2048, z = 30000000, dim = "minecraft:the_end" })
+  end)
+
 end

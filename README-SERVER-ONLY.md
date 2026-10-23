@@ -65,8 +65,11 @@ a mouse click, or monitor touch. With a monitor attached, display is the default
 
 For the server, the installer checks disk capacity before any download.
 It tries GPS for two seconds. If GPS does not answer, enter the server's
-`x y z` coordinates. Enter the dimension, or press Enter for
-`minecraft:overworld`. The position is saved in `so-server.cfg`.
+`x y z` block coordinates. X and Z must be within 30000000 blocks of zero;
+Y must be between -2048 and 2048. Select `minecraft:overworld`,
+`minecraft:the_nether` or `minecraft:the_end`, also accepted as `0`, `-1` or `1`.
+Enter defaults to the overworld. The installer shows the coordinates and dimension
+before saving. Enter confirms; `n` starts over. The position is saved in `so-server.cfg`.
 
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
@@ -97,6 +100,13 @@ non-empty HTTP 200 responses, and Lua files must compile before any installed
 file changes. Startup recovers interrupted swaps before launching the program.
 A failed download leaves the installed files in place. A private repository may
 answer "not found".
+
+Run `install rollback` to restore the release saved by the last successful update,
+including its installer, startup, file list and pinned commit. Rollback works offline
+and preserves pairing, configuration, saved data and journals. Only one previous
+release is kept. A successful rollback consumes it; another update replaces it.
+Interrupted swaps recover on startup. A rollback across different recorded protocol
+versions is refused. Releases without protocol metadata use protocol 1.
 
 Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and

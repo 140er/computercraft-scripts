@@ -1,0 +1,43 @@
+PASS	SO9 server manifest covers every root so file and crypto file	
+PASS	SO9 each role contains its static dependencies and thin clients fit 800 KB	
+PASS	SO9 small server disk refuses before HTTP and prints both config lines	
+PASS	SO9 fifth download failure leaves every old file unchanged	
+PASS	SO9 rejects empty, non-200 and invalid Lua responses	
+PASS	SO9 interrupted swaps recover every move for every role	
+PASS	SO9 interrupted fresh install removes newly introduced files	
+PASS	SO9 rollback can itself be interrupted and resumed	
+PASS	SO9 committed transaction finishes cleanup after interruption	
+PASS	SO9 update preserves keys data journal drops display and server config	
+PASS	SO9 fresh server writes plain GPS config and recovery startup	
+PASS	SO9 server manual coordinates retry invalid input	
+PASS	SO9 thin machines install only their role and launch pairing	
+PASS	SO9 role picker supports arrows clicks and monitor default touch	
+PASS	SO9 reset needs yes and preserves only installer and ROM	
+PASS	SO9 reset skips mounted and read-only paths and removes keys and data	
+PASS	SO9 reset reports a failed delete and continues clearing local data	
+PASS	SO9 update shim calls only role installer	
+PASS	SO9 first update uses the new installer list and removes retired role files	
+PASS	SO9 trims saved role whitespace and pins every raw request to one SHA	
+PASS	SO9 API failures use only the saved commit or leave the install unchanged	
+PASS	SO9 a failed pinned download never retries from a branch	
+PASS	SO9 a branch advance cannot change the commit during an update	
+PASS	SO9 invalid installer and invalid cached commit leave installed files unchanged	
+PASS	SO9 every deletion and metadata move rolls back across power loss	
+PASS	SO9 failed swaps restore deletions and committed cleanup errors remain recoverable	
+SO9 worker peak charged bytes=269971
+SO9 display peak charged bytes=252367
+PASS	SO9 worker and display stay below 1 MB during the complete update	
+PASS	SO9 first update can resolve a SHA through Git refs when the API is blocked	
+PASS	SO9 malformed Git refs cannot select a moving ref or modify an existing install	
+PASS	SO9 downloaded installer must still define the saved role	
+PASS	SO9 rejects unsafe saved file paths and invalid handoff revisions	
+PASS	SO9 rollback restores exact files manifest commit and preserves live data	
+PASS	SO9 pinned bootstrap retains the previous release without a handoff update flag	
+SO9 worker retained-release rollback peak charged bytes=383528
+SO9 display retained-release rollback peak charged bytes=365927
+PASS	SO9 retains only the most recent release within the client disk budget	
+PASS	SO9 every rollback filesystem step recovers to a complete bootable release	
+PASS	SO9 rollback refuses a missing release or incompatible protocol	
+PASS	SO9 dimension menu accepts known ids and rejects typos before saving	
+PASS	SO9 rejects invalid GPS and manual bounds and allows correcting confirmation	
+38 passed, 0 failed

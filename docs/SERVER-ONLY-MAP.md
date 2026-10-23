@@ -498,7 +498,11 @@ Those deletions share the backup manifest and roll back with the replacements.
 `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
 plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
-The installer uses GPS or manual coordinates and a dimension prompt.
+The installer uses GPS or integer manual coordinates. X and Z are bounded to
++/-30000000, Y to -2048..2048. The dimension menu accepts only the three vanilla
+namespaced IDs or their numeric aliases 0, -1 and 1. Enter chooses the overworld.
+The saved dimension is always namespaced. Coordinates and dimension appear before
+an Enter confirmation; `n` restarts position entry.
 Updates do not replace this config or any runtime state.
 
 All downloads stage in `/.so-new/<path>`. A failed fetch or compile removes
@@ -508,6 +512,21 @@ paths and whether they existed before the swap. Old copies move under
 removes newly introduced targets unless `/.so-new/committed` exists. That marker
 means every target was moved and recovery only finishes cleanup. The next
 installer invocation and installed startup both recover before continuing.
+Before a swap, `/startup/so-install-recover.lua` provides a temporary CraftOS startup
+fallback. It can run recovery from the root, backup or staged installer while
+`install.lua` or `startup.lua` is between moves. Recovery removes this fallback.
+Successful updates promote `/.so-old` to `/.so-prev`, replacing the previous release.
+`/.so-new/keep` makes this promotion resumable after a crash. Fresh installs keep no
+previous release. The retained manifest includes each replaced or retired file,
+startup, role, file list, pinned revision and `/.so-protocol`, currently 1.
+`install rollback` stages those exact bytes, removes files introduced by the update,
+and uses the same manifest swap. `/.so-new/rollback` makes committed cleanup consume
+the previous release instead of retaining the release being undone. An interrupted
+rollback recovers to the current release before commit or the previous release after
+commit. Rollback never downloads or changes pairing, config, data or journals.
+Different protocol metadata refuses rollback; missing metadata means protocol 1.
+Client tests measure the peak with one retained release and rollback staging under
+1000000 bytes.
 `install reset` requires `yes` and deletes writable files on the root drive,
 including pairing keys, except `install.lua` and `/rom`. It skips mounts and
 read-only paths, reports failed deletions and continues with the remaining files.
