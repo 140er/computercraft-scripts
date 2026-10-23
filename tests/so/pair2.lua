@@ -38,11 +38,12 @@ end
 
 local function logtext(m) return table.concat(m.log, "\n") end
 
-local function boot(old, kit)
+local function boot(old, kit, extra)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install(SERVER)
   if kit then server.install({ "so-ui.lua" }) end
+  if extra then server.install(extra) end
   libs(server)
   if old then v1(server, { "so-server.lua", "so-pair.lua", "so-proto.lua" }) end
   server.boot("so-server.lua")
@@ -438,6 +439,43 @@ return function(test, equal)
     equal(server.env.SO.pair.pending(), fresh)
     equal(server.env.SO.terminal.rejected, nil)
     assert(not logtext(server):find("rejected", 1, true), logtext(server))
+  end)
+
+  test("pair2 network pairing failures stay out of the error ring", function()
+    local net, server = boot(false, false, { "so-errors.lua" })
+    local so = server.env.SO
+    assert(so.errors, "error ring missing")
+    local records, record = 0, so.errors.record
+    so.errors.record = function(...)
+      records = records + 1
+      return record(...)
+    end
+    -- No code yet, then wrong guesses up to the burn, blocked senders,
+    -- malformed pair2 bodies and legacy bad MACs.
+    equal(join(net, client(net, 2), "123456"), { "no code" })
+    local code = pressP(net, server)
+    for id = 20, 24 do
+      local last = id < 24 and "busy" or "no code"
+      equal(join(net, client(net, id), wrong(code, id), 3, server.id), { "wrong code", "wrong code", last })
+    end
+    equal(so.pair.pending(), nil)
+    pressP(net, server)
+    local junk = client(net, 6)
+    junk.spawn([[proto = dofile("so-proto.lua") READY = true]])
+    net.flush()
+    local key = so.pair.envelopeKey()
+    for _ = 1, 5 do
+      junk.env.rednet.send(1, junk.env.proto.build(key, "pair2", { sid = "zz", y = "00" }), "so")
+      junk.env.rednet.send(1, junk.env.proto.build(string.rep("ab", 32), "pair", { pub = string.rep("cd", 32) }), "so")
+    end
+    net.flush()
+    assert(server.alive(), tostring(server.error))
+    local text = logtext(server)
+    for _, line in ipairs({ "so-server: pair rejected 20", "so-server: pair rejected 6",
+      "so-server: pair blocked 6" }) do
+      assert(text:find(line, 1, true), line .. " missing from the log")
+    end
+    equal(records, 0)
   end)
 
   test("pair2 a replay after a server restart is rejected", function()
