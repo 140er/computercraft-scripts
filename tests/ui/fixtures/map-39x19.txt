@@ -1,0 +1,39 @@
+39x19 Map, level -58 39x19
+                                       
+ MAP              LANE #4 120,-58,-362 
+                                FIT    
+                                       
+                              -    +   
+                                       
+         🬬🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏       ^     
+         🬠🬋🬋🬋3>🬸🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃    <     >  
+         🬇🬰🬰🬰🬰🬰🬰🬰🬰2>🬮🬮🬮🬮6>       v     
+         🬠🬋🬋🬋🬋🬋🬋🬍🬋🬋🬋🬋🬋🬋🬋🬋🬃             
+         +🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬸🬰🬰🬰🬐      UP     
+         v4🬋🬋🬚🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬃             
+   5>    🬇🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬐     Y-58    
+         H<7                           
+                                DN     
+                                       
+                                       
+                                       
+                                       
+fffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777f
+fffffffffffffffffffffffffffff999999999f
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff7777f7777f
+fffffffffffffffffffffffffffffffffffffff
+fffffffffbffffffffffffffffffffff777ffff
+fffffffffbfffdd1fffffffffffff777fff777f
+fffffffffbffffffffddffffbbffffff777ffff
+fffffffffbfffffffffffffffffffffffffffff
+fffffffff0fffffffffffffffffff777777777f
+fffffffffddffffffffffffffffffffffffffff
+fffddffffbfffffffffffffffffffbbbbbbbbbf
+fffffffff911fffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff777777777f
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff

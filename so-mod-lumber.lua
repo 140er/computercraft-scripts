@@ -870,7 +870,17 @@ end
 
 S.mapView = function()
   local j = S.job
-  return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),
+  local spots, now = {}, SO.now()
+  for key, spot in pairs(j.spots) do
+    if #spots >= 512 then break end
+    local x, z = key:match("^(%-?%d+),(%-?%d+)$")
+    if x then
+      spots[#spots + 1] = { x = tonumber(x), z = tonumber(z),
+        ready = (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 }
+    end
+  end
+  table.sort(spots, function(a, b) return a.x < b.x or a.x == b.x and a.z < b.z end)
+  return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),spots=spots,
     turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),
       state=j.blocked or (j.running and "lumber" or "idle")}}
 end

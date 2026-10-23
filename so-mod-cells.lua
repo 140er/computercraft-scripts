@@ -3,6 +3,7 @@ local S = {
   clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
+  columns = {}, columnsVersion = 0, marks = 0,
 }
 
 S.pause = function()
@@ -133,6 +134,7 @@ S.section = function(path)
     local n = tonumber(digit, 16)
     for _ = 1, 4 do count = count + n % 2 n = math.floor(n / 2) end
   end
+  if S.sizes[path] == nil then S.index(path, true) end
   S.dug = S.dug + count - (S.sizes[path] or 0)
   S.sizes[path] = count
   S.sections[path], S.cached = section, S.cached + 1
@@ -221,6 +223,7 @@ S.markDug = function(x, y, z, dim)
     section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] + 1, S.dug + 1
+    S.marks = S.marks + 1
   end
   S.pause()
   return true
@@ -250,8 +253,72 @@ S.forget = function(x, y, z, dim)
     section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] - 1, S.dug - 1
+    S.marks = S.marks + 1
   end
   return true
+end
+
+-- Read-only views for the map. They never load a section into the cache,
+-- bump its use time or write anything.
+S.index = function(path, add)
+  local dim, sx, sy, sz = path:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
+  if not dim then return end
+  local columns = S.columns[dim] or {}
+  S.columns[dim] = columns
+  local key = sx .. "_" .. sz
+  local column = columns[key]
+  if add then
+    column = column or { sx = tonumber(sx), sz = tonumber(sz), sy = {} }
+    columns[key], column.sy[tonumber(sy)] = column, true
+  elseif column then
+    column.sy[tonumber(sy)] = nil
+    if next(column.sy) == nil then columns[key] = nil end
+  end
+  S.columnsVersion = S.columnsVersion + 1
+end
+
+S.dugColumns = function(dim, sx1, sz1, sx2, sz2, max)
+  local out = {}
+  for _, column in pairs(S.columns[S.dimension(dim)] or {}) do
+    if #out >= (max or 1024) then break end
+    if column.sx >= sx1 and column.sx <= sx2 and column.sz >= sz1 and column.sz <= sz2 then
+      local sy = {}
+      for y in pairs(column.sy) do sy[#sy + 1] = y end
+      table.sort(sy)
+      out[#out + 1] = { sx = column.sx, sz = column.sz, sy = sy }
+    end
+    S.pause()
+  end
+  return out
+end
+
+S.dugBits = function(dim, sx, sy, sz, memoryOnly)
+  local path = S.root .. S.dimension(dim) .. "/" .. string.format("%.0f_%.0f_%.0f", sx, sy, sz)
+  local section = S.sections[path]
+  if section then return section.value.bits end
+  if (S.sizes[path] or 0) == 0 then return nil end
+  if memoryOnly then return false end
+  local saved = SO.store.read(path)
+  local value = type(saved) == "table" and saved.value
+  if type(value) == "table" and value.format == "hex4096" and S.sectionValid(value) then return value.bits end
+end
+
+S.reserved = function(dim, max)
+  local key, cache = S.dimension(dim), S.reservedCache
+  if cache and cache.source == S.reservations and cache.dim == key then return cache.list end
+  local list = {}
+  for cell, who in pairs(S.reservations) do
+    if #list >= (max or 4096) then break end
+    local d, sx, sy, sz, index = cell:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+):(%d+)$")
+    if d == key then
+      index = tonumber(index)
+      list[#list + 1] = { x = tonumber(sx) * 16 + index % 16, y = tonumber(sy) * 16 + math.floor(index / 16) % 16,
+        z = tonumber(sz) * 16 + math.floor(index / 256), who = who }
+    end
+    S.pause()
+  end
+  S.reservedCache = { source = S.reservations, dim = key, list = list }
+  return list
 end
 
 S.list = function(who, max)
@@ -471,6 +538,8 @@ S.decideRetirement = function(id, choice)
         if section then S.sections[path], S.cached = nil, S.cached - 1 end
         S.dug = S.dug - (S.sizes[path] or 0)
         S.sizes[path], S.used[path], S.versions[path] = nil, nil, nil
+        S.index(path, false)
+        S.marks = S.marks + 1
         forgottenPaths[path] = true
         forgotten, freed = forgotten + 1, freed + candidate.bytes
       end
@@ -555,4 +624,6 @@ return {
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,
   markDug = S.markDug, isDug = S.isDug, forget = S.forget, counts = S.counts, list = S.list,
+  dugColumns = S.dugColumns, dugBits = S.dugBits, reserved = S.reserved,
+  dugVersion = function() return S.columnsVersion, S.marks end,
 }

@@ -197,39 +197,46 @@ touch controls. Every action has a drawn button. No helper text is needed.
 The map is a role of its own. No other header or screen links to it, and it
 has no BACK.
 
-The map uses the rows below the kit header through H-3. North is up, x increases right and z increases
-down. The header reads `MAP` and `N ^ 1:<blocks per cell>`. The bottom rows are:
+North is up, x increases right and z increases down. The header reads `MAP` on the left and, on the
+right, what is under the focus: `#2 MINING 160,-58,-373`. There is no legend and no helper copy.
 
-| Row | Drawn controls |
+Terrain uses sextant pixels, two by three per character, so tunnels, branches and the farm have
+shape. At zoom 0 one block is one square pixel. Each character holds one colour on the black ground,
+so every cell keeps the spec contrast rule and the fixtures record it exactly:
+
+| Pixels | Colour |
 | --- | --- |
-| H-2 | FIT, +, - |
-| H-1 | ^, <, v, > |
-| H | MINE y / SURFACE y / ALL |
+| Dug block | white `0` |
+| Planned spine and branch, not dug | white `0` dots |
+| Farm outline, ready tree | green `d` |
+| Growing sapling | amber `1` |
+| Lane held by a turtle (shaft and spine) | blue `b` |
+| Other held cell | amber `1` |
 
-Controls are one row tall with the kit's three- and four-column grid and palette. They
-remain readable at 26x20, 29x12 and 15x10. Large screens devote every extra
-row and column to the map. There is no helper copy on the screen.
+A character with several classes takes the most important colour; lane and held cells win.
+Markers take a whole character with dark ink: turtle arrows `^ > v <` on green `d` (busy), amber `1`
+(idle, waiting), coral `e` (lost, out of range, silent) or blue `b` (done); `H` shaft and `@` server on
+teal `9`; drop letters O ore, F fuel, J junk, W wood, C storage, A any and S saplings on purple `a`,
+coral `e` when broken. Up to two blocks per pixel, a turtle's id sits behind it when it heads east and
+to its right otherwise.
 
-Planned shaft, spine and branches use panel grey `7`; known dug cells use `8`.
-The farm outline is green `d`, shaft `H` and server `@` are teal `9`, and chest
-letters are purple `a`, coral `e` when broken. Letters include O ore, F fuel,
-W wood and S saplings. Turtle arrows `^ > v <` draw last. Busy is green `d`,
-idle amber `1`, lost/range/stale coral `e`, and done blue `b`. Ids appear beside
-arrows at one block per cell when space is clear. Symbols use dark ink `f`.
+Landscape screens get a control rail on the right, from row 3: FIT, `-` `+`, the four arrows as a
+cross, then UP, the level and DN. FIT is teal while the view fits; the level is blue and reads `ALL`,
+`Y-58` or `Y64`. Large screens use three-row buttons. The pocket and other narrow screens put
+`< ^ v > - +` and FIT, DN, level, UP on the bottom two rows; 15x10 keeps `-` FIT `+` and the level.
+Every other row and column is map.
 
-Fit covers configured geometry, drops and turtle poses in the server dimension.
-Zoom and pan disable automatic fitting; FIT restores it. Each display session
-owns its view and progressive dug raster. The initial level is ALL. Mine selects the job bottom y.
-Surface uses server y or farm ground. ALL projects markers and scans dug blocks at known mine, surface, farm, chest
-and turtle levels. Up to 256 cell reads run per frame. Geometry work
-is proportional to the viewport. A coarse cell can contain multiple blocks;
-landmarks and turtles draw above dug cells and planned passages.
+Tap the map to focus a character; tap it again to clear. Zoom keeps the focus in place. The level
+button cycles ALL, the mine level and the surface. UP and DN step one block. ALL ORs every level.
+Each display session owns its view. Section reads are budgeted per tick and shared between displays;
+the map caches its raster and frame and redraws only when the view or the data changes.
 
-`mockup-gen.py` calls `map-mockup.py` to generate `map-26x20`, `map-29x12`
-and `map-57x24` fixtures. See [map mockups](map-mockups.md).
-Their scene has two assigned mine branches, two turtles, a dug vein cell, ore,
-fuel, wood and sapling chests, a farm outline and the server. Tests compare all
-text and background cells and check state colours and controls separately.
+`mockup-gen.py` calls `map-mockup.py`, which draws the scene in `map-scene.txt` at 26x20, 29x12,
+57x24, 39x19, 15x10 and 100x38. See [map mockups](map-mockups.md). The scene is a north-facing mine
+with a shaft, a spine held as a lane, seven finished 64-block branches, two branches in progress with
+held cells ahead of their turtles, a planned tenth branch, ore veins at three levels, a farm with
+ready and growing trees, five chests (one broken), the server and six turtles. `tests/so/map.lua`
+marks the same dug blocks in the real cells module and compares every fixture cell.
 
 ### 7.1 Display mockups
 

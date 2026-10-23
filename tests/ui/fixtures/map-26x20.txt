@@ -1,41 +1,41 @@
-26x20 Map, projected levels 26x20
+26x20 Map, all levels 26x20
                           
- MAP              N ^ 1:1 
-                          
-                          
-                 v3       
+ MAP      ORE 117,64,-337 
                           
                           
                           
-               >2 O       
+                          
+        🬡🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇  
+        🬇🬰🬰🬰3>🬋🬯🬯2>🬠🬠🬠🬠🬠  
+        🬠🬋🬋🬋🬋🬋🬋🬩🬋🬋🬋🬋🬋🬋🬋6> 
+        🬇🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬐 
+        🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬍🬋🬋🬋🬃 
+  🬞🬵🬭S  v4🬰🬰🬴🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬐 
+  5>🬭W  🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬎🬋🬋🬋🬋🬃 
+  🬹🬹🬹🬹@OH<7               
                           
                           
                           
-             H            
                           
-                          
-        F W S@            
-                          
-  FIT       +        -    
-  ^      <      v     >   
-           ALL            
+ <    ^   v    >   -    + 
+ FIT    DN    ALL     UP  
 ffffffffffffffffffffffffff
 f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-fffffffffffff7777bbfffffff
-fffffffffffff7ffffffffffff
-fffffffffffff78fffffffffff
-fffffffffffff7ffffffffffff
-fffffffffffff77dd7afffffff
-fffffffffffff7ffffffffffff
-ffffffffdddff7ffffffffffff
-ffffffffdfdff7ffffffffffff
-ffffffffdddff9ffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffafafa9ffffffffffff
+ffffffffbfffffffffffffffff
+ffffffffbfffdd1ffddfffffff
+ffffffffbffffffffffffffbbf
+ffffffffbfffffffffffffffff
+ffffffffbfffffffffffffffff
+ffdddaffddffffffffffffffff
+ffdddaffbfffffffffffffffff
+ffdddd9a911fffffffffffffff
 ffffffffffffffffffffffffff
-99999999f77777777f77777777
-777777f777777f77777f777777
-77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777f777f7777f777f7777f777
+999999f7777fbbbbbbbbf77777

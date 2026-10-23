@@ -194,6 +194,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   consent policy save to `so-data/dug-policy`. Reservations, running job areas,
   leases and recovery paths protect whole sections. Unknown recovery blocks
   retirement. Bulk work uses `SO.breathe`.
+  The map's read-only calls are `dugVersion()`, `dugColumns(dim, sx1, sz1, sx2,
+  sz2, max)`, `dugBits(dim, sx, sy, sz, memoryOnly)` and `reserved(dim, max)`.
+  They never load, touch or save a section. A section-column index built at
+  boot answers `dugColumns`; `reserved` caches its list until reservations change.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
@@ -256,16 +260,19 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the legacy status renderer for older partial installations.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
-  `lumber.mapView()`, registry workers, lease range/state and drop points.
-  `render(w, h, session)` keeps fit, centre, blocks per cell, level and a bounded
-  dug-cell scan in `session.map`. Rendering uses at most 256 `cells.isDug`
-  calls, limited to known tunnel, surface, farm, chest and turtle levels.
-  Scan caches replace on complete passes and reset on view changes.
-  Mine geometry uses screen-cell intersections, independent of route length.
-  The map is its own role; no other screen links to it and it has no BACK.
-  The map reads the kit header row, including the padded row 2. Its controls
-  are FIT, + and - on row H-2. The local monitor uses its own session. No
-  client or saved-file format changes.
+  `lumber.mapView()`, registry workers, lease state, drop points and
+  `cells.reserved`, only within ten seconds of a render.
+  `render(w, h, session)` keeps `level`, `fit`, `zoom`, `cx`, `cz`, `focus` and
+  its raster and frame caches in `session.map`. Terrain is sextant pixels, one
+  block per pixel at zoom 0, one colour per character; markers are whole
+  characters. Dug planes per section column and level are shared by all
+  displays, read at most 16 sections per tick, and rechecked with at most 64
+  memory-only probes per tick after the dug serial changes. An unchanged view
+  returns its cached frame. Frames over the 16 KB budget fall back to solid
+  character cells. Landscape screens use a right control rail; narrow screens
+  use two bottom rows. `map-pick` focuses a character; the header shows what
+  is under it. The map is its own role with no BACK. `docs/ui/map-scene.txt`
+  feeds both `map-mockup.py` and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
   `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
@@ -375,8 +382,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
-  `mapView()` returns copied dimension, area, ground, sapling chest and turtle
-  pose/state fields for the map.
+  `mapView()` returns copied dimension, area, ground, sapling chest, up to 512
+  sorted tree spots `{ x, z, ready }` and turtle pose/state fields for the map.
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
   the text command path. SETUP pages configuration commands; its BACK returns
   to lumber. The main page has no BACK. Missing grow timers use a stale tile.
@@ -711,6 +718,13 @@ every drawn button on every page of every role at 57x24, 39x19, 26x20 and
 command's assign, change, clear and rejections, a restart, the terminal R
 prompt through key events, the role list, and the roles-T, unassigned-M and
 unassigned-XS fixtures. Tests that need a role use `display.command`.
+
+R5 rewrites `tests/so/map.lua`. It renders every `map-*` fixture from the
+scene in `docs/ui/map-scene.txt` through the real cells module, checks a lit
+pixel for every visible dug mark, pan, zoom, FIT, focus, the level control,
+per-tick read and probe bounds, an idle map with no reads, the 16 KB frame
+budget at 164x81, and that the cells map queries write nothing. On Linux it
+also checks that the generator reproduces every map fixture and `map-mockups.md`.
 
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
