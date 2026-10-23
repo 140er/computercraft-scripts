@@ -58,7 +58,9 @@ occurred before the end, even when the final snapshot is healthy.
 Computer names and native poses come from the runtime manifest. Mining and farm
 geometry may be top-level `mine` and `farm` entries. Physical chests are named
 `ore`, `fuel`, `wood`, `saplings`, `storage_output` and `storage_stock` under
-`fixtures`. The farm's `dig_cells` must list every native stem and canopy cell.
+`fixtures`. The farm's `dig_cells` come from connected logs and leaves at its declared tree roots
+in the untouched template. Clone and reset refresh older manifests. C6 saves
+the cold block names and positions before the worker starts.
 Any successful dig outside those cells fails C6. The driver configures real drop
 points through the public module API and checks native poses before every add.
 C7 observes natural ore and fuel trips; an untriggered low-fuel trip is reported
@@ -67,6 +69,14 @@ full ten game-minute window and C7 retains thirty game minutes. Both reject
 re-mining cold snapshot marks, shared digs and unknown movement stalls. Ordinary
 lane contention does not fail a check. C8 fills the real
 ore chest, then resets its private world for the separate native low-fuel case.
+C8 confirms repair within 90 game seconds, allowing the normal minute retry.
+After repair succeeds, it measures movement from the first observed lane grant
+or free lane. The worker must change x/y/z within 30.5 game seconds. One
+competing pass may delay that deadline by up to 300 game seconds for this finite
+16-block fixture. A second competing pass, a holder that never releases the
+lane, a waiter that never receives it, and turns without movement fail.
+The resume samples retain the game clock and lane ownership, and observations
+report repair, lane wait and movement delays separately.
 No conditional planner branch is forced.
 
 C1 requires ordinary HTTP installation evidence on all six roles. Minecraft
@@ -85,7 +95,7 @@ setup blocks photo credit. `visual_baselines` maps screenshot names to reviewed 
 references with `path`, `sha256`, and `regions` of `[width,height,x,y]`. Regions
 must exclude changing clocks or world animation. Exact pixels must match.
 Missing references block visual claims. Large images stay outside git.
-Pocket reboot uses native `os.reboot()` through the Lua API and requires an
+Pocket reboot uses native `os.reboot()` through the runtime bridge and requires an
 observed uptime reset. Its new Lua environment must receive the generic role;
 a cached frame cannot prove reboot recovery.
 
@@ -95,6 +105,13 @@ emit `GATEB_GOGGLES_LINKED` only when the player wears goggles linked to the tes
 controller. References must cover label alignment, overlap, HUD, layer removal
 and stable frames. The driver never equates taking a screenshot with passing a
 visual check.
+
+C10 saves readiness samples and waits until every worker has a real movement
+path before arming its outage. An inspect or a turn alone cannot demonstrate
+retreat. Copy installation verifies
+a fresh bridge boot identity and snapshot on every online role. A missing boot
+blocks setup before jobs start. Native power transitions clear queued inputs
+while preserving the inbox directory.
 
 C11 disables the runtime bridge helpers, clears queued inputs through that API,
 removes force loads, and checks native chunk-load state before its full 120-second

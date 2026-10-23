@@ -15,6 +15,21 @@ from checks.model import Blocked, Verdict
 
 
 class ContractTests(unittest.TestCase):
+    def test_lua_nil_first_return_is_not_a_missing_frame_error(self):
+        for returned,expected in (({},None),([],None),({"2":"error"},None),({"1":3},3),([3],3)):
+            class Runtime:
+                def request(self,world,request,timeout): return {"values":returned}
+            with tempfile.TemporaryDirectory() as temp:
+                ctx=Context(Runtime(),"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40)
+                self.assertEqual(ctx.lua("pocket","return nil"),expected)
+
+    def test_native_chunk_unload_parses_the_actual_storage_response(self):
+        from checks.c11 import native_unloaded
+        output = '[02:33:46] [Server thread/INFO] [minecraft/MinecraftServer]: Storage gateb:driver has the following contents: 0b\n'
+        self.assertTrue(native_unloaded(output))
+        self.assertFalse(native_unloaded(output.replace('0b','1b')))
+        self.assertFalse(native_unloaded('GATEB_completion_0b'))
+
     def test_pocket_reboot_requires_a_native_uptime_reset(self):
         class Runtime:
             def __init__(self): self.requests=[];self.times=iter([100,101,0.2])
@@ -25,9 +40,8 @@ class ContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             ctx=Context(runtime,"test",{"computers":{"3":{"name":"pocket"}}},temp,"a"*40,interval=0)
             self.assertTrue(ctx.power("pocket","reboot")["uptime_reset"])
-        self.assertEqual(runtime.requests[1]["op"],"lua_async")
-        self.assertEqual(runtime.requests[1]["code"],"os.reboot()")
-        self.assertFalse(any(q["op"] == "power" for q in runtime.requests))
+        self.assertEqual(runtime.requests[1]["op"],"power")
+        self.assertEqual(runtime.requests[1]["action"],"reboot")
 
     def test_navigation_assigns_the_role_with_the_server_command(self):
         state = {"role": "pocket", "calls": []}
@@ -254,11 +268,14 @@ class ContractTests(unittest.TestCase):
             report=json.loads((Path(temp)/"report.json").read_text())
         self.assertEqual(code,1)
         self.assertEqual(report["counts"],{"pass":2,"fail":0,"blocked":1})
-        self.assertEqual(sum(c[0]=="reset" for c in calls),0)
+        prepared = [c for c in calls if c[0] == "install"]
+        resets = len(prepared) - len({c[1] for c in prepared})
+        self.assertEqual(sum(c[0]=="reset" for c in calls),resets)
+        self.assertEqual(sum(c[0]=="serve" for c in calls),resets)
         self.assertEqual(sum(c[0]=="stop" for c in calls),2)
         self.assertEqual(sum(c[:2]==("pool","up") for c in calls),1)
         self.assertTrue(any("--prefix" in c for c in calls))
-        self.assertFalse(any(c[0] in ("clone","serve") for c in calls))
+        self.assertFalse(any(c[0] == "clone" for c in calls))
 
 
 if __name__=="__main__":unittest.main()

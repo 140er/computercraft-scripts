@@ -23,7 +23,7 @@ PASS = {
     "C4": {"settled_seconds": 10, "verified_before_anchor": True, "server_poses_match": True, "display_poses_match": True},
     "C5": {"range_samples": 0, "collisions": 0, "errors": [], "completed_miners": ["4", "5"], "handoff_game_seconds": 29},
     "C6": {"logs_delivered": 19, "replanted": 4, "dug_count": 28, "unsafe_digs": []},
-    "C8": {kind: {"alerts": 1, "parked": True, "retry_game_seconds": [60.3, 60.9], "resume_game_seconds": 56.3} for kind in ("ore", "fuel")},
+    "C8": {kind: {"alerts": 1, "parked": True, "retry_game_seconds": [60.3, 60.9], "resume_game_seconds": 156.3, "repair_observed_game_seconds": 60, "lane_wait_game_seconds": 90, "competing_passes": 1, "resume_after_lane_game_seconds": 6.3} for kind in ("ore", "fuel")},
     "C9": {"off_seconds": 183.4, "no_motion": True, "stale_seconds": 7.83, "recovery_seconds": 12.86, "new_recovery_parks": True},
     "C10": {"off_seconds": 204.5, "active_workers": True, "outside_own_path": [], "collisions": [], "duplicate_digs": [], "movement_recovery_seconds": {"4":5.11,"5":5.11,"6":5.11}, "worker_count": 3, "outage_samples": 10, "retreat_observed": True},
     "C11": {**PROOF, "active_mid_batch": True, "parked_poses_preserved": True, "healthy_after_return": True, "unloaded_seconds": 130.72, "sample_count": 5, "state_changes": [], "movement_recovery_seconds": {"6":12.21}, "active_count": 1},

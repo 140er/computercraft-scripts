@@ -5,6 +5,38 @@ import shutil
 import time
 
 
+def farm_allowlist(world, farm):
+    """Read connected oak stems and canopies from the cold template only."""
+    import nbt
+    ground = farm['ground']
+    x1, z1, x2, z2 = farm['area']
+    # Older prepared templates declared their four roots through the farm corners.
+    roots = farm.get('trees', [[x, ground + 1, z] for x, z in ((x1,z1),(x2,z1),(x1,z2),(x2,z2))])
+    species = farm['species']
+    chunks, blocks = {}, {}
+    for root in roots:
+        rx, ry, rz = root
+        if nbt.block(world, root, chunks)['block']['Name'] != species + '_log':
+            raise ValueError('Cold farm template is missing a declared tree stem')
+        pending, seen = [tuple(root)], set()
+        while pending:
+            pos = pending.pop()
+            if pos in seen:
+                continue
+            seen.add(pos)
+            x, y, z = pos
+            # The fixture declares small oaks, with a two-block canopy radius.
+            if abs(x-rx) > 2 or abs(z-rz) > 2 or not ground < y <= ground + 64:
+                continue
+            state = nbt.block(world, pos, chunks)['block']
+            if state['Name'] not in (species + '_log', species + '_leaves'):
+                continue
+            blocks[pos] = state
+            pending.extend((x+dx,y+dy,z+dz) for dx,dy,dz in ((1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)))
+    return {'source':str(world), 'trees':roots,
+            'blocks':[{'pos':list(pos), 'block':blocks[pos]} for pos in sorted(blocks)]}
+
+
 def lua(value):
     if value is None: return 'nil'
     if value is True: return 'true'
@@ -98,6 +130,18 @@ def prepare(runtime, name):
     for cid,comp in manifest['computers'].items():
         if comp['role']!='fixture' and not comp.get('requires_client'):
             command('computercraft turn-on #'+cid)
+    probes=[cid for cid,comp in manifest['computers'].items() if comp.get('name')=='probe']
+    for probe in probes:
+        server=next(cid for cid,comp in manifest['computers'].items() if comp.get('name')=='server')
+        deadline=time.monotonic()+30
+        while True:
+            try:
+                result=runtime.request(name,{'op':'lua','computer':server,'code':f'return SO.pair.remember({int(probe)},nil)'})
+                if result.get('values')==[True]: break
+            except RuntimeError:
+                pass
+            if time.monotonic()>=deadline: raise RuntimeError('Could not clear the native pairing probe')
+            time.sleep(.1)
     command('forceload remove all')
     command('forceload add '+' '.join(map(str,manifest['forceload'])))
     command('save-all flush')

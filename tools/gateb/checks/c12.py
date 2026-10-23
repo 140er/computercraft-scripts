@@ -24,7 +24,12 @@ def run(ctx):
     frame = ctx.wait(stock, 30)
     seconds = time.monotonic()-start if frame else None
     ctx.type_text("wall", "diamond")
-    frame = ctx.wait(stock, 10)
+    def filtered_stock():
+        frame = stock()
+        items = [b["id"] for b in values(frame["buttons"]) if b.get("id", "").startswith("item:")] if frame else []
+        return frame if items and all("diamond" in item for item in items) else None
+    frame = ctx.wait(filtered_stock, 10)
+    ctx.record("C12-search-frame.json", frame or ctx.frame("wall"))
     items = [b["id"] for b in values(frame["buttons"]) if b.get("id", "").startswith("item:")] if frame else []
     filtered = bool(items) and all("diamond" in item for item in items)
     before = ctx.count_items("storage_output", "diamond")
