@@ -27,8 +27,10 @@ Run the focused suite with:
 cc-test --part tests/so/w1-addhere-disk.lua --lua-only --part-timeout 90
 ```
 
-The local Linux UI and recovery pass completed with 104 tests passed and zero
-failures. It includes UI0 and has no skipped checks. The mockup generator and UTC
+After rebasing onto `af2e111`, the targeted Linux pass completed with 111 tests
+passed and zero failures. It includes UI0, visibility, readiness, continuous
+mining, UI screens, storage recovery and GPS/disk checks, with no skipped checks.
+The setup captures show the readiness checklist and ADD HERE together. The mockup generator and UTC
 allow-list checks passed. Luacheck reported zero errors. The final full-suite
 result and head SHA are in the PR description.
 

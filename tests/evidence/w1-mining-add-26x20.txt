@@ -1,17 +1,17 @@
 
  MINING SETUP     stopped
 
- home 0,0,0 n
+ home not set
+ no ore chest set
+ no fuel chest set
+ paired turtle missing
+ fuel missing
+       ADD HERE #2
  bottom -58
  length 64
  mode thorough
  ores all
-       ADD HERE #2
-
-
-
-
-
+ branches 8 single
 
 
 

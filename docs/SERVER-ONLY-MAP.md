@@ -75,7 +75,7 @@ and listeners use `listener(sender, message)`.
   `record(text)`, `flush(now?)`, `entries()` and `status()`. It retains at most
   128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
   is at most 21000 bytes, so current, backup and temporary files fit within
-  65536 bytes together. `status().bytes` counts every generation and is the
+  65536 bytes together. `status().bytes` counts every generation and is
   included in the disk ledger under `other`. Saves run at most once per 30000
   game milliseconds. A failed save keeps the pending records for retry.
   `SO.error(text)` prints and records server errors. `SO.errors` exposes this
