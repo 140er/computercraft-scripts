@@ -1507,6 +1507,35 @@ Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<com
 
 `pair.key(id)` returns that hex string, or nil.
 
+### Forgetting one device
+
+PAIR on the panel opens PAIRED, a paged list of paired ids, role or kind, time
+since last seen, and a four-character key fingerprint. Unknown metadata shows
+`?` and `-`. The fingerprint is the first four uppercase hex characters of
+SHA-256 of the saved 64-character hex key string. Raw keys never enter a frame.
+
+FORGET followed by CONFIRM removes that id's key through `pair.forget(id)`.
+Both taps must match drawn controls in the same paired display session. The
+confirmation expires after 15000 ms using `SO.now()`. Navigation cancels it.
+The display cannot forget itself, and replacing a target's key cancels its
+pending confirmation. There is no remote forget message type.
+
+Before removing the key, the server saves parked assignments in mine, lumber
+and build. Their `forgotten` flag prevents planning and late reports from
+releasing reservations. Lease retries, pending anchors and GPS callbacks are
+detached. An invitation owned by the forgotten display is closed.
+Every existing cell reservation stays in place because an unreported
+move may still occupy it. Parked assignments survive restart and prevent dug
+retirement while the pose remains unresolved. Re-pair and explicitly re-add the
+turtle at its actual pose before resuming it. Forgetting does not send a stop
+command to the worker. Existing work may finish or expire under worker rules.
+
+A save failure keeps the key and shows SAVE FAILED. Assignments already parked
+stay parked. Success emits `pair.forgotten` with `{ id, actor, text }` and adds
+an attention row for the most recently forgotten id. The device's next hello
+receives the existing unsigned `pair.required` hint. Its local key remains
+until a successful pairing replaces it.
+
 ## Store
 
 `so-store.store(path, valid, budget)` loads the newest valid generation from `path`, `path .. ".tmp"`, and `path .. ".bak"`. The file is `{ schema = 1, generation = number, value = ... }`. `valid(value)` must be true. A present file with no valid generation is an error.

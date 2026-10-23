@@ -614,7 +614,7 @@ end
 
 S.report = function(id, turtleId, results, lease)
   S.row = S.job.turtles[tostring(turtleId)]
-  if not S.row then return end
+  if not S.row or S.row.turtle.forgotten then return end
   local j, pending = S.row, S.row.pending
   if not pending or pending.id ~= id then return end
   S.row.pending = nil
@@ -1114,6 +1114,7 @@ S.input = function(ev)
     if status.probing then S.alert("GPS probe pending") return end
     local row = j.turtles[tostring(id)]
     local reanchor = status.uncertain and row
+    if row and row.turtle.forgotten and not SO.pair.key(id) then S.alert("turtle is not paired") return end
     if (j.running or row and row.pending) and not reanchor then S.alert("stop before configuring") return end
     if status.open and not reanchor then S.alert("turtle has open lease") return end
     local pose = { dim = j.dim, x = x, y = y, z = z, facing = f }
@@ -1146,6 +1147,7 @@ S.input = function(ev)
     local id = integer(2)
     local row = id and j.turtles[tostring(id)]
     if not row then S.alert("unknown turtle") return end
+    if row.turtle.forgotten then S.alert("device forgotten; re-pair and re-add turtle") return end
     S.row = row
     local lease = S.module("lease")
     local status = type(lease.status) == "function" and lease.status(id) or {}
@@ -1326,6 +1328,7 @@ S.render = function(w, h)
 end
 
 S.tickRow = function(row, now)
+  if row.turtle.forgotten then return end
   S.row = row
   local j, lease = S.row, S.module("lease")
   local status = lease.status(j.turtle.id)
@@ -1404,7 +1407,7 @@ end
 
 S.dugProtection = function(protect)
   for _, row in pairs(S.job.turtles) do
-    if row.recover or not row.turtle.frame then return false end
+    if row.turtle.forgotten or row.recover or not row.turtle.frame then return false end
     protect(S.job.dim, row, 48)
   end
   if S.job.running and S.job.area then
@@ -1435,4 +1438,16 @@ S.turtleView = function()
   end
   return out
 end
-return { name = "lumber", assigned = function(id) return S.job.turtles[tostring(id)] ~= nil end, handlers = {}, turtleView = S.turtleView, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }
+S.forget = function(id)
+  local row = S.job.turtles[tostring(id)]
+  if not row then return true end
+  if row.inflight then row.uncertain = S.possible(row.uncertain, row.inflight) end
+  row.turtle.forgotten, row.paused, row.blocked = true, true, "device forgotten"
+  row.pending, row.motion, row.idlePark, row.recover = nil, nil, nil, true
+  local previous = S.row
+  S.row = row
+  S.suspendService()
+  S.row = previous
+  return S.save()
+end
+return { name = "lumber", forget = S.forget, assigned = function(id) return S.job.turtles[tostring(id)] ~= nil end, handlers = {}, turtleView = S.turtleView, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }

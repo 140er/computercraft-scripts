@@ -218,7 +218,7 @@ local function advance()
 end
 local function report(id, turtleId, results, lease)
   local pending = S.pending
-  if not j.turtle or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
+  if not j.turtle or j.turtle.forgotten or turtleId ~= j.turtle.id or not pending or pending.id ~= id then return end
   S.pending = nil
   if not results or not lease.report or not lease.report.pose then
     S.recover = true
@@ -330,6 +330,7 @@ local function input(ev)
     j.blueprint,j.shape,j.material,j.cursor,j.phase,j.service=b,b.shape,b.material,1,"check",nil
     S.targets=expand(b)
   elseif w[1] == "add" and (#w == 2 or #w == 6) then
+    if j.turtle and j.turtle.forgotten and #w ~= 6 then alert("add needs x y z n|e|s|w") return end
     local id=tonumber(w[2])
     if not whole(id) or id < 0 then alert("invalid turtle") return end
     if j.turtle and j.turtle.id ~= id then alert("builder already has a turtle") return end
@@ -405,7 +406,7 @@ local function tick()
   if not S.callback and lease.onReport then lease.onReport("build",report) S.callback=true end
   local mine=module("mine")
   S.mine=mine.mapView and mine.mapView() or nil
-  if not j.turtle or not lease.status or not S.callback then return end
+  if not j.turtle or j.turtle.forgotten or not lease.status or not S.callback then return end
   S.targets=S.targets or (j.blueprint and expand(j.blueprint))
   local other=assigned(j.turtle.id)
   if other then j.running=false alert("turtle assigned to " .. other) return end
@@ -445,7 +446,7 @@ local function tick()
 end
 local function protect(fn)
   if not j.turtle then return true end
-  if S.recover or not j.turtle.frame then return false end
+  if j.turtle.forgotten or S.recover or not j.turtle.frame then return false end
   fn(j.dim,j,48)
   if j.running and j.blueprint then
     local b=j.blueprint
@@ -453,4 +454,10 @@ local function protect(fn)
   end
   return true
 end
-return {name="build",assigned=function(id) return j.turtle and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}
+local function forget(id)
+  if not j.turtle or j.turtle.id ~= id then return true end
+  j.turtle.forgotten, j.running, j.blocked = true, false, "device forgotten"
+  S.pending, S.recover = nil, true
+  return save()
+end
+return {name="build",forget=forget,assigned=function(id) return j.turtle and j.turtle.id == id or false end,handlers={hello=capability,["step.report"]=capability},tick=tick,expand=expand,import=import,dugProtection=protect}

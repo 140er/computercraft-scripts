@@ -54,6 +54,8 @@ D.setRole = function(id, role)
     want = role
   end
   if want == old then return end
+  local session = D.sessions[id]
+  if session and session.panel then session.panel.confirm, session.panel.drawn = nil, nil end
   if want == nil then D.saved.roles[name] = nil else D.saved.roles[name] = want end
   local copy = { roles = {}, far = D.saved.far }
   for key, value in pairs(D.saved.roles) do copy.roles[key] = value end
@@ -304,6 +306,12 @@ D.compose = function(role, w, h, session)
       controls[#controls + 1] = moved
     end
     rows, buttons = combined, controls
+  end
+  if role == "panel" and session and session.panel and session.panel.drawn then
+    for _, button in ipairs(buttons) do
+      local drawn = session.panel.drawn[button.id]
+      if drawn then drawn.x, drawn.y, drawn.w, drawn.h = button.x, button.y, button.w, button.h end
+    end
   end
   local sig = D.sig({ rows = rows, palette = picture.palette }, buttons)
   local pictureKey = role .. ":" .. w .. "x" .. h
@@ -573,8 +581,16 @@ end
 
 D.hello = function(msg)
   local body = msg.body
-  if type(body) ~= "table" or not D.acceptSize(body.w, body.h) then return end
-  local session = D.session(msg.from)
+  if type(body) ~= "table" then return end
+  local session = D.sessions[msg.from]
+  local display = body.role == nil or body.role == "display"
+  if session and not display then
+    session.isDisplay = false
+    if session.panel then session.panel.confirm, session.panel.drawn = nil, nil end
+  end
+  if not D.acceptSize(body.w, body.h) then return end
+  session = D.session(msg.from)
+  session.isDisplay = display
   session.keyboard = body.keyboard == true
   session.w = body.w
   session.h = U and D.acceptSize(body.w, body.fullH) and body.fullH or body.h
@@ -967,6 +983,7 @@ return {
     ["view.get"] = D.once,
     input = D.onInput,
   },
+  forget = function(id) D.sessions[id] = nil end,
   tick = D.tick,
   screen = D.register,
   far = D.far,

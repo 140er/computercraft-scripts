@@ -777,7 +777,7 @@ Panel pairing ready P  (26x20)
                           
                           
                           
-                          
+          PAIRED          
                           
          NEW CODE         
                           
@@ -800,7 +800,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+77777777777777777777777777
 99999999999999999999999999
 99999999999999999999999999
 99999999999999999999999999
@@ -824,7 +824,7 @@ Panel pairing code P  (26x20)
                           
                           
                           
-                          
+          PAIRED          
                           
          NEW CODE         
                           
@@ -847,7 +847,7 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
+77777777777777777777777777
 99999999999999999999999999
 99999999999999999999999999
 99999999999999999999999999
@@ -863,7 +863,7 @@ Panel pairing ready S  (29x12)
                              
                              
                              
-                             
+           PAIRED            
                              
           NEW CODE           
                              
@@ -878,7 +878,7 @@ fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffff
+77777777777777777777777777777
 99999999999999999999999999999
 99999999999999999999999999999
 99999999999999999999999999999
@@ -894,7 +894,7 @@ Panel pairing code S  (29x12)
       ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏      
      🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀      
           4:52 left          
-                             
+           PAIRED            
                              
           NEW CODE           
                              
@@ -909,7 +909,7 @@ f999999999999999999999999999f
 f999999999999999999999999999f
 f999999999999999999999999999f
 f999999999999999999999999999f
-fffffffffffffffffffffffffffff
+77777777777777777777777777777
 99999999999999999999999999999
 99999999999999999999999999999
 99999999999999999999999999999
@@ -1235,6 +1235,84 @@ fffffffffffffffffffffffffffff
 77777777777777f77777777777777
 77777777777777f77777777777777
 77777777777777f77777777777777
+```
+
+Paired devices P  (26x20)
+```text
+                          
+ PAIRED                   
+ #2 ?                749F 
+ -                        
+                          
+ #3 ?                83A5 
+ -              FORGET    
+                          
+ #4 ?                419A 
+ -              FORGET    
+                          
+ #5 ?                052A 
+ -              FORGET    
+                          
+ #6 ?                5A35 
+ -              FORGET    
+                          
+                          
+                          
+  PREV     BACK     NEXT  
+```
+Background layer (blit letters, see palette):
+```text
+ffffffffffffffffffffffffff
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffeeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffeeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffeeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffeeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+77777777f77777777f77777777
+```
+
+Paired devices S  (29x12)
+```text
+                             
+ PAIRED                      
+ #2 ?                   749F 
+ -                           
+                             
+ #3 ?                   83A5 
+ -                 FORGET    
+                             
+                             
+                             
+                             
+  PREV      BACK      NEXT   
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffff
+f777777777777777777777777777f
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ffffffffffffffffeeeeeeeeeeeef
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+777777777f777777777f777777777
 ```
 
 

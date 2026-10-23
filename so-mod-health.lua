@@ -68,6 +68,9 @@ local function attention(facts)
     add("dug",2,"Dug marks consent","status")
   end
   if (facts.disk.ratio or 0) >= 0.8 then add("disk",1,"Disk "..math.floor(facts.disk.ratio*100).."% full","health") end
+  if facts.forgotten then
+    add("forgotten",2,facts.forgotten.text,"panel",{"pair"})
+  end
   if facts.pairing then add("pair",2,"Pairing open","panel",{"pair"}) end
   for _, request in ipairs(facts.requests or {}) do
     add("pair/"..tostring(request.id),2,"Pair "..tostring(request.id),"panel",{"pair"})
@@ -103,6 +106,7 @@ H.gather = function(now)
   local disk = diskFrame and diskFrame.data or {}
   H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
+    forgotten=call("state","get","pair.forgotten"),
     pairing=SO.pair and SO.pair.pending and SO.pair.pending() ~= nil,
     requests=SO.pair and SO.pair.requests and SO.pair.requests() or {}})
   local log = call("state","diagnostics") or {}

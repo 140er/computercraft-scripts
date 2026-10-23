@@ -57,7 +57,7 @@ and listeners use `listener(sender, message)`.
 - [so-pair.lua](../so-pair.lua) pairs machines with CPace over X25519 and saves their keys.
   Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
-  `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
+  `list()`, `forget(id)`, `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
   `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
   `confirm(from, body)`, `blocked(id)`, `charge(id, kind, paired)`, `rejected()` and
   `machineKey(secret)`.
@@ -940,3 +940,23 @@ route. `lease.status(id).fuel` reports the latest hello or accepted step-report
 fuel for round-trip admission. The display dispatcher keeps a per-session map
 of the last delivered frame's button ids and rejects hidden or stale ids before
 any screen action. Local monitor input uses its last painted frame.
+
+## Per-device forget
+
+`pair.list()` returns sorted `{ id, fingerprint }` rows. The fingerprint is the
+first four uppercase hex characters of SHA-256 of the stored hex key string.
+`pair.forget(id)` saves the remaining keys before changing memory and cancels
+that id's pending pair2 exchange. It returns success and an optional save error.
+
+`SO.forgetDevice(id, actor)` parks assignments through `mine.forget(id)`,
+`lumber.forget(id)` and `build.forget(id)`, then removes the key, clears reply
+caches, and calls `lease.forget(id)` and `display.forget(id)`. Planner forget
+calls return success and save a `forgotten` flag. Lease forget detaches callbacks
+and marks the pose uncertain. Display forget deletes the session. Reservations
+remain intact. These are local calls, with no new wire handler.
+
+Panel PAIR has a PAIRED button. Each session pages its own list and confirms
+through a drawn FORGET then CONFIRM button within 15000 ms. It requires a paired
+display session, checks the button coordinates and the current target key, and
+rejects self-forget. `pair.forgotten` records the id and actor in state history
+and supplies an attention row linking back to PAIR.

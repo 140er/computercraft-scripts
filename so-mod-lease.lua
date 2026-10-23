@@ -331,6 +331,15 @@ S.cancelPark = function(id, owner)
   return true
 end
 
+S.forget = function(id)
+  local row = S.turtles[id]
+  if not row then return end
+  -- Without a final report, every reserved cell may still be occupied.
+  row.open, row.probe, row.anchor = nil, nil, nil
+  row.uncertain, row.lost = true, true
+  row.pose, row.poseAt = nil, nil
+end
+
 S.inRange = function(id, pos)
   if not S.pos then return true end
   local distance = S.distance(pos)
@@ -533,6 +542,7 @@ return {
   describe = S.describe,
   ensureTool = S.ensureTool,
   cancelPark = S.cancelPark,
+  forget = S.forget,
   inRange = S.inRange,
   dugProtection = S.dugProtection,
 }

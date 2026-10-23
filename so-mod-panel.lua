@@ -102,15 +102,56 @@ P.shop = function(c, session, x, y, w, height, compact)
   end
 end
 
+P.paired = function(c, w, h, session)
+  local panel = session.panel
+  local rows = SO.pair.list and SO.pair.list() or {}
+  local machines = SO.mods.state and SO.mods.state.get("machines") or {}
+  local capacity = math.max(1, math.floor((h-4)/3))
+  local pages = math.max(1, math.ceil(#rows/capacity))
+  panel.pairedPage = (panel.pairedPage or 0) % pages
+  if panel.forgetFailed then c.put(2,2,"SAVE FAILED","e") end
+  if panel.confirm and P.now() >= panel.confirm.expires then panel.confirm = nil end
+  for i=1,capacity do
+    local row = rows[panel.pairedPage*capacity+i]
+    if row then
+      local y = 3+(i-1)*3
+      local machine = machines[tostring(row.id)] or {}
+      local kind = tostring(machine.role or machine.kind or "?"):gsub("[%c]", " ")
+      c.put(2,y,("#"..row.id.." "..kind):sub(1,w-7))
+      c.put(w-4,y,row.fingerprint)
+      local age = machine.seen and math.max(0,math.floor((P.now()-machine.seen)/1000))
+      c.put(2,y+1,age and (age<60 and age.."s" or math.floor(age/60).."m") or "-")
+      if row.id ~= session.id then
+        local confirm = panel.confirm and panel.confirm.id == row.id
+        c.button(w-12,y+1,12,confirm and "CONFIRM" or "FORGET",
+          (confirm and "forget-confirm:" or "forget:")..row.id,"e",1)
+      end
+    end
+  end
+  for i,col in ipairs(U.grid(w,h,3)) do
+    c.button(col.x,h,col.w,({"PREV","BACK","NEXT"})[i],({"paired-prev","paired-back","paired-next"})[i],"7",1)
+  end
+end
+
+P.drawn = function(event)
+  local panel = event.session.panel
+  local b = panel.drawn and panel.drawn[event.id]
+  return b and b.page == panel.page and type(event.x) == "number" and type(event.y) == "number"
+    and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1)
+end
+
 P.render = function(w, h, session)
   if not U then return {rows={{text="panel needs so-ui.lua",fg="0",bg="f"}},buttons={}} end
   session = session or {}
   session.panel = session.panel or {search="",page="main"}
   local c = U.canvas(w,h)
-  c.header("PANEL",P.time())
-  if w == 26 then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
   local page = session.panel.page
-  if page == "pair" then
+  c.header(page == "paired" and "PAIRED" or "PANEL",page == "paired" and "" or P.time())
+  if w == 26 and page ~= "paired" then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
+  if page ~= "paired" then session.panel.confirm = nil end
+  if page == "paired" then
+    P.paired(c,w,h,session)
+  elseif page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
     local invitation = session.panel.invitation
     if invitation and (P.now() >= invitation.expires or SO.pair.pending() ~= invitation.code) then
@@ -131,6 +172,7 @@ P.render = function(w, h, session)
       c.fill(1,h < 12 and h-1 or h-3,w,h < 12 and 1 or 3,"c")
       c.center(1,w,h < 12 and h-1 or h-2,"NEW CODE")
     end
+    c.button(1,h-4,w,"PAIRED","paired","7",1)
     c.button(1,h,w,"BACK","panel-back","7",1)
   elseif page == "alerts" then
     c.put(2,3,"ALERTS")
@@ -183,7 +225,13 @@ P.render = function(w, h, session)
     c.button(cols[1].x,1,cols[1].w,"HEALTH","health","7",1)
     c.button(cols[2].x,1,cols[2].w,"NEEDS "..SO.mods.health.count(),"attention","1",1)
   end
-  return c.frame()
+  local frame = c.frame()
+  session.panel.drawn = {}
+  for _, b in ipairs(frame.buttons) do
+    local saved = {x=b.x,y=b.y,w=b.w,h=b.h,page=page}
+    session.panel.drawn[b.id] = saved
+  end
+  return frame
 end
 
 P.input = function(event)
@@ -191,6 +239,33 @@ P.input = function(event)
   if not session then return end
   session.panel = session.panel or {search="",page="main"}
   local panel,id = session.panel,event.id
+  if id == "paired" or id == "paired-back" or id == "paired-prev" or id == "paired-next"
+    or type(id) == "string" and id:match("^forget") then
+    if event.from ~= session.id or not session.isDisplay or not session.w or not SO.pair.key(event.from) or not P.drawn(event) then return end
+    if id == "paired" then panel.page="paired"
+    elseif id == "paired-back" then panel.page="pair"
+    elseif id == "paired-prev" then panel.pairedPage=(panel.pairedPage or 0)-1
+    elseif id == "paired-next" then panel.pairedPage=(panel.pairedPage or 0)+1
+    else
+      local target = tonumber(id:match("^forget:(%d+)$"))
+      if target and target ~= session.id and SO.pair.key(target) then
+        panel.confirm = {id=target,expires=P.now()+15000,key=SO.pair.key(target)}
+        panel.drawn = nil
+        return
+      end
+      target = tonumber(id:match("^forget%-confirm:(%d+)$"))
+      local confirm = panel.confirm
+      panel.confirm, panel.drawn = nil, nil
+      if target and target ~= session.id and confirm and confirm.id == target and P.now() < confirm.expires
+        and SO.pair.key(target) == confirm.key and type(SO.forgetDevice) == "function" then
+        local ok = SO.forgetDevice(target,event.from)
+        if not ok then panel.forgetFailed = true else panel.forgetFailed = nil end
+      end
+      return
+    end
+    panel.confirm, panel.drawn = nil, nil
+    return
+  end
   if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
   if event.open and SO.mods.health and (id == "health" or id == "attention" or id == "alerts") then
     event.open(id);return
