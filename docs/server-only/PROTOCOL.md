@@ -1220,7 +1220,9 @@ on the last row and act on the selected point once per tap. ADD opens the draft
 editor; until the draft has been edited it starts at the selected point. The
 editor has `kind` and `side` chips, `dim-`/`dim+`, `x-`/`x+`, `y-`/`y+`, `z-`/`z+`
 steppers, ADD (`add`) and BACK (`list`); on room monitors a plan marks the draft.
-Adding a point that already exists says `id exists`. Long lists page with `prev`
+Tapping ADD for a point that already exists says `id exists`; typed `add` replies as
+before. A second REMOVE before the next frame does nothing. The plan shows the points
+in the selected point's dimension. Long lists page with `prev`
 and `next` in the header. Page, selection and the editor belong to the display
 session; the draft and its feedback are shared. There is no link to another role.
 The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
