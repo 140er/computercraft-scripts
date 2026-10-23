@@ -2,6 +2,7 @@ local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local S = {
   points = {},
+  roomSink = false,
   box = nil,
   rev = 0,
   views = {},
@@ -42,11 +43,12 @@ S.recordOk = function(p)
   for key in pairs(p) do
     keys = keys + 1
     if key ~= "id" and key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z"
-      and key ~= "side" and key ~= "kind" and key ~= "fails" then
+      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "room" then
       return false
     end
   end
-  if keys ~= 8 then return false end
+  if keys ~= (p.room ~= nil and 9 or 8) then return false end
+  if p.room ~= nil and (type(p.room) ~= "boolean" or p.room and p.kind ~= "ore" and p.kind ~= "wood") then return false end
   if type(p.id) ~= "string" or not p.id:match("^[%w_%-]+$") then return false end
   if not S.whole(p.dim) or not S.whole(p.x) or not S.whole(p.y) or not S.whole(p.z) then return false end
   if not S.face[p.side] or not S.kinds[p.kind] then return false end
@@ -57,8 +59,9 @@ end
 S.valid = function(value)
   if type(value) ~= "table" or type(value.points) ~= "table" then return false end
   for key in pairs(value) do
-    if key ~= "points" then return false end
+    if key ~= "points" and key ~= "roomSink" then return false end
   end
+  if value.roomSink ~= nil and type(value.roomSink) ~= "boolean" then return false end
   local points = value.points
   local n = #points
   if n > S.cap then return false end
@@ -83,14 +86,14 @@ S.clone = function(list)
     local p = list[i]
     out[i] = {
       id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z,
-      side = p.side, kind = p.kind, fails = p.fails,
+      side = p.side, kind = p.kind, fails = p.fails, room = p.room or nil,
     }
   end
   return out
 end
 
 S.pub = function(p)
-  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind }
+  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, disabled = p.room and not S.roomSink or nil }
 end
 
 S.find = function(id)
@@ -101,7 +104,7 @@ end
 
 S.same = function(p, point)
   return p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
-    and p.side == point.side and p.kind == point.kind
+    and p.side == point.side and p.kind == point.kind and (p.room or false) == (point.room or false)
 end
 
 S.emit = function(key, value)
@@ -111,7 +114,7 @@ S.emit = function(key, value)
 end
 
 S.commit = function(previous, op, id)
-  local ok, err = S.box.save({ points = S.clone(S.points) })
+  local ok, err = S.box.save({ points = S.clone(S.points), roomSink = S.roomSink or nil })
   if not ok then
     S.points = previous
     return false, err
@@ -130,6 +133,7 @@ S.add = function(point)
   end
   if not S.kinds[point.kind] then return false, "kind" end
   if not S.face[point.side] then return false, "side" end
+  if point.room ~= nil and (type(point.room) ~= "boolean" or point.room and point.kind ~= "ore" and point.kind ~= "wood") then return false,"kind" end
   local idx = S.find(point.id)
   if idx then
     if S.same(S.points[idx], point) then return true end
@@ -139,9 +143,28 @@ S.add = function(point)
   local previous = S.clone(S.points)
   S.points[#S.points + 1] = {
     id = point.id, dim = point.dim, x = point.x, y = point.y, z = point.z,
-    side = point.side, kind = point.kind, fails = 0,
+    side = point.side, kind = point.kind, fails = 0, room = point.room or nil,
   }
   return S.commit(previous, "add", point.id)
+end
+
+S.setRoomSink = function(on)
+  if type(on) ~= "boolean" then return false,"bad" end
+  local previous = S.roomSink
+  S.roomSink = on
+  local ok, err = S.commit(S.clone(S.points),"roomSink")
+  if not ok then S.roomSink = previous end
+  return ok, err
+end
+
+S.roomMark = function(id, on)
+  local idx = S.find(id)
+  if not idx then return false,"missing" end
+  if type(on) ~= "boolean" then return false,"bad" end
+  if on and S.points[idx].kind ~= "ore" and S.points[idx].kind ~= "wood" then return false,"kind" end
+  local previous = S.clone(S.points)
+  S.points[idx].room = on or nil
+  return S.commit(previous,"room",id)
 end
 
 S.remove = function(id)
@@ -186,7 +209,7 @@ S.scan = function(kind, nearPos)
   local broken, brokenDist
   for i = 1, #S.points do
     local p = S.points[i]
-    if p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
+    if (not p.room or S.roomSink) and p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
       local dz = p.z - nearPos.z
@@ -331,7 +354,7 @@ S.addDraft = function()
   local d = S.draft
   local ok, err = S.add({
     id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind),
-    dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind,
+    dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room,
   })
   S.message = ok and "point added" or (S.errText[err] or tostring(err))
 end
@@ -339,6 +362,14 @@ end
 S.typed = function(text)
   local words = {}
   for word in text:gmatch("%S+") do words[#words + 1] = word end
+  if words[1] == "room" then
+    if #words ~= 3 or words[3] ~= "on" and words[3] ~= "off" then S.message = "invalid room command" return end
+    local ok, err
+    if words[2] == "sink" then ok,err = S.setRoomSink(words[3] == "on")
+    else ok,err = S.roomMark(words[2],words[3] == "on") end
+    S.message = ok and "room saved" or (S.errText[err] or tostring(err))
+    return
+  end
   local d = S.draft
   local dim, kind, side = d.dim, d.kind, d.side
   local x, y, z
@@ -368,7 +399,7 @@ S.typed = function(text)
   if not S.whole(dim) or not S.whole(x) or not S.whole(y) or not S.whole(z) then
     S.message = "dim/x/y/z: integers only" return
   end
-  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side }
+  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = d.room }
   S.message = "draft ready"
   if direct then S.addDraft() end
 end
@@ -405,7 +436,7 @@ S.gather = function(view)
   end
   table.sort(turtles)
   return { points = S.clone(S.points), selected = S.selectedPoint(), draft = SO.store.copy(S.draft),
-    fromError = S.fromError, turtles = turtles, fromPage = view and view.fromPage or 0, editing = S.editing, message = S.message, page = view and view.page or 1 }
+    fromError = S.fromError, turtles = turtles, fromPage = view and view.fromPage or 0, editing = S.editing, roomSink = S.roomSink, message = S.message, page = view and view.page or 1 }
 end
 
 S.listSize = function(count, w, h)
@@ -434,14 +465,23 @@ S.layout = function(model, w, h)
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
     end
-    local count = math.max(1, h-12)
+    local start = h >= 12 and 10 or 9
+    if h >= 12 then
+      C.button(cols[1].x,9,cols[1].w,"ROOM "..(d.room and "ON" or "OFF"),"room-point","7",1)
+      C.button(cols[2].x,9,cols[2].w,"SINKS "..(model.roomSink and "ON" or "OFF"),"room-sink","7",1)
+    end
+    local count = math.max(1, h-start-2)
     local pages = math.max(1, math.ceil(#model.turtles/count))
     local first = ((model.fromPage or 0)%pages)*count+1
     for i = first, math.min(#model.turtles,first+count-1) do
-      local id = model.turtles[i]
-      C.button(1,9+i-first,w,"FROM #"..id,"from:"..id,"9",1)
+      local id, y = model.turtles[i], start+i-first
+      local width = pages > 1 and y == h-2 and cols[1].w or w
+      C.button(1,y,width,"FROM #"..id,"from:"..id,"9",1)
     end
-    if pages > 1 then C.button(1,h-2,w,"NEXT","from-next","7",1) end
+    if pages > 1 then
+      local shared = start+count-1 == h-2
+      C.button(shared and cols[2].x or 1,h-2,shared and cols[2].w or w,"NEXT","from-next","7",1)
+    end
     C.put(2, h-1, (model.message or ""):sub(1,math.max(0,w-2)))
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
@@ -459,7 +499,7 @@ S.layout = function(model, w, h)
   for i=first,math.min(#model.points,first+capacity-1) do
     local p = model.points[i]
     local text = string.format("%-3d%-9s%-15s%-7s%s", i, p.kind,
-      string.format("%2d,%d,%d",p.x,p.y,p.z), p.side, p.fails >= 3 and 'broken' or 'ok')
+      string.format("%2d,%d,%d",p.x,p.y,p.z), p.side, p.fails >= 3 and 'broken' or p.room and (model.roomSink and 'room' or 'off') or 'ok')
     C.listRow(i-first+4, text, p.fails >= 3 and 'e' or 'd')
     C.hit('select:'..p.id, 1, i-first+4, w, 1)
   end
@@ -503,6 +543,16 @@ S.input = function(ev)
   if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" or ev.id == "panel" then
     S.editing = false return
   end
+  if ev.id == "room-sink" then
+    local ok,err = S.setRoomSink(not S.roomSink)
+    S.message = ok and "room saved" or tostring(err)
+    return
+  end
+  if ev.id == "room-point" then
+    if S.draft.kind == "ore" or S.draft.kind == "wood" then S.draft.room = not S.draft.room or nil
+    else S.message = "room needs ore or wood" end
+    return
+  end
   if ev.id == "new" then S.editing = true return end
   if ev.id == "list" then S.editing = false return end
   if not U and (ev.id == "prev" or ev.id == "next") then
@@ -530,6 +580,7 @@ S.input = function(ev)
       if S.kindOrder[i] == S.draft.kind then at = i end
     end
     S.draft.kind = S.kindOrder[at % #S.kindOrder + 1]
+    if S.draft.kind ~= "ore" and S.draft.kind ~= "wood" then S.draft.room = nil end
     return
   end
   if ev.id == "side" then
@@ -556,6 +607,7 @@ end
 S.box = SO.store.store("so-drops", S.valid)
 if S.box.value and type(S.box.value.points) == "table" then
   S.points = S.clone(S.box.value.points)
+  S.roomSink = S.box.value.roomSink == true
 end
 
 return {
@@ -576,4 +628,6 @@ return {
   remove = S.remove,
   fix = S.fix,
   note = S.note,
+  roomMark = S.roomMark,
+  roomSink = S.setRoomSink,
 }

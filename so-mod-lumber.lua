@@ -32,7 +32,57 @@ S.alert = function(text, point, reason)
   end
 end
 S.chestAlert = function(kind, reason, point)
+  if kind == "fuel" and reason == "empty" then
+    local shop = S.module("shop")
+    if shop.fuelEmpty and shop.fuelEmpty(point) then S.job.fuelRetry = SO.now() + 60000 end
+  end
   S.alert(P.chestError(kind, reason, point), point, reason)
+end
+S.autoFuel = function()
+  local shop = S.module("shop")
+  local policy = shop.fuelConfig and shop.fuelConfig()
+  return policy and policy.auto == true, policy
+end
+S.fuelWait = function(reason)
+  local j = S.job
+  j.blocked = "fuel"
+  if S.autoFuel() then j.fuelRetry = SO.now() + 60000 end
+  S.chestAlert("fuel",reason,j.service.point)
+end
+S.fuelItem = function()
+  return S.slot(function(name) return P.fuelValue(name) > 0 end)
+end
+S.takenItem = function()
+  local service = S.job.service
+  for _, item in ipairs(S.job.inv or {}) do
+    if service and item.slot == service.takeSlot and item.count > 0 then return item end
+  end
+end
+S.rememberFuelPickup = function()
+  local item = S.takenItem()
+  if not item or P.fuelValue(item.name) > 0 then return false end
+  local service = S.job.service
+  service.rejected = service.rejected or {}
+  service.rejected[tostring(item.slot)] = item.name
+  service.takeSlot = nil
+  return true
+end
+S.rejectedItem = function()
+  local rejected = S.job.service and S.job.service.rejected or {}
+  for _, item in ipairs(S.job.inv or {}) do
+    if rejected and rejected[tostring(item.slot)] == item.name and item.count > 0 and P.fuelValue(item.name) == 0 then return item end
+  end
+end
+S.acceptFuel = function()
+  if not S.fuelItem() then return false end
+  local j, shop = S.job, S.module("shop")
+  local taken = S.takenItem()
+  if taken and P.fuelValue(taken.name) > 0 and shop.fuelAvailable then
+    shop.fuelAvailable(j.service.point,j.service.takeOrder or false)
+  end
+  j.fuelRetry, j.service.takeSlot, j.service.takeOrder = nil, nil, nil
+  j.service.stage = S.rejectedItem() and "returnFuelItem" or "refuel"
+  return true
 end
 S.readiness = function()
   local j = S.job
@@ -354,7 +404,7 @@ S.report = function(id, turtleId, results, lease)
     if report.dug and type(cells.rememberWorker) == "function" then cells.rememberWorker(turtleId, j.turtle.pose, history) end
   end
   local inspected
-  if pending.action == "junk" or type(pending.action) == "table" and pending.action.kind == "drop" then
+  if pending.action == "junk" or pending.action == "returnFuelItem" or type(pending.action) == "table" and pending.action.kind == "drop" then
     inspected = S.noteChest(j.service and j.service.point, results[2])
   end
   S.noteBlocks(pending, results)
@@ -505,11 +555,24 @@ S.report = function(id, turtleId, results, lease)
       end
     elseif service then
       if not ok then j.blocked="fuel" S.chestAlert("fuel",P.transferFailure("fuel",result),service.point)
-      else service.stage = "refuel" end
+      else
+        local rejected = S.rememberFuelPickup()
+        if not S.acceptFuel() then
+          service.stage = "check"
+          S.fuelWait(rejected and "non-fuel items" or "no usable fuel")
+        end
+      end
     end
+  elseif action == "returnFuelItem" then
+    if ok and inspected then
+      local slot = pending.steps[1].slot
+      local remaining
+      for _, item in ipairs(j.inv or {}) do if item.slot == slot and item.count > 0 then remaining = true end end
+      if not remaining then j.service.rejected[tostring(slot)] = nil end
+    else S.fuelWait(not inspected and "broken" or "non-fuel return failed") end
   elseif action == "refuel" then
     if j.service then
-      if not ok then j.blocked = "fuel" S.chestAlert("fuel", "no usable fuel", j.service.point) else j.service.stage = "return" end
+      if not ok then S.fuelWait("no usable fuel") else j.service.stage = "return" end
     end
   elseif action == "junk" then
     if not ok then j.blocked = "hold" S.chestAlert("wood", inspected and P.transferFailure("wood",result) or "broken", j.service.point) end
@@ -539,6 +602,10 @@ S.workService = function()
     end
     service.point.id = saved.id
   end
+  if service.kind == "fuel" and service.stage ~= "travel" and service.stage ~= "return" then
+    local rejected = S.rememberFuelPickup()
+    if not S.acceptFuel() and rejected then service.stage = "check" S.fuelWait("non-fuel items") return end
+  end
   if service.stage == "travel" then
     if not service.access or S.occupied(service.access) then
       service.access = L.access(service.point, j.turtle.pose, S.occupied)
@@ -562,11 +629,21 @@ S.workService = function()
       if service.kind == "saplings" then
         j.noSaplings, service.stage = true, "return"
         S.alert("inventory full")
+      elseif service.kind == "fuel" and S.autoFuel() then S.fuelWait("inventory full")
       else
         j.blocked = "full"
         S.alert("inventory full")
       end
       return
+    end
+    if service.kind == "fuel" then
+      service.takeSlot, service.takeOrder = nil, nil
+      local auto, policy = S.autoFuel()
+      if auto then
+        service.takeSlot = slot
+        service.takeOrder = policy.waiting and policy.waiting.rid or false
+        if not S.save() then return end
+      end
     end
     S.send({ { op = "select", slot = slot }, { op = service.point.side == "down" and "suckDown" or "suck" } }, "suck")
   elseif service.stage == "drop" then
@@ -588,9 +665,16 @@ S.workService = function()
     S.send({ { op = "select", slot = item.slot }, steps[1], steps[2] }, {
       kind = "drop", before = S.count(function(name) return name:match("_log$") ~= nil end),
     })
+  elseif service.stage == "returnFuelItem" then
+    if service.access and not S.move(service.access) then return end
+    local item = S.rejectedItem()
+    if not item then service.rejected, service.stage = nil, "refuel" return end
+    S.send({{op="select",slot=item.slot},
+      {op=service.point.side == "down" and "inspectDown" or "inspect"},
+      {op=service.point.side == "down" and "dropDown" or "drop",n=item.count}},"returnFuelItem")
   elseif service.stage == "refuel" then
-    local item = S.slot(function(name) return P.fuelValue(name) > 0 end)
-    if not item then j.blocked = "fuel" S.chestAlert("fuel", "no usable fuel", service.point) return end
+    local item = S.fuelItem()
+    if not item then S.fuelWait("no usable fuel") return end
     S.send({ { op = "select", slot = item.slot }, { op = "refuel", n = item.count } }, "refuel")
   elseif service.stage == "return" then
     if service.back and not S.move(service.back) then return end
@@ -935,6 +1019,16 @@ S.tick = function(now)
     if not j.turtle.frame and not j.turtle.anchor then S.alert("waiting for reported pose") return end
     S.park(true)
     return
+  end
+  if j.running and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
+    local shop = S.module("shop")
+    local policy = shop.fuelConfig and shop.fuelConfig()
+    if policy and policy.auto and j.service and j.service.kind == "fuel" then
+      j.blocked, j.alert, j.fuelRetry = nil, nil, nil
+      if j.service.stage ~= "returnFuelItem" then j.service.stage = "check" end
+      S.emit("lumber.alert",false)
+      S.save()
+    end
   end
   if j.blocked or not j.running or not j.area or not j.turtle.frame then
     if not S.idlePark or not S.parkAt or now - S.parkAt >= 540000 then S.park() end

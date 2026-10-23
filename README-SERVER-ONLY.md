@@ -408,6 +408,65 @@ server and type the new code on each client. Turtles also require Enter. The
 client keeps its old key until pairing succeeds. A normal authenticated reply
 restores the client screen, so a false prompt does not require a reset.
 
+### Fuel auto-order
+
+Fuel auto-order defaults to off. Register the room's OUTPUT chest as a `fuel`
+drop point. In MINING > SETUP, tap OUTPUT to select that point, then tap FUEL AUTO
+to turn it on. The equivalent commands are `fuel output <point-id>` and `fuel auto on`.
+`fuel auto off` stops orders. Mining and lumber share this policy.
+
+Only an empty report from that output chest triggers an order. The server orders
+64 `minecraft:charcoal`, or 64 `minecraft:coal` when charcoal stock is below 64.
+It requires stock less than 30 seconds old. A saved ten-minute cooldown covers
+the physical chest across workers, point aliases and server restarts. The server
+saves the cooldown and outstanding order before sending. Only one fuel order
+can be outstanding. A matching delivery or refusal, or a worker observing usable
+fuel at that output, ends the wait. The cooldown, acknowledgements, configuration
+changes and restarts never replace a waiting order. A power cut before send can
+leave it waiting; `delivery unconfirmed` stays in attention until it is resolved.
+
+Missing storage, stale stock, low stock, refused orders, failed sends and policy
+save failures appear in NEEDS attention. An acknowledgement is not delivery.
+After two minutes without an explicit delivery reply or a successful worker
+pickup of usable fuel, attention shows `delivery unconfirmed`. Mining retries
+its fuel trip on its normal schedule. Lumber retries once a minute while this
+policy is on. It temporarily retains non-fuel pickups in tracked slots while
+searching for fuel, then returns them to the output before refueling. Job cargo
+stays in its original slots. These pickup records survive restart. A full
+inventory or failed return stays in attention and keeps its retry. Turning auto
+off leaves the normal manual fuel hold in place.
+
+### Room input sinks
+
+Room sinks default to off. Use the existing drop-point editor to register the
+room's INPUT chest twice, once as `ore` and once as `wood`. On each draft, tap
+ROOM ON before ADD. Tap SINKS ON to enable all marked room points. These are
+ordinary drop points; the room sorts and smelts their contents through its
+existing input flow. Mining keeps its junk cleanup separate.
+
+For an existing point, `room <point-id> on` marks it and
+`room <point-id> off` removes the mark. `room sink on` enables marked points;
+`room sink off` excludes them from selection and job readiness. These commands
+belong to the drop-point screen. The server API is also available for setup:
+
+```lua
+SO.mods.drops.add({id="room_ore",dim=0,x=X,y=Y,z=Z,side="down",kind="ore",room=true})
+SO.mods.drops.add({id="room_wood",dim=0,x=X,y=Y,z=Z,side="down",kind="wood",room=true})
+SO.mods.drops.roomSink(true)
+```
+
+Coordinates identify the chest block. Verify access in the test world before
+enabling either feature. For `down`, the cell at X,Y+1,Z must be outside the
+room, free and reachable. For `front`, a reachable outside cell must be beside
+the chest at its height, and the worker must select that outside approach.
+The room's internal map uses relative coordinates and does not prove this
+outside access. If the input or output can only be reached from inside the
+room, leave the feature off until the chest or route is changed.
+
+After a test delivery, compare the room's ore and log stock, confirm the output
+pickup and check its furnace fuel. Room geometry and actual sorting need Gate B
+in a disposable world. Mock unload tests do not prove them.
+
 ## Health and attention
 
 Open `HEALTH` or `ATTENTION` from `MORE` or the panel. HEALTH pages server,

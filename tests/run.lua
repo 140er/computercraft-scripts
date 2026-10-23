@@ -699,3 +699,7 @@ if failed > 0 then os.exit(1) end
 dofile("tests/ui/w2screens.lua")(test, equal)
 print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
 if failed > 0 then os.exit(1) end
+
+dofile("tests/so/storage-room.lua")(test, equal)
+print(passed .. " tests passed" .. (failed > 0 and (", " .. failed .. " FAILED") or ""))
+if failed > 0 then os.exit(1) end
