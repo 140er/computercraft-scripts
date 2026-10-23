@@ -30,6 +30,10 @@ Lua 5.2 parsing, the clock allow-list and cobaltlocals below 185. Gate B tooling
 passed 62 driver tests and six cold-farm tests. Those Python tests use saved
 fixtures and do not provide in-game evidence.
 
+After the visibility merge, its attention reader also accepts per-worker lumber
+holds and alerts. Its focused tests passed, including independent clearing of
+two workers' notices.
+
 The final `cc-test --shards 4` result and tested head belong in the PR. Logs are
 saved locally under `tests/evidence/w2-lumber-multi/` and in the suite runner's
 reported output directory.

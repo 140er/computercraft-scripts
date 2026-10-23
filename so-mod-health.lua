@@ -35,8 +35,9 @@ local function attention(facts)
   for role, job in pairs(facts.jobs or {}) do
     for id, row in pairs(job.turtles or {}) do
       owners[tostring(id)] = role
-      if row.state == "hold" or row.state == "range" then
-        add(role.."/"..id,2,"T"..id.." "..tostring(row.error or row.state),role)
+      local reason = row.blocked or row.alert
+      if row.state == "hold" or row.state == "range" or reason then
+        add(role.."/"..id,2,"T"..id.." "..tostring(row.error or reason or row.state),role)
       end
     end
     if job.turtle then owners[tostring(job.turtle.id)] = role end
