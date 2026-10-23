@@ -1,0 +1,6 @@
+PASS continuous mining finishes six unique branches with two miners and restart in fast
+PASS continuous mining finishes six unique branches with two miners and restart in thorough
+PASS continuous mining stop keeps its branch budget and resumes the return route
+PASS continuous mining retains its next claim through ore and fuel trips during return
+PASS continuous mining finishes a vein found during its branch return before taking the next route
+5 passed, 0 failed, 0 skipped checks

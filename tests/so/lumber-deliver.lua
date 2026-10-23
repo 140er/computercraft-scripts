@@ -20,6 +20,7 @@ return function(test, equal)
       equal(f.job.logs or 0, success and 8 or 0)
       if not success then
         equal(f.job.blocked, 'hold')
+        equal(f.job.alert,'wood #wood full at 0,1,0')
         for _, event in ipairs(f.events) do assert(event.kind ~= 'lumber.logs') end
       end
     end
@@ -44,6 +45,7 @@ return function(test, equal)
       f.report(false, { { ok = true }, { ok = false }, { ok = false } })
     end
     equal(f.mods.drops.list()[1].broken, true)
+    equal(f.job.alert,'wood #wood broken at 0,1,0')
     equal(f.job.logs or 0, 0)
   end)
   for _, kind in ipairs({ 'fuel', 'saplings' }) do
@@ -57,6 +59,7 @@ return function(test, equal)
         equal(q.steps[1].op, 'inspectDown')
         f.report(false, { { ok = false } })
         equal(f.job.blocked, 'hold')
+        equal(f.job.alert,kind..' #'..kind..' broken at 0,1,0')
         equal(f.queued(), nil)
       end
       equal(f.mods.drops.list()[1].broken, true)
@@ -81,6 +84,34 @@ return function(test, equal)
     assert(f.mods.drops.note('fuel', nil))
     equal(f.mods.drops.list()[1].broken, false)
   end)
+  for _,kind in ipairs({'wood','fuel','saplings'}) do
+    test('lumber names missing and marked broken '..kind..' chests',function()
+      local f=fixture(kind)
+      f.job.service=nil
+      local state
+      for i=1,20 do local name,value=debug.getupvalue(f.tick,i) if name=='S' then state=value break end end
+      assert(state)
+      if kind=='saplings' then f.job.saplings={x=0,y=1,z=0,side='down'} end
+      for _=1,3 do assert(f.mods.drops.note(kind,nil)) end
+      assert(not state.service(kind))
+      equal(f.job.alert,kind..' #'..kind..' broken at 0,1,0')
+      assert(f.mods.drops.remove(kind))
+      if kind=='saplings' then f.job.saplings=nil end
+      assert(not state.service(kind))
+      equal(f.job.alert,'no '..kind..' chest set')
+    end)
+  end
+  for _,kind in ipairs({'fuel','saplings'}) do
+    test('lumber names an inspected empty '..kind..' chest',function()
+      local f=fixture(kind)
+      f.tick(1) f.report(false,{{ok=true,data={name='minecraft:chest'}}})
+      f.tick(2) f.report(false,{{ok=true},{ok=false,err='No items to take'}})
+      equal(f.job.alert,kind..' #'..kind..' empty at 0,1,0')
+      equal(f.mods.drops.list()[1].broken,false)
+      equal(f.events[#f.events].data.reason,'empty')
+      equal(f.events[#f.events].data.point.id,kind)
+    end)
+  end
   test('lumber registers sapling chest for inspection failures', function()
     local f = fixture('wood')
     f.job.service, f.job.inv, f.job.phase = nil, {}, 'plant'
@@ -97,4 +128,28 @@ return function(test, equal)
     equal(f.job.service.point.id, point.id)
     equal(#f.mods.drops.list(), count)
   end)
+  test('lumber distinguishes successful wrong saplings from an empty chest',function()
+    local f=fixture('saplings')
+    f.tick(1) f.report(false,{{ok=true,data={name='minecraft:chest'}}})
+    f.tick(2)
+    f.job.inv={}
+    for slot=1,16 do f.job.inv[slot]={slot=slot,name='minecraft:birch_sapling',count=64} end
+    f.report(false,{{ok=true},{ok=true}})
+    equal(f.job.alert,'saplings #saplings wrong saplings; inventory full at 0,1,0')
+    equal(f.job.noSaplings,true)
+  end)
+  for _,kind in ipairs({'wood','fuel','saplings'}) do
+    test('lumber distinguishes no inventory at '..kind..' chests',function()
+      local f=fixture(kind)
+      if kind=='wood' then
+        f.tick(1)
+        f.report(false,{{ok=true},{ok=true,data={name='minecraft:ender_chest'}},{ok=false,err='no inventory'}})
+      else
+        f.tick(1) f.report(false,{{ok=true,data={name='minecraft:ender_chest'}}})
+        f.tick(2) f.report(false,{{ok=true},{ok=false,err='no inventory'}})
+      end
+      equal(f.job.alert,kind..' #'..kind..' no inventory at 0,1,0')
+    end)
+  end
+
 end

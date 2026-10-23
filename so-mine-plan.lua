@@ -59,7 +59,7 @@ end
 local function laneShape(job)
   local top=P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing},"forward")
   local last=0
-  for _,row in pairs(job.turtles or {}) do last=math.max(last,row.branch or 0) end
+  for _,row in pairs(job.turtles or {}) do last=math.max(last,row.branch or 0,row.returning and row.returning.branch or 0) end
   return top,(last+1)*(job.mode=="fast" and 2 or 4)
 end
 function M.lane(job, exit)
@@ -115,6 +115,16 @@ function M.lanePass(job,row)
     if walk(row.goal,row.trip) then return cells end
   elseif vein and row.goal and M.same(vein,row.goal) then
     if walk(row.goal,nil,true) then return cells end
+  end
+  if row.returning then
+    if walk(row.returning.junction) then return cells end
+    local route=M.route(job,row.returning.branch)
+    local reached=false
+    for _,cell in ipairs(route) do
+      if reached and walk(cell) then break end
+      if M.same(cell,row.returning.junction) then reached=true end
+    end
+    return cells
   end
   local route=row.route or M.route(job,row.branch or 0)
   for i=row.index or 1,#route do if walk(route[i]) then break end end

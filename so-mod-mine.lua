@@ -8,7 +8,7 @@ local unloadKeep = {
 }
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
-  length = 64, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
+  length = 64, branches = 8, continuous = false, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
 local function mod(name) return SO.mods and SO.mods[name] end
 local function call(name, fn, ...)
   local m = mod(name)
@@ -71,18 +71,20 @@ end
 local function scan(row, vein)
   row.scan = { index = job.mode == "fast" and not vein and 5 or 1, facing = row.pose.facing }
 end
-local function dropFailure(id, row, kind, point)
-  local key = point and point.id or ("hold:" .. kind)
+local function dropFailure(id, row, kind, point, reason)
+  reason = reason or (kind == "ore" and "full" or "empty")
+  local text = P.chestError(kind, reason, point)
+  local key = (point and point.id or ("hold:" .. kind)) .. ":" .. reason
   local retry = row.dropRetry
   if not retry or retry.key ~= key then retry = { key = key, tries = 0 } row.dropRetry = retry end
   retry.tries = retry.tries + 1
-  if retry.tries >= 3 then
+  if retry.tries >= 3 or reason ~= "full" and reason ~= "empty" then
     if not retry.alerted then
-      emit("mine.alert", { id = id, text = kind == "ore" and "ore chest full" or "fuel chest empty" })
+      emit("mine.alert", { id = id, text = text, reason = reason, point = point })
       retry.alerted = true
     end
     row.laneWait = nil
-    row.state, row.error = "hold", kind == "ore" and "ore chest full" or "fuel chest empty"
+    row.state, row.error = "hold", text
     retry.after = SO.now() + 60000
   end
 end
@@ -116,10 +118,8 @@ local function trip(id, row, kind)
   if near.dim == nil then row.error = "drop dimension unsupported" return false end
   local picked = call("drops", "pick", kind, near)
   if not picked or not picked.point then
-    dropFailure(id, row, kind)
-    row.error = picked and picked.alert or "drops: hold " .. kind
+    dropFailure(id, row, kind, picked and picked.failedPoint, picked and picked.reason or "none")
     row.state = "hold" row.laneWait = nil
-    if row.dropRetry.alerted then row.error = row.error .. " " .. (kind == "ore" and "ore chest full" or "fuel chest empty") end
     save()
     return false
   end
@@ -149,7 +149,8 @@ local function trip(id, row, kind)
       end
     end
   end
-  row.error = "drop neighbours held or no mine route" return false
+  dropFailure(id, row, kind, point, "unreachable")
+  save() return false
 end
 local function laneOrder(a,b)
   local x,y=job.turtles[tostring(a)].laneWait,job.turtles[tostring(b)].laneWait
@@ -379,21 +380,24 @@ local function report(_, id, results, lease)
         end
         if not row.cleanup then row.cleaned = row.dug or 0 end
       elseif action.kind == "unload" or action.kind == "refuel" then
-        local failed = false
+        local failed, inspected, reason = false, row.trip.inspected == true, nil
         for i, step in ipairs(action.steps) do
           local result = results[i]
           if step.op == "inspect" or step.op == "inspectDown" then
-            if not result.ok then call("drops", "note", row.trip.point.id, nil) end
+            inspected = P.chestPresent(result)
+            call("drops", "note", row.trip.point.id, inspected and result.data.name or nil)
+            row.trip.inspected = inspected
+            if not inspected then failed = true end
           elseif step.op == "drop" or step.op == "dropDown" or step.op == "suck" or step.op == "suckDown" then
-            if not result.ok then failed = true end
+            if not result.ok then failed = true reason=P.transferFailure(row.trip.kind,result) end
           end
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
           and (row.fuel < 0 or row.fuel >= tripReserve(row.trip))
-        if failed and enough then
+        if failed and enough and inspected and reason=="empty" then
           row.trip.stage = "back"
           row.state, row.dropRetry, row.error = "fuel", nil, nil
-        elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point)
+        elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point, not inspected and "broken" or reason)
         else row.dropRetry, row.error = nil, nil end
         if action.kind == "unload" then row.trip.stage = "out"
         elseif type(row.fuel) == "number" and row.fuel >= math.max(2000,tripReserve(row.trip)) then row.trip.stage = "back" end
@@ -605,13 +609,16 @@ plan = function(id,row)
     if row.goal and M.same(cell,row.goal) or not call("cells","isDug",cell.x,cell.y,cell.z,job.dim) then break end
     table.remove(row.veins)
   end
-  if row.veins and #row.veins>0 and (not M.inLane(job,row.pose) or row.lane and row.lane.target) then
+  local vein=row.veins and #row.veins>0 and (not M.inLane(job,row.pose) or row.lane and row.lane.target)
+  if vein then
     row.goal=row.veins[#row.veins]
     if M.same(row.pose,row.goal) then table.remove(row.veins) row.goal=nil scan(row,true) save() return end
-  else
+  elseif not row.returning then
     row.veinCount = 0
     if not row.route then
-      local branch=job.progress.nextBranch or 0 job.progress.nextBranch=branch+1
+      local branch=job.progress.nextBranch or 0
+      if job.continuous and branch >= (job.branches or 8) then row.state="done" save() park(id,row,false) return end
+      job.progress.nextBranch=branch+1
       row.branch, row.route, row.index=branch,M.route(job,branch),1
       row.veinCount = 0
     end
@@ -644,13 +651,58 @@ plan = function(id,row)
         row.counted=row.branch job.progress.done=(job.progress.done or 0)+1
         emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
       end
-      save() park(id,row,false) return
+      if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
+        local branch=job.progress.nextBranch or 0
+        job.progress.nextBranch=branch+1
+        local junction
+        for i=#row.route,1,-1 do if M.inLane(job,row.route[i]) then junction=row.route[i] break end end
+        row.returning = {branch=branch,junction=SO.store.copy(junction)}
+        row.state = "mining"
+      else save() park(id,row,false) return end
+      save()
     end
+  end
+  if row.returning and not vein then
+    local junction = row.returning.junction
+    if M.same(row.pose,junction) then
+      local branch=row.returning.branch
+      row.branch,row.route=branch,M.route(job,branch)
+      row.index=2
+      for i=2,#row.route do if M.same(row.route[i],junction) then row.index=i+1 break end end
+      row.returning=nil
+      row.goal=row.route[row.index]
+    else row.goal=junction end
+    save()
   end
   row.state="mining"
   local action=M.next(job,row,lookup,row.inv,row.fuel)
   if action.kind=="hold" then row.error=action.error row.state="hold" park(id,row,false)
   elseif not send(id,row,action) then park(id,row,false) end
+end
+local function readiness()
+  local homeSet=job.homeSet ~= false and job.home ~= nil
+  local checks = {{ok=homeSet, text=homeSet and ("home "..job.home.x..","..job.home.y..","..job.home.z) or "home not set"}}
+  local home=job.home or {x=0,y=0,z=0}
+  local near = {dim=({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[job.dim],
+    x=home.x,y=home.y,z=home.z}
+  local points = call("drops","list") or {}
+  for _, kind in ipairs({"ore","fuel"}) do checks[#checks+1]=P.chestCheck(points,kind,near) end
+  local added, ids = false, {}
+  for id in pairs(job.turtles) do ids[#ids+1]=tonumber(id) end
+  table.sort(ids)
+  for _,id in ipairs(ids) do
+    local status=call("lease","status",id)
+    local paired=SO.pair and SO.pair.key(id) ~= nil
+    if paired and status and not status.uncertain and not status.lost then added=true end
+  end
+  checks[#checks+1]={ok=added,text=added and "paired turtle ready" or "paired turtle missing"}
+  if #ids==0 then checks[#checks+1]={ok=false,text="fuel missing"} end
+  for _,id in ipairs(ids) do
+    local row=job.turtles[tostring(id)]
+    local fueled=type(row.fuel)=="number" and row.fuel~=0
+    checks[#checks+1]={ok=fueled, text=fueled and ("fuel #"..id.." "..row.fuel) or ("fuel missing #"..id)}
+  end
+  return checks
 end
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
@@ -662,7 +714,8 @@ local function view(session)
 end
 local function input(event)
   if type(event.text) ~= "string" then
-    if event.id == "setup" then view(event.session).page = "setup" return
+    if event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
+    elseif event.id == "setup-next" then local v=view(event.session) v.offset=(v.offset or 0)+1 return
     elseif event.id == "mine-back" then view(event.session).page = "main" return
     elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
   end
@@ -674,6 +727,8 @@ local function input(event)
   if cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
   elseif cmd=="bottom" and num(2) then job.bottom=num(2)
   elseif cmd=="length" and num(2) and num(2)>0 and num(2)<=4096 then job.length=num(2)
+  elseif cmd=="branches" and num(2) and num(2)>0 and num(2)<=4096 then job.branches=num(2) job.continuous=true
+  elseif cmd=="continuous" and (a[2]=="on" or a[2]=="off") then job.continuous=a[2]=="on"
   elseif cmd=="mode" and (a[2]=="thorough" or a[2]=="fast") then job.mode=a[2]
   elseif cmd=="ores" and a[2] then
     local names={}
@@ -711,10 +766,19 @@ local function input(event)
     S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
-    if not ok then S.error = err or "disk guard unavailable" return end
-    if job.homeSet == false or not job.home then S.error="set home before start" return end
+    if not ok then S.error = err or "disk guard unavailable" emit("mine.alert",{text=S.error}) return end
+    local missing=P.missing(readiness())
+    if #missing>0 then
+      S.error=table.concat(missing,"; ")
+      emit("mine.alert",{text=S.error,missing=missing})
+      return
+    end
     S.error = nil
+    if call("state","get","mine.alert") then emit("mine.alert",false) end
     job.running=true
+    if job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
+      for _,row in pairs(job.turtles) do if row.state=="done" then row.state="mining" end end
+    end
   elseif cmd=="stop" then job.running=false
   else S.error="invalid mining command" return end
   S.error=nil
@@ -772,30 +836,46 @@ local function gather()
     {"DEPTH", tostring(job.bottom), "", "d"},
     {"LANE", tostring(waiting), waiting > 0 and (table.concat(waitIds,",") .. " waiting") or "clear", waiting > 0 and "1" or "d"},
     {"MIN FUEL", tostring(minimum or "-"), fuelId and ("#" .. fuelId) or "no fuel report", minimum and "d" or "c"},
-    {"BRANCHES", (job.progress.done or 0) .. "/" .. (job.progress.nextBranch or 0), job.length .. " long", "b"},
+    {"BRANCHES", (job.progress.done or 0) .. "/" .. (job.continuous and (job.branches or 8) or (job.progress.nextBranch or 0)), job.length .. " long", "b"},
   }
-  local ids = {} for _, row in ipairs(m.turtles) do ids[#ids + 1] = "#" .. row.id end
   m.setup = {
-    "home " .. job.home.x .. "," .. job.home.y .. "," .. job.home.z .. " " .. ({[0]="n","e","s","w"})[job.home.facing],
     "bottom " .. job.bottom, "length " .. job.length, "mode " .. job.mode,
     "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
-    "turtles " .. table.concat(ids,","),
+    "branches " .. (job.branches or 8) .. (job.continuous and " continuous" or " single"),
   }
+  m.readiness=readiness()
   return m
 end
-local function layout(m, w, h, setup)
+local function layout(m, w, h, setup, offset)
   local c = U.canvas(w,h)
   c.header(setup and "MINING SETUP" or "MINING", m.running and "running" or "stopped")
-  c.alert(m.alert)
+  if not setup then c.alert(m.alert) end
   if setup then
-    local y = 3
-    for _, line in ipairs(m.setup) do
-      for x = 1, math.max(1,#line), math.max(1,w-2) do
-        if y < h then c.put(2,y,line:sub(x,x+math.max(1,w-2)-1)) end
-        y = y + 1
+    local lines={}
+    for _,check in ipairs(m.readiness) do
+      lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"}
+    end
+    for _,line in ipairs(m.setup) do
+      for x=1,math.max(1,#line),math.max(1,w-2) do
+        lines[#lines+1]={text=line:sub(x,x+math.max(1,w-2)-1),bg="f"}
       end
     end
-    c.button(1,h,w,"BACK","mine-back","7",1)
+    local count=math.max(1,h-3)
+    local pages=math.max(1,math.ceil(#lines/count))
+    local first=((offset or 0)%pages)*count
+    for i=1,count do
+      local line=lines[first+i]
+      if line and i+2<h then
+        c.fill(1,i+2,w,1,line.bg)
+        c.put(2,i+2,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
+      end
+    end
+    local left=1
+    if pages>1 and w>1 then
+      local width=math.max(1,math.floor(w/2))
+      c.button(1,h,width,"NEXT","setup-next","7",1) left=width+1
+    end
+    c.button(left,h,w-left+1,"BACK","mine-back","7",1)
   else
     local cols = U.grid(w,h)
     local tall = h >= 19 and #cols >= 3
@@ -844,7 +924,7 @@ local function layout(m, w, h, setup)
 end
 local function render(w,h,session)
   if not U then return legacyRender(w) end
-  return layout(gather(),w or 57,h or 24,view(session).page == "setup")
+  return layout(gather(),w or 57,h or 24,view(session).page == "setup",view(session).offset)
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do

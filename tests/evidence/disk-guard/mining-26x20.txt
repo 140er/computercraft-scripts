@@ -1,7 +1,7 @@
 generic Mining stopped
 bottom -58 length 64 thoro
 disk >=80%; free space
-
+3 stopped 0,65,0 fuel 4000
 
 
 

@@ -53,6 +53,7 @@ return M
     turtles[#turtles+1]=turtle
     return turtle
   end
+  assert(server.env.SO.mods.drops.add({id="ready",dim=0,x=100000,y=0,z=0,side="front",kind="any"}))
   local turtle=add(2)
   input({text="home 0 0 0 n"}) input({text="bottom -2"}) input({text="length 3"})
   return {net=net,server=server,turtle=turtle,turtles=turtles,add=add,input=function(text) input({text=text}) end,render=function() return render() end}
@@ -343,7 +344,7 @@ return function(test,equal)
     lease.handlers.beacon({from=2,body={pose={x=0,y=0,z=0,f=0},journal="lost"}})
     s.server.env.SO.mods.mine.tick()
     local red=false for _,r in ipairs(s.render().rows) do if r.fg=="e" then red=true end end assert(red)
-    s.net.flush() s.input("start") run(s,150)
+    s.net.flush() s.net.advance(1) s.input("start") run(s,150)
     equal(s.turtle.pos.x,3) equal(s.turtle.pos.y,-2)
     equal(lease.status(2).lost,false)
   end)
@@ -415,9 +416,10 @@ return function(test,equal)
     local s = setup()
     for slot = 1, 16 do s.turtle.inv[slot] = { name="minecraft:diamond", count=1 } end
     s.input("start")
+    assert(s.server.env.SO.mods.drops.remove("ready"))
     run(s, 3)
     local alert = false
-    for _, row in ipairs(s.render().rows) do if row.text:find("drops: hold ore", 1, true) then alert = true end end
+    for _, row in ipairs(s.render().rows) do if row.text:find("no ore chest set", 1, true) then alert = true end end
     assert(alert, "missing drop did not raise a hold alert")
     equal(s.turtle.pos, { x=0, y=0, z=0 })
     local chest = { name="minecraft:chest", inv={} }
@@ -612,7 +614,7 @@ return function(test,equal)
       s.net.world["1,0,0"]={name="minecraft:chest",inv={}}
       assert(s.server.env.SO.mods.drops.add({id=kind,dim=0,x=1,y=0,z=0,side="front",kind=kind}))
       local attempts, alerts, parks = 0, 0, 0
-      s.turtle.env.turtle[kind == "ore" and "drop" or "suck"] = function() attempts=attempts+1 return false,"blocked" end
+      s.turtle.env.turtle[kind == "ore" and "drop" or "suck"] = function() attempts=attempts+1 return false,kind=="ore" and "No space for items" or "No items to take" end
       local send = s.server.env.SO.mods.lease.send
       s.server.env.SO.mods.lease.send = function(id,steps,opts)
         if opts.ms == 600000 then parks=parks+1 end
@@ -620,7 +622,8 @@ return function(test,equal)
       end
       s.server.env.SO.mods.state={canStart=s.server.env.SO.mods.state.canStart,emit=function(name,data)
         if name=="mine.alert" then
-          equal(data,{id=2,text=kind=="ore" and "ore chest full" or "fuel chest empty"})
+          equal(data.text,kind.." #"..kind.." "..(kind=="ore" and "full" or "empty").." at 1,0,0")
+          equal(data.point.id,kind)
           alerts=alerts+1
         end
       end}
@@ -662,7 +665,7 @@ return function(test,equal)
         equal(s.turtle.pos,{x=3,y=-2,z=-5})
       else
         equal(row.state,"hold")
-        equal(row.error,"fuel chest empty")
+        equal(row.error,"fuel #fuel empty at 1,0,0")
         equal(row.trip.stage,"out")
         equal(alerts,1)
         assert(row.dropRetry.after)
@@ -690,10 +693,10 @@ return function(test,equal)
     local pick=s.server.env.SO.mods.drops.pick
     s.server.env.SO.mods.drops.pick=function(...) picks=picks+1 return pick(...) end
     s.server.env.SO.mods.state={canStart=s.server.env.SO.mods.state.canStart,emit=function(name) if name=="mine.alert" then alerts=alerts+1 end end}
-    s.input("start") run(s,5)
-    equal(picks,3) equal(alerts,1)
-    run(s,54) equal(picks,3)
-    run(s,5) equal(picks,4) equal(alerts,1)
+    s.input("start") s.server.env.SO.mods.drops.remove("ready") run(s,5)
+    equal(picks,1) equal(alerts,1)
+    run(s,54) equal(picks,1)
+    run(s,5) equal(picks,2) equal(alerts,1)
   end)
 
   test("mine completed branch unloads its remaining ore before parking",function()
@@ -939,5 +942,28 @@ return function(test,equal)
     end
     assert(searches>2,"worker did not exercise route planning")
   end)
+
+  for _,kind in ipairs({"ore","fuel"}) do
+    for _,cause in ipairs({"none","broken","stone","inventory"}) do
+      test("mine names "..kind.." chest cause "..cause,function()
+        local s=setup({fuel=kind=="fuel" and 30 or 4000})
+        if kind=="ore" then for slot=1,16 do s.turtle.inv[slot]={name="minecraft:diamond",count=64} end end
+        local drops=s.server.env.SO.mods.drops
+        assert(drops.add({id=kind,dim=0,x=1,y=0,z=0,side="front",kind=kind}))
+        s.input("start")
+        assert(drops.remove("ready"))
+        if cause=="none" then assert(drops.remove(kind))
+        elseif cause=="broken" then for _=1,3 do assert(drops.note(kind,nil)) end
+        elseif cause=="inventory" then
+          s.net.world["1,0,0"]="minecraft:ender_chest"
+        else s.net.world["1,0,0"]="minecraft:stone" end
+        run(s,5)
+        local row=persisted(s).turtles["2"]
+        equal(row.error,cause=="none" and ("no "..kind.." chest set") or (kind.." #"..kind..(cause=="inventory" and " no inventory" or " broken").." at 1,0,0"))
+        equal(row.state,"hold")
+        assert(not row.error:find("full",1,true) and not row.error:find("empty",1,true))
+      end)
+    end
+  end
 
 end

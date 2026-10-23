@@ -183,22 +183,27 @@ end
 S.scan = function(kind, nearPos)
   local want, wantDist, wantId
   local anyPoint, anyDist, anyId
+  local broken, brokenDist
   for i = 1, #S.points do
     local p = S.points[i]
-    if p.dim == nearPos.dim and p.fails < S.strikes and (p.kind == kind or p.kind == "any") then
+    if p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
       local dz = p.z - nearPos.z
       local dist = dx * dx + dy * dy + dz * dz
-      if p.kind == kind and (not want or dist < wantDist or (dist == wantDist and p.id < wantId)) then
-        want, wantDist, wantId = p, dist, p.id
-      end
-      if p.kind == "any" and (not anyPoint or dist < anyDist or (dist == anyDist and p.id < anyId)) then
-        anyPoint, anyDist, anyId = p, dist, p.id
+      if p.fails >= S.strikes then
+        if not broken or dist < brokenDist or dist == brokenDist and p.id < broken.id then broken, brokenDist = p, dist end
+      else
+        if p.kind == kind and (not want or dist < wantDist or (dist == wantDist and p.id < wantId)) then
+          want, wantDist, wantId = p, dist, p.id
+        end
+        if p.kind == "any" and (not anyPoint or dist < anyDist or (dist == anyDist and p.id < anyId)) then
+          anyPoint, anyDist, anyId = p, dist, p.id
+        end
       end
     end
   end
-  return want, anyPoint
+  return want, anyPoint, broken
 end
 
 S.pick = function(kind, nearPos)
@@ -207,7 +212,7 @@ S.pick = function(kind, nearPos)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
     return nil
   end
-  local want, anyPoint = S.scan(kind, nearPos)
+  local want, anyPoint, broken = S.scan(kind, nearPos)
   local chain = { { kind = kind, point = want and S.pub(want) or nil, usable = want ~= nil } }
   if kind ~= "any" then
     chain[2] = { kind = "any", point = anyPoint and S.pub(anyPoint) or nil, usable = anyPoint ~= nil }
@@ -220,12 +225,14 @@ S.pick = function(kind, nearPos)
       break
     end
   end
-  local alert
+  local alert, reason, failedPoint
   if not point then
-    alert = "drops: hold " .. kind
-    S.emit("drops.alert", { kind = kind, text = alert })
+    reason, failedPoint = broken and "broken" or "none", broken and S.pub(broken) or nil
+    alert = broken and (kind .. " #" .. broken.id .. " broken at " .. broken.x .. "," .. broken.y .. "," .. broken.z)
+      or ("no " .. kind .. " chest set")
+    S.emit("drops.alert", { kind = kind, text = alert, reason = reason, point = failedPoint })
   end
-  return { point = point, chain = chain, alert = alert }
+  return { point = point, chain = chain, alert = alert, reason = reason, failedPoint = failedPoint }
 end
 
 S.steps = function(point)

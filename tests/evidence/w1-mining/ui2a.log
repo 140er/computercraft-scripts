@@ -1,0 +1,9 @@
+PASS UI2a mining mockup matches both fixture layers
+PASS UI2a setup stays on the display that pressed its drawn button
+PASS UI2a text commands retain job effects on both pages
+PASS UI2a buttons share start and stop commands and save once per tap
+PASS UI2a setup navigation and every size keep bounds and contrast
+PASS UI2a gather uses mining facts and leaves daily ore stale
+PASS UI2a compact mining keeps full worker coordinates at 26x20
+PASS UI2a compact mining keeps full worker coordinates at 29x12
+8 passed, 0 failed, 0 skipped checks

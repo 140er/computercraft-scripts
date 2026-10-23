@@ -1,0 +1,68 @@
+mine 26x20 mocked display frame
+
+ MINING SETUP     stopped
+ home not set
+ no ore chest set
+ no fuel chest set
+ paired turtle missing
+ fuel missing
+ bottom -2
+ length 3
+ mode fast
+ ores all
+ branches 8 single
+
+
+
+
+
+
+
+           BACK
+mine 29x12 mocked display frame
+
+ MINING SETUP        stopped
+ home not set
+ no ore chest set
+ no fuel chest set
+ paired turtle missing
+ fuel missing
+ bottom -2
+ length 3
+ mode fast
+ ores all
+     NEXT          BACK
+lumber 26x20 mocked display frame
+
+ LUMBER           stopped
+ area not set
+ ground not set
+ no wood chest set
+ no fuel chest set
+ no saplings chest set
+ paired turtle missing
+ fuel missing
+ AREA -
+ GROUND -
+ SAPLINGS -
+ TURTLE -
+
+
+
+
+
+
+           BACK
+lumber 29x12 mocked display frame
+
+ LUMBER              stopped
+ area not set
+ ground not set
+ no wood chest set
+ no fuel chest set
+ no saplings chest set
+ paired turtle missing
+ fuel missing
+ AREA -
+ GROUND -
+     NEXT          BACK

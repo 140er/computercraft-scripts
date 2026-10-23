@@ -1,0 +1,5 @@
+PASS mining refuses start at 80% and resumes below it on 26x20
+PASS lumber refuses start at 80% and resumes below it on 26x20
+PASS mining refuses start at 80% and resumes below it on 29x12
+PASS lumber refuses start at 80% and resumes below it on 29x12
+4 passed, 0 failed, 0 skipped checks

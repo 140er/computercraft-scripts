@@ -1,0 +1,8 @@
+PASS mining start lists exact missing items and accepts a complete paired job
+PASS lumber start lists exact missing items and accepts a complete paired job
+PASS readiness ignores broken chests when a usable fallback exists in the same dimension
+PASS mine setup shows compact missing rows at 26x20
+PASS mine setup shows compact missing rows at 29x12
+PASS lumber setup shows compact missing rows at 26x20
+PASS lumber setup shows compact missing rows at 29x12
+7 passed, 0 failed, 0 skipped checks

@@ -211,6 +211,7 @@ S.run = function(rate)
   end
   local function role(id,name) input(id,{id="generic"}) input(id,{id=name}) end
   local function text(id,value)
+    if value=="start" then n.advance(2) end
     local d=g.displays[id]
     for ch in value:gmatch(".") do d.inbox[#d.inbox+1]=table.pack("char",ch) end
     d.inbox[#d.inbox+1]=table.pack("key",28) n.flush()
@@ -601,6 +602,7 @@ S.runBusy = function(rate)
   end
   local function role(id,name) input(id,{id="generic"}) input(id,{id=name}) end
   local function text(id,value)
+    if value=="start" then n.advance(2) end
     local d=g.displays[id]
     for ch in value:gmatch(".") do d.inbox[#d.inbox+1]=table.pack("char",ch) end
     d.inbox[#d.inbox+1]=table.pack("key",28) n.flush()
