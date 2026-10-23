@@ -9,6 +9,7 @@ local function write(path,value)
   fs.move(tmp,path)
 end
 local role=assert(read('/.so-role')):match('^%s*(.-)%s*$')
+local bootId=read('/.gateb/boot-id')
 local programs={server='so-server.lua',worker='worker.lua',display='display.lua'}
 local env=setmetatable({}, {__index=_ENV})
 env._G=env
@@ -52,7 +53,7 @@ peripheral.find=function(kind,filter)
 end
 fs.makeDir('/.gateb/in');fs.makeDir('/.gateb/out')
 local function snapshot()
-  local out={at=os.epoch('utc'),monitors={},frame=env.GATEB_FRAME}
+  local out={at=os.epoch('utc'),boot_id=bootId,uptime=os.clock(),monitors={},frame=env.GATEB_FRAME}
   for name,s in pairs(screens) do
     local w,h=s.win.getSize();local t={width=w,height=h,lines={},at=out.at}
     for y=1,h do local a,b,c=s.win.getLine(y);t.lines[y]={text=a,fg=b,bg=c} end
@@ -60,13 +61,18 @@ local function snapshot()
   end
   write('/.gateb/screen.json',out)
 end
+local function inputs()
+  local ok,names=pcall(fs.list,'/.gateb/in')
+  if ok then return names end
+  fs.makeDir('/.gateb/in');return {}
+end
 local function bridge()
   while true do
     if fs.exists('/.gateb/disabled') then
-      for _,name in ipairs(fs.list('/.gateb/in')) do fs.delete('/.gateb/in/'..name) end
+      for _,name in ipairs(inputs()) do fs.delete('/.gateb/in/'..name) end
       os.pullEventRaw('gateb_enable')
     end
-    for _,name in ipairs(fs.list('/.gateb/in')) do
+    for _,name in ipairs(inputs()) do
       if name:match('%.json$') then
         local raw=read('/.gateb/in/'..name);fs.delete('/.gateb/in/'..name)
         local q=textutils.unserializeJSON(raw or '')

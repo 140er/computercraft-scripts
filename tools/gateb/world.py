@@ -44,6 +44,13 @@ def copytree(source, target):
     subprocess.run(['cp','-a','--reflink=auto',str(Path(source))+'/.',str(target)], check=True)
 
 
+def clear_inbox(base):
+    inbox=base/'in';inbox.mkdir(parents=True,exist_ok=True)
+    for queued in inbox.iterdir():
+        if queued.is_dir(): shutil.rmtree(queued)
+        else: queued.unlink(missing_ok=True)
+
+
 def safe_relative(path):
     value = Path(path)
     if value.is_absolute() or '..' in value.parts or not value.parts:
@@ -208,7 +215,7 @@ class Runtime:
             return {'template':str(target),'manifest':manifest}
 
     def prepare_template(self):
-        from fixtures import clean_disks, prepare
+        from fixtures import clean_disks, prepare, farm_allowlist
         name='template-build'
         run=self.run(name)
         if run.exists():
@@ -224,6 +231,9 @@ class Runtime:
             manifest=prepare(self,name)
         finally:
             self.stop(name)
+        proof=farm_allowlist(run/'world',manifest['farm'])
+        manifest['farm'].update(trees=proof['trees'],dig_cells=[b['pos'] for b in proof['blocks']])
+        atomic(run/'manifest.json',manifest)
         target=self.home/'template'
         shutil.rmtree(target/'world');copytree(run/'world',target/'world')
         shutil.copy2(run/'manifest.json',target/'manifest.json')
@@ -257,15 +267,32 @@ class Runtime:
         value = {'version':1,'dimension':'minecraft:overworld','computers':comps,'fixtures':fixtures,
                  'wall':{'from':[-3,64,-1],'to':[-1,65,-1],'size':[3,2]},
                  'mine':{'home':[-5,64,4,'s'],'facing':'south','bottom':48,'length':16,'starts':{cid:{'pos':comps[cid]['pos'],'facing':comps[cid]['facing']} for cid in ('4','5') if cid in comps}},
-                 'farm':{'area':[5,5,9,9],'ground':63,'dig_cells':sorted({(x,y,z) for rx,rz in ((5,5),(9,5),(5,9),(9,9)) for x,y,z in ([(rx,y,rz) for y in range(64,69)]+[(x,y,z) for x in range(rx-1,rx+2) for y in range(67,70) for z in range(rz-1,rz+2)])}),'species':'minecraft:oak'},
+                 'farm':{'area':[5,5,9,9],'ground':63,'trees':[[x,64,z] for x,z in ((5,5),(9,5),(5,9),(9,9))],'species':'minecraft:oak'},
                  'forceload':[-16,-64,31,31],'prepared':False,'source':'copied saved Gate B snapshot'}
         return validate_manifest(value)
+
+    def farm_allowlist(self):
+        from fixtures import farm_allowlist
+        template = self.home/'template'
+        manifest = json.loads((template/'manifest.json').read_text())
+        return farm_allowlist(template/'world', manifest['farm'])
+
+    def refresh_farm_manifest(self, name):
+        manifest = self.manifest(name)
+        if 'farm' in manifest:
+            proof = self.farm_allowlist()
+            manifest['farm'].update(trees=proof['trees'], dig_cells=[b['pos'] for b in proof['blocks']])
+            atomic(self.run(name)/'manifest.json', manifest)
 
     def instrument(self, disk, role):
         disk.mkdir(parents=True,exist_ok=True)
         (disk/'.so-role').write_text(role)
         shutil.copy2(HERE/'bridge.lua',disk/'gateb-bridge.lua')
         (disk/'startup.lua').write_text('if shell.run("/install.lua", "recover") then shell.run("/gateb-bridge.lua") end\n')
+        boot_id=uuid.uuid4().hex
+        (disk/'.gateb').mkdir(exist_ok=True)
+        (disk/'.gateb/boot-id').write_text(boot_id)
+        return boot_id
 
     def clone(self, name):
         with locked(self.home/'template.lock'), locked(self.lock_path(name)):
@@ -278,6 +305,7 @@ class Runtime:
             if not manifest.get('prepared'): raise RuntimeError('Template preparation did not finish')
             try:
                 copytree(self.home/'template', target)
+                self.refresh_farm_manifest(name)
                 port = self.allocate_port(name)
                 with (target/'server.properties').open('a') as handle:
                     handle.write(f'\nserver-port={port}\n')
@@ -367,6 +395,7 @@ class Runtime:
             run=self.run(name)
             shutil.rmtree(run/'world');copytree(self.home/'template/world',run/'world')
             shutil.copy2(self.home/'template/manifest.json',run/'manifest.json')
+            self.refresh_farm_manifest(name)
             (run/'install.json').unlink(missing_ok=True)
         if running: self.serve(name)
         return {'run':name,'restarted':running}
@@ -401,7 +430,14 @@ class Runtime:
         if op=='save': return self.command(name,'save-all flush',timeout)
         if op in ('terminal','monitors','frame'):
             disk=self.computer_disk(name,q['computer'])
-            snap=json.loads((disk/'.gateb/screen.json').read_text())
+            deadline=time.monotonic()+min(timeout,1)
+            while True:
+                try:
+                    snap=json.loads((disk/'.gateb/screen.json').read_text())
+                    break
+                except (FileNotFoundError,json.JSONDecodeError):
+                    if time.monotonic()>=deadline: raise
+                    time.sleep(.01)
             if time.time()*1000-snap['at']>5000: raise RuntimeError('Computer snapshot is stale')
             return snap.get(op) if op=='frame' else snap[op]
         if op=='files':
@@ -434,38 +470,77 @@ class Runtime:
             return result
         if op=='power':
             action=q['action'];disk=self.computer_disk(name,q['computer']);cid=disk.name
-            commands={'on':'turn-on','off':'shutdown','reboot':'reboot'}
+            commands={'on':'turn-on','off':'shutdown','reboot':'turn-on'}
             if action not in commands: raise ValueError('Invalid power action')
+            comp=self.manifest(name)['computers'][cid]
+            result={'action':action,'computer':int(cid),'commands':[]}
             if action in ('on','reboot'):
-                comp=self.manifest(name)['computers'][cid]
-                if comp['role'] in ('server','display','worker'): self.instrument(disk,comp['role'])
+                if comp['role'] in ('server','display','worker'):
+                    result.update(boot_id=self.instrument(disk,comp['role']),requested_at=time.time()*1000)
                 (disk/'.gateb/screen.json').unlink(missing_ok=True)
-                shutil.rmtree(disk/'.gateb/in',ignore_errors=True)
-            self.command(name,'computercraft '+commands[action]+' #'+cid,timeout)
-            return {'action':action,'computer':int(cid)}
+                clear_inbox(disk/'.gateb')
+            if action=='reboot' and comp.get('kind')=='pocket':
+                result['commands'].append({'action':'bridge-reboot','result':self.bridge(name,{'op':'power','computer':int(cid),'action':'reboot'},timeout)})
+                return result
+            if action=='reboot':
+                result['commands'].append({'action':'shutdown','result':self.command(name,'computercraft shutdown #'+cid,timeout)})
+            result['commands'].append({'action':commands[action],'result':self.command(name,'computercraft '+commands[action]+' #'+cid,timeout)})
+            return result
         if op=='helpers':
             enabled=q.get('enabled',False)
             for cid in self.manifest(name)['computers']:
                 disk=self.computer_disk(name,cid);base=disk/'.gateb'
-                shutil.rmtree(base/'in',ignore_errors=True);(base/'in').mkdir(parents=True)
+                clear_inbox(base)
                 if enabled: (base/'disabled').unlink(missing_ok=True)
                 else: (base/'disabled').touch()
             return {'enabled':enabled,'pending_inputs':0,'enable_requires_reboot':True}
         if op in ('input','lua','lua_async','lua_job','lua_cancel'): return self.bridge(name,q,timeout)
         raise ValueError('Unknown operation '+op)
 
+    def wait_boot(self, name, cid, proof, timeout=10):
+        path=self.computer_disk(name,cid)/'.gateb/screen.json'
+        proof['state']='failed'
+        attempts=1 if self.manifest(name)['computers'][str(cid)].get('kind')=='pocket' else 2
+        for attempt in range(attempts):
+            deadline=time.monotonic()+timeout
+            while time.monotonic()<deadline:
+                try:
+                    snap=json.loads(path.read_text())
+                    if isinstance(snap,dict):
+                        proof['snapshot']={key:snap.get(key) for key in ('boot_id','at','uptime')}
+                        at=snap.get('at');uptime=snap.get('uptime')
+                        if (snap.get('boot_id')==proof['boot_id']
+                                and type(at) in (int,float) and proof['requested_at']<=at<=time.time()*1000
+                                and time.time()*1000-at<=5000
+                                and type(uptime) in (int,float) and math.isfinite(uptime) and uptime>=0):
+                            proof['state']='ready'
+                            return
+                except (FileNotFoundError,json.JSONDecodeError):
+                    pass
+                time.sleep(.05)
+            if attempt+1<attempts:
+                proof['commands'].append({'action':'turn-on','result':self.command(name,'computercraft turn-on #'+str(cid))})
+        raise RuntimeError('No fresh bridge boot on '+str(cid)+' for '+proof['boot_id'])
+
     def install(self, name, sha, mode='copy'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}',sha): raise ValueError('Install requires a full commit SHA')
         source=self.home/'sources'/sha
-        if not source.exists():
-            subprocess.run(['git','cat-file','-e',sha+'^{commit}'],cwd=REPO,check=True)
-            source.mkdir(parents=True)
-            archive=subprocess.Popen(['git','archive',sha],cwd=REPO,stdout=subprocess.PIPE)
-            try:
-                subprocess.run(['tar','-x','-C',str(source)],stdin=archive.stdout,check=True)
-            finally:
-                archive.stdout.close()
-            if archive.wait(): raise RuntimeError('git archive failed')
+        with locked(self.home/'locks'/('source-'+sha+'.lock')):
+            if not source.exists():
+                subprocess.run(['git','cat-file','-e',sha+'^{commit}'],cwd=REPO,check=True)
+                stage=source.with_name(sha+'.'+uuid.uuid4().hex+'.tmp')
+                stage.mkdir(parents=True)
+                try:
+                    archive=subprocess.Popen(['git','archive',sha],cwd=REPO,stdout=subprocess.PIPE)
+                    try:
+                        subprocess.run(['tar','-x','-C',str(stage)],stdin=archive.stdout,check=True)
+                    finally:
+                        archive.stdout.close()
+                        result=archive.wait()
+                    if result: raise RuntimeError('git archive failed')
+                    stage.rename(source)
+                finally:
+                    shutil.rmtree(stage,ignore_errors=True)
         installed={};errors=[]
         if mode=='http':
             current=subprocess.check_output(['git','ls-remote','origin','refs/heads/server-only'],cwd=REPO,text=True).split()[0]
@@ -532,12 +607,18 @@ class Runtime:
                     if any((disk/rel).read_bytes()!=(source/rel).read_bytes() for rel in expected):
                         raise RuntimeError('Installed file mismatch on '+cid)
                     installed[cid]={'role':role,'files':hashes}
-                    self.instrument(disk,role)
-                    if online: self.request(name,{'op':'power','computer':cid,'action':'reboot' if mode in ('http','installer') else 'on'})
+                    if online:
+                        if mode=='copy' and comp.get('kind')=='pocket':
+                            self.request(name,{'op':'power','computer':cid,'action':'on'})
+                        proof=self.request(name,{'op':'power','computer':cid,'action':'reboot'})
+                        installed[cid]['boot']=proof
+                        if mode=='copy': self.wait_boot(name,cid,proof)
+                    else: self.instrument(disk,role)
         except (OSError,ValueError,RuntimeError,KeyError) as exc:
             errors.append({'computer':cid,'error':str(exc)})
         atomic(self.run(name)/'install.json',{'sha':sha,'mode':mode,'computers':installed,'errors':errors})
-        return {'sha':sha,'mode':mode,'computers':list(installed),'errors':errors}
+        return {'sha':sha,'mode':mode,'computers':list(installed),'errors':errors,
+                'boots':{cid:computer['boot'] for cid,computer in installed.items() if 'boot' in computer}}
 
     def client_stop(self, name):
         for key in (name+':client',name+':xvfb'):

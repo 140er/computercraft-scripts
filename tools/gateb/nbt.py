@@ -84,9 +84,15 @@ def chunk(world, cx, cz):
         return loads(data)
 
 
-def block(world, pos):
+def block(world, pos, chunks=None):
     x, y, z = map(int, pos)
-    data = chunk(world, x // 16, z // 16)
+    key = (x // 16, z // 16)
+    if chunks is None:
+        data = chunk(world, *key)
+    else:
+        if key not in chunks:
+            chunks[key] = chunk(world, *key)
+        data = chunks[key]
     state = {'Name':'minecraft:air'}
     for section in data.get('sections', []):
         if section['Y'] != y // 16:
