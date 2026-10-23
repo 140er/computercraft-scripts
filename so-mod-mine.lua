@@ -9,6 +9,12 @@ local unloadKeep = {
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, branches = 8, continuous = false, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
+local function branchLine(branch)
+  local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[job.home.facing]
+  local distance = 1 + (branch+1)*(job.mode=="fast" and 2 or 4)
+  local start = {dim=job.dim,x=job.home.x+d[1]*distance,y=job.bottom,z=job.home.z+d[2]*distance}
+  return {start,{dim=job.dim,x=start.x-d[2]*job.length,y=start.y,z=start.z+d[1]*job.length}}
+end
 local function mod(name) return SO.mods and SO.mods[name] end
 local function call(name, fn, ...)
   local m = mod(name)
@@ -670,6 +676,11 @@ plan = function(id,row)
       -- Recovery sets a finished row back to mining; count each branch once.
       if row.counted~=row.branch then
         row.counted=row.branch job.progress.done=(job.progress.done or 0)+1
+        S.trailDone = S.trailDone or {}
+        S.trailDone[row.branch] = branchLine(row.branch)
+        S.trailOrder = S.trailOrder or {}
+        S.trailOrder[#S.trailOrder+1] = row.branch
+        if #S.trailOrder>64 then S.trailDone[table.remove(S.trailOrder,1)]=nil end
         emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
       end
       if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
@@ -849,6 +860,7 @@ local function input(event)
     end
     S.error = nil
     if call("state","get","mine.alert") then emit("mine.alert",false) end
+    if not job.running then S.trailDone,S.trailOrder = {},{} end
     job.running=true
     if job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
       for _,row in pairs(job.turtles) do if row.state=="done" then row.state="mining" end end
@@ -1058,10 +1070,41 @@ local function forgetDug(paths)
 end
 local function mapView()
   local view = {dim=job.dim,home=SO.store.copy(job.home),homeSet=job.homeSet,bottom=job.bottom,
-    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={}}
+    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={},trails={}}
+  local branch = job.progress.nextBranch or 0
+  local occupied = false
   for id,row in pairs(job.turtles) do
     view.branches=math.max(view.branches,(row.branch or 0)+1)
     view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim}
+    if row.branch==branch or row.returning and row.returning.branch==branch then occupied=true end
+    if row.state~="done" and row.branch and row.pose and row.pose.y==job.bottom and job.homeSet~=false then
+      local points = branchLine(row.branch)
+      local a,b = points[1],points[2]
+      local dx,dz = (b.x-a.x)/job.length,(b.z-a.z)/job.length
+      local length = math.max(0,math.min(job.length,(row.pose.x-a.x)*dx+(row.pose.z-a.z)*dz))
+      b.x,b.z = a.x+dx*length,a.z+dz*length
+      if length>0 then view.trails[#view.trails+1]={id=tostring(id),state=row.state,points=points} end
+    end
+  end
+  local key = table.concat({job.dim,job.home.x,job.home.y,job.home.z,job.home.facing,
+    job.bottom,job.length,job.mode,tostring(job.homeSet),branch},":")
+  if S.previewKey~=key then
+    S.previewKey=key
+    S.preview=nil
+    if job.homeSet~=false then
+      local route=M.route(job,branch)
+      S.preview={SO.store.copy(route[#route-job.length]),SO.store.copy(route[#route])}
+    end
+  end
+  if job.running and job.homeSet~=false and not occupied and (not job.continuous or branch<(job.branches or 8)) then
+    view.preview=SO.store.copy(S.preview)
+    view.branches=math.max(view.branches,branch+1)
+  end
+  local done = {}
+  for n in pairs(S.trailDone or {}) do done[#done+1]=n end
+  table.sort(done,function(a,b) return a>b end)
+  for i=1,math.min(64,#done) do
+    view.trails[#view.trails+1]={id="done:"..done[i],state="done",points=SO.store.copy(S.trailDone[done[i]])}
   end
   return view
 end

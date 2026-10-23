@@ -529,7 +529,12 @@ S.render = function(w, h, session)
   w, h = w or 57, h or 24
   local view = S.view(type(session) == "table" and session.id or session)
   local model = S.gather(view)
-  model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
+  local size = S.listSize(#model.points, w, h)
+  if view.focus then
+    for i,p in ipairs(model.points) do if p.id==view.focus then model.page=math.floor((i-1)/size.capacity)+1 end end
+    view.focus=nil
+  end
+  model.page = math.min(model.page, size.pages)
   view.page = model.page
   local frame = S.layout(model, w, h)
   frame.rev = S.rev
@@ -566,6 +571,10 @@ S.input = function(ev)
   if ev.id == "from-next" then view.fromPage = (view.fromPage or 0)+1 return end
   local from = ev.id:match("^from:(%d+)$")
   if from then S.fromTurtle(tonumber(from)) return end
+  local focused = ev.id:match("^focus:(.+)$")
+  if focused and S.find(focused) then
+    S.editing=false S.selected=focused view.focus=focused return
+  end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then S.selected = selected return end
   if ev.id == "fix" then local id = S.selectedPoint(); if id then S.selected = id; S.fix(id) end return end

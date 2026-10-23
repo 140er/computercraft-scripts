@@ -64,6 +64,15 @@ return function(test,equal)
     s.mine.tick() equal(s.job.progress.done,1) equal(row.counted,3)
     row.state="mining" row.parkUntil=nil s.mine.tick()
     equal(s.job.progress.done,1) equal(row.state,"done")
+    local done=0
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then done=done+1 end end
+    equal(done,1)
+    local previous
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then previous=trail.points end end
+    s.job.length=100 s.job.home.x=200
+    for _,trail in ipairs(s.mine.mapView().trails) do if trail.id=="done:3" then equal(trail.points,previous) end end
+    s.input("stop") s.input("start")
+    for _,trail in ipairs(s.mine.mapView().trails) do assert(trail.id~="done:3","START clears completion history") end
   end)
   test("disk failure stops a mining job",function()
     local s=fixture() s.row() s.saveOK=false s.input("start")

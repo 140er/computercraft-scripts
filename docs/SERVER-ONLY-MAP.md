@@ -438,7 +438,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  `mapView()` returns copied geometry fields and worker poses/states for the map.
+  `mapView()` returns copied geometry fields, worker poses/states, a cached
+  two-endpoint next-branch `preview` and `trails` for AR. Trails contain two
+  endpoints and state per worker, plus at most 64 recently completed branches.
+  Completion trails clear when START resumes a stopped job or the server restarts.
+  These are display additions and do not change worker routes.
   `start` requires home, usable ore and fuel points, an added paired worker and
   reported fuel. SETUP shows compact state-coloured readiness rows.
   Saved homes remain configured. `branches <n>` enables continuous mining with a
