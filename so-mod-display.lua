@@ -218,21 +218,21 @@ D.retirement = function(w)
   return { rows=rows, buttons=buttons }
 end
 
--- A teal block with the display id in big digits, for displays without a role
--- and roles whose module is missing.
+-- Displays without a role, and roles whose module is missing: the role name in the header and the
+-- display id in line digits, as large as fits (docs/ui/schematic/system.py unassigned).
 D.idFrame = function(w, h, id, title)
   if not U then
     return { rows = { { text = "display " .. tostring(id or "?"), fg = "0", bg = "f" },
       { text = title:lower(), fg = "0", bg = "f" } }, buttons = {} }
   end
-  local c = U.canvas(w, h)
-  c.header(title, "")
-  local top = h >= 10 and 4 or 3
-  local height = math.max(1, h - top)
-  c.fill(2, top, math.max(0, w - 2), height, "9")
-  if height >= 7 then c.put(3, top + 1, ("DISPLAY"):sub(1, math.max(0, w - 4))) end
-  c.big(2, top + math.max(0, math.floor((height - 3) / 2)), math.max(0, w - 2), tostring(id or "?"), "9")
-  return c.frame()
+  local C, text = U.canvas(w, h), tostring(id or "?")
+  C.bar(title)
+  local dh = math.min(11, h - 3)
+  dh = dh - (1 - dh % 2)
+  local dw = math.min(9, dh - 2, math.floor((w - 4 - 2 * (#text - 1)) / #text))
+  if dh < 5 or dw < 3 or text:find("%D") then C.put(2, h >= 3 and 3 or h, text, "0")
+  else C.digits(math.floor((w - (#text * (dw + 2) - 2)) / 2) + 1, 3 + math.floor((h - 2 - dh) / 2), text, "0", dw, dh, 2) end
+  return C.frame()
 end
 
 D.compose = function(role, w, h, session)
@@ -340,12 +340,12 @@ D.gather = function()
     end
   end
   local machines = state and type(state.get) == "function" and state.get("machines") or {}
-  local turtles, lost, leases = 0, 0, 0
+  local turtles, lost, leases, lostIds = 0, 0, 0, {}
   for id, machine in pairs(machines or {}) do
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtles = turtles + 1
       local status = lease and type(lease.status) == "function" and lease.status(tonumber(id)) or {}
-      if status.lost then lost = lost + 1 end
+      if status.lost then lost, lostIds[#lostIds + 1] = lost + 1, tonumber(id) or id end
       if status.open then leases = leases + 1 end
     end
   end
@@ -364,8 +364,9 @@ D.gather = function()
       version = {key = identity, sequence = D.alertSequence}
       D.alertVersions[key] = version
     end
+    local fields = type(value) == "table" and value or {}
     model.alerts[#model.alerts + 1] = { key = identity, sequence = version.sequence, text = text,
-      detail = type(value) == "table" and value.detail or nil, sub = type(value) == "table" and value.sub or nil }
+      detail = fields.detail, sub = fields.sub, id = fields.id, kind = fields.kind }
   end
   table.sort(model.alerts, function(a, b) return a.sequence < b.sequence end)
   model.alert = model.alerts[#model.alerts] and model.alerts[#model.alerts].text
@@ -405,10 +406,29 @@ D.gather = function()
     {label="PAIR",value="",sub="press P on server",bg="9"},
   }
   if D.drawsStatus() then D.facts(model, machines, points, today, capacity, free) end
+  local shown = 0
+  for _, row in ipairs(D.listing()) do if row.size ~= "-" then shown = shown + 1 end end
+  D.termFacts(model, lostIds, points, turtles, leases, shown, capacity, free)
   model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
   for _, alert in ipairs(model.alerts) do model.log[#model.log + 1] = alert.text end
   return model
+end
+
+-- The server terminal's facts, without a mapView: counts, disk and the alert lines.
+D.termFacts = function(model, lostIds, points, turtles, leases, displays, capacity, free)
+  table.sort(lostIds, function(a, b)
+    if type(a) == "number" and type(b) == "number" then return a < b end
+    return tostring(a) < tostring(b)
+  end)
+  local flags = {}
+  for _, id in ipairs(lostIds) do flags[#flags + 1] = { text = "#" .. id .. " lost" } end
+  for i = #model.alerts, 1, -1 do flags[#flags + 1] = { text = model.alerts[i].text } end
+  for i, p in ipairs(points) do
+    if p.broken then flags[#flags + 1] = { text = "drop " .. (p.id or i) .. " " .. tostring(p.kind or "drop") .. " broken" } end
+  end
+  model.terminal = { flags = flags, ok = turtles - #lostIds, lost = #lostIds, leases = leases, displays = displays,
+    disk = type(capacity) == "number" and capacity > 0 and type(free) == "number" and { used = capacity - free, cap = capacity } or nil }
 end
 
 -- The route A facts cost a mapView of each job; gather them only while a display shows status.
@@ -588,11 +608,90 @@ D.takeover = function(session, model, w, h, now)
     session.alertAt, session.alertUntil, session.takeover = now, now + 5000, newest
   end
   if session.takeover and (session.showAlerts or now < (session.alertUntil or 0)) then
-    local copy = {}
-    for k, v in pairs(model) do copy[k] = v end
-    copy.takeover = session.takeover
-    return U.alert(copy, w, h)
+    return D.alertFrame(model, session.takeover, w, h, not session.showAlerts and session.alertUntil - now or nil)
   end
+end
+
+D.wrap = function(text, width)
+  local lines, line = {}, ""
+  width = math.max(1, width)
+  for word in text:gmatch("%S+") do
+    while #word > width do
+      if line ~= "" then lines[#lines + 1], line = line, "" end
+      lines[#lines + 1], word = word:sub(1, width), word:sub(width + 1)
+    end
+    if line == "" then line = word
+    elseif #line + 1 + #word <= width then line = line .. " " .. word
+    else lines[#lines + 1], line = line, word end
+  end
+  if line ~= "" then lines[#lines + 1] = line end
+  return lines
+end
+
+-- The takeover's subject: the alert's turtle (id) or drop (kind), from the status model.
+D.subject = function(model, a)
+  if a.id ~= nil then
+    for _, t in ipairs(model.turtles or {}) do
+      if tostring(t.id) == tostring(a.id) and t.x then return { label = "#" .. t.id, x = t.x, y = t.y, z = t.z, id = t.id, row = t } end
+    end
+  end
+  if a.kind then
+    for _, d in ipairs(model.drops or {}) do
+      if d.kind == a.kind then return { label = "drop " .. d.id, x = d.x, y = d.y, z = d.z, drop = d.id, row = d } end
+    end
+  end
+end
+
+D.subjectRows = function(s)
+  local r = s.row
+  if s.drop then return { { "kind", r.kind, "0" }, { "state", r.broken and "broken" or "ok", r.broken and "e" or "0" } } end
+  local fuel = tonumber(r.fuel)
+  return { { "state", r.state, U.st.fg(r.tone) }, { "where", r.where, "0" },
+    { "fuel", fuel and tostring(fuel) or "-", fuel and (fuel < 500 and "1" or "0") or "8" },
+    { "ore", tostring(r.ore or "-"), "0" }, { "seen", U.age(r.ago or 0, true), "8" } }
+end
+
+-- Coral frame and title chip, the subject's position and the detail, a map crop around the subject
+-- from map.crop, and a coral tick row counting down the time left (none once opened by a tap).
+-- A tap anywhere dismisses it. docs/ui/schematic/system.py alert is the twin.
+D.alertFrame = function(model, a, w, h, left)
+  local C, s = U.canvas(w, h), D.subject(model, a)
+  C.box(1, 1, w, h, "e")
+  local mx = w >= 40 and 5 or 3
+  local iw = w - 2 * (mx - 1)
+  local text = tostring(a.text or "")
+  local name = (s and s.id ~= nil and (s.label .. " ") or "") .. text
+  -- Too narrow for the whole title: the chip names the turtle and the text wraps under it.
+  local rest = #name > iw - 2 and s and s.id ~= nil
+  local label = " " .. (rest and s.label or name):upper():sub(1, math.max(0, iw - 2)) .. " "
+  local y = h >= 10 and 3 or 2
+  C.put(mx, y, label, "f", "e")
+  if rest then
+    for i, line in ipairs(D.wrap(text, iw)) do
+      if i <= 2 and y + 1 < h - 2 then y = y + 1; C.put(mx, y, line, "0") end
+    end
+  end
+  local pos = s and (s.x .. "," .. s.y .. "," .. s.z)
+  if pos and #pos <= iw then
+    if not rest and #label + 1 + #pos <= iw then C.put(mx + #label + 1, y, pos, "0")
+    elseif y + 1 < h - 2 then y = y + 1; C.put(mx, y, pos, "0") end
+  end
+  local detail = a.detail or a.sub
+  if detail and y + 2 < h - 2 then y = y + 2; C.put(mx, y, tostring(detail):sub(1, iw), "8") end
+  local top, bottom, map, drawn = y + 2, h - 5, SO.mods.map, false
+  if s and bottom - top + 1 >= 3 and iw >= 10 and type(map) == "table" and type(map.crop) == "function" then
+    local ok, got = pcall(map.crop, C, mx, top, iw, bottom - top + 1, { x = s.x, y = s.y, z = s.z, id = s.id, drop = s.drop })
+    drawn = ok and got ~= false
+  end
+  -- Without a crop the subject's own facts fill the space.
+  if s and not drawn then
+    for i, r in ipairs(D.subjectRows(s)) do
+      if top + i - 1 <= bottom then C.leader(mx, top + i - 1, math.min(iw, 30), r[1], r[2], r[3]) end
+    end
+  end
+  if left and h >= 8 then C.ticks(mx, h - 2, iw, U.filled(iw, left, 5000), "e") end
+  C.hit("dismiss", 1, 1, w, h)
+  return C.frame()
 end
 
 -- Status and pocket share the takeover. The pocket role draws its own pages when
@@ -726,13 +825,32 @@ D.paint = function(target, frame, w, h)
   end
   for _, button in ipairs(frame.buttons or {}) do
     local label = (button.label or ""):sub(1,math.min(button.w,w-button.x+1))
-    if label ~= "" then
+    local row = frame.rows[button.y] and frame.rows[button.y].text or ""
+    if label ~= "" and not row:sub(button.x,button.x+math.max(button.w,#label)-1):find("%S") then
       target.setCursorPos(button.x,button.y)
       target.blit(label,string.rep("0",#label),string.rep("7",#label))
     end
   end
 end
 
+D.hints = function(C, x, y, keys, step)
+  for _, k in ipairs(keys) do
+    C.put(x, y, "[" .. k[1] .. "]", "9")
+    C.put(x + #k[1] + 3, y, k[2], "0")
+    x = x + math.max(step, #k[1] + #k[2] + 5)
+  end
+end
+
+-- "hh:mm:ss text" as a muted time, a state mark and white text.
+D.logLine = function(C, x, y, w, line)
+  local time, text = line:match("^(%d%d:%d%d:%d%d) (.*)$")
+  if time then C.put(x, y, time, "8"); x, w = x + 9, w - 9 else text = line end
+  C.put(x, y, U.g.bullet, U.mark(text))
+  C.put(x + 2, y, text:sub(1, math.max(0, w - 2)), "0")
+end
+
+-- The server's own screen in route A (docs/ui/schematic/system.py terminal): alerts, FLEET and DISK,
+-- the log and the key hints; P shows the code, R the role prompt and L the whole log.
 D.terminal = function(model, view, w, h)
   if not U and view.mode == "role" then
     local rows = { { text = "roles", fg = "0", bg = "f" } }
@@ -744,63 +862,81 @@ D.terminal = function(model, view, w, h)
     return { rows = rows, buttons = {} }
   end
   if not U then return D.legacyStatus() end
-  local C = U.canvas(w,h)
-  C.header("SO SERVER #" .. tostring(view.id), view.mode == "code" and "pairing" or view.mode == "role" and "roles" or view.uptime)
-  if view.hostError then C.put(1,2,view.hostError,"e") end
-  local lines, first = view.log or {}, 10
-  if view.mode == "code" then
-    C.fill(1,3,w,math.max(0,h-6),"9")
-    C.center(1,w,4,"PAIR CODE  (type it on the new client)","9")
+  local C, mode, log = U.canvas(w, h), view.mode or "normal", view.log or {}
+  C.bar("SO SERVER #" .. tostring(view.id), nil, nil, view.uptime or "")
+  if mode == "code" then
+    C.section(2, 3, w - 2, "PAIR CODE")
     local code = tostring(view.code or "")
-    C.big(1,7,w,code:sub(1,3).." "..code:sub(4,6),"9")
-    local left = math.max(0,math.ceil((view.expires-view.now)/1000))
-    C.center(1,w,12,string.format("%d:%02d left, works once",math.floor(left/60),left%60),"9")
-    C.center(1,w,14,"5 wrong tries burn the code","9")
-  elseif view.mode == "log" then
-    C.fill(1,3,w,1,"7"); C.put(2,3,"FULL LOG")
-    first = 4
-  elseif view.mode == "role" then
-    local notice, width = tostring(view.notice or ""), math.max(1,w-2)
-    local noticeRows = #notice > width and 2 or 1
-    local last = h-1-noticeRows
-    local list = view.displays or {}
-    C.fill(1,4,w,1,"7"); C.put(2,4,"ID    SIZE    ROLE")
-    for i, row in ipairs(list) do
-      if 4+i < last or (4+i == last and i == #list) then
-        C.put(2,4+i,string.format("%-6s%-8s%s",tostring(row.id),row.size or "-",row.role):sub(1,width))
-      elseif 4+i == last then
-        C.put(2,4+i,"+" .. (#list-i+1) .. " more")
-      end
+    local left = math.max(0, (view.expires or 0) - (view.now or 0))
+    local secs = math.ceil(left / 1000)
+    local clock = string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+    local width = #code * 7 - 2
+    local x = math.floor((w - width) / 2) + 1
+    if width <= w - 2 and h >= 14 and not code:find("%D") then
+      C.digits(x, 5, code, "0", 5, 7, 2)
+      C.ticks(x, 13, width - 5, U.filled(width - 5, left, 300000), "9")
+      C.put(x + width - 4, 13, clock, "0")
+    else
+      C.put(2, 5, code, "0")
+      C.put(3 + #code, 5, clock, "8")
     end
-    for r = 1, noticeRows do C.put(2,h-1-noticeRows+r,notice:sub((r-1)*width+1,r*width)) end
-  else
-    local cols = U.grid(w,h,math.max(1,math.min(4,math.floor((w+1)/13))))
-    local bottom = 7
-    for i, index in ipairs({1,7,6,3}) do
-      local col = cols[(i-1)%#cols+1]
-      local y = 4 + math.floor((i-1)/#cols)*8
-      local t = model.tiles[index]
-      if t then C.tile(col.x,y,col.w,t.label,t.value,(model.terminalSubs or {})[i] or t.sub,t.bg,7) end
-      bottom = math.max(bottom,y+6)
+    D.hints(C, 2, h, { { "P", "new code" }, { "Esc", "cancel" } }, 14)
+    return C.frame()
+  elseif mode == "role" then
+    local rows, notice = view.displays or {}, tostring(view.notice or "")
+    local width = math.max(1, w - 2)
+    local lines = notice == "" and 0 or #notice > width and 2 or 1
+    local last = h - 1 - math.max(1, lines)
+    C.section(2, 3, w - 2, "DISPLAYS", #rows)
+    for i, r in ipairs(rows) do
+      local y = 3 + i
+      if y > last then break end
+      if y == last and i < #rows then C.put(4, y, "+" .. (#rows - i + 1) .. " more", "8"); break end
+      C.put(2, y, string.format("%3s", tostring(r.id)), "0")
+      C.put(7, y, tostring(r.size or "-"), "8")
+      C.put(17, y, tostring(r.role):sub(1, math.max(0, w - 17)), r.role == "unassigned" and "8" or "0")
     end
-    first = bottom+3
-    C.fill(1,first-1,w,1,"7"); C.put(2,first-1,"LOG")
-  end
-  if view.mode ~= "code" and view.mode ~= "role" then
-    local count = math.max(0,h-first)
-    local last = math.max(0,#lines-(view.offset or 0))
-    local start = math.max(1,last-count+1)
-    for i = start,last do C.put(2,first+i-start,tostring(lines[i]):sub(1,math.max(0,w-2))) end
-  end
-  C.fill(1,h,w,1,"7")
-  if view.mode == "role" then
-    C.put(2,h,("> " .. tostring(view.input or "") .. "_"):sub(-math.max(1,w-27)))
-    C.put(w-24,h,"[Enter] set  [Esc] back")
+    for r = 1, lines do C.put(2, h - 1 - lines + r, notice:sub((r - 1) * width + 1, r * width), "8") end
+    local keys, kx = { { "Enter", "set" }, { "Esc", "back" } }, w - 2
+    for _, k in ipairs(keys) do kx = kx - #k[1] - 3 - #k[2] end
+    local typed = tostring(view.input or ""):sub(-math.max(1, kx - 7))
+    C.put(2, h, ">", "9"); C.put(4, h, typed, "0"); C.put(4 + #typed, h, "_", "9")
+    D.hints(C, kx, h, keys, 0)
     return C.frame()
   end
-  C.put(2,h,view.mode == "code" and "[P] new code     [Esc] cancel"
-    or view.mode == "log" and "[Esc/L] back  [Up/Down] scroll"
-    or "[P] pair a client   [R] roles   [L] full log")
+  local top
+  if mode == "log" then
+    C.section(2, 3, w - 2, "LOG", #log)
+    top = 4
+  else
+    local t = model.terminal or { flags = {}, ok = 0, lost = 0, leases = 0, displays = 0 }
+    local na = math.min(2, #t.flags)
+    for i = 1, na do C.flag(2, 2 + i, w - 2, t.flags[i].text) end
+    local y = na > 0 and 4 + na or 3
+    local two = w >= 48
+    local lw = two and math.floor((w - 5) / 2) or w - 2
+    local rx, ry = two and lw + 5 or 2, two and y or y + 5
+    C.section(2, y, lw, "FLEET")
+    local gone = t.lost > 0 and (" " .. U.g.dot .. " " .. t.lost .. " lost") or ""
+    C.leader(2, y + 1, lw, "turtles", t.ok .. " ok" .. gone)
+    if t.lost > 0 then C.put(5 + lw - #gone, y + 1, gone:sub(4), "e") end
+    C.leader(2, y + 2, lw, "displays", t.displays)
+    C.leader(2, y + 3, lw, "leases", t.leases)
+    local d = t.disk
+    local pct, fg = U.st.diskValue(d)
+    C.section(rx, ry, w - rx, "DISK", pct, fg)
+    C.ticks(rx, ry + 1, w - rx, d and U.filled(w - rx, d.used, d.cap) or 0, fg == "e" and "e" or "3")
+    C.leader(rx, ry + 2, w - rx, "used", d and string.format("%.1f MB", d.used / 1e6) or "-", d and "0" or "8")
+    C.leader(rx, ry + 3, w - rx, "pair", view.pending or "-", view.pending and "0" or "8")
+    top = ry + 5
+    C.section(2, top, w - 2, "LOG")
+    top = top + 1
+  end
+  if view.hostError then C.put(2, 2, tostring(view.hostError):sub(1, math.max(0, w - 2)), "e") end
+  local count, last = math.max(0, h - 1 - top), math.max(0, #log - (view.offset or 0))
+  for i = math.max(1, last - count + 1), last do D.logLine(C, 2, top + i - math.max(1, last - count + 1), w - 2, tostring(log[i])) end
+  if mode == "log" then D.hints(C, 2, h, { { "Esc", "back" }, { "\24\25", "scroll" } }, 14)
+  else D.hints(C, 2, h, { { "P", "pair" }, { "R", "roles" }, { "L", "log" } }, 12) end
   return C.frame()
 end
 
@@ -832,6 +968,7 @@ D.drawTerminal = function(now)
   local minutes = math.floor((v.now-(v.started or v.now))/60000)
   v.uptime = string.format("up %dh%02d",math.floor(minutes/60),minutes%60)
   if v.mode == "role" then v.displays = D.listing() end
+  v.pending = SO.pair and type(SO.pair.pending) == "function" and SO.pair.pending() or nil
   local w,h = term.getSize()
   D.paint(term,D.terminal(D.model or { tiles = {} },v,w,h),w,h)
 end

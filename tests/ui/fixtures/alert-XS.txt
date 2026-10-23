@@ -1,0 +1,31 @@
+15x10 Alert takeover, smallest monitor 15x10
++-------------+
+|             |
+|  #6         |
+| ore chest   |
+| full        |
+|             |
+|             |
+| |||||||···· |
+|             |
++-------------+
+eeeeeeeeeeeeeee
+e0000000000000e
+e0ffff00000000e
+e0000000000000e
+e0000000000000e
+e0000000000000e
+e0000000000000e
+e0eeeeeee88880e
+e0000000000000e
+eeeeeeeeeeeeeee
+fffffffffffffff
+fffffffffffffff
+ffeeeefffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff

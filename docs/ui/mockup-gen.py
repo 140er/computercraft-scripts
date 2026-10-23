@@ -399,7 +399,9 @@ if args.fixtures:
     # Screens ported to route A get their fixtures from docs/ui/schematic/screens.py instead,
     # including the five shop names, which now hold route A pages.
     ported = {"status-M", "status-L", "status-P", "status-T", "status-XS",
-              "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large"}
+              "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large",
+              "pocket-fleet-P", "pocket-alerts-P", "pocket-jobs-P", "pocket-shop-P", "pocket-pair-P", "pocket-code-P",
+              "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS"}
     for stem, canvas, title in named:
         if stem in ported:
             continue

@@ -183,7 +183,19 @@ local FIXTURE = { ['kit-M'] = 'tests/ui/fixtures/kit-M.txt', ['status-M'] = 'tes
   ['status-W'] = 'tests/ui/fixtures/status-W.txt', ['status-XL'] = 'tests/ui/fixtures/status-XL.txt',
   ['status-T'] = 'tests/ui/fixtures/status-T.txt', ['status-L'] = 'tests/ui/fixtures/status-L.txt',
   ['status-P'] = 'tests/ui/fixtures/status-P.txt', ['status-XS'] = 'tests/ui/fixtures/status-XS.txt',
-  ['schematic-map-XL'] = 'tests/ui/fixtures/schematic-map-XL.txt' }
+  ['schematic-map-XL'] = 'tests/ui/fixtures/schematic-map-XL.txt',
+  -- S4: the pocket and system screens (tests/ui/s4.lua compares them with the Lua screens).
+  ['pocket-fleet-P'] = 'tests/ui/fixtures/pocket-fleet-P.txt', ['pocket-alerts-P'] = 'tests/ui/fixtures/pocket-alerts-P.txt',
+  ['pocket-jobs-P'] = 'tests/ui/fixtures/pocket-jobs-P.txt', ['pocket-shop-P'] = 'tests/ui/fixtures/pocket-shop-P.txt',
+  ['pocket-pair-P'] = 'tests/ui/fixtures/pocket-pair-P.txt', ['pocket-code-P'] = 'tests/ui/fixtures/pocket-code-P.txt',
+  ['alert-M'] = 'tests/ui/fixtures/alert-M.txt', ['alert-W'] = 'tests/ui/fixtures/alert-W.txt',
+  ['alert-T'] = 'tests/ui/fixtures/alert-T.txt', ['alert-P'] = 'tests/ui/fixtures/alert-P.txt',
+  ['alert-XS'] = 'tests/ui/fixtures/alert-XS.txt', ['alert-nomap-M'] = 'tests/ui/fixtures/alert-nomap-M.txt',
+  ['unassigned-M'] = 'tests/ui/fixtures/unassigned-M.txt', ['unassigned-XS'] = 'tests/ui/fixtures/unassigned-XS.txt',
+  ['unloaded-M'] = 'tests/ui/fixtures/unloaded-M.txt', ['outage-M'] = 'tests/ui/fixtures/outage-M.txt',
+  ['outage-P'] = 'tests/ui/fixtures/outage-P.txt', ['server-T'] = 'tests/ui/fixtures/server-T.txt',
+  ['pairing-T'] = 'tests/ui/fixtures/pairing-T.txt', ['log-T'] = 'tests/ui/fixtures/log-T.txt',
+  ['roles-T'] = 'tests/ui/fixtures/roles-T.txt' }
 
 local function match(name, frame)
   local fixture = R.load(FIXTURE[name])
@@ -414,7 +426,7 @@ return function(test, equal)
   end)
 
   test('S0 fixtures load with and without the fg layer', function()
-    local old = R.load('tests/ui/fixtures/alert-M.txt')
+    local old = R.load('tests/ui/fixtures/ar-M.txt')
     assert(old.fg == nil and #old.bg == old.h)
     local new = R.load('tests/ui/fixtures/status-M.txt')
     equal(#new.fg, new.h)

@@ -1,49 +1,73 @@
-57x24 Outage, last picture greyed (stale slot) with a coral NO SERVER tile
- STATUS  (last picture, greyed)                          
+57x24 No server: the last status picture, stale palette
+ NO SERVER  0:42                            retry in 8 s 
                                                          
+ ! #6 lost 184,-58,-369 · 3 min                          
+ ! drop 3 junk broken                                    
                                                          
+ TURTLES ---------------------- 5    TODAY ------------  
+ ► 2  mining     b8    160,-373      ore ··········· 214 
+ ► 3  wait lane  b9    142,-377      logs ··········· 96 
+ ▼ 4  unload     lane  120,-352      ore 10 min ···· +12 
+ ► 6  lost       b7    184,-369                          
+ ► 5  felling    farm  101,-347      SERVER -----------  
+                                     disk |········  13% 
+ JOBS ---------------------------    leases ·········· 3 
+ mining  running  |||||||··· 7/10    displays ········ 4 
+ lumber  running  ♠♠♠♠♠♠♠♠♣♣ 9/12    up ··········· 3h12 
                                                          
+ DROPS ---------------------------------------------- 5  
+ • 1 ore   • 2 fuel   × 3 junk   • 4 wood   • 5 saplings 
                                                          
-                                                         
-                                                         
-                                                         
-                                                         
-                        NO SERVER                        
-                      🬖🬋🬏🬞🬏  🬵 🬖🬋🬏                       
-                      ▌ ▌🬠🬐 🬳🬷🬏 🬖🬀                       
-                      🬈🬋🬀🬁🬀  🬉 🬍🬋🬃                       
-                    since last frame                     
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
- retrying in 8 s                                         
-                                                         
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-cccccccccccccccccceeeeeeeeeeeeeeeeeeeeecccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+ EVENTS -----------------------------------------------  
+ 21:14 • #3 waits for the lane                           
+ 21:14 • drop 3 junk: chest missing                      
+ 21:14 • #2 reported 14 ore                              
+ 21:13 • #6 lease expired, lane released                 
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+000000000000000000000000000000000000000000000000000000000
+0e0000000008888888888888888888800000000000000000000000000
+0e0000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccc080000888880cccccccccccc00
+0d000000000000000880000888888880000008880ccccccccccc00000
+010000111111111008800008888888800000088880ccccccccccc0000
+0d0000000000000008888008888888800000088888888880cccc00000
+0e0000eeee0000000880000eeeeeeee00000000000000000000000000
+0d000000000000000888800888888880000008888880ccccccccccc00
+000000000000000000000000000000000000088880388888888000000
+088880ccccccccccccccccccccccccccc00008888880cccccccccc000
+000000000ddddddd003333333888000000000888888880cccccccc000
+000000000ddddddd00dddddddd88000000000880ccccccccccc000000
+000000000000000000000000000000000000000000000000000000000
+0888880cccccccccccccccccccccccccccccccccccccccccccccc0800
+0000000000000000000000e0eeeeee000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccccccc00
+088888010000000000000000000000000000000000000000000000000
+0888880e0000000000000000000000000000000000000000000000000
+088888080000000000000000000000000000000000000000000000000
+0888880e0000000000000000000000000000000000000000000000000
+222222222222222222222222222222222222222222222222222222222
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

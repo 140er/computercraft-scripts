@@ -132,10 +132,10 @@ local function run()
     end
     local frame = request("view.get", {})
     check("real unassigned frame", frame.t == "view.frame" and frame.body.role == "unassigned"
-      and #frame.body.buttons == 0 and frame.body.rows[2].text:find("UNASSIGNED", 1, true) ~= nil)
+      and #frame.body.buttons == 0 and frame.body.rows[1].text:find("UNASSIGNED", 1, true) ~= nil)
     local digits = false
-    for _, row in ipairs(frame.body.rows) do if row.text:find("[\128-\159]") then digits = true end end
-    check("unassigned frame shows the id in big digits", digits)
+    for y, row in ipairs(frame.body.rows) do if y > 1 and row.text:find("[|+]") then digits = true end end
+    check("unassigned frame shows the id in line digits", digits)
     check("a tap does not change the role", tap({ id = "status", x = 1, y = 1 }).body.role == "unassigned")
     rednet.send(0, { want = "role", role = "ar" }, "craftos-fixture")
     local by, answer = rednet.receive("craftos-fixture", 3)

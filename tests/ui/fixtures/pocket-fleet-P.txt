@@ -1,41 +1,61 @@
-26x20 Pocket FLEET: chip rows; ALERTS opens the list, FLEET turns coral while alerts exist
- FLEET  JOBS  SHOP  PAIR  
+26x20 Pocket FLEET
+ FLEET• JOBS  SHOP  PAIR  
                           
- TURTLES    3 ok  1 lost  
+ ! #6 lost 3m             
+ ! drop 3 junk broken     
                           
- LEASES           2 open  
+ TURTLES ------------- 5  
+ ► 2  mining         b8   
+ ► 3  wait lane      b9   
+ ▼ 4  unload         lane 
+ ► 6  lost           b7   
+ ► 5  felling        farm 
                           
- ALERTS                3  
+ TODAY -----------------  
+ ore ················ 214 
+ logs ················ 96 
                           
- ORE TODAY           214  
+ SERVER ----------------  
+ disk ||············  13% 
+ 4 displays · 3 leases    
                           
- LOGS TODAY           96  
-                          
- DISK                13%  
-                          
- DISPLAYS              4  
-                          
- DROPS       5  1 broken  
-                          
-                          
-                          
-99999997777777777777777777
+000000e8888888888888888880
+00000000000000000000000000
+0e000000000880000000000000
+0e000000000000000000000000
+00000000000000000000000000
+088888880ccccccccccccc0800
+0d000000000000000000088000
+01000011111111100000088000
+0d000000000000000000088880
+0e0000eeee0000000000088000
+0d000000000000000000088880
+00000000000000000000000000
+0888880ccccccccccccccccc00
+08880cccccccccccccccc00000
+088880cccccccccccccccc0000
+00000000000000000000000000
+08888880cccccccccccccccc00
+08888033888888888888000000
+08888888888888888888880000
+00000000000000000000000000
+7777777fffffffffffffffffff
 ffffffffffffffffffffffffff
-fffffffffffddddddeeeeeeeef
 ffffffffffffffffffffffffff
-fffffffffffffffffbbbbbbbbf
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffeeef
 ffffffffffffffffffffffffff
-ffffffffffffffffffffbbbbbf
 ffffffffffffffffffffffffff
-fffffffffffffffffffffddddf
 ffffffffffffffffffffffffff
-ffffffffffffffffffffdddddf
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffdddf
 ffffffffffffffffffffffffff
-ffffffffffffddd1111111111f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

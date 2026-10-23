@@ -666,4 +666,6 @@ U.fleetRows = function(C, model, top, step)
     end
   end
 end
+-- Line digits draw "-" as the middle stroke alone: a pair code not issued yet reads "------".
+U.segments["-"] = "g"
 return U

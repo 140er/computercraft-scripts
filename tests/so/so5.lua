@@ -311,7 +311,7 @@ return function(test, equal)
 
     local untilStale = nextIn(10)
     assert(untilStale > 0, "stale timer was already due")
-    assert(mon.line(20):sub(22, 26) == "stale", mon.line(20))
+    assert(mon.line(1):find("NO SERVER", 1, true), mon.line(1))
     equal(#payloads(client, "hello"), before)
     for attempt = 1, 7 do
       local gap = nextIn(30)
@@ -421,7 +421,7 @@ return function(test, equal)
       net.advance((best - net.time) / 1000)
     end
     jump()
-    assert(mon.line(20):sub(22, 26) == "stale", "no stale before restart")
+    assert(mon.line(1):find("NO SERVER", 1, true), "no stale before restart")
     jump()
     assert(#payloads(client, "hello") >= 2, "client did not retry")
     server.timers = {}

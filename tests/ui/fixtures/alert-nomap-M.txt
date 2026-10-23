@@ -1,0 +1,73 @@
+57x24 Alert takeover without the map module
++-------------------------------------------------------+
+|                                                       |
+|    #6 ORE CHEST FULL  184,-58,-369                    |
+|                                                       |
+|   state ··················· lost                      |
+|   where ····················· b7                      |
+|   fuel ····················· 412                      |
+|   ore ······················· 22                      |
+|   seen ··················· 3 min                      |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|   |||||||||||||||||||||||||||||····················   |
+|                                                       |
++-------------------------------------------------------+
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+e0000000000000000000000000000000000000000000000000000000e
+e000fffffffffffffffffff000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e000888880ccccccccccccccccccc0eeee0000000000000000000000e
+e000888880ccccccccccccccccccccc0000000000000000000000000e
+e00088880ccccccccccccccccccccc01110000000000000000000000e
+e0008880ccccccccccccccccccccccc0000000000000000000000000e
+e00088880ccccccccccccccccccc0888880000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e000eeeeeeeeeeeeeeeeeeeeeeeeeeeee88888888888888888888000e
+e0000000000000000000000000000000000000000000000000000000e
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

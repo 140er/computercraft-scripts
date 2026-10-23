@@ -732,9 +732,11 @@ Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` 
 SO5 owns this API on `SO.mods.display`.
 
 The server terminal uses `display.terminal(model, view, w, h)` to return a
-Big Tiles frame. The model is the status model. The view supplies `id`,
+route A frame ([schematic spec](../ui/SCHEMATIC-SPEC.md#17-server-terminal)).
+It reads `model.terminal`. The view supplies `id`,
 `mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
-`expires` and `now`. Role mode also reads `displays`, `input` and `notice`.
+`expires`, `now` and `pending` (the pending pair code, shown on the normal
+page). Role mode also reads `displays`, `input` and `notice`.
 Times use game milliseconds and the log offset counts
 back from the newest line. `SO.terminal` holds the runtime view. Display tick
 draws it once per second; `display.drawTerminal(now?)` draws it at once.
@@ -776,23 +778,27 @@ A 26x20 display with no saved role gets `pocket`; so does 26x19, which older
 pocket clients report without `fullH`. Before R1 every navigation tap was
 saved, so a pocket keeps a saved role only when the command set it; other
 displays keep any saved role. Any other display with no
-saved role draws `unassigned`: an UNASSIGNED header and a teal block with its
-id in big digits, without buttons. A saved role whose screen is not
-registered, or whose renderer fails, draws the same block under the role name.
+saved role draws `unassigned`: an UNASSIGNED header and its id in line
+digits as large as fit, without buttons. A saved role whose screen is not
+registered, or whose renderer fails, draws the same page under the role name.
 Kit-free servers draw `display <id>` and the role name as text.
 
 The pocket role has its own pages in the display session, drawn by the
 `pocket` screen that so-mod-panel registers. A new alert takes over first, as
-on status. Row 1 is the tab bar: `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair`. FLEET
-shows eight chip rows from the status model; its ALERTS row (`alerts`) opens
-the alert list with `alert-prev` and `alert-next`. JOBS forwards
-`mining:start`, `mining:stop`, `lumber:start` and `lumber:stop` once each.
-SHOP takes typed text as its search; `pick:<item>` selects a match, `clear`
-empties the search and `order:<count>:<item>` (1, 16 or 64) under the shown
-item calls `shop.order(item, count)` once while that item still matches. PAIR draws `pair-code`
-(NEW CODE). No page changes the saved role. Without the `pocket` screen the
-role draws the 26-wide status rows. `display.statusModel()` returns the status
-model of the last gather for these pages.
+on status. The pages are route A ([schematic spec](../ui/SCHEMATIC-SPEC.md#15-pocket)).
+Row 1 holds the tabs `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair`. FLEET
+is status's one-column layout from the status model; each of its alert rows is
+an `alerts` button that opens ALERTS, every flag with its detail, paged with
+`alert-prev` and `alert-next`. JOBS reads `mine.facts()` and `lumber.facts()`
+when the modules have them, else the status model's `mining`, `lumber` and
+turtle rows, and forwards `mining:start`, `mining:stop`, `lumber:start` and
+`lumber:stop` once each. SHOP takes typed text as its search; `pick:<item>`
+selects a match, `clear` empties the search and `order:<count>:<item>` (1, 16
+or 64) under the shown item calls `shop.order(item, count)` once while that
+item still matches. PAIR draws `pair-code` (NEW CODE) and the session's own
+code in line digits. No page changes the saved role. Without the `pocket`
+screen the role draws the 26-wide status layout. `display.statusModel()`
+returns the status model of the last gather for these pages.
 
 `display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
 The next display tick routes it to the drawn screen. Discovery runs at most
@@ -865,6 +871,12 @@ Its model fields, all built by the gather:
 
 - `time` (`hh:mm`), `name` (`FLEET` for the pocket fallback, else `STATUS`),
   `server = { id, up }` with uptime `3h12` from `SO.terminal.started`.
+- `alerts`: state alerts `{ key, sequence, text, detail?, sub?, id?, kind? }`, oldest
+  first; `id` (a turtle) and `kind` (a drop kind) come from the alert value and
+  name the takeover's subject.
+- `terminal = { flags, ok, lost, leases, displays, disk? }` for the server
+  terminal, built on every gather without a `mapView`: `flags` are `{ text }`
+  for lost turtles by id, state alerts newest first and broken drops.
 - `flags`: alert rows `{ text, detail?, short?, brief? }`. Lost turtles come first
   (`#6 lost`, `x,y,z · 3 min`, `3m`), then state alerts newest first, then broken
   drops (`drop 3 junk broken`, brief `drop 3 broken`).
@@ -887,11 +899,13 @@ Its model fields, all built by the gather:
 A missing module leaves its field nil and the screen draws `-` in muted grey.
 The gather builds these fields only while a connected display or the server's
 monitor draws status or pocket.
-The tile model fields stay for the server terminal and the pocket fleet rows:
-`tiles` (`{ label, value, sub, bg, chips? }`), `alert`, `alerts`, `log`,
+The tile model fields stay for the panel role and older callers:
+`tiles` (`{ label, value, sub, bg, chips? }`), `alert`, `log`,
 `terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
-Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
-the count to the length of `alerts`. Gathering stays in display handler and tick
+The takeover ([schematic spec](../ui/SCHEMATIC-SPEC.md#16-system-screens)) draws a coral
+frame, the alert in a coral title chip with its subject's position, the detail
+or sub, a map crop around the subject from `map.crop` and a coral tick row for
+the time left; it is one `dismiss` button. Gathering stays in display handler and tick
 paths. It reads state view `.alert` keys, registered worker machines, lease
 status, drop points, display sessions and the server root disk. Ore and log
 totals come from `daily.today()`, with `-` on stale tiles when unavailable.
@@ -919,12 +933,15 @@ the next tick for a subscribed display. A failed save keeps the previous setting
 `display.palette` is the route A palette as RGB numbers at indices 0 through 15.
 Renderers opt into it by returning `palette = SO.mods.display.palette`.
 
-After ten seconds without a frame, the client keeps the last picture with stale
-backgrounds and preserves inverted big digits. It draws a centred coral 21x7
-NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capable
-outputs repaint the timer once a second. Outputs without palette support retain
-the legacy bottom-right stale marker and repaint on retries. The retry schedule
-still uses jittered exponential backoff capped at 30 seconds.
+After ten seconds without a frame, the client keeps the last picture as it is
+and swaps its palette to the grey ramp `U.stale` (display.lua carries a copy).
+It then draws one coral row over row 1: `NO SERVER m:ss` (time since the last
+frame) and `retry in N s` at the right, shortened to `Ns` or dropped on narrow
+screens. Palette-capable outputs redraw that row alone once a second; retries
+redraw it too. Outputs without palette support keep their colours, draw the row
+in `e` and update it on retries. The next
+frame restores the frame's palette. The retry schedule still uses jittered
+exponential backoff capped at 30 seconds.
 
 ### map
 
@@ -950,6 +967,12 @@ at `x, y`, top-aligned, inside `w` by `h` cells. Status calls it with at most 48
 cells (40x26 on a 100x38 wall); an error leaves the area blank. `so-mod-map` does
 not export it yet; until it does, the wall shows its display list at the top of
 the right column.
+
+The alert takeover draws a crop around its subject through an optional
+`map.crop(C, x, y, w, h, focus)` with `focus = { x, y, z, id?, drop? }`; the map
+section documents the call. The takeover uses `pcall`; without it, on an error or
+when it returns false, the subject's facts (state, where, fuel, ore and seen, or
+a drop's kind and state) fill those rows instead.
 The optional turtle has `{ id, pose, state }`. These getters do not save or
 advance jobs. Registry workers without a job also appear when their pose is
 known. Numeric drop dimensions are normalized to world dimension strings.
