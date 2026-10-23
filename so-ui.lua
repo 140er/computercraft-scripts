@@ -193,7 +193,6 @@ U.status = function(model, w, h)
   local tiles = model.tiles
   C.header((size == 'P' or size == 'XS') and 'FLEET' or 'STATUS', tiles[8] and tiles[8].id=='broken' and '' or (size == 'XS' or size == 'P') and 'ok' or model.time or 'ok')
   local broken=tiles[8] and tiles[8].id=="broken" and tiles[8].value
-  if broken and w>=26 then C.button(w-14,2,10,"BROKEN "..broken,"broken","e",1) end
   local function draw(index, x, y, width, height)
     local t = tiles[index]
     if not t then return end
@@ -236,6 +235,7 @@ U.status = function(model, w, h)
       C.button(col.x,navY,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7',navHeight)
     end
   end
+  if broken and w>=26 then C.button(w-14,2,10,"BROKEN "..broken,"broken","e",1) end
   return C.frame()
 end
 local function finite(n)
