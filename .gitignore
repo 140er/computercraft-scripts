@@ -3,3 +3,8 @@ docs/.obsidian/workspace*.json
 docs/.obsidian/cache
 
 __pycache__/
+
+# New evidence belongs in CI artifacts; existing reviewed evidence stays tracked.
+tests/evidence/**
+!tests/evidence/**/
+!tests/evidence/**/*.md

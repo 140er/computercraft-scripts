@@ -242,7 +242,7 @@ function M.travel(from, goal, point, job, row)
     end
   end
 end
-local function nextOne(job, row, lookup, inv, fuel)
+local function nextOne(job, row, lookup, inv, _fuel)
   local p, goal = row.pose, row.goal
   local out = { steps = {}, cells = {}, pose = p }
   if not goal or M.same(p, goal) then out.kind = "arrived" return out end

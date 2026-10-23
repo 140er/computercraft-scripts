@@ -192,7 +192,7 @@ A.scene = function(now)
       put(row.id, "drawText3D", row.color, row.x, row.y, row.z, 0, 0, A.labelScale, row.text, true)
     end
   end
-  local alertCount = 0
+  local alertCount
   do
     local view = A.call("state", "view") or {}
     local state = SO.mods.state
