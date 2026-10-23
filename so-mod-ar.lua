@@ -126,7 +126,7 @@ A.scene = function(now)
   local lostCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose
-    local status = A.call("lease", "status", tonumber(id) or id) or {}
+    local status = A.call("lease", "peek", tonumber(id) or id) or {}
     local color = A.turtle(machine, status, now, p and A.call("lease", "inRange", tonumber(id) or id, p))
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtleCount = turtleCount + 1
@@ -152,12 +152,14 @@ A.scene = function(now)
   if A.layers.turtles and A.sameDim(mine.dim) then
     for _, trail in ipairs(mine.trails or {}) do
       local a,b = trail.points[1],trail.points[2]
-      local machine = machines[trail.id] or machines[tonumber(trail.id)] or {}
-      local status = A.call("lease","status",tonumber(trail.id) or trail.id) or {}
-      local color = A.turtle({state=trail.state,seen=machine.seen,fuel=machine.fuel},status,now,
-        machine.pose and A.call("lease","inRange",tonumber(trail.id) or trail.id,machine.pose))
-      if status.uncertain then color=A.red end
-      if trail.state=="done" then color=0x504A5468 end
+      local color = 0x504A5468
+      if trail.state~="done" then
+        local machine = machines[trail.id] or machines[tonumber(trail.id)] or {}
+        local status = A.call("lease","peek",tonumber(trail.id) or trail.id) or {}
+        color = A.turtle({state=trail.state,seen=machine.seen,fuel=machine.fuel},status,now,
+          machine.pose and A.call("lease","inRange",tonumber(trail.id) or trail.id,machine.pose))
+        if status.uncertain then color=A.red end
+      end
       line("trail:"..trail.id, color, a.x+0.5,a.y+0.25,a.z+0.5,b.x+0.5,b.y+0.25,b.z+0.5)
     end
   end

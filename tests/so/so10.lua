@@ -13,7 +13,8 @@ local function boot(present)
   }
   local values = { ["drops.alert"] = { text = "hold" } }
   mods.state = { get = function() return machines end, view = setmetatable({}, { __call = function() return { values = values } end }) }
-  mods.lease = { status = function(id) return id == 2 and { open = "batch" } or { lost = true } end }
+  mods.lease = { peek = function(id) return id == 2 and { open = "batch" } or { lost = true } end }
+  mods.lease.status = mods.lease.peek
   mods.display = { screen = function(role, render, input) env.render, env.input = render, input end }
   assert(mods.cells.reserve("mine:2", -17, 64, 3))
   assert(mods.cells.reserve("lumber:3", 8, 64, 3))

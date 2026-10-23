@@ -101,6 +101,53 @@ return function(test,equal)
     s.job.progress.nextBranch=0 s.job.homeSet=false equal(s.mine.mapView().preview,nil)
     s.job.homeSet=true assert(s.mine.mapView().preview)
   end)
+  test("completed trails and unknown map markers never grow real lease rows",function()
+    local s=setup()
+    s.m.install({"so-mod-lease.lua"})
+    s.m.env.SO.now=function() return 1000 end
+    local lease=s.m.env.dofile("so-mod-lease.lua")
+    s.mods.lease=lease
+    lease.status(7)
+    local rows
+    for i=1,10 do
+      local name,value=debug.getupvalue(lease.status,i)
+      if name=="S" then rows=value.turtles break end
+    end
+    assert(rows,"real lease rows must be observable")
+    local function count()
+      local n=0 for _ in pairs(rows) do n=n+1 end return n
+    end
+    local before=count()
+    equal(lease.peek("unknown"),nil)
+    local snapshot=lease.peek(7)
+    snapshot.lost=true
+    equal(lease.peek(7).lost,false)
+    local pose={dim="minecraft:overworld",x=1,y=64,z=0}
+    assert(lease.inRange("unknown",pose))
+    local machines={screen={role="display",pose=pose},[8]={role="worker",pose=pose,seen=1000}}
+    s.mods.state.get=function() return machines end
+    local points={{x=0,y=60,z=-5},{x=100,y=60,z=-5}}
+    s.mine={dim="minecraft:overworld",preview=points,turtles={ghost={pose=pose,state="mining"}}}
+    local peek=lease.peek
+    local completedLookups=0
+    lease.peek=function(id)
+      if tostring(id):match("^done:") then completedLookups=completedLookups+1 end
+      return peek(id)
+    end
+    for i=1,100 do
+      s.mine.trails={{id="done:"..i,state="done",points=points},
+        {id="ghost",state="mining",points=points}}
+      s.ar.tick(i*1000)
+      s.map.tick(i*1000)
+      equal(count(),before,"display reads created a lease row")
+      assert(s.elements["trail:done:"..i])
+    end
+    s.mine.trails={}
+    s.ar.tick(101000)
+    equal(s.elements["trail:done:100"],nil)
+    equal(completedLookups,0,"completed trails must skip lease reads")
+    equal(count(),before)
+  end)
   test("AR preview and state trails use bounded lines and follow layer switches",function()
     local s=setup()
     local points={{x=0,y=60,z=-5},{x=100,y=60,z=-5}}
@@ -115,7 +162,7 @@ return function(test,equal)
     s.mine.trails[1].state="lost" s.ar.tick(2000)
     equal(s.elements["trail:1"].args[1],0xFFFF6B5E-2^32)
     s.mine.trails[1].state="mining"
-    s.mods.lease={status=function() return {uncertain=true} end}
+    s.mods.lease={peek=function() return {uncertain=true} end}
     s.ar.tick(3000) equal(s.elements["trail:1"].args[1],0xFFFF6B5E-2^32)
     s.mods.lease=nil s.ar.tick(130000)
     equal(s.elements["trail:1"].args[1],0xFF4A5468-2^32)

@@ -304,12 +304,15 @@ S.send = function(id, steps, opts)
   return lease.id
 end
 
-S.status = function(id)
-  local row = S.row(id)
+S.snapshot = function(row)
+  if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
     probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
+
+S.status = function(id) return S.snapshot(S.row(id)) end
+S.peek = function(id) return S.snapshot(S.turtles[id]) end
 
 S.cancelPark = function(id, owner)
   local row = S.turtles[id]
@@ -327,7 +330,7 @@ end
 S.inRange = function(id, pos)
   if not S.pos then return true end
   local distance = S.distance(pos)
-  return distance ~= nil and distance <= S.row(id).range + 8
+  return distance ~= nil and distance <= (S.turtles[id] and S.turtles[id].range or 16) + 8
 end
 
 S.report = function(msg)
@@ -477,6 +480,7 @@ return {
     return true
   end,
   status = S.status,
+  peek = S.peek,
   cancelPark = S.cancelPark,
   inRange = S.inRange,
   dugProtection = S.dugProtection,

@@ -9,7 +9,7 @@ local function boot()
   e.SO = { now = function() return e.os.epoch("utc") end,store=e.dofile("so-store.lua"),proto={ser=H.encode},mods={}}
   local mods = e.SO.mods
   mods.state = e.dofile("so-mod-state.lua")
-  mods.lease = {status=function(id) return b.status[id] or {} end,inRange=function() return true end}
+  mods.lease = {peek=function(id) return b.status[id] or {} end,status=function(id) return b.status[id] or {} end,inRange=function() return true end}
   mods.drops = {list=function() return b.points end}
   mods.display = e.dofile("so-mod-display.lua")
   local ar = {elements={}}

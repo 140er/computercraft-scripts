@@ -9,7 +9,7 @@ local function boot()
   e.SO = { now = function() return e.os.epoch("utc") end, store = e.dofile("so-store.lua"), proto = { ser = H.encode }, mods = {} }
   local mods = e.SO.mods
   mods.state = { get = function() return b.machines end, view = function() return { values = b.values } end }
-  mods.lease = { status = function(id) return b.status[id] end, inRange = function(id) return not b.outside[id] end }
+  mods.lease = { peek = function(id) return b.status[id] end, inRange = function(id) return not b.outside[id] end }
   mods.drops = { list = function() return b.points end }
   mods.cells = { list = function(owner) return b.cells[owner] end, counts = function()
     local reserved = {}; for owner in pairs(b.cells) do reserved[owner] = 1 end

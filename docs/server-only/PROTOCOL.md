@@ -558,6 +558,13 @@ so a lookup cannot discard a renewal or a work batch.
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
 
+`lease.peek(id)` returns the same copied status fields as `status(id)` for an
+existing worker, or nil for an unknown id. It never creates a worker row.
+AR and map use `peek`; completed trails skip lease lookups entirely.
+`lease.inRange(id, pos)` also reads without creating a row, using the initial
+range of 16 for unknown workers. `status(id)` still creates a row when missing.
+
+
 `lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, `recover`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<n>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost` unless `opts.recover` is true. Recovery still refuses an open lease with `busy`. Invalid arguments, an absent pair key, or a failed send also return nil and a reason.
 
 `lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. An accepted report stores `lease.report = { pose, journal, fuel, inv, dug }`. Each field is type-checked independently. A bad field is omitted while valid fields remain. These facts are stored for successful batches and batches with failed or expired steps. A later registration replaces the callback.
@@ -1282,7 +1289,7 @@ boolean values. A failed save leaves the current switches unchanged.
 
 - `turtles` draws a twelve-edge box and heading arrow for each worker with a
   pose. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
-  `lease.status`, with `lease.inRange` checked when available. Two minutes
+  `lease.peek`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
   is exempt. Working, mining, running and lumber states use green. Other open

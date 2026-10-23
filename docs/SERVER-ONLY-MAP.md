@@ -213,7 +213,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [daily](server-only/PROTOCOL.md#daily).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
-  `status(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
+  `status(id)`, `peek(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Unreported single-step `inspectDown` parks retry every game second with the
@@ -222,6 +222,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Range starts at 16 and only grows with known world poses or successful reports.
   Work may extend eight blocks beyond that proof.
   Reports release lease-owned cells; silence leaves reservations in place.
+  `peek(id)` returns a copied status for an existing row or nil, without creating
+  workers. AR and map use it. `inRange` also reads without creating rows and uses
+  range 16 for an unknown worker. `status(id)` retains its row-creation behavior.
   `status(id).uncertain` marks an unresolved worker pose; `send` then refuses
   all leases with `pose uncertain`, including recovery parks.
   `dugProtection(protect)` supplies bounds for open leases. It refuses retirement

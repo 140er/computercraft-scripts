@@ -41,7 +41,7 @@ M.gather = function(now)
   for id, row in pairs(workers) do
     local p = row.pose
     if p and M.dim(p.dim or row.dim or mine.dim) == dim then
-      local status = M.call("lease", "status", tonumber(id) or id) or {}
+      local status = M.call("lease", "peek", tonumber(id) or id) or {}
       local range = M.call("lease", "inRange", tonumber(id) or id, p)
       local state, color = tostring(row.state or "idle"), "1"
       if status.lost or status.uncertain or range == false or state == "lost" or state == "range" or state == "out of range"
