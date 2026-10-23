@@ -1264,7 +1264,9 @@ open leases, clock reservation and recent errors. Snapshot age is unknown for
 snapshots saved before this change. Health diagnostics do not change the game
 clock or scheduling. Tick cost uses `os.clock()` and has computer tick precision.
 
-`SO.error(text)` prints and records failures. `so-data/errors` uses generation
+`SO.error(text)` prints and records failures. Bad messages, bad MACs, replays
+and missing reply keys stay in the volatile terminal log. These rejected
+packets cannot evict persistent errors. `so-data/errors` uses generation
 recovery and a bounded ring of at most 128 messages. Each message keeps 2048
 bytes. All three generations together use at most 64 KB. Records save at most
 once per 30 game seconds, so a power loss can discard recent unsaved records.

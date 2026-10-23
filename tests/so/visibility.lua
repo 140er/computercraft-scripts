@@ -81,6 +81,33 @@ return function(test,equal)
     assert(text:find("fixture tick",1,true) and text:find("fixture handler",1,true) and text:find("fixture listener",1,true))
   end)
 
+  test("visibility forged bad-MAC flood preserves earlier handler errors",function()
+    local s=setup(26,20,prepare)
+    local so=s.server.env.SO
+    so.mods.health.handlers["visibility.fail"]=function() error("earlier handler error") end
+    local proto=s.client.env.dofile("so-proto.lua")
+    local msg=proto.build(so.pair.key(2),"visibility.fail",{})
+    s.client.env.rednet.send(1,proto.encode(msg),"so")
+    s.net.flush()
+    local before=so.errors.entries()
+    assert(before[#before].text:find("earlier handler error",1,true))
+    local records,record=0,so.errors.record
+    so.errors.record=function(...)
+      records=records+1
+      return record(...)
+    end
+    local last=msg.mac:sub(-1)
+    msg.mac=msg.mac:sub(1,-2)..(last=="a" and "b" or "a")
+    local forged=proto.encode(msg)
+    for _=1,500 do s.client.env.rednet.send(1,forged,"so") end
+    s.net.flush()
+    assert(not s.server.error,tostring(s.server.error))
+    equal(records,0)
+    equal(so.errors.entries(),before)
+    local log=so.terminal.log
+    assert(log[#log]:find("bad mac from 2",1,true))
+  end)
+
   test("visibility snapshot diagnostics survive restart",function()
     local net=H.new()
     local m=net.machine({id=1,directories=true})

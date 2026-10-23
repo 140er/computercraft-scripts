@@ -178,7 +178,7 @@ S.run = function()
   local function replyTo(msg, t, body, key)
     if not key then key = pair.key(msg.from) end
     if not key then
-      S.error("so-server: no key for " .. tostring(msg.from))
+      print("so-server: no key for " .. tostring(msg.from))
       return
     end
     local out = proto.build(key, t, body, msg.rid)
@@ -223,7 +223,7 @@ S.run = function()
   local function dispatch(sender, payload)
     local msg = proto.decode(payload)
     if not msg or msg.from ~= sender then
-      S.error("so-server: bad message from " .. tostring(sender))
+      print("so-server: bad message from " .. tostring(sender))
       return
     end
     local key
@@ -256,7 +256,7 @@ S.run = function()
       if msg.t == "hello" or msg.t == "beacon" or msg.t == "step.report" then
         rednet.send(sender, { t = "pair.required", from = os.getComputerID() }, "so")
       end
-      S.error("so-server: bad mac from " .. tostring(sender))
+      print("so-server: bad mac from " .. tostring(sender))
       return
     end
     local again, fresh = priorReply(msg)
@@ -265,7 +265,7 @@ S.run = function()
       return
     end
     if not fresh then
-      S.error("so-server: replay from " .. tostring(sender))
+      print("so-server: replay from " .. tostring(sender))
       return
     end
     deliver(msg)
