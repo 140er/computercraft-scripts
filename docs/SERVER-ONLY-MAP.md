@@ -144,6 +144,14 @@ and listeners use `listener(sender, message)`.
 - [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
   `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `branchProgress(job, row)` returns clamped branch distance and length in constant time.
+  Incomplete poses return nil distance; screens show unknown progress as `-`.
+  `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
+  `pocketHeader(canvas, title)` draws MORE and MAP beside the title.
+  `turtle.render(w, h, selection, row, now)` returns a pure detail or pose-editor frame;
+  `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
+  `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
+  Detail BACK uses the bottom-row coordinates without rendering the editor first.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
@@ -157,6 +165,14 @@ and listeners use `listener(sender, message)`.
   See [display](server-only/PROTOCOL.md#display) for the status model.
 
 ### Server modules
+
+Mining and lumber expose `turtleView()`, a read-only table keyed by worker ID.
+Rows carry `role`, `pose`, `anchor`, `state`, `fuel`, `inv`, `done`, `total`,
+`step` and `error`; mining also includes `branch`, `ore` and optional `retry`.
+The step is the pending batch action; workers report only completed batches.
+Mining progress projects the reported world pose onto the branch axis and clamps
+it to the configured length. Lumber progress counts planted spots against known
+spots. These adapters copy state without changing job scheduling.
 
 All modules return `{ name, handlers, tick, ... }`. Call another module only
 from a handler or tick through `SO.mods.<name>`, after checking that the function
@@ -302,6 +318,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
   the legacy status renderer for older partial installations.
+  Mining/lumber rows and map arrows carry `turtle:<id>` targets. A selected turtle
+  opens a session-local detail overlay; BACK restores the source page and map view.
+  Tick gathers module `turtleView()` snapshots, registry last-seen and lease status;
+  rendering reads that cache. Detail actions validate their drawn coordinates.
+  PARK ALL sends mining's existing `stop`; lumber PARK sends its existing `stop`.
+  Mining REMOVE sends `remove <id>` after two taps within five seconds. Lumber has
+  no remove command. Uncertain workers show POSE ? and a coordinate editor; RE-ADD
+  requires two taps after editing and forwards the existing `add` command.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
   `lumber.mapView()`, registry workers, lease range/state and drop points.

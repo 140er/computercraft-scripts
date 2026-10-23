@@ -340,7 +340,7 @@ fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
 Pocket, glance mode  (26x20)
 ```text
                           
- FLEET              21:14 
+ FLEET          MORE  MAP 
                           
                           
   TURTLES                 
@@ -357,13 +357,13 @@ Pocket, glance mode  (26x20)
            🬇🬌             
   ore chest full          
                           
-           MORE           
- <  glance 1/5  >  PANEL  
+                          
+ <    1/5   >      PANEL  
 ```
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 fddddddddddddddddddddddddf
 fddddddddddddddddddddddddf
@@ -380,14 +380,14 @@ feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
-77777777777777777777777777
-77777777777777777777777777
+ffffffffffffffffffffffffff
+7777fffffff7777ff777777777
 ```
 
 Pocket, panel mode  (26x20)
 ```text
                           
- PANEL  MORE        22:14 
+ PANEL 22:14    MORE  MAP 
  MINING   stopped         
                           
    START         STOP     
@@ -410,7 +410,7 @@ Pocket, panel mode  (26x20)
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 999999999999feeeeeeeeeeeee
 999999999999feeeeeeeeeeeee
@@ -443,16 +443,16 @@ Mining, room monitor  (57x24)
      🬍🬋🬃🬄  🬍🬋🬃          🬍🬋🬃🬇🬌  🬉              🬇🬌 🬍🬋🬃     
                                                          
                                                          
-                                                         
   LANE              MIN FUEL            BRANCHES         
         🬞🬓              🬞🬋  🬵 🬖🬋🬏          🬋🬋🬏  🬓🬖🬋🬏     
          ▌              🬛🬋🬏🬳🬷🬏▌ ▌          🬇🬋🬐🬞🬅 🬗🬋🬐     
         🬇🬌              🬈🬋🬀 🬉 🬈🬋🬀          🬋🬋🬀🬄  🬈🬋🬀     
                                                          
-                                                         
  TURTLE  STATE      POS          FUEL  ORE               
  #2      mining     12,60,-9      812   14               
+              -                                          
  #3      wait lane   0,61,-1      640    9               
+              -                                          
                                                          
     START         STOP          SETUP           BACK     
                                                          
@@ -480,7 +480,7 @@ Lumber, room monitor  (57x24)
   felling           ok                                   
                                                          
                                                          
-                                                         
+    #4                   SPOTS 2/4                       
                                                          
     START         STOP          SETUP           BACK     
                                                          
@@ -763,7 +763,7 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
 Panel pairing ready P  (26x20)
 ```text
                           
- PANEL              01:00 
+ PANEL 01:00    MORE  MAP 
  PAIR NEW CLIENT          
                           
                           
@@ -786,7 +786,7 @@ Panel pairing ready P  (26x20)
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -810,7 +810,7 @@ ffffffffffffffffffffffffff
 Panel pairing code P  (26x20)
 ```text
                           
- PANEL              01:00 
+ PANEL 01:00    MORE  MAP 
  PAIR NEW CLIENT          
     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
@@ -833,7 +833,7 @@ Panel pairing code P  (26x20)
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 f999999999999999999999999f
 f999999999999999999999999f

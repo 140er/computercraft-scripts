@@ -180,6 +180,13 @@ M.render = function(w, h, session)
   for _, t in ipairs(s.turtles) do if visible(t.pose) then
     local arrow = ({[0]="^",">","v","<",north="^",east=">",south="v",west="<"})[t.pose.facing or t.pose.f or 0] or "^"
     local x,z = mark(t.pose,arrow,t.color)
+    if x then
+      for i=#c.buttons,1,-1 do
+        local b=c.buttons[i]
+        if b.x==x and b.y==z then table.remove(c.buttons,i) end
+      end
+      c.hit("turtle:"..t.id,x,z,1,1)
+    end
     if x and scale==1 and x+#t.id<=vw then
       local free = true
       for dx=1,#t.id do

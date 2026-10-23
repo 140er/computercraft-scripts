@@ -714,7 +714,9 @@ local function view(session)
 end
 local function input(event)
   if type(event.text) ~= "string" then
-    if event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
+    if event.id == "workers-next" or event.id == "workers-prev" then
+      local v = view(event.session) v.workers = (v.workers or 0)+(event.id == "workers-next" and 1 or -1) return
+    elseif event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
     elseif event.id == "setup-next" then local v=view(event.session) v.offset=(v.offset or 0)+1 return
     elseif type(event.id) == "string" and event.id:match("^here:%d+$") then event = { text = "add " .. event.id:match("%d+$") }
     elseif event.id == "mine-back" then view(event.session).page = "main" return
@@ -838,7 +840,8 @@ local function gather()
     if not m.alert and row.error then m.alert = row.error end
     local p = row.pose or row.anchor or job.home
     m.turtles[#m.turtles + 1] = { id = tonumber(id), state = state, stripe = stripe,
-      pos = p.x .. "," .. p.y .. "," .. p.z, fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0) }
+      pos = U and U.turtle.pose(p):match("^(%S+) ") or "-", fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0),
+      branch = row.branch, done = U and U.branchProgress(job,row), total = job.length }
   end
   table.sort(m.turtles, function(a,b) return a.id < b.id end)
   table.sort(waitIds)
@@ -914,25 +917,38 @@ local function layout(m, w, h, setup, offset)
       for i,t in ipairs(m.tiles) do
         local col = cols[(i-1)%#cols+1]
         local row = math.floor((i-1)/#cols)
-        if row < tileRows then c.tile(col.x,4+row*7,col.w,t[1],t[2],t[3],t[4],6) end
+        if row < tileRows then c.tile(col.x,4+row*6,col.w,t[1],t[2],t[3],t[4],6) end
       end
     else
       for i,t in ipairs(m.tiles) do
-        if i+2 < buttonY then
+        if i+2 < math.min(buttonY, h < 19 and 6 or 9) then
           c.fill(1,i+2,w,1,t[4]); c.put(2,i+2,(t[1] .. " " .. t[2]):sub(1,math.max(0,w-2)))
         end
       end
     end
-    local listY = tall and 4+tileRows*7 or 9
+    local listY = tall and 4+tileRows*6 or h < 19 and 6 or 9
+    local capacity = math.max(1, math.floor((buttonY-listY-1)/2))
+    local pages = math.max(1, math.ceil(#m.turtles/capacity))
+    local page = (m.page or 0) % pages
     if listY < buttonY then
       c.fill(1,listY,w,1,"7"); c.put(2,listY,w < 39 and "TURTLE  POS  STATE" or "TURTLE  STATE      POS          FUEL  ORE")
-      for i,row in ipairs(m.turtles) do
-        if listY+i < buttonY then
+      for i=1,capacity do
+        local row = m.turtles[page*capacity+i]
+        local y = listY+1+(i-1)*2
+        if row and y+1 < buttonY then
           local text = w < 39 and string.format("#%s %s %s",row.id,row.pos,row.state)
             or string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore)
-          c.listRow(listY+i,text,row.stripe)
+          c.listRow(y,text,row.stripe)
+          c.hit("turtle:"..row.id,1,y,w,2)
+          if row.branch ~= nil and row.done == nil then c.put(2,y+1,"-")
+          else U.progress(c,2,y+1,math.min(12,w-2),row.done or 0,row.total or 0,row.stripe) end
+          c.put(15,y+1,row.branch ~= nil and ("B"..row.branch.." "..(row.done or "-").."/"..(row.total or 0)) or "-")
         end
       end
+    end
+    if pages > 1 then
+      c.button(w-9,listY,4,"<","workers-prev","7",1)
+      c.button(w-4,listY,4,">","workers-next","7",1)
     end
     local buttons = {{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"},{"BACK","status","7"}}
     local available, x = math.max(0,w-3), 1
@@ -959,7 +975,8 @@ local function layout(m, w, h, setup, offset)
 end
 local function render(w,h,session)
   if not U then return legacyRender(w) end
-  return layout(gather(),w or 57,h or 24,view(session).page == "setup",view(session).offset)
+  local m = gather() m.page = view(session).workers
+  return layout(m,w or 57,h or 24,view(session).page == "setup",view(session).offset)
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do
@@ -995,7 +1012,18 @@ local function mapView()
   end
   return view
 end
-return {name="mine",assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+local function turtleView()
+  local out = {}
+  for id,row in pairs(job.turtles) do
+    local done,total = U and U.branchProgress(job,row), job.length
+    out[id] = {role="mining", pose=SO.store.copy(row.pose), state=row.state, fuel=row.fuel,
+      inv=SO.store.copy(row.inv or {}), branch=row.branch, done=done, total=total,
+      step=S.pending[tonumber(id)] and S.pending[tonumber(id)].kind, error=row.error or S.error, retry=row.dropRetry and row.dropRetry.after,
+      ore=row.ores, anchor=SO.store.copy(row.anchor)}
+  end
+  return out
+end
+return {name="mine",assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},turtleView=turtleView,mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end

@@ -1,0 +1,25 @@
+29x12 Turtle detail
+                             
+ #2                          
+ mining                      
+ POS 12,60,-5 E              
+ FUEL 42  INV 1/16           
+ LEASE lease-2               
+ STEP forward  ORE 14        
+ SEEN 3s                     
+              B0 12/48       
+                             
+   PARK ALL        REMOVE    
+            BACK             
+fffffffffffffffffffffffffffff
+f777777777777777777777777777f
+ddddddddddddddddddddddddddddd
+77777777777777777777777777777
+11111111111111111111111111111
+77777777777777777777777777777
+77777777777777777777777777777
+77777777777777777777777777777
+fbbbcccccccccffffffffffffffff
+fffffffffffffffffffffffffffff
+11111111111111f77777777777777
+77777777777777777777777777777

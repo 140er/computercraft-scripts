@@ -125,12 +125,12 @@ return function(test,equal)
       local text=out.picture().text
       for _,y in ipairs({5,13}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
       for _,button in ipairs(s.frame(2).buttons) do if button.id=='pair' then seen.PAIR=true end end
-      assert(text[20]:find('glance '..page..'/5',1,true));s.tap(2,'next')
+      assert(text[20]:find(page..'/5',1,true));s.tap(2,'next')
     end
     for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS','PAIR'}) do assert(seen[label],label) end
-    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/5',1,true))
-    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 5/5',1,true))
-    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/5',1,true))
+    assert(capture(s.frame(2),26,20).picture().text[20]:find('1/5',1,true))
+    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('5/5',1,true))
+    assert(capture(s.frame(3),26,20).picture().text[20]:find('1/5',1,true))
   end)
   test('UI3b status PAIR opens the panel pair page through its drawn button',function()
     for _,size in ipairs({{26,20},{29,12},{57,24},{15,10},{100,38}}) do

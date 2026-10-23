@@ -281,6 +281,18 @@ worker's lane and reservations. Other open leases must finish first. `stop` allo
 an already sent batch to finish. The screen shows worker state, pose, fuel, ore
 count and errors.
 
+Tap a worker row or a turtle arrow on the map to open its detail page. It shows
+pose, fuel, inventory, lease, pending step, ore, last seen, branch progress and
+errors. BACK returns to the same page. Mining rows show branch progress bars;
+lumber shows planted spots against known spots. The pocket header has MAP and
+MORE, with paging and PANEL in one footer row.
+
+PARK ALL stops the mining job after its current batches; lumber PARK stops the
+lumber job. Mining REMOVE needs two taps within five seconds and follows the
+same lease checks as the command. Lumber has no remove command. An uncertain
+pose appears as POSE ?. RE-ADD opens a coordinate and facing editor; confirm the
+worker's actual position there, then press RE-ADD twice to submit it.
+
 ## Lumber
 
 Open the `lumber` screen and submit these commands:

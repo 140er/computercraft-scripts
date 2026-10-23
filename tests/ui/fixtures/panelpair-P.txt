@@ -1,6 +1,6 @@
 26x20 Panel pairing ready P
                           
- PANEL              01:00 
+ PANEL 01:00    MORE  MAP 
  PAIR NEW CLIENT          
                           
                           
@@ -20,7 +20,7 @@
                           
            BACK           
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
