@@ -1,0 +1,73 @@
+57x24 Map, room monitor, Y-58 at 1x1, lost #6 tapped
+ MAP  FIT   -   +    ◄   ▲   ▼   ►         ▼ Y-58  ▲  ↑N 
+             3 wait                                      
+9-----------►··········································  
+                                                         
+                                                         
+                               2                         
+8-----------------------------►························  
+                                                         
+                                                         
+                                                         
+7-----------------------------------------------------►  
+                                                      |  
+                    ·              +------------------+  
+                    ··             | #6 lost    3 min |  
+6----------------------------------| 184,-58,-369     |  
+                                   | fuel ······· 412 |  
+                                   | ore ········· 22 |  
+                                   | lease ·· expired |  
+5----------------------------------+------------------+  
+                                        ·                
+                                        ··               
+                                        ·                
+4------------------------------------------------------  
+                                                         
+000000000000000000000000000000000000000000000000000000880
+000000000000011111100000000000000000000000000000000000000
+8333333333331bb888888888888888888888888888888888888888800
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000d0000000000000000000000000
+833333333333333333333333333333dbbb88888888888888888888800
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+833333333333333333333333333333333333333333333333333333f00
+000000000000000000000000000000000000000000000000000000e00
+00000000000000000000300000000000000eeeeeeeeeeeeeeeeeeee00
+00000000000000000000330000000000000e0000eeee0000888880e00
+83333333333333333333333333333333333e088888888888800000e00
+00000000000000000000000000000000000e088880ccccccc01110e00
+00000000000000000000000000000000000e08880ccccccccc0000e00
+00000000000000000000000000000000000e0888880cc0eeeeeee0e00
+83333333333333333333333333333333333eeeeeeeeeeeeeeeeeeee00
+000000000000000000000000000000000000000030000000000000000
+000000000000000000000000000000000000000033000000000000000
+000000000000000000000000000000000000000030000000000000000
+833333333333333333333333333333333333333333333333333333300
+000000000000000000000000000000000000000000000000000000000
+fffff77777f777f777ff777f777f777f777fffffff777fffff777ffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffeff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

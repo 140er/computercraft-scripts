@@ -1,41 +1,61 @@
-26x20 Map, all levels 26x20
-                          
- MAP      ORE 117,64,-337 
-                          
+26x20 Map, pocket 26x20
+ MAP  FIT   ▼  ALL  ▲  ↑N 
                           
                           
                           
-        🬡🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇  
-        🬇🬰🬰🬰3>🬋🬯🬯2>🬠🬠🬠🬠🬠  
-        🬠🬋🬋🬋🬋🬋🬋🬩🬋🬋🬋🬋🬋🬋🬋6> 
-        🬇🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬐 
-        🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬍🬋🬋🬋🬃 
-  🬞🬵🬭S  v4🬰🬰🬴🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬰🬐 
-  5>🬭W  🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬎🬋🬋🬋🬋🬃 
-  🬹🬹🬹🬹@OH<7               
+      ¦···3······         
+      +--►···2···         
+      +-----►····6        
+      +---------►         
+      +----------         
+      +----------         
+      +----------         
+ 5♠♠+4▼----------         
+  ►♣• +----------         
+  ♣♠• +----------         
+  +-+-º-                  
+    @••                   
+     server               
                           
                           
-                          
-                          
- <    ^   v    >   -    + 
- FIT    DN    ALL     UP  
+  ◄   ▲   ▼   ►    -   +  
+00000fffff0000000000000880
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+000000b8881888888000000000
+000000b331b88d888000000000
+000000b33333db888e00000000
+000000b333333333e000000000
+000000b3333333333000000000
+000000b3333333333000000000
+000000b3333333333000000000
+0dddcdd3333333333000000000
+00d800b3333333333000000000
+008d00b3333333333000000000
+00ccc393000000000000000000
+00009000000000000000000000
+00000888888000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+fffff99999f777fffff777ffff
 ffffffffffffffffffffffffff
-f777777777777777777777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffbfffffffffffffffff
-ffffffffbfffdd1ffddfffffff
-ffffffffbffffffffffffffbbf
-ffffffffbfffffffffffffffff
-ffffffffbfffffffffffffffff
-ffdddaffddffffffffffffffff
-ffdddaffbfffffffffffffffff
-ffdddd9a911fffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-7777f777f7777f777f7777f777
-999999f7777fbbbbbbbbf77777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777f777f777f777ff777f777f

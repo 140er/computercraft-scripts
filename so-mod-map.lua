@@ -1,32 +1,24 @@
 local U = dofile("so-ui.lua")
--- Top-down map. Terrain is drawn in sextant pixels (2x3 per character, one
--- block per pixel at zoom 0); markers take whole characters on top.
-local M = { planes = {}, keys = {}, columns = {}, layouts = {}, serial = 0, budget = 16, cursor = 1, ticks = 0,
-  version = 0, marks = 0, swept = 0,
+-- Top-down map in route A (docs/ui/SCHEMATIC-SPEC.md section 10). North is up at every size: x grows
+-- to the right and z downwards. A text cell covers sx by sz blocks and takes a line glyph from the
+-- dug, planned and held blocks inside it; the axis the branches step along snaps to the branch gap.
+-- docs/ui/schematic/mapdraw.py and mapscreen.py are the twins that make the fixtures.
+local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial = 0, budget = 16, cursor = 1, ticks = 0,
+  version = 0, marks = 0, swept = 0, margin = 7, off = 2 ^ 25, row = 2 ^ 26, heavy = 15000,
   dirs = {[0]={0,-1},{1,0},{0,1},{-1,0}},
+  facings = {[0]=0,1,2,3,north=0,east=1,south=2,west=3},
   dimensions = {[0]="minecraft:overworld",[-1]="minecraft:the_nether",[1]="minecraft:the_end"},
-  -- Terrain classes, lowest priority first. A character takes the colour of
-  -- its highest class; every lit pixel uses that colour on the black ground.
-  colour = {"0","0","d","1","d","b","1"},
-  names = {"PLANNED","DUG","FARM","SAPLING","TREE","LANE","HELD"},
-  letters = {ore="O",fuel="F",junk="J",wood="W",storage="C",any="A",saplings="S"},
-  arrows = {[0]="^",">","v","<",north="^",east=">",south="v",west="<"},
-  labels = {["map-fit"]="FIT",["map-in"]="+",["map-out"]="-",["map-n"]="^",["map-s"]="v",
-    ["map-w"]="<",["map-e"]=">",["map-up"]="UP",["map-down"]="DN"},
+  phases = {scan="scanning",base="felling",climb="felling",descend="felling",plant="planting",plantPlace="planting"},
+  -- Cells per text cell: any step on a free axis, divisors and multiples of the gap on the branch axis.
+  free = {1,2,3,4,6,8,12,16,24,32,48,64}, snap = {1,2,4,8,16,32,64},
   pan = {["map-n"]={0,-1},["map-e"]={1,0},["map-s"]={0,1},["map-w"]={-1,0}},
-  hex = {}, bitsOf = {} }
+  prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
+  drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
+  compass = "\24N", hex = {}, bitsOf = {} }
 for i = 0, 15 do
   M.hex[("0123456789abcdef"):byte(i + 1)] = i
   M.bitsOf[i] = {}
   for b = 0, 3 do if math.floor(i / 2 ^ b) % 2 == 1 then M.bitsOf[i][#M.bitsOf[i] + 1] = b end end
-end
-
-do
-  local probe = U.canvas(15,3)
-  probe.header("MAP", "")
-  for y,row in ipairs(probe.frame().rows) do
-    if row.text:find("MAP",1,true) then M.headerRow=y break end
-  end
 end
 
 M.call = function(name, method, ...)
@@ -50,6 +42,17 @@ M.lane = function(g, c)
   return c.y == g.bottom and ax * g.dz - az * g.dx == 0 and along >= 0 and along <= g.spine
 end
 M.surface = function(s) return s.server and s.server.y or s.ground or s.g and s.g.top or 64 end
+-- "z" when the spine runs north-south (branches are rows), "x" when east-west.
+M.axis = function(g) return g and (g.dz ~= 0 and "z" or "x") or nil end
+M.phase = function(g) return M.axis(g) == "z" and g.z + g.dz * g.gap or g.x + g.dx * g.gap end
+M.onGeo = function(g, x, z)
+  local ax, az = x - g.x, z - g.z
+  local along, side = ax * g.dx + az * g.dz, ax * g.rx + az * g.rz
+  if side == 0 and along >= 0 and along <= g.spine then return true end
+  return along >= g.gap and along <= g.spine and along % g.gap == 0 and side >= 1 and side <= g.length
+end
+M.farmOn = function(s, level) return s.area ~= nil and (level == "all" or level >= s.ground and level <= s.ground + 8) end
+M.near = function(p, level) return level == "all" or math.abs((p.y or level) - level) <= 1 end
 
 M.gather = function(now)
   if not M.config or now >= (M.configAt or 0)+5000 then
@@ -60,46 +63,53 @@ M.gather = function(now)
   local lumber = M.call("lumber", "mapView") or {}
   local dim = M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
   local s = {dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}}
-  if config.pos and M.dim(config.pos.dim) == dim then s.server = config.pos end
-  if lumber.area and M.dim(lumber.dim) == dim then s.area, s.ground, s.spots = lumber.area, lumber.ground or 64, lumber.spots or {} end
-  local workers = {}
-  for id, row in pairs(M.call("state", "get", "machines") or {}) do
-    if row.role == nil or row.role == "worker" or row.role == "turtle" then workers[tostring(id)] = row end
+  local pos = config.pos
+  if type(pos) == "table" and tonumber(pos.x) and tonumber(pos.z) and M.dim(pos.dim) == dim then s.server = pos end
+  if lumber.area and M.dim(lumber.dim) == dim then
+    local a = lumber.area
+    s.area = {x1=math.min(a.x1, a.x2), z1=math.min(a.z1, a.z2), x2=math.max(a.x1, a.x2), z2=math.max(a.z1, a.z2)}
+    s.ground, s.spots = lumber.ground or 64, {}
+    for _, spot in ipairs(lumber.spots or {}) do
+      if tonumber(spot.x) and tonumber(spot.z) then s.spots[#s.spots+1] = spot end
+    end
   end
-  for id, row in pairs(mine.turtles or {}) do
-    local previous = workers[tostring(id)]
-    row.seen = previous and previous.seen
-    workers[tostring(id)] = row
+  local jobs, machines = {}, M.call("state", "get", "machines") or {}
+  for id, machine in pairs(machines) do
+    if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then jobs[tostring(id)] = {} end
   end
+  for id, row in pairs(mine.turtles or {}) do jobs[tostring(id)] = row end
   if lumber.turtle then
-    local previous = workers[tostring(lumber.turtle.id)]
-    lumber.turtle.seen = previous and previous.seen
-    workers[tostring(lumber.turtle.id)] = lumber.turtle
+    local row = lumber.turtle
+    jobs[tostring(row.id)] = {pose=row.pose, state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
   end
-  for id, row in pairs(workers) do
-    local p = row.pose
-    if p and M.dim(p.dim or row.dim or mine.dim) == dim then
+  for id, row in pairs(jobs) do
+    local machine = machines[id] or machines[tonumber(id)] or {}
+    local p = row.pose or machine.pose
+    if type(p) == "table" and tonumber(p.x) and tonumber(p.z) and M.dim(p.dim or row.dim or mine.dim) == dim then
       local status = M.call("lease", "status", tonumber(id) or id) or {}
-      local range = M.call("lease", "inRange", tonumber(id) or id, p)
-      local state, color = tostring(row.state or "idle"), "1"
-      if status.lost or status.uncertain or range == false or state == "lost" or state == "range" or state == "out of range"
-          or row.seen and now-row.seen >= 120000 then color = "e"
-      elseif state == "done" then color = "b"
-      elseif state == "mining" or state == "working" or state == "lumber" or status.open and state ~= "stopped" and state ~= "idle" then color = "d" end
-      s.turtles[#s.turtles+1] = {id=id, pose=p, color=color, label=status.lost and "LOST" or state:upper()}
+      local word = tostring(row.state or "idle")
+      if status.lost then word = "lost"
+      elseif M.call("lease", "inRange", tonumber(id) or id, p) == false then word = "range" end
+      s.turtles[#s.turtles+1] = {id=tostring(id), pose=p, facing=M.facings[p.facing or p.f], word=word, tone=U.tone(word),
+        fuel=machine.fuel, ore=row.ores, ago=math.max(0, now - (machine.seen or now)),
+        lease=status.lost and "expired" or status.open and "open" or "-"}
     end
   end
   table.sort(s.turtles, function(a, b)
     local x, y = tonumber(a.id), tonumber(b.id)
     if x and y and x ~= y then return x < y end
     if (x == nil) ~= (y == nil) then return x ~= nil end
-    return tostring(a.id) < tostring(b.id)
+    return a.id < b.id
   end)
-  for _, p in ipairs(M.call("drops", "list") or {}) do
-    if M.dim(p.dim) == dim then s.drops[#s.drops+1] = p end
+  for i, p in ipairs(M.call("drops", "list") or {}) do
+    if M.dim(p.dim) == dim and tonumber(p.x) and tonumber(p.z) then
+      s.drops[#s.drops+1] = {id=tostring(p.id or i), kind=tostring(p.kind or "drop"), x=p.x, y=p.y, z=p.z, broken=p.broken and true or false}
+    end
   end
-  if lumber.saplings and M.dim(lumber.dim) == dim then
-    local p = SO.store.copy(lumber.saplings) p.kind = "saplings" s.drops[#s.drops+1] = p
+  local sap = lumber.saplings
+  if type(sap) == "table" and tonumber(sap.x) and tonumber(sap.z) and M.dim(lumber.dim) == dim then
+    local p = sap
+    s.drops[#s.drops+1] = {id="saplings", kind="saplings", x=p.x, y=p.y, z=p.z, broken=false}
   end
   local reserved, version = M.call("cells", "reserved", dim, 4096)
   s.reserved = reserved or {}
@@ -111,9 +121,10 @@ M.gather = function(now)
     for _, spot in ipairs(s.spots) do terrain[#terrain+1] = spot.x .. "," .. spot.z .. (spot.ready and "r" or "") end
   end
   for _, t in ipairs(s.turtles) do
-    markers[#markers+1] = table.concat({t.id, t.pose.x, t.pose.y, t.pose.z, tostring(t.pose.facing), t.color, t.label}, ",")
+    markers[#markers+1] = table.concat({t.id, t.pose.x, t.pose.y, t.pose.z, tostring(t.facing), t.word,
+      tostring(t.fuel), tostring(t.ore), U.age(t.ago, true), t.lease}, ",")
   end
-  for _, p in ipairs(s.drops) do markers[#markers+1] = table.concat({p.kind or "", p.x, p.y, p.z, tostring(p.broken)}, ",") end
+  for _, p in ipairs(s.drops) do markers[#markers+1] = table.concat({p.id, p.kind, p.x, p.y, p.z, tostring(p.broken)}, ",") end
   if s.server then markers[#markers+1] = s.server.x .. "," .. s.server.y .. "," .. s.server.z end
   s.terrain, s.markers = table.concat(terrain, ";"), table.concat(markers, ";")
   M.version, M.newMarks = M.call("cells", "dugVersion")
@@ -125,60 +136,35 @@ M.view = function(session)
   local v = session.map or {fit=true}
   session.map = v
   if type(v.level) ~= "number" then v.level = "all" end
-  v.zoom, v.cx, v.cz = tonumber(v.zoom) or 0, tonumber(v.cx) or 0, tonumber(v.cz) or 0
+  v.cx, v.cz = tonumber(v.cx) or 0, tonumber(v.cz) or 0
+  -- Views saved before route A carry a zoom and no scale: they fit again.
+  if not (tonumber(v.sx) and tonumber(v.sz)) then v.fit = true end
   return v
 end
 
--- Buttons in one row, widths proportional to their weights, one column apart.
-M.row = function(L, y, w, ids, weights)
-  local total, acc = 0, 0
-  for _, n in ipairs(weights) do total = total + n end
-  local free = w - (#ids - 1)
-  for i, id in ipairs(ids) do
-    local a = math.floor(acc * free / total + 0.5)
-    acc = acc + weights[i]
-    L.buttons[#L.buttons+1] = {id=id, x=1+a+i-1, y=y, w=math.floor(acc * free / total + 0.5)-a, h=1}
-  end
-end
-M.layout = function(w, h)
-  local key = w .. "x" .. h
+-- Sizes: wall (80x30 and up) with a roster strip, room (52 wide) with every control on top, pocket
+-- (25 wide) with pan and zoom on the last row, tiny with them on the last two rows.
+M.layout = function(w, h, n)
+  local key = w .. "x" .. h .. ":" .. n
   if M.layouts[key] then return M.layouts[key] end
-  local top = M.headerRow + 1
-  local rows = h - top + 1
-  local L = {my=top, mx=1, buttons={}}
-  local function add(id, x, y, width, height) L.buttons[#L.buttons+1] = {id=id, x=x, y=y, w=width, h=height} end
-  if w >= 29 and rows >= 8 and w * 6 >= h * 9 then
-    -- Landscape: a control rail on the right, the map uses everything else.
-    local rw = w >= 90 and 15 or 9
-    local rx, bh = w - rw, rows >= 29 and 3 or 1
-    local all = rows >= 8 * bh + 5
-    local some, third, half = all or rows >= 8 * bh + 2, rw / 3, math.floor((rw - 1) / 2)
-    local y = top
-    L.mw, L.mh = rx - 2, rows
-    add("map-fit", rx, y, rw, bh) y = y + bh + (all and 1 or 0)
-    add("map-out", rx, y, half, bh) add("map-in", rx + rw - half, y, half, bh) y = y + bh + (some and 1 or 0)
-    add("map-n", rx + third, y, third, bh) add("map-w", rx, y + bh, third, bh)
-    add("map-e", rx + 2 * third, y + bh, third, bh) add("map-s", rx + third, y + 2 * bh, third, bh)
-    y = y + 3 * bh + (some and 1 or 0)
-    add("map-up", rx, y, rw, bh) y = y + bh + (all and 1 or 0)
-    add("map-level", rx, y, rw, bh) y = y + bh + (all and 1 or 0)
-    add("map-down", rx, y, rw, bh)
+  local kind = w >= 80 and h >= 30 and "wall" or w >= 52 and "room" or w >= 25 and "pocket" or "tiny"
+  local L = {kind=kind, mx=1, my=2, mw=w}
+  if kind == "room" then L.mh = h - 1
+  elseif kind == "pocket" then L.mh = h - 2
+  elseif kind == "tiny" then L.mh = h - 3
   else
-    -- Portrait and small screens: two control rows under the map.
-    L.mw, L.mh = w, math.max(1, h - top - 1)
-    if w >= 23 then
-      M.row(L, h - 1, w, {"map-w","map-n","map-s","map-e","map-out","map-in"}, {3,3,3,3,3,3})
-      M.row(L, h, w, {"map-fit","map-down","map-level","map-up"}, {5,4,7,4})
-    else
-      M.row(L, h - 1, w, {"map-w","map-n","map-s","map-e"}, {3,3,3,3})
-      M.row(L, h, w, {"map-out","map-fit","map-in","map-level"}, {3,5,3,7})
-    end
+    local cols = math.floor((w - 32) / 33) + 1
+    local lines = math.min(4, math.ceil(n / cols))
+    local rows = 2 * lines
+    L.my, L.mh = 3, h - 2 - (rows > 0 and rows + 1 or 0)
+    if rows > 0 then L.roster = {y=h - rows + 1, cols=cols, lines=lines} end
   end
+  L.mh = math.max(1, L.mh)
   M.layouts[key] = L
   return L
 end
 
-M.bounds = function(s)
+M.bounds = function(s, level)
   local b
   local function add(x, z)
     if not b then b = {x, z, x, z} return end
@@ -188,28 +174,63 @@ M.bounds = function(s)
   if g then
     add(g.x, g.z)
     if g.branches > 0 then
-      add(g.x + g.dx * g.spine, g.z + g.dz * g.spine)
-      add(g.x + g.dx * g.gap + g.rx * g.length, g.z + g.dz * g.gap + g.rz * g.length)
-      add(g.x + g.dx * g.spine + g.rx * g.length, g.z + g.dz * g.spine + g.rz * g.length)
+      for _, p in ipairs({{g.spine, 0}, {g.gap, g.length}, {g.spine, g.length}}) do
+        add(g.x + g.dx * p[1] + g.rx * p[2], g.z + g.dz * p[1] + g.rz * p[2])
+      end
     end
   end
-  if s.area then add(s.area.x1, s.area.z1) add(s.area.x2, s.area.z2) end
-  if s.server then add(s.server.x, s.server.z) end
-  for _, p in ipairs(s.drops) do add(p.x, p.z) end
-  for _, t in ipairs(s.turtles) do add(t.pose.x, t.pose.z) end
+  if M.farmOn(s, level) then add(s.area.x1, s.area.z1) add(s.area.x2, s.area.z2) end
+  for _, p in ipairs(s.drops) do if M.near(p, level) then add(p.x, p.z) end end
+  if s.server and M.near(s.server, level) then add(s.server.x, s.server.z) end
+  for _, t in ipairs(s.turtles) do if M.near(t.pose, level) then add(t.pose.x, t.pose.z) end end
   return b
 end
-M.fit = function(v, s, pw, ph)
-  local b = M.bounds(s)
-  if not b then v.zoom, v.cx, v.cz = 0, 0, 0 return end
-  local zoom = -1
-  while zoom < 8 and ((b[3] - b[1] + 1) / 2 ^ zoom > pw - 2 or (b[4] - b[2] + 1) / 2 ^ zoom > ph - 2) do zoom = zoom + 1 end
-  v.zoom, v.cx, v.cz = zoom, math.floor((b[1] + b[3]) / 2), math.floor((b[2] + b[4]) / 2)
+-- The first scale on the ladder that fits lo..hi in room cells; the start snaps to ph.
+M.span = function(lo, hi, room, ladder, ph)
+  local s, start
+  for _, step in ipairs(ladder) do
+    s, start = step, ph and lo - (lo - ph) % step or lo
+    if math.floor((hi - start) / s) + 1 <= room then break end
+  end
+  return s, start, math.floor((hi - start) / s) + 1
+end
+M.fit = function(v, s, valign)
+  local b = M.bounds(s, v.level)
+  if not b then v.sx, v.sz, v.left, v.top, v.cx, v.cz = 1, 1, -math.floor(v.mw / 2), -math.floor(v.mh / 2), 0, 0 return end
+  local axis = M.axis(s.g)
+  local ph = axis and M.phase(s.g)
+  local sx, left, cols = M.span(b[1], b[3], v.mw - 8, axis == "x" and M.snap or M.free, axis == "x" and ph or nil)
+  local sz, top, rows = M.span(b[2], b[4], v.mh, axis == "z" and M.snap or M.free, axis == "z" and ph or nil)
+  v.sx, v.sz = sx, sz
+  -- Labels sit mostly east of things, so the scene starts a little left of centre.
+  v.left = left - math.max(1, math.floor((v.mw - cols) / 2) - 3) * sx
+  v.top = top - (valign == "top" and 0 or math.max(0, math.floor((v.mh - rows) / 2))) * sz
+  v.cx, v.cz = v.left + math.floor(v.mw * sx / 2), v.top + math.floor(v.mh * sz / 2)
+end
+M.frame = function(v, s)
+  v.left, v.top = v.cx - math.floor(v.mw * v.sx / 2), v.cz - math.floor(v.mh * v.sz / 2)
+  local axis = M.axis(s.g)
+  -- A branch lands on the first block row (or column) of its cell.
+  if axis == "z" then v.top = v.top - (v.top - M.phase(s.g)) % v.sz
+  elseif axis == "x" then v.left = v.left - (v.left - M.phase(s.g)) % v.sx end
+end
+M.place = function(v, s, valign)
+  v.axis = M.axis(s.g)
+  if not v.fit then return M.frame(v, s) end
+  M.fit(v, s, valign)
+  -- A fitted view too heavy for one frame steps out (see M.render).
+  if (v.extra or 0) > 0 then
+    for _ = 1, v.extra do
+      v.sx = M.step(v.sx, v.axis == "x" and M.snap or M.free, 1)
+      v.sz = M.step(v.sz, v.axis == "z" and M.snap or M.free, 1)
+    end
+    M.frame(v, s)
+  end
 end
 M.cellOf = function(v, x, z)
-  local px, pz = math.floor((x - v.left) / v.scale), math.floor((z - v.top) / v.scale)
-  if px < 0 or pz < 0 or px >= v.pw or pz >= v.ph then return end
-  return math.floor(px / 2), math.floor(pz / 3)
+  local cx, cy = math.floor((x - v.left) / v.sx), math.floor((z - v.top) / v.sz)
+  if cx < 0 or cy < 0 or cx >= v.mw or cy >= v.mh then return end
+  return cx, cy
 end
 
 -- Dug planes: one 16x16 column of a section (one level, or every level
@@ -248,9 +269,12 @@ M.build = function(key, dim, col, sys, level)
   M.planes[key], M.serial = entry, M.serial + 1
   return entry
 end
+-- The view plus the margin, in blocks.
+M.rect = function(v)
+  return v.left - M.margin, v.top - M.margin, v.left + v.mw * v.sx - 1 + M.margin, v.top + v.mh * v.sz - 1 + M.margin
+end
 M.planesFor = function(v, s)
-  local x1, z1 = v.left, v.top
-  local x2, z2 = x1 + math.ceil(v.pw * v.scale) - 1, z1 + math.ceil(v.ph * v.scale) - 1
+  local x1, z1, x2, z2 = M.rect(v)
   local box = table.concat({s.dim, math.floor(x1 / 16), math.floor(z1 / 16), math.floor(x2 / 16), math.floor(z2 / 16), M.version}, ":")
   if v.colsKey ~= box then
     v.cols = M.call("cells", "dugColumns", s.dim, math.floor(x1 / 16), math.floor(z1 / 16),
@@ -305,7 +329,7 @@ M.revalidate = function()
   if M.newMarks ~= M.marks then
     M.marks, M.swept = M.newMarks, 0
     for _, t in ipairs(M.scene and M.scene.turtles or {}) do
-      local d = M.dirs[tonumber(t.pose.facing) or 0] or M.dirs[0]
+      local d = M.dirs[t.facing or 0]
       for _, p in ipairs({{t.pose.x, t.pose.z}, {t.pose.x + d[1], t.pose.z + d[2]}}) do
         for key in pairs(M.columns[M.scene.dim .. ":" .. math.floor(p[1] / 16) .. ":" .. math.floor(p[2] / 16)] or {}) do
           M.check(M.planes[key])
@@ -330,225 +354,615 @@ M.revalidate = function()
   end
 end
 
-M.raster = function(v, s, planes)
-  local r, pw, ph, scale, left, top, level = {}, v.pw, v.ph, v.scale, v.left, v.top, v.level
-  local n, all, g, area = scale < 1 and math.floor(1 / scale + 0.5) or 1, level == "all", s.g, s.area
-  local function put(px, pz, cls)
-    -- Planned passages are dotted, one dot per pixel or per zoomed-in block.
-    if px >= 0 and px < pw and pz >= 0 and pz < ph and (cls ~= 1 or (math.floor(px / n) + math.floor(pz / n)) % 2 == 0) then
-      local k = pz * pw + px + 1
-      if (r[k] or 0) < cls then r[k] = cls end
+-- Block keys: x and z packed into one number, so neighbours are key +- 1 and +- M.row.
+M.key = function(x, z) return (x + M.off) * M.row + z + M.off end
+M.unkey = function(k)
+  local kx = math.floor(k / M.row)
+  return kx - M.off, k - kx * M.row - M.off
+end
+M.has = function(bits, bit) return bits % (2 * bit) >= bit end
+-- k with lo <= base + step * k <= hi, inside kmin..kmax; step is -1, 0 or 1.
+M.clip = function(base, step, lo, hi, kmin, kmax)
+  if step == 0 then
+    if base < lo or base > hi then return 1, 0 end
+    return kmin, kmax
+  end
+  local a, b = (lo - base) / step, (hi - base) / step
+  if a > b then a, b = b, a end
+  return math.max(kmin, math.ceil(a)), math.min(kmax, math.floor(b))
+end
+-- Blocks in the view and its margin: key -> 1 planned, 2 dug, 4 held.
+M.blocks = function(v, s, planes)
+  local x1, z1, x2, z2 = M.rect(v)
+  local cls, level, g, a = {}, v.level, s.g, s.area
+  local function add(x, z, bit)
+    if x >= x1 and x <= x2 and z >= z1 and z <= z2 then
+      local k = M.key(x, z)
+      local old = cls[k] or 0
+      if not M.has(old, bit) then cls[k] = old + bit end
     end
   end
-  local function block(x, z, cls)
-    local px, pz = math.floor((x - left) / scale), math.floor((z - top) / scale)
-    for i = 0, n - 1 do for j = 0, n - 1 do put(px + i, pz + j, cls) end end
-  end
-  -- An axis-aligned run of blocks, clipped to the view in pixel space.
-  local function line(x1, z1, x2, z2, cls)
-    for px = math.max(0, math.floor((math.min(x1, x2) - left) / scale)),
-        math.min(pw - 1, math.floor((math.max(x1, x2) - left) / scale) + n - 1) do
-      for pz = math.max(0, math.floor((math.min(z1, z2) - top) / scale)),
-          math.min(ph - 1, math.floor((math.max(z1, z2) - top) / scale) + n - 1) do put(px, pz, cls) end
-    end
-  end
-  if g and (all or level == g.bottom) then
-    if g.spine > 0 then line(g.x + g.dx, g.z + g.dz, g.x + g.dx * g.spine, g.z + g.dz * g.spine, 1) end
-    for k = 1, g.branches do
-      local x, z = g.x + g.dx * k * g.gap, g.z + g.dz * k * g.gap
-      line(x + g.rx, z + g.rz, x + g.rx * g.length, z + g.rz * g.length, 1)
-    end
-  end
-  local farm = area and (all or level >= s.ground and level <= s.ground + 8)
-  local ax1, ax2, az1, az2
-  if farm then
-    ax1, ax2, az1, az2 = math.min(area.x1, area.x2), math.max(area.x1, area.x2), math.min(area.z1, area.z2), math.max(area.z1, area.z2)
-    line(ax1, az1, ax2, az1, 3) line(ax1, az2, ax2, az2, 3) line(ax1, az1, ax1, az2, 3) line(ax2, az1, ax2, az2, 3)
-    for _, spot in ipairs(s.spots) do block(spot.x, spot.z, spot.ready and 5 or 4) end
-  end
+  local farm = M.farmOn(s, level)
   for _, entry in ipairs(planes) do
     local c = entry.cells
     for i = 1, #c, 2 do
       -- Farm travel marks are not tunnels; the farm draws as a farm.
-      if not (farm and c[i] >= ax1 and c[i] <= ax2 and c[i+1] >= az1 and c[i+1] <= az2) then block(c[i], c[i+1], 2) end
+      if not (farm and c[i] >= a.x1 and c[i] <= a.x2 and c[i+1] >= a.z1 and c[i+1] <= a.z2) then add(c[i], c[i+1], 2) end
+    end
+  end
+  if g and (level == "all" or level == g.bottom) then
+    -- Cells four or more blocks long along a line get only its first two blocks per cell:
+    -- the glyph is the same and the work stays per cell, not per block.
+    local function line(bx, bz, ux, uz, n)
+      local k1, k2 = M.clip(bx, ux, x1, x2, 1, n)
+      local k3, k4 = M.clip(bz, uz, z1, z2, 1, n)
+      local size, base, o, u = ux ~= 0 and v.sx or v.sz, ux ~= 0 and bx or bz, ux ~= 0 and v.left or v.top, ux + uz
+      local k = math.max(k1, k3)
+      while k <= math.min(k2, k4) do
+        local offset = (base + u * k - o) % size
+        if size < 4 or offset < 2 then add(bx + ux * k, bz + uz * k, 1) k = k + 1
+        else k = k + (u > 0 and size - offset or offset - 1) end
+      end
+    end
+    line(g.x, g.z, g.dx, g.dz, g.spine)
+    -- Branches that share a cell row (or column) with an earlier branch add nothing new.
+    local snap, origin = v.axis == "z" and v.sz or v.sx, v.axis == "z" and v.top or v.left
+    local b1, b2 = M.clip(v.axis == "z" and g.z or g.x, (v.axis == "z" and g.dz or g.dx) * g.gap,
+      v.axis == "z" and z1 or x1, v.axis == "z" and z2 or x2, 1, g.branches)
+    for b = b1, b2 do
+      local bx, bz = g.x + g.dx * b * g.gap, g.z + g.dz * b * g.gap
+      if ((v.axis == "z" and bz or bx) - origin) % snap == 0 then line(bx, bz, g.rx, g.rz, g.length) end
     end
   end
   for _, c in ipairs(s.reserved) do
-    if all or c.y == level then block(c.x, c.z, g and M.lane(g, c) and 6 or 7) end
+    if level == "all" or c.y == level then add(c.x, c.z, 4) end
   end
-  return r
+  return cls
 end
-
-M.encode = function(c, v, L, solid)
-  local r, pw = v.raster, v.pw
-  for cy = 0, L.mh - 1 do
-    local row = c.cells[L.my + cy]
-    for cx = 0, L.mw - 1 do
-      local best, bits = 0, 0
-      for j = 0, 2 do
-        local k = (cy * 3 + j) * pw + cx * 2 + 1
-        local a, b = r[k], r[k + 1]
-        if a then bits = bits + 2 ^ (2 * j) if a > best then best = a end end
-        if b then bits = bits + 2 ^ (2 * j + 1) if b > best then best = b end end
+-- Blocks off the mine geometry in pieces of six or fewer: ore digs, drawn as one dot.
+M.small = function(cls, g)
+  local off, seen, dots = {}, {}, {}
+  for k in pairs(cls) do
+    local x, z = M.unkey(k)
+    if not (g and M.onGeo(g, x, z)) then off[k] = true end
+  end
+  for k in pairs(off) do
+    if not seen[k] then
+      local comp, stack = {}, {k}
+      seen[k] = true
+      while #stack > 0 do
+        local q = table.remove(stack)
+        comp[#comp+1] = q
+        for _, d in ipairs({1, -1, M.row, -M.row}) do
+          local r = q + d
+          if off[r] and not seen[r] then seen[r] = true stack[#stack+1] = r end
+        end
       end
-      local cell = row and row[L.mx + cx]
-      if best > 0 and cell then
-        -- CC sextants hold five pixels; a lit bottom-right pixel swaps the colours.
-        if solid then cell[1], cell[2], cell[3] = " ", U.ink(M.colour[best]), M.colour[best]
-        elseif bits >= 32 then cell[1], cell[2], cell[3] = string.char(128 + 63 - bits), "f", M.colour[best]
-        else cell[1], cell[2], cell[3] = string.char(128 + bits), M.colour[best], "f" end
-      end
+      if #comp < 7 then for _, q in ipairs(comp) do dots[q] = true end end
     end
   end
+  return dots
 end
--- Serialized size of the drawn rows, as the display compacts them.
-M.weigh = function(c)
-  local total = 0
-  for y = 1, c.h do
-    local row, runs, last, text = c.cells[y], 0, "", 0
-    for x = 1, c.w do
-      local key = row[x][2] .. row[x][3]
-      if key ~= last then runs, last = runs + 1, key end
-      if row[x][1] ~= " " then text = x end
-    end
-    total = total + text + 30 + math.min(runs * 25, 2 * c.w + 10)
-  end
-  return total
-end
-M.markers = function(c, v, s, L)
-  local occ, level = {}, v.level
-  local function mark(x, z, ch, bg, item)
+-- The line glyph of every map cell, keyed cy * mw + cx: {cx, cy, glyph, fg}.
+M.cells = function(v, s, planes)
+  local cls = M.blocks(v, s, planes)
+  local dots, agg = M.small(cls, s.g), {}
+  local function line(k) return cls[k] and not dots[k] end
+  for k, bits in pairs(cls) do
+    local x, z = M.unkey(k)
     local cx, cy = M.cellOf(v, x, z)
-    if not cx then return end
-    c.put(L.mx + cx, L.my + cy, ch, "f", bg)
-    occ[cy * L.mw + cx] = item
-    return cx, cy
-  end
-  local function near(p) return level == "all" or math.abs((p.y or level) - level) <= 1 end
-  for _, p in ipairs(s.drops) do if near(p) then mark(p.x, p.z, M.letters[p.kind] or "?", p.broken and "e" or "a", p) end end
-  if s.server and near(s.server) then mark(s.server.x, s.server.z, "@", "9", {server=true}) end
-  if s.g then mark(s.g.x, s.g.z, "H", "9", {shaft=true}) end
-  for i = #s.turtles, 1, -1 do
-    local t = s.turtles[i]
-    t.cx, t.cy = mark(t.pose.x, t.pose.z, M.arrows[t.pose.facing or t.pose.f or 0] or "^", t.color, t)
-  end
-  for _, t in ipairs(v.scale <= 2 and s.turtles or {}) do
-    if t.cx and occ[t.cy * L.mw + t.cx] == t then
-      local text = tostring(t.id)
-      local sides = (t.pose.facing == 1 or t.pose.facing == "east") and {-#text, 1} or {1, -#text}
-      for _, offset in ipairs(sides) do
-        local start, free = t.cx + offset, true
-        for x = start, start + #text - 1 do
-          if x < 0 or x >= L.mw or occ[t.cy * L.mw + x] then free = false end
-        end
-        if free then
-          c.put(L.mx + start, L.my + t.cy, text, "f", t.color)
-          for x = start, start + #text - 1 do occ[t.cy * L.mw + x] = t end
-          break
-        end
+    if cx then
+      local i = cy * v.mw + cx
+      local a = agg[i]
+      if not a then a = {cx, cy, true, 0, 0, false, false} agg[i] = a end
+      if not dots[k] then
+        a[3], a[6], a[7] = false, a[6] or M.has(bits, 2), a[7] or M.has(bits, 4)
+        if line(k + M.row) then a[4] = a[4] + 1 end
+        if line(k - M.row) then a[4] = a[4] + 1 end
+        if line(k + 1) then a[5] = a[5] + 1 end
+        if line(k - 1) then a[5] = a[5] + 1 end
       end
     end
   end
-  return occ
-end
-M.owner = function(v, s, cx, cy)
-  for _, c in ipairs(s.reserved) do
-    if v.level == "all" or c.y == v.level then
-      local x, y = M.cellOf(v, c.x, c.z)
-      if x == cx and y == cy then
-        local id = tostring(c.who):match("(%d+)$")
-        return id and "#" .. id or tostring(c.who)
-      end
+  local out = {}
+  for i, a in pairs(agg) do
+    local h, vv, dug, ch = a[4], a[5], a[6]
+    if a[3] then out[i] = {a[1], a[2], U.g.dot, "3"}
+    else
+      if h > 0 and vv > 0 and h < 2 * vv and vv < 2 * h then ch = dug and "+" or U.g.dot
+      elseif vv > h then ch = dug and "|" or U.g.gap
+      elseif h > 0 then ch = dug and "-" or U.g.dot
+      else ch = U.g.dot end
+      out[i] = {a[1], a[2], ch, a[7] and "b" or dug and "3" or "8"}
     end
   end
-end
-M.readout = function(v, s, occ, L)
-  local f = v.focus
-  local cx, cy
-  if f then cx, cy = M.cellOf(v, f.x, f.z) end
-  if not cx then return "", "" end
-  local item = occ[cy * L.mw + cx]
-  local function at(p, y) return p.x .. "," .. (y and y .. "," or "") .. p.z end
-  if item then
-    if item.pose then return "#" .. item.id .. " " .. item.label, at(item.pose, item.pose.y) end
-    if item.shaft then return "SHAFT", at(s.g) end
-    if item.server then return "SERVER", at(s.server, s.server.y) end
-    return (item.kind or "drop"):upper() .. (item.broken and " BROKEN" or ""), at(item, item.y)
-  end
-  local best = 0
-  for j = 0, 2 do
-    for i = 0, 1 do best = math.max(best, v.raster[(cy * 3 + j) * v.pw + cx * 2 + i + 1] or 0) end
-  end
-  local label = M.names[best] or ""
-  if best >= 6 then label = label .. " " .. (M.owner(v, s, cx, cy) or "") end
-  return label, at(f, v.level ~= "all" and v.level or nil)
+  return out
 end
 
-M.render = function(w, h, session)
+M.label = function(t, sx)
+  if t.tone == "d" or sx >= 3 then return t.id end
+  return t.id .. " " .. t.word:match("^%S*")
+end
+-- Turtles, then drops and the server, then the shaft; the first marker in a cell wins it.
+M.markers = function(v, s, dropLabel)
+  local out, level = {}, v.level
+  local function add(x, z, item)
+    item.cx, item.cy = M.cellOf(v, x, z)
+    if item.cx then out[#out+1] = item end
+  end
+  for _, t in ipairs(s.turtles) do
+    if M.near(t.pose, level) then
+      add(t.pose.x, t.pose.z, {glyph=U.arrow(t.facing), fg=t.tone, label=M.label(t, v.sx), lfg=t.tone, kind="turtle", ref=t})
+    end
+  end
+  for _, d in ipairs(s.drops) do
+    if M.near(d, level) then
+      add(d.x, d.z, {glyph=d.broken and U.g.cross or U.g.bullet, fg=d.broken and "e" or "0",
+        label=dropLabel == "id" and d.id or d.kind, lfg=d.broken and "e" or "8", kind="drop", ref=d})
+    end
+  end
+  if s.server and M.near(s.server, level) then
+    add(s.server.x, s.server.z, {glyph="@", fg="9", label="server", lfg="8", kind="server", ref=s.server})
+  end
+  if s.g then add(s.g.x, s.g.z, {glyph=U.g.shaft, fg="9", label="shaft", lfg="8", kind="shaft", ref=s.g}) end
+  return out
+end
+M.picked = function(m, pick)
+  if not pick or pick.k ~= m.kind then return false end
+  return (m.kind ~= "turtle" and m.kind ~= "drop") or m.ref.id == tostring(pick.id)
+end
+
+-- Draws the map with its top-left cell at C (ox, oy). The view carries its cells (M.cells).
+-- Returns the marker cells, keyed cy * mw + cx.
+M.draw = function(C, v, s, ox, oy, pick, dropLabel)
+  local mw, mh = v.mw, v.mh
+  local occ, taken, placed = {}, {}, {}
+  for i, c in pairs(v.base) do
+    C.put(ox + c[1], oy + c[2], c[3], c[4])
+    occ[i] = "line"
+  end
+  local farmLabel
+  if M.farmOn(s, v.level) then
+    local a = s.area
+    local x1, y1 = math.floor((a.x1 - v.left) / v.sx), math.floor((a.z1 - v.top) / v.sz)
+    local x2, y2 = math.floor((a.x2 - v.left) / v.sx), math.floor((a.z2 - v.top) / v.sz)
+    for y = math.max(y1, 0), math.min(y2, mh - 1) do
+      for x = math.max(x1, 0), math.min(x2, mw - 1) do
+        local ex, ey = x == x1 or x == x2, y == y1 or y == y2
+        if ex or ey then
+          C.put(ox + x, oy + y, ex and ey and "+" or ey and "-" or "|", "c")
+          occ[y * mw + x] = "farm"
+        else occ[y * mw + x] = "farmin" end
+      end
+    end
+    local ready = 0
+    for _, spot in ipairs(s.spots) do
+      if spot.ready then ready = ready + 1 end
+      local cx, cy = M.cellOf(v, spot.x, spot.z)
+      if cx then
+        C.put(ox + cx, oy + cy, spot.ready and U.g.spade or U.g.club, spot.ready and "d" or "8")
+        occ[cy * mw + cx] = "tree"
+      end
+    end
+    if M.cellOf(v, a.x1, a.z1) then farmLabel = {"farm " .. ready .. "/" .. #s.spots, x1 - 1, y1} end
+  end
+  local marks = M.markers(v, s, dropLabel)
+  for _, m in ipairs(marks) do
+    local i = m.cy * mw + m.cx
+    if not taken[i] then
+      if M.picked(m, pick) then C.put(ox + m.cx, oy + m.cy, m.glyph, "f", m.fg)
+      else C.put(ox + m.cx, oy + m.cy, m.glyph, m.fg) end
+      taken[i] = m
+    end
+  end
+  -- Greedy labels: the cheapest free candidate, in preference order; a label never touches
+  -- another marker or label, and covering a line or tree costs more than empty ground.
+  local function place(text, x, y, fg, prefer)
+    local n = #text
+    local cands = {r={x + 1, y}, l={x - n, y}, ur={x + 1, y - 1}, dr={x + 1, y + 1}, ul={x - n, y - 1},
+      dl={x - n, y + 1}, u={x - math.floor(n / 2), y - 1}, d={x - math.floor(n / 2), y + 1}}
+    local best
+    for i, k in ipairs(prefer) do
+      local cx, cy = cands[k][1], cands[k][2]
+      if cx >= 0 and cx + n <= mw and cy >= 0 and cy < mh then
+        local cost, bad = i - 1, false
+        for j = -1, n do
+          local qx, q = cx + j, cy * mw + cx + j
+          local inside = qx >= 0 and qx < mw
+          if j >= 0 and j < n then
+            if taken[q] or placed[q] then bad = true break end
+            if occ[q] then cost = cost + ((occ[q] == "line" or occ[q] == "tree") and 30 or 10) end
+          elseif inside and (placed[q] or taken[q] and not (qx == x and cy == y)) then bad = true break end
+        end
+        if not bad and (not best or cost < best[1]) then best = {cost, cx, cy} end
+      end
+    end
+    if not best then return end
+    C.put(ox + best[2], oy + best[3], text, fg)
+    for j = 0, n - 1 do placed[best[3] * mw + best[2] + j] = true end
+  end
+  for _, m in ipairs(marks) do
+    if taken[m.cy * mw + m.cx] == m and not M.picked(m, pick) then
+      local pref, skip = M.prefer, false
+      if m.kind == "turtle" and m.ref.facing == 1 then pref = M.east -- not on the path ahead
+      elseif m.kind == "turtle" and (m.ref.facing == 0 or m.ref.facing == 2) then pref = M.along
+      elseif m.kind == "drop" then skip, pref = v.sx >= 3 and not m.ref.broken, M.drop
+      elseif m.kind == "shaft" then skip = v.sx >= 3 end
+      if not skip then place(m.label, m.cx, m.cy, m.lfg, pref) end
+    end
+  end
+  if farmLabel and v.sx < 3 then place(farmLabel[1], farmLabel[2], farmLabel[3], "8", M.farm) end
+  M.numbers(C, v, s, ox, oy, occ, taken, placed)
+  return taken
+end
+-- Branch numbers on the side of the spine away from the branches, or on the screen edge.
+M.numbers = function(C, v, s, ox, oy, occ, taken, placed)
+  local g, axis, mw, mh = s.g, v.axis, v.mw, v.mh
+  if not axis or not (v.level == "all" or v.level == g.bottom) then return end
+  if (axis == "z" and v.sz or v.sx) > 2 then return end
+  local function used(x, y) local q = y * mw + x return taken[q] or placed[q] end
+  local function free(x, y) return x < 0 or x >= mw or not (occ[y * mw + x] or used(x, y)) end
+  local sc, sr = math.floor((g.x - v.left) / v.sx), math.floor((g.z - v.top) / v.sz)
+  for b = 1, g.branches do
+    local text = tostring(b)
+    local n = #text
+    if axis == "z" then
+      local r = math.floor((g.z + g.dz * b * g.gap - v.top) / v.sz)
+      if r >= 0 and r < mh then
+        local step = g.rx > 0 and -1 or 1
+        if sc < 0 and step < 0 or sc >= mw and step > 0 then
+          local x, ok = step < 0 and 0 or mw - n, true
+          for j = 0, n - 1 do if used(x + j, r) then ok = false end end
+          if ok then C.put(ox + x, oy + r, text, "8") end
+        else
+          local x = step < 0 and sc - n - 1 or sc + 2
+          for _ = 1, 4 do -- step past a label sitting against the spine
+            if x < 0 or x + n > mw then break end
+            local lo, hi, ok = step < 0 and -3 or -1, step < 0 and n or n + 2, true
+            for j = lo, hi do if not free(x + j, r) then ok = false break end end
+            if ok then C.put(ox + x, oy + r, text, "8") break end
+            local gx = step < 0 and x + n or x - 1
+            if gx < 0 or gx >= mw or not used(gx, r) then break end
+            x = x + 2 * step
+          end
+        end
+      end
+    else
+      local c = math.floor((g.x + g.dx * b * g.gap - v.left) / v.sx)
+      if c >= 0 and c <= mw - n then
+        local r = g.rz > 0 and sr - 1 or sr + 1
+        if r < 0 or r >= mh then r = g.rz > 0 and 0 or mh - 1 end
+        local ok = true
+        for j = -1, n do if not free(c + j, r) then ok = false break end end
+        if ok then
+          C.put(ox + c, oy + r, text, "8")
+          for j = 0, n - 1 do placed[r * mw + c + j] = true end
+        end
+      end
+    end
+  end
+end
+
+-- The thing a pick names, as {colour, x, z, rows}; a row is {"text", {{dx, text, fg}, ...}} or
+-- {"leader", label, value, fg}.
+M.callout = function(v, s, pick)
+  if pick.k == "turtle" then
+    for _, t in ipairs(s.turtles) do
+      if t.id == tostring(pick.id) then
+        local p, when = t.pose, U.age(t.ago, true)
+        local fuel, lease = t.fuel and tostring(t.fuel) or "-", t.lease
+        return {t.tone, p.x, p.z, {
+          {"text", {{0, "#" .. t.id, "0"}, {#t.id + 2, t.word, U.st.fg(t.tone)}, {-#when, when, "8"}}},
+          {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}},
+          {"leader", "fuel", fuel, type(t.fuel) == "number" and t.fuel < 500 and "1" or "0"},
+          {"leader", "ore", tostring(t.ore or "-"), "0"},
+          {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"}}}
+      end
+    end
+  elseif pick.k == "drop" then
+    for _, d in ipairs(s.drops) do
+      if d.id == tostring(pick.id) then
+        return {d.broken and "e" or "3", d.x, d.z, {
+          {"text", {{0, d.id == "saplings" and "saplings" or "drop " .. d.id .. " " .. d.kind, "0"}}},
+          {"text", {{0, d.x .. "," .. d.y .. "," .. d.z, "8"}}},
+          {"leader", "state", d.broken and "broken" or "ok", d.broken and "e" or "0"}}}
+      end
+    end
+  elseif pick.k == "server" then
+    local p = s.server
+    if p then return {"9", p.x, p.z, {{"text", {{0, "server", "0"}}}, {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}}}} end
+  elseif pick.k == "shaft" then
+    local g = s.g
+    if g then
+      -- The holder of the lowest held shaft cell.
+      local holder, low = "-", nil
+      for _, c in ipairs(s.reserved) do
+        if c.x == g.x and c.z == g.z and (not low or c.y < low) then
+          holder, low = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)), c.y
+        end
+      end
+      return {"9", g.x, g.z, {{"text", {{0, "shaft", "0"}}}, {"text", {{0, g.x .. "," .. g.z, "8"}}},
+        {"leader", "lane", holder, holder ~= "-" and "b" or "8"}}}
+    end
+  elseif pick.k == "cell" and tonumber(pick.x) and tonumber(pick.z) then
+    local cx, cy = M.cellOf(v, pick.x, pick.z)
+    if not cx then return end
+    local bits, who = 0, nil
+    for k, b in pairs(v.cls or {}) do
+      local x, z = M.unkey(k)
+      local bx, by = M.cellOf(v, x, z)
+      if bx == cx and by == cy then
+        for _, bit in ipairs({1, 2, 4}) do if M.has(b, bit) and not M.has(bits, bit) then bits = bits + bit end end
+      end
+    end
+    local word = M.has(bits, 4) and "held" or M.has(bits, 2) and "dug" or M.has(bits, 1) and "planned" or ""
+    if word == "held" then
+      for _, c in ipairs(s.reserved) do
+        local bx, by = M.cellOf(v, c.x, c.z)
+        if (v.level == "all" or c.y == v.level) and bx == cx and by == cy then
+          who = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)) break
+        end
+      end
+    end
+    local rows = {{"text", {{0, v.level == "all" and pick.x .. "," .. pick.z or pick.x .. "," .. v.level .. "," .. pick.z, "0"}}}}
+    if word ~= "" then
+      local parts = {{0, word, word == "held" and "b" or "0"}}
+      if who then parts[2] = {#word + 1, who, "0"} end
+      rows[2] = {"text", parts}
+    end
+    return {"3", pick.x, pick.z, rows}
+  end
+end
+-- A hairline box beside the picked marker, joined to it. Returns the box in map cells.
+M.box = function(C, v, s, ox, oy, pick, taken)
+  local got = M.callout(v, s, pick)
+  if not got then return end
+  local tx, ty = M.cellOf(v, got[2], got[3])
+  if not tx then return end
+  local colour, rows = got[1], got[4]
+  if pick.k == "cell" then
+    local cell = C.cells[oy + ty] and C.cells[oy + ty][ox + tx]
+    if cell then cell[2], cell[3] = "f", "3" end
+  end
+  local widest = 0
+  for _, row in ipairs(rows) do
+    if row[1] == "leader" then widest = math.max(widest, #row[2] + #row[3] + 4)
+    else
+      local left, right = 0, 0
+      for _, part in ipairs(row[2]) do
+        if part[1] >= 0 then left = math.max(left, part[1] + #part[2]) else right = right + #part[2] + 1 end
+      end
+      widest = math.max(widest, left + right)
+    end
+  end
+  local bw, bh = math.min(v.mw, math.max(14, widest + 4)), #rows + 2
+  local near, far = tx - bw + 1, tx
+  if tx * 2 < v.mw then near, far = tx, tx - bw + 1 end
+  -- Below, then above, each toward the middle first; the one hiding the fewest markers wins.
+  local best
+  for _, o in ipairs({{ty + 2 + bh <= v.mh, ty + 2, ty + 1, ty + 2}, {ty - 1 - bh >= 0, ty - 1 - bh, ty - 1, ty - 2}}) do
+    if o[1] then
+      for _, x0 in ipairs({near, far}) do
+        local bx, hidden = math.max(0, math.min(x0, v.mw - bw)), 0
+        for _, m in pairs(taken or {}) do
+          if m.cx >= bx and m.cx < bx + bw and m.cy >= o[2] and m.cy < o[2] + bh then hidden = hidden + 1 end
+        end
+        if not best or hidden < best[1] then best = {hidden, bx, o[2], o[3], o[4]} end
+      end
+    end
+  end
+  local bx, by, link, joint
+  if best then bx, by, link, joint = best[2], best[3], best[4], best[5]
+  else bx, by = math.max(0, math.min(near, v.mw - bw)), math.max(0, math.min(ty + 2, v.mh - bh)) end
+  C.fill(ox + bx, oy + by, bw, bh, "f")
+  C.box(ox + bx, oy + by, bw, bh, colour)
+  if link then C.put(ox + tx, oy + link, "|", colour) C.put(ox + tx, oy + joint, "+", colour) end
+  local iw = bw - 4
+  for i, row in ipairs(rows) do
+    local y = oy + by + i
+    if row[1] == "leader" then C.leader(ox + bx + 2, y, iw, row[2], row[3], row[4])
+    else
+      for _, part in ipairs(row[2]) do
+        local at = part[1] >= 0 and part[1] or iw + part[1]
+        C.put(ox + bx + 2 + at, y, part[2]:sub(1, math.max(0, iw - at)), part[3])
+      end
+    end
+  end
+  return {bx, by, bw, bh}
+end
+-- Where the pick is now: a turtle's pick follows the turtle.
+M.focus = function(v, s)
+  local p = v.pick
+  if not p then return end
+  if p.k == "cell" then return {x=p.x, z=p.z} end
+  local got = s and M.callout(v, s, p)
+  if got then return {x=got[2], z=got[3]} end
+end
+
+M.levelText = function(level) return level == "all" and "ALL" or "Y" .. level end
+M.controls = function(C, L, w, h, v)
+  local kind = L.kind
+  local arrows = {{U.g.left, "map-w"}, {U.g.up, "map-n"}, {U.g.down, "map-s"}, {U.g.right, "map-e"}}
+  if kind ~= "tiny" then
+    C.put(2, 1, "MAP", "0")
+    local x = C.chip(6, 1, "FIT", "map-fit", v.fit and "on" or "plain") + 1
+    if kind ~= "pocket" then
+      x = C.chip(x, 1, "-", "map-out") + 1
+      x = C.chip(x, 1, "+", "map-in") + 2
+      for _, a in ipairs(arrows) do x = C.chip(x, 1, a[1], a[2]) + 1 end
+    else
+      local x0 = 1 + math.floor((w - 24) / 2)
+      for i, a in ipairs(arrows) do C.chip(x0 + 4 * (i - 1), h, a[1], a[2]) end
+      C.chip(x0 + 17, h, "-", "map-out")
+      C.chip(x0 + 21, h, "+", "map-in")
+    end
+  else
+    local x0 = 1 + math.floor((w - 15) / 2)
+    for i, a in ipairs(arrows) do C.chip(x0 + 4 * (i - 1), h - 1, a[1], a[2]) end
+    x0 = 1 + math.floor((w - 13) / 2)
+    C.chip(x0, h, "-", "map-out")
+    C.chip(x0 + 4, h, "FIT", "map-fit", v.fit and "on" or "plain")
+    C.chip(x0 + 10, h, "+", "map-in")
+  end
+  local x, text = w - 14, M.levelText(v.level)
+  C.chip(x, 1, U.g.down, "map-down")
+  C.put(x + 3 + math.floor((5 - #text) / 2), 1, text, "0")
+  C.hit("map-level", x + 3, 1, 5, 1, text)
+  C.chip(x + 8, 1, U.g.up, "map-up")
+  -- North is up on every map, so the compass never turns; it sits outside the map area.
+  C.put(w - 2, 1, M.compass, "8")
+end
+M.roster = function(C, L, w, s)
+  local R, ts = L.roster, s.turtles
+  C.section(2, R.y, w - 2, "TURTLES", #ts)
+  local room = R.cols * R.lines
+  local shown = #ts <= room and #ts or room - 1
+  for i = 0, math.min(#ts, room) - 1 do
+    local x, y = 2 + (i % R.cols) * 33, R.y + 1 + math.floor(i / R.cols) * 2
+    if i >= shown then C.put(x, y, "+" .. (#ts - shown) .. " more", "8") break end
+    local t = ts[i + 1]
+    C.put(x, y, U.arrow(t.facing), t.tone)
+    C.put(x + 2, y, t.id, "0")
+    C.put(x + 5, y, t.word:sub(1, 10), U.st.fg(t.tone))
+    C.put(x + 16, y, t.pose.x .. "," .. t.pose.y .. "," .. t.pose.z, "8")
+  end
+end
+
+-- Places the view, loads its planes and rebuilds its cells when the view or the data changed.
+M.prepare = function(v, s, valign)
+  M.place(v, s, valign)
+  local planes
+  planes, v.ready = M.planesFor(v, s)
+  local key = table.concat({v.mw, v.mh, v.sx, v.sz, v.left, v.top, tostring(v.level), s.terrain, M.serial, #planes}, ":")
+  if v.bkey ~= key then
+    v.base, v.bkey = M.cells(v, s, planes), key
+    v.cls = nil
+  end
+  if v.pick and v.pick.k == "cell" and not v.cls then v.cls = M.blocks(v, s, planes) end
+  return key
+end
+-- The frame as the display sends it: a blank joins the previous run whatever its fg (D.compact).
+M.pack = function(C)
+  local frame = C.frame()
+  for y, row in ipairs(frame.rows) do
+    local runs = {}
+    for x = 1, C.w do
+      local cell, last = C.cells[y][x], runs[#runs]
+      if last and last[3] == cell[3] and (last[2] == cell[2] or cell[1] == " ") then last[1] = last[1] + 1
+      else runs[#runs+1] = {1, cell[2], cell[3]} end
+    end
+    row.runs = runs
+  end
+  return frame
+end
+M.render = function(w, h, session, tries)
   session = type(session)=="table" and session or {}
   M.seen = SO.now()
   if not M.scene then M.gather(M.seen) end
-  local s, v, L = M.scene, M.view(session), M.layout(w, h)
-  local pw, ph = L.mw * 2, L.mh * 3
-  if v.fit then M.fit(v, s, pw, ph) end
-  v.scale, v.pw, v.ph, v.h, v.L, v.headerRow = 2 ^ v.zoom, pw, ph, h, L, M.headerRow
-  v.left, v.top = v.cx - math.floor(pw * v.scale / 2), v.cz - math.floor(ph * v.scale / 2)
-  local planes
-  planes, v.ready = M.planesFor(v, s)
-  local rkey = table.concat({w, h, v.zoom, v.left, v.top, tostring(v.level), s.terrain, M.serial, #planes}, ":")
-  if v.rkey ~= rkey then v.raster, v.rkey = M.raster(v, s, planes), rkey end
-  local fkey = table.concat({rkey, s.markers, tostring(v.fit), v.focus and v.focus.x or "", v.focus and v.focus.z or ""}, ":")
+  local s, v = M.scene, M.view(session)
+  local L = M.layout(w, h, #s.turtles)
+  v.mw, v.mh, v.L, v.h = L.mw, L.mh, L, h
+  local key = M.prepare(v, s)
+  local p = v.pick or {}
+  local fkey = table.concat({key, w, h, s.markers, tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
-  local c = U.canvas(w, h)
-  M.encode(c, v, L, v.solidKey == rkey and v.solid)
-  if v.solidKey ~= rkey then
-    -- A frame must fit one 16 KB message. Dense pictures on huge monitors
-    -- fall back to whole-character cells, which compress into long runs.
-    v.solid, v.solidKey = M.weigh(c) > 12500, rkey
-    if v.solid then c = U.canvas(w, h) M.encode(c, v, L, true) end
+  local C = U.canvas(w, h)
+  v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
+  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken)
+  M.controls(C, L, w, h, v)
+  if L.roster then M.roster(C, L, w, s) end
+  C.hit("map-pick", L.mx, L.my, L.mw, L.mh)
+  local frame = M.pack(C)
+  -- Frames stay under the 16 KB message limit: a crowded view draws one zoom step out.
+  if (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
+    if v.fit then v.extra = math.min((v.extra or 0) + 1, #M.free) else M.zoom(v, 1) end
+    return M.render(w, h, session, (tries or 0) + 1)
   end
-  local occ = M.markers(c, v, s, L)
-  local f = v.focus and M.cellOf(v, v.focus.x, v.focus.z)
-  if f then
-    local _, fy = M.cellOf(v, v.focus.x, v.focus.z)
-    if not occ[fy * L.mw + f] then c.put(L.mx + f, L.my + fy, "+", "f", "0") end
-  end
-  local label, coords = M.readout(v, s, occ, L)
-  local room = math.max(0, w - 7)
-  local text = #label + #coords + 1 <= room and (label ~= "" and label .. " " or "") .. coords or label:sub(1, room)
-  c.header("MAP", text)
-  for _, b in ipairs(L.buttons) do
-    local value = b.id == "map-level" and (v.level == "all" and "ALL" or "Y" .. v.level)
-    c.button(b.x, b.y, b.w, M.labels[b.id] or value or "", b.id,
-      b.id == "map-fit" and v.fit and "9" or value and "b" or "7", b.h)
-  end
-  c.hit("map-pick", L.mx, L.my, L.mw, L.mh)
-  v.frame, v.fkey = c.frame(), fkey
+  v.frame, v.fkey = frame, fkey
   return v.frame
 end
+-- An off-screen view for the status wall and the alert crop, kept per size.
+M.auxView = function(key, v)
+  local old = M.aux[key]
+  if old and old.sig == v.sig then return old end
+  M.aux[key] = v
+  return v
+end
+M.ensure = function()
+  M.seen = SO.now()
+  if not M.scene then M.gather(M.seen) end
+  return M.scene
+end
+-- The status wall thumbnail: the compass on its first row, the whole scene north up under it.
+M.thumb = function(C, x, y, w, h)
+  local s = M.ensure()
+  if w < 3 or h < 2 then return false end
+  C.put(x + w - 2, y, M.compass, "8")
+  local v = M.auxView("thumb:" .. w .. "x" .. h, {sig="", fit=true, level="all", mw=w, mh=h - 1})
+  M.prepare(v, s, "top")
+  M.draw(C, v, s, x, y + 1)
+  return true
+end
+-- The alert crop: one block per cell around focus {x, y, z, id?, drop?}, at the mine level when
+-- focus is at or under it, with the subject inverted and no callout.
+M.crop = function(C, x, y, w, h, focus)
+  local s = M.ensure()
+  if type(focus) ~= "table" or not tonumber(focus.x) or not tonumber(focus.z) or w < 1 or h < 1 then return false end
+  local g, fx, fy, fz = s.g, tonumber(focus.x), tonumber(focus.y), tonumber(focus.z)
+  local level = g and fy and fy <= g.bottom and g.bottom or "all"
+  local pick = focus.id ~= nil and {k="turtle", id=tostring(focus.id)} or focus.drop ~= nil and {k="drop", id=tostring(focus.drop)} or nil
+  -- Centred on the subject, but shifted so the scene fills the crop rather than empty ground.
+  local b, cx = M.bounds(s, level), fx
+  if b then cx = math.max(math.min(fx - math.floor(w / 2), b[3] + 2 - w), b[1] - 1) + math.floor(w / 2) end
+  local sig = table.concat({cx, fz, tostring(level)}, ":")
+  local v = M.auxView("crop:" .. w .. "x" .. h, {sig=sig, fit=false, level=level, sx=1, sz=1, cx=cx, cz=fz, mw=w, mh=h})
+  M.prepare(v, s)
+  M.draw(C, v, s, x, y, pick)
+  return true
+end
 
+-- Next scale up or down the ladder, from the nearest rung.
+M.step = function(scale, ladder, step)
+  local i = #ladder
+  for k, value in ipairs(ladder) do if value >= scale then i = k break end end
+  return ladder[math.max(1, math.min(#ladder, i + step))]
+end
 M.zoom = function(v, step)
-  local old = v.zoom or 0
-  local new = math.max(-1, math.min(8, old + step))
-  local f = v.focus
-  if new ~= old and f and v.pw and M.cellOf(v, f.x, f.z) then
-    -- Keep the focused block where it is on screen.
-    local k = 2 ^ (new - old)
-    v.cx, v.cz = f.x - math.floor((f.x - v.cx) * k + 0.5), f.z - math.floor((f.z - v.cz) * k + 0.5)
+  if not (v.sx and v.sz) then return end
+  local nx = M.step(v.sx, v.axis == "x" and M.snap or M.free, step)
+  local nz = M.step(v.sz, v.axis == "z" and M.snap or M.free, step)
+  local f = M.focus(v, M.scene)
+  if f and (nx ~= v.sx or nz ~= v.sz) and M.cellOf(v, f.x, f.z) then
+    -- Keep the picked block where it is on screen.
+    v.cx = f.x - math.floor((f.x - v.cx) * nx / v.sx + 0.5)
+    v.cz = f.z - math.floor((f.z - v.cz) * nz / v.sz + 0.5)
   end
-  v.zoom, v.fit = new, false
+  v.sx, v.sz, v.fit = nx, nz, false
+end
+M.tap = function(v, cx, cy)
+  local b = v.box
+  if b and cx >= b[1] and cx < b[1] + b[3] and cy >= b[2] and cy < b[2] + b[4] then v.pick = nil return end
+  local m = v.taken and v.taken[cy * v.mw + cx]
+  local pick = m and {k=m.kind, id=(m.kind == "turtle" or m.kind == "drop") and m.ref.id or nil}
+    or {k="cell", x=v.left + cx * v.sx, z=v.top + cy * v.sz}
+  local old = v.pick
+  if old and old.k == pick.k and (pick.k ~= "cell" and old.id == pick.id
+      or pick.k == "cell" and select(1, M.cellOf(v, old.x, old.z)) == cx and select(2, M.cellOf(v, old.x, old.z)) == cy) then
+    v.pick = nil
+  else v.pick = pick end
 end
 M.input = function(event)
   if not event.session then return end
   local v, id, s = M.view(event.session), event.id, M.scene or {}
   local g, surface = s.g, M.surface(s)
+  v.extra = nil
   if id == "map-fit" then v.fit = true
   elseif id == "map-in" or id == "map-out" then M.zoom(v, id == "map-in" and -1 or 1)
   elseif M.pan[id] then
-    local d, scale = M.pan[id], v.scale or 1
+    local d = M.pan[id]
     v.fit = false
-    v.cx = v.cx + d[1] * math.max(1, math.floor((v.pw or 3) * scale / 3))
-    v.cz = v.cz + d[2] * math.max(1, math.floor((v.ph or 3) * scale / 3))
+    v.cx = v.cx + d[1] * math.max(1, math.floor((v.mw or 3) * (v.sx or 1) / 3))
+    v.cz = v.cz + d[2] * math.max(1, math.floor((v.mh or 3) * (v.sz or 1) / 3))
   elseif id == "map-up" or id == "map-down" then
     v.level = (v.level == "all" and (g and g.bottom or surface) or v.level) + (id == "map-up" and 1 or -1)
   elseif id == "map-level" then
@@ -560,15 +974,10 @@ M.input = function(event)
     local L = v.L
     local cx = event.x - L.mx
     local cy = event.y - math.max(0, (event.session.h or v.h) - v.h) - L.my
-    if cx >= 0 and cy >= 0 and cx < L.mw and cy < L.mh then
-      local fx, fy
-      if v.focus then fx, fy = M.cellOf(v, v.focus.x, v.focus.z) end
-      if fx == cx and fy == cy then v.focus = nil
-      else v.focus = {x=v.left + math.floor((cx * 2 + 1) * v.scale), z=v.top + math.floor((cy * 3 + 1) * v.scale)} end
-    end
+    if cx >= 0 and cy >= 0 and cx < L.mw and cy < L.mh then M.tap(v, cx, cy) end
   end
 end
-return {name="map",handlers={},render=M.render,input=M.input,tick=function(now)
+return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=M.crop,tick=function(now)
   M.ticks, M.budget = M.ticks + 1, 16
   if not M.wired and SO.mods.display then SO.mods.display.screen("map",M.render,M.input) M.wired=true end
   if M.seen and now - M.seen < 10000 then M.gather(now) M.revalidate() end

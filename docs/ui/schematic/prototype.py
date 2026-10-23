@@ -201,67 +201,7 @@ def drops():
     return cv
 
 # ------------------------------------------------------------------ map
-def map_controls(cv, y, w, level="ALL", fit=True):
-    x = 2; cv.put(x, y, "MAP", "0"); x = 7
-    x = chip(cv, x, y, "FIT", "map-fit", "f" if fit else "0", "9" if fit else "7") + 2
-    x = chip(cv, x, y, "-", "map-out") + 1; x = chip(cv, x, y, "+", "map-in") + 2
-    for a, i in (("◄", "w"), ("▲", "n"), ("▼", "s"), ("►", "e")): x = chip(cv, x, y, a, "map-" + i) + 1
-    x = w - 15
-    x = chip(cv, x, y, "▼", "map-down") + 1; x = chip(cv, x, y, level, "map-level", "0", "f", 1) + 1; chip(cv, x, y, "▲", "map-up")
-
-def map_room():
-    cv = Canvas(57, 24, "Map, room monitor 57x24")
-    map_controls(cv, 1, 57)
-    v = MD.fit(57, 23, "all"); MD.draw(cv, v, 1, 2)
-    return cv
-
-def map_wall():
-    cv = Canvas(100, 38, "Map, wall 100x38")
-    map_controls(cv, 1, 100)
-    v = MD.fit(100, 26, "all"); MD.draw(cv, v, 1, 3)
-    section(cv, 2, 30, 98, "TURTLES")
-    for i, k in enumerate(ORDER):
-        t = T[k]; x = 2 + (i % 3) * 33; y = 31 + i // 3 * 2
-        cv.put(x, y, ARROW[t["f"]], t["col"]); cv.put(x + 2, y, t["id"], "0")
-        cv.put(x + 5, y, t["state"], "0" if t["col"] == "d" else t["col"])
-        cv.put(x + 16, y, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")
-    return cv
-
-def map_pocket():
-    cv = Canvas(26, 20, "Map, pocket 26x20")
-    cv.put(2, 1, "MAP", "0"); chip(cv, 7, 1, "FIT", "map-fit", "f", "9")
-    chip(cv, 13, 1, "▼", "map-down"); cv.put(17, 1, "ALL", "0"); chip(cv, 21, 1, "▲", "map-up")
-    v = MD.fit(26, 18, "all"); MD.draw(cv, v, 1, 2)
-    x = 1
-    for a, i in (("◄", "w"), ("▲", "n"), ("▼", "s"), ("►", "e"), ("-", "out"), ("+", "in")):
-        cv.button(x, 20, 3, a, "map-" + i); x += 4 + (1 if i == "e" else 0)
-    return cv
-
-def map_selected():
-    cv = Canvas(57, 24, "Map, room monitor, Y -58 zoomed in, #6 selected")
-    map_controls(cv, 1, 57, "Y-58", fit=False)
-    v = MD.view(57, 23, -58, 1, 1, 158, -367)
-    MD.draw(cv, v, 1, 2, select="6")
-    t = T["6"]; p = MD.cell(v, t["x"], t["z"]); tx, ty = 1 + p[0], 2 + p[1]
-    bw, bh = 22, 7; bx, by = tx - bw + 1, ty + 2
-    cv.fill(bx, by, bw, bh, "f")
-    frame_box(cv, bx, by, bw, bh, "e")
-    cv.put(tx, ty + 1, "|", "e"); cv.put(tx, by, "+", "e")
-    cv.put(bx + 2, by + 1, "#6", "0"); cv.put(bx + 5, by + 1, "lost", "e"); cv.put(bx + bw - 8, by + 1, "3 min", "8")
-    cv.put(bx + 2, by + 2, "184,-58,-369", "8")
-    leader(cv, bx + 2, by + 3, bw - 4, "fuel", "412", "1")
-    leader(cv, bx + 2, by + 4, bw - 4, "ore", "22")
-    leader(cv, bx + 2, by + 5, bw - 4, "lease", "expired", "e")
-    return cv
-
-# ------------------------------------------------------------------ callout frame
-def frame_box(cv, x, y, w, h, fg):
-    rule(cv, x, y, x + w - 1, fg); rule(cv, x, y + h - 1, x + w - 1, fg)
-    for j in range(y, y + h): cv.put(x, j, "|", fg); cv.put(x + w - 1, j, "|", fg)
-    for a, b in ((x, y), (x + w - 1, y), (x, y + h - 1), (x + w - 1, y + h - 1)): cv.put(a, b, "+", fg)
-
 SCREENS = [("03-mining-57x24", mining),
            ("04-mining-setup-57x24", mining_setup), ("05-lumber-57x24", lumber),
-           ("08-drops-57x24", drops), ("09-map-57x24", map_room),
-           ("10-map-wall-100x38", map_wall), ("11-map-pocket-26x20", map_pocket), ("12-map-selected-57x24", map_selected)]
+           ("08-drops-57x24", drops)]
 

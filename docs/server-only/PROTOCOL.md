@@ -961,12 +961,22 @@ running, grow }`. `turtle` has `{ id, pose, state, phase }`.
 A spot is ready when it was never planted or was planted ten minutes ago.
 `grow` is the milliseconds until the next listed spot is ready, or nil.
 
-The status wall draws a map thumbnail through an optional `map.thumb(C, x, y, w, h)`:
-it draws the fitted route A map of all levels into canvas `C` with its top-left cell
-at `x, y`, top-aligned, inside `w` by `h` cells. Status calls it with at most 48x30
-cells (40x26 on a 100x38 wall); an error leaves the area blank. `so-mod-map` does
-not export it yet; until it does, the wall shows its display list at the top of
-the right column.
+`so-mod-map` exports two drawing calls for other screens. Both draw into a
+route A canvas `C`, return true when they drew, never wait, and leave the area
+blank on an error (callers use `pcall`):
+
+- `map.thumb(C, x, y, w, h)` draws the compass `↑N` at the right end of row `y`
+  and, under it, the fitted map of all levels, top-aligned, in `w` by `h - 1`
+  cells. The status wall calls it with at most 48x30 cells (40x26 on a 100x38
+  wall). It returns false below 3x2.
+- `map.crop(C, x, y, w, h, focus)` draws one block per cell around
+  `focus = { x, y, z, id?, drop? }`, centred on it but shifted along x so the
+  scene fills the crop, at the mine level when `focus.y` is at or
+  under it and at ALL otherwise. Turtle `id` or drop `drop` is inverted, with no
+  label and no callout. It returns false without a focus position.
+
+Both keep their own view per size and share the dug planes and read budget
+with the map screen.
 
 The alert takeover draws a crop around its subject through an optional
 `map.crop(C, x, y, w, h, focus)` with `focus = { x, y, z, id?, drop? }`; the map
@@ -979,52 +989,55 @@ known. Numeric drop dimensions are normalized to world dimension strings.
 The map filters everything to the server dimension, or to the job dimension
 when the server position is absent.
 
-The map is north-up, with x to the right and z down. Terrain is drawn in CC
-sextant pixels, two by three per character. At zoom 0 one block is one pixel,
-and pixels are square. Each character holds one terrain colour on the black
-ground: the colour of the highest class among its lit pixels. From lowest to
-highest the classes are planned passage (white dots), dug block (white), farm
-outline (green `d`), growing sapling (amber `1`), ready tree (green `d`),
-held lane cell (blue `b`) and other held cell (amber `1`). Planned passages
-are the spine and every assigned branch at the mine level. Lane cells are
-reservations on the shaft column or the spine. The farm shows at ALL and at
-levels from its ground to 8 blocks above. There, dug marks inside the farm
-are not drawn, because they are lumber travel marks.
+The map is drawn in route A text cells ([SCHEMATIC-SPEC.md section
+10](../ui/SCHEMATIC-SPEC.md#10-the-map)). North is up at every size and for every
+mine facing: x to the right, z down. A text cell covers `sx` by `sz` blocks and
+takes `-`, `|` or `+` from the block adjacencies inside it: steel `3` when dug,
+muted dots `·` `¦` when only planned, blue `b` when held. Planned passages are the
+spine and every assigned branch at the mine level. Dug pieces off the mine
+geometry of six blocks or fewer draw as one dot. The farm shows as a hairline
+outline with `♠` ready and `♣` growing trees at ALL and at levels from its
+ground to 8 blocks above; there, dug marks inside the farm are not drawn,
+because they are lumber travel marks.
 
-Markers take whole characters with dark ink: drop letters on purple `a`
-(coral `e` when broken), `@` for the server and `H` for the shaft on teal `9`,
-and turtle arrows `^ > v <` on their state colour. Busy is green `d`, idle
-or waiting amber `1`, lost, out of range or silent coral `e`, and done blue `b`.
-At two blocks per pixel or closer, a turtle's id sits behind an east-facing
-turtle and to the right of others, when those cells hold no marker.
-Turtles show at every level. Drops and the server show within one block of
-the level.
+Markers: turtles `▲ ► ▼ ◄` (`•` without a facing) in the colour of their state
+word (`U.tone`), `º` shaft and `@` server in teal, `•` chests and `×` broken
+chests. Turtles show within one block of the level, like drops and the server.
+A turtle's word is its job state, the lumber phase (`felling`, `planting`,
+`scanning`), `lost` for a lost lease or `range` when the lease says it is out of
+range. Labels are placed greedily beside markers (see the spec); branch numbers
+sit on the side of the spine away from the branches.
 
 `render(w, h, session)` keeps its view under `session.map`: `level` (`all` or
-a y), `fit`, `zoom` (blocks per pixel is `2^zoom`, -1 to 8), the centre
-`cx`, `cz` and an optional `focus = { x, z }`. A new view starts with
-`level = "all"` and `fit = true`. FIT picks the closest zoom that shows the
-mine geometry, farm, drops, server and turtles with a one-pixel margin.
+a y), `fit`, the scales `sx` and `sz`, the centre `cx`, `cz` and an optional
+`pick`: `{ k = "turtle" | "drop", id }`, `{ k = "server" }`, `{ k = "shaft" }` or
+`{ k = "cell", x, z }`. A new view starts with `level = "all"` and `fit = true`;
+a saved view without scales fits again. FIT picks the smallest scales that show
+the mine geometry, farm, drops, server and turtles at the level, with 8 spare
+columns for labels. The scale on the axis the branches step along is 1, 2, 4,
+... 64 and its view edge aligns so each branch starts a cell; the other axis
+steps 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64.
 
-Landscape screens at least 29 wide with 8 rows below the header get a
-control rail on the right: FIT, `-` and `+`, the arrows `^ < > v`, then UP,
-the level and DN. Rails are 9 columns wide, 15 from 90 columns, and use
-three-row buttons from 29 rows. Other screens put `< ^ v > - +` and
-FIT, DN, level, UP on the bottom two rows. Below 23 columns the last row is
-`-`, FIT, `+` and the level. Input ids are `map-fit`, `map-in`, `map-out`,
-`map-n`, `map-s`, `map-w`, `map-e`, `map-up`, `map-down`, `map-level` and
-`map-pick`, which covers the map area.
+Sizes: from 80x30 a wall (controls in row 1, map from row 3, a `TURTLES` roster
+at the bottom); from 52 wide a room (controls in row 1, map below); from 25 wide
+a pocket (`MAP`, `FIT` and the level on top, `◄ ▲ ▼ ► - +` on the last row);
+smaller screens put the level on top and the arrows and `- FIT +` on the last two
+rows. Row 1 ends with `▼`, the level (`ALL`, `Y-58`, `Y64`), `▲` and the compass
+`↑N`. Input ids are `map-fit`, `map-in`, `map-out`, `map-n`, `map-s`, `map-w`,
+`map-e`, `map-up`, `map-down`, `map-level` and `map-pick`, which covers the map
+area.
 
-Zoom keeps the focused block in place. Arrows move a third of the view.
-UP and DN step one block; from ALL they start at the mine level, or the
-surface without a mine. The level button cycles ALL, the mine level, the
-surface (server y, farm ground or mine home) and back to ALL. ALL ORs every
-level together. A tap on the map focuses that character; a second tap on it
-clears the focus. Taps under a retirement banner subtract its rows. The
-header shows what is under the focus, then its coordinates when they fit:
-`#2 MINING 160,-58,-373`, `ORE 117,64,-337`, `LANE #4 120,-58,-362`, or
-`DUG 131,-372` without a y at ALL. The focused character shows `+` on white
-unless a marker covers it.
+`-` and `+` step both scales one rung and keep the picked thing in place.
+Arrows move a third of the view. UP and DN step one block; from ALL they start
+at the mine level, or the surface without a mine. The level button cycles ALL,
+the mine level, the surface (server y, farm ground or mine home) and back to
+ALL. ALL ORs every level together. A tap on a marker picks it: the marker is
+inverted and a callout box opens beside it (turtle: id, state, age, position,
+fuel, ore, lease; drop: id, kind, position, state; server and shaft: position,
+and the shaft's lane holder). A tap on empty ground picks the cell and shows its
+position and `dug`, `planned` or `held #id`. A second tap on the same marker or
+cell, or a tap on the box, closes it. A turtle pick follows the turtle. Taps
+under a retirement banner subtract its rows.
 
 Dug marks come from `cells.dugColumns`, `cells.dugBits` and `cells.dugVersion`.
 The map keeps one plane per section column and level (or ALL), shared by
@@ -1040,14 +1053,17 @@ cells cache is still checked. A changed section marks its plane stale; the next 
 within the budget. Planes unused for 300 ticks drop during a sweep. Above 2048
 planes, planes not drawn in the last five ticks drop. An idle map reads and probes nothing.
 
-Each display session caches its pixel raster and its frame. Turtle and drop
-moves redraw markers over the cached raster. View, terrain or plane changes
-rebuild the raster; the work is one pass over the visible planes and lines,
-clipped to the view. Gathering runs on ticks within ten seconds of a render.
-A frame must fit one 16 KB message. When the drawn rows would exceed about
-12500 serialized bytes, the map draws whole-character cells instead of
-sextants, so rows compact into long runs. All view and cache state clears
-on server restart and stays independent per paired display or local monitor.
+Each display session caches its cells and its frame. Turtle and drop moves
+redraw markers and labels over the cached cells. View, terrain or plane changes
+rebuild the cells; the work is one pass over the planes and plan lines inside
+the view plus 7 blocks, clipped to it (a plan line adds at most two blocks per
+cell, and one branch per cell row), then a component pass over the dug blocks
+off the mine geometry, then labels (markers times 8 candidates).
+Gathering runs on ticks within ten seconds of a render. A frame must fit one
+16 KB message: the map packs its runs as `D.compact` does, and a frame over
+15000 serialized bytes redraws one zoom step out, at most four times. All view
+and cache state clears on server restart and stays independent per paired
+display or local monitor.
 
 ### panel
 

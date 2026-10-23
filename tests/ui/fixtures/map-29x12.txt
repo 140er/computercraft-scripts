@@ -1,25 +1,37 @@
-29x12 Map, level -58 29x12
+29x12 Map, 29x12 at Y-58 and 2x2, a vein tapped
+ MAP  FIT      ▼ Y-58  ▲  ↑N 
+9---------►··+--------------+
+           3 | 150,-58,-366 |
+8------------| dug          |
+             ++-------------+
+7-------------|--------------
+              ··             
+6----------------------------
                              
- MAP                         
-                      FIT    
-🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃  -    +   
-🬭🬭🬭🬭3>🬬🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏           
-                       ^     
-🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂2>🬹🬀🬀  <     >  
-🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋     v     
-🬭🬭🬭🬭🬭🬭🬭🬭🬭🬺🬭🬭🬭🬭🬭🬭🬭🬭           
-                      UP     
-🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂   Y-58    
-🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋    DN     
+5----------------------------
+                        ··   
+   ◄   ▲   ▼   ►    -   +    
+00000000000000000000000000880
+83333333331b83333333333333333
+00000000000113000000000000003
+83333333333333000000000000003
+00000000000003333333333333333
+83333333333333333333333333333
+00000000000000f30000000000000
+83333333333333333333333333333
+00000000000000000000000000000
+83333333333333333333333333333
+00000000000000000000000033000
+00000000000000000000000000000
+fffff77777ffff777fffff777ffff
 fffffffffffffffffffffffffffff
-f777777777777777777777777777f
-fffffffffffffffffff777777777f
-fffffffffffffffffff7777f7777f
-ffffdd1ffffffffffffffffffffff
-ffffffffffffffffffffff777ffff
-fffffffffffffdd1fff777fff777f
-ffffffffffffffffffffff777ffff
 fffffffffffffffffffffffffffff
-fffffffffffffffffff777777777f
-fffffffffffffffffffbbbbbbbbbf
-fffffffffffffffffff777777777f
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ffffffffffffff3ffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+ff777f777f777f777ff777f777fff

@@ -1,21 +1,31 @@
-15x10 Map, all levels 15x10
-               
- MAP           
-               
-      🬻>🬈🬳>🬤🬤🬃 
-      ███████> 
-  🬂S v███████▌ 
-  >W@<🬂🬂🬂🬂🬂🬂🬂🬀 
-               
- <   ^   v   > 
--  FIT +   ALL 
+15x10 Map, smallest monitor 15x10
+ ▼  ALL  ▲  ↑N 
+  ¦ 3 2        
+  +►-►·6       
+  +---►        
+5 +----        
+ ►▼4---        
+ •º----        
+  •            
+ ◄   ▲   ▼   ► 
+  -   FIT   +  
+000000000000880
+00b010d00000000
+00b1bd8e0000000
+00b333e00000000
+d0b333300000000
+0ddd33300000000
+009333300000000
+000000000000000
+000000000000000
+00000fffff00000
+777fffff777ffff
 fffffffffffffff
-f7777777777777f
 fffffffffffffff
-fffffbfd1fdffff
-fffffbfffffffbf
-ffdafdfffffffff
-ffda91fffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
 fffffffffffffff
 777f777f777f777
-77f999f77fbbbbb
+f777f99999f777f

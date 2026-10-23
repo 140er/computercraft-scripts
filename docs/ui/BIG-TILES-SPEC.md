@@ -213,49 +213,7 @@ touch controls. Every action has a drawn button. No helper text is needed.
 
 ### 7.0 Top-down map
 
-The map is a role of its own. No other header or screen links to it, and it
-has no BACK.
-
-North is up, x increases right and z increases down. The header reads `MAP` on the left and, on the
-right, what is under the focus: `#2 MINING 160,-58,-373`. There is no legend and no helper copy.
-
-Terrain uses sextant pixels, two by three per character, so tunnels, branches and the farm have
-shape. At zoom 0 one block is one square pixel. Each character holds one colour on the black ground,
-so every cell keeps the spec contrast rule and the fixtures record it exactly:
-
-| Pixels | Colour |
-| --- | --- |
-| Dug block | white `0` |
-| Planned spine and branch, not dug | white `0` dots |
-| Farm outline, ready tree | green `d` |
-| Growing sapling | amber `1` |
-| Lane held by a turtle (shaft and spine) | blue `b` |
-| Other held cell | amber `1` |
-
-A character with several classes takes the most important colour; lane and held cells win.
-Markers take a whole character with dark ink: turtle arrows `^ > v <` on green `d` (busy), amber `1`
-(idle, waiting), coral `e` (lost, out of range, silent) or blue `b` (done); `H` shaft and `@` server on
-teal `9`; drop letters O ore, F fuel, J junk, W wood, C storage, A any and S saplings on purple `a`,
-coral `e` when broken. Up to two blocks per pixel, a turtle's id sits behind it when it heads east and
-to its right otherwise.
-
-Landscape screens get a control rail on the right, from row 3: FIT, `-` `+`, the four arrows as a
-cross, then UP, the level and DN. FIT is teal while the view fits; the level is blue and reads `ALL`,
-`Y-58` or `Y64`. Large screens use three-row buttons. The pocket and other narrow screens put
-`< ^ v > - +` and FIT, DN, level, UP on the bottom two rows; 15x10 keeps `-` FIT `+` and the level.
-Every other row and column is map.
-
-Tap the map to focus a character; tap it again to clear. Zoom keeps the focus in place. The level
-button cycles ALL, the mine level and the surface. UP and DN step one block. ALL ORs every level.
-Each display session owns its view. Section reads are budgeted per tick and shared between displays;
-the map caches its raster and frame and redraws only when the view or the data changes.
-
-`mockup-gen.py` calls `map-mockup.py`, which draws the scene in `tests/ui/map-scene.txt` at 26x20, 29x12,
-57x24, 39x19, 15x10 and 100x38. See [map mockups](map-mockups.md). The scene is a north-facing mine
-with a shaft, a spine held as a lane, seven finished 64-block branches, two branches in progress with
-held cells ahead of their turtles, a planned tenth branch, ore veins at three levels, a farm with
-ready and growing trees, five chests (one broken), the server and six turtles. `tests/so/map.lua`
-marks the same dug blocks in the real cells module and compares every fixture cell.
+The map moved to route A. See [SCHEMATIC-SPEC.md section 10](SCHEMATIC-SPEC.md#10-the-map).
 
 ### 7.1 Display mockups
 

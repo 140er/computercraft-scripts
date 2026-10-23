@@ -120,39 +120,71 @@ seven-segment digits drawn with `- | +`, default 4 cells wide, 5 rows tall, 2 ce
 | `¦` | 166 | `g.gap` | planned shaft |
 | `- \| +` | | | passages, rules, line digits |
 | `@` | | | server |
+| `↑` | 24 | `"\24N"` in `so-mod-map.lua` | the map compass, with `N` |
 
 Bytes 16-31 pass `so-proto` serialisation, compact rows and the client's `term.blit` unchanged
 (`tests/ui/s0.lua`). Monitor sync in game is still to be checked in Gate B.
 
 ## 10. The map
 
+`so-mod-map.lua` draws it; `schematic/mapdraw.py` (cells, markers, labels, callouts) and
+`schematic/mapscreen.py` (sizes, controls, roster) are its twins and write the `map-*` fixtures from
+the `view` lines in `tests/ui/map-scene.txt`.
+
+- **Orientation:** north is up at every size and for every mine facing: x grows to the right, z
+  downwards. The map never turns; only the scales change. A compass `↑N` (byte 24, then `N`, muted
+  `8`) sits at the right end of the top row, outside the map area, so markers, labels and callouts
+  never reach it. Because the axes keep their direction, the arrow stays true when `sx` and `sz`
+  differ; only distances stretch.
 - **Cells:** a text cell covers `sx` by `sz` blocks. Its glyph comes from the block adjacencies
   inside it: mostly along x gives `-`, mostly along z `|`, both `+`. Dug cells are solid and steel
   `3`; planned cells are dotted (`·`, `¦`) and muted; held cells are blue. Dug pieces off the mine
-  geometry of six blocks or fewer draw as one steel `·`.
-- **Scale:** `sx` from 1, 2, 3, 4, 6, 8 and up. `sz` snaps to a divisor or multiple of the branch
-  gap, and the view top aligns so every branch lands on the first block row of its cell. The two
-  axes scale separately, so every branch is exactly one row.
+  geometry of six blocks or fewer draw as one steel `·`. The cell pass reads seven blocks past the
+  view, so a dig cut by the edge keeps its size.
+- **Scale:** the free axis steps 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64; the axis the branches step
+  along (z for a north or south mine, x for east or west) steps 1, 2, 4, ... 64 and its view edge
+  aligns so every branch lands on the first block row (or column) of its cell. FIT picks the
+  smallest scales that hold the mine, farm, drops, server and turtles at the level, with eight
+  spare columns for labels. `-` and `+` step both axes one rung and keep the picked block in place;
+  the arrows move a third of the view.
 - **Markers:** turtles in their state colour, `º` shaft, `@` server, `•` and `×` chests, trees inside
-  a hairline farm outline.
-- **Labels:** placed greedily, turtles first, then server and drops, then the farm count. Right,
-  left and the diagonals are tried; a label may not touch another marker or label, and covering a
-  passage costs more than empty ground. Ok turtles show only their id, others id and state. From
-  `sx` 3 only ids remain and plain chests lose their labels; a broken chest is always labelled.
-- **Branch numbers:** muted, west of the spine when free, or at the left edge when the spine is off
-  screen.
-- **Controls:** all in the top row: `MAP`, `FIT`, `- +`, `◄ ▲ ▼ ►`, then `▼ ALL ▲` at the right. On the
-  pocket, FIT and the level stay on top and pan and zoom move to the bottom row.
-- **Taps:** a tapped marker is inverted and gets a callout with a connector. Zoom keeps the
-  selected block in place.
+  a hairline farm outline (clipped at the view edge).
+- **Labels:** placed greedily, turtles first, then drops and the server, then the shaft and the farm
+  count. Right, left and the diagonals are tried; a label may not touch another marker or label, and
+  covering a passage costs more than empty ground. Ok turtles show only their id, others id and the
+  first word of their state. From `sx` 3 only ids remain and plain chests lose their labels; a broken
+  chest is always labelled.
+- **Branch numbers:** muted, on the side of the spine away from the branches when free, or at the
+  screen edge when the spine is off screen. Shown while the branch axis is at 2 or less.
+- **Taps:** a tapped marker is inverted and gets a callout box in its colour with a connector:
+  a turtle shows id, state, age, position, fuel, ore and lease; a drop its id, kind, position and
+  state; the server and shaft their position (the shaft its lane holder). A tap on empty ground
+  inverts the cell and shows its position and `dug`, `planned` or `held #id`. The box fits its
+  text (14 cells or more) and sits below or above the marker, toward the middle first, wherever it
+  hides the fewest markers. Tap the marker or the box again to close it.
+- **Sizes:**
 
-`schematic/mapdraw.py` is the prototype of the cell pass and label placer.
+| Size | Kind | Layout |
+| --- | --- | --- |
+| 80x30 and up (100x38, 164x81) | wall | every control in row 1, the map from row 3, a `TURTLES` roster strip at the bottom (33-cell columns, two rows apart, `+N more` past four lines) |
+| 52 wide and up (57x24) | room | every control in row 1: `MAP`, `FIT`, `- +`, `◄ ▲ ▼ ►`, then `▼ ALL ▲ ↑N` at the right; the map below |
+| 25 to 51 wide (26x20, 39x19, 29x12) | pocket | `MAP`, `FIT`, `▼ ALL ▲ ↑N` on top; `◄ ▲ ▼ ► - +` on the last row |
+| smaller (15x10) | tiny | `▼ ALL ▲ ↑N` on top; the arrows, then `- FIT +` on the last two rows |
+
+- **Frames:** a frame over 15000 bytes draws one zoom step out, at most four times.
+- **Exports:** `map.thumb(C, x, y, w, h)` draws the compass on row `y` and the fitted map under it,
+  top-aligned (the status wall). `map.crop(C, x, y, w, h, focus)` draws one block per cell around
+  `focus` (`{x, y, z, id?, drop?}`), shifted along x so the scene fills it, at the mine level when
+  `focus.y` is at or under it, else ALL,
+  with turtle `id` or drop `drop` inverted and no callout (the alert). Both return true when they drew
+  and never wait.
 
 ## 11. Frame size
 
 Frames stay under the 16 KB wire limit. `D.compact` lets a blank cell join the previous run
-whatever its fg, so planned dots and labels do not split runs at every space. The 164x81 route A
-map fixture is 12.2 KB with that rule and 14.6 KB without it. Every row with content costs about
+whatever its fg, so planned dots and labels do not split runs at every space. The 164x81 map
+fixture (`schematic-map-XL`, the full map screen) is 13.5 KB with that rule and 15.9 KB without it;
+the map packs its own runs the same way and steps out when a frame would pass 15000 bytes. Every row with content costs about
 140 bytes or more, so the biggest walls cap their rows (section 13).
 
 ## 12. Kit

@@ -18,20 +18,17 @@ import cc  # noqa: E402
 import ccfont  # noqa: E402
 import mapdraw as MD  # noqa: E402
 import shop as SH  # noqa: E402
+import mapscreen as MS  # noqa: E402
 import status as ST  # noqa: E402
 import pocket as PK  # noqa: E402
 import system as SY  # noqa: E402
-
-
-def thumb(cv, x, y, w, h):
-    MD.draw(cv, MD.fit(w, h, "all", "top"), x, y)
 
 
 def status(w, h, title, wall_map=False):
     def make():
         m = ST.model()
         if wall_map:
-            m["thumb"] = thumb
+            m["thumb"] = MD.thumb
         return ST.status(m, w, h, title)
     return make
 
@@ -64,14 +61,6 @@ def kit_sample():
     return cv
 
 
-def map_sample():
-    """The route A map at the largest wall, 164x81, for the frame-size test in tests/ui/s0.lua."""
-    from cc import Canvas
-    cv = Canvas(164, 81, "Route A map at 164x81 (frame-size sample)")
-    MD.draw(cv, MD.fit(164, 81, "all"), 1, 1)
-    return cv
-
-
 def with_alert(m):
     """The status model with the scene's state alert, as the gather lists it: lost turtles, alerts, drops."""
     m = dict(m)
@@ -96,7 +85,6 @@ ROLES = [dict(id=1, size="57x24", role="status"), dict(id=2, size="26x20", role=
          dict(id=7, size="15x10", role="status"), dict(id=9, size="-", role="drops")]
 
 FIXTURES = [
-    ("schematic-map-XL", map_sample),
     ("kit-M", kit_sample),
     ("status-M", status(57, 24, "Status, room monitor 57x24 at scale 0.5")),
     ("status-W", status(100, 38, "Status, wall 100x38 at scale 0.5", True)),
@@ -129,7 +117,7 @@ FIXTURES = [
     ("roles-T", lambda: SY.terminal(ST.model(), view("role", input="6 shop", notice="display 7: status", displays=ROLES),
                                     title="Server terminal, role command (R)")),
 ]
-FIXTURES += SH.FIXTURES
+FIXTURES += SH.FIXTURES + MS.FIXTURES
 
 
 def main():

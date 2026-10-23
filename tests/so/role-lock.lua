@@ -83,9 +83,10 @@ local function walk(s, equal, id, w, h, role)
     local f = s.get(id)
     equal(f.role, expected, "role changed at " .. w .. "x" .. h)
     equal(s.saved(id), saved, "saved role changed at " .. w .. "x" .. h)
-    -- Route A screens name the page in row 1 before a hairline; Big Tiles headers sit in row 2.
+    -- Route A screens name the page in row 1 before a hairline (the map before its controls);
+    -- Big Tiles headers sit in row 2.
     local head = f.rows[1] and f.rows[1].text or ""
-    local row = head:find("%-%-%-") and head or (f.rows[2] and f.rows[2].text or "")
+    local row = (head:find("%-%-%-") or head:find("^ MAP ")) and head or (f.rows[2] and f.rows[2].text or "")
     local page = (row .. "  "):match("^%s*(.-)%s%s") or ""
     pages[page] = true
     local pick
