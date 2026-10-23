@@ -231,7 +231,7 @@ return function(test, equal)
     local isk = C.isk(secret, yb, sid, ya, yb)
     local a, b = C.tags(isk, sid, ya, yb)
     assert(a == ta and b == tb, "control check failed")
-    equal(C.machine(isk), key)
+    equal(P.machineKey(isk), key)
     for i = 2, 51 do
       local g = C.generator(guesses[i], ci, sid)
       assert(env.require("ccryptolib.x25519").exchange(secret, g) ~= ya, "wrong code matched the share")
@@ -344,7 +344,7 @@ return function(test, equal)
     assert(P.confirm(5, { sid = hex(sid), tag = hex(ta) }), "forged step 2 closed the session")
   end)
 
-  test("pair2 ten failed guesses from unpaired senders burn the code", function()
+  test("pair2 after ten failed guesses the right code gets no code", function()
     local net, server = boot()
     local code = pressP(net, server)
     for id = 20, 24 do

@@ -59,11 +59,15 @@ and listeners use `listener(sender, message)`.
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
   `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
   `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
-  `confirm(from, body)`, `blocked(id)`, `reject(id, guess, paired)` and `rejected()`.
+  `confirm(from, body)`, `blocked(id)`, `charge(id, kind, paired)`, `rejected()` and
+  `machineKey(secret)`.
   `start` and `confirm` are the server's two `pair2` steps; `confirm` returns the
   machine key and reply body, or nil, a reason and, for `tag`, whether the sender
-  proved its saved key. `reject` returns true when it burned the code. `join` sends
-  only `pair2`.
+  proved its saved key. `charge` is the one budget entry for every pairing handler.
+  Kind `start` returns false when the sender or all senders are over budget.
+  Kinds `reject` and `guess` return true and then true when they burned the code.
+  `machineKey` turns a pairing secret into the stored 64-hex key with HKDF-SHA512.
+  `join` sends only `pair2`.
   `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
   SHA-512, Elligator2 and CPace helpers that tests check against the draft vectors. The hint check only authorizes a prompt;
   it never removes a saved key.

@@ -152,7 +152,7 @@ S.run = function()
   end
 
   local function reject(id, guess, paired)
-    local burned = pair.reject(id, guess, paired)
+    local _, burned = pair.charge(id, guess and "guess" or "reject", paired)
     print("so-server: pair rejected " .. tostring(id))
     view.rejected = pair.rejected()
     if burned then showPrompt() end

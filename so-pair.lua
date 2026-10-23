@@ -213,6 +213,8 @@ C.same = function(a, b)
 end
 
 M.cpace = C
+-- The stored machine key format, 64 hex, for every pairing path.
+M.machineKey = C.machine
 
 local function raw32(hex)
   if type(hex) ~= "string" or #hex ~= 64 then return nil end
@@ -394,13 +396,23 @@ M.blocked = function(id)
   return #recent(name, S.now()) >= S.tries
 end
 
--- Records a rejected pairing message. A failed guess counts toward the
--- code unless its sender proved it is paired; the S.burn-th clears it.
--- Returns true then.
-M.reject = function(id, guess, paired)
+-- The pairing budget, shared by every pairing handler.
+-- kind "start" admits a new exchange: false when the sender or all senders
+-- are over budget. kind "reject" records a rejected message and kind
+-- "guess" a failed guess at the live code. A guess counts toward the code
+-- unless its sender proved it is paired; the S.burn-th clears it. Both
+-- return true, then true when they burned the code.
+M.charge = function(id, kind, paired)
   local name, slot = tostring(id), S.pending
+  if kind == "start" then
+    if M.blocked(id) or #recent("*", S.now()) >= S.flood then return false end
+    for other in pairs(S.recent) do recent(other, S.now()) end
+    note(name)
+    note("*")
+    return true
+  end
   note(name)
-  if not slot then return false end
+  if not slot then return true, false end
   local listed = false
   for i = 1, #slot.rejected do
     if slot.rejected[i] == id then listed = true end
@@ -409,13 +421,13 @@ M.reject = function(id, guess, paired)
     slot.rejected[#slot.rejected + 1] = id
     if #slot.rejected > 4 then table.remove(slot.rejected, 1) end
   end
-  if not guess then return false end
+  if kind ~= "guess" then return true, false end
   slot.fails[name] = (slot.fails[name] or 0) + 1
-  if paired then return false end
+  if paired then return true, false end
   slot.misses = slot.misses + 1
-  if slot.misses < S.burn then return false end
+  if slot.misses < S.burn then return true, false end
   M.clear()
-  return true
+  return true, true
 end
 
 M.rejected = function()
@@ -436,13 +448,10 @@ end
 M.start = function(from, body)
   local code = M.pending()
   if not code then return nil, "code" end
-  if M.blocked(from) or #recent("*", S.now()) >= S.flood then return nil, "wait" end
-  for name in pairs(S.recent) do recent(name, S.now()) end
+  if not M.charge(from, "start") then return nil, "wait" end
   for name, slot in pairs(S.sessions) do
     if S.now() - slot.at > S.window then S.sessions[name] = nil end
   end
-  note(tostring(from))
-  note("*")
   local sid = type(body) == "table" and type(body.sid) == "string" and #body.sid == 32
     and body.sid:match("^%x+$") and S.proto.unhex(body.sid)
   local ya = type(body) == "table" and raw32(body.y)
@@ -472,7 +481,7 @@ M.confirm = function(from, body)
   local tag = type(body.tag) == "string" and #body.tag == 128 and body.tag:match("^%x+$")
     and S.proto.unhex(body.tag)
   if not C.same(tag, slot.ta) then return nil, "tag", slot.paired end
-  return C.machine(slot.isk), { ok = true, tag = S.proto.hex(slot.tb) }
+  return M.machineKey(slot.isk), { ok = true, tag = S.proto.hex(slot.tb) }
 end
 
 M.invite = function(screen)
@@ -531,7 +540,7 @@ local function cpace(code, server, name, previous)
   local tag = type(body.tag) == "string" and #body.tag == 128 and body.tag:match("^%x+$")
     and S.proto.unhex(body.tag)
   if not C.same(tag, tb) then return nil, "proof" end
-  return C.machine(isk)
+  return M.machineKey(isk)
 end
 
 M.join = function(code, serverId)
