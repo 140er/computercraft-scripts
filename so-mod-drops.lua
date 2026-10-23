@@ -379,9 +379,33 @@ S.selectedPoint = function()
   return S.points[1] and S.points[1].id
 end
 
+S.fromTurtle = function(id)
+  S.fromError = true
+  local lease = SO.mods.lease
+  local config = SO.store.read("so-server.cfg")
+  local dim = config and config.pos and config.pos.dim
+  local number = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[dim]
+  if not number or not lease or not lease.world then S.message = "turtle world pose unavailable" return end
+  local p, err = lease.world(id, dim)
+  if not p then S.message = err return end
+  local x, y, z = p.x, p.y, p.z
+  if S.draft.side == "down" then y = y-1
+  elseif p.facing == nil then S.message = "facing unknown; add turtle first" return
+  else x, z = x+({[0]=0,1,0,-1})[p.facing], z+({[0]=-1,0,1,0})[p.facing] end
+  S.draft.x, S.draft.y, S.draft.z, S.draft.dim = x, y, z, number
+  S.message, S.fromError = nil, nil
+end
+
 S.gather = function(view)
+  local turtles = {}
+  local state = SO.mods.state
+  local machines = state and type(state.get) == "function" and state.get("machines") or {}
+  for id, row in pairs(machines) do
+    if (row.role == "turtle" or row.role == "worker") and SO.pair.key(tonumber(id)) then turtles[#turtles+1] = tonumber(id) end
+  end
+  table.sort(turtles)
   return { points = S.clone(S.points), selected = S.selectedPoint(), draft = SO.store.copy(S.draft),
-    editing = S.editing, message = S.message, page = view and view.page or 1 }
+    fromError = S.fromError, turtles = turtles, fromPage = view and view.fromPage or 0, editing = S.editing, message = S.message, page = view and view.page or 1 }
 end
 
 S.listSize = function(count, w, h)
@@ -398,6 +422,7 @@ S.layout = function(model, w, h)
   local C = U.canvas(w, h)
   if model.editing then
     C.header("ADD DROP POINT", "")
+    if model.fromError then C.alert(model.message) end
     local d = model.draft
     local cols = U.grid(w, h, 2)
     for i, field in ipairs({"kind", "side"}) do
@@ -409,6 +434,14 @@ S.layout = function(model, w, h)
       C.button(w-5, y, 3, "-", field.."-", '7', 1)
       C.button(w-2, y, 3, "+", field.."+", '7', 1)
     end
+    local count = math.max(1, h-12)
+    local pages = math.max(1, math.ceil(#model.turtles/count))
+    local first = ((model.fromPage or 0)%pages)*count+1
+    for i = first, math.min(#model.turtles,first+count-1) do
+      local id = model.turtles[i]
+      C.button(1,9+i-first,w,"FROM #"..id,"from:"..id,"9",1)
+    end
+    if pages > 1 then C.button(1,h-2,w,"NEXT","from-next","7",1) end
     C.put(2, h-1, (model.message or ""):sub(1,math.max(0,w-2)))
     C.button(1, h, cols[1].w, "ADD", "add", '9', 1)
     C.button(cols[2].x, h, cols[2].w, "BACK", "list", '7', 1)
@@ -481,6 +514,9 @@ S.input = function(ev)
   local view = S.view(ev.from or (ev.session and ev.session.id))
   if ev.id == "next" then view.page = view.page + 1 return end
   if ev.id == "prev" then view.page = math.max(1, view.page-1) return end
+  if ev.id == "from-next" then view.fromPage = (view.fromPage or 0)+1 return end
+  local from = ev.id:match("^from:(%d+)$")
+  if from then S.fromTurtle(tonumber(from)) return end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then S.selected = selected return end
   if ev.id == "fix" then local id = S.selectedPoint(); if id then S.selected = id; S.fix(id) end return end

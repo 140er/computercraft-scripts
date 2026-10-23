@@ -190,7 +190,11 @@ W.gpsFix = function()
   if not ok or type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
     return nil
   end
-  return { x = x, y = y, z = z }
+  local fix = { x = x, y = y, z = z }
+  local config = W.store.read("so-worker.cfg")
+  if type(config) == "table" and type(config.dim) == "string"
+    and config.dim:match("^[%w_]+:[%w_./%-]+$") then fix.dim = config.dim end
+  return fix
 end
 
 W.resolvePending = function()
@@ -424,6 +428,11 @@ W.exec = function(step)
     return result
   end
   local op = step.op
+  if op == "gps" then
+    local fix = W.gpsFix()
+    result.ok, result.data, result.err = fix ~= nil, fix, not fix and "no GPS" or nil
+    return result
+  end
   local fn = op == "discard" and function() return W.discard(step) end or turtle[op]
   if type(fn) ~= "function" then
     result.err = "bad op"
@@ -735,6 +744,7 @@ W.boot = function()
   end
   rednet.open(peripheral.getName(modem))
   local store = dofile("so-store.lua")
+  W.store = store
   W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
