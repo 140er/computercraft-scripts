@@ -840,7 +840,7 @@ local function gather()
     if not m.alert and row.error then m.alert = row.error end
     local p = row.pose or row.anchor or job.home
     m.turtles[#m.turtles + 1] = { id = tonumber(id), state = state, stripe = stripe,
-      pos = p.x .. "," .. p.y .. "," .. p.z, fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0),
+      pos = U and U.turtle.pose(p):match("^(%S+) ") or "-", fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0),
       branch = row.branch, done = U and U.branchProgress(job,row), total = job.length }
   end
   table.sort(m.turtles, function(a,b) return a.id < b.id end)
@@ -940,8 +940,9 @@ local function layout(m, w, h, setup, offset)
             or string.format("#%-7s%-11s%-14s%-4s%4s",row.id,row.state,row.pos,row.fuel,row.ore)
           c.listRow(y,text,row.stripe)
           c.hit("turtle:"..row.id,1,y,w,2)
-          U.progress(c,2,y+1,math.min(12,w-2),row.done or 0,row.total or 0,row.stripe)
-          c.put(15,y+1,row.branch ~= nil and ("B"..row.branch.." "..(row.done or 0).."/"..(row.total or 0)) or "-")
+          if row.branch ~= nil and row.done == nil then c.put(2,y+1,"-")
+          else U.progress(c,2,y+1,math.min(12,w-2),row.done or 0,row.total or 0,row.stripe) end
+          c.put(15,y+1,row.branch ~= nil and ("B"..row.branch.." "..(row.done or "-").."/"..(row.total or 0)) or "-")
         end
       end
     end
@@ -1016,7 +1017,7 @@ local function turtleView()
   for id,row in pairs(job.turtles) do
     local done,total = U and U.branchProgress(job,row), job.length
     out[id] = {role="mining", pose=SO.store.copy(row.pose), state=row.state, fuel=row.fuel,
-      inv=SO.store.copy(row.inv or {}), branch=row.branch, done=done or 0, total=total,
+      inv=SO.store.copy(row.inv or {}), branch=row.branch, done=done, total=total,
       step=S.pending[tonumber(id)] and S.pending[tonumber(id)].kind, error=row.error or S.error, retry=row.dropRetry and row.dropRetry.after,
       ore=row.ores, anchor=SO.store.copy(row.anchor)}
   end

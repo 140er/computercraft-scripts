@@ -233,11 +233,17 @@ U.status = function(model, w, h)
   end
   return C.frame()
 end
+local function finite(n)
+  return type(n) == 'number' and n == n and n > -math.huge and n < math.huge
+end
 U.branchProgress = function(job, row)
   local p, home = row.pose, job.home
   if row.branch == nil or not p or not home then return 0, job.length or 0 end
+  if type(p) ~= 'table' or type(home) ~= 'table' then return nil, job.length or 0 end
   local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[home.facing or 0]
   local length = math.max(0, job.length or 0)
+  if not d or not finite(p.x) or not finite(p.y) or not finite(p.z)
+      or not finite(home.x) or not finite(home.z) then return nil, length end
   local dug = row.state == 'done' and length or (p.x-home.x)*(-d[2])+(p.z-home.z)*d[1]
   return math.max(0, math.min(length, dug)), length
 end
@@ -263,7 +269,18 @@ U.alert = function(model, w, h)
 end
 local T = {}
 T.pose = function(p)
-  return p and string.format('%s,%s,%s %s',p.x,p.y,p.z,({[0]='N','E','S','W'})[p.facing or 0] or '?') or '-'
+  if type(p) ~= 'table' or not finite(p.x) or not finite(p.y) or not finite(p.z) then return '-' end
+  return string.format('%s,%s,%s %s',p.x,p.y,p.z,({[0]='N','E','S','W'})[p.facing or 0] or '?')
+end
+T.draft = function(p)
+  p = type(p) == 'table' and p or {}
+  local out = {}
+  for _,axis in ipairs({'x','y','z'}) do
+    local n = p[axis]
+    out[axis] = finite(n) and n % 1 == 0 and math.abs(n) < 30000000 and n or 0
+  end
+  out.facing = finite(p.facing) and p.facing % 1 == 0 and p.facing >= 0 and p.facing <= 3 and p.facing or 0
+  return out
 end
 T.render = function(w,h,selection,row,now)
   local c = U.canvas(w,h)
@@ -272,7 +289,7 @@ T.render = function(w,h,selection,row,now)
     ({lost='e',range='e',waiting='1',['wait lane']='1',hold='1',stopped='c',done='b'})[row.state] or 'd'
   c.header('#'..selection.id, '')
   if selection.draft then
-    local p = selection.draft
+    local p = T.draft(selection.draft)
     c.put(2,3,'POSE '..T.pose(p))
     for i,axis in ipairs({'x','y','z','facing'}) do
       local y = 3+i*(h >= 19 and 3 or 1)
@@ -308,7 +325,9 @@ T.render = function(w,h,selection,row,now)
   local progressY = h >= 19 and 11 or 9
   local label = row.role == 'lumber' and 'SPOTS' or 'B'..tostring(row.branch or '-')
   if row.total then
-    if progressY <= bottom then
+    if row.done == nil then
+      c.put(2,math.min(progressY,bottom),label..' -/'..row.total)
+    elseif progressY <= bottom then
       U.progress(c,2,progressY,math.min(12,w-2),row.done or 0,row.total,'b')
       c.put(15,progressY,label..' '..(row.done or 0)..'/'..row.total)
     else

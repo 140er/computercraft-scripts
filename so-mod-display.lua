@@ -635,6 +635,11 @@ D.turtleInput = function(event,w,h)
   local selected = session.turtle
   local target = id:match("^turtle:(%d+)$")
   if not selected and not target then return false end
+  if selected and event.x >= 1 and event.x <= w and event.y == h then
+    if id == "turtle-back" and not selected.draft then session.turtle=nil return true end
+    if id == "turtle-cancel" and selected.draft then selected.draft,selected.confirm=nil,nil return true end
+  end
+  if selected and selected.draft then selected.draft=Turtle.draft(selected.draft) end
   local frame = D.compose(event.role,w,h,session)
   local drawn = false
   for _,b in ipairs(frame.buttons) do
@@ -662,8 +667,7 @@ D.turtleInput = function(event,w,h)
     else selected.confirm,selected.confirmAt="remove",D.now() end
   elseif id == "turtle-add" and row.uncertain then
     selected.confirm=nil
-    selected.draft=SO.store.copy(row.pose or row.anchor or {x=0,y=0,z=0,facing=0})
-    selected.draft.facing=selected.draft.facing or 0
+    selected.draft=Turtle.draft(row.pose or row.anchor)
   elseif selected.draft then
     local axis,delta=id:match("^pose:(%a+):(%-?%d+)$")
     if axis and selected.draft[axis] then

@@ -2,7 +2,7 @@ local U = dofile('so-ui.lua')
 local R = dofile('tests/ui/render.lua')
 local fixtures = {[26]='tests/ui/fixtures/turtle-P.txt',[29]='tests/ui/fixtures/turtle-S.txt',[57]='tests/ui/fixtures/turtle-M.txt'}
 local function setup(w,h)
-  local s={now=100000,commands={}}
+  local s={now=100000,commands={},sent={}}
   s.mine={home={x=0,y=64,z=0,facing=0},homeSet=true,bottom=60,length=48,mode='thorough',ores={},
     dim='minecraft:overworld',running=true,progress={done=0,nextBranch=2},turtles={
       ['2']={pose={x=12,y=60,z=-5,facing=1},anchor={x=0,y=64,z=0,facing=0},state='mining',branch=0,fuel=42,ores=14,
@@ -12,13 +12,14 @@ local function setup(w,h)
     phase='scan',cursor=2,turtle={id=4,pose={x=3,y=64,z=2,facing=2}},fuel=400,inv={}}
   local store=dofile('so-store.lua')
   local env=setmetatable({},{__index=_G})
-  env.os=setmetatable({epoch=function() return s.now end},{__index=os})
-  env.SO={now=function() return s.now end,proto=dofile('so-proto.lua'),pair={key=function() return 'key' end},
+  env.os=setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
+  env.SO={now=function() return s.now end,proto=dofile('so-proto.lua'),pair={key=function() return string.rep('01',32) end},
     mods={},store={copy=store.copy,read=function() return {} end,store=function(path)
       return {value=path=='so-data/mine/job' and s.mine or path=='so-data/lumber/job' and s.lumber or {roles={['9']='mining',['10']='mining'}},
         save=function() return true end}
     end}}
-  env.rednet={send=function() end}
+  env.SO.proto=assert(loadfile('so-proto.lua','t',env))()
+  env.rednet={send=function(id) s.sent[id]=(s.sent[id] or 0)+1 end}
   env.SO.mods.state={get=function() return {['2']={role='worker',seen=97000},['3']={role='worker',seen=90000},['4']={role='worker',seen=98000}} end}
   env.SO.mods.lease={onReport=function() end,status=function(id)
     return {open='lease-'..id,uncertain=s.uncertain==id,journal='journal-'..id}
@@ -78,7 +79,7 @@ return function(test,equal)
     for facing,d in pairs(dirs) do
       local job={home={x=10,z=-20,facing=facing},length=48}
       for _,n in ipairs({-10,0,12,48,100}) do
-        local row={branch=2,pose={x=10-d[2]*n+d[1]*13,z=-20+d[1]*n+d[2]*13}}
+        local row={branch=2,pose={x=10-d[2]*n+d[1]*13,y=60,z=-20+d[1]*n+d[2]*13}}
         local done,total=U.branchProgress(job,row)
         equal(done,math.max(0,math.min(48,n))) equal(total,48)
       end
@@ -125,6 +126,54 @@ return function(test,equal)
       s.press('turtle:4') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 1/2',1,true))
       s.press('turtle-back') s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
       local _,updated=capture(s.frame(),w,h) assert(updated:find('SPOTS 2/2',1,true))
+    end)
+  end
+  for _,size in ipairs({{26,20},{29,12}}) do
+    local w,h=unpack(size)
+    test('G8a partial mining poses keep both subscribed displays refreshing at '..w..'x'..h,function()
+      local s=setup(w,h)
+      s.display.handlers.hello({from=10,body={w=w,h=h}})
+      for _,id in ipairs({9,10}) do s.display.handlers['view.sub']({from=id}) end
+      local before9,before10=s.sent[9],s.sent[10]
+      s.mine.turtles['2'].pose={x=12}
+      s.now=s.now+6000
+      s.display.tick(s.now)
+      assert(s.sent[9]>before9 and s.sent[10]>before10,'all displays must refresh')
+      local _,main=capture(s.frame(),w,h) assert(main:find('B0 -/48',1,true))
+      s.press('turtle:2')
+      local _,detail=capture(s.frame(),w,h)
+      assert(detail:find('POS -',1,true)) assert(detail:find('B0 -/48',1,true))
+      equal(U.branchProgress(s.mine,s.mine.turtles['2']),nil)
+    end)
+    test('G8a re-add fills partial coordinates before drawing at '..w..'x'..h,function()
+      local s=setup(w,h)
+      s.mine.turtles['2'].pose={x=12} s.uncertain=2 s.display.tick(s.now)
+      s.press('turtle:2') s.press('turtle-add')
+      local _,editor=capture(s.frame(),w,h)
+      assert(editor:find('12,0,0 N',1,true))
+      local commands={}
+      s.display.screen('mining').input=function(e) commands[#commands+1]=e.text end
+      s.press('turtle-save') equal(#commands,0)
+      s.press('turtle-save') equal(commands,{'add 2 12 0 0 n'})
+      s.press('turtle-add') s.press('turtle-cancel') s.press('turtle-back')
+      local _,main=capture(s.frame(),w,h) assert(main:find('MINING',1,true))
+    end)
+    test('G8a BACK escapes an editor even if composing throws at '..w..'x'..h,function()
+      local s=setup(w,h) s.uncertain=2 s.display.tick(s.now)
+      s.press('turtle:2') s.press('turtle-add')
+      local d
+      for i=1,20 do local key,value=debug.getupvalue(s.display.tick,i) if key=='D' then d=value break end end
+      assert(d)
+      d.sessions[9].turtle.draft={x=12}
+      capture(s.frame(),w,h)
+      local compose=d.compose
+      d.compose=function() error('broken editor render') end
+      s.display.handlers.input({from=9,body={id='turtle-cancel',x=1,y=h}})
+      equal(d.sessions[9].turtle.draft,nil)
+      s.display.handlers.input({from=9,body={id='turtle-back',x=1,y=h}})
+      equal(d.sessions[9].turtle,nil)
+      d.compose=compose
+      local _,main=capture(s.frame(),w,h) assert(main:find('MINING',1,true))
     end)
   end
   test('G8a selections and destructive confirmations belong to one display',function()

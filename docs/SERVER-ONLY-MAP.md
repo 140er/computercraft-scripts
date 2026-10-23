@@ -145,10 +145,13 @@ and listeners use `listener(sender, message)`.
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
   `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
   `branchProgress(job, row)` returns clamped branch distance and length in constant time.
+  Incomplete poses return nil distance; screens show unknown progress as `-`.
   `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
   `pocketHeader(canvas, title)` draws MORE and MAP beside the title.
   `turtle.render(w, h, selection, row, now)` returns a pure detail or pose-editor frame;
-  `turtle.pose(pose)` formats coordinates and facing.
+  `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
+  `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
+  Detail BACK uses the bottom-row coordinates without rendering the editor first.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
