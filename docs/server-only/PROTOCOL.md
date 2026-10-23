@@ -367,6 +367,34 @@ the final observable state there. The screen never infers delivery from stock
 changes and never retries orders. `shop.order(search, count)` remains a direct
 one-order API for keyboard panel quick orders and leaves shop displays unchanged.
 
+`shop.fuelConfig()` returns a copy of the saved policy.
+`shop.fuelConfig(auto?, outputId?)` sets the boolean auto flag or binds a
+non-broken `fuel` drop point as the room's output. It returns true, or false
+and a cause. Mining SETUP draws `fuel-auto` and `fuel-output` buttons and accepts
+`fuel auto on|off` and `fuel output <id>`. Auto defaults to false.
+
+`shop.fuelEmpty(point)` accepts an empty chest report from mining or lumber.
+Only the bound output coordinates and dimension qualify. It returns false when
+disabled or unbound, and true when the policy handles the report, including a
+cooldown or an unavailable order. It orders exact `minecraft:charcoal`, then
+`minecraft:coal`, requiring 64 in stock and a sample younger than 30000 ms.
+The durable `so-data/fuel-policy` stores `{auto,output,cooldowns,waiting?,alert?}`.
+Cooldown keys use dimension and chest coordinates, independent of point id or
+access side. Deadlines use `SO.now()` and last 600000 ms. Save precedes send.
+The ledger retains at most 64 unexpired chest entries and refuses overflow.
+Turning the policy off or selecting another output preserves cooldowns.
+
+`shop.fuelAvailable(point)` clears the waiting delivery and fuel alert after a
+successful pickup at the bound output. Explicit delivery replies also clear it.
+A Getting or Crafting acknowledgement does not. After 120000 ms the saved
+waiting order raises `delivery unconfirmed`, including after restart.
+`shop.fuelAlerts()` returns copied active fuel failures for the attention list.
+`shop.alert` events contain `{reason,text,point}` and clear with false. A policy
+save failure sends nothing and remains visible through `fuelAlerts()`.
+Lumber saves a minute retry deadline after an empty report handled by this
+policy. It retries only while running and auto is on. Leases and reservations
+continue through the existing job recovery path.
+
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
 ### state
@@ -1138,18 +1166,29 @@ id `status`. Calls without dimensions retain the legacy rows. Successful deliver
 
 SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
-`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension and fewer than 3 inspect failures. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
+`drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension, fewer than 3 inspect failures, and an enabled room sink when the point has `room=true`. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
 matching points have three inspection strikes. `failedPoint` identifies the nearest
 broken point. The alert names the kind, cause and point coordinates. That call also
 emits `drops.alert` with `{ kind, text, reason, point }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
-`drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken }`. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
+`drops.list()` returns a copy of every drop point as `{ id, dim, x, y, z, side, kind, broken, room?, disabled? }`. Marked room points include `disabled=true` while room sinks are off. `broken` is true after three inspect failures. Editing a returned point does not change stored points.
 
 Drop points use the chest's own coordinates. The caller positions the turtle
 beside the chest facing it for `front`, or directly above it for `down`.
 `drops.steps(point)` takes a point. Side `front` returns `{ { op = "inspect" }, { op = "drop" } }`. Side `down` returns `{ { op = "inspectDown" }, { op = "dropDown" } }`. A call with no string `id` returns `{}`, including `steps({ name = "minecraft:cobble", n = 1, where = "front" })`.
 
-`drops.add(point)` takes `{ id, dim, x, y, z, side, kind }`. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
+`drops.add(point)` takes `{ id, dim, x, y, z, side, kind, room? }`. The optional boolean `room` marks only ore or wood points. It returns true, or false and a string. The 65th distinct id returns false and `full`. The same id with the same fields returns true and does not add a second point or change the failure count. Side `up` returns false and `side`.
+
+`drops.roomMark(id, on)` marks or unmarks an existing ore or wood point.
+`drops.roomSink(on)` sets the saved room-sink flag. Both return true, or false
+and a cause, and restore the prior state on save failure. The flag defaults to
+false. `so-drops` accepts old `{points}` records and now also saves optional
+`roomSink=true` and per-point `room=true` fields. Disabled points remain in the
+list for editing; `drops.pick` and readiness exclude them.
+
+The drop editor draws ROOM and SINKS switches. Typed commands are
+`room <id> on|off` and `room sink on|off`. No room protocol or new worker step
+is added. The operator verifies an outside access cell before enabling sinks.
 
 `drops.remove(id)` returns true. A missing id returns true.
 

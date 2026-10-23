@@ -389,11 +389,15 @@ local function report(_, id, results, lease)
             row.trip.inspected = inspected
             if not inspected then failed = true end
           elseif step.op == "drop" or step.op == "dropDown" or step.op == "suck" or step.op == "suckDown" then
-            if not result.ok then failed = true reason=P.transferFailure(row.trip.kind,result) end
+            if not result.ok then failed = true reason=P.transferFailure(row.trip.kind,result)
+            elseif row.trip.kind == "fuel" then call("shop", "fuelAvailable", row.trip.point) end
           end
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
           and (row.fuel < 0 or row.fuel >= tripReserve(row.trip))
+        if failed and inspected and row.trip.kind == "fuel" and reason == "empty" then
+          call("shop", "fuelEmpty", row.trip.point)
+        end
         if failed and enough and inspected and reason=="empty" then
           row.trip.stage = "back"
           row.state, row.dropRetry, row.error = "fuel", nil, nil
@@ -719,6 +723,25 @@ local function input(event)
     elseif event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
     elseif event.id == "setup-next" then local v=view(event.session) v.offset=(v.offset or 0)+1 return
     elseif type(event.id) == "string" and event.id:match("^here:%d+$") then event = { text = "add " .. event.id:match("%d+$") }
+    elseif event.id == "fuel-auto" then
+      local policy = call("shop","fuelConfig") or {}
+      local ok, err = call("shop","fuelConfig",not policy.auto)
+      if not ok then S.error = err or "shop unavailable" end
+      return
+    elseif event.id == "fuel-output" then
+      local policy = call("shop","fuelConfig") or {}
+      local points = {}
+      for _, point in ipairs(call("drops","list") or {}) do
+        if point.kind == "fuel" and not point.broken then points[#points+1] = point end
+      end
+      table.sort(points,function(a,b) return a.id < b.id end)
+      local index = 1
+      for i, point in ipairs(points) do if policy.output and point.id == policy.output.id then index = i % #points + 1 break end end
+      if points[index] then
+        local ok, err = call("shop","fuelConfig",nil,points[index].id)
+        if not ok then S.error = err or "shop unavailable" end
+      else S.error = "no fuel output point" end
+      return
     elseif event.id == "mine-back" then view(event.session).page = "main" return
     elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
   end
@@ -739,7 +762,14 @@ local function input(event)
     end)
     return
   end
-  if cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
+  if cmd=="fuel" then
+    local ok, err
+    if a[2]=="auto" and (a[3]=="on" or a[3]=="off") and #a==3 then ok,err=call("shop","fuelConfig",a[3]=="on")
+    elseif a[2]=="output" and a[3] and #a==3 then ok,err=call("shop","fuelConfig",nil,a[3])
+    else S.error="invalid fuel command" return end
+    S.error=not ok and (err or "shop unavailable") or nil
+    return
+  elseif cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
   elseif cmd=="bottom" and num(2) then job.bottom=num(2)
   elseif cmd=="length" and num(2) and num(2)>0 and num(2)<=4096 then job.length=num(2)
   elseif cmd=="branches" and num(2) and num(2)>0 and num(2)<=4096 then job.branches=num(2) job.continuous=true
@@ -871,6 +901,7 @@ local function gather()
     "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
     "branches " .. (job.branches or 8) .. (job.continuous and " continuous" or " single"),
   }
+  m.fuelPolicy = call("shop","fuelConfig")
   m.readiness=readiness()
   return m
 end
@@ -888,7 +919,7 @@ local function layout(m, w, h, setup, offset)
         lines[#lines+1]={text=line:sub(x,x+math.max(1,w-2)-1),bg="f"}
       end
     end
-    local count=math.max(1,h-4)
+    local count=math.max(1,h-(m.fuelPolicy and 6 or 4))
     local pages=math.max(1,math.ceil(#lines/count))
     local first=((offset or 0)%pages)*count
     for i=1,count do
@@ -900,6 +931,11 @@ local function layout(m, w, h, setup, offset)
           c.put(2,i+3,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
         end
       end
+    end
+    if m.fuelPolicy then
+      c.button(1,h-2,w,"FUEL AUTO "..(m.fuelPolicy.auto and "ON" or "OFF"),"fuel-auto","7",1)
+      local output=m.fuelPolicy.output
+      c.button(1,h-1,w,"OUTPUT "..(output and output.id or "NONE"),"fuel-output","7",1)
     end
     local left=1
     if pages>1 and w>1 then

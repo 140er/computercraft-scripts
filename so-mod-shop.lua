@@ -21,7 +21,7 @@ local S = {
 S.request = function(kind, name, count, view)
   if not S.turtle then
     if view then view.order = "Order: failed, storage room not found" end
-    return
+    return nil, "storage room missing"
   end
   S.rid = S.rid + 1
   local rid = S.rid
@@ -33,7 +33,117 @@ S.request = function(kind, name, count, view)
       view.order, view.orderDetail, view.orderRid = "Order: sent " .. count, nil, rid
     end
   end
-  rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
+  local ok = rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
+  if ok == false then S.pending[rid] = nil return nil, "send failed" end
+  return rid
+end
+
+S.fuelPointOk = function(point)
+  if type(point) ~= "table" or type(point.id) ~= "string" then return false end
+  if point.dim ~= 0 and point.dim ~= -1 and point.dim ~= 1
+      and point.dim ~= "minecraft:overworld" and point.dim ~= "minecraft:the_nether" and point.dim ~= "minecraft:the_end" then return false end
+  for _, key in ipairs({"x","y","z"}) do
+    local n = point[key]
+    if type(n) ~= "number" or n ~= n or math.abs(n) == math.huge or n % 1 ~= 0 then return false end
+  end
+  return point.side == "front" or point.side == "down"
+end
+S.fuelBox = SO.store and SO.store.store and SO.store.store("so-data/fuel-policy", function(v)
+  if type(v) ~= "table" or type(v.auto) ~= "boolean" or type(v.cooldowns) ~= "table" then return false end
+  if v.output ~= nil and not S.fuelPointOk(v.output) then return false end
+  if v.waiting ~= nil and (type(v.waiting) ~= "table" or not S.fuelPointOk(v.waiting.point)
+      or type(v.waiting.at) ~= "number" or v.waiting.at ~= v.waiting.at or v.waiting.at < 0 or v.waiting.at == math.huge) then return false end
+  if v.alert ~= nil and (type(v.alert) ~= "table" or type(v.alert.reason) ~= "string" or type(v.alert.text) ~= "string") then return false end
+  local n = 0
+  for key, at in pairs(v.cooldowns) do
+    n = n + 1
+    if type(key) ~= "string" or type(at) ~= "number" or at ~= at or at < 0 or at == math.huge then return false end
+  end
+  return n <= 64
+end) or {save=function() return false,"store unavailable" end}
+S.fuel = S.fuelBox.value or {auto=false,cooldowns={}}
+S.fuelKey = function(point)
+  if not point then return end
+  local dim = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[point.dim] or point.dim
+  return table.concat({tostring(dim),tostring(point.x),tostring(point.y),tostring(point.z)}, "/")
+end
+S.fuelSave = function(nextPolicy)
+  local hadAlert = S.fuel.alert ~= nil
+  local ok, err = S.fuelBox.save(nextPolicy)
+  if ok then S.fuel, S.fuelSaveError = nextPolicy, nil
+  else S.fuelSaveError = "fuel policy save failed: " .. tostring(err) end
+  if ok and hadAlert and not nextPolicy.alert then
+    local state = SO.mods.state
+    if state and state.emit then state.emit("shop.alert",false) end
+  end
+  return ok, err
+end
+S.fuelAlert = function(reason, point)
+  reason = tostring(reason):sub(1,160)
+  local text = "Fuel " .. reason .. " #" .. tostring(point and point.id or "output"):sub(1,64)
+  if S.fuel.alert and S.fuel.alert.text == text then return end
+  local nextPolicy = SO.store.copy(S.fuel)
+  nextPolicy.alert = {reason=reason,text=text,point=point}
+  S.fuelSave(nextPolicy)
+  local state = SO.mods.state
+  if state and state.emit then state.emit("shop.alert", nextPolicy.alert) end
+end
+S.fuelConfig = function(auto, output)
+  if auto == nil and output == nil then return SO.store.copy(S.fuel) end
+  local nextPolicy = SO.store.copy(S.fuel)
+  if auto ~= nil then nextPolicy.auto = auto == true end
+  if output ~= nil then
+    local drops = SO.mods.drops
+    local picked
+    for _, p in ipairs(drops and drops.list and drops.list() or {}) do
+      if p.id == output and p.kind == "fuel" and not p.broken then picked = p break end
+    end
+    if not picked then return false, "fuel output point missing or broken" end
+    nextPolicy.output = picked
+  end
+  nextPolicy.alert, nextPolicy.waiting = nil, nil
+  return S.fuelSave(nextPolicy)
+end
+S.fuelAvailable = function(point)
+  if S.fuelKey(point) ~= S.fuelKey(S.fuel.output) then return end
+  if not S.fuel.waiting and not S.fuel.alert then return end
+  local nextPolicy = SO.store.copy(S.fuel)
+  nextPolicy.waiting, nextPolicy.alert = nil, nil
+  S.fuelSave(nextPolicy)
+end
+S.fuelEmpty = function(point)
+  if not S.fuel.auto or not S.fuelPointOk(point) then return false end
+  if not S.fuel.output then S.fuelAlert("output not set", point) return false end
+  local key, now = S.fuelKey(point), SO.now()
+  if key ~= S.fuelKey(S.fuel.output) then return false end
+  if now < (S.fuel.cooldowns[key] or 0) then return true, "cooldown" end
+  if not S.turtle then S.fuelAlert("storage room missing",point) return true end
+  if not S.heardAt or now - S.heardAt >= 30000 then S.fuelAlert("stock stale",point) return true end
+  local name
+  for _, fuel in ipairs({"minecraft:charcoal","minecraft:coal"}) do
+    if (S.totals[fuel] or 0) >= 64 then name = fuel break end
+  end
+  if not name then S.fuelAlert("stock below 64",point) return true end
+  local nextPolicy = SO.store.copy(S.fuel)
+  local count = 0
+  for saved, untilAt in pairs(nextPolicy.cooldowns) do
+    if untilAt <= now then nextPolicy.cooldowns[saved] = nil else count = count + 1 end
+  end
+  if not nextPolicy.cooldowns[key] and count >= 64 then S.fuelAlert("cooldown ledger full",point) return true end
+  nextPolicy.cooldowns[key] = now + 600000
+  nextPolicy.waiting = {at=now,point=SO.store.copy(point)}
+  nextPolicy.alert = nil
+  -- Save before sending so a power cut cannot repeat the order.
+  if not S.fuelSave(nextPolicy) then return true end
+  local rid, err = S.request("order", name, 64)
+  if rid then S.pending[rid].fuelAt = now
+  else S.fuelAlert(err,point) end
+  return true
+end
+S.fuelAlerts = function()
+  if S.fuelSaveError then return {{reason="save failed",text=S.fuelSaveError}} end
+  if S.fuel.auto and S.fuel.alert then return {SO.store.copy(S.fuel.alert)} end
+  return {}
 end
 
 S.stock = function(message)
@@ -70,6 +180,11 @@ S.reply = function(sender, message)
       status = "sent"
     elseif lower:match("^delivered ") or lower:find("sent to output chest", 1, true) then
       status = "delivered"
+    end
+    local waiting = S.fuel.waiting
+    if pending.fuelAt and waiting and waiting.at == pending.fuelAt then
+      if status == "failed" then S.fuelAlert("order refused: " .. (text ~= "" and text or "empty reply"), waiting.point)
+      elseif status == "delivered" then S.fuelAvailable(waiting.point) end
     end
     if status == "sent" then pending.acknowledged = true
     else S.pending[message.rid] = nil end
@@ -446,6 +561,9 @@ S.input = function(event)
 end
 
 S.tick = function(now)
+  if S.fuel.auto and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 and not S.fuel.alert then
+    S.fuelAlert("delivery unconfirmed", S.fuel.waiting.point)
+  end
   local display = SO.mods.display
   if not S.registered and type(display) == "table" and type(display.screen) == "function" then
     display.screen("shop", S.render, S.input)
@@ -487,4 +605,8 @@ return {
   listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast, dns = S.dns },
   tick = S.tick,
   order = S.order,
+  fuelConfig = S.fuelConfig,
+  fuelEmpty = S.fuelEmpty,
+  fuelAvailable = S.fuelAvailable,
+  fuelAlerts = S.fuelAlerts,
 }

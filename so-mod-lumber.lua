@@ -32,6 +32,10 @@ S.alert = function(text, point, reason)
   end
 end
 S.chestAlert = function(kind, reason, point)
+  if kind == "fuel" and reason == "empty" then
+    local shop = S.module("shop")
+    if shop.fuelEmpty and shop.fuelEmpty(point) then S.job.fuelRetry = SO.now() + 60000 end
+  end
   S.alert(P.chestError(kind, reason, point), point, reason)
 end
 S.readiness = function()
@@ -505,7 +509,12 @@ S.report = function(id, turtleId, results, lease)
       end
     elseif service then
       if not ok then j.blocked="fuel" S.chestAlert("fuel",P.transferFailure("fuel",result),service.point)
-      else service.stage = "refuel" end
+      else
+        local shop = S.module("shop")
+        if shop.fuelAvailable then shop.fuelAvailable(service.point) end
+        j.fuelRetry = nil
+        service.stage = "refuel"
+      end
     end
   elseif action == "refuel" then
     if j.service then
@@ -935,6 +944,16 @@ S.tick = function(now)
     if not j.turtle.frame and not j.turtle.anchor then S.alert("waiting for reported pose") return end
     S.park(true)
     return
+  end
+  if j.running and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
+    local shop = S.module("shop")
+    local policy = shop.fuelConfig and shop.fuelConfig()
+    if policy and policy.auto and j.service and j.service.kind == "fuel" then
+      j.blocked, j.alert, j.fuelRetry = nil, nil, nil
+      j.service.stage = "check"
+      S.emit("lumber.alert",false)
+      S.save()
+    end
   end
   if j.blocked or not j.running or not j.area or not j.turtle.frame then
     if not S.idlePark or not S.parkAt or now - S.parkAt >= 540000 then S.park() end

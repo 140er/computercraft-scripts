@@ -181,7 +181,7 @@ end
 function P.chestCheck(points, kind, near)
   local best, broken, distance, brokenDistance
   for _, point in ipairs(points or {}) do
-    if point.dim == near.dim and (point.kind == kind or point.kind == "any") then
+    if not point.disabled and point.dim == near.dim and (point.kind == kind or point.kind == "any") then
       local d = math.abs(point.x-near.x) + math.abs(point.y-near.y) + math.abs(point.z-near.z)
       if point.broken then
         if not broken or d < brokenDistance then broken, brokenDistance = point, d end

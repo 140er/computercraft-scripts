@@ -261,8 +261,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
-  `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()` and `tick(now)`.
-  `list` copies every `{ id, dim, x, y, z, side, kind, broken }` point.
+  `remove(id)`, `fix(id)`, `note(id, blockName)`, `list()`, `roomMark(id, on)`,
+  `roomSink(on)` and `tick(now)`.
+  `list` copies every `{ id, dim, x, y, z, side, kind, broken, room?, disabled? }` point.
+  Optional `room=true` marks ore/wood input points. `roomSink` defaults off;
+  pick and readiness exclude marked points until enabled. Both setters save
+  before success and roll back on failure. The editor draws ROOM and SINKS
+  buttons and accepts `room <id> on|off` and `room sink on|off`.
   `pick` also returns `reason = "none"|"broken"` and `failedPoint` when no point is usable.
   `drops.alert` includes the reason and named point with its coordinates.
   Points use the chest's own coordinates. `front` accesses it from beside it
@@ -341,10 +346,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-health.lua](../so-mod-health.lua), `health`, registers `health`,
   `attention`, `alerts`, `events` and `errors`. `count()` returns the attention
-  count. `attention(facts)` is a pure function returning severity-sorted rows
+  count. Fuel failures link to mining SETUP. Lumber shows its saved alert
+  cause before its blocked state. `attention(facts)` returns severity-sorted rows
   with `key`, `text`, `target` and optional input `actions`. Gathered facts are
   `now`, `disk`, `points`, `jobs`, `machines`, `leases`, `retirement`, `pairing`
-  and optional `requests`. The module gathers once per five game seconds.
+  and optional `requests` and `fuelAlerts`. The module gathers once per five game seconds.
   Jobs and paired IDs come from read-only generation recovery. An optional
   `SO.pair.requests()` supplies pairing requests; an open invitation also
   appears. Other job modules may add read-only status APIs later.
@@ -373,7 +379,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Exports `tick(now)` and `order(search, count)`.
+  turtle to the shop screen. Calls are `tick(now)`, `order(search, count)`,
+  `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point)` and
+  `fuelAlerts()`. Fuel auto-order defaults off in `so-data/fuel-policy`.
+  Bind the room output as a fuel point in mining SETUP. Empty reports share a
+  saved ten-minute cooldown per physical chest across mining/lumber and restarts.
+  Exact charcoal or coal orders require 64 fresh stock. Save precedes send.
+  Saved waiting orders raise delivery-unconfirmed attention after two minutes.
+  Failure causes appear in `shop.alert` and `fuelAlerts`; pickup clears them.
   `order` sends one order for the match with the highest stock, breaking ties
   by name. Counts are 1, 16 or 64. Missing matches or storage send nothing.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
@@ -733,7 +746,9 @@ Do not save inside tight loops.
 - `so-data/cells/res` holds reservations. Dug marks live in
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
-- `so-drops` holds drop points and failure counts.
+- `so-drops` holds drop points, failure counts and the default-off room-sink flag.
+- `so-data/fuel-policy` holds the default-off fuel auto flag, bound output,
+  up to 64 saved cooldowns, waiting delivery and its failure alert.
 - `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
   Roles include `panel` and `map`. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
@@ -857,3 +872,9 @@ rollouts at 20 TPS. UTC skew, replay retention, clock dates, Amsterdam midnight
 and daily date rollover also stay at 20 TPS. Changing tick rate cannot shorten
 those wall-clock checks. Server-off recovery at higher rates uses a game-time
 outage measured by the workers; the server's durable clock pauses while off.
+
+G4 adds `tests/so/storage-room.lua`. It covers default-off flags, exact fresh
+fuel IDs, shared physical-chest cooldowns, save/send failures, power cuts before
+send, restart alerts, room readiness, worker unloads and drawn controls at
+26x20 and 29x12. Gate B must still verify the room's outside input/output
+access cells, actual fuel delivery, sorting stock and furnace fuel consumption.

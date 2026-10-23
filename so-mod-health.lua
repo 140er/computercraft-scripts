@@ -28,6 +28,9 @@ local function attention(facts)
       add("drop/"..p.id,1,"Chest "..p.id.." broken","generic",{"list","select:"..p.id})
     end
   end
+  for i, alert in ipairs(facts.fuelAlerts or {}) do
+    add("fuel/"..i,2,alert.text,"mining",{"setup"})
+  end
   local owners = {}
   for role, job in pairs(facts.jobs or {}) do
     for id, row in pairs(job.turtles or {}) do
@@ -38,7 +41,7 @@ local function attention(facts)
     end
     if job.turtle then owners[tostring(job.turtle.id)] = role end
     if job.blocked or job.alert then
-      add(role,2,role:upper().." "..tostring(job.blocked or job.alert),role)
+      add(role,2,role:upper().." "..tostring(job.alert or job.blocked),role)
     end
   end
   for id, row in pairs(facts.machines or {}) do
@@ -88,7 +91,7 @@ H.gather = function(now)
   local diskFrame = state and state.view and state.view.get({name="status"})
   local disk = diskFrame and diskFrame.data or {}
   H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,
-    points=call("drops","list") or {},retirement=call("cells","retirement"),
+    points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
     pairing=SO.pair and SO.pair.pending and SO.pair.pending() ~= nil,
     requests=SO.pair and SO.pair.requests and SO.pair.requests() or {}})
   local log = call("state","diagnostics") or {}
