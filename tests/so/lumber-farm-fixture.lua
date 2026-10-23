@@ -11,7 +11,7 @@ local function libs(m)
     f:close()
   end
 end
-local function setup(saplings, fuel, side, count)
+local function setup(saplings, fuel, side, count, starts)
   count = count or 1
   side = side or "down"
   local n = H.new()
@@ -27,7 +27,8 @@ local function setup(saplings, fuel, side, count)
   assert(s.alive(), tostring(s.error))
   local digs, burned, workers, dugCells = {}, {}, {}, {}
   local function worker(id)
-  local w = n.machine({ id = id, modem = true, turtle = true, x = -2, y = 2, z = (id - 2) * 2,
+  local at = starts and starts[id] or { x=-2, y=2, z=(id - 2) * 2 }
+  local w = n.machine({ id = id, modem = true, turtle = true, x = at.x, y = at.y, z = at.z,
     facing = 1, fuel = fuel or 10000, capacity = 1000000 })
   w.install({ "worker.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
   libs(w)
@@ -113,7 +114,9 @@ local function setup(saplings, fuel, side, count)
   local function command(text) screens.lumber.input({text=text,role="lumber",x=1,y=1}) end
   command("area 0 0 8 8 0")
   command("saplings "..chests.saplings.x.." "..chests.saplings.y.." "..chests.saplings.z.." "..side)
-  for id = 2, count + 1 do command("add " .. id .. " -2 2 " .. (id - 2) * 2 .. " e") end
+  for _, worker in ipairs(workers) do
+    command(string.format("add %d %d %d %d e", worker.id, worker.pos.x, worker.pos.y, worker.pos.z))
+  end
   n.advance(2)
   command("start")
   return {net=n,server=s,worker=w,workers=workers,dugCells=dugCells,screens=screens,events=events,digs=digs,burned=burned,wood=chests.wood,chests=chests,command=command}

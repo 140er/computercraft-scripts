@@ -1191,13 +1191,18 @@ worker being reanchored. Stop before adding or reanchoring a certain worker.
 Removing one worker leaves the others assigned and releases only its claims.
 Its last cell remains a known obstacle until observed empty.
 
-Chest trips receive saved FIFO tickets per chest coordinate. Only the queue head
+Chest trips receive saved FIFO tickets per chest coordinate. A turtle already
+occupying the access column services the chest ahead of queued arrivals, so the
+head cannot wait for its own waiter to move. An admitted trip keeps priority
+until it leaves the column. Other arrivals follow ticket order. Only one trip
 reserves the chest and the vertical access column through soil height plus three.
 It keeps that reservation through the transfer and return until it leaves the
 column. Other trips wait at their departure positions and show `wait chest`.
-Overlapping approaches to different chests also reserve atomically. An expired worker gives up its ticket and unused approach when neither possible
-end of its saved movement intersects that approach. Its possible occupied cells
-stay reserved until it reports its journal pose. A physically occupied access
+Overlapping approaches to different chests also reserve atomically. An expired worker gives up its ticket and unused approach when no possible
+position in its saved movement intersects that approach. Its possible occupied cells
+stay reserved until it reports its journal pose. Possible cells include every
+movement endpoint in the saved in-flight batch even before lease expiry or an
+expiry callback. A physically occupied access
 cell stays protected.
 With several workers, sapling trips return surplus supplies before releasing
 access, retaining one of the desired species. A lone worker keeps its supplies

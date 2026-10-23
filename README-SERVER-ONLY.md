@@ -328,7 +328,8 @@ park report finish. Retry when requested. A turtle at a chest returns before
 it can be removed. Each worker recovers its own journal pose after restart.
 Workers claim separate scan positions and trees, so one lost turtle does not
 stop the others. They queue for shared chests and keep access reserved until
-clear. Keep the approaches clear. Multiple workers can detour above the normal
+clear. A turtle already occupying an access column finishes service before
+queued arrivals enter. Keep the approaches clear. Multiple workers can detour above the normal
 flight height of soil plus two. Travel protects saplings and tree bases.
 With several workers, sapling trips return surplus supplies before leaving.
 Work stays stopped until configured and started. `stop` parks after the current

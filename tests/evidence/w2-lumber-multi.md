@@ -44,3 +44,13 @@ accept both the new worker rows and existing recordings. W1 readiness and GPS
 behavior is retained after rebasing onto bbe6240. Readiness checks all added
 workers, GPS add hands its reservation to the selected worker, and chest alerts
 retain their cause, point and coordinates.
+
+The orchestrator's follow-up found two chest-contention failures. Both new
+regressions fail against the preceding implementation: an uncertain hello during
+an open movement lease permits a collision at the fuel access, and a later-ticket
+occupant cannot service its chest. With the fixes, both pass. Possible in-flight
+positions protect reservations before and after expiry. An existing occupant
+finishes service ahead of its waiter, after which both turtles refuel, deliver
+all 16 logs and replant the farm. The branch also includes builder merge 79b90d4.
+The saved before/after logs are `review-blockers-before.log` and
+`review-blockers-after.log` under the local evidence directory.

@@ -246,6 +246,11 @@ S.busy = function(p, allowedOwner)
   end
   return false
 end
+S.positions = function(row)
+  local possible = row.uncertain or { row.turtle.pose }
+  if row.inflight then return S.possible(possible, row.inflight) end
+  return possible
+end
 S.keep = function()
   local row, keep = S.row, {}
   local function add(p)
@@ -261,7 +266,7 @@ S.keep = function()
     for _, cell in ipairs(row.service.lane) do add(cell) end
   end
   if row.motion and row.motion.cell then add(row.motion.cell) end
-  for _, p in ipairs(row.uncertain or {}) do add(p) end
+  for _, p in ipairs(S.positions(row)) do add(p) end
   return keep
 end
 S.prune = function()
@@ -281,7 +286,7 @@ S.suspendService = function()
   local row, cells = S.row, S.module("cells")
   local service = row.service
   if not service or service.suspended then return end
-  local possible = row.uncertain or { row.turtle.pose }
+  local possible = S.positions(row)
   for _, p in ipairs(possible) do
     for _, cell in ipairs(service.lane or {}) do
       if S.cellKey(p) == S.cellKey(cell) then return end
@@ -351,17 +356,20 @@ S.queueService = function()
     service.ticket = S.job.ticket
     S.save()
   end
-  for _, other in pairs(S.job.turtles) do
-    local trip = other.service
-    if other ~= row and trip and not trip.suspended and S.chestKey(trip.point) == S.chestKey(service.point)
-      and (trip.lane or trip.stage ~= "return" and trip.ticket and trip.ticket < service.ticket) then
-      row.wait = "wait chest"
-      return false
-    end
-  end
   if not service.access or S.occupied(service.access) then
     service.access = L.access(service.point, row.turtle.pose, S.occupied)
     if not service.access then return true end
+  end
+  local p, at = service.access, row.turtle.pose
+  local occupying = service.lane or at.x == p.x and at.z == p.z
+    and at.y >= math.min(p.y, S.job.ground + 2) and at.y <= math.max(p.y, S.job.ground + 3)
+  for _, other in pairs(S.job.turtles) do
+    local trip = other.service
+    if other ~= row and trip and not trip.suspended and S.chestKey(trip.point) == S.chestKey(service.point)
+      and (trip.lane or not occupying and trip.stage ~= "return" and trip.ticket and trip.ticket < service.ticket) then
+      row.wait = "wait chest"
+      return false
+    end
   end
   if not service.lane and type(cells.reserveMany) == "function" then
     local p = service.access

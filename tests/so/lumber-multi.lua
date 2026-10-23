@@ -103,5 +103,62 @@ return function(test, equal)
     g.net.advance(5)
     equal(g.server.env.SO.store.read('so-data/lumber/job').value.logs, 16)
   end)
+  test('lumber uncertain hello retains in-flight chest cells before lease expiry', function()
+    local g = F.setup(true, 10, 'down', 2)
+    local stopped, departure, arrived
+    for _, worker in ipairs(g.workers) do
+      local send = worker.env.rednet.send
+      worker.env.rednet.send = function(id, wire, protocol)
+        if not stopped and wire.t == 'step.report' then
+          local row = g.server.env.SO.store.read('so-data/lumber/job').value.turtles[tostring(worker.id)]
+          local service, at = row.service, worker.pos
+          if service and service.kind == 'fuel' and service.lane and row.inflight
+            and at.x == service.access.x and at.z == service.access.z
+            and (row.turtle.pose.x ~= at.x or row.turtle.pose.z ~= at.z) then
+            stopped, departure, arrived = worker, row.turtle.pose, {x=at.x,y=at.y,z=at.z}
+            local proto = worker.env.dofile('so-proto.lua')
+            local journal = worker.env.textutils.unserialize(worker.files['so-journal']).value
+            local sent = send(1, proto.encode(proto.build(string.rep('a',64), 'hello', {
+              role='turtle', journal={id=journal.id,uncertain=true},
+            }, 'uncertain-' .. wire.rid)), protocol)
+            g.net.kill(worker)
+            return sent
+          end
+        end
+        return send(id, wire, protocol)
+      end
+    end
+    F.run(g, function() return stopped ~= nil end)
+    local lease = g.server.env.SO.mods.lease
+    assert(lease.status(stopped.id).uncertain and lease.status(stopped.id).open, 'uncertain hello must arrive while the movement lease is open')
+    assert(departure.x ~= arrived.x or departure.z ~= arrived.z)
+    local before = g.net.time
+    F.run(g, function(v) return v.net.time >= before + 15000 end, 20)
+    assert(lease.status(stopped.id).open, 'regression must check before expiry')
+    local owner = 'lumber:' .. stopped.id
+    local cells = g.server.env.SO.mods.cells
+    equal(cells.owner(arrived.x,arrived.y,arrived.z,'minecraft:overworld'), owner)
+    equal(cells.owner(departure.x,departure.y,departure.z,'minecraft:overworld'), owner)
+    local row = g.server.env.SO.store.read('so-data/lumber/job').value.turtles[tostring(stopped.id)]
+    assert(row.service.lane and not row.service.suspended)
+    F.run(g, function(v) return v.net.time >= before + 90000 end, 100)
+    equal(cells.owner(arrived.x,arrived.y,arrived.z,'minecraft:overworld'), owner)
+  end)
+  test('lumber a chest occupant finishes service ahead of an earlier waiter', function()
+    local g = F.setup(true, 10, 'down', 2, { [3]={x=-4,y=2,z=0} })
+    F.run(g, function(v)
+      local rows = v.server.env.SO.store.read('so-data/lumber/job').value.turtles
+      return rows['2'].service and rows['2'].service.ticket and rows['3'].service and rows['3'].service.ticket
+    end)
+    local rows = g.server.env.SO.store.read('so-data/lumber/job').value.turtles
+    assert(rows['2'].service.ticket < rows['3'].service.ticket)
+    assert(rows['3'].service.lane, 'the occupant must be admitted ahead of its waiter')
+    F.run(g, function(v) return F.delivered(v) == 16 end, 800)
+    for _, worker in ipairs(g.workers) do assert(worker.fuel > 10) end
+    for _, spot in ipairs(F.trees) do
+      equal(g.net.world[spot[1] .. ',1,' .. spot[2]], 'minecraft:' .. spot[3] .. '_sapling')
+    end
+    equal(#g.digs, 16)
+  end)
 
 end
