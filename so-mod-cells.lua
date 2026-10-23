@@ -3,7 +3,7 @@ local S = {
   clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
-  columns = {}, columnsVersion = 0, marks = 0,
+  columns = {}, indexed = {}, stamps = {}, columnsVersion = 0, marks = 0, reservedVersion = 0,
 }
 
 S.pause = function()
@@ -134,7 +134,7 @@ S.section = function(path)
     local n = tonumber(digit, 16)
     for _ = 1, 4 do count = count + n % 2 n = math.floor(n / 2) end
   end
-  if S.sizes[path] == nil then S.index(path, true) end
+  if count > 0 and not S.indexed[path] then S.index(path, true) end
   S.dug = S.dug + count - (S.sizes[path] or 0)
   S.sizes[path] = count
   S.sections[path], S.cached = section, S.cached + 1
@@ -223,7 +223,7 @@ S.markDug = function(x, y, z, dim)
     section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] + 1, S.dug + 1
-    S.marks = S.marks + 1
+    S.changed(path)
   end
   S.pause()
   return true
@@ -253,13 +253,18 @@ S.forget = function(x, y, z, dim)
     section.value.used = SO.now()
     S.used[path] = section.value.used
     S.sizes[path], S.dug = S.sizes[path] - 1, S.dug - 1
-    S.marks = S.marks + 1
+    S.changed(path)
   end
   return true
 end
 
 -- Read-only views for the map. They never load a section into the cache,
 -- bump its use time or write anything.
+S.changed = function(path)
+  S.marks, S.stamps[path] = S.marks + 1, (S.stamps[path] or 0) + 1
+  if not S.indexed[path] then S.index(path, true) end
+end
+
 S.index = function(path, add)
   local dim, sx, sy, sz = path:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+)$")
   if not dim then return end
@@ -267,6 +272,7 @@ S.index = function(path, add)
   S.columns[dim] = columns
   local key = sx .. "_" .. sz
   local column = columns[key]
+  S.indexed[path] = add or nil
   if add then
     column = column or { sx = tonumber(sx), sz = tonumber(sz), sy = {} }
     columns[key], column.sy[tonumber(sy)] = column, true
@@ -292,23 +298,32 @@ S.dugColumns = function(dim, sx1, sz1, sx2, sz2, max)
   return out
 end
 
+-- Returns the bits (nil for an unknown or empty section) and a change stamp
+-- that survives eviction. memoryOnly returns false for an evicted section.
 S.dugBits = function(dim, sx, sy, sz, memoryOnly)
   local path = S.root .. S.dimension(dim) .. "/" .. string.format("%.0f_%.0f_%.0f", sx, sy, sz)
-  local section = S.sections[path]
-  if section then return section.value.bits end
-  if (S.sizes[path] or 0) == 0 then return nil end
-  if memoryOnly then return false end
-  local saved = SO.store.read(path)
-  local value = type(saved) == "table" and saved.value
-  if type(value) == "table" and value.format == "hex4096" and S.sectionValid(value) then return value.bits end
+  local section, stamp = S.sections[path], S.stamps[path] or 0
+  if section then return section.value.bits, stamp end
+  if (S.sizes[path] or 0) == 0 then return nil, stamp end
+  if memoryOnly then return false, stamp end
+  local newest, bits = -1, nil
+  for _, file in ipairs({ path, path .. ".tmp", path .. ".bak" }) do
+    local saved = SO.store.read(file)
+    if type(saved) == "table" and type(saved.generation) == "number" and saved.generation > newest
+      and type(saved.value) == "table" and saved.value.format == "hex4096" and S.sectionValid(saved.value) then
+      newest, bits = saved.generation, saved.value.bits
+    end
+  end
+  return bits, stamp
 end
 
 S.reserved = function(dim, max)
   local key, cache = S.dimension(dim), S.reservedCache
-  if cache and cache.source == S.reservations and cache.dim == key then return cache.list end
+  max = max or 4096
+  if cache and cache.source == S.reservations and cache.dim == key and cache.max == max then return cache.list, cache.version end
   local list = {}
   for cell, who in pairs(S.reservations) do
-    if #list >= (max or 4096) then break end
+    if #list >= max then break end
     local d, sx, sy, sz, index = cell:match("^so%-data/cells/(.-)/(%-?%d+)_(%-?%d+)_(%-?%d+):(%d+)$")
     if d == key then
       index = tonumber(index)
@@ -317,8 +332,9 @@ S.reserved = function(dim, max)
     end
     S.pause()
   end
-  S.reservedCache = { source = S.reservations, dim = key, list = list }
-  return list
+  S.reservedVersion = S.reservedVersion + 1
+  S.reservedCache = { source = S.reservations, dim = key, max = max, list = list, version = S.reservedVersion }
+  return list, S.reservedVersion
 end
 
 S.list = function(who, max)
@@ -538,8 +554,8 @@ S.decideRetirement = function(id, choice)
         if section then S.sections[path], S.cached = nil, S.cached - 1 end
         S.dug = S.dug - (S.sizes[path] or 0)
         S.sizes[path], S.used[path], S.versions[path] = nil, nil, nil
+        S.changed(path)
         S.index(path, false)
-        S.marks = S.marks + 1
         forgottenPaths[path] = true
         forgotten, freed = forgotten + 1, freed + candidate.bytes
       end

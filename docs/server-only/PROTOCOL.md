@@ -640,13 +640,16 @@ never load a section into the cache, refresh its use time or write a file.
 changes with every dug mark, forget or retirement.
 `cells.dugColumns(dim, sx1, sz1, sx2, sz2, max)` returns up to `max` (default
 1024) known section columns in that section box as `{ sx, sz, sy = {...} }`,
-with each `sy` list sorted. An index kept since boot answers it without disk reads.
+with each `sy` list sorted. An index answers it without disk reads. It holds
+sections with at least one mark since boot; sections that were only probed stay out.
 `cells.dugBits(dim, sx, sy, sz, memoryOnly)` returns the section's 1024-character
-`bits`, or nil when the section is unknown or empty. An evicted section is read
-from disk without caching it, or returns false when `memoryOnly` is set.
+`bits`, or nil when the section is unknown or empty, and a change stamp. The
+stamp rises with every mark, forget or retirement in that section and survives
+eviction. An evicted section is read from its newest valid generation on disk
+without caching it, or returns false when `memoryOnly` is set.
 `cells.reserved(dim, max)` returns up to `max` (default 4096) reservations in that
-dimension as `{ x, y, z, who }`. The list is cached and returned again until the
-reservations change. Callers must not edit it.
+dimension as `{ x, y, z, who }`, and a version. The list and version stay the
+same until the reservations change. Callers must not edit the list.
 
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
 
@@ -937,13 +940,15 @@ Dug marks come from `cells.dugColumns`, `cells.dugBits` and `cells.dugVersion`.
 The map keeps one plane per section column and level (or ALL), shared by
 all displays: the list of dug x, z in that column. Building a plane reads
 one section per level, and reads count against a budget of 16 per server
-tick; a plane that needs more finishes first. A view that is still loading
+tick. A plane larger than the rest of the budget waits for the next tick,
+where it may use more than 16 reads alone. A view that is still loading
 draws what it has and keeps loading on the next ticks. When the dug serial
 changes, tick probes the planes under each turtle and the cell ahead of it,
 then sweeps the other planes, at most 64 memory-only section probes per
-tick. A changed section marks its plane stale; the next render rebuilds it
-within the budget. Planes unused for 300 ticks drop during a sweep, and the
-cache clears above 2048 planes. An idle map reads and probes nothing.
+tick. A probe compares the section's change stamp, so a section that left the
+cells cache is still checked. A changed section marks its plane stale; the next render rebuilds it
+within the budget. Planes unused for 300 ticks drop during a sweep. Above 2048
+planes, planes not drawn in the last five ticks drop. An idle map reads and probes nothing.
 
 Each display session caches its pixel raster and its frame. Turtle and drop
 moves redraw markers over the cached raster. View, terrain or plane changes

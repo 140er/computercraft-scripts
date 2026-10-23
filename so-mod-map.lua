@@ -92,6 +92,7 @@ M.gather = function(now)
   table.sort(s.turtles, function(a, b)
     local x, y = tonumber(a.id), tonumber(b.id)
     if x and y and x ~= y then return x < y end
+    if (x == nil) ~= (y == nil) then return x ~= nil end
     return tostring(a.id) < tostring(b.id)
   end)
   for _, p in ipairs(M.call("drops", "list") or {}) do
@@ -100,8 +101,9 @@ M.gather = function(now)
   if lumber.saplings and M.dim(lumber.dim) == dim then
     local p = SO.store.copy(lumber.saplings) p.kind = "saplings" s.drops[#s.drops+1] = p
   end
-  s.reserved = M.call("cells", "reserved", dim, 4096) or {}
-  local terrain, markers = {dim, tostring(s.reserved)}, {}
+  local reserved, version = M.call("cells", "reserved", dim, 4096)
+  s.reserved = reserved or {}
+  local terrain, markers = {dim, tostring(version)}, {}
   for _, key in ipairs({"x","z","top","bottom","dx","dz","branches","length","gap"}) do terrain[#terrain+1] = s.g and s.g[key] or "" end
   if s.area then
     for _, key in ipairs({"x1","z1","x2","z2"}) do terrain[#terrain+1] = s.area[key] end
@@ -228,9 +230,9 @@ end
 M.build = function(key, dim, col, sys, level)
   local set, bits, cells = {}, {}, {}
   for _, sy in ipairs(sys) do
-    local found = M.call("cells", "dugBits", dim, col.sx, sy, col.sz)
+    local found, stamp = M.call("cells", "dugBits", dim, col.sx, sy, col.sz)
     M.budget = M.budget - 1
-    bits[sy] = found or false
+    bits[sy] = stamp or 0
     if type(found) == "string" then M.decode(found, level, set) end
   end
   for i = 0, 255 do
@@ -266,7 +268,8 @@ M.planesFor = function(v, s)
       local key = table.concat({s.dim, col.sx, col.sz, tostring(level)}, ":")
       local entry, sysKey = M.planes[key], table.concat(sys, ",")
       local fresh = entry and not entry.stale and entry.sysKey == sysKey
-      if not fresh and M.budget > 0 then entry, fresh = M.build(key, s.dim, col, sys, level), true end
+      -- A plane larger than the remaining budget waits for a fresh tick.
+      if not fresh and (M.budget >= #sys or M.budget == 16) then entry, fresh = M.build(key, s.dim, col, sys, level), true end
       if entry then entry.used = M.ticks list[#list+1] = entry end
       ready = ready and fresh
     end
@@ -290,8 +293,8 @@ M.check = function(entry)
   if count > M.probes and M.probes < 64 then return false end
   M.probes = M.probes - count
   for sy, old in pairs(entry.bits) do
-    local now = M.call("cells", "dugBits", entry.dim, entry.sx, sy, entry.sz, true)
-    if now ~= false and (now or false) ~= old then entry.stale = true return true end
+    local _, stamp = M.call("cells", "dugBits", entry.dim, entry.sx, sy, entry.sz, true)
+    if (stamp or 0) ~= old then entry.stale = true return true end
   end
   return true
 end
@@ -314,11 +317,17 @@ M.revalidate = function()
     if M.cursor > #M.keys then M.cursor = 1 end
     local entry = M.planes[M.keys[M.cursor]]
     if not entry or M.ticks - entry.used > 300 then M.forget(M.cursor)
-    elseif M.check(entry) then M.cursor = M.cursor + 1
+    elseif M.check(entry) then M.cursor, M.swept = M.cursor + 1, M.swept + 1
     else break end
-    M.swept = M.swept + 1
   end
-  if #M.keys > 2048 then M.planes, M.keys, M.columns, M.serial = {}, {}, {}, M.serial + 1 end
+  if #M.keys > 2048 then
+    -- Keep the planes drawn in the last few ticks; drop the rest.
+    for i = #M.keys, 1, -1 do
+      local entry = M.planes[M.keys[i]]
+      if not entry or M.ticks - entry.used > 5 then M.forget(i) end
+    end
+    M.cursor, M.serial = 1, M.serial + 1
+  end
 end
 
 M.raster = function(v, s, planes)

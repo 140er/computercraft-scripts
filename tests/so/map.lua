@@ -280,6 +280,29 @@ return function(test,equal)
     equal(lit(out, session.map, 165, -374), true, "new tunnel pixel")
   end)
 
+  test("map shows marks in sections that left the cells cache before the sweep", function()
+    local s = setup()
+    local session = {map={level=-58, fit=false, zoom=0, cx=150, cz=-370}}
+    local frame = s.settle(29, 12, session)
+    equal(lit(picture(frame, 29, 12), session.map, 165, -374), false)
+    assert(s.cells.markDug(165, -58, -374))
+    -- Planning reads elsewhere push the section out of the 256-section cache.
+    local version = s.cells.dugVersion()
+    for i = 1, 300 do s.cells.isDug(5000 + i * 16, 0, 5000) end
+    equal(s.cells.dugVersion(), version, "probed empty sections stay out of the column index")
+    for _ = 1, 4 do s.step() frame = s.screen.render(29, 12, session) end
+    equal(lit(picture(frame, 29, 12), session.map, 165, -374), true, "new tunnel pixel after eviction")
+  end)
+
+  test("map orders numeric and named turtle ids without failing", function()
+    local s = setup()
+    for _, id in ipairs({"9", "10", "1a", "b"}) do
+      s.mine.turtles[id] = {pose={x=130, y=-58, z=-347, facing=0}, state="mining"}
+    end
+    s.step()
+    s.settle(57, 24, {})
+  end)
+
   test("map dug reads stay inside the budget at the widest zoom", function()
     local s = setup()
     for x = 0, 40 do assert(s.cells.markDug(x * 16, 0, x * 16)) end
