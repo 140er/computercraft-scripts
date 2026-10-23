@@ -113,9 +113,14 @@ and verifies every role file and recorded revision. It requires the requested
 SHA to be the current server-only tip, a running server and a connected client
 for the pocket. Mode `installer` pins resolution to the requested SHA and uses
 real HTTP for role downloads. Mode `copy` uses the commit's installer manifest.
-Install results include `mode` and `errors`; a failed check raises an error and
-must never count as a pass. Power on/reboot deletes cached screen state before
-sending native power commands, so an old screen cannot satisfy a fresh read.
+Install results include `mode`, `errors` and a `boots` map for online roles.
+Each copy install reboots the role and requires a snapshot with its new
+`boot_id`, a fresh `at` timestamp and numeric `uptime`. The proof records native
+commands, the accepted snapshot and `state`, either `ready` or `failed`.
+A missing boot allows one turn-on retry, then adds an installation error.
+Power on/reboot deletes cached screen state and clears queued input files while
+preserving the live inbox directory. The bridge captures its boot identity once
+at startup, so an old bridge cannot satisfy the new boot check.
 
 Template preparation starts a disposable server under the shared suite lock.
 It clears old job/journal state on the copy, preserves existing pairing except

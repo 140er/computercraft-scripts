@@ -55,9 +55,14 @@ def evaluate(d):
 
 def run(ctx):
     ctx.mining(); ctx.lumber()
-    if not ctx.wait(lambda: len(ctx.state()["workers"]) == 3 and all(j.get("id") and not j.get("park") for j in ctx.state()["workers"].values()), 90):
+    ready = ctx.sample("C10-ready-samples.jsonl", 90,
+                       lambda rows: len(rows[-1]["workers"]) == 3 and all(
+                           j.get("id") and j.get("pose") and not j.get("park")
+                           for j in rows[-1]["workers"].values()))
+    if not all(j.get("id") and j.get("pose") and not j.get("park") for j in ready[-1]["workers"].values()) or len(ready[-1]["workers"]) != 3:
+        ctx.record("C10-wait-state.json", ready[-1])
         return evaluate({"active_workers": False})
-    before = ctx.record("C10-before.json", ctx.state())
+    before = ctx.record("C10-before.json", ready[-1])
     ctx.power("server", "off"); off = time.time()
     try:
         rows = ctx.sample("C10-off-samples.jsonl", 181)

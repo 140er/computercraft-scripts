@@ -1,5 +1,5 @@
 local encode = dofile('tests/mocks.lua').encode
-local files, directories, events = {['/.so-role']='server'}, {}, {}
+local files, directories, events = {['/.so-role']='server',['/.gateb/boot-id']='first-boot'}, {}, {}
 local function decode(raw) return assert(load('return '..raw,'json','t',{}))() end
 local fs = {}
 fs.open=function(path,mode)
@@ -15,6 +15,7 @@ fs.makeDir=function(path) directories[path]=true end
 fs.delete=function(path) files[path]=nil;directories[path]=nil end
 fs.move=function(a,b) files[b]=assert(files[a]);files[a]=nil end
 fs.list=function(path)
+  assert(directories[path],'Not a directory')
   local result={}
   for name in pairs(files) do
     local suffix=name:match('^'..path..'/(.+)$')
@@ -38,7 +39,7 @@ local function pull(filter)
   local event=table.pack(coroutine.yield(filter))
   return table.unpack(event,1,event.n)
 end
-env.os={epoch=function() return now end,getComputerID=function() return 1 end,
+env.os={epoch=function() return now end,clock=function() return now/1000 end,getComputerID=function() return 1 end,
   queueEvent=function(...) events[#events+1]=table.pack(...) end,
   pullEventRaw=pull,pullEvent=function(filter)
     local event=table.pack(pull(filter))
@@ -62,6 +63,7 @@ env.parallel={waitForAny=function(...)
     local ok,filter=coroutine.resume(coroutines[i]);assert(ok,filter);filters[i]=filter
   end
   local async,cancel
+  files['/.gateb/boot-id']='next-boot'
   for tick=1,25 do
     if tick==1 then request('sync',{op='lua',code='return SO.marker'}) end
     if tick==2 then
@@ -76,13 +78,24 @@ env.parallel={waitForAny=function(...)
       request('wait',{op='lua_async',code='os.pullEvent("never")'})
     end
     if tick==7 then cancel=response('wait').result.job;request('cancel',{op='lua_cancel',job=cancel}) end
-    if tick==10 then request('failed',{op='lua_job',job=cancel}) end
+    if tick==8 then fs.delete('/.gateb/in') end
+    if tick==9 then
+      assert(directories['/.gateb/in'],'Missing inbox was not restored')
+      files['/.gateb/disabled']='';fs.delete('/.gateb/in')
+    end
+    if tick==10 then
+      assert(directories['/.gateb/in'],'Disabled bridge did not restore its missing inbox')
+      files['/.gateb/disabled']=nil;env.os.queueEvent('gateb_enable')
+      request('failed',{op='lua_job',job=cancel})
+    end
     if tick==11 then
       local result=response('failed').result
       assert(result.state=='failed' and result.error:find('Terminated'))
       local snapshot=decode(assert(files['/.gateb/screen.json']))
       assert(snapshot.terminal.lines[1].text=='ready')
       assert(snapshot.terminal.lines[1].fg=='00000')
+      assert(snapshot.boot_id=='first-boot','Running bridge reread the next boot identity')
+      assert(snapshot.uptime==snapshot.at/1000 and snapshot.uptime>0)
       return
     end
     events[#events+1]={'timer',tick};now=tick*100

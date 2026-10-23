@@ -63,10 +63,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(manifest['computers']['10']['name'],'probe')
         self.assertEqual(manifest['fixtures']['wood']['pos'],[3,64,3])
         self.assertEqual(manifest['mine']['home'],[-5,64,4,'s'])
-        cells=set(map(tuple,manifest['farm']['dig_cells']))
-        self.assertEqual(len(cells),120)
-        self.assertIn((4,69,4),cells)
-        self.assertNotIn((7,64,7),cells)
+        self.assertEqual(manifest['farm']['trees'],[[5,64,5],[9,64,5],[5,64,9],[9,64,9]])
+        self.assertNotIn('dig_cells',manifest['farm'])
 
     def test_native_fixture_commands_keep_the_run_name(self):
         from fixtures import prepare
