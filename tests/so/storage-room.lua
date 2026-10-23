@@ -56,6 +56,12 @@ local function tap(screen,id,w,h)
       local text=""
       for y=b.y,b.y+(b.h or 1)-1 do text=text..frame.rows[y].text:sub(b.x,b.x+b.w-1) end
       assert(text:find("%S"),"button was not drawn")
+      for _, other in ipairs(frame.buttons) do
+        if other ~= b then
+          assert(b.x+b.w<=other.x or other.x+other.w<=b.x or b.y+(b.h or 1)<=other.y
+            or other.y+(other.h or 1)<=b.y,"overlapping drawn controls")
+        end
+      end
       screen.input({id=id,x=b.x,y=b.y,session=screen.session})
       return
     end
@@ -120,6 +126,33 @@ return function(test,equal)
     assert(s.shop.fuelConfig(false)) equal(#s.shop.fuelAlerts(),0)
     s.restart() equal(s.shop.fuelConfig().auto,false)
   end)
+  for _,restart in ipairs({false,true}) do
+    test("room fuel accepts late delivery after "..(restart and "restart" or "pending timeout"),function()
+      local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+      local order=s.orders()[1]
+      s.shop.listen.roomsorter(9,{"Getting 64 charcoal",rid=order.rid})
+      s.net.time=120000 s.shop.tick(s.net.time)
+      equal(s.shop.fuelAlerts()[1].reason,"delivery unconfirmed")
+      if restart then s.restart() end
+      s.net.time=121000
+      s.shop.listen.roomsorter(8,{"Delivered 64 charcoal",rid=order.rid})
+      assert(s.shop.fuelConfig().waiting)
+      s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=order.rid})
+      equal(s.shop.fuelConfig().waiting,nil) equal(#s.shop.fuelAlerts(),0)
+      s.restart() equal(s.shop.fuelConfig().waiting,nil)
+      s.net.time=600000 s.stock() s.shop.fuelEmpty(output)
+      assert(s.orders()[2].rid>order.rid,"fuel request id reused after restart")
+    end)
+  end
+  test("room replies cannot clear another output order sent in the same tick",function()
+    local s=fixture() s.stock() s.enable() s.shop.fuelEmpty(output)
+    local first=s.orders()[1]
+    local other=s.m.env.SO.store.copy(output) other.id="second" other.x=1
+    assert(s.drops.add(other)) assert(s.shop.fuelConfig(nil,"second"))
+    s.shop.fuelEmpty(other) equal(#s.orders(),2)
+    s.shop.listen.roomsorter(9,{"Delivered 64 charcoal",rid=first.rid})
+    equal(s.shop.fuelConfig().waiting.point.id,"second")
+  end)
   test("room fuel records failed sends and retains cooldown across a power cut before send",function()
     local s=fixture() s.stock() s.enable() s.sendFail=true
     s.shop.fuelEmpty(output) equal(s.shop.fuelAlerts()[1].reason,"send failed")
@@ -156,6 +189,10 @@ return function(test,equal)
   for _,size in ipairs({{26,20},{29,12}}) do
     test("room controls use drawn buttons at "..size[1].."x"..size[2],function()
       local s=fixture() local mods=s.m.env.SO.mods
+      s.m.env.SO.pair={key=function() return "paired" end}
+      mods.state.get=function(path)
+        if path=="machines" then return {["2"]={role="worker"},["3"]={role="worker"}} end
+      end
       mods.mine=s.m.env.dofile("so-mod-mine.lua") mods.mine.tick()
       local mining=s.screens.mining
       tap(mining,"setup",unpack(size))
@@ -172,6 +209,12 @@ return function(test,equal)
       assert(found and found.room and found.disabled)
       tap(drops,"room-sink",unpack(size))
       assert(s.drops.pick("ore",{dim=0,x=0,y=64,z=0}).point)
+      if size[2]==12 then
+        tap(drops,"from-next",unpack(size))
+        local foundNext
+        for _,b in ipairs(drops.render(size[1],size[2],drops.session).buttons) do if b.id=="from:3" then foundNext=true end end
+        assert(foundNext,"FROM paging lost after room controls")
+      end
       tap(drops,"list",unpack(size))
       tap(mining,"mine-back",unpack(size))
     end)

@@ -378,7 +378,7 @@ Only the bound output coordinates and dimension qualify. It returns false when
 disabled or unbound, and true when the policy handles the report, including a
 cooldown or an unavailable order. It orders exact `minecraft:charcoal`, then
 `minecraft:coal`, requiring 64 in stock and a sample younger than 30000 ms.
-The durable `so-data/fuel-policy` stores `{auto,output,cooldowns,waiting?,alert?}`.
+The durable `so-data/fuel-policy` stores `{auto,output,cooldowns,serial?,waiting?,alert?}`.
 Cooldown keys use dimension and chest coordinates, independent of point id or
 access side. Deadlines use `SO.now()` and last 600000 ms. Save precedes send.
 The ledger retains at most 64 unexpired chest entries and refuses overflow.
@@ -388,6 +388,9 @@ Turning the policy off or selecting another output preserves cooldowns.
 successful pickup at the bound output. Explicit delivery replies also clear it.
 A Getting or Crafting acknowledgement does not. After 120000 ms the saved
 waiting order raises `delivery unconfirmed`, including after restart.
+The waiting order saves its request id and sender. Late delivery replies match
+that durable record even after the pending cache expires or the server restarts.
+The saved request serial prevents reuse of a prior fuel request id.
 `shop.fuelAlerts()` returns copied active fuel failures for the attention list.
 `shop.alert` events contain `{reason,text,point}` and clear with false. A policy
 save failure sends nothing and remains visible through `fuelAlerts()`.

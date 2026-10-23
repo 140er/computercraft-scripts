@@ -18,12 +18,12 @@ local S = {
   registered = false,
 }
 
-S.request = function(kind, name, count, view)
+S.request = function(kind, name, count, view, reservedRid)
   if not S.turtle then
     if view then view.order = "Order: failed, storage room not found" end
     return nil, "storage room missing"
   end
-  S.rid = S.rid + 1
+  S.rid = reservedRid or S.rid + 1
   local rid = S.rid
   S.pending[rid] = { kind = kind, sender = S.turtle, at = SO.now(), view = view }
   if kind == "order" then
@@ -54,6 +54,10 @@ S.fuelBox = SO.store and SO.store.store and SO.store.store("so-data/fuel-policy"
   if v.waiting ~= nil and (type(v.waiting) ~= "table" or not S.fuelPointOk(v.waiting.point)
       or type(v.waiting.at) ~= "number" or v.waiting.at ~= v.waiting.at or v.waiting.at < 0 or v.waiting.at == math.huge) then return false end
   if v.alert ~= nil and (type(v.alert) ~= "table" or type(v.alert.reason) ~= "string" or type(v.alert.text) ~= "string") then return false end
+  if v.serial ~= nil and (type(v.serial) ~= "number" or v.serial ~= v.serial or v.serial < 0
+      or v.serial >= 2^53 or v.serial % 1 ~= 0) then return false end
+  if v.waiting and (type(v.waiting.rid) ~= "number" or v.waiting.rid ~= v.serial
+      or type(v.waiting.sender) ~= "number" or v.waiting.sender < 0 or v.waiting.sender % 1 ~= 0) then return false end
   local n = 0
   for key, at in pairs(v.cooldowns) do
     n = n + 1
@@ -62,6 +66,7 @@ S.fuelBox = SO.store and SO.store.store and SO.store.store("so-data/fuel-policy"
   return n <= 64
 end) or {save=function() return false,"store unavailable" end}
 S.fuel = S.fuelBox.value or {auto=false,cooldowns={}}
+S.rid = S.fuel.serial or 0
 S.fuelKey = function(point)
   if not point then return end
   local dim = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[point.dim] or point.dim
@@ -131,13 +136,13 @@ S.fuelEmpty = function(point)
   end
   if not nextPolicy.cooldowns[key] and count >= 64 then S.fuelAlert("cooldown ledger full",point) return true end
   nextPolicy.cooldowns[key] = now + 600000
-  nextPolicy.waiting = {at=now,point=SO.store.copy(point)}
+  nextPolicy.serial = S.rid + 1
+  nextPolicy.waiting = {at=now,point=SO.store.copy(point),rid=nextPolicy.serial,sender=S.turtle}
   nextPolicy.alert = nil
   -- Save before sending so a power cut cannot repeat the order.
   if not S.fuelSave(nextPolicy) then return true end
-  local rid, err = S.request("order", name, 64)
-  if rid then S.pending[rid].fuelAt = now
-  else S.fuelAlert(err,point) end
+  local rid, err = S.request("order", name, 64, nil, nextPolicy.serial)
+  if not rid then S.fuelAlert(err,point) end
   return true
 end
 S.fuelAlerts = function()
@@ -163,8 +168,11 @@ end
 S.reply = function(sender, message)
   if type(message) ~= "table" then return end
   local pending = S.pending[message.rid]
-  if not pending or pending.sender ~= sender then return end
-  if pending.kind == "stock" then
+  if pending and pending.sender ~= sender then pending = nil end
+  local waiting = S.fuel.waiting
+  local fuelReply = waiting and waiting.rid == message.rid and waiting.sender == sender
+  if not pending and not fuelReply then return end
+  if pending and pending.kind == "stock" then
     S.pending[message.rid] = nil
     S.stock(message)
   else
@@ -181,14 +189,15 @@ S.reply = function(sender, message)
     elseif lower:match("^delivered ") or lower:find("sent to output chest", 1, true) then
       status = "delivered"
     end
-    local waiting = S.fuel.waiting
-    if pending.fuelAt and waiting and waiting.at == pending.fuelAt then
+    if fuelReply then
       if status == "failed" then S.fuelAlert("order refused: " .. (text ~= "" and text or "empty reply"), waiting.point)
       elseif status == "delivered" then S.fuelAvailable(waiting.point) end
     end
-    if status == "sent" then pending.acknowledged = true
-    else S.pending[message.rid] = nil end
-    if pending.view and pending.view.orderRid == message.rid then
+    if pending then
+      if status == "sent" then pending.acknowledged = true
+      else S.pending[message.rid] = nil end
+    end
+    if pending and pending.view and pending.view.orderRid == message.rid then
       pending.view.order = "Order: " .. status
       pending.view.orderDetail = text ~= "" and text or "empty reply"
     end
