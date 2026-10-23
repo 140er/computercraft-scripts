@@ -1,21 +1,31 @@
-15x10 Smallest monitor 1x1 at scale 0.5
+15x10 Status, smallest monitor 1x1 at scale 0.5
+ STATUS  21:14 
                
- FLEET      ok 
+! #6 lost 3m   
+! drop 3 broken
                
-  TURTLES      
-      🬋🬋🬏      
-      🬇🬋🬐      
-      🬋🬋🬀      
-  3 ok, 0 los  
-               
-     NEXT      
+ turtles ··· 5 
+ mining · 7/10 
+ ore ····· 214 
+ logs ····· 96 
+ disk ···· 13% 
+000000000888880
+000000000000000
+e00000000088000
+e00000000000000
+000000000000000
+088888880ccc0e0
+08888880c000000
+08880ccccc00000
+088880ccccc0000
+088880cccc00000
 fffffffffffffff
-f7777777777777f
-fdddddddddddddf
-fdddddddddddddf
-fdddddddddddddf
-fdddddddddddddf
-fdddddddddddddf
-fdddddddddddddf
-fdddddddddddddf
-777777777777777
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff

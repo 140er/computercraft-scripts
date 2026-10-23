@@ -230,6 +230,9 @@ or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
 with one blit colour each for `fg` and `bg`. Runs cover the row width. Compact
 rows may omit trailing spaces from `text`; the client pads them to the run width.
 The server chooses compact rows only when their `so-proto.ser` output is smaller.
+A space joins the previous run whatever its fg, because a blank cell's fg never
+shows. Text may hold any byte, including the control glyphs 1-31 (the turtle
+triangles 16, 17, 30 and 31); `so-proto` and the client's `term.blit` pass them unchanged.
 
 `body.palette` is optional. It maps numeric indices 0 through 15 to packed RGB
 numbers, corresponding to blit slots `0` through `f`. A frame without a palette
@@ -824,9 +827,13 @@ and `fleetRows(C, model, top, step)`. Sizes are P, T, M, L, XS or
 Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
 Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
 `fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`, `big(x,y,w,text,bg)`,
-`hit(id,x,y,w,h)`, `header(name,right?,bg?)`, `alert(text)`,
+`hit(id,x,y,w,h,label?)`, `header(name,right?,bg?)`, `alert(text)`,
 `tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
 `listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
+Route A adds `bar`, `section`, `rule`, `leader`, `ticks`, `progress`, `chip`,
+`flag`, `box` and `digits`, plus `U.tone`, `U.mark`, `U.age`, `U.arrow`,
+`U.filled`, `U.g`, `U.chips` and `U.stale`; [the schematic spec](../ui/SCHEMATIC-SPEC.md)
+lists their arguments. Tab chips use ids `tab:<name>`.
 Frame returns compact runs, buttons with height and the palette.
 `chipRow` draws a label at `x` (default 2) and `{ text, bg }` chips, each padded
 by one space, right-aligned to `right` (default `w - 1`); the label is cut to
@@ -843,10 +850,36 @@ does not depend on the host time zone. Status and panel headers, shop stock
 sample times, and new terminal log timestamps use this clock. Every new log
 line starts with `hh:mm:ss ` before the message. Durations are unchanged.
 
-The pure status layout takes `model.tiles`, ordered turtles, leases, alerts,
-ore, logs, disk, displays, drops and pairing. Each tile is
-`{ label, value, sub, bg }`. The model also has `time`, optional `alert`,
-`alerts`, `log`, `terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
+The pure status layout is route A ([schematic spec](../ui/SCHEMATIC-SPEC.md#13-status)).
+Its model fields, all built by the gather:
+
+- `time` (`hh:mm`), `name` (`FLEET` for the pocket fallback, else `STATUS`),
+  `server = { id, up }` with uptime `3h12` from `SO.terminal.started`.
+- `flags`: alert rows `{ text, detail?, short?, brief? }`. Lost turtles come first
+  (`#6 lost`, `x,y,z · 3 min`, `3m`), then state alerts newest first, then broken
+  drops (`drop 3 junk broken`, brief `drop 3 broken`).
+- `turtles`: `{ id, facing, state, tone, where, x, y, z, fuel, ore, ago, lost }` for
+  every worker machine, mining first, then lumber, then the rest, each by id.
+  `state` is the mining row state, the lumber phase (`felling`, `scanning`,
+  `planting`) or `lost` when the lease is lost. `where` is `b<branch>`, `lane`,
+  `farm` or `-`. `ago` is milliseconds since the machine was seen.
+- `mining = { state, done, total, busy, workers, lane }` from `mine.mapView()`;
+  `busy` counts mining turtles whose state is green, `lane` is the turtle holding it.
+- `lumber = { state, ready, spots, grow }` from `lumber.mapView()`, `grow` as `m:ss`.
+- `today = { ore, logs, recent, names = { { short name, count }, ... } }` from
+  `daily.today()`, names by count then name.
+- `disk = { used, cap }`, `leases` (open lease count), `displays` (`{ id, role,
+  size, ago }` for every connected display, lowest id first), `drops` (`{ id, kind,
+  x, y, z, broken }`), `events` (the last ten terminal log lines, newest first, as
+  `{ time, text, tone }`, never a `Pair code` line) and `thumb`, the map module's
+  `thumb` when present.
+
+A missing module leaves its field nil and the screen draws `-` in muted grey.
+The gather builds these fields only while a connected display or the server's
+monitor draws status or pocket.
+The tile model fields stay for the server terminal and the pocket fleet rows:
+`tiles` (`{ label, value, sub, bg, chips? }`), `alert`, `alerts`, `log`,
+`terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
 Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
 the count to the length of `alerts`. Gathering stays in display handler and tick
 paths. It reads state view `.alert` keys, registered worker machines, lease
@@ -860,10 +893,8 @@ Alert identity is the state key plus its serialized value. Each display sees
 at most one takeover for each identity and at most one in 30 seconds. The
 coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
 stay in the alert bar and do not trigger a delayed takeover. The alert bar
-opens the latest alert until tapped. XS `next` cycles the tiles. Status has
-no other buttons; its tiles use the rows the navigation row used to take.
-At 26x20, status draws the eight fleet chip rows under its FLEET header, two
-rows apart, without paging. The ALERTS row is the `alerts` input.
+opens the latest alert until tapped. The alert rows are the `alerts` input
+while a state alert exists; status has no other buttons and no paging.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
@@ -875,7 +906,7 @@ value; a server older than R1 rejects a file that contains it and ignores
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
 the next tick for a subscribed display. A failed save keeps the previous setting.
-`display.palette` is the Big Tiles palette as RGB numbers at indices 0 through 15.
+`display.palette` is the route A palette as RGB numbers at indices 0 through 15.
 Renderers opt into it by returning `palette = SO.mods.display.palette`.
 
 After ten seconds without a frame, the client keeps the last picture with stale
@@ -893,11 +924,22 @@ The saved display role may be `map`; older role and far settings remain valid.
 The map is a role of its own. No other screen links to it and it has no BACK.
 
 `mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
-branches, turtles }`. `branches` covers assigned branches and progress.
-`turtles[id]` has `{ pose, state, dim }` in world coordinates.
-`lumber.mapView()` returns copied `{ dim, area, ground, saplings, spots, turtle }`.
+branches, turtles, running, done }`. `branches` covers assigned branches and progress;
+`done` counts finished branches.
+`turtles[id]` has `{ pose, state, dim, branch, lane, ores }` in world coordinates;
+`branch` is zero-based, `lane` is true while the turtle holds the lane.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, spots, turtle,
+running, grow }`. `turtle` has `{ id, pose, state, phase }`.
 `spots` lists up to 512 tree spots as `{ x, z, ready }`, sorted by x then z.
 A spot is ready when it was never planted or was planted ten minutes ago.
+`grow` is the milliseconds until the next listed spot is ready, or nil.
+
+The status wall draws a map thumbnail through an optional `map.thumb(C, x, y, w, h)`:
+it draws the fitted route A map of all levels into canvas `C` with its top-left cell
+at `x, y`, top-aligned, inside `w` by `h` cells. Status calls it with at most 48x30
+cells (40x26 on a 100x38 wall); an error leaves the area blank. `so-mod-map` does
+not export it yet; until it does, the wall shows its display list at the top of
+the right column.
 The optional turtle has `{ id, pose, state }`. These getters do not save or
 advance jobs. Registry workers without a job also appear when their pose is
 known. Numeric drop dimensions are normalized to world dimension strings.

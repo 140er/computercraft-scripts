@@ -124,9 +124,7 @@ return function(test, equal)
     s.tap('tab:shop');s.type('iron');s.tap('order:16:minecraft:iron_ingot');s.match('tests/ui/fixtures/pocket-shop-P.txt')
     s.tap('tab:pair');s.match('tests/ui/fixtures/pocket-pair-P.txt')
     s.tap('pair-code');s.match('tests/ui/fixtures/pocket-code-P.txt')
-    local status = s.D.statusFrame({alertSeen={k1=true,k2=true,k3=true}},26,20,0,false)
-    local diff = R.diff('tests/ui/fixtures/status-P.txt',capture(status,26,20))
-    assert(#diff==0,table.concat(diff,'\n'))
+    -- status-P is route A now; tests/ui/s0.lua checks it from the real gather.
   end)
 
   test('R3 pocket routing: tabs change pages, a takeover comes first, the role never changes', function()

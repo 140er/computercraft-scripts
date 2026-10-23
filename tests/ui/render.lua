@@ -23,20 +23,37 @@ R.sextant = function(bits)
   return utf8(0x1FB00 + bits - 1 - (bits > 21 and 1 or 0) - (bits > 42 and 1 or 0))
 end
 
+-- CC bytes as fixture text: the route A control glyphs (docs/ui/schematic/cc.py UNI) and Latin-1
+-- 160-255 become Unicode; 128-159 are sextants (see picture).
+R.glyphs = { [1] = 0x263A, [4] = 0x2666, [5] = 0x2663, [6] = 0x2660, [7] = 0x2022, [8] = 0x25D8,
+  [14] = 0x266A, [16] = 0x25BA, [17] = 0x25C4, [18] = 0x2195, [22] = 0x25AC, [24] = 0x2191, [25] = 0x2193,
+  [26] = 0x2192, [27] = 0x2190, [28] = 0x221F, [29] = 0x2194, [30] = 0x25B2, [31] = 0x25BC, [127] = 0x2592 }
+R.char = function(byte)
+  if R.glyphs[byte] then return utf8(R.glyphs[byte]) end
+  if byte >= 160 then return utf8(byte) end
+  return string.char(byte)
+end
+
+-- Fixtures are "WxH title", then H text rows, an optional H fg rows, then H bg rows.
+-- Two-layer fixtures (text, bg) come from before route A and have no fg.
 R.load = function(path)
   local file = assert(io.open(path, "rb"))
   local header = assert(file:read("*l"))
   local w, h, title = header:match("^(%d+)x(%d+) (.*)$")
   local picture = { w = assert(tonumber(w)), h = assert(tonumber(h)), title = title, text = {}, bg = {} }
-  for _, layer in ipairs({ "text", "bg" }) do
+  local rows = {}
+  for row in file:lines() do rows[#rows + 1] = row end
+  file:close()
+  assert(#rows == 2 * picture.h or #rows == 3 * picture.h, "fixture rows")
+  local layers = #rows == 3 * picture.h and { "text", "fg", "bg" } or { "text", "bg" }
+  if #layers == 3 then picture.fg = {} end
+  for i, layer in ipairs(layers) do
     for y = 1, picture.h do
-      local row = assert(file:read("*l"), "missing fixture row")
+      local row = rows[(i - 1) * picture.h + y]
       assert(#chars(row) == picture.w, "fixture row width")
       picture[layer][y] = row
     end
   end
-  assert(file:read("*a") == "", "extra fixture rows")
-  file:close()
   return picture
 end
 
@@ -87,9 +104,9 @@ R.capture = function(w, h)
     for x = 1, w do state.cells[state.y][x] = { " ", state.fg, state.bg } end
   end
   term.picture = function()
-    local picture = { w = w, h = h, text = {}, bg = {} }
+    local picture = { w = w, h = h, text = {}, fg = {}, bg = {} }
     for y = 1, h do
-      local text, backgrounds = {}, {}
+      local text, foregrounds, backgrounds = {}, {}, {}
       for x = 1, w do
         local cell = state.cells[y][x]
         local ch, fg, bg = cell[1], cell[2], cell[3]
@@ -98,11 +115,13 @@ R.capture = function(w, h)
           local inverse = (bg == "f" and fg ~= "0" and fg ~= "8")
             or (bg == "0" and (fg == "c" or fg == "7" or fg == "f"))
           ch = R.sextant(inverse and 63 - (byte - 128) or byte - 128)
-          if inverse then bg = fg end
+          if inverse then fg, bg = bg, fg end
+        else
+          ch = R.char(byte)
         end
-        text[x], backgrounds[x] = ch, bg
+        text[x], foregrounds[x], backgrounds[x] = ch, fg, bg
       end
-      picture.text[y], picture.bg[y] = table.concat(text), table.concat(backgrounds)
+      picture.text[y], picture.fg[y], picture.bg[y] = table.concat(text), table.concat(foregrounds), table.concat(backgrounds)
     end
     return picture
   end
@@ -115,11 +134,14 @@ R.diff = function(fixture, picture)
   if picture.picture then picture = picture.picture() end
   local differences = {}
   if fixture.w ~= picture.w or fixture.h ~= picture.h then return { "picture dimensions differ" } end
-  for _, layer in ipairs({ "text", "bg" }) do
+  -- fg is compared where the fixture has one and the cell is not blank: a blank's fg never shows.
+  local layers = fixture.fg and picture.fg and { "text", "fg", "bg" } or { "text", "bg" }
+  for _, layer in ipairs(layers) do
     for y = 1, fixture.h do
       local expected, got = chars(fixture[layer][y]), chars(picture[layer][y])
+      local blank = layer == "fg" and chars(fixture.text[y])
       for x = 1, fixture.w do
-        if expected[x] ~= got[x] then
+        if expected[x] ~= got[x] and not (blank and blank[x] == " ") then
           differences[#differences + 1] = string.format("row %d column %d layer %s expected %q got %q",
             y, x, layer, expected[x], got[x] or "")
           if #differences == 8 then return differences end

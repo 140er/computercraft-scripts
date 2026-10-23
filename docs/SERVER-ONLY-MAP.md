@@ -112,7 +112,14 @@ and listeners use `listener(sender, message)`.
   it uses the cell directly above the chest. It returns nil if all candidates
   are blocked. The lumber caller supplies the known-obstacle checks.
 
-- [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
+- [so-ui.lua](../so-ui.lua) is the server-only UI kit. Route A ("schematic",
+  [spec](ui/SCHEMATIC-SPEC.md)) is the visual system; its canvas methods are `bar`,
+  `section`, `rule`, `leader`, `ticks`, `progress`, `chip`, `flag`, `box` and `digits`,
+  with helpers `tone(word)`, `mark(line)`, `age(ms, long?)`, `arrow(facing)`,
+  `filled(n, part, whole)`, glyph bytes `g`, chip colours `chips`, `palette` and the
+  no-server ramp `stale`. `docs/ui/schematic/kit.py` mirrors them call for call.
+  `status(model, w, h)` is route A at every size. The Big Tiles calls below stay
+  for screens not ported yet. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
   `canvas(w, h, bg?)`, `status(model, w, h)`, `alert(model, w, h)`,
   `chipRow(C, y, label, chips, x?, right?)` and `fleetRows(C, model, top, step)`.
@@ -123,7 +130,7 @@ and listeners use `listener(sender, message)`.
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
   Durations keep their elapsed-time formats.
-  `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
+  `palette` (route A values) and `font` expose the spec tables. Grid returns one-based `{ x, w }`
   columns and a tile-row count. Glyph returns three blit rows with inverted cells.
   Tiles accept an optional final height after the background. Six rows omit the sub-line; seven rows retain it. Titles and values have one cell of inner padding.
   Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
@@ -224,7 +231,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
   `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
   `command(text)`, `drawTerminal(now?)` and `statusModel()`.
-  `statusModel()` returns the status model of the last gather, or nil.
+  `statusModel()` returns the status model of the last gather, or nil. The gather
+  builds route A fields (flags, turtles, jobs, today, disk, displays, drops, events
+  from `SO.terminal.log`, and `thumb` from an optional `map.thumb`) beside the
+  tiles the terminal and pocket fleet rows still use.
+  Compact rows let a blank cell join the previous run whatever its fg.
   A display shows one role. `assign` is the only way to change it: role nil or
   `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
   unregistered screens return `false, reason`. Success returns
@@ -260,7 +271,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   FLEET header; their ALERTS row opens the takeover. Any other roleless
   display draws UNASSIGNED with its id in big digits; a role whose screen is
   missing draws the same block under the role name. Saved roles survive restart.
-  The 15x10 status page has NEXT on its last row. Gather runs in
+  Status has no paging; big walls cap their rows and redraw tight over 15000
+  frame bytes. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
@@ -348,7 +360,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  `mapView()` returns copied geometry fields and worker poses/states for the map.
+  `mapView()` returns copied geometry fields, `running`, `done` and worker
+  poses, states, branches, lane flags and ore counts for the map and status.
   New jobs require `home` before `start`; saved homes remain configured. Ore
   filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
   lease through `lease.cancelPark`, releasing the lane and reservations. Stale
@@ -406,7 +419,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
   `mapView()` returns copied dimension, area, ground, sapling chest, up to 512
-  sorted tree spots `{ x, z, ready }` and turtle pose/state fields for the map.
+  sorted tree spots `{ x, z, ready }`, `running`, `grow` (ms to the next ready
+  spot) and turtle pose, state and phase fields for the map and status.
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
   the text command path. SETUP pages configuration commands; its BACK returns
   to lumber. The main page has no BACK. Missing grow timers use a stale tile.
@@ -713,17 +727,17 @@ a fake terminal with CC drawing methods and `picture()` for text/background
 layers. Diff returns up to eight cell differences with row, column, layer,
 expected and actual values. Sextants use the spec ink/background rules to undo
 inverted cells. `sextant(bits)` converts a six-bit pixel value to Unicode.
-`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes every fixture
-file without changing the normal mockups.md and font.txt output mode.
+`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes every Big Tiles fixture
+that is not ported to route A, without changing the normal mockups.md and font.txt
+output mode.
 
-UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status fixtures,
-alert takeover timing and dismissal, contrast, clipping, XS paging, locked roles,
-size-specific revisions, source gathering and server-only kit installation.
-`status-T.txt` uses four 12-column tiles and a log, with status navigation on the
-bottom three rows. UI-1 pocket parity covers rows 1 through 19; UI-3b covers all 20 rows.
+UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status drawing
+from a tiles-only model, alert takeover timing and dismissal, takeover contrast,
+clipping, locked roles, size-specific revisions, source gathering and server-only
+kit installation. UI-3b covers the pocket's 20 rows.
 
 R3 adds `tests/ui/r3pocket.lua`. It checks every pocket page against its
-fixture (pocket-fleet, -alerts, -jobs, -shop, -pair, -code) and status-P, tab
+fixture (pocket-fleet, -alerts, -jobs, -shop, -pair, -code), tab
 routing after a takeover, one action per START, STOP and order tap, exact-item
 orders, one-row controls, contrast and bounds at 26x20 and 26x19, missing
 modules, alert paging, the fleet chips from a real gather and job facts from
@@ -748,6 +762,18 @@ every drawn button on every page of every role at 57x24, 39x19, 26x20 and
 command's assign, change, clear and rejections, a restart, the terminal R
 prompt through key events, the role list, and the roles-T, unassigned-M and
 unassigned-XS fixtures. Tests that need a role use `display.command`.
+
+S0 adds `tests/ui/s0.lua` and route A. `docs/ui/schematic/screens.py --fixtures`
+writes the route A fixtures (`kit-M`, `schematic-map-XL`, `status-M/W/XL/T/L/P/XS`);
+the test checks that output equals the committed files (Linux, python3) and renders
+a PNG when a CC font is found. Fixtures gain an fg layer: `WxH title`, H text, H fg
+and H bg rows; `tests/ui/render.lua` still loads two-layer fixtures and compares fg
+only on non-blank cells, and its pictures map control bytes and Latin-1 to Unicode.
+Status data comes from `tests/ui/status-scene.txt` and `tests/ui/map-scene.txt`
+through the real gather. The test also checks every kit primitive, the coloured-glyph
+contrast rule, missing modules, odd sizes, the tight wall fallback, blank-run
+compaction on the 164x81 map fixture under 16 KB, and control glyphs through
+`so-proto`, compact rows and the display client.
 
 R5 rewrites `tests/so/map.lua`. It renders every `map-*` fixture from the
 scene in `tests/ui/map-scene.txt` through the real cells module, checks a lit
