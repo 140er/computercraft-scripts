@@ -5,6 +5,8 @@ local A = {
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000,
   labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
+  strands = 3, strandRadius = 0.025, thickLimit = 16,
+  arrow = { start = 0.55, base = 1.2, tip = 1.75, half = 0.3, hatches = 6 },
   white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
   teal = 0xFF2DD4BF - 2^32, backing = 0xC00E1626 - 2^32,
@@ -104,22 +106,63 @@ A.scene = function(now)
     put("alert:dug-storage", "drawText2D", A.red, 4, 4,
       retirement.text .. (retirement.status == "pending" and " Choose allow or keep on a display." or ""), false)
   end
-  local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
-  local function label(id, color, p, text, kind, group)
-    local origin, distance = A.config.pos, 0
-    if origin and origin.x and origin.y and origin.z then
-      distance = (p.x - origin.x)^2 + (p.y - origin.y)^2 + (p.z - origin.z)^2
-    end
-    labels[#labels + 1] = { id = id, color = color, x = p.x + 0.5, y = p.y + 1.25,
-      z = p.z + 0.5, text = text:sub(1, 8), kind = kind, group = group, distance = distance }
+  local origin = A.config.pos
+  local function far(x, y, z)
+    if not (origin and origin.x and origin.y and origin.z) then return 0 end
+    return (x - origin.x)^2 + (y - origin.y)^2 + (z - origin.z)^2
   end
-  local function box(id, color, x, y, z, u, v, w)
+  local function label(id, color, p, text, kind, group)
+    labels[#labels + 1] = { id = id, color = color, x = p.x + 0.5, y = p.y + 1.25,
+      z = p.z + 0.5, text = text:sub(1, 8), kind = kind, group = group, distance = far(p.x, p.y, p.z) }
+  end
+  local shapes = {}
+  local function shape(id, x, y, z, draw) shapes[#shapes + 1] = { id = id, distance = far(x, y, z), draw = draw } end
+  local function stroke(id, color, n, x, y, z, u, v, w)
+    put(id, "drawLine3D", color, x, y, z, u, v, w)
+    if n < 2 then return end
+    local dx, dy, dz = u - x, v - y, w - z
+    local len = math.sqrt(dx * dx + dy * dy + dz * dz)
+    if len == 0 then return end
+    dx, dy, dz = dx / len, dy / len, dz / len
+    local px, py, pz = -dz, 0, dx
+    if math.abs(dy) > 0.9 then px, py, pz = 1, 0, 0 end
+    local plen = math.sqrt(px * px + pz * pz)
+    px, pz = px / plen, pz / plen
+    local qx, qy, qz = dy * pz - dz * py, dz * px - dx * pz, dx * py - dy * px
+    for k = 2, n do
+      local a = 2 * math.pi * (k - 1) / n
+      local ox, oy, oz = A.strandRadius * (math.cos(a) * px + math.sin(a) * qx),
+        A.strandRadius * (math.cos(a) * py + math.sin(a) * qy), A.strandRadius * (math.cos(a) * pz + math.sin(a) * qz)
+      put(id .. ":s" .. k, "drawLine3D", color, x + ox, y + oy, z + oz, u + ox, v + oy, w + oz)
+    end
+  end
+  local function box(id, color, thick, x, y, z, u, v, w)
+    local n = thick and A.strands or 1
     local corners = { { x, z }, { u, z }, { u, w }, { x, w } }
     for k, p in ipairs(corners) do
       local q = corners[k % 4 + 1]
-      line(id .. ":" .. k, color, p[1], y, p[2], q[1], y, q[2])
-      line(id .. ":" .. (k + 4), color, p[1], v, p[2], q[1], v, q[2])
-      line(id .. ":" .. (k + 8), color, p[1], y, p[2], p[1], v, p[2])
+      stroke(id .. ":" .. k, color, n, p[1], y, p[2], q[1], y, q[2])
+      stroke(id .. ":" .. (k + 4), color, n, p[1], v, p[2], q[1], v, q[2])
+      stroke(id .. ":" .. (k + 8), color, n, p[1], y, p[2], p[1], v, p[2])
+    end
+  end
+  local function arrow(id, color, thick, p, d)
+    local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
+    local a = A.arrow
+    local bx, bz = x + d[1] * a.base, z + d[2] * a.base
+    local tx, tz = x + d[1] * a.tip, z + d[2] * a.tip
+    stroke(id, color, thick and A.strands or 1, x + d[1] * a.start, y, z + d[2] * a.start, bx, y, bz)
+    local sx, sz = -d[2] * a.half, d[1] * a.half
+    put(id .. ":1", "drawLine3D", color, tx, y, tz, bx - sx, y, bz - sz)
+    put(id .. ":2", "drawLine3D", color, tx, y, tz, bx + sx, y, bz + sz)
+    if not thick then return end
+    put(id .. ":3", "drawLine3D", color, tx, y, tz, bx, y - a.half, bz)
+    put(id .. ":4", "drawLine3D", color, tx, y, tz, bx, y + a.half, bz)
+    for i = 0, a.hatches - 1 do
+      local t = i / a.hatches
+      local hx, hz, r = bx + (tx - bx) * t, bz + (tz - bz) * t, 1 - t
+      put(id .. ":h" .. i, "drawLine3D", color, hx - sx * r, y, hz - sz * r, hx + sx * r, y, hz + sz * r)
+      put(id .. ":v" .. i, "drawLine3D", color, hx, y - a.half * r, hz, hx, y + a.half * r, hz)
     end
   end
   local machines = A.call("state", "get", "machines") or {}
@@ -134,17 +177,11 @@ A.scene = function(now)
       if A.layers.turtles and p and A.sameDim(p.dim) then
         local key = "turtle:" .. id
         label(key, color, p, "#" .. id, "turtle", "turtle")
-        box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
         local d = A.dirs[p.facing or p.f or 0]
-        if d then
-          local x, y, z = p.x + 0.5, p.y + 0.5, p.z + 0.5
-          local tx, tz = x + d[1] * 1.5, z + d[2] * 1.5
-          line(key .. ":heading", color, x, y, z, tx, y, tz)
-          for k, sign in ipairs({ -1, 1 }) do
-            line(key .. ":heading:" .. k, color, tx, y, tz,
-              tx - d[1] * 0.5 + sign * d[2] * 0.5, y, tz - d[2] * 0.5 - sign * d[1] * 0.5)
-          end
-        end
+        shape(key, p.x, p.y, p.z, function(thick)
+          box(key .. ":box", color, thick, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
+          if d then arrow(key .. ":heading", color, thick, p, d) end
+        end)
       end
     end
   end
@@ -164,18 +201,25 @@ A.scene = function(now)
           end
         end
       end
-      if bounds then box("lease:" .. owner, A.blue, unpack(bounds)) end
+      if bounds then
+        shape("lease:" .. owner, (bounds[1] + bounds[4]) / 2, (bounds[2] + bounds[5]) / 2, (bounds[3] + bounds[6]) / 2,
+          function(thick) box("lease:" .. owner, A.blue, thick, unpack(bounds)) end)
+      end
     end
   end
   if A.layers.drops then
     for _, p in ipairs(A.call("drops", "list") or {}) do
       if A.sameDim(p.dim) then
         local key, color = "drop:" .. p.id, p.broken and A.red or A.white
-        box(key .. ":box", color, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
+        shape(key, p.x, p.y, p.z, function(thick)
+          box(key .. ":box", color, thick, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
+        end)
         label(key, color, p, p.kind:sub(1, 1):upper(), "drop", "drop:" .. p.kind)
       end
     end
   end
+  table.sort(shapes, function(a, b) return a.distance < b.distance or a.distance == b.distance and a.id < b.id end)
+  for i, row in ipairs(shapes) do row.draw(i <= A.thickLimit) end
   table.sort(labels, function(a, b) return a.distance < b.distance or a.distance == b.distance and a.id < b.id end)
   local placed, counts = {}, {}
   for _, row in ipairs(labels) do
