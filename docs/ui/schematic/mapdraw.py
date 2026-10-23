@@ -127,12 +127,20 @@ def blocks(v):
                     if not (farm and fx1 <= x <= fx2 and fz1 <= z <= fz2):
                         add(x, z, DUG)
     if level == "all" or level == g["bottom"]:
-        for k in range(1, g["spine"] + 1):
-            add(g["x"] + g["dx"] * k, g["z"] + g["dz"] * k, PLAN)
+        def line(bx, bz, ux, uz, n):
+            # Cells four or more blocks long along the line keep its first two blocks per cell.
+            size, base, o = (v["sx"], bx, v["left"]) if ux else (v["sz"], bz, v["top"])
+            for k in range(1, n + 1):
+                if size < 4 or (base + (ux + uz) * k - o) % size < 2:
+                    add(bx + ux * k, bz + uz * k, PLAN)
+        line(g["x"], g["z"], g["dx"], g["dz"], g["spine"])
+        axis = snapped(g)
+        snap, origin = (v["sz"], v["top"]) if axis == "z" else (v["sx"], v["left"])
         for b in range(1, g["branches"] + 1):
             bx, bz = g["x"] + g["dx"] * b * g["gap"], g["z"] + g["dz"] * b * g["gap"]
-            for k in range(1, g["length"] + 1):
-                add(bx + g["rx"] * k, bz + g["rz"] * k, PLAN)
+            # A branch sharing a cell row (or column) with an earlier one adds nothing new.
+            if ((bz if axis == "z" else bx) - origin) % snap == 0:
+                line(bx + 0, bz + 0, g["rx"], g["rz"], g["length"])
     for _, rx1, ry1, rz1, rx2, ry2, rz2 in S["reserve"]:
         for y in range(min(ry1, ry2), max(ry1, ry2) + 1):
             if level != "all" and y != level:
@@ -412,7 +420,7 @@ def callout_lines(pick, v):
         return t["col"], (t["x"], t["z"]), [
             ("text", [(0, "#" + t["id"], "0"), (len(t["id"]) + 2, t["state"], st), (-len(when), when, "8")]),
             ("text", [(0, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")]),
-            ("leader", "fuel", str(t["fuel"]), "1" if t["fuel"] < 500 else "0"),
+            ("leader", "fuel", str(t["fuel"]), "1" if isinstance(t["fuel"], int) and t["fuel"] < 500 else "0"),
             ("leader", "ore", str(t["ore"]), "0"),
             ("leader", "lease", t["lease"], "e" if t["lease"] == "expired" else "0" if t["lease"] == "open" else "8")]
     if k == "drop":
@@ -430,10 +438,11 @@ def callout_lines(pick, v):
                                        ("text", [(0, "%d,%d,%d" % (sv["x"], sv["y"], sv["z"]), "8")])]
     if k == "shaft":
         g = S["g"]
-        holder = "-"
+        holder, low = "-", None  # the holder of the lowest held shaft cell
         for who, x1, y1, z1, x2, y2, z2 in S["reserve"]:
             if min(x1, x2) <= g["x"] <= max(x1, x2) and min(z1, z2) <= g["z"] <= max(z1, z2):
-                holder = "#" + who.split(":")[-1]
+                if low is None or min(y1, y2) < low:
+                    holder, low = "#" + who.split(":")[-1], min(y1, y2)
         return "9", (g["x"], g["z"]), [("text", [(0, "shaft", "0")]),
                                        ("text", [(0, "%d,%d" % (g["x"], g["z"]), "8")]),
                                        ("leader", "lane", holder, "b" if holder != "-" else "8")]

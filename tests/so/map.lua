@@ -430,6 +430,21 @@ return function(test,equal)
         s.screen.render(size[1], size[2], session)
       end
     end
+    -- Odd data: unlimited fuel, a pose without x, a string focus y.
+    s.machines["2"].fuel = "unlimited"
+    s.machines["30"] = {id=30, role="worker", pose={y=-58, z=3}}
+    s.step()
+    local text = table.concat(picture(s.screen.render(57, 24, {map={level=-58, fit=false, sx=1, sz=1, cx=160, cz=-373,
+      pick={k="turtle", id="2"}}}), 57, 24).picture().text, "\n")
+    assert(text:find("unlimited", 1, true), "unlimited fuel in the callout")
+    assert(s.map.crop(U.canvas(20, 9), 1, 1, 20, 9, {x="184", y="-58", z="-369", id=6}))
+    -- A huge mine: the planned lines cost per cell, not per block.
+    s.mine.branches, s.mine.length = 1000, 4096
+    s.step()
+    local started = os.clock()
+    s.screen.render(164, 81, {})
+    print("map huge mine render " .. string.format("%.2f", os.clock() - started) .. " s")
+    assert(os.clock() - started < 5, "huge mine render took " .. (os.clock() - started) .. " s")
     local bare = setup()
     bare.mine, bare.lumber, bare.machines, bare.scene.drops = {}, {}, {}, {}
     bare.machine.files["so-server.cfg"] = nil

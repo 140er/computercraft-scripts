@@ -1055,8 +1055,9 @@ planes, planes not drawn in the last five ticks drop. An idle map reads and prob
 Each display session caches its cells and its frame. Turtle and drop moves
 redraw markers and labels over the cached cells. View, terrain or plane changes
 rebuild the cells; the work is one pass over the planes and plan lines inside
-the view plus 7 blocks, clipped to it, then a component pass over the dug
-blocks off the mine geometry, then labels (markers times 8 candidates).
+the view plus 7 blocks, clipped to it (a plan line adds at most two blocks per
+cell, and one branch per cell row), then a component pass over the dug blocks
+off the mine geometry, then labels (markers times 8 candidates).
 Gathering runs on ticks within ten seconds of a render. A frame must fit one
 16 KB message: the map packs its runs as `D.compact` does, and a frame over
 15000 serialized bytes redraws one zoom step out, at most four times. All view

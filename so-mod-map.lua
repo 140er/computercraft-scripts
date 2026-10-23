@@ -63,11 +63,15 @@ M.gather = function(now)
   local lumber = M.call("lumber", "mapView") or {}
   local dim = M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
   local s = {dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}}
-  if config.pos and M.dim(config.pos.dim) == dim then s.server = config.pos end
+  local pos = config.pos
+  if type(pos) == "table" and tonumber(pos.x) and tonumber(pos.z) and M.dim(pos.dim) == dim then s.server = pos end
   if lumber.area and M.dim(lumber.dim) == dim then
     local a = lumber.area
     s.area = {x1=math.min(a.x1, a.x2), z1=math.min(a.z1, a.z2), x2=math.max(a.x1, a.x2), z2=math.max(a.z1, a.z2)}
-    s.ground, s.spots = lumber.ground or 64, lumber.spots or {}
+    s.ground, s.spots = lumber.ground or 64, {}
+    for _, spot in ipairs(lumber.spots or {}) do
+      if tonumber(spot.x) and tonumber(spot.z) then s.spots[#s.spots+1] = spot end
+    end
   end
   local jobs, machines = {}, M.call("state", "get", "machines") or {}
   for id, machine in pairs(machines) do
@@ -81,7 +85,7 @@ M.gather = function(now)
   for id, row in pairs(jobs) do
     local machine = machines[id] or machines[tonumber(id)] or {}
     local p = row.pose or machine.pose
-    if p and M.dim(p.dim or row.dim or mine.dim) == dim then
+    if type(p) == "table" and tonumber(p.x) and tonumber(p.z) and M.dim(p.dim or row.dim or mine.dim) == dim then
       local status = M.call("lease", "status", tonumber(id) or id) or {}
       local word = tostring(row.state or "idle")
       if status.lost then word = "lost"
@@ -98,12 +102,13 @@ M.gather = function(now)
     return a.id < b.id
   end)
   for i, p in ipairs(M.call("drops", "list") or {}) do
-    if M.dim(p.dim) == dim then
+    if M.dim(p.dim) == dim and tonumber(p.x) and tonumber(p.z) then
       s.drops[#s.drops+1] = {id=tostring(p.id or i), kind=tostring(p.kind or "drop"), x=p.x, y=p.y, z=p.z, broken=p.broken and true or false}
     end
   end
-  if lumber.saplings and M.dim(lumber.dim) == dim then
-    local p = lumber.saplings
+  local sap = lumber.saplings
+  if type(sap) == "table" and tonumber(sap.x) and tonumber(sap.z) and M.dim(lumber.dim) == dim then
+    local p = sap
     s.drops[#s.drops+1] = {id="saplings", kind="saplings", x=p.x, y=p.y, z=p.z, broken=false}
   end
   local reserved, version = M.call("cells", "reserved", dim, 4096)
@@ -386,13 +391,28 @@ M.blocks = function(v, s, planes)
     end
   end
   if g and (level == "all" or level == g.bottom) then
+    -- Cells four or more blocks long along a line get only its first two blocks per cell:
+    -- the glyph is the same and the work stays per cell, not per block.
     local function line(bx, bz, ux, uz, n)
       local k1, k2 = M.clip(bx, ux, x1, x2, 1, n)
       local k3, k4 = M.clip(bz, uz, z1, z2, 1, n)
-      for k = math.max(k1, k3), math.min(k2, k4) do add(bx + ux * k, bz + uz * k, 1) end
+      local size, base, o, u = ux ~= 0 and v.sx or v.sz, ux ~= 0 and bx or bz, ux ~= 0 and v.left or v.top, ux + uz
+      local k = math.max(k1, k3)
+      while k <= math.min(k2, k4) do
+        local offset = (base + u * k - o) % size
+        if size < 4 or offset < 2 then add(bx + ux * k, bz + uz * k, 1) k = k + 1
+        else k = k + (u > 0 and size - offset or offset - 1) end
+      end
     end
     line(g.x, g.z, g.dx, g.dz, g.spine)
-    for b = 1, g.branches do line(g.x + g.dx * b * g.gap, g.z + g.dz * b * g.gap, g.rx, g.rz, g.length) end
+    -- Branches that share a cell row (or column) with an earlier branch add nothing new.
+    local snap, origin = v.axis == "z" and v.sz or v.sx, v.axis == "z" and v.top or v.left
+    local b1, b2 = M.clip(v.axis == "z" and g.z or g.x, (v.axis == "z" and g.dz or g.dx) * g.gap,
+      v.axis == "z" and z1 or x1, v.axis == "z" and z2 or x2, 1, g.branches)
+    for b = b1, b2 do
+      local bx, bz = g.x + g.dx * b * g.gap, g.z + g.dz * b * g.gap
+      if ((v.axis == "z" and bz or bx) - origin) % snap == 0 then line(bx, bz, g.rx, g.rz, g.length) end
+    end
   end
   for _, c in ipairs(s.reserved) do
     if level == "all" or c.y == level then add(c.x, c.z, 4) end
@@ -602,7 +622,7 @@ M.numbers = function(C, v, s, ox, oy, occ, taken, placed)
             for j = lo, hi do if not free(x + j, r) then ok = false break end end
             if ok then C.put(ox + x, oy + r, text, "8") break end
             local gx = step < 0 and x + n or x - 1
-            if not used(gx, r) then break end
+            if gx < 0 or gx >= mw or not used(gx, r) then break end
             x = x + 2 * step
           end
         end
@@ -634,7 +654,7 @@ M.callout = function(v, s, pick)
         return {t.tone, p.x, p.z, {
           {"text", {{0, "#" .. t.id, "0"}, {#t.id + 2, t.word, U.st.fg(t.tone)}, {-#when, when, "8"}}},
           {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}},
-          {"leader", "fuel", fuel, t.fuel and t.fuel < 500 and "1" or "0"},
+          {"leader", "fuel", fuel, type(t.fuel) == "number" and t.fuel < 500 and "1" or "0"},
           {"leader", "ore", tostring(t.ore or "-"), "0"},
           {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"}}}
       end
@@ -654,9 +674,12 @@ M.callout = function(v, s, pick)
   elseif pick.k == "shaft" then
     local g = s.g
     if g then
-      local holder = "-"
+      -- The holder of the lowest held shaft cell.
+      local holder, low = "-", nil
       for _, c in ipairs(s.reserved) do
-        if c.x == g.x and c.z == g.z then holder = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)) break end
+        if c.x == g.x and c.z == g.z and (not low or c.y < low) then
+          holder, low = "#" .. (tostring(c.who):match("(%d+)$") or tostring(c.who)), c.y
+        end
       end
       return {"9", g.x, g.z, {{"text", {{0, "shaft", "0"}}}, {"text", {{0, g.x .. "," .. g.z, "8"}}},
         {"leader", "lane", holder, holder ~= "-" and "b" or "8"}}}
@@ -852,7 +875,7 @@ M.render = function(w, h, session, tries)
   local frame = M.pack(C)
   -- Frames stay under the 16 KB message limit: a crowded view draws one zoom step out.
   if (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
-    if v.fit then v.extra = (v.extra or 0) + 1 else M.zoom(v, 1) end
+    if v.fit then v.extra = math.min((v.extra or 0) + 1, #M.free) else M.zoom(v, 1) end
     return M.render(w, h, session, (tries or 0) + 1)
   end
   v.frame, v.fkey = frame, fkey
@@ -885,11 +908,11 @@ end
 M.crop = function(C, x, y, w, h, focus)
   local s = M.ensure()
   if type(focus) ~= "table" or not tonumber(focus.x) or not tonumber(focus.z) or w < 1 or h < 1 then return false end
-  local g = s.g
-  local level = g and tonumber(focus.y) and focus.y <= g.bottom and g.bottom or "all"
+  local g, fx, fy, fz = s.g, tonumber(focus.x), tonumber(focus.y), tonumber(focus.z)
+  local level = g and fy and fy <= g.bottom and g.bottom or "all"
   local pick = focus.id ~= nil and {k="turtle", id=tostring(focus.id)} or focus.drop ~= nil and {k="drop", id=tostring(focus.drop)} or nil
-  local sig = table.concat({focus.x, focus.z, tostring(level)}, ":")
-  local v = M.auxView("crop:" .. w .. "x" .. h, {sig=sig, fit=false, level=level, sx=1, sz=1, cx=focus.x, cz=focus.z, mw=w, mh=h})
+  local sig = table.concat({fx, fz, tostring(level)}, ":")
+  local v = M.auxView("crop:" .. w .. "x" .. h, {sig=sig, fit=false, level=level, sx=1, sz=1, cx=fx, cz=fz, mw=w, mh=h})
   M.prepare(v, s)
   M.draw(C, v, s, x, y, pick)
   return true
