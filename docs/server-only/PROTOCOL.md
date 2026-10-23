@@ -775,8 +775,8 @@ shows eight chip rows from the status model; its ALERTS row (`alerts`) opens
 the alert list with `alert-prev` and `alert-next`. JOBS forwards
 `mining:start`, `mining:stop`, `lumber:start` and `lumber:stop` once each.
 SHOP takes typed text as its search; `pick:<item>` selects a match, `clear`
-empties the search and `order:1`, `order:16` and `order:64` call
-`shop.order(item, count)` once for the shown item. PAIR draws `pair-code`
+empties the search and `order:<count>:<item>` (1, 16 or 64) under the shown
+item calls `shop.order(item, count)` once while that item still matches. PAIR draws `pair-code`
 (NEW CODE). No page changes the saved role. Without the `pocket` screen the
 role draws the 26-wide status rows. `display.statusModel()` returns the status
 model of the last gather for these pages.

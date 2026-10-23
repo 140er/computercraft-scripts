@@ -11,11 +11,11 @@ P.refresh = function()
   for _,role in ipairs({"mining", "lumber", "shop"}) do
     P.screens[role] = display.screen(role)
     local screen = P.screens[role]
-    P.states[role], P.facts[role] = "not loaded", {}
+    P.states[role] = "not loaded"
     if screen and type(screen.render) == "function" and type(screen.input) == "function" then
       P.states[role] = "stopped"
       if role ~= "shop" then P.probe(role, screen) end
-    end
+    else P.facts[role] = {} end
   end
   P.fleet = nil
   local state = SO.mods.state
@@ -46,18 +46,21 @@ end
 -- Reads a job's state and facts from its own frame: the header's right side,
 -- then the one-line "LABEL VALUE" rows on 3-8 with their state colour. Below
 -- 19 rows both job screens draw those rows; 120 columns fit a long hold reason.
+-- A frame without the expected rows (lumber SETUP is shared) keeps the last facts.
 P.probe = function(role, screen)
   local ok, frame = pcall(screen.render, 120, 18, {})
   local rows = ok and type(frame) == "table" and type(frame.rows) == "table" and frame.rows or {}
   local header = rows[2] and tostring(rows[2].text or ""):match("^%s*(.-)%s*$") or ""
   local state = header:match("^" .. role:upper() .. "%s+(.+)$")
   if state then P.states[role] = state end
+  local found = {}
   for y = 3, 8 do
     local row = rows[y]
     local label, value = tostring(row and row.text or ""):match("^%s*(.-)%s+(%S+)$")
     local run = row and type(row.runs) == "table" and row.runs[1]
-    if label and run then P.facts[role][label] = { value, run[3] } end
+    if label and run then found[label] = { value, run[3] } end
   end
+  if found[P.jobFacts[role][1]] or not P.facts[role] then P.facts[role] = found end
 end
 
 P.block = function(c, role, x, y, w, height, compact)
@@ -292,9 +295,9 @@ end
 P.jobBlock = function(c, role, y, n, w)
   local state, loaded = P.states[role] or "not loaded", P.states[role] ~= "not loaded"
   c.fill(2,y,w-2,1,"7")
-  -- A hold reads "hold"; the alert list has the reason.
-  local word = loaded and state:match("^[^%s:;,]+") or state
-  U.chipRow(c,y,role:upper(),{{word:sub(1,w-15),P.stateColour(state)}},3,w-1)
+  -- A long hold reads "hold"; the alert list has the reason.
+  local word = #state <= w-12 and state or state:match("^[^%s:;,]+") or state
+  U.chipRow(c,y,role:upper(),{{word:sub(1,w-12),P.stateColour(state)}},3,w-1)
   for i = 1,n do
     local label = P.jobFacts[role][i]
     local fact = (P.facts[role] or {})[label]
@@ -339,7 +342,7 @@ P.shopPage = function(c, state, keyboard, w, h)
     if item == shown then
       for i,col in ipairs(U.grid(w-2,1,3)) do
         local n = ({1,16,64})[i]
-        c.button(col.x+1,y,col.w,tostring(n),"order:"..n,"a",1)
+        c.button(col.x+1,y,col.w,tostring(n),"order:"..n..":"..item.name,"a",1)
       end
       y = y+2
     end
@@ -404,14 +407,20 @@ P.pocketInput = function(event)
       P.refresh()
     end
   elseif state.page == "shop" then
-    local shop, amount, name = SO.mods.shop, (id or ""):match("^order:(%d+)$"), (id or ""):match("^pick:(.+)$")
+    local shop, name = SO.mods.shop, (id or ""):match("^pick:(.+)$")
+    local amount, item = (id or ""):match("^order:(%d+):(.+)$")
     if name then state.selected,state.sent = name,nil
     elseif id == "clear" then state.search,state.selected,state.sent = "",nil,nil
     elseif (amount == "1" or amount == "16" or amount == "64") and P.screens.shop and shop
         and type(shop.order) == "function" and type(shop.matches) == "function" then
-      local item = P.shown(state,shop.matches(state.search or "",256))
-      local sent = item and shop.order(item.name,tonumber(amount))
-      if item then state.sent = sent and ("sent "..amount.." "..item.label) or "not sent: no storage" end
+      -- The chip names its item; it must still match the search.
+      for _,match in ipairs(shop.matches(state.search or "",256)) do
+        if match.name == item then
+          local sent = shop.order(item,tonumber(amount))
+          state.sent = sent and ("sent "..amount.." "..match.label) or "not sent: no storage"
+          break
+        end
+      end
     end
   end
 end

@@ -298,9 +298,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `display.statusModel()`. Tick renders mining and lumber at 120x18 with a
   private session and reads their header state and the compact `LABEL VALUE`
   rows 3-8 with each row's colour; JOBS shows four of them and forwards
-  `mining:start|stop` and `lumber:start|stop` once. SHOP lists
-  `shop.matches(search, 20)`; `pick:<item>` selects, `clear` empties the search,
-  and `order:1|16|64` calls `shop.order(item, count)` once for the shown item.
+  `mining:start|stop` and `lumber:start|stop` once; a frame without the
+  expected rows keeps the last facts. SHOP lists as many `shop.matches` items as
+  fit; `pick:<item>` selects, `clear` empties the search, and
+  `order:<1|16|64>:<item>` under the shown item calls `shop.order(item, count)`
+  once while that item still matches the search.
   PAIR uses the same `pair-code` path as the panel. Inputs act only on the page
   that drew them.
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
