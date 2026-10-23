@@ -542,5 +542,8 @@ def crop(cv, x, y, w, h, focus):
     level = g["bottom"] if g and focus.get("y") is not None and focus["y"] <= g["bottom"] else "all"
     pick = ("turtle", focus["id"]) if focus.get("id") is not None else \
         ("drop", focus["drop"]) if focus.get("drop") is not None else None
-    draw(cv, view(w, h, level, 1, 1, focus["x"], focus["z"]), x, y, pick=pick)
+    # Centred on the subject, but shifted so the scene fills the crop rather than empty ground.
+    x1, _, x2, _ = bounds(level)
+    left = max(min(focus["x"] - w // 2, x2 + 2 - w), x1 - 1)
+    draw(cv, view(w, h, level, 1, 1, left + w // 2, focus["z"]), x, y, pick=pick)
     return True

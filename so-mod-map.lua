@@ -911,8 +911,11 @@ M.crop = function(C, x, y, w, h, focus)
   local g, fx, fy, fz = s.g, tonumber(focus.x), tonumber(focus.y), tonumber(focus.z)
   local level = g and fy and fy <= g.bottom and g.bottom or "all"
   local pick = focus.id ~= nil and {k="turtle", id=tostring(focus.id)} or focus.drop ~= nil and {k="drop", id=tostring(focus.drop)} or nil
-  local sig = table.concat({fx, fz, tostring(level)}, ":")
-  local v = M.auxView("crop:" .. w .. "x" .. h, {sig=sig, fit=false, level=level, sx=1, sz=1, cx=fx, cz=fz, mw=w, mh=h})
+  -- Centred on the subject, but shifted so the scene fills the crop rather than empty ground.
+  local b, cx = M.bounds(s, level), fx
+  if b then cx = math.max(math.min(fx - math.floor(w / 2), b[3] + 2 - w), b[1] - 1) + math.floor(w / 2) end
+  local sig = table.concat({cx, fz, tostring(level)}, ":")
+  local v = M.auxView("crop:" .. w .. "x" .. h, {sig=sig, fit=false, level=level, sx=1, sz=1, cx=cx, cz=fz, mw=w, mh=h})
   M.prepare(v, s)
   M.draw(C, v, s, x, y, pick)
   return true

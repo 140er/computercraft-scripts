@@ -969,8 +969,9 @@ blank on an error (callers use `pcall`):
   and, under it, the fitted map of all levels, top-aligned, in `w` by `h - 1`
   cells. The status wall calls it with at most 48x30 cells (40x26 on a 100x38
   wall). It returns false below 3x2.
-- `map.crop(C, x, y, w, h, focus)` draws one block per cell centred on
-  `focus = { x, y, z, id?, drop? }`, at the mine level when `focus.y` is at or
+- `map.crop(C, x, y, w, h, focus)` draws one block per cell around
+  `focus = { x, y, z, id?, drop? }`, centred on it but shifted along x so the
+  scene fills the crop, at the mine level when `focus.y` is at or
   under it and at ALL otherwise. Turtle `id` or drop `drop` is inverted, with no
   label and no callout. It returns false without a focus position.
 

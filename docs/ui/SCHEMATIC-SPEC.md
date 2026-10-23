@@ -174,7 +174,8 @@ the `view` lines in `tests/ui/map-scene.txt`.
 - **Frames:** a frame over 15000 bytes draws one zoom step out, at most four times.
 - **Exports:** `map.thumb(C, x, y, w, h)` draws the compass on row `y` and the fitted map under it,
   top-aligned (the status wall). `map.crop(C, x, y, w, h, focus)` draws one block per cell around
-  `focus` (`{x, y, z, id?, drop?}`) at the mine level when `focus.y` is at or under it, else ALL,
+  `focus` (`{x, y, z, id?, drop?}`), shifted along x so the scene fills it, at the mine level when
+  `focus.y` is at or under it, else ALL,
   with turtle `id` or drop `drop` inverted and no callout (the alert). Both return true when they drew
   and never wait.
 

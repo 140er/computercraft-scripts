@@ -668,10 +668,11 @@ return function(test,equal)
       s.step()
     end
     local out = picture(C.frame(), 49, 13)
-    -- Centred on the subject at the mine level: the turtle is inverted and its branch runs west of it.
-    local c = out.cells[7][25]
+    -- At the mine level, shifted so the scene fills the crop: #6 ends its branch two cells from the
+    -- right edge, inverted, with its branch running west of it.
+    local c = out.cells[7][48]
     equal(c[1], U.g.right) equal(c[2], "f") equal(c[3], "e")
-    equal(out.cells[7][20][1], "-")
+    equal(out.cells[7][40][1], "-")
     local text = table.concat(out.picture().text, "\n")
     assert(not text:find("6 lost", 1, true), "the subject has no label")
     assert(not text:find("\226\134\145N", 1, true), "no compass in the crop")
