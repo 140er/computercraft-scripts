@@ -16,7 +16,7 @@ local function setup(kit)
     SO = { now = function() return s.now end, mods = { display = { screen = function(_, render, input)
       s.render, s.input = render, input end } } },
   }, { __index = _G })
-  s.mod = assert(loadfile("so-mod-shop.lua", "t", env))()
+  s.mod, s.env = assert(loadfile("so-mod-shop.lua", "t", env))(), env
   s.mod.tick(s.now)
   for i = 1, 30 do
     local name, value = debug.getupvalue(s.render, i)
@@ -316,7 +316,7 @@ return function(test, equal)
     local wide = s.render(100, 38, { id = 2 })
     local xs = {}
     for _, b in ipairs(wide.buttons) do if b.id:match("^item:") then xs[b.x] = (xs[b.x] or 0) + 1 end end
-    equal(xs, { [2] = 31, [52] = 31 })
+    equal(xs, { [2] = 16, [52] = 16 })
   end)
 
   test("UI2c search by keypad and by keyboard covers every category", function()
@@ -449,6 +449,27 @@ return function(test, equal)
           local want = { browse = "COAL", item = "IRON INGOT", low = "BASIC", find = "> IRON", pick = "ores" }
           assert(text(frame):find(want[page], 1, true), page .. " " .. w .. "x" .. h)
         end
+      end
+    end
+  end)
+
+  test("UI2c big walls with long item names stay under the frame budget and keep the footer", function()
+    local s = loaded()
+    local P = assert(loadfile("so-proto.lua", "t", setmetatable({ SO = {} }, { __index = _G })))()
+    s.env.SO.proto = P
+    local totals = {}
+    for name, count in pairs(s.S.totals) do totals[name] = count end
+    for i = 1, 200 do totals["somemod:a_very_long_item_name_to_test_the_frame_budget_" .. i] = i end
+    s.mod.listen.roomsorter_stock(9, { totals = totals })
+    for _, size in ipairs({ { 100, 38 }, { 121, 54 }, { 164, 81 }, { 89, 81 }, { 52, 81 } }) do
+      for i, taps in ipairs({ {}, { "item:minecraft:iron_ingot" }, { "tab:find" }, { "tab:low" } }) do
+        local session = { id = 10 + i }
+        for _, id in ipairs(taps) do s.input({ id = id, session = session }) end
+        local frame = s.render(size[1], size[2], session)
+        local bytes = #P.ser(frame)
+        assert(bytes <= 15000, size[1] .. "x" .. size[2] .. " " .. i .. " " .. bytes .. " bytes")
+        equal(has(frame, "next").y, size[2])
+        capture(frame, size[1], size[2])
       end
     end
   end)

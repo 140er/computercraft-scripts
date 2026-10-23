@@ -486,6 +486,7 @@ end
 S.tabs = { "items", "low", "find" }
 S.keys = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 S.marks = { sent = "d", delivered = "8", failed = "e" }
+S.most, S.budget = 32, 15000
 
 S.stateFg = function(item)
   return item.state == "empty" and "8" or item.state == "low" and "1" or "0"
@@ -671,7 +672,7 @@ S.controls = function(C, m, view, w, y, gap, wide, bottom)
   return y + gap
 end
 
-S.layout = function(m, view, w, h)
+S.layout = function(m, view, w, h, most)
   local C = U.canvas(w, h)
   S.head(C, m, view, w)
   local gap = h >= 16 and 1 or 0
@@ -699,7 +700,8 @@ S.layout = function(m, view, w, h)
     trend, top = cw >= 36, y + 1
     for c = 1, cw >= 14 and cols or 0 do S.sorter(C, 2 + (c - 1) * (cw + 3), y, trend and cw - 7 or cw, view, trend) end
   end
-  local n = math.max(0, bottom - top + 1)
+  -- A page holds at most `most` items (S.most), which keeps the biggest walls under the frame budget.
+  local n = math.min(math.max(0, bottom - top + 1), math.floor((most or S.most) / cols))
   local per = math.max(1, n * cols)
   local count = math.max(1, math.ceil(#m.items / per))
   view.page = math.max(1, math.min(view.page or 1, count))
@@ -726,10 +728,18 @@ S.layout = function(m, view, w, h)
   return C.frame()
 end
 
+-- Long item names on big walls can still pass the frame budget; redraw with fewer items a page.
 S.render = function(w, h, session)
   if not U then return S.legacy(w, h, session) end
   w, h = w or 57, h or 24
-  return S.layout(S.gather(session), S.view(session), w, h)
+  local m, view, most = S.gather(session), S.view(session), S.most
+  local frame = S.layout(m, view, w, h, most)
+  local ser = type(SO.proto) == "table" and SO.proto.ser
+  while ser and most > 8 and #ser(frame) > S.budget do
+    most = most - 8
+    frame = S.layout(m, view, w, h, most)
+  end
+  return frame
 end
 
 -- One shop tap. Tabs, categories, subs, sorts and searches reset the page and close the item.

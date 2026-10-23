@@ -18,6 +18,9 @@ TABS = ["items", "low", "find"]
 KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 MARK = {"sent": "d", "delivered": "8", "failed": "e"}
 NOW = "21:14"
+# Items a page holds at most, so the biggest walls stay under the frame budget. The Lua screen
+# also redraws with 8 fewer at a time while a frame passes 15000 bytes; no fixture needs that.
+MOST = 32
 
 
 # ---------------------------------------------------------------- stock
@@ -254,7 +257,7 @@ def picker(cv, m, v, y, w, bottom):
 
 # ---------------------------------------------------------------- page
 
-def layout(m, v, w, h, title=""):
+def layout(m, v, w, h, title="", most=MOST):
     cv = Canvas(w, h, title)
     head(cv, m, v, w)
     gap = 1 if h >= 16 else 0
@@ -308,7 +311,7 @@ def layout(m, v, w, h, title=""):
         trend, top = cw >= 36, y + 1
         for c in range(cols if cw >= 14 else 0):
             sorter(cv, 2 + c * (cw + 3), y, cw - 7 if trend else cw, v, trend)
-    n = max(0, bottom - top + 1)
+    n = min(max(0, bottom - top + 1), most // cols)
     per = max(1, n * cols)
     count = max(1, -(-len(m["items"]) // per))
     page = max(1, min(v["page"], count))
