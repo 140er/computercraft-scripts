@@ -1,6 +1,6 @@
 26x20 Pocket, glance mode
                           
- FLEET              21:14 
+ FLEET          MORE  MAP 
                           
                           
   TURTLES                 
@@ -17,10 +17,10 @@
            🬇🬌             
   ore chest full          
                           
-           MORE           
- <  glance 1/5  >  PANEL  
+                          
+ <    1/5   >      PANEL  
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 fddddddddddddddddddddddddf
 fddddddddddddddddddddddddf
@@ -37,5 +37,5 @@ feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
-77777777777777777777777777
-77777777777777777777777777
+ffffffffffffffffffffffffff
+7777fffffff7777ff777777777

@@ -833,6 +833,16 @@ The DISK status control opens byte counts for every store and a persistent
 pressure or pending-event warning. AR keeps the disk warning visible until the
 condition clears, including with event alerts off.
 
+Turtle detail pages are server-local display state and add no wire messages.
+Rows and map arrows use drawn `turtle:<id>` buttons. The display session retains
+its selected worker and confirmation state; BACK restores the source screen.
+Mining and lumber provide read-only `turtleView()` snapshots for this view.
+PARK forwards `stop`, mining REMOVE forwards `remove <id>`, and uncertain-pose
+RE-ADD forwards `add <id> <x> <y> <z> <facing>` after coordinate confirmation.
+Mining labels its stop action PARK ALL because it stops the whole mining job.
+Lumber exposes PARK and RE-ADD; its command interface has no remove operation.
+
+
 SO5 owns this API on `SO.mods.display`.
 
 The server terminal uses `display.terminal(model, view, w, h)` to return a

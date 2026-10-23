@@ -2,6 +2,7 @@
 
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
+local Turtle = U and U.turtle
 local D = {
   path = "so-display",
   gap = 4000,
@@ -13,6 +14,7 @@ local D = {
   screens = {},
   sessions = {},
   pictures = {},
+  turtles = {},
   alertVersions = {},
   alertSequence = 0,
 }
@@ -185,7 +187,9 @@ D.compose = function(role, w, h, session)
   local contentH = math.max(1, h - offset)
   local screen = D.screens[role]
   local picture
-  if screen then
+  if Turtle and session and session.turtle then
+    picture = Turtle.render(w,contentH,session.turtle,D.turtles[session.turtle.id],D.now())
+  elseif screen then
     local ok, got
     if U and role == "status" and session and screen.render == D.statusRender then ok, got = pcall(D.statusFrame, session, w, contentH, D.now())
     else ok, got = pcall(screen.render, w, not U and role == "generic" and math.max(1, contentH - 2) or contentH,
@@ -232,7 +236,9 @@ D.compose = function(role, w, h, session)
     end
     buttons = copy
   end
-  if U and role ~= "map" and D.screens.map and w >= 15 then
+  local hasMap = false
+  for _,b in ipairs(buttons) do if b.id == "map" then hasMap=true end end
+  if U and role ~= "map" and not hasMap and not (session and session.turtle) and D.screens.map and w >= 15 then
     local copy, targets = {}, {}
     for i,row in ipairs(rows) do copy[i]=row end
     local headerRow = D.headerRow
@@ -516,7 +522,7 @@ D.statusFrame = function(session, w, h, now)
     local indices = {1,3,4,2,5,6,7,8,9}
     local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
     local c = U.canvas(w, h)
-    c.header("FLEET", copy.time)
+    U.pocketHeader(c,"FLEET")
     for i = 1, 2 do
       local index = indices[page * 2 + i]
       local tile = copy.tiles[index]
@@ -527,12 +533,10 @@ D.statusFrame = function(session, w, h, now)
         if index == 6 then c.hit("disk",3,y+1,4,1) end
       end
     end
-    c.button(1, h-1, w, "MORE", "generic", "7", 1)
-    c.fill(1, h, w, 1, "7")
-    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 2) .. "  >  PANEL")
-    c.hit("prev", 1, h, 3, 1)
-    c.hit("next", 15, h, 3, 1)
-    c.hit("panel", 19, h, 7, 1)
+    c.button(1,h,4,"<","prev","7",1)
+    c.center(5,7,h,(page+1).."/"..math.ceil(#model.tiles/2))
+    c.button(12,h,4,">","next","7",1)
+    c.button(18,h,9,"PANEL","panel","7",1)
     return c.frame()
   end
   return U.status(copy, w, h)
@@ -601,6 +605,82 @@ D.open = function(session, change, role, actions)
   end
 end
 
+D.gatherTurtles = function()
+  local out = {}
+  local state = SO.mods.state
+  local machines = state and type(state.get)=="function" and state.get("machines") or {}
+  for id,row in pairs(machines or {}) do
+    if row.role == nil or row.role == "worker" or row.role == "turtle" then out[tostring(id)] = row end
+  end
+  for _,name in ipairs({"mine","lumber"}) do
+    local mod = SO.mods[name]
+    if mod and type(mod.turtleView)=="function" then
+      for id,row in pairs(mod.turtleView()) do
+        row.seen = out[id] and out[id].seen
+        out[id] = row
+      end
+    end
+  end
+  local lease = SO.mods.lease
+  for id,row in pairs(out) do
+    local status = lease and type(lease.status)=="function" and lease.status(tonumber(id)) or {}
+    row.lease,row.uncertain = status.open,status.uncertain
+    row.seen = row.seen or status.seen
+  end
+  D.turtles = out
+end
+D.turtleInput = function(event,w,h)
+  local session,id = event.session,event.id or ""
+  if not Turtle or not session then return false end
+  local selected = session.turtle
+  local target = id:match("^turtle:(%d+)$")
+  if not selected and not target then return false end
+  local frame = D.compose(event.role,w,h,session)
+  local drawn = false
+  for _,b in ipairs(frame.buttons) do
+    if b.id == id and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1) then drawn=true break end
+  end
+  if not drawn then return true end
+  if target then
+    D.gatherTurtles()
+    if D.turtles[target] then session.turtle={id=target} end
+    return true
+  end
+  D.gatherTurtles()
+  local row = D.turtles[selected.id] or {}
+  if selected.confirmAt and D.now()-selected.confirmAt > 5000 then selected.confirm=nil end
+  local screen = row.role and D.screens[row.role]
+  local function command(text)
+    if screen then screen.input({text=text,session=session,from=event.from,role=row.role}) end
+    D.gatherTurtles()
+  end
+  if id == "turtle-back" then session.turtle=nil
+  elseif id == "turtle-cancel" then selected.draft,selected.confirm=nil,nil
+  elseif id == "turtle-park" then command("stop")
+  elseif id == "turtle-remove" then
+    if selected.confirm == "remove" then command("remove "..selected.id) selected.confirm=nil
+    else selected.confirm,selected.confirmAt="remove",D.now() end
+  elseif id == "turtle-add" and row.uncertain then
+    selected.confirm=nil
+    selected.draft=SO.store.copy(row.pose or row.anchor or {x=0,y=0,z=0,facing=0})
+    selected.draft.facing=selected.draft.facing or 0
+  elseif selected.draft then
+    local axis,delta=id:match("^pose:(%a+):(%-?%d+)$")
+    if axis and selected.draft[axis] then
+      selected.draft[axis]=selected.draft[axis]+tonumber(delta)
+      if axis=="facing" then selected.draft.facing=selected.draft.facing%4 end
+      selected.confirm=nil
+    elseif id=="turtle-save" and row.uncertain then
+      if selected.confirm=="add" then
+        local p=selected.draft
+        command(string.format("add %s %d %d %d %s",selected.id,p.x,p.y,p.z,({[0]="n","e","s","w"})[p.facing]))
+        selected.draft,selected.confirm=nil,nil
+      else selected.confirm,selected.confirmAt="add",D.now() end
+    end
+  end
+  return true
+end
+
 D.onInput = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.whole(body.x) or not D.whole(body.y) then return end
@@ -621,6 +701,10 @@ D.onInput = function(msg)
   end
   local drawn = D.drawn(msg.from)
   local session = D.session(msg.from)
+  if D.turtleInput({id=id,x=body.x,y=body.y,session=session,role=drawn,from=msg.from},session.w or 1,session.h or 1) then
+    if session.sub then D.sendFrame(msg.from,D.now(),true) end
+    return
+  end
   if drawn == "status" then
     if session.showAlerts or (session.alertUntil and D.now() < session.alertUntil) then
       session.alertUntil, session.showAlerts = 0, false
@@ -767,7 +851,7 @@ D.localTick = function(now)
       m.pending = nil
       if event and event.id:match("^dug%.") then
         D.consent(event, m.role, w, h, m.session)
-      elseif event then
+      elseif event and not D.turtleInput({id=event.id,x=event.x,y=event.y,session=m.session,role=m.role},w,h) then
         local drawn = m.role
         if drawn == "status" and (m.session.showAlerts or now < (m.session.alertUntil or 0)) then
           m.session.showAlerts=false
@@ -804,6 +888,7 @@ D.localTick = function(now)
 end
 
 D.tick = function(now)
+  if Turtle then D.gatherTurtles() end
   if U then D.model = D.gather() end
   D.localTick(now)
   if SO.terminal and term and term.blit then

@@ -94,6 +94,7 @@ P.render = function(w, h, session)
   session.panel = session.panel or {search="",page="main"}
   local c = U.canvas(w,h)
   c.header("PANEL",P.time())
+  if w == 26 then U.pocketHeader(c,"PANEL") end
   local page = session.panel.page
   if page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
@@ -152,7 +153,7 @@ P.render = function(w, h, session)
       P.block(c,"lumber",1,top+5,w,h)
       P.shop(c,session,1,top+10,w,h)
     end
-    c.button(8,2,6,"MORE","generic","7",1)
+    if w ~= 26 then c.button(8,2,6,"MORE","generic","7",1) end
     c.fill(1,h,w,1,"7")
     if w >= 26 then
       c.put(2,h,"GLANCE  ALERTS  PAIR")

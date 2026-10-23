@@ -791,12 +791,13 @@ S.legacyRender = function(w)
 end
 
 S.gather = function()
-  local j, known, ready = S.job, 0, 0
+  local j, known, ready, done = S.job, 0, 0, 0
   local daily = S.module("daily")
   local today = type(daily.today) == "function" and daily.today()
   local now = SO.now()
   for _, spot in pairs(j.spots) do
     known = known + 1
+    if (spot.plantedAt or 0) > 0 then done = done + 1 end
     if (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 then ready = ready + 1 end
   end
   local saplings = S.count(L.isSapling)
@@ -806,6 +807,7 @@ S.gather = function()
     return p and (p.x .. "," .. p.y .. "," .. p.z .. " " .. (p.side or "")) or "-"
   end
   return {
+    turtle = j.turtle and j.turtle.id, done = done, total = known,
     state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
     alert = S.admission or j.alert, setup = S.setup, setupPage = S.setupPage,
     readiness = S.readiness(),
@@ -878,6 +880,15 @@ S.layout = function(model, w, h)
           local col = cols[(i - 1) % #cols + 1]
           C.tile(col.x, 4 + row * 8, col.w, unpack(t))
         end
+      end
+    end
+    if model.turtle then
+      local y = compact and 9 or bottom-1
+      if y < bottom then
+        C.button(1,y,math.min(10,w),'#'..model.turtle,'turtle:'..model.turtle,'d',1)
+        U.progress(C,12,y,math.max(0,math.min(12,w-12)),model.done or 0,model.total or 0,'b')
+        if w >= 39 then C.put(26,y,'SPOTS '..(model.done or 0)..'/'..(model.total or 0))
+        elseif y+1 < bottom then C.put(2,y+1,'SPOTS '..(model.done or 0)..'/'..(model.total or 0)) end
       end
     end
     local buttons = U.grid(w, h, w < 26 and 2 or 4)
@@ -955,4 +966,13 @@ S.mapView = function()
     turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),
       state=j.blocked or (j.running and "lumber" or "idle")}}
 end
-return { name = "lumber", assigned = function(id) return S.job.turtle and S.job.turtle.id == id end, handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }
+S.turtleView = function()
+  local j = S.job
+  if not j.turtle then return {} end
+  local done,total = 0,0
+  for _,spot in pairs(j.spots) do total=total+1 if (spot.plantedAt or 0)>0 then done=done+1 end end
+  return {[tostring(j.turtle.id)]={role="lumber",pose=SO.store.copy(j.turtle.pose),
+    anchor=SO.store.copy(j.turtle.anchor),state=j.blocked or (j.running and j.phase or "stopped"),
+    fuel=j.fuel,inv=SO.store.copy(j.inv or {}),done=done,total=total,error=j.alert or S.admission,step=S.pending and S.pending.action}}
+end
+return { name = "lumber", assigned = function(id) return S.job.turtle and S.job.turtle.id == id end, handlers = {}, turtleView = S.turtleView, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }

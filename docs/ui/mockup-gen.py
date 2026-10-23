@@ -121,14 +121,13 @@ def status(w,h,indices,n,title):
     add(c,title,True)
 status(57,24,list(range(9)),3,"Status, room monitor 3x2 at scale 0.5")
 status(39,19,[0,2,3,5],2,"Status, wall monitor 4x3 at scale 1")
-c=Canvas(26,20);c.header("FLEET","21:14")
+c=Canvas(26,20);c.header("FLEET","");c.button(16,1,5,"MORE",h=1);c.button(22,1,4,"MAP","9",h=1)
 for i,index in enumerate([0,2]):c.tile(0,3+i*8,26,*status_data[index],h=7)
-c.button(0,18,26,"MORE",h=1)
-c.fill(0,19,26,1,"7");c.text(1,19,"<  glance 1/5  >  PANEL")
+c.button(0,19,4,"<",h=1);c.center(4,7,19,"1/5");c.button(11,19,4,">",h=1);c.button(17,19,9,"PANEL",h=1)
 add(c,"Pocket, glance mode",True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", "22:14"); c.button(7, 1, 6, "MORE", h=1)
+c = Canvas(26, 20); c.header("PANEL", ""); c.button(16,1,5,"MORE",h=1); c.button(22,1,4,"MAP","9",h=1)
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -142,11 +141,12 @@ cols = [(0,18),(19,19),(39,18)]
 for (x, w), (lab, val, sub, bg) in zip(cols, [("BUSY","2/2","both digging","d"),("ORE TODAY","214","iron 120 dia 3","b"),("DEPTH","-12","","d")]):
     c.tile(x, 3, w, lab, val, sub, bg,6)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("LANE","1","#3 waiting","1"),("MIN FUEL","640","#3","d"),("BRANCHES","3/8","48 long","b")]):
-    c.tile(x, 10, w, lab, val, sub, bg,6)
-c.fill(0, 17, 57, 1, "7"); c.text(1, 17, "TURTLE  STATE      POS          FUEL  ORE")
+    c.tile(x, 9, w, lab, val, sub, bg,6)
+c.fill(0, 15, 57, 1, "7"); c.text(1, 15, "TURTLE  STATE      POS          FUEL  ORE")
 for i, line in enumerate(["#2      mining     12,60,-9      812   14","#3      wait lane   0,61,-1      640    9"]):
-    c.text(1, 18 + i, line)
-c.fill(0, 18, 1, 1, "d"); c.fill(0, 19, 1, 1, "1")
+    c.text(1, 16 + i*2, line)
+    c.fill(1,17+i*2,12,1,"c");c.text(14,17+i*2,"-")
+c.fill(0, 16, 1, 1, "d"); c.fill(0, 18, 1, 1, "1")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
 add(c, "Mining, room monitor")
 
@@ -157,6 +157,7 @@ for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","","b")]):
     c.tile(x, 11, w, lab, val, sub, bg)
 c.alert("! out of saplings: replanting paused")
+c.button(0,19,10,"#4","d",h=1);c.fill(11,19,12,1,"c");c.fill(11,19,6,1,"b");c.text(25,19,"SPOTS 2/4")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
 add(c, "Lumber, room monitor")
 
@@ -310,6 +311,22 @@ import runpy
 
 map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
+# Turtle details use the same data at pocket, compact and monitor sizes.
+def turtle_detail(w,h):
+    c=Canvas(w,h);c.header("#2","");c.fill(0,2,w,1,"d");c.text(1,2,"mining")
+    lines=[("POS 12,60,-5 E","7"),("FUEL 42","1"),("INV 1/16 14 items","b"),
+           ("LEASE lease-2","7"),("STEP forward  ORE 14","7"),("SEEN 3s","7")]
+    if h<19:
+        lines[1]=("FUEL 42  INV 1/16","1");del lines[2]
+    for i,(text,bg) in enumerate(lines):
+        c.fill(0,i+3,w,1,bg);c.text(1,i+3,text[:w-2])
+    y=10 if h>=19 else 8
+    c.fill(1,y,12,1,"c");c.fill(1,y,3,1,"b");c.text(14,y,"B0 12/48")
+    for (x,width),(label,bg) in zip(grid(w,2),[("PARK ALL","1"),("REMOVE","7")]):
+        c.button(x,h-2,width,label,bg,h=1)
+    c.button(0,h-1,w,"BACK",h=1)
+    return c
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).resolve().parents[2] / "tests/ui/fixtures")
 args = parser.parse_args()
@@ -322,6 +339,10 @@ if args.fixtures:
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
+    for stem,w,h in [("turtle-P",26,20),("turtle-S",29,12),("turtle-M",57,24)]:
+        c=turtle_detail(w,h)
+        layers=[f"{w}x{h} Turtle detail"]+["".join(row) for row in c.t]+["".join(row) for row in c.b]
+        (args.fixtures/(stem+".txt")).write_text("\n".join(layers)+"\n",encoding="utf-8")
     map_mockup["write"](Canvas, args.fixtures, fixtures=True)
     import shutil
     import subprocess

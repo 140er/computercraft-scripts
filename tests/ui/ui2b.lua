@@ -68,7 +68,7 @@ return function(test,equal)
     local text=table.concat(capture(frame,57,24).picture().text,'\n')
     for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS 1,65,1','TURTLE 4','paired turtle ready'}) do assert(text:find(part,1,true),part) end
     equal(frame.buttons[#frame.buttons].id,'lumber-back')
-    s.input({id='lumber-back'});equal(s.render(57,24).buttons[2].id,'start')
+    s.input({id='lumber-back'});local found=false for _,b in ipairs(s.render(57,24).buttons) do if b.id=='start' then found=true end end assert(found)
     s.input({id='setup'})
     local firstFrame=s.render(15,10)
     local paged=false

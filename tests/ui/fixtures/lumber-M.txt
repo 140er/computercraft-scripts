@@ -18,7 +18,7 @@
   felling           ok                                   
                                                          
                                                          
-                                                         
+    #4                   SPOTS 2/4                       
                                                          
     START         STOP          SETUP           BACK     
                                                          
@@ -42,7 +42,7 @@ fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddfbbbbbbccccccffffffffffffffffffffffffffffffffff
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
