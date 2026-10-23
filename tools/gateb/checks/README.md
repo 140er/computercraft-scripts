@@ -106,7 +106,9 @@ controller. References must cover label alignment, overlap, HUD, layer removal
 and stable frames. The driver never equates taking a screenshot with passing a
 visual check.
 
-C10 saves readiness samples before arming its outage. Copy installation verifies
+C10 saves readiness samples and waits until every worker has a real movement
+path before arming its outage. An inspect or a turn alone cannot demonstrate
+retreat. Copy installation verifies
 a fresh bridge boot identity and snapshot on every online role. A missing boot
 blocks setup before jobs start. Native power transitions clear queued inputs
 while preserving the inbox directory.
