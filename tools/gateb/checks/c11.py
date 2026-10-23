@@ -5,6 +5,10 @@ from .model import Criteria, Blocked, xyz
 TITLE = "Genuine chunk unload and automatic resume"
 
 
+def native_unloaded(output):
+    return bool(re.search(r"Storage gateb:driver has the following contents:\s*0b(?:\s|$)", output))
+
+
 def analyze(rows, unloaded, returned, proof):
     frozen = [r for r in rows if unloaded <= r["epoch"] < returned]
     def state(r): return {k:v for k,v in r.items() if k not in ("epoch", "at")}
@@ -44,10 +48,16 @@ def run(ctx):
     native_positions.append(ctx.manifest["computers"][str(ctx.computer("server"))]["pos"])
     helpers = ctx.request("helpers", enabled=False)
     ctx.command("gamerule spawnChunkRadius 0")
-    ctx.command("forceload remove all")
     ctx.command("tp @a 10000 200 10000")
-    force_output = ctx.command("forceload query")["output"]
-    zero_forced = "No force loaded chunks" in force_output or "No chunks were marked for force loading" in force_output
+    attempts = []
+    def clear_forced():
+        ctx.command("forceload remove all")
+        output = ctx.command("forceload query")["output"]
+        attempts.append(output)
+        return output if "No force loaded chunks" in output or "No chunks were marked for force loading" in output else None
+    force_output = ctx.wait(clear_forced, 10)
+    zero_forced = bool(force_output)
+    ctx.record("C11-force-load-cleanup.json", {"attempts": attempts, "zero_forced_chunks": zero_forced})
     if not zero_forced:
         raise Blocked("Console did not confirm zero forced chunks")
     def unloaded():
@@ -57,7 +67,7 @@ def run(ctx):
             ctx.command(f"execute store success storage gateb:driver loaded byte 1 run execute if loaded {p}")
             output = ctx.command("data get storage gateb:driver loaded")["output"]
             outputs.append(output)
-        return outputs if outputs and all(re.search(r"loaded[^\n]*: 0b(?:\s|$)", s) for s in outputs) else None
+        return outputs if outputs and all(native_unloaded(s) for s in outputs) else None
     native = ctx.wait(unloaded, 60)
     if not native:
         raise Blocked("Native chunks remain loaded after force loads and players leave")

@@ -98,6 +98,18 @@ def prepare(runtime, name):
     for cid,comp in manifest['computers'].items():
         if comp['role']!='fixture' and not comp.get('requires_client'):
             command('computercraft turn-on #'+cid)
+    probes=[cid for cid,comp in manifest['computers'].items() if comp.get('name')=='probe']
+    for probe in probes:
+        server=next(cid for cid,comp in manifest['computers'].items() if comp.get('name')=='server')
+        deadline=time.monotonic()+30
+        while True:
+            try:
+                result=runtime.request(name,{'op':'lua','computer':server,'code':f'return SO.pair.remember({int(probe)},nil)'})
+                if result.get('values')==[True]: break
+            except RuntimeError:
+                pass
+            if time.monotonic()>=deadline: raise RuntimeError('Could not clear the native pairing probe')
+            time.sleep(.1)
     command('forceload remove all')
     command('forceload add '+' '.join(map(str,manifest['forceload'])))
     command('save-all flush')

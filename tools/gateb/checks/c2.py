@@ -18,7 +18,13 @@ def run(ctx):
     probe = ctx.computer("probe")
     paired = ctx.lua("server", "local n=0; for _,id in ipairs(textutils.unserializeJSON(" + json.dumps(json.dumps(clients)) + ")) do if SO.pair.key(id) then n=n+1 end end; return n")
     if ctx.lua("server", f"return SO.pair.key({probe}) ~= nil"):
-        raise Blocked("Pairing probe must begin unpaired")
+        empty = ctx.lua("probe", 'return not fs.exists("so-keys") and not fs.exists("so-keys.bak") and not fs.exists("so-keys.tmp")')
+        if not empty:
+            raise Blocked("Pairing probe must begin unpaired")
+        removed = ctx.lua("server", f"return SO.pair.remember({probe},nil)")
+        ctx.record("C2-probe-fixture.json", {"probe_has_no_keys": empty, "stale_server_pair_removed": removed})
+        if not removed:
+            raise Blocked("Could not clear the imported probe's stale server pairing")
     ctx.lua("server", 'repeat SO.pair.invite() until SO.pair.pending() ~= "000000"; return true')
     for _ in range(5):
         ctx.lua("probe", f'''local proto=dofile("so-proto.lua"); local pair=dofile("so-pair.lua");
@@ -28,6 +34,7 @@ def run(ctx):
     unpaired = ctx.lua("server", f"return SO.pair.key({probe}) == nil")
     terminal = ctx.terminal("server")
     ctx.record("C2-server-prompt.json", terminal)
+    text = " ".join(l["text"] for l in terminal["lines"])
     return evaluate(ctx.record("C2-observations.json", {"paired_clients": paired, "bad_attempts": 5,
         "invitation_burned": burned, "probe_unpaired": unpaired,
-        "server_prompt_restored": "Press P" in " ".join(l["text"] for l in terminal["lines"])}))
+        "server_prompt_restored": "Press P" in text or "[P] pair a client" in text}))

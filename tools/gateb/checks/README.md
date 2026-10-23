@@ -85,7 +85,7 @@ setup blocks photo credit. `visual_baselines` maps screenshot names to reviewed 
 references with `path`, `sha256`, and `regions` of `[width,height,x,y]`. Regions
 must exclude changing clocks or world animation. Exact pixels must match.
 Missing references block visual claims. Large images stay outside git.
-Pocket reboot uses native `os.reboot()` through the Lua API and requires an
+Pocket reboot uses native `os.reboot()` through the runtime bridge and requires an
 observed uptime reset. Its new Lua environment must receive the generic role;
 a cached frame cannot prove reboot recovery.
 

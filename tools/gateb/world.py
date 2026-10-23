@@ -401,7 +401,14 @@ class Runtime:
         if op=='save': return self.command(name,'save-all flush',timeout)
         if op in ('terminal','monitors','frame'):
             disk=self.computer_disk(name,q['computer'])
-            snap=json.loads((disk/'.gateb/screen.json').read_text())
+            deadline=time.monotonic()+min(timeout,1)
+            while True:
+                try:
+                    snap=json.loads((disk/'.gateb/screen.json').read_text())
+                    break
+                except (FileNotFoundError,json.JSONDecodeError):
+                    if time.monotonic()>=deadline: raise
+                    time.sleep(.01)
             if time.time()*1000-snap['at']>5000: raise RuntimeError('Computer snapshot is stale')
             return snap.get(op) if op=='frame' else snap[op]
         if op=='files':
@@ -434,10 +441,15 @@ class Runtime:
             return result
         if op=='power':
             action=q['action'];disk=self.computer_disk(name,q['computer']);cid=disk.name
-            commands={'on':'turn-on','off':'shutdown','reboot':'reboot'}
+            commands={'on':'turn-on','off':'shutdown','reboot':'turn-on'}
             if action not in commands: raise ValueError('Invalid power action')
+            comp=self.manifest(name)['computers'][cid]
+            if action=='reboot' and comp.get('kind')=='pocket':
+                self.instrument(disk,comp['role'])
+                (disk/'.gateb/screen.json').unlink(missing_ok=True)
+                return self.bridge(name,{'op':'power','computer':int(cid),'action':'reboot'},timeout)
+            if action=='reboot': self.command(name,'computercraft shutdown #'+cid,timeout)
             if action in ('on','reboot'):
-                comp=self.manifest(name)['computers'][cid]
                 if comp['role'] in ('server','display','worker'): self.instrument(disk,comp['role'])
                 (disk/'.gateb/screen.json').unlink(missing_ok=True)
                 shutil.rmtree(disk/'.gateb/in',ignore_errors=True)
@@ -457,15 +469,22 @@ class Runtime:
     def install(self, name, sha, mode='copy'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}',sha): raise ValueError('Install requires a full commit SHA')
         source=self.home/'sources'/sha
-        if not source.exists():
-            subprocess.run(['git','cat-file','-e',sha+'^{commit}'],cwd=REPO,check=True)
-            source.mkdir(parents=True)
-            archive=subprocess.Popen(['git','archive',sha],cwd=REPO,stdout=subprocess.PIPE)
-            try:
-                subprocess.run(['tar','-x','-C',str(source)],stdin=archive.stdout,check=True)
-            finally:
-                archive.stdout.close()
-            if archive.wait(): raise RuntimeError('git archive failed')
+        with locked(self.home/'locks'/('source-'+sha+'.lock')):
+            if not source.exists():
+                subprocess.run(['git','cat-file','-e',sha+'^{commit}'],cwd=REPO,check=True)
+                stage=source.with_name(sha+'.'+uuid.uuid4().hex+'.tmp')
+                stage.mkdir(parents=True)
+                try:
+                    archive=subprocess.Popen(['git','archive',sha],cwd=REPO,stdout=subprocess.PIPE)
+                    try:
+                        subprocess.run(['tar','-x','-C',str(stage)],stdin=archive.stdout,check=True)
+                    finally:
+                        archive.stdout.close()
+                        result=archive.wait()
+                    if result: raise RuntimeError('git archive failed')
+                    stage.rename(source)
+                finally:
+                    shutil.rmtree(stage,ignore_errors=True)
         installed={};errors=[]
         if mode=='http':
             current=subprocess.check_output(['git','ls-remote','origin','refs/heads/server-only'],cwd=REPO,text=True).split()[0]

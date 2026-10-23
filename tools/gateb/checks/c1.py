@@ -45,7 +45,7 @@ def run(ctx):
             if name in ("wall", "pocket"):
                 return bool(ctx.frame(name).get("role"))
             ident = ctx.computer(name)
-            return ctx.lua("server", f'local m=SO.mods.state.get("machines/{ident}"); return m and m.role=="worker" and os.epoch("utc")-(m.seen or 0)<30000')
+            return ctx.lua("server", f'local m=SO.mods.state.get("machines/{ident}"); local l=SO.mods.lease.status({ident}); return m and (m.role=="turtle" or m.role=="worker") and l and not l.lost and (SO.now and SO.now() or os.epoch("utc"))-(l.seen or 0)<30000')
         if ctx.wait(healthy, 30): rebooted += 1
         ctx.record(f"C1-{name}-terminal.json", ctx.terminal(name))
     return evaluate(ctx.record("C1-observations.json", {"normal_http_install": len(transports) == 6,

@@ -73,7 +73,9 @@ class Context:
 
     def lua(self, name, code):
         result = self.request("lua", computer=self.computer(name), code=code)
-        return result.get("values", [None])[0]
+        returned = result.get("values", [])
+        if isinstance(returned, dict): return returned.get("1")
+        return returned[0] if returned else None
 
     def command(self, command):
         return self.request("command", command=command)
@@ -231,7 +233,7 @@ class Context:
     def power(self, name, action):
         if name == "pocket" and action == "reboot":
             before = self.lua(name, "return os.clock()")
-            self.request("lua_async", computer=self.computer(name), code="os.reboot()")
+            self.request("power", computer=self.computer(name), action="reboot")
             def rebooted():
                 after = self.lua(name, "return os.clock()")
                 return {"after": after} if isinstance(after, (int, float)) and after < before else None
@@ -296,6 +298,8 @@ class Context:
     def navigate(self, name, role):
         initial = self.frame(name)
         if initial.get("role") == role: return initial
+        if any(b.get("id") == "items" for b in values(initial.get("buttons"))):
+            self.click(name, "items")
         if any(b.get("id") == "map-back" for b in values(initial.get("buttons"))):
             self.click(name, "map-back")
         routes = {
@@ -306,6 +310,7 @@ class Context:
             "shop": (("shop",), ("generic", "shop"), ("status", "generic", "shop")),
             "ar": (("ar",), ("generic", "ar"), ("status", "generic", "ar")),
             "map": (("map",), ("generic", "map"), ("status", "generic", "map")),
+            "panel": (("panel",), ("generic", "panel"), ("status", "generic", "panel")),
         }
         for route in routes[role]:
             try:
