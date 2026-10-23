@@ -454,8 +454,8 @@ local function hello(msg)
   if H.coalesce then
     local fp = H.fp(msg.from)
     if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
-      or fp ~= nil and fp ~= row.fp or changed then
-      emit("machine", { id=msg.from, role=role, fuel=fuel, seen=now, journal=journal, fp=fp })
+      or fp ~= nil and fp ~= row.fp or label ~= nil and label ~= row.label or changed then
+      emit("machine", { id=msg.from, role=role, label=label, fuel=fuel, seen=now, journal=journal, fp=fp })
     elseif row.seen ~= now or fuel ~= nil and row.fuel ~= fuel then
       row.seen, row.fuel = now, fuel or row.fuel
       S.rev = S.rev + 1

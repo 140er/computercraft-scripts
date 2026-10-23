@@ -432,7 +432,7 @@ S.tick = function(now)
         local wire = SO.proto.encode(SO.proto.build(key, "lease.batch", {
           lease = lease.id, ttl = math.max(0, lease.expires - now),
           expires = os.epoch("utc") + math.max(0, lease.expires - now), steps = lease.steps,
-    journal = lease.journal,
+          journal = lease.journal,
         }))
         if wire then pcall(rednet.send, lease.turtleId, wire, "so") end
       end
