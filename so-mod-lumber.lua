@@ -736,8 +736,9 @@ A.view = function(session)
   session.lumber = session.lumber or { page = "main" }
   return session.lumber
 end
+A.dims = { ["minecraft:overworld"] = 0, ["minecraft:the_nether"] = -1, ["minecraft:the_end"] = 1 }
 A.near = function(area, p)
-  return p.x >= area.x1 - 32 and p.x <= area.x2 + 32 and p.z >= area.z1 - 32 and p.z <= area.z2 + 32
+  return p.dim == (A.dims[S.job.dim] or 0) and p.x >= area.x1 - 32 and p.x <= area.x2 + 32 and p.z >= area.z1 - 32 and p.z <= area.z2 + 32
 end
 -- The farm, its chests, the turtle and the facts.
 A.gather = function()

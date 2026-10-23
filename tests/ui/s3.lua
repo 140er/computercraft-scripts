@@ -427,4 +427,48 @@ return function(test, equal)
     equal(count, 24)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
+
+  test('S3 short setup screens, double taps and other dimensions stay safe', function()
+    -- No control hides under the alert or the action row, and no two controls overlap.
+    local t = mining()
+    t.job.turtles['2'].error = 'no fuel chest'
+    for _, size in ipairs({ { 39, 10 }, { 57, 5 }, { 24, 5 }, { 82, 5 }, { 26, 12 } }) do
+      for _, ores in ipairs({ false, true }) do
+        local session = { id = 9 }
+        t.tap(session, 'tab:setup')
+        if ores then t.tap(session, 'ores-edit') end
+        local frame = t.render(size[1], size[2], session)
+        local taken = {}
+        for _, b in ipairs(frame.buttons) do
+          if b.id ~= 'start' and b.id ~= 'stop' then assert(b.y <= size[2] - 2, b.id .. ' under the alert at ' .. size[1] .. 'x' .. size[2]) end
+          for x = b.x, b.x + b.w - 1 do
+            assert(not taken[x .. ',' .. b.y], b.id .. ' overlaps at ' .. size[1] .. 'x' .. size[2])
+            taken[x .. ',' .. b.y] = true
+          end
+        end
+      end
+    end
+    -- A second REMOVE before the next frame does nothing; typed add keeps its old reply.
+    local d, a = drops(), { id = 7 }
+    t = d.render(57, 24, a)
+    d.tap(a, 'remove')
+    d.tap(a, 'remove')
+    equal(#d.mod.list(), 4)
+    d.render(57, 24, a)
+    d.tap(a, 'remove')
+    equal(#d.mod.list(), 3)
+    d.type(a, 'add ore 1 2 3')
+    d.type(a, 'add ore 1 2 3')
+    equal(#d.mod.list(), 4)
+    assert(capture(d.render(57, 24, a), 57, 24).picture().text[22]:find('point added', 1, true))
+    -- A Nether wood point inside the farm's x and z is not drawn on the overworld farm.
+    local l = lumber()
+    local list = l.env.SO.mods.drops.list
+    l.env.SO.mods.drops.list = function()
+      local out = list()
+      out[#out + 1] = { id = 'nether', dim = -1, x = 100, y = 64, z = -349, side = 'front', kind = 'wood', broken = true }
+      return out
+    end
+    equal(R.diff(R.load(FIXTURE['lumber-M']), capture(l.render(57, 24, { id = 7 }), 57, 24)), {})
+  end)
 end

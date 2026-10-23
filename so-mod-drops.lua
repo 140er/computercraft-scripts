@@ -324,7 +324,6 @@ end
 S.addDraft = function()
   local d = S.draft
   local id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
-  if S.find(id) then S.message = S.errText.exists return end
   local ok, err = S.add({
     id = id, dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind,
   })
@@ -409,7 +408,8 @@ end
 S.gather = function(view)
   local ctx, list = S.context(), {}
   for i, p in ipairs(S.points) do
-    list[i] = { n = i, id = p.id, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side, broken = p.fails >= S.strikes }
+    list[i] = { n = i, id = p.id, dim = p.dim, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side,
+      broken = p.fails >= S.strikes }
   end
   return { points = list, selected = S.selectedPoint(view), page = view.page, editing = view.editing,
     message = not S.hints[S.message] and S.message or nil, draft = S.draft,
@@ -419,8 +419,12 @@ S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
 -- The chests around home, one block per cell when they fit, labelled by number; the server, the
 -- shaft and the farm edge for context. Returns the last row drawn.
 S.plan = function(C, m, x0, y0, pw, ph, draft)
-  local pts, items = m.points, {}
-  for _, p in ipairs(pts) do items[#items + 1] = { p.x, p.z } end
+  local pts, items, dim = {}, {}, 0
+  for _, p in ipairs(m.points) do if p.id == m.selected then dim = p.dim end end
+  if draft then dim = draft.dim end
+  for _, p in ipairs(m.points) do if p.dim == dim then pts[#pts + 1] = p items[#items + 1] = { p.x, p.z } end end
+  -- The server, the shaft and the farm are in the overworld.
+  if dim ~= 0 then m = { points = m.points, selected = m.selected } end
   local function span(i)
     local lo, hi = math.huge, -math.huge
     for _, it in ipairs(items) do lo, hi = math.min(lo, it[i]), math.max(hi, it[i]) end
@@ -604,7 +608,7 @@ S.render = function(w, h, session)
   local view = S.view(S.key(session))
   local model = S.gather(view)
   model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
-  view.page = model.page
+  view.page, view.armed = model.page, true
   local frame = S.layout(model, w, h)
   frame.rev = S.rev
   return frame
@@ -634,7 +638,12 @@ S.input = function(ev)
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then view.selected = selected return end
   if ev.id == "fix" then local id = S.selectedPoint(view); if id then view.selected = id; S.fix(id) end return end
-  if ev.id == "remove" then local id = S.selectedPoint(view); if id then S.remove(id) end return end
+  -- A second REMOVE before the next frame would hit the fallback selection, so it waits for a frame.
+  if ev.id == "remove" then
+    local id = S.selectedPoint(view)
+    if id and view.armed ~= false then view.armed = false S.remove(id) end
+    return
+  end
   local fixId = ev.id:match("^fix:(.+)$")
   if fixId then S.fix(fixId) return end
   local removeId = ev.id:match("^remove:(.+)$")
@@ -653,6 +662,9 @@ S.input = function(ev)
     return
   end
   if ev.id == "add" then
+    -- The tapped ADD says when the draft is a point that already exists; typed add stays as it was.
+    local d = S.draft
+    if S.find(string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)) then S.message = S.errText.exists return end
     S.addDraft()
     return
   end

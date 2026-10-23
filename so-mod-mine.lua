@@ -861,44 +861,57 @@ V.tiny = function(C, m)
   if m.alert and h >= 4 then C.flag(2, h - 1, w - 2, m.alert) end
   V.run(C, h, m, 1)
 end
--- The setup controls from row y, step rows apart. Returns the last row drawn.
-V.setupRows = function(C, m, x, y, step, vx, vw, right, editing)
+-- The setup controls from row y, step rows apart, none below row stop. Returns the last row.
+V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   local h = m.home
-  local home = m.homeSet and (h.x .. "," .. h.y .. "," .. h.z .. " " .. ("nesw"):sub(h.facing + 1, h.facing + 1)) or "-"
-  C.put(x, y, "home", "8")
-  C.put(vx, y, home:sub(1, right - vx + 1), m.homeSet and "0" or "8")
+  if y <= stop then
+    local home = m.homeSet and (h.x .. "," .. h.y .. "," .. h.z .. " " .. ("nesw"):sub(h.facing + 1, h.facing + 1)) or "-"
+    C.put(x, y, "home", "8")
+    C.put(vx, y, home:sub(1, right - vx + 1), m.homeSet and "0" or "8")
+  end
   y = y + step
-  C.put(x, y, "bottom", "8")
-  U.stepper(C, vx, y, "Y " .. m.bottom, "set-bottom", vw)
+  if y <= stop then
+    C.put(x, y, "bottom", "8")
+    U.stepper(C, vx, y, "Y " .. m.bottom, "set-bottom", vw)
+  end
   y = y + step
-  C.put(x, y, "length", "8")
-  U.stepper(C, vx, y, m.length, "set-length", vw)
+  if y <= stop then
+    C.put(x, y, "length", "8")
+    U.stepper(C, vx, y, m.length, "set-length", vw)
+  end
   y = y + step
-  C.put(x, y, "mode", "8")
-  local nx = C.chip(vx, y, "fast", "mode-fast", m.mode == "fast" and "plain" or "off") + 1
-  C.chip(nx, y, "thorough", "mode-thorough", m.mode == "thorough" and "plain" or "off")
+  if y <= stop then
+    C.put(x, y, "mode", "8")
+    local nx = C.chip(vx, y, "fast", "mode-fast", m.mode == "fast" and "plain" or "off") + 1
+    C.chip(nx, y, "thorough", "mode-thorough", m.mode == "thorough" and "plain" or "off")
+  end
   y = y + step
-  C.put(x, y, "ores", "8")
-  local ex = right - 5
-  local ores = #m.ores > 0 and #m.ores < #V.ores and table.concat(m.ores, ",") or "all"
-  C.put(vx, y, ores:sub(1, math.max(0, ex - vx - 1)), "0")
-  C.chip(ex, y, "edit", "ores-edit", editing and "on" or "plain")
+  if y <= stop then
+    local ex = right - 5
+    local ores = #m.ores > 0 and #m.ores < #V.ores and table.concat(m.ores, ",") or "all"
+    C.put(x, y, "ores", "8")
+    C.put(vx, y, ores:sub(1, math.max(0, ex - vx - 1)), "0")
+    C.chip(ex, y, "edit", "ores-edit", editing and "on" or "plain")
+  end
   local last = y
   if editing and C.w < 52 then
     local cx = x
     y = y + 1
     for _, name in ipairs(V.ores) do
       if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
-      cx = C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") + 1
+      if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
+      cx = cx + #name + 3
     end
     return y
   end
   y = y + step
-  C.put(x, y, "turtles", "8")
-  local ids = {}
-  for _, t in ipairs(m.turtles) do ids[#ids + 1] = "#" .. t.id end
-  local list = table.concat(ids, " ")
-  C.put(vx, y, list ~= "" and list:sub(1, right - vx + 1) or "-", "0")
+  if y <= stop then
+    local ids = {}
+    for _, t in ipairs(m.turtles) do ids[#ids + 1] = "#" .. t.id end
+    local list = table.concat(ids, " ")
+    C.put(x, y, "turtles", "8")
+    C.put(vx, y, list ~= "" and list:sub(1, right - vx + 1) or "-", "0")
+  end
   return math.max(last, y)
 end
 V.setupRoom = function(C, m, editing)
@@ -906,7 +919,7 @@ V.setupRoom = function(C, m, editing)
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
   local rx = w - 19
   local px, right = rx + 3, nil
-  local left = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing)
+  local left = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
   if editing then
     for i, name in ipairs(V.ores) do C.chip(px, 2 + i, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
     right = 2 + #V.ores
@@ -931,7 +944,8 @@ V.setupColumn = function(C, m, editing)
   local w, h = C.w, C.h
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
   local wide = w >= 36
-  V.setupRows(C, m, 2, 3, h >= 19 and 2 or 1, wide and 13 or 10, wide and 8 or 6, w - 1, editing)
+  V.setupRows(C, m, 2, 3, h >= 19 and 2 or 1, wide and 13 or 10, wide and 8 or 6, w - 1, editing,
+    m.alert and h - 2 or h - 1)
   if m.alert then C.flag(2, h - 1, w - 2, m.alert) end
   V.run(C, h, m, 1)
 end

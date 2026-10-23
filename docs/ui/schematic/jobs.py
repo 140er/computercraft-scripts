@@ -273,38 +273,44 @@ def ore_on(m, name):
     return not m["ores"] or name in m["ores"]
 
 
-def setup_rows(cv, m, x, y, step, vx, vw, right, editing):
-    """The setup controls from row y, step rows apart. Returns the last row drawn."""
-    def label(text):
-        cv.put(x, y, text, "8")
-    label("home")
-    cv.put(vx, y, home_text(m)[:right - vx + 1], "0" if m["homeSet"] else "8")
+def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
+    """The setup controls from row y, step rows apart, none below row stop. Returns the last row."""
+    if y <= stop:
+        cv.put(x, y, "home", "8")
+        cv.put(vx, y, home_text(m)[:right - vx + 1], "0" if m["homeSet"] else "8")
     y += step
-    label("bottom")
-    stepper(cv, vx, y, "Y %d" % m["bottom"], "set-bottom", vw)
+    if y <= stop:
+        cv.put(x, y, "bottom", "8")
+        stepper(cv, vx, y, "Y %d" % m["bottom"], "set-bottom", vw)
     y += step
-    label("length")
-    stepper(cv, vx, y, m["length"], "set-length", vw)
+    if y <= stop:
+        cv.put(x, y, "length", "8")
+        stepper(cv, vx, y, m["length"], "set-length", vw)
     y += step
-    label("mode")
-    nx = chip(cv, vx, y, "fast", "mode-fast", "plain" if m["mode"] == "fast" else "off") + 1
-    chip(cv, nx, y, "thorough", "mode-thorough", "plain" if m["mode"] == "thorough" else "off")
+    if y <= stop:
+        cv.put(x, y, "mode", "8")
+        nx = chip(cv, vx, y, "fast", "mode-fast", "plain" if m["mode"] == "fast" else "off") + 1
+        chip(cv, nx, y, "thorough", "mode-thorough", "plain" if m["mode"] == "thorough" else "off")
     y += step
-    label("ores")
-    ex = right - 5
-    cv.put(vx, y, ore_text(m)[:max(0, ex - vx - 1)], "0")
-    chip(cv, ex, y, "edit", "ores-edit", "on" if editing else "plain")
+    if y <= stop:
+        ex = right - 5
+        cv.put(x, y, "ores", "8")
+        cv.put(vx, y, ore_text(m)[:max(0, ex - vx - 1)], "0")
+        chip(cv, ex, y, "edit", "ores-edit", "on" if editing else "plain")
     last = y
     if editing and cv.w < 52:
         cx, y = x, y + 1
         for name in ORES:
             if cx + len(name) + 2 > right + 1:
                 cx, y = x, y + 1
-            cx = chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off") + 1
+            if y <= stop:
+                chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
+            cx += len(name) + 3
         return y
     y += step
-    label("turtles")
-    cv.put(vx, y, " ".join("#%d" % t["id"] for t in m["turtles"])[:right - vx + 1] or "-", "0")
+    if y <= stop:
+        cv.put(x, y, "turtles", "8")
+        cv.put(vx, y, " ".join("#%d" % t["id"] for t in m["turtles"])[:right - vx + 1] or "-", "0")
     return max(last, y)
 
 
@@ -313,7 +319,7 @@ def setup_room(cv, m, editing):
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
     ya = last_row(h, True)
     rx = w - 19
-    left = setup_rows(cv, m, 2, 3, 2, 13, 8, rx - 3, editing)
+    left = setup_rows(cv, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
     px = rx + 3
     if editing:
         for i, name in enumerate(ORES):
@@ -343,7 +349,8 @@ def setup_column(cv, m, editing):
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
     ya = last_row(h, False)
     wide = w >= 36
-    setup_rows(cv, m, 2, 3, 2 if h >= 19 else 1, 13 if wide else 10, 8 if wide else 6, w - 1, editing)
+    setup_rows(cv, m, 2, 3, 2 if h >= 19 else 1, 13 if wide else 10, 8 if wide else 6, w - 1, editing,
+               ya - 2 if m["alert"] else ya - 1)
     if m["alert"]:
         flag(cv, 2, ya - 1, w - 2, m["alert"])
     run_chips(cv, ya, m, 1)
@@ -557,7 +564,7 @@ def drops_model(selected=None, editing=False):
     points = []
     for d in S["drops"]:
         kind = "storage" if d["kind"] == "saplings" else d["kind"]
-        points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind), kind=kind,
+        points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind), dim=0, kind=kind,
                            x=d["x"], y=d["y"], z=d["z"], side="front", broken=d["broken"]))
     if selected is None:
         selected = next((p["id"] for p in points if p["broken"]), points[0]["id"] if points else None)
@@ -574,8 +581,13 @@ SX = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]
 def drop_plan(cv, m, x0, y0, pw, ph, draft=None):
     """A plan of the chests around home, one block per cell when it fits, labelled by number;
     the server, the shaft and the farm edge for context. Returns the last row drawn."""
-    pts = m["points"]
+    dim = next((p["dim"] for p in m["points"] if p["id"] == m["selected"]), 0)
+    if draft:
+        dim = draft["dim"]
+    pts = [p for p in m["points"] if p["dim"] == dim]
     items = [(p["x"], p["z"]) for p in pts]
+    if dim != 0:  # the server, the shaft and the farm are in the overworld
+        m = dict(points=m["points"], selected=m["selected"], server=None, shaft=None, area=None)
     if draft and items and not (min(i[0] for i in items) - 32 <= draft["x"] <= max(i[0] for i in items) + 32 and
                                 min(i[1] for i in items) - 32 <= draft["z"] <= max(i[1] for i in items) + 32):
         draft = None
