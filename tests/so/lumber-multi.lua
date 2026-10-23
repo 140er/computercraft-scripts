@@ -160,5 +160,41 @@ return function(test, equal)
     end
     equal(#g.digs, 16)
   end)
+  test('lumber PARK finishes its batch while other workers continue and start resumes it', function()
+    local g = F.setup(true, 10000, 'down', 3)
+    local worker, parked = g.workers[2], nil
+    local send = worker.env.rednet.send
+    worker.env.rednet.send = function(id, wire, protocol)
+      if not parked and wire.t == 'step.report' then
+        local row = g.server.env.SO.store.read('so-data/lumber/job').value.turtles['3']
+        for _,step in ipairs(row.inflight and row.inflight.steps or {}) do
+          if step.op == 'forward' or step.op == 'up' or step.op == 'down' then
+            parked = {x=worker.pos.x,y=worker.pos.y,z=worker.pos.z}
+            assert(g.server.env.SO.mods.lease.status(3).open)
+            g.command('park 3')
+            break
+          end
+        end
+      end
+      return send(id, wire, protocol)
+    end
+    F.run(g, function() return parked ~= nil end)
+    F.run(g, function(v) return #v.digs >= 8 end)
+    local row = g.server.env.SO.store.read('so-data/lumber/job').value.turtles['3']
+    assert(row.paused and row.idlePark)
+    equal(worker.pos, parked)
+    assert(g.server.env.SO.store.read('so-data/lumber/job').value.running)
+    g.server.co, g.server.timers, g.server.inbox = nil, {}, {}
+    g.server.boot('so-server.lua') g.net.advance(2)
+    assert(g.server.env.SO.store.read('so-data/lumber/job').value.turtles['3'].paused)
+    equal(worker.pos, parked)
+    g.command('start')
+    F.run(g, function(v) return F.delivered(v) == 16 end)
+    equal(#g.digs, 16)
+    assert(not g.server.env.SO.store.read('so-data/lumber/job').value.turtles['3'].paused)
+    for _, spot in ipairs(F.trees) do
+      equal(g.net.world[spot[1] .. ',1,' .. spot[2]], 'minecraft:' .. spot[3] .. '_sapling')
+    end
+  end)
 
 end

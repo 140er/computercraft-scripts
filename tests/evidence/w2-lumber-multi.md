@@ -54,3 +54,11 @@ finishes service ahead of its waiter, after which both turtles refuel, deliver
 all 16 logs and replant the farm. The branch also includes builder merge 79b90d4.
 The saved before/after logs are `review-blockers-before.log` and
 `review-blockers-after.log` under the local evidence directory.
+
+After screens #215 and pair2 #216 merged, the detail adapter exports every lumber
+worker. Drawn fleet rows and map arrows open the selected worker; pose, fuel,
+inventory, step and alerts stay per worker, with shared SPOTS progress. Detail
+tests exercise three workers, PARK and confirmed RE-ADD at 26x20, 29x12 and
+57x24. PARK pauses only its selected worker after the open batch while others
+keep harvesting. A worker regression checks that pause, stationary parking and
+resumption through `start` without losing or duplicating logs.

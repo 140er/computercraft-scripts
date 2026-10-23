@@ -52,6 +52,16 @@ local function setup(w,h)
   s.display,s.env=d,env
   return s
 end
+local function lumberWorkers(s)
+  for id=5,6 do
+    s.lumber.turtles[tostring(id)]={turtle={id=id,pose={dim=s.lumber.dim,x=id*3,y=64,z=2,facing=1}},
+      phase=id==5 and 'plant' or 'scan',fuel=id*100,inv={{slot=1,name='minecraft:oak_sapling',count=id}}}
+  end
+  s.lumber.running=true
+  for _,row in pairs(s.lumber.turtles) do row.recover=false end
+  s.display.tick(s.now)
+  s.press('status') s.press('generic') s.press('lumber')
+end
 local function capture(frame,w,h)
   local out=R.capture(w,h)
   assert(#frame.rows==h)
@@ -126,6 +136,52 @@ return function(test,equal)
       s.press('turtle:4') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 1/2',1,true))
       s.press('turtle-back') s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
       local _,updated=capture(s.frame(),w,h) assert(updated:find('SPOTS 2/2',1,true))
+    end)
+  end
+  for _,size in ipairs({{26,20},{29,12},{57,24}}) do
+    local w,h=unpack(size)
+    test('G8a lumber details select each worker and keep progress live at '..w..'x'..h,function()
+      local s=setup(w,h) lumberWorkers(s)
+      for id=4,6 do
+        local row=s.lumber.turtles[tostring(id)]
+        row.pending={action={kind='path'}}
+        s.press('turtle:'..id)
+        local _,detail=capture(s.frame(),w,h)
+        for _,text in ipairs({'#'..id,'FUEL '..row.fuel,'LEASE lease-'..id,'STEP path','SPOTS 1/2'}) do
+          assert(detail:find(text,1,true),text)
+        end
+        row.fuel=row.fuel+7 s.display.tick(s.now)
+        local _,updated=capture(s.frame(),w,h) assert(updated:find('FUEL '..row.fuel,1,true))
+        s.press('turtle-back')
+        local _,main=capture(s.frame(),w,h) assert(main:find('LUMBER',1,true))
+      end
+      s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
+      local _,main=capture(s.frame(),w,h) assert(main:find('SPOTS 2/2',1,true))
+      s.press('turtle:5') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 2/2',1,true))
+    end)
+    test('G8a lumber PARK targets only the selected worker at '..w..'x'..h,function()
+      local s=setup(w,h) lumberWorkers(s)
+      s.press('turtle:5') s.press('turtle-park')
+      assert(s.lumber.running and s.lumber.turtles['5'].paused)
+      assert(not s.lumber.turtles['4'].paused and not s.lumber.turtles['6'].paused)
+      local _,detail=capture(s.frame(),w,h) assert(detail:find('parking',1,true))
+      s.press('turtle-back') capture(s.frame(),w,h)
+    end)
+    test('G8a lumber RE-ADD changes only the selected uncertain worker at '..w..'x'..h,function()
+      local s=setup(w,h) lumberWorkers(s)
+      local before4,before6=s.env.SO.store.copy(s.lumber.turtles['4']),s.env.SO.store.copy(s.lumber.turtles['6'])
+      s.uncertain=5 s.lumber.turtles['5'].paused=true s.display.tick(s.now)
+      local anchored
+      s.env.SO.mods.lease.reanchor=function(id,p) anchored={id=id,pose=p} s.uncertain=nil return true end
+      s.press('turtle:5')
+      local _,detail=capture(s.frame(),w,h) assert(detail:find('POSE ?',1,true))
+      s.press('turtle-add') s.press('pose:x:1') s.press('pose:facing:1')
+      s.press('turtle-save') equal(anchored,nil)
+      s.press('turtle-save') equal(anchored.id,5)
+      equal(anchored.pose,{dim=s.lumber.dim,x=16,y=64,z=2,facing=2})
+      equal(s.lumber.turtles['4'],before4) equal(s.lumber.turtles['6'],before6)
+      assert(s.lumber.running and s.lumber.turtles['5'].paused and s.lumber.turtles['5'].recover)
+      s.press('turtle-back') capture(s.frame(),w,h)
     end)
   end
   for _,size in ipairs({{26,20},{29,12}}) do

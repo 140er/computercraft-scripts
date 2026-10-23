@@ -890,11 +890,14 @@ condition clears, including with event alerts off.
 Turtle detail pages are server-local display state and add no wire messages.
 Rows and map arrows use drawn `turtle:<id>` buttons. The display session retains
 its selected worker and confirmation state; BACK restores the source screen.
-Mining and lumber provide read-only `turtleView()` snapshots for this view.
-PARK forwards `stop`, mining REMOVE forwards `remove <id>`, and uncertain-pose
+Mining and lumber provide read-only `turtleView()` snapshots for each assigned
+worker. Lumber snapshots keep pose, fuel, inventory, error and pending step per
+worker; SPOTS progress describes the shared farm. Mining PARK ALL forwards
+`stop`; lumber PARK forwards `park <id>` for the selected worker. Mining REMOVE
+forwards `remove <id>`, and uncertain-pose
 RE-ADD forwards `add <id> <x> <y> <z> <facing>` after coordinate confirmation.
 Mining labels its stop action PARK ALL because it stops the whole mining job.
-Lumber exposes PARK and RE-ADD; its command interface has no remove operation.
+Lumber exposes PARK and RE-ADD; its command interface also accepts `remove <id>`.
 
 
 SO5 owns this API on `SO.mods.display`.
@@ -1143,6 +1146,7 @@ The `lumber` display accepts these text commands:
 - `add <id>` uses a fresh GPS fix and proven facing, probing one cell when needed. It retains existing workers.
 - `add <id> <x> <y> <z> <n|e|s|w>` adds or reanchors that worker without replacing the others. A recovery park report supplies the journal pose for `P.frame`.
 - `remove <id>` removes that worker after its open lease and stationary park report finish. Retry when the screen requests it. A turtle still holding chest access must return first.
+- `park <id>` parks only that worker after its current batch. Its claims and recovery state remain saved while other workers continue. `start` resumes parked workers.
 - `start` begins work. `stop` parks after the current lease reports.
 
 For `front`, `L.access` chooses a horizontal neighbour at the chest's height
@@ -1155,7 +1159,7 @@ chest cells and planted spots at soil height plus one. Keep access cells clear;
 these checks use the planner's known state. If no eligible cell remains,
 the turtle holds with a named `saplings #<id> unreachable at x,y,z` alert.
 
-The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtles[id] = { turtle = { id, frame, pose }, phase, inv, fuel, target?, tree?, service? }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtles[id] = { turtle = { id, frame, pose }, phase, inv, fuel, target?, tree?, service?, paused? }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
 The report sets the world pose to `P.toWorld(frame, lease.report.pose)` before
 work resumes. Recovery parks bypass the work range check; movement leases keep

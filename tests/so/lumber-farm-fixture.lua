@@ -111,7 +111,9 @@ local function setup(saplings, fuel, side, count, starts)
   n.flush()
   n.advance(1)
   assert(screens.lumber, "lumber screen not registered")
-  local function command(text) screens.lumber.input({text=text,role="lumber",x=1,y=1}) end
+  local function command(text)
+    s.env.SO.mods.display.screen("lumber").input({text=text,role="lumber",x=1,y=1})
+  end
   command("area 0 0 8 8 0")
   command("saplings "..chests.saplings.x.." "..chests.saplings.y.." "..chests.saplings.z.." "..side)
   for _, worker in ipairs(workers) do
@@ -134,7 +136,7 @@ local function run(g, untilFn, seconds)
     for _, line in ipairs(g.server.log) do assert(not line:find("failed:",1,true), line) end
     if untilFn(g) then return end
   end
-  error("lumber did not finish: " .. H.encode(g.screens.lumber.render()))
+  error("lumber did not finish: " .. H.encode(g.server.env.SO.mods.display.screen("lumber").render()))
 end
 
 return { setup = setup, delivered = delivered, run = run, trees = TREES }

@@ -10,7 +10,7 @@
                                                          
                                                          
                                                          
-                                                         
+              SPOTS 2/4                                  
  NEXT GROW 6:20                                          
                                                          
  #4 felling F1210                                        
@@ -18,7 +18,7 @@
  #6 scan F640                                            
                                                          
                                                          
-    #4                   SPOTS 2/4                       
+                                                         
                                                          
     START         STOP          SETUP           BACK     
                                                          
@@ -34,15 +34,15 @@ fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fbbbbbbccccccffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ddddddddddfbbbbbbccccccffffffffffffffffffffffffffffffffff
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777

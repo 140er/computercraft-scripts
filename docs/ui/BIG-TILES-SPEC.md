@@ -472,7 +472,7 @@ Lumber, room monitor  (57x24)
                                                          
                                                          
                                                          
-                                                         
+              SPOTS 2/4                                  
  NEXT GROW 6:20                                          
                                                          
  #4 felling F1210                                        
@@ -480,7 +480,7 @@ Lumber, room monitor  (57x24)
  #6 scan F640                                            
                                                          
                                                          
-    #4                   SPOTS 2/4                       
+                                                         
                                                          
     START         STOP          SETUP           BACK     
                                                          

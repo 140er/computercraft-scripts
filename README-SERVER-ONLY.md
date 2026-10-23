@@ -287,9 +287,11 @@ errors. BACK returns to the same page. Mining rows show branch progress bars;
 lumber shows planted spots against known spots. The pocket header has MAP and
 MORE, with paging and PANEL in one footer row.
 
-PARK ALL stops the mining job after its current batches; lumber PARK stops the
-lumber job. Mining REMOVE needs two taps within five seconds and follows the
-same lease checks as the command. Lumber has no remove command. An uncertain
+PARK ALL stops the mining job after its current batches. Lumber PARK parks the
+selected turtle after its current batch; the other turtles continue. Lumber
+`start` resumes parked turtles. Mining REMOVE needs two taps within five seconds
+and follows the same lease checks as the command. Lumber `remove <id>` remains
+available through text commands. An uncertain
 pose appears as POSE ?. RE-ADD opens a coordinate and facing editor; confirm the
 worker's actual position there, then press RE-ADD twice to submit it.
 
@@ -303,6 +305,7 @@ saplings <x> <y> <z> <front|down>
 add <id>
 add <id> <x> <y> <z> <n|e|s|w>
 remove <id>
+park <id>
 start
 stop
 ```

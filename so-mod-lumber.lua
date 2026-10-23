@@ -479,6 +479,7 @@ S.park = function(recover)
 end
 
 S.follow = function(motion)
+  if S.row.paused then return end
   if #S.rows() > 1 then S.row.motion = motion return end
   return S.send(motion.steps or { { op = motion.op } }, motion.action or "motion",
     motion.cell and { S.row.turtle.pose, motion.cell })
@@ -848,6 +849,7 @@ S.report = function(id, turtleId, results, lease)
     if not j.delivery and j.service then j.service.stage = "drop" end
 
   end
+  if j.paused then j.motion = nil end
   if not S.row.pending then S.prune() end
   S.save()
 end
@@ -1074,8 +1076,13 @@ S.input = function(ev)
     j.running, j.blocked, j.noSaplings, j.alert, j.failures = true, nil, false, nil, nil
     if type(state.get)=="function" and state.get("lumber.alert") then S.emit("lumber.alert",false) end
     for _, row in pairs(j.turtles) do
-      row.blocked, row.noSaplings, row.alert, row.failures, row.recover = nil, false, nil, nil, true
+      row.blocked, row.noSaplings, row.alert, row.failures, row.recover, row.paused = nil, false, nil, nil, true, nil
     end
+  elseif words[1] == "park" and #words == 2 then
+    local id = integer(2)
+    local row = id and j.turtles[tostring(id)]
+    if not row then S.alert("unknown turtle") return end
+    row.paused, row.motion, row.wait = true, nil, nil
   elseif words[1] == "area" and #words == 6 then
     if j.running or S.anyPending() then S.alert("stop before configuring") return end
     local x1, z1, x2, z2, ground = integer(2), integer(3), integer(4), integer(5), integer(6)
@@ -1118,6 +1125,7 @@ S.input = function(ev)
     local previous = j.turtles[tostring(id)]
     j.turtles[tostring(id)] = {
       turtle = { id = id, anchor = pose, pose = pose }, inv = {}, fuel = 0, phase = "scan", recover = true,
+      paused = row and row.paused or nil,
     }
     S.row = nil
     if not S.save() then j.turtles[tostring(id)] = previous return end
@@ -1167,7 +1175,8 @@ S.gather = function()
     "SAPLINGS " .. (job.saplings and S.cellKey(job.saplings) .. " " .. job.saplings.side or "-"),
   }
   for _, row in ipairs(S.rows()) do
-    local label = row.blocked or row.wait or (row.recover and "recovering")
+    local label = row.blocked or (row.paused and (row.idlePark and "parked" or "parking"))
+      or row.wait or (row.recover and "recovering")
       or (job.running and (row.service and row.service.kind or row.phase) or "stopped")
     workers[#workers + 1] = { id = row.turtle.id, state = label, fuel = row.fuel, blocked = row.blocked }
     for _, item in ipairs(row.inv or {}) do if L.isSapling(item.name) then saplings = saplings + item.count end end
@@ -1322,7 +1331,7 @@ S.tickRow = function(row, now)
     S.park(true)
     return
   end
-  if S.job.running and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
+  if S.job.running and not j.paused and j.blocked == "fuel" and j.fuelRetry and now >= j.fuelRetry then
     local shop = S.module("shop")
     local policy = shop.fuelConfig and shop.fuelConfig()
     if policy and policy.auto and j.service and j.service.kind == "fuel" then
@@ -1332,7 +1341,7 @@ S.tickRow = function(row, now)
       S.save()
     end
   end
-  if j.blocked or not S.job.running or not S.job.area or not j.turtle.frame then
+  if j.blocked or j.paused or not S.job.running or not S.job.area or not j.turtle.frame then
     if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
     return
   end
@@ -1386,7 +1395,7 @@ S.mapView = function()
   local j, turtles = S.job, {}
   for id, row in pairs(j.turtles) do
     turtles[id] = { id=row.turtle.id, pose=SO.store.copy(row.turtle.pose),
-      state=row.blocked or row.wait or (j.running and "lumber" or "idle") }
+      state=row.blocked or (row.paused and "parked") or row.wait or (j.running and "lumber" or "idle") }
   end
   return {dim=j.dim,area=SO.store.copy(j.area),ground=j.ground,saplings=SO.store.copy(j.saplings),turtles=turtles}
 end

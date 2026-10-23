@@ -80,7 +80,10 @@ return function(test,equal)
     for _=1,3 do
       local frame=s.render(29,12)
       local text=table.concat(capture(frame,29,12).picture().text,'\n')
-      for id=4,11 do if text:find('#'..id..' ',1,true) then seen[id]=true end end
+      for _,b in ipairs(frame.buttons) do
+        local id=b.id:match('^turtle:(%d+)$')
+        if id then assert(text:find('#'..id..' ',1,true)) seen[tonumber(id)]=true end
+      end
       press(s,frame,'turtles-next')
     end
     for id=4,11 do assert(seen[id],'unreachable worker '..id) end

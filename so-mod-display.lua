@@ -665,7 +665,7 @@ D.turtleInput = function(event,w,h)
   end
   if id == "turtle-back" then session.turtle=nil
   elseif id == "turtle-cancel" then selected.draft,selected.confirm=nil,nil
-  elseif id == "turtle-park" then command("stop")
+  elseif id == "turtle-park" then command(row.role == "lumber" and ("park "..selected.id) or "stop")
   elseif id == "turtle-remove" then
     if selected.confirm == "remove" then command("remove "..selected.id) selected.confirm=nil
     else selected.confirm,selected.confirmAt="remove",D.now() end
