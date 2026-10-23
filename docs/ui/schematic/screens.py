@@ -22,6 +22,7 @@ import mapscreen as MS  # noqa: E402
 import status as ST  # noqa: E402
 import pocket as PK  # noqa: E402
 import system as SY  # noqa: E402
+import jobs as J  # noqa: E402
 
 
 def status(w, h, title, wall_map=False):
@@ -118,6 +119,7 @@ FIXTURES = [
                                     title="Server terminal, role command (R)")),
 ]
 FIXTURES += SH.FIXTURES + MS.FIXTURES
+FIXTURES += J.FIXTURES
 
 
 def main():

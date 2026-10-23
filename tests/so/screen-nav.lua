@@ -104,20 +104,29 @@ return function(test, equal)
         noLinks(s)
         seen[name] = true
       end
+      -- Route A screens put the header on row 1, Big Tiles on row 2.
       local function header(text)
-        assert(s.frame().rows[2].text:find(text,1,true), "missing " .. text .. " header")
+        local rows = s.frame().rows
+        assert((rows[1].text .. "\n" .. rows[2].text):find(text,1,true), "missing " .. text .. " header")
         seen[text] = true
       end
       role(size[1]==26 and "pocket" or "unassigned")
       s.assign("drops");role("generic");header("DROP")
-      s.press("ADD NEW");header("ADD DROP")
+      s.press("ADD","new");header("ADD DROP")
       s.press("BACK");header("DROP")
+      -- Job tabs need 24 columns; the 15-wide monitor shows the overview only.
+      local main = size[1] >= 39 and "overview" or "main"
       for _, name in ipairs({"mining","lumber"}) do
-        s.assign(name);role(name)
-        s.press("SETUP");header(name=="mining" and (size[1]<26 and "MINING" or "MINING SETUP") or "LUMBER")
-        seen[name .. " setup"] = true
-        s.press("BACK", name=="mining" and "mine-back" or "lumber-back")
-        s.button("SETUP");role(name)
+        s.assign(name);role(name);header(name:upper())
+        if size[1] >= 24 then
+          s.press("setup","tab:setup");header(name:upper())
+          assert(s.button("setup","tab:setup").y == 1)
+          seen[name .. " setup"] = true
+          s.press(main,"tab:" .. main)
+          s.button("setup","tab:setup");role(name)
+        else
+          seen[name .. " setup"] = true
+        end
       end
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals={["minecraft:iron_ingot"]=64}})
       s.assign("shop");role("shop")

@@ -1,0 +1,61 @@
+26x20 Lumber setup at 26x20
+ LUMBER   main   setup    
+                          
+ area                     
+   96,-352 108,-341       
+                          
+ ground                   
+   63                     
+                          
+ saplings                 
+   110,64,-348 front      
+                          
+ turtle                   
+   #5 101,65,-347         
+                          
+                          
+                          
+                          
+                          
+                          
+    START       STOP      
+00000000088888800000000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888888800000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+ffffffffffffffff7777777fff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

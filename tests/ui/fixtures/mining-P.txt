@@ -1,0 +1,61 @@
+26x20 Mining at 26x20
+ MINING   main   setup    
+                          
+10  +···········          
+ 9  +--►-·3 wait          
+ 8  +-----►-·2··          
+ 7  +----------► 6 lost   
+ 6  +-----------          
+ 5  +-----------          
+ 4  +-----------          
+ 3 4▼-----------          
+    |                     
+    º shaft               
+                          
+ state ·········· running 
+ busy ··············· 2/4 
+ lane ················ #4 
+ done ·············· 7/10 
+ fuel ··············· 412 
+                          
+    START       STOP      
+00000000000000008888888000
+00000000000000000000000000
+8800b888888888880000000000
+0800b331b81111110000000000
+0800b33333db8d880000000000
+0800b3333333333e0eeeeee000
+0800b333333333330000000000
+0800b333333333330000000000
+0800b333333333330000000000
+080dd333333333330000000000
+0000b000000000000000000000
+00009088888000000000000000
+00000000000000000000000000
+0888880cccccccccc000000000
+088880ccccccccccccccc00000
+088880cccccccccccccccc0bb0
+088880cccccccccccccc000000
+088880ccccccccccccccc01110
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+fffffffff777777fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

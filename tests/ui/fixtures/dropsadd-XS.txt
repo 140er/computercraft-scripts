@@ -1,0 +1,31 @@
+15x10 Add a drop point, smallest monitor
+ ADD DROP POINT
+      ore      
+     front     
+ dim 0  -   +  
+ x 126  -   +  
+ y 64   -   +  
+ z -337 -   +  
+               
+               
+  ADD    BACK  
+000000000000000
+000000000000000
+000000000000000
+088800000000000
+080000000000000
+080000000000000
+080000000000000
+000000000000000
+000000000000000
+099999900000000
+fffffffffffffff
+f7777777777777f
+f7777777777777f
+fffffff777f777f
+fffffff777f777f
+fffffff777f777f
+fffffff777f777f
+fffffffffffffff
+fffffffffffffff
+f777777f777777f

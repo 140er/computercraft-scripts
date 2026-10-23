@@ -1,0 +1,61 @@
+26x20 Mining setup at 26x20
+ MINING   main   setup    
+                          
+ home    120,64,-340 n    
+                          
+ bottom   -   Y -58   +   
+                          
+ length   -     64    +   
+                          
+ mode     fast   thorough 
+                          
+ ores    all        edit  
+                          
+ turtles #2 #3 #4 #6      
+                          
+                          
+                          
+                          
+                          
+                          
+    START       STOP      
+00000000088888800000000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+08888000088888800000000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000000
+08888888000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+ffffffffffffffff7777777fff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffff777fffffffff777ff
+ffffffffffffffffffffffffff
+fffffffff777fffffffff777ff
+ffffffffffffffffffffffffff
+ffffffffffffffff7777777777
+ffffffffffffffffffffffffff
+fffffffffffffffffff777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

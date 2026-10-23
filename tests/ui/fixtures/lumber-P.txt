@@ -1,0 +1,61 @@
+26x20 Lumber at 26x20
+ LUMBER   main   setup    
+                          
+ +-----------+            
+ |           |            
+ | ♠  ♠  ♣  ♠|            
+ |           |            
+ |     5     | • saplings 
+ | ♠  ►  ♠  ♣|            
+ |           |            
+ |           |            
+ | ♠  ♣  ♠  ♠| • wood     
+ |           |            
+ |           |            
+ +-----------+            
+ state ·········· running 
+ ready ············· 9/12 
+ next grow ········· 6:20 
+ fuel ·············· 1210 
+                          
+    START       STOP      
+00000000000000008888888000
+00000000000000000000000000
+0ccccccccccccc000000000000
+0c00000000000c000000000000
+0c0d00d00800dc000000000000
+0c00000000000c000000000000
+0c00000d00000c000888888880
+0c0d00d00d008c000000000000
+0c00000000000c000000000000
+0c00000000000c000000000000
+0c0d00800d00dc000888800000
+0c00000000000c000000000000
+0c00000000000c000000000000
+0ccccccccccccc000000000000
+0888880cccccccccc000000000
+0888880ccccccccccccc0dddd0
+08888888880ccccccccc000000
+088880cccccccccccccc000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+fffffffff777777fffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

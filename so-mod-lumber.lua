@@ -629,11 +629,11 @@ S.input = function(ev)
   if type(ev) ~= "table" then return end
   local text = ev.text
   if text == nil then
-    if ev.id == "setup" then S.setup, S.setupPage = true, 0 return end
-    if ev.id == "setup-next" then S.setupPage = (S.setupPage or 0) + 1 return end
-    if ev.id == "lumber-back" then S.setup = false return end
-    if ev.id ~= "start" and ev.id ~= "stop" then return end
-    text = ev.id
+    local id = ev.id
+    if id == "setup" or id == "tab:setup" then S.screen.view(ev.session).page = "setup" return end
+    if id == "lumber-back" or id == "tab:overview" or id == "tab:main" then S.screen.view(ev.session).page = "main" return end
+    if id ~= "start" and id ~= "stop" then return end
+    text = id
   end
   local words = {}
   for word in tostring(text):gmatch("%S+") do words[#words + 1] = word end
@@ -726,102 +726,231 @@ S.legacyRender = function(w)
   return { rows = rows, buttons = {} }
 end
 
-S.gather = function()
-  local j, known, ready = S.job, 0, 0
-  local daily = S.module("daily")
-  local today = type(daily.today) == "function" and daily.today()
-  local now = SO.now()
-  for _, spot in pairs(j.spots) do
-    known = known + 1
-    if (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000 then ready = ready + 1 end
-  end
-  local saplings = S.count(L.isSapling)
-  local seconds = j.nextRound and math.max(0, math.ceil((j.nextRound - now) / 1000))
-  local grow = seconds and string.format("%d:%02d", math.floor(seconds / 60), seconds % 60) or "-"
-  local function point(p)
-    return p and (p.x .. "," .. p.y .. "," .. p.z .. " " .. (p.side or "")) or "-"
-  end
-  return {
-    state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
-    alert = S.admission or j.alert, setup = S.setup, setupPage = S.setupPage,
-    details = {
-      "AREA " .. (j.area and (j.area.x1 .. "," .. j.area.z1 .. " to " .. j.area.x2 .. "," .. j.area.z2) or "-"),
-      "GROUND " .. tostring(j.ground or "-"), "SAPLINGS " .. point(j.saplings),
-      "TURTLE " .. (j.turtle and (j.turtle.id .. " at " .. point(j.turtle.pose)) or "-"),
-      "area x1 z1 x2 z2 ground", "saplings x y z front|down", "add id x y z n|e|s|w",
-    },
-    tiles = {
-      {"TREES READY", tostring(ready), "of " .. known .. " spots", "d"},
-      {"LOGS TODAY", today and tostring(today.logs) or "-", today and "logs delivered" or "no daily source", today and "d" or "c"},
-      {"SAPLINGS", tostring(saplings), saplings == 0 and "chest empty" or "carried", saplings == 0 and "e" or "d"},
-      {"TURTLE", j.turtle and tostring(j.turtle.id) or "-", j.phase or "-", j.turtle and "d" or "c"},
-      {"FUEL", tostring(j.fuel or "-"), type(j.fuel) == "number" and (j.fuel < 80 and "low" or "ok") or "no source", j.fuel and (type(j.fuel) == "number" and j.fuel < 80 and "1" or "d") or "c"},
-      {"NEXT GROW", grow, seconds and "min:sec" or "no timer", seconds and "b" or "c"},
-    },
-  }
+-- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of A.gather
+-- and the layouts and writes their fixtures. Pages belong to the display session.
+local A = { tabs = { "overview", "setup" }, short = { "main", "setup" }, page = "main",
+  phases = { scan = "scanning", base = "felling", climb = "felling", descend = "felling", plant = "planting", plantPlace = "planting" } }
+S.screen = A
+A.view = function(session)
+  if type(session) ~= "table" then return A end
+  session.lumber = session.lumber or { page = "main" }
+  return session.lumber
 end
-
-S.layout = function(model, w, h)
-  local U = S.ui
-  local C = U.canvas(w, h)
-  C.header("LUMBER", model.state)
-  C.alert(model.alert and ("! " .. model.alert))
-  local compact = w < 39 or h < 20
-  local navRows = w < 26 and 2 or 1
-  local bottom = compact and math.max(1, h - navRows + 1) or h - 3
-  if model.setup then
-    local lines = {}
-    for _, line in ipairs(model.details) do
-      for first = 1, #line, math.max(1, w - 2) do
-        lines[#lines + 1] = line:sub(first, first + math.max(1, w - 2) - 1)
-      end
-    end
-    local count = math.max(1, bottom - 3)
-    local pages = math.ceil(#lines / count)
-    local offset = ((model.setupPage or 0) % math.max(1, pages)) * count
-    for i = 1, count do
-      if lines[offset + i] and i + 2 < bottom then C.put(2, i + 2, lines[offset + i], "0", "f") end
-    end
-    local left = 1
-    if pages > 1 then
-      local width = math.max(1, math.floor(w / 2))
-      C.button(1, bottom, width, "NEXT", "setup-next", "7", compact and 1 or 3)
-      left = width + 1
-    end
-    C.button(left, bottom, w - left + 1, "BACK", "lumber-back", "7", compact and 1 or 3)
-  else
-    local cols, rows = U.grid(w, h)
-    if compact then
-      for i, t in ipairs(model.tiles) do
-        if i + 2 < bottom then
-          C.fill(1, i + 2, w, 1, t[4])
-          C.put(2, i + 2, (t[1] .. " " .. t[2]):sub(1, w-2), U.ink(t[4]), t[4])
-        end
-      end
-    else
-      for i, t in ipairs(model.tiles) do
-        local row = math.floor((i - 1) / #cols)
-        if row < rows then
-          local col = cols[(i - 1) % #cols + 1]
-          C.tile(col.x, 4 + row * 8, col.w, unpack(t))
-        end
-      end
-    end
-    local buttons = U.grid(w, h, w < 26 and 2 or 3)
-    for i, b in ipairs({{"START", "start", "9"}, {"STOP", "stop", "e"}, {"SETUP", "setup", "7"}}) do
-      local col = i > #buttons and {x = 1, w = w} or buttons[i]
-      local y = bottom + math.floor((i - 1) / #buttons)
-      C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
+A.near = function(area, p)
+  return p.x >= area.x1 - 32 and p.x <= area.x2 + 32 and p.z >= area.z1 - 32 and p.z <= area.z2 + 32
+end
+-- The farm, its chests, the turtle and the facts.
+A.gather = function()
+  local j, now = S.job, SO.now()
+  local daily, drops = S.module("daily"), S.module("drops")
+  local today = type(daily.today) == "function" and daily.today()
+  local m = { state = j.blocked or (S.recover and j.turtle and "recovering") or (j.running and "running" or "stopped"),
+    alert = S.admission or j.alert, area = j.area, ground = j.ground, spots = {}, chests = {}, ready = 0, total = 0,
+    logs = today and today.logs, saplings = S.count(L.isSapling), fuel = type(j.fuel) == "number" and j.fuel or nil,
+    chest = j.saplings }
+  for key, spot in pairs(j.spots) do
+    local ready = (spot.plantedAt or 0) == 0 or now - spot.plantedAt >= 600000
+    m.total = m.total + 1
+    if ready then m.ready = m.ready + 1 end
+    local x, z = tostring(key):match("^(%-?%d+),(%-?%d+)$")
+    if x then m.spots[#m.spots + 1] = { x = tonumber(x), z = tonumber(z), ready = ready } end
+  end
+  local seconds = j.nextRound and math.max(0, math.ceil((j.nextRound - now) / 1000))
+  m.grow = seconds and string.format("%d:%02d", math.floor(seconds / 60), seconds % 60)
+  if j.saplings then m.chests[1] = { x = j.saplings.x, z = j.saplings.z, label = "saplings", broken = false } end
+  if j.area and type(drops.list) == "function" then
+    for _, p in ipairs(drops.list()) do
+      if p.kind == "wood" and A.near(j.area, p) then m.chests[#m.chests + 1] = { x = p.x, z = p.z, label = "wood", broken = p.broken } end
     end
   end
+  if j.turtle then
+    local p, lease = j.turtle.pose or j.turtle.anchor or {}, S.module("lease")
+    local status = type(lease.status) == "function" and lease.status(j.turtle.id) or {}
+    local word = status.lost and "lost" or j.blocked or (j.running and (A.phases[j.phase] or "working") or "idle")
+    m.turtle = { id = j.turtle.id, facing = p.facing, x = p.x, y = p.y, z = p.z, state = word, tone = S.ui.tone(word) }
+  end
+  return m
+end
+A.facts = function(m)
+  local fuel = m.fuel
+  return { { "ready", m.ready .. "/" .. m.total, m.ready > 0 and "d" or "8" }, { "growing", tostring(m.total - m.ready), "0" },
+    { "next grow", m.grow or "-", m.grow and "0" or "8" }, { "logs", m.logs and tostring(m.logs) or "-", m.logs and "0" or "8" },
+    { "saplings", tostring(m.saplings), m.saplings > 0 and "0" or "e" },
+    { "fuel", fuel and tostring(fuel) or "-", not fuel and "8" or fuel < 80 and "1" or "0" } }
+end
+A.fg = function(tone) return (tone == "1" or tone == "e" or tone == "8") and tone or "0" end
+A.run = function(C, y, m, gap)
+  local run = m.state == "running"
+  S.ui.actions(C, y, { { "START", "start", run and "muted" or "primary" }, { "STOP", "stop", run and "stop" or "muted" } }, gap)
+end
+A.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
+-- The farm at up to four columns per block, squeezed when it does not fit; trees, chests and the
+-- turtle. Returns the last row drawn.
+A.plan = function(C, m, x0, y0, pw, ph)
+  local a, U = m.area, S.ui
+  if not a then return y0 - 1 end
+  local bx1, bx2, bz1, bz2, room = a.x1, a.x2, a.z1, a.z2, 0
+  for _, c in ipairs(m.chests) do
+    bx1, bx2, bz1, bz2 = math.min(bx1, c.x), math.max(bx2, c.x), math.min(bz1, c.z), math.max(bz2, c.z)
+    room = math.max(room, #c.label + 1)
+  end
+  local num = 1
+  for _, n in ipairs({ 4, 3, 2 }) do if (bx2 - bx1) * n + 1 + room <= pw then num = n break end end
+  local den = math.max(1, math.ceil((bx2 - bx1 + 1) / math.max(1, pw - room)))
+  local rz = (bz2 - bz1) * 2 + 1 <= ph and num >= 3 and 2 or 1
+  local zd = math.max(1, math.ceil((bz2 - bz1 + 1) / math.max(1, ph)))
+  local function col(x) return x0 + math.floor((x - bx1) * num / den) end
+  local function row(z) return y0 + math.floor((z - bz1) * rz / zd) end
+  local c1, c2, r1, r2 = col(a.x1), col(a.x2), row(a.z1), row(a.z2)
+  C.rule(c1, r1, c2, "c")
+  C.rule(c1, r2, c2, "c")
+  for y = r1, r2 do C.put(c1, y, "|", "c") C.put(c2, y, "|", "c") end
+  for _, p in ipairs({ { c1, r1 }, { c2, r1 }, { c1, r2 }, { c2, r2 } }) do C.put(p[1], p[2], "+", "c") end
+  local trees = {}
+  for _, s in ipairs(m.spots) do
+    local key = col(s.x) .. "," .. row(s.z)
+    trees[key] = trees[key] or s.ready
+  end
+  for key, ready in pairs(trees) do
+    local x, y = key:match("^(%-?%d+),(%-?%d+)$")
+    C.put(tonumber(x), tonumber(y), ready and U.g.spade or U.g.club, ready and "d" or "8")
+  end
+  for _, c in ipairs(m.chests) do
+    local x, y = col(c.x), row(c.z)
+    C.put(x, y, c.broken and U.g.cross or U.g.bullet, c.broken and "e" or "0")
+    local lx = (x > c2 or x >= c1 and x + 2 + #c.label <= x0 + pw) and x + 2 or x - 1 - #c.label
+    C.put(lx, y, c.label, c.broken and "e" or "8")
+  end
+  local t = m.turtle
+  if t and t.x and t.x >= bx1 and t.x <= bx2 and t.z >= bz1 and t.z <= bz2 then
+    local x, y, label = col(t.x), row(t.z), tostring(t.id)
+    local function blank(cx, cy, open)
+      local cell = C.cells[cy] and C.cells[cy][cx]
+      if not cell then return open end
+      return cell[1] == " " or open and (cell[1] == "-" or cell[1] == "|" or cell[1] == "+")
+    end
+    for _, at in ipairs({ { x + 1, y - 1 }, { x + 1, y + 1 } }) do
+      local ok = blank(at[1] - 1, at[2], true) and blank(at[1] + #label, at[2], true)
+      for i = 0, #label - 1 do ok = ok and blank(at[1] + i, at[2], false) end
+      if ok then C.put(at[1], at[2], label, t.tone) break end
+    end
+    C.put(x, y, U.arrow(t.facing), t.tone)
+  end
+  return row(bz2)
+end
+A.turtle = function(C, m, y)
+  local t = m.turtle
+  if not t then return end
+  C.put(2, y, S.ui.arrow(t.facing), t.tone)
+  C.put(4, y, tostring(t.id), "0")
+  C.put(7, y, t.state:sub(1, 10), A.fg(t.tone))
+  if t.x then C.put(18, y, A.at(t):sub(1, math.max(0, C.w - 19)), "8") end
+end
+A.room = function(C, m)
+  local w, ya, U = C.w, C.h - 1, S.ui
+  U.roleBar(C, "LUMBER", A.tabs, A.short, 1, m.state, U.tone(m.state))
+  local fx, facts = w - 14, A.facts(m)
+  for i, f in ipairs(facts) do C.leader(fx, 2 + 2 * i, 14, f[1], f[2], f[3]) end
+  local bottom = A.plan(C, m, 2, 4, math.min(fx - 5, 64), math.min(ya - 9, 32))
+  A.turtle(C, m, bottom + 3)
+  for y = 3, math.max(bottom + 3, 2 + 2 * #facts) do C.put(fx - 2, y, "|", "c") end
+  if m.alert then C.flag(2, ya - 2, w - 2, m.alert) end
+  A.run(C, ya, m, 3)
+end
+A.column = function(C, m)
+  local w, ya, U = C.w, C.h, S.ui
+  local shown = U.roleBar(C, "LUMBER", A.tabs, A.short, 1, m.state, U.tone(m.state))
+  A.run(C, ya, m, 1)
+  if m.alert then C.flag(2, ya - 1, w - 2, m.alert) end
+  local f, last, top = A.facts(m), ya - 2 - (m.alert and 1 or 0)
+  if w < 30 then
+    local rows = { f[1], f[3], f[6] }
+    if not shown then table.insert(rows, 1, { "state", m.state, A.fg(U.tone(m.state)) }) end
+    top = last - #rows + 1
+    for i, row in ipairs(rows) do C.leader(2, top + i - 1, w - 2, row[1], row[2], row[3]) end
+  else
+    local lw = math.floor((w - 5) / 2)
+    top = last - 1
+    for i, pair in ipairs({ { 1, 5 }, { 3, 6 } }) do
+      local a, b = f[pair[1]], f[pair[2]]
+      C.leader(2, top + i - 1, lw, a[1], a[2], a[3])
+      C.leader(lw + 5, top + i - 1, w - lw - 5, b[1], b[2], b[3])
+    end
+  end
+  A.plan(C, m, 2, 3, math.min(w - 1, 64), math.min(top - 3, 32))
+end
+A.tiny = function(C, m)
+  local w, h, U = C.w, C.h, S.ui
+  local shown = w >= 24 and U.roleBar(C, "LUMBER", A.tabs, A.short, 1, m.state, U.tone(m.state))
+  if w < 24 then
+    shown = w >= 12 + #m.state
+    C.bar("LUMBER", {}, nil, shown and m.state or "", U.tone(m.state))
+  end
+  local f = A.facts(m)
+  local rows = { f[1], { "grow", f[3][2], f[3][3] }, f[5], f[6], f[4] }
+  if not shown then table.insert(rows, 1, { "state", m.state, A.fg(U.tone(m.state)) }) end
+  local y = h >= 6 and 3 or 2
+  for _, row in ipairs(rows) do
+    if y > h - 2 then break end
+    C.leader(2, y, w - 2, row[1], row[2], row[3])
+    y = y + 1
+  end
+  if m.alert and h >= 4 then C.flag(2, h - 1, w - 2, m.alert) end
+  A.run(C, h, m, 1)
+end
+A.setup = function(C, m)
+  local w, h, U = C.w, C.h, S.ui
+  U.roleBar(C, "LUMBER", A.tabs, A.short, 2, m.state, U.tone(m.state))
+  local room = w >= 52 and h >= 22
+  local ya, step, vx = room and h - 1 or h, h >= 19 and 2 or 1, w >= 36 and 13 or 11
+  local a, c, t = m.area, m.chest, m.turtle
+  local rows = { { "area", a and (a.x1 .. "," .. a.z1 .. " " .. a.x2 .. "," .. a.z2) or "-" },
+    { "ground", m.ground and tostring(m.ground) or "-" },
+    { "saplings", c and (A.at(c) .. " " .. tostring(c.side)) or "-" },
+    { "turtle", t and t.x and ("#" .. t.id .. " " .. A.at(t)) or "-" } }
+  -- Narrow screens put each value on its own line under its label.
+  local narrow = w < 36 and h >= 14
+  for i, row in ipairs(rows) do
+    local y = 3 + (i - 1) * (narrow and 3 or step)
+    if y + (narrow and 1 or 0) > ya - 2 then break end
+    C.put(2, y, row[1], "8")
+    if narrow then C.put(4, y + 1, row[2]:sub(1, w - 4), row[2] ~= "-" and "0" or "8")
+    else C.put(vx, y, row[2]:sub(1, w - vx), row[2] ~= "-" and "0" or "8") end
+  end
+  if m.alert then C.flag(2, ya - (room and 2 or 1), w - 2, m.alert) end
+  A.run(C, ya, m, room and 3 or 1)
+end
+A.layout = function(m, w, h, setup)
+  local C = S.ui.canvas(w, h)
+  if setup and w >= 24 then A.setup(C, m)
+  elseif w < 24 or h < 14 then A.tiny(C, m)
+  elseif w >= 52 and h >= 22 then A.room(C, m)
+  else A.column(C, m) end
   return C.frame()
 end
-
-S.render = function(w, h)
+-- so-mod-panel's pocket probe reads a 120x18 frame from an id-less session: the state on row 2
+-- and LABEL VALUE rows from 3 with their colour. Kept until the panel reads facts().
+A.probe = function(m)
+  local rows = { { text = "" }, { text = "LUMBER " .. m.state } }
+  for _, f in ipairs({ { "TREES READY", tostring(m.ready), "d" }, { "SAPLINGS", tostring(m.saplings), m.saplings == 0 and "e" or "d" },
+      { "NEXT GROW", m.grow or "-", m.grow and "b" or "c" },
+      { "FUEL", m.fuel and tostring(m.fuel) or "-", m.fuel and (m.fuel < 80 and "1" or "d") or "c" } }) do
+    rows[#rows + 1] = { text = f[1] .. " " .. f[2], runs = { { #f[1] + #f[2] + 1, "0", f[3] } } }
+  end
+  return { rows = rows, buttons = {} }
+end
+S.render = function(w, h, session)
   if not w or not h then return S.legacyRender(w) end
   if not S.ui and (not fs or not fs.exists or fs.exists("so-ui.lua")) then S.ui = dofile("so-ui.lua") end
   if not S.ui then return S.legacyRender(w) end
-  return S.layout(S.gather(), w, h)
+  if type(session) == "table" and session.id == nil and w == 120 and h == 18 then return A.probe(A.gather()) end
+  return A.layout(A.gather(), w, h, A.view(session).page == "setup")
+end
+-- Job facts for other screens (the pocket's JOBS page); pure reads.
+S.facts = function()
+  if not S.ui and (not fs or not fs.exists or fs.exists("so-ui.lua")) then S.ui = dofile("so-ui.lua") end
+  local m = A.gather()
+  return { state = m.state, ready = m.ready, spots = m.total, grow = m.grow, saplings = m.saplings, fuel = m.fuel, alert = m.alert }
 end
 
 S.tick = function(now)
@@ -886,4 +1015,4 @@ S.mapView = function()
     turtle=j.turtle and {id=j.turtle.id,pose=SO.store.copy(j.turtle.pose),phase=j.phase,
       state=j.blocked or (j.running and "lumber" or "idle")}}
 end
-return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView }
+return { name = "lumber", handlers = {}, tick = S.tick, dugProtection = S.dugProtection, mapView = S.mapView, facts = S.facts }

@@ -1,0 +1,61 @@
+26x20 Drop points at 26x20
+ DROPS  --------------- 5 
+                          
+ id kind     where        
+ 1  ore      117,64,-337  
+ 2  fuel     120,64,-337  
+ 3  junk     123,64,-337  
+ 4  wood     110,64,-344  
+ 5  storage  110,64,-348  
+                          
+ ! 3 junk broken          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+   FIX   REMOVE    ADD    
+00000000ccccccccccccccc080
+00000000000000000000000000
+08808888000008888800000000
+00000000000008888888888800
+00000000000008888888888800
+0e00eeee000008888888888800
+00000000000008888888888800
+00000000000008888888888800
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+099999990eeeeeee0000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777f7777777f7777777ff

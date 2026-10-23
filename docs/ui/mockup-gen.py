@@ -398,7 +398,8 @@ if args.fixtures:
     ported = {"status-M", "status-L", "status-P", "status-T", "status-XS",
               "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large",
               "pocket-fleet-P", "pocket-alerts-P", "pocket-jobs-P", "pocket-shop-P", "pocket-pair-P", "pocket-code-P",
-              "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS"}
+              "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS",
+              "mining-M", "lumber-M", "drops-M"}
     for stem, canvas, title in named:
         if stem in ported:
             continue
