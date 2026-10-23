@@ -93,9 +93,9 @@ def screen(w, h, title, level="all", scale=None, centre=None, pick=None):
         v = MD.view(L["mw"], L["mh"], level, scale[0], scale[1], centre[0], centre[1])
     else:
         v = MD.fit(L["mw"], L["mh"], level)
-    MD.draw(cv, v, L["mx"], L["my"], pick=pick)
+    taken, _ = MD.draw(cv, v, L["mx"], L["my"], pick=pick)
     if pick:
-        MD.callout(cv, v, L["mx"], L["my"], pick)
+        MD.callout(cv, v, L["mx"], L["my"], pick, taken)
     controls(cv, L, w, h, level, not scale)
     if L.get("roster"):
         roster(cv, L, w)

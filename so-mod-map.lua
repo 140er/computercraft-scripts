@@ -691,7 +691,7 @@ M.callout = function(v, s, pick)
   end
 end
 -- A hairline box beside the picked marker, joined to it. Returns the box in map cells.
-M.box = function(C, v, s, ox, oy, pick)
+M.box = function(C, v, s, ox, oy, pick, taken)
   local got = M.callout(v, s, pick)
   if not got then return end
   local tx, ty = M.cellOf(v, got[2], got[3])
@@ -701,13 +701,36 @@ M.box = function(C, v, s, ox, oy, pick)
     local cell = C.cells[oy + ty] and C.cells[oy + ty][ox + tx]
     if cell then cell[2], cell[3] = "f", "3" end
   end
-  local bw, bh = math.min(22, v.mw), #rows + 2
-  local bx = tx * 2 >= v.mw and tx - bw + 1 or tx
-  bx = math.max(0, math.min(bx, v.mw - bw))
-  local by, link, joint
-  if ty + 2 + bh <= v.mh then by, link, joint = ty + 2, ty + 1, ty + 2
-  elseif ty - 1 - bh >= 0 then by, link, joint = ty - 1 - bh, ty - 1, ty - 2
-  else by = math.max(0, math.min(ty + 2, v.mh - bh)) end
+  local widest = 0
+  for _, row in ipairs(rows) do
+    if row[1] == "leader" then widest = math.max(widest, #row[2] + #row[3] + 4)
+    else
+      local left, right = 0, 0
+      for _, part in ipairs(row[2]) do
+        if part[1] >= 0 then left = math.max(left, part[1] + #part[2]) else right = right + #part[2] + 1 end
+      end
+      widest = math.max(widest, left + right)
+    end
+  end
+  local bw, bh = math.min(v.mw, math.max(14, widest + 4)), #rows + 2
+  local near, far = tx - bw + 1, tx
+  if tx * 2 < v.mw then near, far = tx, tx - bw + 1 end
+  -- Below, then above, each toward the middle first; the one hiding the fewest markers wins.
+  local best
+  for _, o in ipairs({{ty + 2 + bh <= v.mh, ty + 2, ty + 1, ty + 2}, {ty - 1 - bh >= 0, ty - 1 - bh, ty - 1, ty - 2}}) do
+    if o[1] then
+      for _, x0 in ipairs({near, far}) do
+        local bx, hidden = math.max(0, math.min(x0, v.mw - bw)), 0
+        for _, m in pairs(taken or {}) do
+          if m.cx >= bx and m.cx < bx + bw and m.cy >= o[2] and m.cy < o[2] + bh then hidden = hidden + 1 end
+        end
+        if not best or hidden < best[1] then best = {hidden, bx, o[2], o[3], o[4]} end
+      end
+    end
+  end
+  local bx, by, link, joint
+  if best then bx, by, link, joint = best[2], best[3], best[4], best[5]
+  else bx, by = math.max(0, math.min(near, v.mw - bw)), math.max(0, math.min(ty + 2, v.mh - bh)) end
   C.fill(ox + bx, oy + by, bw, bh, "f")
   C.box(ox + bx, oy + by, bw, bh, colour)
   if link then C.put(ox + tx, oy + link, "|", colour) C.put(ox + tx, oy + joint, "+", colour) end
@@ -822,7 +845,7 @@ M.render = function(w, h, session, tries)
   if v.frame and v.fkey == fkey then return v.frame end
   local C = U.canvas(w, h)
   v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
-  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick)
+  v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken)
   M.controls(C, L, w, h, v)
   if L.roster then M.roster(C, L, w, s) end
   C.hit("map-pick", L.mx, L.my, L.mw, L.mh)

@@ -159,8 +159,9 @@ the `view` lines in `tests/ui/map-scene.txt`.
 - **Taps:** a tapped marker is inverted and gets a callout box in its colour with a connector:
   a turtle shows id, state, age, position, fuel, ore and lease; a drop its id, kind, position and
   state; the server and shaft their position (the shaft its lane holder). A tap on empty ground
-  inverts the cell and shows its position and `dug`, `planned` or `held #id`. Tap the marker or
-  the box again to close it.
+  inverts the cell and shows its position and `dug`, `planned` or `held #id`. The box fits its
+  text (14 cells or more) and sits below or above the marker, toward the middle first, wherever it
+  hides the fewest markers. Tap the marker or the box again to close it.
 - **Sizes:**
 
 | Size | Kind | Layout |

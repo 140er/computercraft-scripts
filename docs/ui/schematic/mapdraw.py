@@ -460,7 +460,7 @@ def callout_lines(pick, v):
     return "3", (x, z), rows
 
 
-def callout(cv, v, ox, oy, pick):
+def callout(cv, v, ox, oy, pick, taken=None):
     """A hairline box beside the picked marker, joined to it. Returns the box (x, y, w, h) in map cells."""
     got = callout_lines(pick, v)
     if not got:
@@ -473,14 +473,31 @@ def callout(cv, v, ox, oy, pick):
     if pick[0] == "cell":
         ch = cv.cells[oy + ty - 1][ox + tx - 1]
         cv.cells[oy + ty - 1][ox + tx - 1] = [ch[0], "f", "3"]
-    bw, bh = min(22, v["mw"]), len(rows) + 2
-    bx = tx - bw + 1 if tx * 2 >= v["mw"] else tx
-    bx = max(0, min(bx, v["mw"] - bw))
-    if ty + 2 + bh <= v["mh"]:
-        by, link, joint = ty + 2, ty + 1, ty + 2
-    elif ty - 1 - bh >= 0:
-        by, link, joint = ty - 1 - bh, ty - 1, ty - 2
+    widest = 0
+    for row in rows:
+        if row[0] == "leader":
+            widest = max(widest, len(row[1]) + len(row[2]) + 4)
+        else:
+            left = max([dx + len(t) for dx, t, _ in row[1] if dx >= 0] or [0])
+            right = sum(len(t) + 1 for dx, t, _ in row[1] if dx < 0)
+            widest = max(widest, left + right)
+    bw, bh = min(v["mw"], max(14, widest + 4)), len(rows) + 2
+    near, far = (tx - bw + 1, tx) if tx * 2 >= v["mw"] else (tx, tx - bw + 1)
+    # Below, then above, each toward the middle first; the one hiding the fewest markers wins.
+    best = None
+    for fits, by, link, joint in ((ty + 2 + bh <= v["mh"], ty + 2, ty + 1, ty + 2),
+                                  (ty - 1 - bh >= 0, ty - 1 - bh, ty - 1, ty - 2)):
+        if not fits:
+            continue
+        for x0 in (near, far):
+            bx = max(0, min(x0, v["mw"] - bw))
+            hidden = sum(1 for (mx, my) in (taken or {}) if bx <= mx < bx + bw and by <= my < by + bh)
+            if best is None or hidden < best[0]:
+                best = (hidden, bx, by, link, joint)
+    if best:
+        _, bx, by, link, joint = best
     else:
+        bx = max(0, min(near, v["mw"] - bw))
         by, link, joint = max(0, min(ty + 2, v["mh"] - bh)), None, None
     cv.fill(ox + bx, oy + by, bw, bh, "f")
     box(cv, ox + bx, oy + by, bw, bh, colour)
