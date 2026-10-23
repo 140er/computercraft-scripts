@@ -371,6 +371,26 @@ return function(test, equal)
     equal(savedKey(miss, 1), nil)
   end)
 
+  test("pair2 retries get the saved replies and count nowhere", function()
+    local net, server = boot()
+    local code = pressP(net, server)
+    local c = client(net, 2)
+    equal(join(net, c, code), { "ok" })
+    local key = savedKey(server, 2)
+    local fresh = pressP(net, server)
+    local before = types(server).ack or 0
+    for i = 1, #c.sent do
+      local msg = c.sent[i].payload
+      if msg.t == "pair2" then c.env.rednet.send(1, msg, "so") end
+    end
+    net.flush()
+    equal(types(server).ack, before + 2)
+    equal(savedKey(server, 2), key)
+    equal(server.env.SO.pair.pending(), fresh)
+    equal(server.env.SO.terminal.rejected, nil)
+    assert(not logtext(server):find("rejected", 1, true), logtext(server))
+  end)
+
   test("pair2 a replay after a server restart is rejected", function()
     local net, server = boot()
     local c = client(net, 2)
