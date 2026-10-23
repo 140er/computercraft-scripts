@@ -1,0 +1,77 @@
+100x38 Map, all levels 100x38
+                                                                                                    
+ MAP                                                                               HELD #2 162,-373 
+                                                                                                    
+                                                                                          FIT       
+                                                                                                    
+                                                                                                    
+                      🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎 🬎                 
+                                                                                       -       +    
+                      🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭3>🬎🬎🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭 🬭                 
+                      🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬹🬹🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂 🬂                 
+                                                                                                    
+                      🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹2>🬂+🬂 🬹 🬹 🬹 🬹 🬹 🬹 🬹 🬹 🬹        ^        
+                                                                                                    
+                                                                                                    
+                      🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎   <         >   
+                                                   🬹                                                
+                      🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭██🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭                 
+                      🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂        v        
+                                                                                                    
+                      🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹                 
+                                                                       █🬭                           
+                                                                       █🬂                 UP        
+                      🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎                 
+                                                                                                    
+                      🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭                 
+🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂           v4🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂       ALL       
+  🬎  🬎  🬎                            █🬎                                                             
+  🬹  🬹  🬹             🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹█🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹                 
+ 5>  🬎  🬎  S                                                                                        
+  🬹  🬹  🬹                                                         🬹🬹                      DN        
+  🬎  🬎  🬎  W          🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎                 
+  🬹  🬹  🬹                                                                                           
+🬎🬎🬎🬎🬎🬎🬎🬎🬎            H                                                                              
+🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹  🬹🬹🬹🬹🬹🬹🬹🬹🬹     <7                                                                        
+                 🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎🬎                                                                        
+                  O  F  J                                                                           
+              @                                                                                     
+                                                                                                    
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7777777f7777777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7777777f7777777f
+fffffffffffffffffffffbffffffffffffffffffffdd11ffffffffffffffffffffffffffffffffffffff7777777f7777777f
+fffffffffffffffffffffbffffffffffffffffffffff11ffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffdd101ffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777fffff77777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777fffff77777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777fffff77777f
+fffffffffffffffffffffbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777ffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbbbbbbbbbbbbbbbf
+ddddddddddfffffffffffddfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbbbbbbbbbbbbbbbf
+ffdff1ffddfffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffbbbbbbbbbbbbbbbf
+ffdff1ffddfffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fddffdff1dfafffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ffdffdff1dfffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ff1ffdffddfafffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777777f
+ff1ffdffddfffffffffffbffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddfffffffffff9ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ddddddddddfffffffffffbffff11ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffaffaffefffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffff9fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

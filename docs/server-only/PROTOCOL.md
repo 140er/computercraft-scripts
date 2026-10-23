@@ -634,6 +634,23 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 
 `cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
 
+The map reads dug marks and reservations through four read-only calls. They
+never load a section into the cache, refresh its use time or write a file.
+`cells.dugVersion()` returns the section index version and a serial that
+changes with every dug mark, forget or retirement.
+`cells.dugColumns(dim, sx1, sz1, sx2, sz2, max)` returns up to `max` (default
+1024) known section columns in that section box as `{ sx, sz, sy = {...} }`,
+with each `sy` list sorted. An index answers it without disk reads. It holds
+sections with at least one mark since boot; sections that were only probed stay out.
+`cells.dugBits(dim, sx, sy, sz, memoryOnly)` returns the section's 1024-character
+`bits`, or nil when the section is unknown or empty, and a change stamp. The
+stamp rises with every mark, forget or retirement in that section and survives
+eviction. An evicted section is read from its newest valid generation on disk
+without caching it, or returns false when `memoryOnly` is set.
+`cells.reserved(dim, max)` returns up to `max` (default 4096) reservations in that
+dimension as `{ x, y, z, who }`, and a version. The list and version stay the
+same until the reservations change. Callers must not edit the list.
+
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
 
 A section value is `{ format = "hex4096", bits = string, used = gameMs }`.
@@ -863,44 +880,84 @@ The map is a role of its own. No other screen links to it and it has no BACK.
 `mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
 branches, turtles }`. `branches` covers assigned branches and progress.
 `turtles[id]` has `{ pose, state, dim }` in world coordinates.
-`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtle }`.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, spots, turtle }`.
+`spots` lists up to 512 tree spots as `{ x, z, ready }`, sorted by x then z.
+A spot is ready when it was never planted or was planted ten minutes ago.
 The optional turtle has `{ id, pose, state }`. These getters do not save or
-advance jobs. The map calls them from tick, together with registry, lease and
-drop APIs. Registry workers without a job also appear when their pose is known.
-Numeric drop dimensions are normalized to world dimension strings.
+advance jobs. Registry workers without a job also appear when their pose is
+known. Numeric drop dimensions are normalized to world dimension strings.
+The map filters everything to the server dimension, or to the job dimension
+when the server position is absent.
 
-`render(w, h, session)` stores its state under `session.map`. `fit` starts true.
-`x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
-`level` starts as `all` and cycles through `mine`, `surface`, `all`.
-Mine selects the job bottom; surface selects server y, farm ground or mine home.
-All projects every scene marker. Dug scans sample the mine bottom and its next
-block, mine home, surface, farm ground, and known chest and turtle y levels.
-The map is north-up with x horizontal and z vertical. It filters to the server
-dimension, or the configured job dimension when the server position is absent.
+The map is north-up, with x to the right and z down. Terrain is drawn in CC
+sextant pixels, two by three per character. At zoom 0 one block is one pixel,
+and pixels are square. Each character holds one terrain colour on the black
+ground: the colour of the highest class among its lit pixels. From lowest to
+highest the classes are planned passage (white dots), dug block (white), farm
+outline (green `d`), growing sapling (amber `1`), ready tree (green `d`),
+held lane cell (blue `b`) and other held cell (amber `1`). Planned passages
+are the spine and every assigned branch at the mine level. Lane cells are
+reservations on the shaft column or the spine. The farm shows at ALL and at
+levels from its ground to 8 blocks above. There, dug marks inside the farm
+are not drawn, because they are lumber travel marks.
 
-Geometry tests intersections per screen cell. Route length and branch count do
-not increase frame work. Dug scans call `cells.isDug` at most 256 times per
-render and retain a viewport-sized raster. A completed scan replaces old marks.
-View changes reset the scan. Changing tracked levels restarts the scan while
-retaining its visible raster until a new pass completes. Empty shaft heights
-are skipped. At coarse zoom, any found dug block marks its
-projected cell. New dug blocks appear as the scan advances. Rendering never
-calls sleep. Existing cell reads may use `SO.breathe` during bulk work.
+Markers take whole characters with dark ink: drop letters on purple `a`
+(coral `e` when broken), `@` for the server and `H` for the shaft on teal `9`,
+and turtle arrows `^ > v <` on their state colour. Busy is green `d`, idle
+or waiting amber `1`, lost, out of range or silent coral `e`, and done blue `b`.
+At two blocks per pixel or closer, a turtle's id sits behind an east-facing
+turtle and to the right of others, when those cells hold no marker.
+Turtles show at every level. Drops and the server show within one block of
+the level.
 
-Planned passages use panel grey `7`; dug cells use light grey `8`; the farm
-outline uses green `d`. `H` marks the shaft in teal `9`. Chest letters use
-purple `a` or coral `e` when broken. `@` marks the server in teal. Turtles draw
-last as `^ > v <`, with an id to the right at one block per cell when it fits.
-Busy uses green `d`, idle amber `1`, lost/range/stale coral `e`, and done blue `b`.
-Markers at the same projected cell overlap; turtles take precedence.
+`render(w, h, session)` keeps its view under `session.map`: `level` (`all` or
+a y), `fit`, `zoom` (blocks per pixel is `2^zoom`, -1 to 8), the centre
+`cx`, `cz` and an optional `focus = { x, z }`. A new view starts with
+`level = "all"` and `fit = true`. FIT picks the closest zoom that shows the
+mine geometry, farm, drops, server and turtles with a one-pixel margin.
 
-Drawn inputs are `map-fit`, `map-in`, `map-out` on row H-2, `map-n`, `map-w`,
-`map-s`, `map-e` on row H-1 and `map-level` on row H. Zoom ranges from 1 to 4096 blocks per cell. Panning
-moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
-the padded kit. Controls occupy the bottom three rows at every
-size, including 26x20 and 29x12. The header shows north and blocks per cell.
-The remaining rows expand with the display. All view and scan state clears on
-server restart and remains independent per paired display or local monitor.
+Landscape screens at least 29 wide with 8 rows below the header get a
+control rail on the right: FIT, `-` and `+`, the arrows `^ < > v`, then UP,
+the level and DN. Rails are 9 columns wide, 15 from 90 columns, and use
+three-row buttons from 29 rows. Other screens put `< ^ v > - +` and
+FIT, DN, level, UP on the bottom two rows. Below 23 columns the last row is
+`-`, FIT, `+` and the level. Input ids are `map-fit`, `map-in`, `map-out`,
+`map-n`, `map-s`, `map-w`, `map-e`, `map-up`, `map-down`, `map-level` and
+`map-pick`, which covers the map area.
+
+Zoom keeps the focused block in place. Arrows move a third of the view.
+UP and DN step one block; from ALL they start at the mine level, or the
+surface without a mine. The level button cycles ALL, the mine level, the
+surface (server y, farm ground or mine home) and back to ALL. ALL ORs every
+level together. A tap on the map focuses that character; a second tap on it
+clears the focus. Taps under a retirement banner subtract its rows. The
+header shows what is under the focus, then its coordinates when they fit:
+`#2 MINING 160,-58,-373`, `ORE 117,64,-337`, `LANE #4 120,-58,-362`, or
+`DUG 131,-372` without a y at ALL. The focused character shows `+` on white
+unless a marker covers it.
+
+Dug marks come from `cells.dugColumns`, `cells.dugBits` and `cells.dugVersion`.
+The map keeps one plane per section column and level (or ALL), shared by
+all displays: the list of dug x, z in that column. Building a plane reads
+one section per level, and reads count against a budget of 16 per server
+tick. A plane larger than the rest of the budget waits for the next tick,
+where it may use more than 16 reads alone. A view that is still loading
+draws what it has and keeps loading on the next ticks. When the dug serial
+changes, tick probes the planes under each turtle and the cell ahead of it,
+then sweeps the other planes, at most 64 memory-only section probes per
+tick. A probe compares the section's change stamp, so a section that left the
+cells cache is still checked. A changed section marks its plane stale; the next render rebuilds it
+within the budget. Planes unused for 300 ticks drop during a sweep. Above 2048
+planes, planes not drawn in the last five ticks drop. An idle map reads and probes nothing.
+
+Each display session caches its pixel raster and its frame. Turtle and drop
+moves redraw markers over the cached raster. View, terrain or plane changes
+rebuild the raster; the work is one pass over the visible planes and lines,
+clipped to the view. Gathering runs on ticks within ten seconds of a render.
+A frame must fit one 16 KB message. When the drawn rows would exceed about
+12500 serialized bytes, the map draws whole-character cells instead of
+sextants, so rows compact into long runs. All view and cache state clears
+on server restart and stays independent per paired display or local monitor.
 
 ### panel
 

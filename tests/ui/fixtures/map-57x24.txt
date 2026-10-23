@@ -1,49 +1,49 @@
-57x24 Map, projected levels 57x24
+57x24 Map, all levels 57x24
                                                          
- MAP                                             N ^ 1:1 
+ MAP                              #2 MINING 160,-58,-373 
+                                                  FIT    
+                                                         
+                                                -    +   
+             🬎🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞🬞            
+             ▐                                     ^     
+             🬦🬂🬂🬂🬂🬂🬂🬂🬂🬂3>🬹🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁🬁   <     >  
+             🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋2>🬰🬇🬇🬇🬇🬇🬇🬇🬇🬇🬇      v     
+             🬉🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭6>           
+             ▐              🬱                     UP     
+             🬦🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬀           
+             🬠🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬚🬋🬋🬋🬋🬋🬋🬃    ALL    
+             🬉🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬴🬭🬭🬭🬭🬭🬭🬏           
+             ▐                                    DN     
+ 🬡🬰🬰🬰🬰🬰🬨     v4🬂🬂🬂🬂🬂🬂🬰🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬀           
+ ▐🬻🬺 🬻🬺▐S    🬠🬋🬋🬋🬋🬋🬋🬋🬌🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬃           
+ ▐5> 🬻🬺▐     🬉🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬭🬵🬱🬭🬭🬭🬭🬭🬭🬭🬭🬏           
+ ▐🬻🬺 🬻🬺▐W    ▐                                           
+ 🬹🬹🬹🬹🬹🬹🬻🬇🬋🬋🬹🬹H🬭<7                                        
+         @ O FJ                                          
                                                          
                                                          
                                                          
-                                                         
-                                v3                       
-                                                         
-                                                         
-                                                         
-                              >2 O                       
-                                                         
-                                                         
-                                                         
-                            H                            
-                                                         
-                                                         
-                       F W S@                            
-                                                         
-                                                         
-                                                         
-       FIT                  +                  -         
-      ^              <             v              >      
-                           ALL                           
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 f7777777777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffff999999999f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffff7777f7777f
+fffffffffffffbfffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffbffffffffffffffffffffffffffffffffffff777ffff
+fffffffffffffbfffffffffdd1fffffffffffffffffffff777fff777f
+fffffffffffffbffffffffffffffffffdd1fffffffffffffff777ffff
+fffffffffffffbffffffffffffffffffffffffffffffbbfffffffffff
+fffffffffffffbfffffffffffffffffffffffffffffffff777777777f
+fffffffffffffbfffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffbfffffffffffffffffffffffffffffffffbbbbbbbbbf
+fffffffffffffbfffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffbfffffffffffffffffffffffffffffffff777777777f
+fdddddddfffffddffffffffffffffffffffffffffffffffffffffffff
+fdddf1ddaffffbfffffffffffffffffffffffffffffffffffffffffff
+fdddfd1dfffffbfffffffffffffffffffffffffffffffffffffffffff
+fdd1fdddaffffbfffffffffffffffffffffffffffffffffffffffffff
+fdddddddfffff9f11ffffffffffffffffffffffffffffffffffffffff
+fffffffff9fafaeffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff7777bbfffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff78fffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff77dd7afffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdddff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdfdff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdddff9ffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-999999999999999999f7777777777777777777f777777777777777777
-77777777777777f7777777777777f77777777777777f7777777777777
-777777777777777777777777777777777777777777777777777777777

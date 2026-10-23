@@ -1,0 +1,21 @@
+15x10 Map, all levels 15x10
+               
+ MAP           
+               
+      🬻>🬈🬳>🬤🬤🬃 
+      ███████> 
+  🬂S v███████▌ 
+  >W@<🬂🬂🬂🬂🬂🬂🬂🬀 
+               
+ <   ^   v   > 
+-  FIT +   ALL 
+fffffffffffffff
+f7777777777777f
+fffffffffffffff
+fffffbfd1fdffff
+fffffbfffffffbf
+ffdafdfffffffff
+ffda91fffffffff
+fffffffffffffff
+777f777f777f777
+77f999f77fbbbbb

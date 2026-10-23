@@ -1,25 +1,25 @@
-29x12 Map, projected levels 29x12
+29x12 Map, level -58 29x12
                              
- MAP                 N ^ 1:2 
-                v            
-                             
-               >O            
-                             
-              H              
-                             
-           FWS@              
-   FIT        +         -    
-   ^      <       v      >   
-             ALL             
+ MAP                         
+                      FIT    
+🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃🬃  -    +   
+🬭🬭🬭🬭3>🬬🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏🬏           
+                       ^     
+🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂2>🬹🬀🬀  <     >  
+🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋     v     
+🬭🬭🬭🬭🬭🬭🬭🬭🬭🬺🬭🬭🬭🬭🬭🬭🬭🬭           
+                      UP     
+🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂🬂   Y-58    
+🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋🬋    DN     
 fffffffffffffffffffffffffffff
 f777777777777777777777777777f
-ffffffffffffff77bffffffffffff
-ffffffffffffff8ffffffffffffff
-ffffffffffffff7daffffffffffff
-fffffffffffddf7ffffffffffffff
-fffffffffffddf9ffffffffffffff
+fffffffffffffffffff777777777f
+fffffffffffffffffff7777f7777f
+ffffdd1ffffffffffffffffffffff
+ffffffffffffffffffffff777ffff
+fffffffffffffdd1fff777fff777f
+ffffffffffffffffffffff777ffff
 fffffffffffffffffffffffffffff
-fffffffffffaaa9ffffffffffffff
-999999999f777777777f777777777
-7777777f777777f7777777f777777
-77777777777777777777777777777
+fffffffffffffffffff777777777f
+fffffffffffffffffffbbbbbbbbbf
+fffffffffffffffffff777777777f
