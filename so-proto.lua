@@ -290,6 +290,17 @@ M.fresh = function(msg)
   return true
 end
 
+-- Drops expired rids and empty senders from the replay memory.
+M.prune = function()
+  local cutoff = os.epoch("utc") - S.memory
+  for from, slot in pairs(S.seen) do
+    for rid, at in pairs(slot) do
+      if at < cutoff then slot[rid] = nil end
+    end
+    if next(slot) == nil then S.seen[from] = nil end
+  end
+end
+
 M.request = function(target, t, body, timeout, tries)
   local key = S.keyFor and S.keyFor(target)
   if not key then return nil, "no key" end

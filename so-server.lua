@@ -151,8 +151,8 @@ S.run = function()
     return nil, proto.fresh(msg)
   end
 
-  local function reject(id, guess)
-    local burned = pair.reject(id, guess)
+  local function reject(id, guess, paired)
+    local burned = pair.reject(id, guess, paired)
     print("so-server: pair rejected " .. tostring(id))
     view.rejected = pair.rejected()
     if burned then showPrompt() end
@@ -171,9 +171,9 @@ S.run = function()
         reply("ack", body, open)
         return
       end
-      local machine, body = pair.confirm(msg.from, msg.body)
+      local machine, body, paired = pair.confirm(msg.from, msg.body)
       if not machine then
-        if body == "tag" then reject(msg.from, true) end
+        if body == "tag" then reject(msg.from, true, paired) end
         reply("err", { code = "pair", text = body }, open)
         return
       end
@@ -335,11 +335,13 @@ S.run = function()
     local health = SO.health
     if health.last then health.cadence, health.wallCadence = now-health.last, wall-health.wall end
     health.last, health.wall = now, wall
-    for _, by in pairs(sent) do
+    for from, by in pairs(sent) do
       for rid, slot in pairs(by) do
         if os.epoch("utc") - slot.at > memory then by[rid] = nil end
       end
+      if next(by) == nil then sent[from] = nil end
     end
+    proto.prune()
     for i = 1, #mods do
       local fn = mods[i].tick
       if type(fn) == "function" then

@@ -264,41 +264,84 @@ return function(test, equal)
     equal(savedKey(server, 2), savedKey(good, 1))
     equal(server.env.SO.pair.pending(), nil)
     equal(server.screen[1], "Press P to pair")
-    -- The sender's window clears after 60 s.
+    -- The sender's window clears after 60 s. Three failed guesses per code
+    -- then hold it until the next code, so one sender cannot burn a code.
     local fresh = pressP(net, server)
     net.advance(61)
+    equal(join(net, bad, wrong(fresh, 2), 2, server.id), { "wrong code", "wrong code" })
+    net.advance(61)
     equal(join(net, bad, wrong(fresh, 2), 1, server.id), { "wrong code" })
+    net.advance(61)
+    equal(join(net, bad, wrong(fresh, 2), 1, server.id), { "busy" })
     equal(server.env.SO.pair.pending(), fresh)
   end)
 
   test("pair2 bad attempts from paired senders never cancel the code", function()
     local net, server = boot()
     local code = pressP(net, server)
-    local paired = client(net, 7)
-    local key = string.rep("7", 64)
-    assert(server.env.SO.pair.remember(7, key))
-    paired.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["1"] = key } } })
-    -- Legacy bad MACs first, as a stale paired machine would send them.
-    paired.spawn([[proto = dofile("so-proto.lua") READY = true]])
-    net.flush()
-    local junk = paired.env.proto.build(string.rep("ab", 32), "pair", { pub = string.rep("cd", 32) })
-    for _ = 1, 12 do paired.env.rednet.send(server.id, junk, "so") end
-    net.flush()
-    equal(server.env.SO.pair.pending(), code)
-    for _ = 1, 4 do
-      net.advance(61)
-      join(net, paired, wrong(code, 3), 2, server.id)
+    local machines = {}
+    for id = 7, 10 do
+      local key = string.rep(tostring(id % 10), 64)
+      assert(server.env.SO.pair.remember(id, key))
+      local m = client(net, id)
+      m.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["1"] = key } } })
+      machines[id] = m
+    end
+    -- Twelve failed guesses from machines that prove their saved key.
+    for id = 7, 10 do
+      equal(join(net, machines[id], wrong(code, id), 2, server.id), { "wrong code", "wrong code" })
+    end
+    net.advance(61)
+    for id = 7, 10 do
+      equal(join(net, machines[id], wrong(code, id), 2, server.id), { "wrong code", "busy" })
       equal(server.env.SO.pair.pending(), code)
     end
-    -- Three failed guesses per code, then the paired sender waits for a new code.
-    equal(join(net, paired, wrong(code, 4), 1, server.id), { "busy" })
-    equal(savedKey(server, 7), key)
+    net.advance(61)
+    equal(join(net, machines[7], wrong(code, 7), 1, server.id), { "busy" })
+    equal(savedKey(server, 7), string.rep("7", 64))
+    -- Legacy pair carries no proof, so its bad MACs count like any sender's.
+    local legacy = client(net, 11)
+    assert(server.env.SO.pair.remember(11, string.rep("1", 64)))
+    legacy.spawn([[proto = dofile("so-proto.lua") READY = true]])
+    net.flush()
+    local junk = legacy.env.proto.build(string.rep("ab", 32), "pair", { pub = string.rep("cd", 32) })
+    for _ = 1, 12 do legacy.env.rednet.send(server.id, junk, "so") end
+    net.flush()
+    equal(server.env.SO.pair.pending(), code)
     local good = client(net, 2)
     equal(join(net, good, code), { "ok" })
     local fresh = pressP(net, server)
-    net.advance(61)
-    equal(join(net, paired, fresh, 1, server.id), { "ok" })
-    assert(savedKey(server, 7) ~= key, "paired sender did not re-pair with a new code")
+    -- A new rid: JOIN reloads so-proto, so its sequence restarts.
+    net.advance(1)
+    equal(join(net, machines[7], fresh, 1, server.id), { "ok" })
+    assert(savedKey(server, 7) ~= string.rep("7", 64), "paired sender did not re-pair with a new code")
+  end)
+
+  test("pair2 forged paired sender ids count toward the burn", function()
+    local net, server = boot()
+    local code = pressP(net, server)
+    for id = 30, 34 do
+      assert(server.env.SO.pair.remember(id, string.rep("e", 64)))
+      equal(join(net, client(net, id), wrong(code, id), 2, server.id), { "wrong code", "wrong code" })
+    end
+    equal(server.env.SO.pair.pending(), nil)
+    equal(savedKey(server, 30), string.rep("e", 64))
+  end)
+
+  test("pair2 a forged step 2 with another sid leaves the session open", function()
+    local net, server = boot()
+    local code = pressP(net, server)
+    local P = server.env.SO.pair
+    local C, hex = P.cpace, server.env.SO.proto.hex
+    local sid = string.rep("\1", 16)
+    local ci = C.ci(5, server.id)
+    local ya, own = C.share(code, ci, sid)
+    local reply = assert(P.start(5, { sid = hex(sid), y = hex(own) }))
+    local yb = server.env.SO.proto.unhex(reply.y)
+    local ta = C.tags(C.isk(ya, yb, sid, own, yb), sid, own, yb)
+    local _, why = P.confirm(5, { sid = string.rep("00", 16), tag = string.rep("00", 64) })
+    equal(why, "session")
+    assert(P.confirm(5, { sid = hex(sid), tag = hex(ta) }), "forged step 2 closed the session")
   end)
 
   test("pair2 ten failed guesses from unpaired senders burn the code", function()
@@ -357,18 +400,24 @@ return function(test, equal)
     equal(join(net, old, pressP(net, server)), { "ok" })
     equal(savedKey(old, 1), savedKey(server, 2))
     equal(types(old).pair2, nil)
-    -- New client, old server: pair2 goes unanswered, then legacy pair.
+    -- New client, old server: pair2 goes unanswered and the client never
+    -- falls back to legacy pair, which a listener could test offline.
     local oldNet, oldServer = boot(true)
     local fresh = client(oldNet, 3)
-    equal(join(oldNet, fresh, pressP(oldNet, oldServer), 1, nil, 15), { "ok" })
-    equal(savedKey(fresh, 1), savedKey(oldServer, 3))
+    local code = pressP(oldNet, oldServer)
+    equal(join(oldNet, fresh, code, 1, nil, 15), { "timeout" })
+    equal(savedKey(fresh, 1), nil)
     equal(types(fresh).pair2, 2)
-    equal(types(fresh).pair, 1)
+    equal(types(fresh).pair, nil)
+    equal(oldServer.env.SO.pair.pending(), code)
     assert(oldServer.alive(), tostring(oldServer.error))
-    -- A wrong code on the old server still fails and keeps the client unpaired.
-    local miss = client(oldNet, 4)
-    equal(join(oldNet, miss, wrong(pressP(oldNet, oldServer), 5), 1, nil, 15), { "timeout" })
-    equal(savedKey(miss, 1), nil)
+    -- After the server updates, the same client pairs.
+    oldNet.kill(oldServer)
+    oldServer.install({ "so-server.lua", "so-pair.lua", "so-proto.lua" })
+    oldServer = oldNet.boot(oldServer)
+    oldNet.flush()
+    equal(join(oldNet, fresh, pressP(oldNet, oldServer)), { "ok" })
+    equal(savedKey(fresh, 1), savedKey(oldServer, 3))
   end)
 
   test("pair2 retries get the saved replies and count nowhere", function()

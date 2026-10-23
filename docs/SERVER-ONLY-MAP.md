@@ -50,17 +50,20 @@ and listeners use `listener(sender, message)`.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
   `request(target, t, body, timeout, tries)`, `canonical(msg)`, `ser(value)`,
-  `sha256(msg)`, `hmac(key, msg)`, `hex(raw)`, `unhex(hex)` and `since(utc)`.
-  After `since`, `fresh` refuses envelopes stamped before that time.
+  `sha256(msg)`, `hmac(key, msg)`, `hex(raw)`, `unhex(hex)`, `since(utc)` and `prune()`.
+  After `since`, `fresh` refuses envelopes stamped before that time. `prune` drops
+  expired rids and empty senders; the server calls it every tick.
   `request` waits, so never call it from the server's handlers or ticks.
 - [so-pair.lua](../so-pair.lua) pairs machines with CPace over X25519 and saves their keys.
   Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
   `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
   `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
-  `confirm(from, body)`, `blocked(id)`, `reject(id, guess)` and `rejected()`.
+  `confirm(from, body)`, `blocked(id)`, `reject(id, guess, paired)` and `rejected()`.
   `start` and `confirm` are the server's two `pair2` steps; `confirm` returns the
-  machine key and reply body. `reject` returns true when it burned the code.
+  machine key and reply body, or nil, a reason and, for `tag`, whether the sender
+  proved its saved key. `reject` returns true when it burned the code. `join` sends
+  only `pair2`.
   `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
   SHA-512, Elligator2 and CPace helpers that tests check against the draft vectors. The hint check only authorizes a prompt;
   it never removes a saved key.

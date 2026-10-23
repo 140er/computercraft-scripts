@@ -11,6 +11,7 @@ so-proto.lua	if math.abs(os.epoch("utc") - value.at) > S.skew then return nil, "
 so-proto.lua	rid = rid or string.format("%d-%d-%d", os.getComputerID(), os.epoch("utc"), S.seq),
 so-proto.lua	at = os.epoch("utc"),
 so-proto.lua	local now = os.epoch("utc")
+so-proto.lua	local cutoff = os.epoch("utc") - S.memory
 so-server.lua	local prefix = S.ui and (S.ui.clock(os.epoch("utc")).hms .. " ") or ""
 so-server.lua	if os.epoch("utc") - slot.at > memory then
 so-server.lua	local slot = { at = os.epoch("utc"), payload = wire }

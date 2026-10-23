@@ -387,16 +387,17 @@ local function note(name)
 end
 
 -- A sender is blocked after S.tries starts or rejections inside S.window,
--- or, while paired, after S.tries failed guesses at the live code.
+-- or after S.tries failed guesses at the live code.
 M.blocked = function(id)
-  local name, now, slot = tostring(id), S.now(), S.pending
-  if slot and S.keys[name] and (slot.fails[name] or 0) >= S.tries then return true end
-  return #recent(name, now) >= S.tries
+  local name, slot = tostring(id), S.pending
+  if slot and (slot.fails[name] or 0) >= S.tries then return true end
+  return #recent(name, S.now()) >= S.tries
 end
 
--- Records a rejected pairing message. A guess from an unpaired sender
--- counts toward the code; the S.burn-th clears it. Returns true then.
-M.reject = function(id, guess)
+-- Records a rejected pairing message. A failed guess counts toward the
+-- code unless its sender proved it is paired; the S.burn-th clears it.
+-- Returns true then.
+M.reject = function(id, guess, paired)
   local name, slot = tostring(id), S.pending
   note(name)
   if not slot then return false end
@@ -409,10 +410,8 @@ M.reject = function(id, guess)
     if #slot.rejected > 4 then table.remove(slot.rejected, 1) end
   end
   if not guess then return false end
-  if S.keys[name] then
-    slot.fails[name] = (slot.fails[name] or 0) + 1
-    return false
-  end
+  slot.fails[name] = (slot.fails[name] or 0) + 1
+  if paired then return false end
   slot.misses = slot.misses + 1
   if slot.misses < S.burn then return false end
   M.clear()
@@ -427,12 +426,21 @@ M.rejected = function()
   return out
 end
 
--- Server side of pair2 step 1: body { sid, y } from the client.
+-- A paired client proves it holds its saved key with body.auth.
+-- Sender ids alone can be forged.
+local function auth(key, sid, share)
+  return S.proto.hex(S.proto.hmac(S.proto.unhex(key), "so-pair2 auth\0" .. sid .. share))
+end
+
+-- Server side of pair2 step 1: body { sid, y, auth? } from the client.
 M.start = function(from, body)
   local code = M.pending()
   if not code then return nil, "code" end
   if M.blocked(from) or #recent("*", S.now()) >= S.flood then return nil, "wait" end
   for name in pairs(S.recent) do recent(name, S.now()) end
+  for name, slot in pairs(S.sessions) do
+    if S.now() - slot.at > S.window then S.sessions[name] = nil end
+  end
   note(tostring(from))
   note("*")
   local sid = type(body) == "table" and type(body.sid) == "string" and #body.sid == 32
@@ -443,29 +451,27 @@ M.start = function(from, body)
   local isk = C.isk(yb, ya, sid, ya, own)
   if not isk then return nil, "share" end
   local ta, tb = C.tags(isk, sid, ya, own)
-  local oldest, count = nil, 0
-  for name, slot in pairs(S.sessions) do
-    count = count + 1
-    if not oldest or slot.at < S.sessions[oldest].at then oldest = name end
-  end
-  if count >= 8 then S.sessions[oldest] = nil end
-  S.sessions[tostring(from)] = { sid = sid, ta = ta, tb = tb, isk = isk, code = code, at = S.now() }
+  local key = S.keys[tostring(from)]
+  local paired = key ~= nil and C.same(body.auth, auth(key, sid, ya))
+  S.sessions[tostring(from)] = { sid = sid, ta = ta, tb = tb, isk = isk, code = code,
+    at = S.now(), paired = paired }
   return { y = S.proto.hex(own) }
 end
 
 -- Server side of pair2 step 2: body { sid, tag }. One check per session.
--- Returns the machine key and the reply body.
+-- Returns the machine key and the reply body; on "tag" also whether the
+-- sender proved it is paired.
 M.confirm = function(from, body)
   local name = tostring(from)
   local slot = S.sessions[name]
-  S.sessions[name] = nil
-  if not slot or slot.code ~= M.pending() or S.now() - slot.at > S.window
-    or type(body) ~= "table" or body.sid ~= S.proto.hex(slot.sid) then
+  if not slot or type(body) ~= "table" or body.sid ~= S.proto.hex(slot.sid) then
     return nil, "session"
   end
+  S.sessions[name] = nil
+  if slot.code ~= M.pending() or S.now() - slot.at > S.window then return nil, "session" end
   local tag = type(body.tag) == "string" and #body.tag == 128 and body.tag:match("^%x+$")
     and S.proto.unhex(body.tag)
-  if not C.same(tag, slot.ta) then return nil, "tag" end
+  if not C.same(tag, slot.ta) then return nil, "tag", slot.paired end
   return C.machine(slot.isk), { ok = true, tag = S.proto.hex(slot.tb) }
 end
 
@@ -495,19 +501,6 @@ M.invite = function(screen)
   return code
 end
 
-local function legacy(code, server, name)
-  local sk = S.rnd.random(32)
-  local pk = S.x.publicKey(sk)
-  S.keys[name] = M.derive(code, server, os.getComputerID())
-  local reply, err = S.proto.request(server, "pair", { pub = S.proto.hex(pk) }, 3, 2)
-  if not reply or reply.t ~= "ack" or type(reply.body) ~= "table" or reply.body.ok ~= true then
-    return nil, err or "pair failed"
-  end
-  local remote = raw32(reply.body.pub)
-  if not remote or reply.body.proof ~= proofFor(code, pk, remote) then return nil, "proof" end
-  return S.proto.hex(S.proto.sha256(S.x.exchange(sk, remote)))
-end
-
 local function failure(reply, err)
   local body = reply and type(reply.body) == "table" and reply.body or {}
   local why = reply and reply.t == "err" and body.text or err
@@ -518,14 +511,14 @@ local function failure(reply, err)
 end
 
 -- Client side of pair2. Returns the machine key, or nil and a reason.
--- "legacy" means the server never answered pair2.
-local function cpace(code, server, name)
+local function cpace(code, server, name, previous)
   local sid = S.rnd.random(16)
   local ya, own = C.share(code, C.ci(os.getComputerID(), server), sid)
+  local body = { sid = S.proto.hex(sid), y = S.proto.hex(own) }
+  if previous then body.auth = auth(previous, sid, own) end
   S.keys[name] = S.envelope
-  local first, err = S.proto.request(server, "pair2",
-    { sid = S.proto.hex(sid), y = S.proto.hex(own) }, 3, 2)
-  if not first then return nil, err == "timeout" and "legacy" or err end
+  local first, err = S.proto.request(server, "pair2", body, 3, 2)
+  if not first then return nil, err end
   local yb = first.t == "ack" and type(first.body) == "table" and raw32(first.body.y)
   if not yb then return nil, failure(first, "pub") end
   local isk = C.isk(ya, yb, sid, own, yb)
@@ -533,7 +526,7 @@ local function cpace(code, server, name)
   local ta, tb = C.tags(isk, sid, own, yb)
   local second, err2 = S.proto.request(server, "pair2",
     { sid = S.proto.hex(sid), tag = S.proto.hex(ta) }, 3, 2)
-  local body = second and second.t == "ack" and type(second.body) == "table" and second.body
+  body = second and second.t == "ack" and type(second.body) == "table" and second.body
   if not body or body.ok ~= true then return nil, failure(second, err2) end
   local tag = type(body.tag) == "string" and #body.tag == 128 and body.tag:match("^%x+$")
     and S.proto.unhex(body.tag)
@@ -550,9 +543,7 @@ M.join = function(code, serverId)
   loadCrypto()
   local name = tostring(server)
   local previous = S.keys[name]
-  local machine, err = cpace(code, server, name)
-  -- Servers from before pair2 drop it unanswered. Remove in the next release.
-  if err == "legacy" then machine, err = legacy(code, server, name) end
+  local machine, err = cpace(code, server, name, previous)
   if not machine then
     S.keys[name] = previous
     return nil, err
