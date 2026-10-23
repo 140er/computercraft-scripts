@@ -1237,3 +1237,41 @@ change the server ID, authorize work or reset the turtle journal.
 Press P on the server, then enter its new code on the client. Displays accept
 six digits; turtles also require Enter. Failed pairing retains the old key.
 Only a successful authenticated pairing saves the replacement key.
+
+## Visibility
+
+`MORE` and the panel have `HEALTH` and `ATTENTION` buttons. These pages also
+link to `ALERTS`, `EVENTS` and `ERRORS`. Paging and event filters belong to each
+display session. `EVENTS` cycles known kinds with `KIND`, or accepts an exact
+kind as text. `ALL` clears the filter. History pages query retained state events
+newest first. Clearing an alert leaves its event in history until normal log
+retention removes it. The browser does not copy the event log into another file.
+
+`state.history.page` also accepts `reverse=true`, an exclusive `before` sequence,
+`kind` for an exact match, and `alerts=true` for `.alert` kinds. The forward
+`from` cursor remains exclusive. Both directions return `next` only when more
+matching entries remain. Counts remain capped at 50.
+
+`ATTENTION` reads broken drop points, saved job holds, lost or uncertain workers,
+dug-mark consent, disk pressure and pairing activity. Rows open the screen for
+that issue. Broken chests select their point; uncertain workers open setup.
+Gathering never starts jobs, moves workers or clears errors. Repairing a source
+removes its item on the next gather, within five game seconds.
+
+`HEALTH` pages uptime, game and wall tick cadence, tick cost, event sequence and
+bytes, snapshot age, free disk, modem count, online and lost paired machines,
+open leases, clock reservation and recent errors. Snapshot age is unknown for
+snapshots saved before this change. Health diagnostics do not change the game
+clock or scheduling. Tick cost uses `os.clock()` and has computer tick precision.
+
+`SO.error(text)` prints and records failures. Bad messages, bad MACs, replays
+and missing reply keys stay in the volatile terminal log. These rejected
+packets cannot evict persistent errors. `so-data/errors` uses generation
+recovery and a bounded ring of at most 128 messages. Each message keeps 2048
+bytes. All three generations together use at most 64 KB. Records save at most
+once per 30 game seconds, so a power loss can discard recent unsaved records.
+The first record can save immediately. Save failures retain pending records and
+appear on HEALTH. `SO.errors.status()` returns `bytes`, `cap`, `count`, `pending`
+and `error`. The byte count includes current, backup and temporary files, for
+integration with the disk ledger. Files already count toward filesystem disk
+pressure. No disk ledger exists on this base.

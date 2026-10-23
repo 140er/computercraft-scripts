@@ -262,9 +262,9 @@ local function emit(kind, data)
   H.apply(S, ev)
   if disklog and disklog.due() then
     local saved, saveErr = disklog.checkpoint({
-      values = S.values, machines = S.machines, jobs = S.jobs,
+      values = S.values, machines = S.machines, jobs = S.jobs, gameAt = SO.now(),
     })
-    if not saved then print("so-log: snapshot failed: " .. tostring(saveErr)) end
+    if not saved then (SO.error or print)("so-log: snapshot failed: " .. tostring(saveErr)) end
   end
   H.touch()
   return true
@@ -314,23 +314,32 @@ local history = {
     if count < 1 then count = 1 end
     if count > 50 then count = 50 end
     local evs = H.events()
-    local start = 1
-    if type(query.from) == "number" then
-      start = #evs + 1
-      local i = 1
-      while i <= #evs do
-        if evs[i].seq > query.from then start = i break end
-        i = i + 1
+    local reverse = query.reverse == true
+    local start = reverse and #evs or 1
+    local cursor = reverse and query.before or query.from
+    if type(cursor) == "number" then
+      local lo, hi = 1, #evs
+      while lo <= hi do
+        local mid = math.floor((lo+hi)/2)
+        if evs[mid].seq < cursor or not reverse and evs[mid].seq == cursor then lo = mid+1 else hi = mid-1 end
       end
+      start = reverse and hi or lo
     end
-    local entries, i = {}, start
-    while i <= #evs and #entries < count do
+    local entries, i, step = {}, start, reverse and -1 or 1
+    local function matches(ev)
+      return (not query.kind or query.kind == ev.kind)
+        and (not query.alerts or ev.kind:match("%.alert$") ~= nil)
+    end
+    while i >= 1 and i <= #evs and #entries < count do
       local ev = evs[i]
-      entries[#entries + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data }
-      i = i + 1
+      if matches(ev) then entries[#entries + 1] = { seq = ev.seq, at = ev.at, gameAt = ev.gameAt, kind = ev.kind, data = ev.data } end
+      i = i + step
     end
     local nxt
-    if i <= #evs and #entries > 0 then nxt = entries[#entries].seq end
+    while i >= 1 and i <= #evs do
+      if matches(evs[i]) then nxt = entries[#entries] and entries[#entries].seq break end
+      i = i + step
+    end
     return { entries = entries, next = nxt }
   end,
 }
@@ -364,4 +373,5 @@ return {
   canStart = canStart,
   job = function(data) return emit("job", data) end,
   history = history,
+  diagnostics = function() return disklog and disklog.status() or { available=false } end,
 }

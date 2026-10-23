@@ -303,6 +303,12 @@ if args.fixtures:
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
     map_mockup["write"](Canvas, args.fixtures, fixtures=True)
+    import shutil
+    import subprocess
+    root = Path(__file__).resolve().parents[2]
+    lua = shutil.which("lua5.2") or shutil.which("lua52") or "C:/Tools/lua52/lua52.exe"
+    subprocess.run([lua, str(Path(__file__).with_name("visibility-fixtures.lua")),
+                    str(args.fixtures.resolve())], cwd=root, check=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")

@@ -318,3 +318,14 @@ stays the same, clients show an "Old key kept" pairing prompt. Press P on the
 server and type the new code on each client. Turtles also require Enter. The
 client keeps its old key until pairing succeeds. A normal authenticated reply
 restores the client screen, so a false prompt does not require a reset.
+
+## Health and attention
+
+Open `HEALTH` or `ATTENTION` from `MORE` or the panel. HEALTH pages server,
+clock, storage and network diagnostics. ATTENTION lists issues that need a
+person and opens the screen for each repair. The list refreshes every five
+game seconds. `ALERTS` keeps retained alert events after they clear. `EVENTS`
+browses state history with a kind filter. `ERRORS` shows the bounded persistent
+server error log. `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
+Recent errors save at most once per 30 game seconds; a power loss can lose
+records still waiting to save.

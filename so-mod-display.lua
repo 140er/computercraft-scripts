@@ -6,7 +6,7 @@ local D = {
   path = "so-display",
   gap = 4000,
   limit = 4096,
-  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map" },
+  order = { "shop", "mining", "status", "generic", "lumber", "ar", "panel", "map", "health", "attention", "alerts", "events", "errors" },
   known = {},
   box = nil,
   saved = { roles = {}, far = {} },
@@ -263,6 +263,19 @@ D.compose = function(role, w, h, session)
     for _,b in ipairs(buttons) do targets[#targets+1]=b end
     targets[#targets+1] = {id="map",x=w-3,y=headerRow,w=4,h=1,label=""}
     rows,buttons=copy,targets
+  end
+  if U and role == "generic" and D.screens.health and w >= 26 and h >= 12 then
+    local copy, controls = {}, {}
+    for i,row in ipairs(rows) do copy[i]=row end
+    local nav = U.canvas(w,1)
+    local cols = U.grid(w,1,2)
+    nav.button(cols[1].x,1,cols[1].w,"HEALTH","health","7",1)
+    nav.button(cols[2].x,1,cols[2].w,"ATTENTION","attention","1",1)
+    local frame = nav.frame()
+    copy[1] = frame.rows[1]
+    for _,button in ipairs(buttons) do if button.y>1 then controls[#controls+1]=button end end
+    for _,button in ipairs(frame.buttons) do controls[#controls+1]=button end
+    rows,buttons=copy,controls
   end
   if banner then
     local combined, controls = {}, {}
@@ -550,6 +563,15 @@ D.consent = function(event, role, w, h, session)
   end
 end
 
+D.open = function(session, change, role, actions)
+  local target = D.screens[role]
+  if not D.known[role] or not target then return end
+  change(role)
+  for _, id in ipairs(actions or {}) do
+    target.input({from=session.id,id=id,role=role,session=session})
+  end
+end
+
 D.onInput = function(msg)
   local body = msg.body
   if type(body) ~= "table" or not D.whole(body.x) or not D.whole(body.y) then return end
@@ -602,6 +624,9 @@ D.onInput = function(msg)
     D.setRole(msg.from, "generic")
   end
   local event = { from = msg.from, id = id, x = body.x, y = body.y, role = drawn, session = session }
+  event.open = function(role, actions)
+    D.open(session, function(nextRole) D.setRole(msg.from,nextRole) end, role, actions)
+  end
   if text ~= nil then event.text = text end
   if screen then pcall(screen.input, event) end
   local session = D.sessions[msg.from]
@@ -737,6 +762,7 @@ D.localTick = function(now)
         event.role=drawn
         if drawn == "panel" and event.id == "shop" then m.role = "shop" end
         event.session=m.session
+        event.open=function(role, actions) D.open(m.session,function(nextRole) m.role=nextRole end,role,actions) end
         if screen then screen.input(event) end
       end
       m.frame = D.compose(m.role,w,h,m.session)

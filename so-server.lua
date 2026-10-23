@@ -25,14 +25,19 @@ print = function(...)
   end
 end
 
+S.error = function(line)
+  print(line)
+  if S.errors then pcall(S.errors.record, line) end
+end
+
 S.need = function(name)
   if not fs.exists(name) then
-    print("so-server: missing " .. name)
+    S.error("so-server: missing " .. name)
     return nil
   end
   local ok, mod = pcall(dofile, name)
   if not ok then
-    print("so-server: " .. name .. " failed: " .. tostring(mod))
+    S.error("so-server: " .. name .. " failed: " .. tostring(mod))
     return nil
   end
   return mod
@@ -44,6 +49,15 @@ S.run = function()
   local pair = S.need("so-pair.lua")
   if not proto or not store or not pair then return end
   SO = { mods = {}, proto = proto, pair = pair, store = store, now = store.clock() }
+  SO.error = S.error
+  if fs.exists("so-errors.lua") then
+    local errors = S.need("so-errors.lua")
+    if errors then
+      local opened, log = pcall(errors.open, store, SO.now)
+      if opened then S.errors, SO.errors = log, log else S.error("so-errors: " .. tostring(log)) end
+    end
+  end
+  SO.health = { started = SO.now(), tickMs = 0 }
   pair.open(proto, store, SO.now)
   -- Yield once without losing events. sleep(0) drops every event that is
   -- not its own timer, including the tick timer and rednet messages.
@@ -69,7 +83,7 @@ S.run = function()
         mods[#mods + 1] = mod
         SO.mods[mod.name] = mod
       else
-        print("so-server: skip " .. name)
+        S.error("so-server: skip " .. name)
       end
     end
   end
@@ -193,14 +207,14 @@ S.run = function()
     if built then
       found = true
       local ok, err = pcall(built, msg, reply)
-      if not ok then print("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
+      if not ok then S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
     end
     for i = 1, #mods do
       local handler = mods[i].handlers[msg.t]
       if handler then
         found = true
         local ok, err = pcall(handler, msg, reply)
-        if not ok then print("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
+        if not ok then S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
       end
     end
     if not found then reply("err", { code = "unknown", text = "unknown type" }) end
@@ -265,7 +279,7 @@ S.run = function()
     return #modems
   end
 
-  if openModems() == 0 then print("so-server: no modem") end
+  if openModems() == 0 then S.error("so-server: no modem") end
   local hosted, hostErr = pcall(rednet.host, "so", "server")
   if not hosted then
     local found, other = pcall(rednet.lookup, "so", "server")
@@ -274,14 +288,18 @@ S.run = function()
     else
       view.hostError = "so/server host failed; see log"
     end
-    print("so-server: " .. view.hostError .. ": " .. tostring(hostErr))
+    S.error("so-server: " .. view.hostError .. ": " .. tostring(hostErr))
   end
   showPrompt()
   local pairKey = (type(keys) == "table" and keys.p) or 25
   local timer, ticked
   local function tick()
     if view.mode == "code" and not pair.pending() then showPrompt() end
-    local now = SO.now()
+    local began, now = os.clock(), SO.now()
+    local wall = os.epoch("utc")
+    local health = SO.health
+    if health.last then health.cadence, health.wallCadence = now-health.last, wall-health.wall end
+    health.last, health.wall = now, wall
     for _, by in pairs(sent) do
       for rid, slot in pairs(by) do
         if os.epoch("utc") - slot.at > memory then by[rid] = nil end
@@ -291,9 +309,11 @@ S.run = function()
       local fn = mods[i].tick
       if type(fn) == "function" then
         local ok, err = pcall(fn, now)
-        if not ok then print("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
+        if not ok then S.error("so-server: tick " .. mods[i].name .. " failed: " .. tostring(err)) end
       end
     end
+    SO.health.tickMs = math.floor((os.clock()-began)*1000+0.5)
+    if S.errors then S.errors.flush(now) end
     timer, ticked = os.startTimer(1), SO.now()
   end
   timer, ticked = os.startTimer(1), SO.now()
@@ -328,7 +348,7 @@ S.run = function()
         local handler = type(listen) == "table" and listen[c] or nil
         if type(handler) == "function" then
           local ok, err = pcall(handler, a, b)
-          if not ok then print("so-server: listen " .. mods[i].name .. " failed: " .. tostring(err)) end
+          if not ok then S.error("so-server: listen " .. mods[i].name .. " failed: " .. tostring(err)) end
         end
       end
     end
@@ -336,7 +356,7 @@ S.run = function()
     -- arrive. SO.now counts game ticks like timers do, so server lag
     -- does not trip this.
     if SO.now() - ticked > 3000 then
-      print("so-server: no tick for 3 s; rearming the tick timer")
+      S.error("so-server: no tick for 3 s; rearming the tick timer")
       tick()
     end
   end
@@ -344,4 +364,4 @@ end
 
 local ok, err = pcall(S.run)
 print = S.output
-if not ok then error(err,0) end
+if not ok then S.error("so-server: stopped: " .. tostring(err)); error(err,0) end

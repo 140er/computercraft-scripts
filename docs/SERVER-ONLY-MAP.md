@@ -68,7 +68,19 @@ and listeners use `listener(sender, message)`.
   and an optional error. `read` reads a plain Lua table without generation recovery.
 - [so-log.lua](../so-log.lua) stores bounded event segments and snapshots for state.
   `open(store)` returns `{ snap, events(), append(ev), due(),
-  checkpoint(payload), rawBytes() }`.
+  checkpoint(payload), rawBytes(), status() }`.
+  `status()` returns event availability, sequence, segment count, bytes, snapshot
+  number, its saved game time and whether a checkpoint is due.
+- [so-errors.lua](../so-errors.lua) opens with `open(store, now)` and returns
+  `record(text)`, `flush(now?)`, `entries()` and `status()`. It retains at most
+  128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
+  is at most 21000 bytes, so current, backup and temporary files fit within
+  65536 bytes together. `status().bytes` counts every generation and is the
+  integration hook for a future disk ledger. Saves run at most once per 30000
+  game milliseconds. A failed save keeps the pending records for retry.
+  `SO.error(text)` prints and records server errors. `SO.errors` exposes this
+  log. `SO.health` holds startup time and the last tick's game cadence, wall
+  cadence and cost. Wall cadence is diagnostic only.
 - [so-plan.lua](../so-plan.lua) provides pure geometry and batch helpers.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
   `toJournal(frame, pose)`, `ahead(pose, dir)`, `apply(pose, op)`,
@@ -136,9 +148,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-state.lua](../so-mod-state.lua), `state`, folds events into registry,
   jobs and views. Calls are `emit(kind, data)`, `get(path)`, `job(data)`,
   `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`,
-  `history.page(q)` and `tick(now)`. `view` is a callable table.
+  `history.page(q)`, `diagnostics()` and `tick(now)`. `view` is a callable table.
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
+  `reverse=true` reads newest first with an exclusive `before` cursor. `kind`
+  filters exact kinds and `alerts=true` filters `.alert` events. Cursor lookup
+  uses binary search. `diagnostics()` returns the event log status.
   `canStart()` reads current disk use. Mining and lumber `start` refuse at 80%
   or more and show `disk >=80%; free space`. Existing work, recovery and stop
   remain available. Authenticated `hello` registers turtles and displays through
@@ -262,6 +277,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   BACK restores `session.mapReturn`, or status after restart. Local monitor
   navigation uses its own session. No client or saved-file format changes.
   See [map](server-only/PROTOCOL.md#map).
+- [so-mod-health.lua](../so-mod-health.lua), `health`, registers `health`,
+  `attention`, `alerts`, `events` and `errors`. `count()` returns the attention
+  count. `attention(facts)` is a pure function returning severity-sorted rows
+  with `key`, `text`, `target` and optional input `actions`. Gathered facts are
+  `now`, `disk`, `points`, `jobs`, `machines`, `leases`, `retirement`, `pairing`
+  and optional `requests`. The module gathers once per five game seconds.
+  Jobs and paired IDs come from read-only generation recovery. An optional
+  `SO.pair.requests()` supplies pairing requests; an open invitation also
+  appears. Other job modules may add read-only status APIs later.
+  Display inputs receive `event.open(role, actions?)` for navigation and a
+  list of input IDs to send to that screen with the same display session.
+  These callbacks stay on the server and do not enter wire frames.
 - [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
   `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. MORE in its
