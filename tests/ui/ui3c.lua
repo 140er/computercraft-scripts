@@ -64,7 +64,7 @@ return function(test, equal)
     b.tick(1000)
     local n = 0
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
-    equal(n, 24)
+    equal(n, 72, "two owners with three-strand outlines")
     equal(b.ar.elements["lease:mine:2:2"][2], 9)
     for _, row in ipairs({ { 3, C.white, "O" }, { 4, C.coral, "F" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
@@ -157,7 +157,7 @@ return function(test, equal)
     b.tick(1500); equal(b.ar.frames, 1); b.tick(2000); equal(b.ar.frames, 1)
     for id in pairs(b.ar.elements) do assert(ids[id]); ids[id] = nil end
     equal(ids, {}); equal(b.ar.deleted, {})
-    b.machines[2] = nil; b.tick(3000); equal(b.ar.frames, 2); equal(#b.ar.deleted, 16)
+    b.machines[2] = nil; b.tick(3000); equal(b.ar.frames, 2); equal(#b.ar.deleted, 56)
     for _, id in ipairs(b.ar.deleted) do assert(id == "turtle:2" or id:match("^turtle:2:")) end
     b.input({ id = "turtles" }); b.tick(4000); equal(b.ar.elements["turtle:3"], nil)
   end)
