@@ -171,6 +171,29 @@ def stop_owned(ctx, world):
         raise Blocked(f"Owned runtime process {world} survived cleanup")
 
 
+def execute_repeated(ctx, check, runtime_dir, reset=True):
+    if check not in ("C8", "C10"):
+        return execute(ctx, check, runtime_dir, reset=reset)
+    attempts = []
+    for index in range(1, 4):
+        attempt = Context(ctx.runtime, ctx.run, {}, ctx.output / f"attempt-{index}",
+                          ctx.commit, ctx.tick_rate, ctx.interval)
+        attempts.append(execute(attempt, check, runtime_dir, reset=reset or index > 1))
+    statuses = [result.status for result in attempts]
+    durations = [result.wall_seconds for result in attempts]
+    status = "fail" if "fail" in statuses else "blocked" if "blocked" in statuses else "pass"
+    metrics = {"attempts": [result.to_dict() for result in attempts], "repeat_count": 3,
+               "flaky": len(set(statuses)) > 1,
+               "wall_seconds_min": min(durations), "wall_seconds_max": max(durations),
+               "wall_seconds_spread": max(durations) - min(durations)}
+    findings = [f"Three independent runs: {', '.join(statuses)}; wall spread {max(durations)-min(durations):.2f}s"]
+    result = Result(check, ctx.commit, status, attempts[0].started_at, sum(durations),
+                    ctx.tick_rate, findings, metrics,
+                    [f"attempt-{i}/{check}-result.json" for i in range(1, 4)], ctx.run)
+    ctx.record(f"{check}-result.json", result.to_dict())
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -206,7 +229,8 @@ def main(argv=None):
         if any(rate != 20 for rate in rates.values()) and not tick_scaled(commit):
             parser.error("This build has no SO.now tick-scaled clock from codex/so-clock. Speed-up would shorten lease/retry coverage; use --tick-rate 20")
         if args.plan:
-            print(json.dumps({"commit": commit, "checks": selected, "tick_rates": rates, "worlds": args.worlds}, indent=2))
+            print(json.dumps({"commit": commit, "checks": selected, "tick_rates": rates, "worlds": args.worlds,
+                              "repeats": {c: 3 if c in ("C8", "C10") else 1 for c in selected}}, indent=2))
             return 0
         output = args.output or Path.home() / "work/gateb-driver" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + commit[:12])
         start = time.monotonic()
@@ -253,7 +277,7 @@ def main(argv=None):
                             ctx.linked_install = linked_install
                         if check in ("C3", "C13"):
                             with client_lock: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
-                        else: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
+                        else: result = execute_repeated(ctx, check, args.runtime_dir.resolve(), reset=not first)
                         first = False
                         with group_lock:
                             results.append(result)

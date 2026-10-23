@@ -156,7 +156,7 @@ S.run = function()
       pair.clear()
       showPrompt()
     end,
-    hello = function(msg, reply)
+    hello = function(_msg, reply)
       reply("ack", { ok = true })
     end,
   }

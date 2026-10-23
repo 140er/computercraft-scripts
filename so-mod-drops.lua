@@ -333,7 +333,8 @@ S.typed = function(text)
   local words = {}
   for word in text:gmatch("%S+") do words[#words + 1] = word end
   local d = S.draft
-  local dim, x, y, z, kind, side = d.dim, nil, nil, nil, d.kind, d.side
+  local dim, kind, side = d.dim, d.kind, d.side
+  local x, y, z
   local direct = words[1] == "add"
   if direct then
     if #words < 5 or #words > 7 then S.message = "add kind x y z [side/dim]" return end

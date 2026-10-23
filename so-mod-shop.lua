@@ -132,7 +132,7 @@ S.order = function(search, count)
   if best then S.request("order", best, count) end
 end
 
-S.legacy = function(w, h, clientId)
+S.legacy = function(_w, _h, clientId)
   local search = S.view(clientId).search
   local picture = {
     rows = {},

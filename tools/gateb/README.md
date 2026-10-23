@@ -97,3 +97,15 @@ installs the current server-only tip, reads each real terminal and native turtle
 pose, then stops both servers. It refuses to replace an existing template. Use
 `--reuse-template` only when that template has already completed preparation.
 Timing and sanitized terminal evidence go under the runtime home's `evidence`.
+
+PR authors can inspect affected checks without starting Minecraft:
+
+```sh
+python3 tools/gateb/run.py --changed origin/server-only..HEAD --plan
+```
+
+See [the PR testing workflow](../../docs/testing/README.md#gate-b-selection-for-prs)
+for execution ownership and repeat reporting. C8 and C10 run three independent
+attempts by default. Every attempt keeps separate evidence and the report
+includes its status and wall-time spread. No failed or blocked attempt is
+hidden by a later successful run.
