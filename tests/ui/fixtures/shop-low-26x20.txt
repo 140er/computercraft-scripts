@@ -1,0 +1,61 @@
+26x20 Shop low and empty stock, pocket 26x20
+ items   low   find  ---  
+                          
+  all   low   empty       
+                          
+ item             stock ▼ 
+ BASIC CONTROL CIRCUIT 14 
+ BOOK ················ 12 
+ EMERALD ············· 12 
+ RAW GOLD ············ 12 
+ REPEATER ············ 11 
+ INGOT OSMIUM ········· 9 
+ CHEST ················ 9 
+ PISTON ··············· 8 
+ WHITE DYE ············ 8 
+ DANDELION ············ 7 
+ DISK ················· 6 
+ BUCKET ··············· 6 
+ ENDER PEARL ·········· 6 
+                          
+ 1 of 2         ◄     ►   
+888888800000008888880ccc00
+00000000000000000000000000
+00000008888808888888000000
+00000000000000000000000000
+08888000000000000000000000
+00000000000000000000000110
+000000cccccccccccccccc0110
+000000000ccccccccccccc0110
+0000000000cccccccccccc0110
+0000000000cccccccccccc0110
+00000000000000ccccccccc010
+0000000cccccccccccccccc010
+00000000ccccccccccccccc010
+00000000000cccccccccccc010
+00000000000cccccccccccc010
+000000ccccccccccccccccc010
+00000000ccccccccccccccc010
+0000000000000cccccccccc010
+00000000000000000000000000
+08888880000000888880000000
+ffffffff77777fffffffffffff
+ffffffffffffffffffffffffff
+f77777ffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffff777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffff77777f77777f

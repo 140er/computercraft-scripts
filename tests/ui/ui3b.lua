@@ -241,8 +241,8 @@ return function(test,equal)
         for y=1,14 do equal(after.rows[y],before[i].rows[y]) end
       end
       press(sessions[1],'items')
-      assert(table.concat(capture(screen.render(57,24,sessions[1]),57,24).picture().text,'\n'):find('2/',1,true))
-      assert(table.concat(capture(screen.render(57,24,sessions[3]),57,24).picture().text,'\n'):find('1/',1,true))
+      assert(table.concat(capture(screen.render(57,24,sessions[1]),57,24).picture().text,'\n'):find('2 of',1,true))
+      assert(table.concat(capture(screen.render(57,24,sessions[3]),57,24).picture().text,'\n'):find('1 of',1,true))
       local sent=sends[#sends]
       equal(sent.id,9);equal(sent.protocol,'roomsorter');equal(sent.body.cmd,'order')
       equal(sent.body.text,'minecraft:iron_ingot');equal(sent.body.n,amount)

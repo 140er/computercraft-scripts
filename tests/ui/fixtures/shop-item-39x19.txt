@@ -1,0 +1,58 @@
+39x19 Shop item with an order sent, wall monitor 4x3 at scale 1 39x19
+ SHOP   items   low   find  ---- 21:14 
+                                       
+ IRON INGOT                            
+                                       
+ stock ·························· 1240 
+ stacks ························ 19+24 
+ last hour ······················· ↑60 
+ ores ·························· ingot 
+ craftable ························· 3 
+                                       
+ ORDER ------------------------------  
+      1          16          64        
+       stack               all         
+                                       
+ • 16 sent                       21:14 
+ • 64 delivered                  20:52 
+ • 16 delivered                  20:31 
+                                       
+  back                                 
+0000000000000008888808888880cccc0888880
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+0888880cccccccccccccccccccccccccc000000
+08888880cccccccccccccccccccccccc0000000
+08888888880ccccccccccccccccccccccc00000
+088880cccccccccccccccccccccccccc0000000
+08888888880ccccccccccccccccccccccccc000
+000000000000000000000000000000000000000
+0888880cccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+0d0000000000000000000000000000000888880
+080000000000000000000000000000000888880
+080000000000000000000000000000000888880
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+fffffff7777777fffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f77777777777f77777777777f77777777777fff
+f777777777777777777f777777777777777777f
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f777777ffffffffffffffffffffffffffffffff

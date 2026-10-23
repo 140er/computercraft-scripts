@@ -396,8 +396,10 @@ if args.fixtures:
     names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T".split()
     named = [(stem, canvas, title) for canvas, title, stem in FIXTURES if stem]
     named += [(stem, canvas, title) for stem, (canvas, title, _) in zip(names, [f for f in FIXTURES if not f[2]])]
-    # Screens ported to route A get their fixtures from docs/ui/schematic/screens.py instead.
-    ported = {"status-M", "status-L", "status-P", "status-T", "status-XS"}
+    # Screens ported to route A get their fixtures from docs/ui/schematic/screens.py instead,
+    # including the five shop names, which now hold route A pages.
+    ported = {"status-M", "status-L", "status-P", "status-T", "status-XS",
+              "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large"}
     for stem, canvas, title in named:
         if stem in ported:
             continue

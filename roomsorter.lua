@@ -968,7 +968,8 @@ stats.delivered = stats.delivered or 0
 ---------------------------------------------------------------------------
 -- Log + status
 ---------------------------------------------------------------------------
-local status = { state = "Starting", note = nil, full = false }
+-- labels and tags are learned with maxStack and sent to the shop screen in stock replies
+local status = { state = "Starting", note = nil, full = false, labels = {}, tags = {} }
 local logLines = {}
 local function log(msg, isError)
   table.insert(logLines, 1, { textutils.formatTime(os.time(), true) .. " " .. msg, isError })
@@ -1208,6 +1209,18 @@ local function detail(s)
   if d and not maxStack[d.name] then
     local dd = turtle.getItemDetail(s, true)
     if dd and dd.maxCount then maxStack[d.name] = dd.maxCount end
+    if dd and type(dd.displayName) == "string" then status.labels[d.name] = dd.displayName end
+    if dd and type(dd.tags) == "table" then
+      local tags = {}
+      for tag in pairs(dd.tags) do
+        if type(tag) == "string" and (tag:find("^c:") or tag:find("^forge:") or tag:find("^minecraft:")) then
+          tags[#tags + 1] = tag
+        end
+      end
+      table.sort(tags)
+      for i = #tags, 9, -1 do tags[i] = nil end
+      status.tags[d.name] = tags
+    end
   end
   return d
 end
@@ -3174,7 +3187,7 @@ local function command(cmd, text, n)
     -- everything the order screen needs in one answer
     return { version = VERSION, totals = totals(), state = status.state, crafty = crafty(), cutoff = unreachableCount(),
       recipes = crafty() and craftList() or {},
-      orders = stats.orders or {} }
+      orders = stats.orders or {}, labels = status.labels, stacks = maxStack, tags = status.tags }
   elseif cmd == "order" then
     -- From storage, and whatever is missing gets crafted
     if not text or text == "" then return { "order <item> [n]" } end

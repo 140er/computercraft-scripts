@@ -1,0 +1,37 @@
+29x12 Shop item with an order sent, compact monitor 29x12
+ SHOP   items   low   find   
+ IRON INGOT                  
+ stock ················ 1240 
+ last hour ············· ↑60 
+ ORDER --------------------  
+    1        16       64     
+     stack          all      
+ • 16 sent             21:14 
+ • 64 delivered        20:52 
+ • 16 delivered        20:31 
+ • 1 failed            19:47 
+  back                       
+00000000000000088888088888800
+00000000000000000000000000000
+0888880cccccccccccccccc000000
+08888888880ccccccccccccc00000
+0888880cccccccccccccccccccc00
+00000000000000000000000000000
+00000000000000000000000000000
+0d000000000000000000000888880
+08000000000000000000000888880
+08000000000000000000000888880
+0e000000000000000000000888880
+00000000000000000000000000000
+fffffff7777777fffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f77777777f77777777f77777777ff
+f7777777777777f7777777777777f
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffffffffffff

@@ -171,13 +171,6 @@ ITEMS = [("COAL", 961, "+44"), ("RAW COPPER", 640, "+31"), ("REDSTONE", 412, "+1
          ("RAW IRON", 48, "-20"), ("LAPIS LAZULI", 230, "+9"), ("GOLD INGOT", 88, ""), ("DIAMOND", 14, "+2"),
          ("EMERALD", 3, ""), ("RAW GOLD", 0, ""), ("QUARTZ", 0, ""), ("AMETHYST", 26, "")]
 ITEMS.sort(key=lambda r: -r[1])
-CATS = ["all", "ores", "wood", "food", "blocks", "tools", "other"]
-
-def shop_tabs(cv, y, active):
-    x = 2
-    for c in CATS:
-        if c == active: x = chip(cv, x, y, c, "cat-" + c) + 1
-        else: x = chip(cv, x, y, c, "cat-" + c, "8", "f") + 1
 
 def shop_row(cv, x, y, w, name, n, tr, sel=False, trend=True):
     bg = "7" if sel else None
@@ -190,33 +183,6 @@ def shop_row(cv, x, y, w, name, n, tr, sel=False, trend=True):
     if trend and tr:
         up = tr.startswith("+")
         cv.put(tx + 2, y, ("↑" if up else "↓") + tr[1:], "8" if up else "1", bg)
-
-def shop_browse():
-    cv = Canvas(57, 24, "Shop browse, room monitor 57x24")
-    header(cv, "SHOP", right="stock " + TIME)
-    shop_tabs(cv, 3, "ores")
-    cv.put(2, 5, "item", "8"); chip(cv, 37, 5, "stock ▼", "sort-stock", "0"); chip(cv, 47, 5, "/hour", "sort-rate", "8", "f")
-    for i, (nm, n, tr) in enumerate(ITEMS):
-        shop_row(cv, 2, 7 + i, 54, nm, n, tr)
-        cv.buttons.append({"id": "item-" + nm, "x": 1, "y": 7 + i, "w": 57, "h": 1, "label": ""})
-    cv.put(2, 23, "1 of 2", "8"); chip(cv, 45, 23, "◄", "page-prev", "8"); chip(cv, 50, 23, "►", "page-next")
-    return cv
-
-def shop_item():
-    cv = Canvas(57, 24, "Shop item with ordering, room monitor 57x24")
-    header(cv, "SHOP", right="stock " + TIME)
-    shop_tabs(cv, 3, "ores")
-    for i, (nm, n, tr) in enumerate(ITEMS):
-        shop_row(cv, 2, 5 + i, 26, nm, n, tr, sel=(nm == "IRON INGOT"), trend=False)
-    for y in range(5, 24): cv.put(31, y, "|", "c")
-    cv.put(34, 5, "IRON INGOT", "0")
-    leader(cv, 34, 7, 22, "stock", "1240")
-    leader(cv, 34, 8, 22, "last hour", "↑60", "0")
-    section(cv, 34, 10, 22, "ORDER")
-    cv.button(34, 11, 6, "1", "order-1"); cv.button(42, 11, 6, "16", "order-16"); cv.button(50, 11, 6, "64", "order-64")
-    cv.put(34, 13, "16 sent " + TIME, "d")
-    cv.put(34, 14, "64 delivered 20:52", "8")
-    return cv
 
 # ------------------------------------------------------------------ drops
 def drops():
@@ -407,8 +373,8 @@ def server_term():
     return cv
 
 SCREENS = [("03-mining-57x24", mining),
-           ("04-mining-setup-57x24", mining_setup), ("05-lumber-57x24", lumber), ("06-shop-browse-57x24", shop_browse),
-           ("07-shop-item-57x24", shop_item), ("08-drops-57x24", drops), ("09-map-57x24", map_room),
+           ("04-mining-setup-57x24", mining_setup), ("05-lumber-57x24", lumber),
+           ("08-drops-57x24", drops), ("09-map-57x24", map_room),
            ("10-map-wall-100x38", map_wall), ("11-map-pocket-26x20", map_pocket), ("12-map-selected-57x24", map_selected),
            ("13-pocket-fleet-26x20", pocket_fleet), ("14-pocket-jobs-26x20", pocket_jobs), ("15-pocket-shop-26x20", pocket_shop),
            ("16-pocket-pair-26x20", pocket_pair), ("17-alert-57x24", alert_takeover), ("18-unassigned-57x24", unassigned),

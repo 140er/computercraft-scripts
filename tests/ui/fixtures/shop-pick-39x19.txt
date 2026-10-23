@@ -1,0 +1,58 @@
+39x19 Shop category picker, wall monitor 4x3 at scale 1 39x19
+ SHOP   items   low   find  ---- 21:14 
+                                       
+  ores ▼   all ▼                       
+                                       
+ all ····························· 104 
+ ores ····························· 25 
+ wood ····························· 10 
+ stone ···························· 14 
+ plants ···························· 6 
+ food ······························ 8 
+ tools ···························· 11 
+ redstone ·························· 7 
+ mobs ······························ 8 
+ mods ······························ 9 
+ other ····························· 6 
+                                       
+                                       
+                                       
+  back                                 
+0000000000000008888808888880cccc0888880
+000000000000000000000000000000000000000
+0ffffffff000000000000000000000000000000
+000000000000000000000000000000000000000
+00000ccccccccccccccccccccccccccccc00000
+000000ccccccccccccccccccccccccccccc0000
+000000ccccccccccccccccccccccccccccc0000
+0000000cccccccccccccccccccccccccccc0000
+00000000cccccccccccccccccccccccccccc000
+000000cccccccccccccccccccccccccccccc000
+0000000cccccccccccccccccccccccccccc0000
+0000000000cccccccccccccccccccccccccc000
+000000cccccccccccccccccccccccccccccc000
+000000cccccccccccccccccccccccccccccc000
+0000000ccccccccccccccccccccccccccccc000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+fffffff7777777fffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f99999999f7777777ffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f777777ffffffffffffffffffffffffffffffff
