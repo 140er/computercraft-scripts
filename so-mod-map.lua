@@ -212,7 +212,13 @@ M.render = function(w, h, session)
     local key=z*vw+x
     if not marked[key] then
       local px,pz=mark(p,(p.kind or "chest"):sub(1,1):upper(),"e")
-      if px then c.hit("map-drop:"..p.id,px,pz,1,1) marked[key]=true end
+      if px then
+        for i=#c.buttons,1,-1 do
+          local b=c.buttons[i]
+          if b.x==px and b.y==pz and b.id:match("^turtle:") then table.remove(c.buttons,i) end
+        end
+        c.hit("map-drop:"..p.id,px,pz,1,1) marked[key]=true
+      end
     end
   end end
   local broken=0

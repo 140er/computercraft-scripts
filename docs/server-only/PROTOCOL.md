@@ -1050,8 +1050,9 @@ The map header replaces the scale with drawn FOCUS and BROKEN count buttons
 when broken chests exist. FOCUS centres the first broken chest at one block per
 cell and selects ALL levels. BROKEN also opens the drop list at that chest.
 Tapping a broken chest glyph opens that exact chest, on its list page. These
-controls also work on the server's monitor. The status BROKEN header button and tile open the
-first broken chest. Drop-list input `focus:<id>` exits the editor, selects that
+controls also work on the server's monitor. The status BROKEN button and tile open the
+first broken chest. The pocket places BROKEN below its MAP/MORE header.
+A broken chest glyph replaces any covered turtle tap target. Drop-list input `focus:<id>` exits the editor, selects that
 chest and reveals its page at the next render.
 
 `render(w, h, session)` stores its state under `session.map`. `fit` starts true.

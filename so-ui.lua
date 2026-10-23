@@ -235,7 +235,10 @@ U.status = function(model, w, h)
       C.button(col.x,navY,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7',navHeight)
     end
   end
-  if broken and w>=26 then C.button(w-14,2,10,"BROKEN "..broken,"broken","e",1) end
+  if broken and w>=26 then
+    if size=='P' then C.button(2,3,w-2,"BROKEN "..broken,"broken","e",1)
+    else C.button(w-14,2,10,"BROKEN "..broken,"broken","e",1) end
+  end
   return C.frame()
 end
 local function finite(n)

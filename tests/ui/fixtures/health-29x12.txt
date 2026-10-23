@@ -8,7 +8,7 @@
  Events #7 / 1 seg           
  Event bytes 1065            
  Snapshot none               
- Disk 2% / 15545680B free    
+ Disk 2% / 15545592B free    
   PREV      BACK      NEXT   
  EVENTS    ALERTS    ERRORS  
 77777777777777f11111111111111

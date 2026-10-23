@@ -189,6 +189,7 @@ return function(test,equal)
       opened=nil
       screen.input({id=b.id,x=b.x,y=b.y,session=session,open=function(role,actions) opened={role,actions} end})
       equal(opened,{"generic",{"list","focus:far"}})
+      s.mine.turtles={[7]={pose={dim="minecraft:overworld",x=100,y=64,z=0},state="mining"}}
       s.points[#s.points+1]={id="healthy",kind="fuel",dim=0,x=101,y=64,z=0}
       s.points[#s.points+1]={id="other",kind="wood",dim=0,x=100,y=64,z=0,broken=true}
       s.map.tick(1000)
@@ -196,7 +197,10 @@ return function(test,equal)
       frame=screen.render(size[1],size[2],session)
       b=button(frame,"map-drop:far")
       equal(frame.rows[b.y].text:sub(b.x,b.x),"O")
-      for _,target in ipairs(frame.buttons) do assert(target.id~="map-drop:other","one target per visible cell") end
+      for _,target in ipairs(frame.buttons) do
+        assert(target.id~="map-drop:other","one target per visible cell")
+        assert(target.id~="turtle:7","covered turtle must not keep a tap target")
+      end
       local found=false
       for _,row in ipairs(frame.rows) do for _,run in ipairs(row.runs) do if run[3]=="1" then found=true end end end
       assert(found,"preview must be visible in amber")
@@ -226,7 +230,13 @@ return function(test,equal)
         local b=button(frame(),"status")
         display.handlers.input({from=22,body={id=b.id,x=b.x,y=b.y}})
       end
-      local b=button(frame(),"broken")
+      local current=frame()
+      local b=button(current,"broken")
+      if size[1]==26 then
+        local more=button(current,"generic")
+        local map=button(current,"map")
+        assert(b.y~=more.y and b.y~=map.y,"broken action must leave pocket header controls clear")
+      end
       display.handlers.input({from=22,body={id=b.id,x=b.x,y=b.y}})
       equal(frame().role,"generic")
       button(frame(),"select:broken")
