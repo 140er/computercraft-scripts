@@ -1,6 +1,6 @@
 26x20 Pocket, panel mode
                           
- PANEL          MORE  MAP 
+ PANEL 22:14    MORE  MAP 
  MINING   stopped         
                           
    START         STOP     

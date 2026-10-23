@@ -387,7 +387,7 @@ ffffffffffffffffffffffffff
 Pocket, panel mode  (26x20)
 ```text
                           
- PANEL          MORE  MAP 
+ PANEL 22:14    MORE  MAP 
  MINING   stopped         
                           
    START         STOP     
@@ -763,7 +763,7 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
 Panel pairing ready P  (26x20)
 ```text
                           
- PANEL              01:00 
+ PANEL 01:00    MORE  MAP 
  PAIR NEW CLIENT          
                           
                           
@@ -786,7 +786,7 @@ Panel pairing ready P  (26x20)
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -810,7 +810,7 @@ ffffffffffffffffffffffffff
 Panel pairing code P  (26x20)
 ```text
                           
- PANEL              01:00 
+ PANEL 01:00    MORE  MAP 
  PAIR NEW CLIENT          
     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
@@ -833,7 +833,7 @@ Panel pairing code P  (26x20)
 Background layer (blit letters, see palette):
 ```text
 ffffffffffffffffffffffffff
-f777777777777777777777777f
+f7777777777777777777779999
 ffffffffffffffffffffffffff
 f999999999999999999999999f
 f999999999999999999999999f

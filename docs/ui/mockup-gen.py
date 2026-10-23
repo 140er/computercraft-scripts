@@ -127,7 +127,7 @@ c.button(0,19,4,"<",h=1);c.center(4,7,19,"1/5");c.button(11,19,4,">",h=1);c.butt
 add(c,"Pocket, glance mode",True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", ""); c.button(16,1,5,"MORE",h=1); c.button(22,1,4,"MAP","9",h=1)
+c = Canvas(26, 20); c.header("PANEL", ""); c.button(16,1,5,"MORE",h=1); c.button(22,1,4,"MAP","9",h=1);c.text(7,1,"22:14")
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -270,7 +270,9 @@ add(c, "Smallest monitor 1x1 at scale 0.5")
 
 for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
     for pending in [False, True]:
-        c = Canvas(w, h); c.header("PANEL", "01:00")
+        c = Canvas(w, h); c.header("PANEL", "" if w==26 else "01:00")
+        if w==26:
+            c.header("PANEL", "");c.text(7,1,"01:00");c.button(16,1,5,"MORE",h=1);c.button(22,1,4,"MAP","9",h=1)
         c.text(1, 2, "PAIR NEW CLIENT")
         if pending:
             c.fill(1, 3, w-2, 4, "9")

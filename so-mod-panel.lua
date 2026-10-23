@@ -94,7 +94,7 @@ P.render = function(w, h, session)
   session.panel = session.panel or {search="",page="main"}
   local c = U.canvas(w,h)
   c.header("PANEL",P.time())
-  if w == 26 then U.pocketHeader(c,"PANEL") end
+  if w == 26 then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
   local page = session.panel.page
   if page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
