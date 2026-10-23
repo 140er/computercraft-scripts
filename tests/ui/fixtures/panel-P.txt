@@ -1,4 +1,4 @@
-26x20 Pocket, panel mode
+26x20 Panel role at 26x20
                           
  PANEL              22:14 
  MINING   stopped         
@@ -18,7 +18,7 @@
    1        16       64   
                           
                           
- GLANCE  ALERTS  PAIR     
+ ALERTS  PAIR             
 ffffffffffffffffffffffffff
 f777777777777777777777777f
 ffffffffffffffffffffffffff

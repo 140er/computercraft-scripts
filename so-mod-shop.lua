@@ -122,14 +122,24 @@ S.view = function(client)
   return S.views[key]
 end
 
+-- Read-only: items whose id contains the search, most stock first, then by id.
+S.matches = function(search, limit)
+  local query, list = tostring(search or ""):lower():gsub("%s+", "_"), {}
+  for name, count in pairs(S.totals) do
+    if name:lower():find(query, 1, true) then
+      list[#list + 1] = { name = name, count = count, label = name:gsub("^.-:", ""):gsub("_", " "):upper() }
+    end
+  end
+  table.sort(list, function(a, b) return a.count > b.count or (a.count == b.count and a.name < b.name) end)
+  for i = #list, (limit or 10) + 1, -1 do list[i] = nil end
+  return list
+end
+
+-- An exact item id wins; otherwise the best match. Returns the item sent.
 S.order = function(search, count)
   if type(search) ~= "string" or (count ~= 1 and count ~= 16 and count ~= 64) then return end
-  local query, best = search:lower():gsub("%s+", "_"), nil
-  for name, stock in pairs(S.totals) do
-    if name:lower():find(query, 1, true) and (not best or stock > S.totals[best]
-        or (stock == S.totals[best] and name < best)) then best = name end
-  end
-  if best then S.request("order", best, count) end
+  local best = S.totals[search] and search or (S.matches(search, 1)[1] or {}).name
+  if best and S.turtle then S.request("order", best, count) return best end
 end
 
 S.legacy = function(w, h, clientId)
@@ -485,4 +495,5 @@ return {
   listen = { roomsorter = S.reply, roomsorter_stock = S.broadcast, dns = S.dns },
   tick = S.tick,
   order = S.order,
+  matches = S.matches,
 }

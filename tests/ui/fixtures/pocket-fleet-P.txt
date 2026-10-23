@@ -1,0 +1,41 @@
+26x20 Pocket FLEET: chip rows; ALERTS opens the list, FLEET turns coral while alerts exist
+ FLEET  JOBS  SHOP  PAIR  
+                          
+ TURTLES    3 ok  1 lost  
+                          
+ LEASES           2 open  
+                          
+ ALERTS                3  
+                          
+ ORE TODAY           214  
+                          
+ LOGS TODAY           96  
+                          
+ DISK                13%  
+                          
+ DISPLAYS              4  
+                          
+ DROPS       5  1 broken  
+                          
+                          
+                          
+99999997777777777777777777
+ffffffffffffffffffffffffff
+fffffffffffddddddeeeeeeeef
+ffffffffffffffffffffffffff
+fffffffffffffffffbbbbbbbbf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffbbbbbf
+ffffffffffffffffffffffffff
+fffffffffffffffffffffddddf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffdddddf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffdddf
+ffffffffffffffffffffffffff
+ffffffffffffddd1111111111f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

@@ -114,9 +114,9 @@ local function newClient(s, id, code)
   return client
 end
 
--- A pocket opens its panel page; any other display gets the panel role from the server.
+-- A pocket has PAIR in its own tab bar; any other display gets the panel role from the server.
 local function openPanel(s)
-  if s.frame().role=="pocket" then s.press("PANEL") return end
+  if s.frame().role=="pocket" then return end
   assert(s.server.env.SO.mods.display.command(s.client.id.." panel"))
   s.net.advance(1)
 end
@@ -162,8 +162,8 @@ return function(test, equal)
       equal(s.server.env.SO.pairCode(5),nil)
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=5,body={w=w,h=h}})
-      if w==26 then display.handlers.input({from=5,body={id="panel",x=1,y=1}}) else assert(display.assign(5,"panel")) end
-      display.handlers.input({from=5,body={id="pair",x=1,y=1}})
+      if w~=26 then assert(display.assign(5,"panel")) end
+      display.handlers.input({from=5,body={id=w==26 and "tab:pair" or "pair",x=1,y=1}})
       display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
       local other
       display.handlers["view.get"]({from=5},function(_,body) other=body end)
@@ -191,7 +191,7 @@ return function(test, equal)
       os={epoch=function() return 0 end}}, {__index=_G})
     local panel=assert(loadfile("so-mod-panel.lua","t",env))()
     local render
-    env.SO.mods.display={screen=function(_,fn) if fn then render=fn end end}
+    env.SO.mods.display={screen=function(role,fn) if role=="panel" and fn then render=fn end end}
     panel.tick(0)
     for _,size in ipairs({
       {26,20,{[false]="tests/ui/fixtures/panelpair-P.txt",[true]="tests/ui/fixtures/panelcode-P.txt"}},

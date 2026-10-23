@@ -297,7 +297,7 @@ return function(test, equal)
     equal(old.role, "pocket")
     local found = {}
     for _, b in ipairs(old.buttons) do found[b.id] = b.y end
-    equal({found.prev, found.next, found.panel}, {19, 19, 19}, "26x19 pockets keep glance paging")
+    assert(found.alerts and found.alerts <= 19, "26x19 pockets keep their fleet rows")
     equal({d.assign(2, "panel")}, {true, "display 2: panel"})
     equal(frame(2, 26, 20).role, "panel")
     d, frame = boot()

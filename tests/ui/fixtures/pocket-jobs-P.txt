@@ -1,0 +1,41 @@
+26x20 Pocket JOBS: state chip, facts, one-row START and STOP
+ FLEET  JOBS  SHOP  PAIR  
+                          
+  MINING         running  
+  BUSY               2/3  
+  DEPTH              -58  
+  BRANCHES           3/8  
+  MIN FUEL           640  
+                          
+    START        STOP     
+                          
+                          
+  LUMBER         stopped  
+  TREES READY          2  
+  SAPLINGS             0  
+  NEXT GROW         6:20  
+  FUEL              1210  
+                          
+    START        STOP     
+                          
+                          
+eeeeeee9999997777777777777
+ffffffffffffffffffffffffff
+f777777777777777dddddddddf
+ffffffffffffffffffffdddddf
+ffffffffffffffffffffdddddf
+ffffffffffffffffffffbbbbbf
+ffffffffffffffffffffdddddf
+ffffffffffffffffffffffffff
+f99999999999ffeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777777777777777cccccccccf
+ffffffffffffffffffffffdddf
+ffffffffffffffffffffffeeef
+fffffffffffffffffffbbbbbbf
+fffffffffffffffffffddddddf
+ffffffffffffffffffffffffff
+f99999999999ffeeeeeeeeeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

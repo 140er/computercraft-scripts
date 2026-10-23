@@ -1,0 +1,41 @@
+26x20 Pocket SHOP: search, matches, one tap orders the shown item
+ FLEET  JOBS  SHOP  PAIR  
+                          
+  iron_                x  
+                          
+ IRON INGOT         1240  
+    1       16      64    
+                          
+ IRON ORE            312  
+ RAW IRON             48  
+ IRON BLOCK           27  
+ IRON NUGGET           5  
+ IRON DOOR             3  
+ IRON PICKAXE          1  
+ IRON BARS             0  
+                          
+                          
+                          
+                          
+ sent 16 IRON INGOT       
+                          
+eeeeeee7777779999997777777
+ffffffffffffffffffffffffff
+f000000000000000000000777f
+ffffffffffffffffffffffffff
+f777777777777777777bbbbbbf
+faaaaaaafaaaaaaaafaaaaaaaf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffbbbbbf
+fffffffffffffffffffffbbbbf
+fffffffffffffffffffffbbbbf
+ffffffffffffffffffffff111f
+ffffffffffffffffffffff111f
+ffffffffffffffffffffff111f
+ffffffffffffffffffffffeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

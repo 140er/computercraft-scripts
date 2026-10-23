@@ -77,7 +77,8 @@ return function(test,equal)
     equal(count,14);assert(inversions>0)
   end)
   test('UI1 status matches all size fixtures in both layers',function()
-    for _,size in ipairs({'M','L','P','XS','T'}) do
+    -- status-P shows other data; tests/ui/r3pocket.lua checks it.
+    for _,size in ipairs({'M','L','XS','T'}) do
       local fixture=R.load('tests/ui/fixtures/status-'..size..'.txt')
       local m=model()
       if size=='L' then m.alert='ore chest full' end

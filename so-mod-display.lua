@@ -87,7 +87,7 @@ D.assign = function(id, role)
   if not ok then return false, "save failed: " .. tostring(err) end
   -- The next tick sends the new role; the command itself never renders.
   local session = D.sessions[id]
-  if session then session.pocketPage, session.page, session.sent = nil, nil, -math.huge end
+  if session then session.pocket, session.page, session.sent = nil, nil, -math.huge end
   return true, "display " .. id .. ": " .. (role and D.label(role) or "cleared")
 end
 
@@ -239,15 +239,13 @@ D.compose = function(role, w, h, session)
   local contentH = math.max(1, h - offset)
   local screen = D.screens[role]
   local picture
-  if session then session.pocket = role == "pocket" end
   local glance = U and session and (role == "status" and screen and screen.render == D.statusRender
-    or role == "pocket" and (session.pocketPage ~= "panel" or not D.screens.panel))
-  if glance or (role == "pocket" and D.screens.panel) or (screen and role ~= "unassigned") then
+    or role == "pocket")
+  if glance or (screen and role ~= "unassigned") then
     local ok, got
     if glance then
       D.model = D.model or D.gather()
       ok, got = pcall(D.statusFrame, session, w, contentH, D.now(), role == "pocket")
-    elseif role == "pocket" then ok, got = pcall(D.screens.panel.render, w, contentH, session)
     else ok, got = pcall(screen.render, w, contentH, U and session or (session and session.id)) end
     if ok and type(got) == "table" then picture = got end
   end
@@ -382,17 +380,26 @@ D.gather = function()
   local disk = ratio and tostring(math.floor(ratio*100)) .. "%" or "-"
   local diskSub = ratio and string.format("%.1f of %.0f MB",(capacity-free)/1000000,capacity/1000000) or "no source"
   model.okShort, model.lostShort = tostring(turtles-lost) .. " ok", tostring(lost) .. " lost"
+  -- Chips for the 26-wide fact rows; a second chip only when something needs a look.
+  local function chips(first, bg, count, word, warn)
+    local list = { { first, bg } }
+    if count > 0 then list[2] = { count .. " " .. word, warn } end
+    return list
+  end
   local daily = SO.mods.daily
   local today = daily and type(daily.today) == "function" and daily.today()
   model.tiles = {
-    {label="TURTLES",value=tostring(turtles),sub=model.okShort .. ", " .. model.lostShort,bg=lost > 0 and "e" or "d"},
-    {label="LEASES",value=tostring(leases),sub="open now",bg="b"},
+    {label="TURTLES",value=tostring(turtles),sub=model.okShort .. ", " .. model.lostShort,bg=lost > 0 and "e" or "d",
+      chips=turtles > 0 and chips(model.okShort,"d",lost,"lost","e") or {{"0","c"}}},
+    {label="LEASES",value=tostring(leases),sub="open now",bg="b",chips={{leases .. " open","b"}}},
     {label="ALERTS",value=tostring(#model.alerts),sub=model.alert or "none",bg=#model.alerts > 0 and "e" or "d"},
     {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent .. " last 10 min") or "no source",bg=today and "b" or "c"},
     {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "logs delivered" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=ratio and (ratio >= 0.8 and "e" or "d") or "c"},
-    {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
-    {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
+    {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d",
+      chips=chips(tostring(displays),"d",stale,"stale","1")},
+    {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d",
+      chips=chips(tostring(#points),"d",broken,"broken","1")},
     {label="PAIR",value="",sub="press P on server",bg="9"},
   }
   model.oreShort = model.tiles[4].sub
@@ -436,8 +443,8 @@ D.statusRender = function(w, h)
   return U.status(D.model or { tiles = {}, time = "" }, w, h)
 end
 
-D.statusFrame = function(session, w, h, now, pocket)
-  local model = D.model
+-- Shows each new alert once, at most every 30 s, for five seconds or until a tap.
+D.takeover = function(session, model, w, h, now)
   session.alertSeen = session.alertSeen or {}
   local newest
   for _, alert in ipairs(model.alerts) do
@@ -449,40 +456,25 @@ D.statusFrame = function(session, w, h, now, pocket)
   if newest and (not session.alertAt or now - session.alertAt >= 30000) then
     session.alertAt, session.alertUntil, session.takeover = now, now + 5000, newest
   end
-  local copy = {}
-  for k, v in pairs(model) do copy[k] = v end
-  copy.page = session.page or 0
   if session.takeover and (session.showAlerts or now < (session.alertUntil or 0)) then
+    local copy = {}
+    for k, v in pairs(model) do copy[k] = v end
     copy.takeover = session.takeover
     return U.alert(copy, w, h)
   end
-  if w == 26 and (h == 20 or pocket) then
-    local indices = {1,3,4,2,5,6,7,8,9}
-    local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
-    local c = U.canvas(w, h)
-    c.header("FLEET", copy.time)
-    for i = 1, 2 do
-      local index = indices[page * 2 + i]
-      local tile = copy.tiles[index]
-      if tile then
-        local y = 4 + (i - 1) * 8
-        if y + 7 > h then break end
-        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
-        if index == 9 then
-          c.fill(3, y + 2, w-4, 3, tile.bg)
-          c.center(3, w-4, y + 3, "new client:")
-        end
-      end
-    end
-    c.fill(1, h, w, 1, "7")
-    local panel = pocket and D.screens.panel
-    c.put(2, h, "<  glance " .. (page + 1) .. "/" .. math.ceil(#model.tiles / 2) .. "  >" .. (panel and "  PANEL" or ""))
-    c.hit("prev", 1, h, 3, 1)
-    c.hit("next", 15, h, 3, 1)
-    if panel then c.hit("panel", 19, h, 7, 1) end
-    return c.frame()
-  end
-  return U.status(copy, w, h)
+end
+
+-- Status and pocket share the takeover. The pocket role draws its own pages when
+-- the panel module registered them; otherwise it shows the 26-wide status rows.
+D.statusFrame = function(session, w, h, now, pocket)
+  local model = D.model
+  local alert = D.takeover(session, model, w, h, now)
+  if alert then return alert end
+  if pocket and D.screens.pocket then return D.screens.pocket.render(w, h, session) end
+  local copy = {}
+  for k, v in pairs(model) do copy[k] = v end
+  copy.page = session.page or 0
+  return U.status(copy, w, pocket and w == 26 and 20 or h)
 end
 
 D.hello = function(msg)
@@ -529,22 +521,19 @@ end
 
 -- Routes one tap or text inside the drawn role. Pages may change; the role never does.
 D.handle = function(role, session, event, now)
-  local glance = role == "status" or role == "pocket" and session.pocketPage ~= "panel"
   local screen = D.screens[role]
-  if glance then
+  if role == "status" or role == "pocket" then
     if session.showAlerts or now < (session.alertUntil or 0) then
       session.alertUntil, session.showAlerts = 0, false
       event.id = "dismiss"
-    elseif event.id == "alerts" then
-      session.takeover = D.model and D.model.alerts[#D.model.alerts]
-      session.showAlerts = session.takeover ~= nil
-    elseif event.id == "next" then session.page = (session.page or 0) + 1
-    elseif event.id == "prev" then session.page = (session.page or 0) - 1
-    elseif event.id == "panel" and role == "pocket" and D.screens.panel then session.pocketPage = "panel" end
-    if role == "pocket" then return end
-  elseif role == "pocket" then
-    if event.id == "glance" then session.pocketPage = nil return end
-    screen = D.screens.panel
+    elseif role == "status" or not screen then
+      if event.id == "alerts" then
+        session.takeover = D.model and D.model.alerts[#D.model.alerts]
+        session.showAlerts = session.takeover ~= nil
+      elseif event.id == "next" then session.page = (session.page or 0) + 1
+      elseif event.id == "prev" then session.page = (session.page or 0) - 1 end
+    end
+    if role == "pocket" and (event.id == "dismiss" or not screen) then return end
   end
   event.role, event.session = role, session
   if screen then pcall(screen.input, event) end
@@ -815,4 +804,5 @@ return {
   assign = D.assign,
   command = D.command,
   drawTerminal = D.drawTerminal,
+  statusModel = function() return D.model end,
 }

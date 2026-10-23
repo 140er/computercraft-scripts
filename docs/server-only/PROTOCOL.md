@@ -107,7 +107,7 @@ A paired computer sends `hello` to the server.
 `getSize` and reserves the bottom row for local input on screens at least
 three rows tall, so `body.h` is one less than the physical height there.
 Optional `body.fullH` advertises the physical height. The Big Tiles server uses
-that height and kit frames fill every row, including pocket glance navigation.
+that height and kit frames fill every row, including the pocket's last row.
 Kit-free frames retain the local input row. `body.keyboard` is true only when the
 client draws on its own terminal. Every monitor client reports false. Missing
 flags use touch panel controls. The display module reads these sizes.
@@ -330,7 +330,11 @@ explicit Delivered or sent-to-output-chest reply, and failed on refusal or a
 two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is
 the final observable state there. The screen never infers delivery from stock
 changes and never retries orders. `shop.order(search, count)` remains a direct
-one-order API for keyboard panel quick orders and leaves shop displays unchanged.
+one-order API for keyboard panel and pocket quick orders and leaves shop displays
+unchanged. An exact item id wins over a better-stocked partial match; the call
+returns the id it sent, or nil. `shop.matches(search, limit?)` is read-only and
+returns up to `limit` (default 10) `{ name, count, label }` items whose id
+contains the search, most stock first, then by id.
 
 Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
 
@@ -764,12 +768,18 @@ id in big digits, without buttons. A saved role whose screen is not
 registered, or whose renderer fails, draws the same block under the role name.
 Kit-free servers draw `display <id>` and the role name as text.
 
-The pocket role has two pages in the display session. The glance page is the
-26x20 status layout, at any height on a 26-wide pocket; its bottom-row `panel`
-input opens the panel page. The panel
-page is the `panel` screen with GLANCE (`glance`) in place of the status link.
-Neither changes the saved role. At other sizes the glance page uses the status
-layout.
+The pocket role has its own pages in the display session, drawn by the
+`pocket` screen that so-mod-panel registers. A new alert takes over first, as
+on status. Row 1 is the tab bar: `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair`. FLEET
+shows eight chip rows from the status model; its ALERTS row (`alerts`) opens
+the alert list with `alert-prev` and `alert-next`. JOBS forwards
+`mining:start`, `mining:stop`, `lumber:start` and `lumber:stop` once each.
+SHOP takes typed text as its search; `pick:<item>` selects a match, `clear`
+empties the search and `order:1`, `order:16` and `order:64` call
+`shop.order(item, count)` once for the shown item. PAIR draws `pair-code`
+(NEW CODE). No page changes the saved role. Without the `pocket` screen the
+role draws the 26-wide status rows. `display.statusModel()` returns the status
+model of the last gather for these pages.
 
 `display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
 The next display tick routes it to the drawn screen. Discovery runs at most
@@ -808,7 +818,8 @@ the legacy status renderer.
 
 The server-only `so-ui.lua` kit exports `palette`, `font`, `clock(epochMs)`, `size(w, h)`,
 `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
-`status(model, w, h)` and `alert(model, w, h)`. Sizes are P, T, M, L, XS or
+`status(model, w, h)`, `alert(model, w, h)`, `chipRow(C, y, label, chips, x?, right?)`
+and `fleetRows(C, model, top, step)`. Sizes are P, T, M, L, XS or
 `generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
 Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
 Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
@@ -817,6 +828,12 @@ Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
 `tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
 `listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
 Frame returns compact runs, buttons with height and the palette.
+`chipRow` draws a label at `x` (default 2) and `{ text, bg }` chips, each padded
+by one space, right-aligned to `right` (default `w - 1`); the label is cut to
+leave one blank column. `fleetRows` draws status tiles 1-8 as chip rows from
+`top`, `step` rows apart, using each tile's optional `chips`, and makes the
+ALERTS row an `alerts` target. Gathered TURTLES, LEASES, DISPLAYS and DROPS
+tiles carry `chips`; a second chip (lost, stale, broken) appears only above zero.
 
 `so-ui.clock(epochMs)` returns `{ h, m, s, date, hm, hms }` in Amsterdam time.
 `date` is `YYYY-MM-DD`; `hm` and `hms` are zero-padded. UTC+1 becomes UTC+2
@@ -845,10 +862,8 @@ coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
 stay in the alert bar and do not trigger a delayed takeover. The alert bar
 opens the latest alert until tapped. XS `next` cycles the tiles. Status has
 no other buttons; its tiles use the rows the navigation row used to take.
-At 26x20, glance row 20 shows `<  glance n/m  >`, plus `PANEL` in the pocket
-role. Its `prev` and `next` inputs wrap pages of two tiles independently per
-display. The first page shows turtles and alerts; later pages show ore, leases,
-logs, disk, displays, drops and pairing.
+At 26x20, status draws the eight fleet chip rows under its FLEET header, two
+rows apart, without paging. The ALERTS row is the `alerts` input.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
 in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
@@ -980,8 +995,7 @@ one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
 which defines the best match. A search with no match sends no order. This uses
 the existing shop search and selection state, shared with full shop screens.
 
-In the pocket role `glance` (GLANCE) returns to the pocket's glance page; the
-panel role has no GLANCE. Monitor panels without a keyboard show only the job
+The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
 blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
 `alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
