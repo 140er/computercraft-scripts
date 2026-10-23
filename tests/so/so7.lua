@@ -75,7 +75,7 @@ return function(test, equal)
     assert(g.server.alive(),tostring(g.server.error))
     local register=g.server.env.SO.mods.display.screen
     g.server.env.SO.mods.display.screen=function(role,render,input)
-      g.screens[role]={render=render,input=input}
+      if render then g.screens[role]={render=render,input=input} end
       return register(role,render,input)
     end
     run(g,function(v) return delivered(v)==16 end)

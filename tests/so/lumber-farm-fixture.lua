@@ -68,7 +68,7 @@ local function setup(saplings, fuel, side, count, starts)
   local screens, events = {}, {}
   local register = s.env.SO.mods.display.screen
   s.env.SO.mods.display.screen = function(role, render, input)
-    screens[role] = { render = render, input = input }
+    if render then screens[role] = { render = render, input = input } end
     return register(role, render, input)
   end
   s.env.SO.mods.state = { canStart = s.env.SO.mods.state.canStart, emit = function(kind, data) events[#events+1] = {kind=kind,data=data} return true end }
