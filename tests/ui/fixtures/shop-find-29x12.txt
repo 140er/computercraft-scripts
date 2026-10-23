@@ -1,0 +1,37 @@
+29x12 Shop search keypad, compact monitor 29x12
+ SHOP   items   low   find   
+ > IRON_         del   clr   
+  A   B   C   D   E   F   G  
+  H   I   J   K   L   M   N  
+  O   P   Q   R   S   T   U  
+  V   W   X   Y   Z          
+ item                stock ▼ 
+ IRON INGOT ··········· 1240 
+ IRON ORE ·············· 312 
+ DEEPSLATE IRON ORE ····· 96 
+ RAW IRON ··············· 48 
+ 1 of 4            ◄     ►   
+00000008888888088888000000000
+08000008000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+08888000000000000000000000000
+000000000000ccccccccccc000000
+0000000000cccccccccccccc00000
+00000000000000000000ccccc0000
+0000000000ccccccccccccccc0000
+08888880000000000888880000000
+fffffffffffffffffffff777777ff
+ffffffffffffffff77777f77777ff
+f777f777f777f777f777f777f777f
+f777f777f777f777f777f777f777f
+f777f777f777f777f777f777f777f
+f777f777f777f777f777fffffffff
+ffffffffffffffffffff777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffff77777f77777f

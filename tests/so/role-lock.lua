@@ -138,8 +138,9 @@ return function(test, equal)
       end
     end
     -- Status is STATUS at every size since route A; the pocket's FLEET tab is in tests/ui/r3pocket.lua.
+    -- The route A shop names its role, not the page; its tabs and item pane are in tests/ui/ui2c.lua.
     for _, page in ipairs({"STATUS", "PANEL", "MINING", "MINING SETUP", "LUMBER", "SHOP",
-        "SHOP >", "SHOP A-Z", "DROP POINTS", "ADD DROP POINT", "AR GOGGLES", "MAP", "UNASSIGNED"}) do
+        "DROP POINTS", "ADD DROP POINT", "AR GOGGLES", "MAP", "UNASSIGNED"}) do
       local found = false
       for name in pairs(reached) do found = found or name:sub(1, #page) == page end
       assert(found, "unreached page " .. page)

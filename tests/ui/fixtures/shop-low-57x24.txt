@@ -1,0 +1,73 @@
+57x24 Shop low and empty stock, room monitor 57x24
+ SHOP   items   low   find  ---------------- stock 21:14 
+                                                         
+  all   low   empty                                      
+                                                         
+ item                                     stock ▼  /h    
+ BASIC CONTROL CIRCUIT ······················· 14        
+ BOOK ········································ 12        
+ EMERALD ····································· 12        
+ RAW GOLD ···································· 12        
+ REPEATER ···································· 11        
+ INGOT OSMIUM ································· 9  ↓6    
+ CHEST ········································ 9        
+ PISTON ······································· 8        
+ WHITE DYE ···································· 8        
+ DANDELION ···································· 7        
+ DISK ········································· 6        
+ BUCKET ······································· 6        
+ ENDER PEARL ·································· 6        
+ HOPPER ······································· 5        
+ IRON NUGGET ·································· 5  ↓1    
+ RAW IRON BLOCK ······························· 4        
+ WIRELESS MODEM NORMAL ························ 3        
+                                                         
+ 1 of 2                                        ◄     ►   
+0000000888888800000008888880cccccccccccccccc0888888888880
+000000000000000000000000000000000000000000000000000000000
+000000088888088888880000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088880000000000000000000000000000000000000000000000880000
+00000000000000000000000ccccccccccccccccccccccc01100000000
+000000cccccccccccccccccccccccccccccccccccccccc01100000000
+000000000ccccccccccccccccccccccccccccccccccccc01100000000
+0000000000cccccccccccccccccccccccccccccccccccc01100000000
+0000000000cccccccccccccccccccccccccccccccccccc01100000000
+00000000000000ccccccccccccccccccccccccccccccccc0100110000
+0000000cccccccccccccccccccccccccccccccccccccccc0100000000
+00000000ccccccccccccccccccccccccccccccccccccccc0100000000
+00000000000cccccccccccccccccccccccccccccccccccc0100000000
+00000000000cccccccccccccccccccccccccccccccccccc0100000000
+000000ccccccccccccccccccccccccccccccccccccccccc0100000000
+00000000ccccccccccccccccccccccccccccccccccccccc0100000000
+0000000000000cccccccccccccccccccccccccccccccccc0100000000
+00000000ccccccccccccccccccccccccccccccccccccccc0100000000
+0000000000000cccccccccccccccccccccccccccccccccc0100110000
+0000000000000000ccccccccccccccccccccccccccccccc0100000000
+00000000000000000000000cccccccccccccccccccccccc0100000000
+000000000000000000000000000000000000000000000000000000000
+088888800000000000000000000000000000000000000888880000000
+fffffffffffffff77777fffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffff777777777fffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffff77777f77777f

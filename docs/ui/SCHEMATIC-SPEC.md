@@ -221,3 +221,30 @@ in `screens.py`, take its data from a scene file the Lua test also reads, write 
 compare them in a test as `tests/ui/s0.lua` does for status. Remove the screen from
 `prototype.py` and, if it had a Big Tiles fixture, add its name to `ported` in
 `docs/ui/mockup-gen.py`.
+
+## 15. Shop
+
+`so-mod-shop.lua` draws the shop; `schematic/shop.py` is its twin and writes the `shop-*` fixtures
+from `tests/ui/shop-stock.tsv`. See [shop](../server-only/PROTOCOL.md#shop) for the ids.
+
+- **Header:** `SHOP items low find`, then `stock 21:14` from 52 cells, the time alone from 36. The
+  time gives way first. Under 31 cells plus the right word the header keeps the tabs only; a
+  `stale` that still does not fit moves to the footer. No storage room is a coral `missing`.
+- **Rows under the header:** ITEMS has the category chip row (wrapping) and, for an open category,
+  its sub chips. Under 52 cells these become two chips, `ores ▼` and `all ▼`, that open a picker:
+  leader rows with item counts, in as many columns as the rows need. LOW has `all low empty`. FIND
+  has `> IRON_` with `del` and `clr` at the right and the keypad below, 13 keys a row at most.
+- **Column head:** `item`, `stock` and `/h` are the sort control; the active one is a chip with `▼`.
+  `/h` and the trend column need 36 cells.
+- **List:** one row per item: the name in capitals, a dotted leader, the count, and the hourly
+  change as `↑60` (muted) or `↓20` (amber). The count is white, amber when low and muted at 0.
+  From 90 cells the list splits into two balanced columns with a rule between them.
+- **Item:** from 52 cells the item opens as a right-hand pane behind a rule, so the list stays
+  visible with the row selected; × closes it. Narrower screens give it the page and a `back` chip.
+  The pane has the name, leaders for stock, stacks, last hour, category and sub, and craftable,
+  then ORDER with `1 16 64` and `stack all` chips, then the recent orders as `• 16 sent  21:14`
+  (green sent, muted delivered, coral failed). Under 13 rows it keeps the name, stock, last hour,
+  ORDER and the orders.
+- **Footer:** `1 of 2` and the `◄ ►` chips on the last row; a chip with nowhere to go is muted.
+  Screens of 16 rows or more keep a blank row under the header and above the footer.
+

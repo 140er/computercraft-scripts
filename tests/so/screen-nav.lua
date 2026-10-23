@@ -121,9 +121,11 @@ return function(test, equal)
       end
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals={["minecraft:iron_ingot"]=64}})
       s.assign("shop");role("shop")
-      s.press("IRON INGOT");header("SHOP >")
-      s.button(size[1]<26 and "16" or "ORDER 16", "order:16:minecraft:iron_ingot")
-      s.press("BACK");header("SHOP");role("shop")
+      -- Route A shop: the item opens beside the list on wide screens and as a page on narrow ones.
+      s.press("IRON INGOT", "item:minecraft:iron_ingot")
+      s.button("16", "order:16:minecraft:iron_ingot");seen["IRON INGOT"] = true
+      s.press(size[1]>=52 and "\215" or "back", "items");role("shop")
+      assert(s.frame().rows[1].text:find("low",1,true), "missing shop tabs")
       s.assign("ar");role("ar")
       s.button("TURTLES")
       s.assign("panel");role("panel")
@@ -136,7 +138,7 @@ return function(test, equal)
         s.press("JOBS");assert(s.frame().rows[3].text:find("MINING",1,true));role("pocket")
         s.press("FLEET");assert(s.frame().rows[3].text:find("TURTLES",1,true));role("pocket")
       end
-      for _, name in ipairs({"status","generic","mining","lumber","shop","ar","panel","mining setup","lumber setup","SHOP >","ADD DROP"}) do
+      for _, name in ipairs({"status","generic","mining","lumber","shop","ar","panel","mining setup","lumber setup","IRON INGOT","ADD DROP"}) do
         assert(seen[name], "unreached " .. name)
       end
     end)

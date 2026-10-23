@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import cc  # noqa: E402
 import ccfont  # noqa: E402
 import mapdraw as MD  # noqa: E402
+import shop as SH  # noqa: E402
 import status as ST  # noqa: E402
 
 
@@ -80,6 +81,7 @@ FIXTURES = [
     ("status-P", status(26, 20, "Status at 26x20 (a pocket assigned status)")),
     ("status-XS", status(15, 10, "Status, smallest monitor 1x1 at scale 0.5")),
 ]
+FIXTURES += SH.FIXTURES
 
 
 def main():

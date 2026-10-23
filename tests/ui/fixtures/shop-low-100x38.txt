@@ -1,0 +1,115 @@
+100x38 Shop low and empty stock, large wall 100x38
+ SHOP   items   low   find  ----------------------------------------------------------- stock 21:14 
+                                                                                                    
+  all   low   empty                                                                                 
+                                                                                                    
+ item                             stock ▼  /h    | item                             stock ▼  /h     
+ BASIC CONTROL CIRCUIT ··············· 14        | HOPPER ······························· 5         
+ BOOK ································ 12        | IRON NUGGET ·························· 5  ↓1     
+ EMERALD ····························· 12        | RAW IRON BLOCK ······················· 4         
+ RAW GOLD ···························· 12        | WIRELESS MODEM NORMAL ················ 3         
+ REPEATER ···························· 11        | COMPARATOR ··························· 3         
+ INGOT OSMIUM ························· 9  ↓6    | STEEL CASING ························· 2         
+ CHEST ································ 9        | NAME TAG ····························· 2         
+ PISTON ······························· 8        | NETHERITE SCRAP ······················ 2         
+ WHITE DYE ···························· 8        | BAKED POTATO ························· 0  ↓9     
+ DANDELION ···························· 7        | KELP ································· 0  ↓14    
+ DISK ································· 6        | QUARTZ ······························· 0  ↓20    
+ BUCKET ······························· 6        | SPRUCE SAPLING ······················· 0  ↓8     
+ ENDER PEARL ·························· 6        |                                                  
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ 1 of 1                                                                                   ◄     ►   
+0000000888888800000008888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0888888888880
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000888880888888800000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0888800000000000000000000000000000000000000880000c08888000000000000000000000000000000000000008800000
+00000000000000000000000ccccccccccccccc01100000000c00000000ccccccccccccccccccccccccccccccc01000000000
+000000cccccccccccccccccccccccccccccccc01100000000c0000000000000cccccccccccccccccccccccccc01001100000
+000000000ccccccccccccccccccccccccccccc01100000000c0000000000000000ccccccccccccccccccccccc01000000000
+0000000000cccccccccccccccccccccccccccc01100000000c00000000000000000000000cccccccccccccccc01000000000
+0000000000cccccccccccccccccccccccccccc01100000000c000000000000ccccccccccccccccccccccccccc01000000000
+00000000000000ccccccccccccccccccccccccc0100110000c00000000000000ccccccccccccccccccccccccc01000000000
+0000000cccccccccccccccccccccccccccccccc0100000000c0000000000ccccccccccccccccccccccccccccc01000000000
+00000000ccccccccccccccccccccccccccccccc0100000000c00000000000000000cccccccccccccccccccccc01000000000
+00000000000cccccccccccccccccccccccccccc0100000000c00000000000000ccccccccccccccccccccccccc08001100000
+00000000000cccccccccccccccccccccccccccc0100000000c000000ccccccccccccccccccccccccccccccccc08001110000
+000000ccccccccccccccccccccccccccccccccc0100000000c00000000ccccccccccccccccccccccccccccccc08001110000
+00000000ccccccccccccccccccccccccccccccc0100000000c0000000000000000ccccccccccccccccccccccc08001100000
+0000000000000cccccccccccccccccccccccccc0100000000c00000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0888888000000000000000000000000000000000000000000000000000000000000000000000000000000000888880888880
+fffffffffffffff77777ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffff777777777fffffffffffffffffffffffffffffffffffffffff777777777ffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777f77777f

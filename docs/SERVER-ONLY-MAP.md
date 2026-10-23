@@ -327,22 +327,22 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Exports `tick(now)`, `order(search, count)` and
-  `matches(search, limit?)`. `matches` is read-only: up to `limit` (default 10)
-  `{ name, count, label }` items whose id contains the search, by stock then id.
-  `order` sends one order for an exact item id, else for the first match, and
-  returns that id. Counts are 1, 16 or 64. Missing matches or storage send nothing
-  and return nil.
+  turtle to the shop screen. Exports `tick(now)`, `order(search, count)`,
+  `best(search)` and `matches(search, limit?)`. `matches` is read-only: up to `limit`
+  (default 10) `{ name, count, label }` stocked items whose id or display name contains
+  the search, by stock then id. `best` returns a stocked exact id, else the first match,
+  and its count. `order` sends one order of 1, 16 or 64 for that item and returns its
+  id, or nil and a reason; it changes no display.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
-  Tick registers the shop screen, discovers storage and polls stock.
-  Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
-  `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
-  List controls are `category:<name>`, `letters`, `letter:<A-Z|ALL>`,
-  `sort:count`, `sort:name`, `prev` and `next`. The list has no BACK.
-  Small screens use `categories` to open a category picker. No shop search field
-  is drawn. The kit-free renderer retains its item list and direct order buttons.
-  Browse state and order feedback belong to each display. Orders send once and
-  disable quantities until another item selection. Sent does not imply delivery.
+  Tick registers the shop screen, discovers storage, polls stock and samples it once a
+  minute. Stock replies may add `labels`, `stacks` and `tags` (roomsorter.lua sends them);
+  an item's category and sub come from a rule table on its id, then its tags, then its
+  namespace (`S.kind`). The screen is route A at every size, with tabs ITEMS, LOW and
+  FIND, category and sub chips (a picker under 52 cells), a sortable dotted list with
+  hourly changes, and the item as a right-hand pane (its own page under 52 cells) with
+  order chips 1, 16, 64, stack and all and the item's recent orders.
+  `docs/ui/schematic/shop.py` is the layout's twin. Browse state belongs to each display;
+  each order tap sends one order. Sent does not imply delivery.
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
   The legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
@@ -781,6 +781,17 @@ pixel for every visible dug mark, pan, zoom, FIT, focus, the level control,
 per-tick read and probe bounds, an idle map with no reads, the 16 KB frame
 budget at 164x81, and that the cells map queries write nothing. On Linux it
 also checks that the generator reproduces every map fixture and `map-mockups.md`.
+
+S1 rewrites `tests/ui/ui2c.lua` for the route A shop. It loads `tests/ui/shop-stock.tsv`
+(110 real item ids with history, stack and expected category) into the real module, taps
+to every page and compares the `shop-browse`, `-item`, `-low`, `-find` and `-pick` fixtures
+at 57x24, 39x19, 100x38, 29x12 and 26x20 cell by cell, with the contrast rule. It also
+checks the category table on real ids and tags, filters and picker counts, every sort and
+paging through every item once, keypad and keyboard search, one order per tap for each
+amount, order replies and timeouts, `matches`, `best` and `order`, bounds at odd sizes,
+stale and missing stock, the optional roomsorter fields, and (Linux, python3) that the
+generator reproduces every shop fixture. `tests/parts/so-mod-shop.lua` runs it with
+`tests/ui/shop-touch.lua`.
 
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded

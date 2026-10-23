@@ -397,7 +397,8 @@ if args.fixtures:
     named = [(stem, canvas, title) for canvas, title, stem in FIXTURES if stem]
     named += [(stem, canvas, title) for stem, (canvas, title, _) in zip(names, [f for f in FIXTURES if not f[2]])]
     # Screens ported to route A get their fixtures from docs/ui/schematic/screens.py instead.
-    ported = {"status-M", "status-L", "status-P", "status-T", "status-XS"}
+    ported = {"status-M", "status-L", "status-P", "status-T", "status-XS",
+              "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large"}
     for stem, canvas, title in named:
         if stem in ported:
             continue

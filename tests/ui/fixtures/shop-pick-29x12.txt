@@ -1,0 +1,37 @@
+29x12 Shop category picker, compact monitor 29x12
+ SHOP   items   low   find   
+  ores ▼   all ▼             
+ all ···· 104  mods ····· 9  
+ ores ···· 25  other ···· 6  
+ wood ···· 10                
+ stone ··· 14                
+ plants ··· 6                
+ food ····· 8                
+ tools ··· 11                
+ redstone · 7                
+ mobs ····· 8                
+  back                       
+00000000000000088888088888800
+0ffffffff00000000000000000000
+00000cccc00000000000ccccc0000
+000000cccc00000000000cccc0000
+000000cccc0000000000000000000
+0000000ccc0000000000000000000
+00000000ccc000000000000000000
+000000ccccc000000000000000000
+0000000ccc0000000000000000000
+0000000000c000000000000000000
+000000ccccc000000000000000000
+00000000000000000000000000000
+fffffff7777777fffffffffffffff
+f99999999f7777777ffffffffffff
+fffffffffffffffffffffffffffff
+77777777777777fffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f777777ffffffffffffffffffffff

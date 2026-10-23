@@ -1,0 +1,115 @@
+100x38 Shop item with an order sent, large wall 100x38
+ SHOP   items   low   find  ----------------------------------------------------------- stock 21:14 
+                                                                                                    
+  all   ores   wood   stone   plants   food   tools   redstone   mobs   mods   other                
+                                                                                                    
+  all   ore   raw   ingot   nugget   block   gem   dust                                             
+                                                                                                    
+ COAL ············································· 2104 | IRON INGOT                             × 
+ IRON INGOT ······································· 1240 |                                          
+ RAW COPPER ········································ 410 | stock ····························· 1240 
+ LAPIS LAZULI ······································ 388 | stacks ··························· 19+24 
+ IRON ORE ·········································· 312 | last hour ·························· ↑60 
+ COPPER INGOT ······································ 286 | ores ····························· ingot 
+ GOLD NUGGET ······································· 210 | craftable ···························· 3 
+ COPPER ORE ········································ 140 |                                          
+ GOLD INGOT ········································ 131 | ORDER ---------------------------------  
+ DEEPSLATE IRON ORE ································· 96 |      1            16           64        
+ ZINC INGOT ········································· 75 |        stack                all          
+ ZINC ORE ··········································· 58 |                                          
+ RAW IRON ··········································· 48 | • 16 sent                          21:14 
+ DIAMOND ············································ 47 | • 64 delivered                     20:52 
+ DUST IRON ·········································· 32 | • 16 delivered                     20:31 
+ IRON BLOCK ········································· 27 | • 1 failed                         19:47 
+ GOLD ORE ··········································· 24 |                                          
+ COAL BLOCK ········································· 18 |                                          
+ EMERALD ············································ 12 |                                          
+ RAW GOLD ··········································· 12 |                                          
+ INGOT OSMIUM ········································ 9 |                                          
+ IRON NUGGET ········································· 5 |                                          
+ RAW IRON BLOCK ······································ 4 |                                          
+ NETHERITE SCRAP ····································· 2 |                                          
+ QUARTZ ·············································· 0 |                                          
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ 1 of 1                                                                                   ◄     ►   
+0000000000000008888808888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0888888888880
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0888880000000088888808888888088888888088888808888888088888888880888888088888808888888000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000888880888880888888808888888808888888088888088888800000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000ccccccccccccccccccccccccccccccccccccccccccccc000000c000000000000000000000000000000000000000080
+000000000000ccccccccccccccccccccccccccccccccccccccc000000c000000000000000000000000000000000000000000
+000000000000cccccccccccccccccccccccccccccccccccccccc00000c0888880ccccccccccccccccccccccccccccc000000
+00000000000000cccccccccccccccccccccccccccccccccccccc00000c08888880ccccccccccccccccccccccccccc0000000
+0000000000cccccccccccccccccccccccccccccccccccccccccc00000c08888888880cccccccccccccccccccccccccc00000
+00000000000000cccccccccccccccccccccccccccccccccccccc00000c088880ccccccccccccccccccccccccccccc0000000
+0000000000000ccccccccccccccccccccccccccccccccccccccc00000c08888888880cccccccccccccccccccccccccccc000
+000000000000cccccccccccccccccccccccccccccccccccccccc00000c000000000000000000000000000000000000000000
+000000000000cccccccccccccccccccccccccccccccccccccccc00000c0888880ccccccccccccccccccccccccccccccccc00
+00000000000000000000ccccccccccccccccccccccccccccccccc0000c000000000000000000000000000000000000000000
+000000000000ccccccccccccccccccccccccccccccccccccccccc0000c000000000000000000000000000000000000000000
+0000000000ccccccccccccccccccccccccccccccccccccccccccc0000c000000000000000000000000000000000000000000
+0000000000ccccccccccccccccccccccccccccccccccccccccccc0000c0d0000000000000000000000000000000000888880
+000000000cccccccccccccccccccccccccccccccccccccccccccc0000c080000000000000000000000000000000000888880
+00000000000cccccccccccccccccccccccccccccccccccccccccc0000c080000000000000000000000000000000000888880
+000000000000ccccccccccccccccccccccccccccccccccccccccc0000c0e0000000000000000000000000000000000888880
+0000000000ccccccccccccccccccccccccccccccccccccccccccc0000c000000000000000000000000000000000000000000
+000000000000ccccccccccccccccccccccccccccccccccccccccc0000c000000000000000000000000000000000000000000
+000000000cccccccccccccccccccccccccccccccccccccccccccc0110c000000000000000000000000000000000000000000
+0000000000ccccccccccccccccccccccccccccccccccccccccccc0110c000000000000000000000000000000000000000000
+00000000000000cccccccccccccccccccccccccccccccccccccccc010c000000000000000000000000000000000000000000
+0000000000000ccccccccccccccccccccccccccccccccccccccccc010c000000000000000000000000000000000000000000
+0000000000000000cccccccccccccccccccccccccccccccccccccc010c000000000000000000000000000000000000000000
+00000000000000000ccccccccccccccccccccccccccccccccccccc010c000000000000000000000000000000000000000000
+00000000cccccccccccccccccccccccccccccccccccccccccccccc080c000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0888888000000000000000000000000000000000000000000000000000000000000000000000000000000000888880888880
+fffffff7777777ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffff777777fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777777777fffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777777777777f777777777777f777777777777fff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7777777777777777777f7777777777777777777ff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff77777f77777f
