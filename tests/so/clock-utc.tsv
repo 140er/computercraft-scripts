@@ -7,7 +7,7 @@ so-mod-shop.lua	S.heardDate = os.epoch("utc")
 so-mod-state.lua	return { t = "view.frame", name = name, rev = S.rev, at = os.epoch("utc"), data = H.render(S, evs, name) }
 so-mod-state.lua	local ev = { at = os.epoch("utc"), gameAt = SO.now(), kind = kind, data = stored }
 so-pair.lua	tostring(os.epoch("utc")),
-so-proto.lua	if math.abs(os.epoch("utc") - value.at) > S.skew then return nil, "time" end
+so-proto.lua	local age = os.epoch("utc") - value.at
 so-proto.lua	rid = rid or string.format("%d-%d-%d", os.getComputerID(), os.epoch("utc"), S.seq),
 so-proto.lua	at = os.epoch("utc"),
 so-proto.lua	local now = os.epoch("utc")

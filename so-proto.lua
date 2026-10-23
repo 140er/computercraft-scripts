@@ -3,6 +3,9 @@ local S = {
   name = "so",
   limit = 16384,
   skew = 60000,
+  -- Every computer reads the same host clock, so no stamp is ahead of
+  -- its receiver. Allowing none keeps old stamps before a restart.
+  ahead = 0,
   memory = 120000,
   ridMax = 64,
   depthMax = 8,
@@ -235,7 +238,8 @@ M.decode = function(value)
     or #value.mac ~= 64 or type(value.body) ~= "table" then
     return nil, "shape"
   end
-  if math.abs(os.epoch("utc") - value.at) > S.skew then return nil, "time" end
+  local age = os.epoch("utc") - value.at
+  if age > S.skew or age < -S.ahead then return nil, "time" end
   local body = checkedCopy(value.body, S.depthMax)
   if not body then return nil, "body" end
   local copy = {
@@ -270,8 +274,9 @@ M.build = function(key, t, body, rid)
   return msg
 end
 
--- Refuse envelopes stamped before utc, so a restart cannot reopen
--- the replay window for messages an earlier run already handled.
+-- Refuse envelopes stamped before utc. An earlier run accepted nothing
+-- stamped after its own last tick, so a restart cannot reopen the replay
+-- window.
 M.since = function(utc) S.since = utc end
 
 M.fresh = function(msg)
@@ -301,8 +306,9 @@ M.prune = function()
   end
 end
 
-M.request = function(target, t, body, timeout, tries)
-  local key = S.keyFor and S.keyFor(target)
+-- key, when given, replaces the bound key for this one exchange.
+M.request = function(target, t, body, timeout, tries, key)
+  key = key or (S.keyFor and S.keyFor(target))
   if not key then return nil, "no key" end
   local wait = timeout or 3
   if type(wait) ~= "number" or wait <= 0 then wait = 3 end

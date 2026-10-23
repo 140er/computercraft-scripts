@@ -73,15 +73,15 @@ Canonical encoding is a Lua literal. String values use `%q`. Whole numbers use `
 
 The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. A retry of a pair `rid` that still has a saved reply is checked with the handshake key stored beside that reply. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code and no saved handshake key for that `rid` is a bad MAC. A `pair2` message and its reply are checked with the public key from `pair.envelopeKey()`, which is sha256 of `so-pair2 envelope\0` as 64 hex characters. That MAC only checks the envelope. CPace in the body protects the code.
 
-`at` must be within 60000 ms of the receiver's `os.epoch("utc")`. A larger gap is dropped as `so-server: bad message from <id>`.
+`at` must be at most 60000 ms older than the receiver's `os.epoch("utc")` and never ahead of it. Every computer reads the same host clock, so a sent stamp is never ahead of its receiver. Anything else is dropped as `so-server: bad message from <id>`.
 
 After a good MAC, the server remembers each `rid` for that `from` for 120000 ms. The window is the age of the rid, not a fixed count of entries. A repeated `rid` with no saved reply is dropped and logged as `so-server: replay from <id>`. The server does not answer. A bad MAC does not enter this window.
 
-At start the server calls `so-proto.since(os.epoch("utc"))`. From then on `fresh` refuses any envelope whose `at` is older than that start, with the same `replay from` line. Every message an earlier run accepted was stamped before this run started, so a restart does not reopen the 60000 ms window. A client request that was in flight across the restart is dropped too; the client's next request carries a new `at`.
+At start the server calls `so-proto.since(os.epoch("utc"))`. From then on `fresh` refuses any envelope whose `at` is older than that start, with the same `replay from` line. An earlier run accepted only stamps up to its own clock, and a restart takes at least one 50 ms computer tick. So every message an earlier run accepted is older than this start, and a restart does not reopen the 60000 ms window. Accepting future stamps would break this: a packet stamped ahead could run before a restart and again after it. A client request that was in flight across the restart is dropped too; the client's next request carries a new `at`.
 
 The server keeps the encoded reply for each `(from, rid)` for 120000 ms. A later message with that same `from` and `rid` is sent the saved reply again. The handler does not run a second time.
 
-`so-proto.request(target, t, body, timeout, tries)` builds one message and sends that same table, with the same `rid`, on every try. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed, so the caller runs `request` in its own coroutine with `parallel.waitForAny`. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`. The return is the reply envelope, or `nil` and `timeout` or `no key`.
+`so-proto.request(target, t, body, timeout, tries)` builds one message and sends that same table, with the same `rid`, on every try. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed, so the caller runs `request` in its own coroutine with `parallel.waitForAny`. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`, or under the optional sixth argument `key` when given; pairing passes the public pair2 key that way so the saved key stays untouched. The return is the reply envelope, or `nil` and `timeout` or `no key`.
 
 A reply reuses the request `rid`. `from` on the reply is the computer that answered. The first `reply(t, body)` wins. Later calls do nothing.
 
@@ -93,18 +93,18 @@ Send every message below through `so-proto`. Do not add a field here without edi
 
 ### pair2
 
-`pair2` runs CPACE-X25519-SHA512 from draft-irtf-cfrg-cpace-21 in the initiator-responder setting, with the explicit key confirmation of its section 10.4. The joining computer is the initiator A and the server is B. PRS is the six code digits as ASCII. CI is `lv_cat("so-pair2", clientId, serverId)` with decimal ids. ADa and ADb are empty. Both envelopes and replies use the public `pair.envelopeKey()`.
+`pair2` runs CPACE-X25519-SHA512 from draft-irtf-cfrg-cpace-21 in the initiator-responder setting, with the explicit key confirmation of its section 10.4. The joining computer is the initiator A and the server is B. PRS is the six code digits as ASCII. CI is `lv_cat("so-pair2", clientId, serverId)` with decimal ids. ADa is the fixed label `so-pair2 client` and ADb is `so-pair2 server`. Both sides know them, so they are not sent. They give Ta and Tb different inputs even when Yb equals Ya, so a forger cannot reflect the client's Ta back as Tb. Both envelopes and replies use the public `pair.envelopeKey()`.
 
 Step 1. The client sends `pair2` with `body.sid`, 16 random bytes as 32 hex characters, and `body.y`, its share Ya as 64 hex characters. A client that already holds a key for this server adds `body.auth`, HMAC-SHA256 under that key of `so-pair2 auth\0`, the raw sid and the raw Ya, as 64 hex characters. The server answers `ack` with `body.y`, its share Yb. It keeps one session per sender with the expected tags and whether `auth` matched the key it saved for that sender. A session lasts 60000 ms.
 
-Step 2. The client computes ISK and sends `pair2` with the same `body.sid` and `body.tag`, Ta as 128 hex characters. A step 2 whose sid does not match the open session gets `err` `session` and leaves that session open. Otherwise the server checks Ta once and drops the session either way. On a match it saves the machine key, answers `ack` with `body.ok = true` and `body.tag`, Tb as 128 hex characters, and clears the code. The client checks Tb before it saves the key.
+Step 2. The client computes ISK and sends `pair2` with the same `body.sid` and `body.tag`, Ta as 128 hex characters. A step 2 whose sid does not match the open session gets `err` `session` and leaves that session open. Otherwise the server checks Ta once and drops the session either way. On a match it saves the machine key, answers `ack` with `body.ok = true` and `body.tag`, Tb as 128 hex characters, and clears the code. The client refuses a Yb equal to its own Ya with `share`, checks Tb, and only then saves the key. Until then its saved key and the key in memory stay as they were.
 
 ```text
 g    = Elligator2(decodeUCoordinate(SHA-512(lv_cat("CPace255", PRS, zero pad, CI, sid))[1..32]))
 Ya   = X25519(ya, g)        Yb = X25519(yb, g)        K = X25519(ya, Yb) = X25519(yb, Ya)
-ISK  = SHA-512(lv_cat("CPace255_ISK", sid, K) .. lv_cat(Ya, "") .. lv_cat(Yb, ""))
+ISK  = SHA-512(lv_cat("CPace255_ISK", sid, K) .. lv_cat(Ya, ADa) .. lv_cat(Yb, ADb))
 mac  = SHA-512("CPaceMac" .. sid .. ISK)
-Ta   = HMAC-SHA512(mac, lv_cat(Ya, ""))                Tb = HMAC-SHA512(mac, lv_cat(Yb, ""))
+Ta   = HMAC-SHA512(mac, lv_cat(Ya, ADa))               Tb = HMAC-SHA512(mac, lv_cat(Yb, ADb))
 key  = HKDF-SHA512(ISK, salt = empty, info = "so-pair2 machine key", 32 bytes), as 64 hex
 ```
 

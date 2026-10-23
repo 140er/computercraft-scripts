@@ -186,15 +186,20 @@ C.share = function(prs, ci, sid, y)
   return y, S.x.exchange(y, C.generator(prs, ci, sid))
 end
 
+-- ADa and ADb are fixed role labels, known to both sides and not sent.
+-- They make Ta and Tb differ even when Yb equals Ya, so a reflected Ta
+-- never passes as Tb.
+C.ada, C.adb = "so-pair2 client", "so-pair2 server"
+
 C.isk = function(y, other, sid, ya, yb)
   local k = S.x.exchange(y, other)
   if k == string.rep("\0", 32) then return nil end
-  return C.sha512(C.lv("CPace255_ISK", sid, k) .. C.lv(ya, "") .. C.lv(yb, ""))
+  return C.sha512(C.lv("CPace255_ISK", sid, k) .. C.lv(ya, C.ada) .. C.lv(yb, C.adb))
 end
 
 C.tags = function(isk, sid, ya, yb)
   local key = C.sha512("CPaceMac" .. sid .. isk)
-  return C.hmac(key, C.lv(ya, "")), C.hmac(key, C.lv(yb, ""))
+  return C.hmac(key, C.lv(ya, C.ada)), C.hmac(key, C.lv(yb, C.adb))
 end
 
 -- HKDF-SHA512 (RFC 5869) with an empty salt, 32 bytes of output.
@@ -457,7 +462,7 @@ M.start = function(from, body)
   local ya = type(body) == "table" and raw32(body.y)
   if not sid or not ya then return nil, "body" end
   local yb, own = C.share(code, C.ci(from, os.getComputerID()), sid)
-  local isk = C.isk(yb, ya, sid, ya, own)
+  local isk = own ~= ya and C.isk(yb, ya, sid, ya, own)
   if not isk then return nil, "share" end
   local ta, tb = C.tags(isk, sid, ya, own)
   local key = S.keys[tostring(from)]
@@ -520,21 +525,22 @@ local function failure(reply, err)
 end
 
 -- Client side of pair2. Returns the machine key, or nil and a reason.
-local function cpace(code, server, name, previous)
+-- The saved key stays untouched until Tb confirms the new one.
+local function cpace(code, server, previous)
   local sid = S.rnd.random(16)
   local ya, own = C.share(code, C.ci(os.getComputerID(), server), sid)
   local body = { sid = S.proto.hex(sid), y = S.proto.hex(own) }
   if previous then body.auth = auth(previous, sid, own) end
-  S.keys[name] = S.envelope
-  local first, err = S.proto.request(server, "pair2", body, 3, 2)
+  local first, err = S.proto.request(server, "pair2", body, 3, 2, S.envelope)
   if not first then return nil, err end
   local yb = first.t == "ack" and type(first.body) == "table" and raw32(first.body.y)
   if not yb then return nil, failure(first, "pub") end
+  if yb == own then return nil, "share" end
   local isk = C.isk(ya, yb, sid, own, yb)
   if not isk then return nil, "share" end
   local ta, tb = C.tags(isk, sid, own, yb)
   local second, err2 = S.proto.request(server, "pair2",
-    { sid = S.proto.hex(sid), tag = S.proto.hex(ta) }, 3, 2)
+    { sid = S.proto.hex(sid), tag = S.proto.hex(ta) }, 3, 2, S.envelope)
   body = second and second.t == "ack" and type(second.body) == "table" and second.body
   if not body or body.ok ~= true then return nil, failure(second, err2) end
   local tag = type(body.tag) == "string" and #body.tag == 128 and body.tag:match("^%x+$")
@@ -550,18 +556,11 @@ M.join = function(code, serverId)
   if server == nil then server = rednet.lookup("so", "server") end
   if type(server) ~= "number" then return nil, "no server" end
   loadCrypto()
-  local name = tostring(server)
-  local previous = S.keys[name]
-  local machine, err = cpace(code, server, name, previous)
-  if not machine then
-    S.keys[name] = previous
-    return nil, err
-  end
+  local machine, err = cpace(code, server, S.keys[tostring(server)])
+  if not machine then return nil, err end
+  -- remember keeps the old key when the save fails.
   local ok, saveErr = M.remember(server, machine)
-  if not ok then
-    S.keys[name] = previous
-    return nil, saveErr
-  end
+  if not ok then return nil, saveErr end
   return true
 end
 

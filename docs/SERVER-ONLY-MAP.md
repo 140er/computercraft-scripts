@@ -49,7 +49,7 @@ and listeners use `listener(sender, message)`.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
-  `request(target, t, body, timeout, tries)`, `canonical(msg)`, `ser(value)`,
+  `request(target, t, body, timeout, tries, key?)`, `canonical(msg)`, `ser(value)`,
   `sha256(msg)`, `hmac(key, msg)`, `hex(raw)`, `unhex(hex)`, `since(utc)` and `prune()`.
   After `since`, `fresh` refuses envelopes stamped before that time. `prune` drops
   expired rids and empty senders; the server calls it every tick.

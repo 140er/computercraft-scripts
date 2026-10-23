@@ -105,6 +105,15 @@ return function(test, equal)
     local function raw(s) return server.env.SO.proto.unhex((s:gsub("%s", ""))) end
     equal(hex(C.sha512("abc")), "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a"
       .. "2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f")
+    -- Padding boundaries: one or two final blocks.
+    for n, want in pairs({
+      [111] = "fa9121c7b32b9e01733d034cfc78cbf67f926c7ed83e82200ef86818196921760b4beff48404df811b953828274461673c68d04e297b0eb7b2b4d60fc6b566a2",
+      [112] = "c01d080efd492776a1c43bd23dd99d0a2e626d481e16782e75d54c2503b5dc32bd05f0f1ba33e568b88fd2d970929b719ecbb152f58f130a407c8830604b70ca",
+      [127] = "828613968b501dc00a97e08c73b118aa8876c26b8aac93df128502ab360f91bab50a51e088769a5c1eff4782ace147dce3642554199876374291f5d921629502",
+      [128] = "b73d1929aa615934e61a871596b3f3b33359f42b8175602e89f7e06e5f658a243667807ed300314b95cacdd579f3e33abdfbe351909519a846d465c59582f321",
+    }) do
+      equal(hex(C.sha512(string.rep("a", n))), want, "sha512 of " .. n .. " bytes")
+    end
     equal(hex(C.sha512(string.rep("a", 200))), "4b11459c33f52a22ee8236782714c150a3b2c60994e9acee"
       .. "17fe68947a3e6789f31e7668394592da7bef827cddca88c4e6f86e4df7ed1ae6cba71f3e98faee9f")
     equal(hex(C.hmac("key", "The quick brown fox jumps over the lazy dog")),
@@ -190,7 +199,7 @@ return function(test, equal)
     -- Offline checks that need no secret scalar. A secret-free stand-in for
     -- the shared point K is the guessed generator or a share on the wire.
     local function tagged(k)
-      local isk = C.sha512(C.lv("CPace255_ISK", sid, k) .. C.lv(ya, "") .. C.lv(yb, ""))
+      local isk = C.sha512(C.lv("CPace255_ISK", sid, k) .. C.lv(ya, C.ada) .. C.lv(yb, C.adb))
       local a, b = C.tags(isk, sid, ya, yb)
       return a == ta or b == tb
     end
@@ -476,6 +485,97 @@ return function(test, equal)
       assert(text:find(line, 1, true), line .. " missing from the log")
     end
     equal(records, 0)
+  end)
+
+  test("pair2 a reflected confirmation never saves a key", function()
+    -- A forger answers as the server: it returns the client's own share or
+    -- a fresh share, then echoes Ta back as Tb. It knows neither the code
+    -- nor any scalar.
+    for _, mode in ipairs({ "mirror", "fresh" }) do
+      local net = H.new()
+      local fake = net.machine({ id = 1, modem = true })
+      fake.install(CLIENT)
+      libs(fake)
+      fake.spawn(string.format([[
+        proto = dofile("so-proto.lua")
+        pair = dofile("so-pair.lua")
+        pair.open(proto, dofile("so-store.lua"))
+        local x, key = require("ccryptolib.x25519"), pair.envelopeKey()
+        local share = x.publicKey(require("ccryptolib.random").random(32))
+        while true do
+          local ev, from, msg, p = os.pullEvent()
+          if ev == "rednet_message" and p == "so" and type(msg) == "table" and msg.t == "pair2" then
+            local body = { ok = true, tag = msg.body.tag }
+            if not msg.body.tag then body = { y = %q == "mirror" and msg.body.y or proto.hex(share) } end
+            rednet.send(from, proto.encode(proto.build(key, "ack", body, msg.rid)), "so")
+          end
+        end
+      ]], mode))
+      net.flush()
+      assert(fake.alive(), tostring(fake.error))
+      local c = client(net, 2)
+      local old = string.rep("5", 64)
+      c.files["so-keys"] = H.encode({ schema = 1, generation = 1, value = { keys = { ["1"] = old } } })
+      local before = c.files["so-keys"]
+      c.spawn([[
+        proto = dofile("so-proto.lua")
+        pair = dofile("so-pair.lua")
+        pair.open(proto, dofile("so-store.lua"))
+        OK, WHY = pair.join("123456", 1)
+        KEY = pair.key(1)
+        DONE = true
+      ]])
+      net.flush()
+      net.advance(15)
+      assert(not c.error, tostring(c.error))
+      assert(c.env.DONE, mode .. " join did not finish")
+      equal(c.env.OK, nil, mode .. " reflection paired")
+      equal(c.env.WHY, mode == "mirror" and "share" or "proof")
+      equal(c.env.KEY, old, mode .. " replaced the key in memory")
+      equal(c.files["so-keys"], before, mode .. " replaced the saved key")
+    end
+  end)
+
+  test("pair2 a future-stamped packet cannot replay across a restart", function()
+    local net, server = boot()
+    local c = client(net, 2)
+    equal(join(net, c, pressP(net, server)), { "ok" })
+    local key = savedKey(c, 1)
+    local proto = c.env.proto
+    local function acks()
+      local n = 0
+      for i = 1, #server.sent do
+        if server.sent[i].payload.t == "ack" then n = n + 1 end
+      end
+      return n
+    end
+    local function stamped(ms)
+      local msg = proto.build(key, "hello", { role = "turtle" })
+      msg.at = msg.at + ms
+      msg.mac = proto.sign(key, msg)
+      return proto.encode(msg)
+    end
+    -- No stamp may be ahead of the receiver's clock.
+    for _, ms in ipairs({ 30000, 1 }) do
+      local before = acks()
+      c.env.rednet.send(1, stamped(ms), "so")
+      net.flush()
+      equal(acks(), before, ms .. " ms ahead was accepted")
+    end
+    assert(logtext(server):find("so-server: bad message from 2", 1, true), logtext(server))
+    -- A packet accepted just before a restart is refused just after it.
+    local wire = stamped(0)
+    c.env.rednet.send(1, wire, "so")
+    net.flush()
+    net.advance(0.05)
+    net.kill(server)
+    server = net.boot(server)
+    net.flush()
+    assert(server.alive(), tostring(server.error))
+    c.env.rednet.send(1, wire, "so")
+    net.flush()
+    equal(acks(), 0)
+    assert(logtext(server):find("so-server: replay from 2", 1, true), logtext(server))
   end)
 
   test("pair2 a replay after a server restart is rejected", function()
