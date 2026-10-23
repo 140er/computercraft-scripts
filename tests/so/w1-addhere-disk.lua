@@ -12,7 +12,8 @@ local function setup(opts)
   return a
 end
 local function hello(a, fix)
-  local body = {role="turtle",journal=F.sent(a.t,"hello")[#F.sent(a.t,"hello")].body.journal,fuel=1000,gps=fix and {dim=fix.dim or "minecraft:overworld",x=fix.x,y=fix.y,z=fix.z}}
+  local seen=F.sent(a.t,"hello")[#F.sent(a.t,"hello")].body
+  local body = {role="turtle",journal=a.t.files["so-journal"] and F.journal(a.t) or seen.journal,capabilities=seen.capabilities,fuel=1000,gps=fix and {dim=fix.dim or "minecraft:overworld",x=fix.x,y=fix.y,z=fix.z}}
   local proto = a.t.env.dofile("so-proto.lua")
   local msg = proto.build(string.rep("a",64),"hello",body)
   a.t.env.rednet.send(1,proto.encode(msg),"so")
@@ -222,7 +223,9 @@ return function(test,equal)
   for _,role in ipairs({"mine","lumber"}) do
     for _,failure in ipairs({"handoff","assignment"}) do
       test(role.." probe keeps durable reservations after "..failure.." save failure",function()
-        local a=setup();gps(a)
+        local a=setup()
+        F.send(a,{{op="forward"},{op="forward"},{op="forward"}});a.n.advance(1)
+        gps(a)
         local open=a.s.env.fs.open
         local writes=0
         a.s.env.fs.open=function(path,mode)
@@ -237,15 +240,63 @@ return function(test,equal)
         screen.input({text="add 2"});a.n.advance(1)
         assert(not a.s.env.SO.mods[role].assigned(2))
         local cells=a.s.env.SO.mods.cells
-        local standing=cells.owner(40,64,9,"minecraft:overworld")
+        local standing=cells.owner(40,64,6,"minecraft:overworld")
         equal(standing,failure=="handoff" and "gps:2" or role..":2")
         equal(#cells.list("gps:2",10),failure=="handoff" and 5 or 4)
         a.s.env.fs.open=open
         local recovered=a.s.env.dofile("so-mod-cells.lua")
-        equal(recovered.owner(40,64,9,"minecraft:overworld"),standing)
+        equal(recovered.owner(40,64,6,"minecraft:overworld"),standing)
+        equal(a.t.pos.z,-4);equal(#F.journal(a.t).moves,4)
+        assert(F.journal(a.t).park)
+        a.n.kill(a.s);a.n.advance(120)
+        assert(a.t.alive(),tostring(a.t.error))
+        equal(a.t.pos.z,-4);equal(#F.journal(a.t).moves,4)
       end)
     end
   end
+  for _,outcome in ipairs({"success","GPS loss","report loss","blocked"}) do
+    test("GPS probe stays parked with earlier moves after "..outcome,function()
+      local a=setup()
+      F.send(a,{{op="forward"},{op="forward"},{op="forward"}});a.n.advance(1)
+      gps(a)
+      if outcome=="GPS loss" then a.t.env.gps.locate=function() return nil end end
+      if outcome=="blocked" then a.t.env.turtle.forward=function() return false,"Movement obstructed" end end
+      if outcome=="report loss" then
+        local send=a.t.env.rednet.send
+        a.t.env.rednet.send=function(id,wire,protocol)
+          if type(wire)=="table" and wire.t=="step.report" then return true end
+          return send(id,wire,protocol)
+        end
+      end
+      local called,pose,why=false
+      local lease=a.s.env.SO.mods.lease
+      lease.locate(2,"minecraft:overworld",function(p,e) called,pose,why=true,p,e end)
+      a.n.advance(27);F.check(a)
+      assert(called)
+      if outcome=="success" then assert(pose);equal(why,nil) else equal(pose,nil);assert(why) end
+      local z=outcome=="blocked" and -3 or -4
+      equal(a.t.pos.z,z);assert(F.journal(a.t).park)
+      equal(#a.s.env.SO.mods.cells.list("gps:2",10),outcome=="blocked" and 0 or 5)
+      a.n.kill(a.s);a.n.advance(120)
+      assert(a.t.alive(),tostring(a.t.error))
+      equal(a.t.pos.z,z);equal(#F.journal(a.t).moves,-z)
+      assert(#F.sent(a.t,"beacon")>=4)
+    end)
+  end
+  test("GPS probe refuses workers without stationary batch support",function()
+    local a=setup();gps(a)
+    local lease=a.s.env.SO.mods.lease
+    local body=F.sent(a.t,"hello")[#F.sent(a.t,"hello")].body
+    equal(body.capabilities,{parkBatch=true})
+    body.capabilities=nil
+    lease.handlers.hello({from=2,body=body})
+    local called=false
+    lease.locate(2,"minecraft:overworld",function(p,e)
+      called=true;equal(p,nil);equal(e,"probe needs worker update; use explicit add")
+    end)
+    assert(called);equal(#a.s.env.SO.mods.cells.list("gps:2",10),0)
+    a.n.advance(1);equal(a.t.pos.z,0)
+  end)
   test("uncertain recovery add retains the probe standing reservation when fresh reserve fails",function()
     local a=setup();gps(a)
     a.t.env.gps.locate=function() return nil end

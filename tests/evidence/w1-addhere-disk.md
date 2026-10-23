@@ -11,6 +11,16 @@ reservation handoff and assignment save failures, drop coordinates, pressure
 entry and exit, event retry, bounded refusal, AR persistence and KEEP consent.
 `tests/so/store-recover.lua` also checks partial writes and ordered queue recovery.
 
+The probe expiry regressions start with three earlier journal moves, then probe
+to local z=-4. They check stationary expiry after failed mining and lumber
+assignment or handoff saves, missing GPS or reports, and successful probes.
+A blocked probe remains at z=-3. The worker retains its full move journal through
+the lease and beacon timeouts instead of backtracking beyond the reserved area.
+Workers without advertised park-batch support refuse the probe without moving.
+The focused suite now has 33 cases. Local Lua execution passed all 33. The
+bounded lease checker passed 483841 traces and caught all five scratch defects;
+its documented fixed-clock restart ID finding remains outside this fix.
+
 Run the focused suite with:
 
 ```sh

@@ -234,6 +234,7 @@ W.hello = function()
   local where = W.gpsFix()
   local body = {
     role = "turtle",
+    capabilities = { parkBatch = true },
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -261,7 +262,7 @@ W.report = function(results)
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results,
+    lease = W.lease, results = results, capabilities = { parkBatch = true },
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -510,7 +511,8 @@ W.startBatch = function(msg)
     W.enterSlow()
     return
   end
-  W.journal.park = n == 1 and type(body.steps[1]) == "table" and body.steps[1].op == "inspectDown"
+  W.journal.park = type(body.steps[1]) == "table" and (body.steps[1].park == true
+    or n == 1 and body.steps[1].op == "inspectDown")
   W.mode = "idle"
   local deadline = msg.deadline
   if W.lease == body.lease and W.legacyExpires == msg.legacyExpires and W.expires then

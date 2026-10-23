@@ -158,6 +158,11 @@ A step is a table.
 
 `n` is an optional integer. `refuel`, `drop`, `dropUp`, `dropDown`, `suck`, `suckUp`, and `suckDown` use it as a count.
 
+`park=true` on the first step makes expiry hold position and send slow beacons
+instead of reversing the movement journal. Workers advertise support through
+`capabilities.parkBatch=true` in hello and reports. A single `inspectDown` also
+parks without the flag.
+
 Drop and suck operations require `peripheral.hasType(side, "inventory")` on the
 target side. Otherwise the worker returns `ok = false, err = "no inventory"`
 without calling the turtle transfer operation. Drops into open space are refused.
@@ -481,9 +486,15 @@ with GPS. Initial journal `f=0` proves no world facing.
 
 `lease.locate(id, dim, done)` calls `done(pose, error)` from the handler or a later
 report. With unknown facing it reserves the start and four adjacent horizontal
-cells under `gps:<id>`, then leases `forward`, `gps` for 15 seconds. It never digs
-or turns. A successful forward move and unit GPS delta establish facing. The
-worker stays at the new cell. `claimProbe(id, owner, pose)` atomically hands its
+cells under `gps:<id>`, then leases `forward`, `gps` for 15 seconds with
+`park=true` on the first step. The worker must advertise
+`capabilities.parkBatch=true` in hello; otherwise the probe refuses and requests
+a worker update or explicit add. It never digs or turns. A successful forward
+move and unit GPS delta establish facing. Before executing any probe step, the
+worker saves the park state with its pending journal entry. Lease expiry enters
+stationary slow beacons, including after GPS loss, a missing report or failed
+assignment persistence. Earlier journal moves are not reversed.
+`claimProbe(id, owner, pose)` atomically hands its
 standing reservation from the probe to the job owner through `cells.handoff`.
 The other probe cells remain until the job assignment saves. Only then does
 `clearProbe(id)` release them. A blocked move with unchanged GPS releases the
@@ -1215,7 +1226,8 @@ Lumber uses the same check with atomic actions and moves one cell per travel lea
 
 `P.park` is `{ steps = { { op = "inspectDown" } }, ms = 600000 }`. Planners send it to idle turtles and renew it when less than 60000 ms remains. A single `inspectDown` step marks a stationary park lease in the worker journal.
 If it expires, the worker stays put and beacons every 30 seconds. An expired
-work lease still starts fast beacons and backtracking along the last 32 moves.
+work lease without the park flag starts fast beacons and backtracking along the
+last 32 moves.
 
 `P.fuelValue(name)` returns fuel per item for Minecraft coal and charcoal as 80, coal blocks as 800, lava buckets as 1000, and blaze rods as 120. Other names return 0. `P.free(inv)` returns the number of empty slots among the turtle's 16 slots using the occupied-slot report list.
 

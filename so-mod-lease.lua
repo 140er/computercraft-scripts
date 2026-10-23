@@ -118,6 +118,7 @@ S.locate = function(id, dim, done)
   if pose.facing ~= nil then done(pose) return end
   local row, cells = S.row(id), S.module("cells")
   if row.open then done(nil, "turtle has open lease") return end
+  if not row.parkBatch then done(nil, "probe needs worker update; use explicit add") return end
   if not row.pose or not cells then done(nil, "facing unknown; use explicit add") return end
   local owner, area = "gps:" .. id, { pose }
   for f = 0, 3 do
@@ -132,7 +133,7 @@ S.locate = function(id, dim, done)
   expected.z = expected.z+({[0]=-1,0,1,0})[expected.f]
   row.probeOwner = owner
   row.probe = { before = pose, done = done, owner = owner, pose = expected }
-  local lid, reason = S.send(id, {{op="forward"}, {op="gps"}}, {owner="gps", ms=15000})
+  local lid, reason = S.send(id, {{op="forward",park=true}, {op="gps"}}, {owner="gps", ms=15000})
   if not lid then row.probe = nil S.clearProbe(id) done(nil, reason) end
 end
 
@@ -385,6 +386,7 @@ S.hello = function(msg)
   row.lost = false
   row.seen = SO.now()
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
+  row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
   local journal = msg.body.journal
   if type(journal) == "table" then
     if journal.seq and row.seq and journal.seq < row.seq then row.rotation, row.fix = nil, nil end
