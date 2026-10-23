@@ -3,7 +3,7 @@ if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua"
 local A = {
   layers = { turtles = true, leases = true, drops = true, alerts = true },
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
-  alertMs = 300000,
+  alertMs = 300000, hudX = 4, hudY = 72, hudWidth = 184,
   labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
   white = 0xFFF2F4F8 - 2^32, grey = 0xFF4A5468 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
@@ -54,8 +54,7 @@ A.layout = function(model, w, h)
     for i,layer in ipairs(A.order) do
       local y = i + 3
       local on = model.layers[layer]
-      C.put(2,y,(layer:upper() .. " " .. (on and '1' or '0')):sub(1,math.max(0,w-2)))
-      C.hit(layer,2,y,math.max(0,w-2),1)
+      C.button(2,y,math.max(0,w-2),layer:upper() .. " " .. (on and 'ON' or 'OFF'),layer,on and 'd' or 'c',1)
     end
     C.button(1,h,w,"BACK","status",'7',1)
   else
@@ -64,7 +63,7 @@ A.layout = function(model, w, h)
       local height = h >= 24 and 7 or 6
       local y=4+math.floor((i-1)/#cols)*(height+1)
       local on=model.layers[layer]
-      C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
+      C.tile(col.x,y,col.w,layer:upper(),on and 'ON' or 'OFF','',on and 'd' or 'c')
       C.hit(layer,col.x,y,col.w,height)
     end
     C.button(1,h >= 24 and h-3 or h-2,w,"BACK","status")
@@ -100,10 +99,7 @@ A.scene = function(now)
   local labels = {}
   local function put(id, method, ...) scene[id] = { method = method, args = { ... } } end
   local retirement = A.call("cells", "retirement")
-  if retirement then
-    put("alert:dug-storage", "drawText2D", A.red, 4, 4,
-      retirement.text .. (retirement.status == "pending" and " Choose allow or keep on a display." or ""), false)
-  end
+  local hudTop = A.hudY
   local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
   local function label(id, color, p, text, kind, group)
     local origin, distance = A.config.pos, 0
@@ -229,15 +225,12 @@ A.scene = function(now)
     table.sort(alerts, function(a, b) return a.at > b.at or (a.at == b.at and a.key < b.key) end)
     alertCount = #alerts
     local row = alerts[1]
-    local banners = false
-    for _, controller in ipairs(A.controllers) do
-      if type(controller.ar.drawRect2D) == "function" then banners = true break end
-    end
-    if A.layers.alerts and row and (not banners or now - row.since < 5000) then
+    if A.layers.alerts and row and now - row.since < 5000 then
       local text = type(row.value) == "table" and row.value.text or row.value
-      local top = retirement and 12 or 0
-      put("alert:backing", "drawRect2D", A.red, 0, top, 120, 14)
-      put("alert:" .. row.key, "drawText2D", A.white, 4, 4 + top, tostring(text), false)
+      put("alert:backing", "drawRect2D", A.red, A.hudX, hudTop, A.hudX + A.hudWidth, hudTop + 14)
+      put("alert:" .. row.key, "drawText2D", A.white, A.hudX + 4, hudTop + 3,
+        tostring(text):sub(1, math.floor((A.hudWidth - 8) / 6)), false)
+      hudTop = hudTop + 14
     end
   end
   local capacity = fs and fs.getCapacity and fs.getCapacity("/")
@@ -248,13 +241,15 @@ A.scene = function(now)
     { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.green },
     { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.green) or A.grey },
   }
-  local hudTop = retirement and 12 or 0
   for i, tile in ipairs(tiles) do
-    local id, x = "hud:" .. tile[1], 4 + (i - 1) * 64
-    put(id .. ":backing", "drawRect2D", A.backing, x, 18 + hudTop, 56, 30)
-    put(id .. ":bar", "drawRect2D", tile[4], x, 18 + hudTop, 56, 4)
-    put(id .. ":label", "drawText2D", A.white, x + 4, 26 + hudTop, tile[2], false)
-    put(id .. ":value", "drawText2D", A.white, x + 4, 36 + hudTop, tile[3], false)
+    local id, x = "hud:" .. tile[1], A.hudX + (i - 1) * 64
+    put(id .. ":backing", "drawRect2D", A.backing, x, hudTop, x + 56, hudTop + 30)
+    put(id .. ":bar", "drawRect2D", tile[4], x, hudTop, x + 56, hudTop + 4)
+    put(id .. ":label", "drawText2D", A.white, x + 4, hudTop + 8, tile[2], false)
+    put(id .. ":value", "drawText2D", A.white, x + 4, hudTop + 18, tile[3], false)
+  end
+  if retirement then
+    put("alert:dug-storage", "drawText2D", A.red, A.hudX + 4, hudTop + 34, retirement.text, false)
   end
   return scene, machines
 end

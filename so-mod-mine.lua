@@ -769,7 +769,7 @@ local function gather()
   m.tiles = {
     {"BUSY", busy .. "/" .. #m.turtles, busy .. " digging", "d"},
     {"ORE TODAY", today and tostring(today.ore) or "-", oreSub, today and "b" or "c"},
-    {"DEPTH", tostring(job.bottom), "bottom " .. job.bottom, "d"},
+    {"DEPTH", tostring(job.bottom), "", "d"},
     {"LANE", tostring(waiting), waiting > 0 and (table.concat(waitIds,",") .. " waiting") or "clear", waiting > 0 and "1" or "d"},
     {"MIN FUEL", tostring(minimum or "-"), fuelId and ("#" .. fuelId) or "no fuel report", minimum and "d" or "c"},
     {"BRANCHES", (job.progress.done or 0) .. "/" .. (job.progress.nextBranch or 0), job.length .. " long", "b"},
@@ -779,7 +779,7 @@ local function gather()
     "home " .. job.home.x .. "," .. job.home.y .. "," .. job.home.z .. " " .. ({[0]="n","e","s","w"})[job.home.facing],
     "bottom " .. job.bottom, "length " .. job.length, "mode " .. job.mode,
     "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
-    "turtles " .. table.concat(ids,","), "commands: home bottom length mode ores add remove",
+    "turtles " .. table.concat(ids,","),
   }
   return m
 end

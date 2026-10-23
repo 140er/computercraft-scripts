@@ -113,7 +113,8 @@ P.render = function(w, h, session)
     if session.id and SO.pair.key(session.id) and type(SO.pairCode) == "function" then
       c.button(1,h < 12 and h-1 or h-3,w,"NEW CODE","pair-code","9",h < 12 and 1 or 3)
     else
-      c.put(2,5,"Press P on the server")
+      c.fill(1,h < 12 and h-1 or h-3,w,h < 12 and 1 or 3,"c")
+      c.center(1,w,h < 12 and h-1 or h-2,"NEW CODE")
     end
     c.button(1,h,w,"BACK","panel-back","7",1)
   elseif page == "alerts" then

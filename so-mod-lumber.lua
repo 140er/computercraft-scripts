@@ -752,11 +752,11 @@ S.gather = function()
     },
     tiles = {
       {"TREES READY", tostring(ready), "of " .. known .. " spots", "d"},
-      {"LOGS TODAY", today and tostring(today.logs) or "-", today and "logs delivered" or "no daily source", today and "d" or "c"},
+      {"LOGS TODAY", today and tostring(today.logs) or "-", today and "" or "no daily source", today and "d" or "c"},
       {"SAPLINGS", tostring(saplings), saplings == 0 and "chest empty" or "carried", saplings == 0 and "e" or "d"},
       {"TURTLE", j.turtle and tostring(j.turtle.id) or "-", j.phase or "-", j.turtle and "d" or "c"},
       {"FUEL", tostring(j.fuel or "-"), type(j.fuel) == "number" and (j.fuel < 80 and "low" or "ok") or "no source", j.fuel and (type(j.fuel) == "number" and j.fuel < 80 and "1" or "d") or "c"},
-      {"NEXT GROW", grow, seconds and "min:sec" or "no timer", seconds and "b" or "c"},
+      {"NEXT GROW", grow, seconds and "" or "no timer", seconds and "b" or "c"},
     },
   }
 end

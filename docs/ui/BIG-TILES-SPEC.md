@@ -257,9 +257,9 @@ Status, room monitor 3x2 at scale 0.5  (57x24)
                                                          
                                                          
                                                          
-  DISPLAYS          DROPS               PAIR             
-         🬵                 🬚🬋🬃                           
-        🬳🬷🬏                🬂🬂🬓            new client:    
+  DISPLAYS          DROPS                                
+         🬵                 🬚🬋🬃               PAIR        
+        🬳🬷🬏                🬂🬂🬓                           
          🬉                 🬈🬋🬀                           
                                                          
     MINING        LUMBER          SHOP          MORE     
@@ -283,12 +283,12 @@ fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
 77777777777777f7777777777777faaaaaaaaaaaaaaf7777777777777
 ```
 
@@ -310,7 +310,7 @@ Status, wall monitor 4x3 at scale 1  (39x19)
      🬖🬋🬏🬞🬓  🬵           🬞🬓 🬋🬋🬏🬹 🬏      
       🬖🬀 ▌ 🬳🬷🬏           ▌ 🬇🬋🬐🬞🬅       
      🬍🬋🬃🬇🬌  🬉           🬇🬌 🬋🬋🬀🬀🬉🬄      
-  +12 last 10 min    2.1 of 16 MB      
+  +12                2.1 of 16 MB      
                                        
    MINING        SHOP          MORE    
 ```
@@ -469,7 +469,7 @@ Lumber, room monitor  (57x24)
         🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
          🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
         🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
-  of 4 spots        logs delivered      chest empty      
+  of 4 spots                            chest empty      
                                                          
                                                          
                                                          
@@ -477,7 +477,7 @@ Lumber, room monitor  (57x24)
          🬵            🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏       🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏    
         🬳🬷🬏            ▌  🬖🬀 ▌ ▌ ▌       🬛🬋🬏🬠🬐  🬖🬀▌ ▌    
          🬉            🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀       🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀    
-  felling           ok                  min:sec          
+  felling           ok                                   
                                                          
                                                          
                                                          
@@ -594,7 +594,7 @@ Alert takeover (5 s), coral background, ink text  (57x24)
                                                          
                                                          
                                                          
-           (back to the screen in 5 s, or tap)           
+                                                         
                                                          
                                                          
                                                          
@@ -678,7 +678,7 @@ Server terminal, pairing  (51x19)
                                                    
  SO SERVER #1                              pairing 
                                                    
-      PAIR CODE  (type it on the new client)       
+                     PAIR CODE                     
                                                    
                                                    
                 🬵 🬖🬋🬏🬖🬋🬏   🬖🬋🬏🬞🬓 🬚🬋🬃               
@@ -686,9 +686,9 @@ Server terminal, pairing  (51x19)
                 🬉 🬈🬋🬀🬍🬋🬃   🬇🬅 🬇🬌 🬈🬋🬀               
                                                    
                                                    
-               4:52 left, works once               
+                     4:52 left                     
                                                    
-            5 wrong tries burn the code            
+                                                   
                                                    
                                                    
                                                    
@@ -718,25 +718,25 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 777777777777777777777777777777777777777777777777777
 ```
 
-AR layer switches (1 = on, 0 = off)  (57x24)
+AR layer switches  (57x24)
 ```text
                                                          
  AR GOGGLES                                 1 controller 
                                                          
                                                          
   TURTLES           LEASES              DROPS            
-        🬞🬓                 🬞🬓                 🬖🬋🬏        
-         ▌                  ▌                 ▌ ▌        
-        🬇🬌                 🬇🬌                 🬈🬋🬀        
-  layer on          layer on            layer off        
+                                                         
+        ON                 ON                 OFF        
+                                                         
+                                                         
                                                          
                                                          
                                                          
   ALERTS                                                 
-        🬞🬓                                               
-         ▌                                               
-        🬇🬌                                               
-  layer on                                               
+                                                         
+        ON                                               
+                                                         
+                                                         
                                                          
                                                          
                                                          
@@ -1094,8 +1094,8 @@ teal FF2DD4BF, stale FF4A5468, white FFF2F4F8). HUD backing C00E1626. Text uses 
 - HUD (top left, `drawRect2D` backing plus `drawText2D`): three tiles in a row, 56 px wide and 30 px tall, with 8 px gaps and 4 px inner padding:
   turtles total, alerts, disk %. Each one has a coloured bar 4 px tall on top in its state colour, so the HUD
   reads at a glance. Labels start 8 px below the tile top and values start 18 px below it. The HUD starts at x=4, y=18, with another 12 px reserved above it when dug consent is visible. The alert banner stays above the HUD and below the consent line.
-- An alert shows as a coral banner across the top for 5 s (`drawRect2D` plus `drawText2D`), then only the
-  HUD count.
+- An alert shows as the first coral row inside the HUD for 5 s, then only the HUD count.
+  The retirement notice sits below the tiles. Rectangle arguments are opposite corners.
 - Ids stay stable between frames, gone elements use `delete`, there is one `update` per frame, at most
   once per second. All of this is already the case in so-mod-ar.lua, so only the look changes.
 

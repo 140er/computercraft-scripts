@@ -398,14 +398,14 @@ D.gather = function()
   local today = daily and type(daily.today) == "function" and daily.today()
   model.tiles = {
     {label="TURTLES",value=tostring(turtles),sub=model.okShort .. ", " .. model.lostShort,bg=lost > 0 and "e" or "d"},
-    {label="LEASES",value=tostring(leases),sub="open now",bg="b"},
+    {label="LEASES",value=tostring(leases),sub="",bg="b"},
     {label="ALERTS",value=tostring(#model.alerts),sub=model.alert or "none",bg=#model.alerts > 0 and "e" or "d"},
-    {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent .. " last 10 min") or "no source",bg=today and "b" or "c"},
-    {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "logs delivered" or "no source",bg=today and "d" or "c"},
+    {label="ORE TODAY",value=today and tostring(today.ore) or "-",sub=today and ("+" .. today.oreRecent) or "no source",bg=today and "b" or "c"},
+    {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=ratio and (ratio >= 0.8 and "e" or "d") or "c"},
     {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
     {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
-    {label="PAIR",value="",sub="press P on server",bg="9"},
+    {label="PAIR",value="",sub="",bg="9"},
   }
   model.oreShort = model.tiles[4].sub
   model.terminalSubs = {model.okShort, model.tiles[7].sub, diskSub, model.alert or "none"}
@@ -481,11 +481,8 @@ D.statusFrame = function(session, w, h, now)
       local tile = copy.tiles[index]
       if tile then
         local y = 4 + (i - 1) * 8
-        c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
-        if index == 9 then
-          c.fill(3, y + 2, w-4, 3, tile.bg)
-          c.center(3, w-4, y + 3, "new client:")
-        end
+        if index == 9 then c.button(2,y+1,w-2,"PAIR","pair","9",3)
+        else c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7) end
       end
     end
     c.button(1, h-1, w, "MORE", "generic", "7", 1)
@@ -582,6 +579,10 @@ D.onInput = function(msg)
       session.showAlerts = session.takeover ~= nil
     elseif id == "next" then session.page = (session.page or 0) + 1
     elseif id == "prev" then session.page = (session.page or 0) - 1
+    elseif id == "pair" and D.screens.panel then
+      session.panel = session.panel or {search=""}
+      session.panel.page = "pair"
+      D.setRole(msg.from, "panel")
     elseif id == "panel" then D.setRole(msg.from, "panel")
     elseif id == "mining" or id == "lumber" or id == "shop" then D.setRole(msg.from, id) end
   end
@@ -645,12 +646,11 @@ D.terminal = function(model, view, w, h)
   local lines, first = view.log or {}, 10
   if view.mode == "code" then
     C.fill(1,3,w,math.max(0,h-6),"9")
-    C.center(1,w,4,"PAIR CODE  (type it on the new client)","9")
+    C.center(1,w,4,"PAIR CODE","9")
     local code = tostring(view.code or "")
     C.big(1,7,w,code:sub(1,3).." "..code:sub(4,6),"9")
     local left = math.max(0,math.ceil((view.expires-view.now)/1000))
-    C.center(1,w,12,string.format("%d:%02d left, works once",math.floor(left/60),left%60),"9")
-    C.center(1,w,14,"5 wrong tries burn the code","9")
+    C.center(1,w,12,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
   elseif view.mode == "log" then
     C.fill(1,3,w,1,"7"); C.put(2,3,"FULL LOG")
     first = 4

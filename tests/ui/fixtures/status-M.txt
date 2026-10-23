@@ -17,9 +17,9 @@
                                                          
                                                          
                                                          
-  DISPLAYS          DROPS               PAIR             
-         🬵                 🬚🬋🬃                           
-        🬳🬷🬏                🬂🬂🬓            new client:    
+  DISPLAYS          DROPS                                
+         🬵                 🬚🬋🬃               PAIR        
+        🬳🬷🬏                🬂🬂🬓                           
          🬉                 🬈🬋🬀                           
                                                          
     MINING        LUMBER          SHOP          MORE     
@@ -40,10 +40,10 @@ fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fbbbbbbbbbbbbbbbbbfdddddddddddddddddddfdddddddddddddddddf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
-fdddddddddddddddddf1111111111111111111f99999999999999999f
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
+fdddddddddddddddddf1111111111111111111fffffffffffffffffff
 77777777777777f7777777777777faaaaaaaaaaaaaaf7777777777777

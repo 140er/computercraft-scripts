@@ -77,7 +77,7 @@ return function(test,equal)
     e.SO.store.store=function(...) local b=store(...);local save=b.save;b.save=function(v) n=n+1;return save(v) end;return b end
     local ar=e.dofile('so-mod-ar.lua');ar.tick(0);screens.ar.input({id='drops'});equal(n,1)
     local reloaded=e.dofile('so-mod-ar.lua');reloaded.tick(0)
-    assert(capture(screens.ar.render(57,24),57,24).picture().text[9]:find('layer off',1,true))
+    assert(capture(screens.ar.render(57,24),57,24).picture().text[7]:find('OFF',1,true))
   end)
   test('UI2d layouts fit all sizes and respect contrast',function()
     local _,_,screens,s,a=boot();assert(s.layout and a.layout,'pure layouts')

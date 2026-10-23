@@ -69,9 +69,12 @@ class Canvas:
         x = max(1,x); w = max(0,right-x+1)
         s.fill(x, y, w, h, bg)
         s.text(x + 1, y+1, label[:w-2])
-        rows = big(value)
-        for r in range(3):
-            s.center(x+1, w-2, y + 2 + r, rows[r])
+        if len(value)*3 > w-2 or any(ch not in FONT for ch in value):
+            s.center(x+1,w-2,y+3,value)
+        else:
+            rows = big(value)
+            for r in range(3):
+                s.center(x+1, w-2, y + 2 + r, rows[r])
         if sub and h >= 7: s.text(x + 1, y + 5, sub[:w-2])
     def button(s, x, y, w, label, bg="7", h=3):
         s.fill(x, y, w, h, bg)
@@ -96,9 +99,9 @@ def add(c, name, legend=False):
 def grid(w,n):
     available=w-n+1
     return [(int(i*available/n+0.5)+i,int((i+1)*available/n+0.5)-int(i*available/n+0.5)) for i in range(n)]
-status_data = [("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","open now","b"),("ALERTS","1","ore chest full","e"),
-    ("ORE TODAY","214","+12 last 10 min","b"),("LOGS TODAY","96","4 trees","d"),("DISK","13%","2.1 of 16 MB","d"),
-    ("DISPLAYS","4","all fresh","d"),("DROPS","5","1 broken","1"),("PAIR","","press P on server","9")]
+status_data = [("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","","b"),("ALERTS","1","ore chest full","e"),
+    ("ORE TODAY","214","+12","b"),("LOGS TODAY","96","","d"),("DISK","13%","2.1 of 16 MB","d"),
+    ("DISPLAYS","4","all fresh","d"),("DROPS","5","1 broken","1"),("PAIR","","","9")]
 def status(w,h,indices,n,title):
     c=Canvas(w,h);c.header("STATUS","21:14");c.alert("! ore chest full (drop 3)" if w!=39 else "! ore chest full")
     cols=grid(w,n);wanted=(len(indices)+n-1)//n
@@ -107,10 +110,10 @@ def status(w,h,indices,n,title):
     for i,index in enumerate(indices):
         x,width=cols[i%n]; y=3+(i//n)*(height+1)
         lab,val,sub,bg=status_data[index]
-        c.tile(x,y,width,lab,val,sub,bg,height)
         if index==8:
             left=max(1,x);right=min(w-2,x+width-1)
-            c.fill(left+1,y+2,right-left-1,3,bg);c.center(left+1,right-left-1,y+3,"new client:")
+            c.button(left,y+1,right-left+1,"PAIR","9",3)
+        else:c.tile(x,y,width,lab,val,sub,bg,height)
     if w==51:
         c.fill(1,11,w-2,1,"7");c.text(1,11,"LOG")
     labels=["MINING","SHOP","MORE"] if w==39 else ["MINING","LUMBER","SHOP","MORE"]
@@ -136,7 +139,7 @@ add(c, "Pocket, panel mode", True)
 # --- Mining, M
 c = Canvas(57, 24); c.header("MINING", "running")
 cols = [(0,18),(19,19),(39,18)]
-for (x, w), (lab, val, sub, bg) in zip(cols, [("BUSY","2/2","both digging","d"),("ORE TODAY","214","iron 120 dia 3","b"),("DEPTH","-12","bottom -16","d")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("BUSY","2/2","both digging","d"),("ORE TODAY","214","iron 120 dia 3","b"),("DEPTH","-12","","d")]):
     c.tile(x, 3, w, lab, val, sub, bg,6)
 for (x, w), (lab, val, sub, bg) in zip(cols, [("LANE","1","#3 waiting","1"),("MIN FUEL","640","#3","d"),("BRANCHES","3/8","48 long","b")]):
     c.tile(x, 10, w, lab, val, sub, bg,6)
@@ -149,9 +152,9 @@ add(c, "Mining, room monitor")
 
 # --- Lumber, M
 c = Canvas(57, 24); c.header("LUMBER", "running")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","logs delivered","d"),("SAPLINGS","0","chest empty","e")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","","d"),("SAPLINGS","0","chest empty","e")]):
     c.tile(x, 3, w, lab, val, sub, bg)
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","min:sec","b")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","","b")]):
     c.tile(x, 11, w, lab, val, sub, bg)
 c.alert("! out of saplings: replanting paused")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
@@ -224,7 +227,7 @@ M[-1] += "\nThe navigation row was added on Jeffrey's request."
 c = Canvas(57, 24, "e"); c.center(0, 57, 3, "ALERT"); rows = big("3")
 for r in range(3): c.center(0, 57, 6 + r, rows[r])
 c.center(0, 57, 11, "ORE CHEST FULL"); c.center(0, 57, 13, "drop point #3 at 10,64,-2"); c.center(0, 57, 15, "turtle #3 parked until it is emptied")
-c.center(0, 57, 20, "(back to the screen in 5 s, or tap)")
+
 add(c, "Alert takeover (5 s), coral background, ink text")
 
 c = Canvas(57, 24, "c"); c.fill(18, 8, 21, 7, "e"); c.center(18, 21, 9, "NO SERVER"); rows = big("0:42")
@@ -245,21 +248,20 @@ c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client     [L] full log")
 add(c, "Server terminal, normal", True)
 
 c = Canvas(51, 19); c.header("SO SERVER #1", "pairing")
-c.fill(0, 2, 51, 13, "9"); c.center(0, 51, 3, "PAIR CODE  (type it on the new client)")
+c.fill(0, 2, 51, 13, "9"); c.center(0, 51, 3, "PAIR CODE")
 rows = big("482 915")
 for r in range(3): c.center(0, 51, 6 + r, rows[r])
-c.center(0, 51, 11, "4:52 left, works once")
-c.center(0, 51, 13, "5 wrong tries burn the code")
+c.center(0, 51, 11, "4:52 left")
 c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] new code     [Esc] cancel")
 add(c, "Server terminal, pairing", True)
 
 # --- AR layers screen (M) and tiny 1x1
 c = Canvas(57, 24); c.header("AR GOGGLES", "1 controller")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLES","1","layer on","d"),("LEASES","1","layer on","d"),("DROPS","0","layer off","c")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLES","ON","","d"),("LEASES","ON","","d"),("DROPS","OFF","","c")]):
     c.tile(x, 3, w, lab, val, sub, bg)
-c.tile(0, 11, 18, "ALERTS", "1", "layer on", "d")
+c.tile(0, 11, 18, "ALERTS", "ON", "", "d")
 c.button(0, 20, 57, "BACK")
-add(c, "AR layer switches (1 = on, 0 = off)")
+add(c, "AR layer switches")
 
 c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
