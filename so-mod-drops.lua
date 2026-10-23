@@ -410,9 +410,9 @@ end
 
 S.listSize = function(count, w, h)
   local compact = w < 39 or h < 16
-  local navColumns = w < 26 and 2 or w < 39 and 3 or 5
-  local navRows = compact and math.ceil(5/navColumns) or 1
-  local actionY = compact and h-navRows-1 or math.min(math.max(11, count+6), h-6)
+  local navColumns = w < 26 and 2 or w < 41 and 3 or 6
+  local navRows = math.ceil(6/navColumns)
+  local actionY = compact and h-navRows-1 or math.min(math.max(11, count+6), h-navRows*3-3)
   local capacity = math.max(1, actionY-5)
   return { compact = compact, actionY = actionY, capacity = capacity, navColumns = navColumns, navRows = navRows,
     pages = math.max(1, math.ceil(count/capacity)) }
@@ -474,9 +474,8 @@ S.layout = function(model, w, h)
     local col = cols[(i-1)%#cols+1]
     C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
   end
-  local nav = {'mining', 'lumber', 'shop', 'ar', 'panel'}
+  local nav = {'mining', 'lumber', 'shop', 'ar', 'panel', 'build'}
   local navCols = U.grid(w, h, size.navColumns)
-  if w == 57 then navCols = {{x=1,w=11},{x=13,w=11},{x=25,w=11},{x=37,w=10},{x=48,w=10}} end
   for i, id in ipairs(nav) do
     local col = navCols[(i-1)%#navCols+1]
     local y = h-size.navRows*navHeight+1+math.floor((i-1)/#navCols)*navHeight

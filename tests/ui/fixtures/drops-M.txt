@@ -21,7 +21,7 @@
                                                          
                                                          
                                                          
-  MINING      LUMBER       SHOP         AR       PANEL   
+ MINING    LUMBER    SHOP       AR      PANEL     BUILD  
                                                          
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 f7777777777777777777777777777777777777777777777777777777f
@@ -44,6 +44,6 @@ fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
-77777777777f77777777777faaaaaaaaaaaf7777777777f7777777777
+777777777f77777777faaaaaaaaaf777777777f77777777f777777777
+777777777f77777777faaaaaaaaaf777777777f77777777f777777777
+777777777f77777777faaaaaaaaaf777777777f77777777f777777777

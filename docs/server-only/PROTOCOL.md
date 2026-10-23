@@ -1381,3 +1381,25 @@ appear on HEALTH. `SO.errors.status()` returns `bytes`, `cap`, `count`, `pending
 and `error`. The byte count includes current, backup and temporary files, for
 integration with the disk ledger. Files already count toward filesystem disk
 pressure. No disk ledger exists on this base.
+
+## Builder jobs
+
+`so-mod-build.lua` registers the `build` display role and the `build` lease owner.
+It adds no message types or turtle operations. Workers advertise
+`capabilities.parkBatch=true` in `hello` and `step.report`. An optional
+`park=true` on the first step of a batch persists a stationary expiry policy
+before the worker executes that batch. Builder requires this capability and sets
+the flag on every lease. Older workers receive only recovery inspection leases
+and cannot start builder work. Other jobs keep their existing expiry behaviour.
+Its public pure geometry calls are
+`expand(blueprint)` and `import(text)`, both returning a value or `nil, error`.
+The blueprint has inclusive `x1,y1,z1,x2,y2,z2`, `shape` and optional `dim`.
+`expand` emits unique bottom-up placement cells for floor/platform, wall/walls
+and hollow box shapes. `import` reads main builder floor and walls commands.
+The module also exports `tick()` and `dugProtection(protect)`.
+
+The screen accepts `area x1 y1 z1 x2 y2 z2`, `shape <kind>`, `material <name>`,
+`add <id> [x y z n|e|s|w]`, `import <main builder command>`, `start` and `stop`.
+Reservations use `build:<id>`. Supply uses existing storage drop points.
+Saved intents and target inspection reconcile placement after restart.
+See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.

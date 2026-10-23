@@ -567,7 +567,7 @@ Drop points (generic)  (57x24)
                                                          
                                                          
                                                          
-  MINING      LUMBER       SHOP         AR       PANEL   
+ MINING    LUMBER    SHOP       AR      PANEL     BUILD  
                                                          
 ```
 The navigation row was added on Jeffrey's request.
@@ -1079,6 +1079,162 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 777777777777f777777777777faaaaaaaaaaaaf777777777777
 777777777777f777777777777faaaaaaaaaaaaf777777777777
 777777777777f777777777777faaaaaaaaaaaaf777777777777
+```
+
+Builder job 26x20  (26x20)
+```text
+                          
+ BUILD            stopped 
+                          
+          FLOOR           
+           🬖🬋🬏            
+           ▌ ▌            
+           🬈🬋🬀            
+                          
+ OF 0                     
+                          
+ MATERIAL -               
+                          
+ TURTLE -                 
+                          
+                          
+                          
+                          
+                          
+START   STOP  SETUP  BACK 
+                          
+```
+Background layer (blit letters, see palette):
+```text
+ffffffffffffffffffffffffff
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+dddddddddddddddddddddddddd
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+999999feeeeeef77777f777777
+999999feeeeeef77777f777777
+999999feeeeeef77777f777777
+```
+
+Builder setup 26x20  (26x20)
+```text
+                          
+ BUILD            stopped 
+                          
+ AREA -                   
+                          
+                          
+ MATERIAL -               
+ TURTLE -                 
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+    FLOOR         BACK    
+                          
+```
+Background layer (blit letters, see palette):
+```text
+ffffffffffffffffffffffffff
+f777777777777777777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+7777777777777f777777777777
+7777777777777f777777777777
+7777777777777f777777777777
+```
+
+Builder job 29x12  (29x12)
+```text
+                             
+ BUILD               stopped 
+                             
+            FLOOR            
+             🬖🬋🬏             
+             ▌ ▌             
+             🬈🬋🬀             
+                             
+ OF 0                        
+                             
+                             
+ START   STOP   SETUP   BACK 
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffff
+f777777777777777777777777777f
+fffffffffffffffffffffffffffff
+ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddd
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+9999999feeeeeef7777777f777777
+```
+
+Builder setup 29x12  (29x12)
+```text
+                             
+ BUILD               stopped 
+                             
+ AREA -                      
+                             
+                             
+ MATERIAL -                  
+ TURTLE -                    
+                             
+                             
+    FLOOR           BACK     
+                             
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffff
+f777777777777777777777777777f
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+77777777777777f77777777777777
+77777777777777f77777777777777
+77777777777777f77777777777777
 ```
 
 
