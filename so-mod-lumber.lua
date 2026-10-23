@@ -233,10 +233,10 @@ S.claimed = function(p, except)
   end
   return false
 end
-S.busy = function(p)
+S.busy = function(p, allowedOwner)
   local cells = S.module("cells")
   local owner = type(cells.owner) == "function" and cells.owner(p.x, p.y, p.z, S.job.dim)
-  if owner and owner ~= S.owner() then return true end
+  if owner and owner ~= S.owner() and owner ~= allowedOwner then return true end
   for _, row in pairs(S.job.turtles) do
     local at = row.turtle.pose
     if row ~= S.row and at and at.x == p.x and at.y == p.y and at.z == p.z then return true end
@@ -1100,7 +1100,7 @@ S.input = function(ev)
       if not ok then S.alert(err) return end
     end
     S.row = row or { turtle = { id = id, pose = pose } }
-    if S.busy(pose) then S.row = nil S.alert("turtle cell occupied") return end
+    if S.busy(pose, "gps:" .. id) then S.row = nil S.alert("turtle cell occupied") return end
     local released, err = S.release()
     if released == false then S.alert("save failed: " .. tostring(err)) return end
     if lease.claimProbe then

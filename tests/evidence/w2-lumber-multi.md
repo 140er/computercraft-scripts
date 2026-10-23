@@ -34,11 +34,13 @@ After the visibility merge, its attention reader also accepts per-worker lumber
 holds and alerts. Its focused tests passed, including independent clearing of
 two workers' notices.
 
-The final `cc-test --shards 4` result and tested head belong in the PR. Logs are
+The final plain `cc-test` result and tested head belong in the PR. Logs are
 saved locally under `tests/evidence/w2-lumber-multi/` and in the suite runner's
 reported output directory.
 
 No Minecraft server was started. Gate B C6 remains for the orchestrator, with a
 two-worker proposal in `tools/gateb/C6-multi.md`. The C4 and C10 frame readers
 accept both the new worker rows and existing recordings. W1 readiness and GPS
-work must be preserved when those branches merge.
+behavior is retained after rebasing onto bbe6240. Readiness checks all added
+workers, GPS add hands its reservation to the selected worker, and chest alerts
+retain their cause, point and coordinates.

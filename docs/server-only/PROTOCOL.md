@@ -1128,7 +1128,7 @@ screens use compact controls. The pairing handshake and job planning are unchang
 
 `start` checks the disk guard, configured area and ground height, usable wood and
 fuel drops, a configured unbroken sapling chest, an added paired worker without
-an uncertain or lost pose, and reported nonzero fuel. Refusals name every missing
+an uncertain or lost pose, and reported nonzero fuel for every added worker. Refusals name every missing
 item in order. Empty sapling chests still permit felling after start.
 SETUP uses compact red and green readiness rows. Chest alerts use the mining
 cause format and include the drop point and reason in `lumber.alert`.
@@ -1140,6 +1140,7 @@ The `lumber` display accepts these text commands:
 
 - `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
 - `saplings <x> <y> <z> <front|down>` sets the sapling chest's own coordinates and access side.
+- `add <id>` uses a fresh GPS fix and proven facing, probing one cell when needed. It retains existing workers.
 - `add <id> <x> <y> <z> <n|e|s|w>` adds or reanchors that worker without replacing the others. A recovery park report supplies the journal pose for `P.frame`.
 - `remove <id>` removes that worker after its open lease and stationary park report finish. Retry when the screen requests it. A turtle still holding chest access must return first.
 - `start` begins work. `stop` parks after the current lease reports.

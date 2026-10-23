@@ -12,19 +12,20 @@ local function job(count)
   return j
 end
 local function screen(j, noDaily)
-  local s = { saved=0, events={} }
+  local s = { saved=0, released=0, events={}, persisted=H.encode(j) }
   local env = setmetatable({SO={pair={key=function() return "paired" end},now=function() return 1000000 end,mods={},store={store=function()
-    return {value=j,save=function() s.saved=s.saved+1 return true end}
+    return {value=j,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
   end}}},{__index=_G})
   env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=0,z=0,kind="any"}} end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
   if not noDaily then env.SO.mods.daily={today=function() return {logs=96} end} end
   env.SO.mods.lease={status=function() return {} end}
   env.SO.mods.state={canStart=function() return true end,emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
-  env.SO.mods.cells={releaseOwner=function() return true end}
+  env.SO.mods.cells={releaseOwner=function() s.released=s.released+1 return true end}
   local mod=assert(loadfile('so-mod-lumber.lua','t',env))()
   mod.tick(1000000)
   for _, row in pairs(j.turtles) do row.recover=false end
+  for i=1,20 do local name,value=debug.getupvalue(s.render,i) if name=="S" then s.state=value break end end
   return s
 end
 local function capture(frame,w,h)
@@ -109,6 +110,63 @@ return function(test,equal)
     j.turtles['5'].idlePark=true
     s.input({text='remove 5'})
     assert(not j.turtles['5'] and j.turtles['4'] and j.turtles['6'] and j.turtles['9'])
+  end)
+  test('UI2b start and stop taps use the text commands once per tap including refusals',function()
+    for _,configured in ipairs({false,true}) do
+      local a,b=job(),job()
+      if not configured then a.area=nil;b.area=nil end
+      local typed,tapped=screen(a),screen(b)
+      for _,command in ipairs({'start','stop','start','stop'}) do
+        local before,typedBefore=tapped.saved,typed.saved
+        typed.input({text=command});tapped.input({id=command})
+        equal(a,b);equal(typed.saved,tapped.saved)
+        equal(tapped.saved-before,typed.saved-typedBefore)
+        assert(tapped.saved-before<=1)
+      end
+      if not configured then equal(a.alert,'area not set') end
+    end
+  end)
+  test('UI2b navigation and unknown taps leave alerts events and saved jobs unchanged',function()
+    for _,id in ipairs({'status','unknown','generic','alerts','area 0 0 1 1 64'}) do
+      local j=job();local s=screen(j)
+      local before,events,persisted=H.encode(j),H.encode(s.events),s.persisted
+      local alert,saves=j.alert,s.saved
+      s.input({id=id})
+      equal(j.alert,alert)
+      equal(H.encode(j),before)
+      equal(H.encode(s.events),events)
+      equal(s.persisted,persisted)
+      equal(s.saved,saves)
+    end
+  end)
+  test('UI2b every text command retains configuration and refusal behavior',function()
+    local j=job(1);j.turtles["2"]=j.turtles["4"];j.turtles["4"]=nil;j.turtles["2"].turtle.id=2;local s=screen(j)
+    local function cmd(text,alert)
+      s.input({text=text});if alert then equal(j.alert,alert) end
+    end
+    cmd('area 0 0 1 1 64','stop before configuring')
+    cmd('add 2 0 65 0 n','stop before configuring')
+    cmd('stop');equal(j.running,false)
+    cmd('area 4 3 0 1 60');equal(j.area,{x1=0,z1=1,x2=4,z2=3});equal(j.ground,60);equal(j.spots,{})
+    cmd('saplings 1 2 3 front');equal(j.saplings,{x=1,y=2,z=3,side='front'})
+    cmd('saplings -1 2 -3 down');equal(j.saplings,{x=-1,y=2,z=-3,side='down'})
+    for facing,n in pairs({n=0,e=1,s=2,w=3}) do
+      cmd('add 2 0 65 0 '..facing);equal(j.turtles["2"].turtle.pose.facing,n)
+    end
+    equal(s.released,4)
+    j.turtles["2"].fuel=1210
+    cmd('start');equal(j.running,true);equal(j.alert,nil)
+    cmd('stop');j.turtles["2"].pending={}
+    cmd('area 0 0 1 1 64','stop before configuring');cmd('add 2 0 65 0 n','stop before configuring')
+    j.turtles["2"].pending=nil
+    for _,text in ipairs({'area 0 0 128 0 64','area 0.5 0 1 1 64','area 0 0 1 1 30000000'}) do cmd(text,'invalid area') end
+    for _,text in ipairs({'saplings 1 2 3 up','saplings x 2 3 front'}) do cmd(text,'invalid sapling chest') end
+    for _,text in ipairs({'add -1 0 65 0 n','add 2 0 65 0 up','add 2 x 65 0 n'}) do cmd(text,'invalid turtle') end
+    for _,text in ipairs({'','wat','start extra','stop extra','area 0','saplings 0'}) do cmd(text,'invalid command') end
+    cmd('add 2','turtle already assigned')
+    for _,missing in ipairs({'area','turtles','ground'}) do
+      local bad=job();bad[missing]=missing=="turtles" and {} or nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing; fuel missing')
+    end
   end)
   test('UI2b missing daily source and grow timer show a dash',function()
     local j=job();j.nextRound=nil;local s=screen(j,true)

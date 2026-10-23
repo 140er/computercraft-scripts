@@ -57,6 +57,21 @@ return function(test,equal)
     s.input("stop") s.paired[2]=nil s.input("start")
     equal(s.job.alert,"paired turtle missing") assert(not s.job.running)
   end)
+  test("lumber readiness checks fuel and pairing for every added worker",function()
+    local s=fixture("lumber")
+    s.job.area={x1=0,x2=2,z1=0,z2=2} s.job.ground=0
+    s.job.saplings={x=-3,y=0,z=0,side="down"}
+    s.points[1]={id="all",dim=0,x=-1,y=0,z=0,kind="any"}
+    for id=2,3 do
+      s.job.turtles[tostring(id)]={turtle={id=id,pose={x=id,y=2,z=0,facing=0}},fuel=1000}
+      s.paired[id]="paired"
+    end
+    s.job.turtles["3"].fuel=0 s.input("start")
+    equal(s.job.alert,"fuel missing") assert(not s.job.running)
+    s.job.turtles["3"].fuel=1000 s.status[3]={uncertain=true} s.input("start")
+    equal(s.job.alert,"paired turtle missing") assert(not s.job.running)
+    s.status[3]={} s.input("start") assert(s.job.running)
+  end)
   test("readiness ignores broken chests when a usable fallback exists in the same dimension",function()
     local points={{id="bad",dim=0,x=0,y=0,z=0,kind="ore",broken=true},
       {id="other-world",dim=-1,x=1,y=0,z=0,kind="ore"}}

@@ -308,7 +308,8 @@ stop
 ```
 
 `start` requires farm bounds and soil height, wood and fuel drops, a configured
-sapling chest, an added paired turtle with reported fuel, and the disk guard.
+sapling chest, paired turtles with reported fuel, and the disk guard. Every
+added worker must be paired, have a certain pose and report nonzero fuel.
 SETUP lists missing items in red and configured items in green.
 `area` sets farm bounds and soil height. `saplings` sets the sapling chest's own
 coordinates. With `front`, the planner chooses the nearest eligible cell beside
@@ -320,7 +321,8 @@ Distance is Manhattan distance from the turtle's current position. Ties use
 north, east, south, west order. If no eligible cell remains, the turtle holds
 with a named `saplings #<id> unreachable` alert.
 
-`add` adds a paired worker with an axe and retains the others. Stop before
+`add` adds a paired worker with an axe and retains the others. `add <id>` uses
+the same GPS fix and facing probe as mining. Stop before
 changing assignments. `remove` removes the selected worker once its lease and
 park report finish. Retry when requested. A turtle at a chest returns before
 it can be removed. Each worker recovers its own journal pose after restart.
