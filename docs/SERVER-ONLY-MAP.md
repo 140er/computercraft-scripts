@@ -114,7 +114,11 @@ and listeners use `listener(sender, message)`.
 
 - [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
-  `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `canvas(w, h, bg?)`, `status(model, w, h)`, `alert(model, w, h)`,
+  `chipRow(C, y, label, chips, x?, right?)` and `fleetRows(C, model, top, step)`.
+  `chipRow` draws a label and `{ text, bg }` chips right-aligned to `right`
+  (default `w - 1`). `fleetRows` draws status tiles 1-8 as chip rows, using a
+  tile's `chips` when present, and makes the ALERTS row the `alerts` target.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
@@ -219,7 +223,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
   `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
-  `command(text)` and `drawTerminal(now?)`.
+  `command(text)`, `drawTerminal(now?)` and `statusModel()`.
+  `statusModel()` returns the status model of the last gather, or nil.
   A display shows one role. `assign` is the only way to change it: role nil or
   `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
   unregistered screens return `false, reason`. Success returns
@@ -241,7 +246,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
-  and `input`. Built-in screens are `status` and the pocket's two pages. No tap
+  and `input`. The built-in screen is `status`. No tap
   or typed text changes a role, and no screen draws buttons to another role.
   Input includes sender ID `from`. Sessions retain the client ID as `id` and hello `keyboard == true` as `keyboard`.
   Monitor clients send false; older clients omit it and get touch controls.
@@ -249,8 +254,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Render signatures and revisions are isolated by role, size and session. Status also
   isolates paging and alert takeover state per display session. Panel frames also
   isolate revisions per session. With the kit, a roleless 26x20 display gets
-  the `pocket` role. Its glance page pages two tiles at a time with `prev` and
-  `next`; `panel` opens its panel page and `glance` returns. Any other roleless
+  the `pocket` role. Status and pocket share the alert takeover; after it the
+  pocket draws the registered `pocket` screen (so-mod-panel). Without that
+  screen, and for status at 26x20, it draws the eight fleet chip rows under a
+  FLEET header; their ALERTS row opens the takeover. Any other roleless
   display draws UNASSIGNED with its id in big digits; a role whose screen is
   missing draws the same block under the role name. Saved roles survive restart.
   The 15x10 status page has NEXT on its last row. Gather runs in
@@ -274,8 +281,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   is under it. The map is its own role with no BACK. `tests/ui/map-scene.txt`
   feeds both `map-mockup.py` and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
-- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
-  `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
+- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the `panel` and
+  `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   Main-page inputs forward START and STOP once to the mining or lumber screen.
@@ -283,8 +290,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
-  In the pocket role, `session.pocket` adds GLANCE (`glance`) to the bottom row;
   ALERTS lists state alerts; PAIR offers NEW CODE.
+  The pocket screen keeps `session.pocket = { page, search, selected, sent,
+  alertPage, invitation, pairBusy }`; `display.assign` clears it. Tabs
+  `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair` sit on row 1; `alerts` (the FLEET ALERTS row) opens
+  the alert list with `alert-prev` and `alert-next`. FLEET and ALERTS read
+  `display.statusModel()`. Tick renders mining and lumber at 120x18 with a
+  private session and reads their header state and the compact `LABEL VALUE`
+  rows 3-8 with each row's colour; JOBS shows four of them and forwards
+  `mining:start|stop` and `lumber:start|stop` once; a frame without the
+  expected rows keeps the last facts. SHOP lists as many `shop.matches` items as
+  fit; `pick:<item>` selects, `clear` empties the search, and
+  `order:<1|16|64>:<item>` under the shown item calls `shop.order(item, count)`
+  once while that item still matches the search.
+  PAIR uses the same `pair-code` path as the panel. Inputs act only on the page
+  that drew them.
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
   Code frames use the display's own key; other displays never receive them.
@@ -295,9 +315,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Exports `tick(now)` and `order(search, count)`.
-  `order` sends one order for the match with the highest stock, breaking ties
-  by name. Counts are 1, 16 or 64. Missing matches or storage send nothing.
+  turtle to the shop screen. Exports `tick(now)`, `order(search, count)` and
+  `matches(search, limit?)`. `matches` is read-only: up to `limit` (default 10)
+  `{ name, count, label }` items whose id contains the search, by stock then id.
+  `order` sends one order for an exact item id, else for the first match, and
+  returns that id. Counts are 1, 16 or 64. Missing matches or storage send nothing
+  and return nil.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
   Tick registers the shop screen, discovers storage and polls stock.
   Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
@@ -464,7 +487,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   It opens every modem and rescans on attach and detach events. Screens
   at least three rows tall reserve the bottom row for typed input and report
   the remaining height in `hello`. The optional `fullH` advertises physical height
-  so Big Tiles can use every row, including pocket glance navigation. Kit frames
+  so Big Tiles can use every row, including the pocket's last row. Kit frames
   use that full height; kit-free frames retain the input row. Wall displays
   also echo input on the terminal.
 
@@ -699,6 +722,13 @@ size-specific revisions, source gathering and server-only kit installation.
 `status-T.txt` uses four 12-column tiles and a log, with status navigation on the
 bottom three rows. UI-1 pocket parity covers rows 1 through 19; UI-3b covers all 20 rows.
 
+R3 adds `tests/ui/r3pocket.lua`. It checks every pocket page against its
+fixture (pocket-fleet, -alerts, -jobs, -shop, -pair, -code) and status-P, tab
+routing after a takeover, one action per START, STOP and order tap, exact-item
+orders, one-row controls, contrast and bounds at 26x20 and 26x19, missing
+modules, alert paging, the fleet chips from a real gather and job facts from
+the real mining and lumber screens.
+
 
 UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
 selected drop actions, draft editing, all 64 points through paging, AR switch
@@ -706,8 +736,8 @@ persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
 files and client role lists are unchanged.
 
-UI-3b adds `tests/ui/ui3b.lua`. It checks status-P and panel-P fixtures
-on all 20 rows, the pocket role's two pages, per-pocket paging and search,
+UI-3b adds `tests/ui/ui3b.lua`. It checks the panel-P fixture
+on all 20 rows, pocket defaults and tabs, per-pocket pages and search,
 action forwarding, real shop orders, monitor layout, session revisions, role
 persistence, alert paging, pairing help, missing modules, contrast, bounds and
 server-only installation.

@@ -334,7 +334,7 @@ return function(test, equal)
     local section = spec:match("\n(Status, room monitor.-)\n\n\n### 7%.2")
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
-    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24"
+    local names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

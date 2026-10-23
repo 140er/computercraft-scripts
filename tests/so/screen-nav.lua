@@ -133,8 +133,8 @@ return function(test, equal)
       s.assign("status");role("status")
       if size[1]==26 then
         s.assign("-");role("pocket")
-        s.press("PANEL");header("PANEL");role("pocket")
-        s.press("GLANCE");header("FLEET");role("pocket")
+        s.press("JOBS");assert(s.frame().rows[3].text:find("MINING",1,true));role("pocket")
+        s.press("FLEET");assert(s.frame().rows[3].text:find("TURTLES",1,true));role("pocket")
       end
       for _, name in ipairs({"status","generic","mining","lumber","shop","ar","panel","mining setup","lumber setup","SHOP >","ADD DROP"}) do
         assert(seen[name], "unreached " .. name)

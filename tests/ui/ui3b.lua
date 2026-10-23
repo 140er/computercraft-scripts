@@ -83,11 +83,8 @@ local function private(fn, key)
 end
 
 return function(test,equal)
-  test('UI3b roleless pockets default to the pocket role and glance matches all twenty fixture rows',function()
+  test('UI3b roleless pockets default to the pocket role; other sizes are unassigned',function()
     local s=setup();equal(s.frame(2).role,'pocket')
-    local d=private(s.display.handlers.hello,'D');d.model=model()
-    local diff=R.diff('tests/ui/fixtures/status-P.txt',capture(d.statusFrame(d.sessions[2],26,20,0,true),26,20))
-    assert(#diff==0,table.concat(diff,'\n'))
     equal(s.frame(3,57,24).role,'unassigned')
     equal(s.saved.roles,{})
   end)
@@ -103,42 +100,30 @@ return function(test,equal)
       equal(restored.role,'generic')
     end
   end)
-  test('UI3b client input height keeps full Big Tiles pocket navigation',function()
+  test('UI3b client input height keeps the pocket tab bar and every row',function()
     local s=setup()
     s.display.handlers.hello({from=2,body={w=26,h=19,fullH=20}})
     local f;s.display.handlers['view.get']({from=2},function(_,body) f=body end)
     equal(f.role,'pocket');equal(#f.rows,20)
-    local panel
-    for _,button in ipairs(f.buttons) do if button.id=='panel' then panel=button end end
-    assert(panel and panel.y==20,'last-row panel page must remain reachable')
-    s.tap(2,panel.id);f=s.frame(2);equal(f.role,'pocket');assert(f.rows[2].text:find('PANEL',1,true))
-    local glance
-    for _,button in ipairs(f.buttons) do if button.id=='glance' then glance=button end end
-    assert(glance and glance.y==20);s.tap(2,'glance');assert(s.frame(2).rows[2].text:find('FLEET',1,true))
+    local jobs
+    for _,button in ipairs(f.buttons) do if button.id=='tab:jobs' then jobs=button end end
+    assert(jobs and jobs.y==1,'the tab bar is the first row')
+    s.tap(2,'tab:jobs');f=s.frame(2);equal(f.role,'pocket');assert(f.rows[3].text:find('MINING',1,true))
+    s.tap(2,'tab:fleet');assert(s.frame(2).rows[3].text:find('TURTLES',1,true))
     equal(s.saved.roles,{})
   end)
-  test('UI3b glance pages cover all tiles independently and wrap both ways',function()
+  test('UI3b pocket FLEET shows every fact on one page and pages stay per pocket',function()
     local s=setup();s.frame(2);s.frame(3)
-    local seen={}
-    for page=1,5 do
-      local out=capture(s.frame(2),26,20)
-      for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-        local fg,bg=cell[2],cell[3]
-        if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-        assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-          (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','glance contrast '..fg..'/'..bg)
-      end end
-      local text=out.picture().text
-      for _,y in ipairs({5,13}) do seen[text[y]:match('^%s*(.-)%s*$')]=true end
-      assert(text[20]:find('glance '..page..'/5',1,true));s.tap(2,'next')
+    local text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
+    for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS'}) do
+      assert(text:find(label,1,true),label)
     end
-    for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS','PAIR'}) do assert(seen[label],label) end
-    assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 1/5',1,true))
-    s.tap(2,'prev');assert(capture(s.frame(2),26,20).picture().text[20]:find('glance 5/5',1,true))
-    assert(capture(s.frame(3),26,20).picture().text[20]:find('glance 1/5',1,true))
+    s.tap(2,'tab:shop')
+    assert(capture(s.frame(3),26,20).picture().text[3]:find('TURTLES',1,true))
+    assert(not capture(s.frame(2),26,20).picture().text[3]:find('TURTLES',1,true))
   end)
   test('UI3b panel fixture matches and controls dispatch once per tap',function()
-    local s=setup();s.now=(21*60+14)*60000;s.frame(2);s.tap(2,'panel');s.tap(2,nil,'iron')
+    local s=setup();s.now=(21*60+14)*60000;s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,nil,'iron')
     local diff=R.diff('tests/ui/fixtures/panel-P.txt',capture(s.frame(2),26,20))
     assert(#diff==0,table.concat(diff,'\n'))
     for _,role in ipairs({'mining','lumber'}) do for _,cmd in ipairs({'start','stop'}) do
@@ -175,7 +160,7 @@ return function(test,equal)
   test('UI3b missing modules have disabled blocks and no action targets',function()
     local s=setup();local d=private(s.display.handlers.hello,'D')
     d.screens.mining=nil;d.screens.lumber=nil;d.screens.shop=nil;s.panel.tick(0)
-    s.frame(2);s.tap(2,'panel');local f=s.frame(2)
+    s.frame(2);assert(s.display.assign(2,'panel'));local f=s.frame(2)
     local picture=capture(f,26,20).picture()
     local text=table.concat(picture.text,'\n')
     local _,n=text:gsub('not loaded','');equal(n,3)
@@ -200,7 +185,7 @@ return function(test,equal)
     local lumber=assert(loadfile('so-mod-lumber.lua','t',s.env))()
     s.env.SO.mods.mine=mine;s.env.SO.mods.lumber=lumber
     mine.tick(0);lumber.tick(0);s.panel.tick(0)
-    s.frame(2);s.tap(2,'panel')
+    s.frame(2);assert(s.display.assign(2,'panel'))
     for _,role in ipairs({'mining','lumber'}) do
       local path='so-data/'..(role=='mining' and 'mine' or role)..'/job'
       for _,cmd in ipairs({'start','stop'}) do
@@ -217,7 +202,7 @@ return function(test,equal)
       local shop=assert(loadfile('so-mod-shop.lua','t',s.env))()
       s.env.SO.mods.shop=shop;shop.tick(0)
       shop.listen.roomsorter_stock(9,{totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}})
-      s.panel.tick(0);s.frame(2);s.tap(2,'panel');s.tap(2,nil,'IRON')
+      s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,nil,'IRON')
       local sessions={{id=3},{id=4},{}}
       local screen=s.display.screen('shop')
       local totals={['minecraft:iron_ingot']=1240,['minecraft:iron_ore']=312,['minecraft:gold_ingot']=4000}
@@ -295,7 +280,7 @@ return function(test,equal)
     local s=setup();local values={}
     for i=1,30 do values[string.format('module%02d.alert',i)]={text='fault '..i} end
     s.env.SO.mods.state={view=function() return {values=values} end}
-    s.panel.tick(0);s.frame(2);s.tap(2,'dismiss');s.tap(2,'panel');s.tap(2,'alerts')
+    s.panel.tick(0);s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,'alerts')
     local text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
     assert(text:find('fault 1',1,true));assert(text:find('fault 15',1,true));assert(not text:find('fault 16',1,true))
     s.tap(2,'alert-next');text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')

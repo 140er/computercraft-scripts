@@ -1,41 +1,41 @@
-26x20 Pocket, glance mode
+26x20 Status at 26x20 (a pocket assigned status)
                           
  FLEET              21:14 
                           
+ TURTLES    3 ok  1 lost  
                           
-  TURTLES                 
-           🬋🬋🬏            
-           🬇🬋🬐            
-           🬋🬋🬀            
-  3 ok, 0 lost            
+ LEASES           2 open  
+                          
+ ALERTS                3  
+                          
+ ORE TODAY           214  
+                          
+ LOGS TODAY           96  
+                          
+ DISK                13%  
+                          
+ DISPLAYS              4  
+                          
+ DROPS       5  1 broken  
                           
                           
-                          
-  ALERTS                  
-           🬞🬓             
-            ▌             
-           🬇🬌             
-  ore chest full          
-                          
-                          
- <  glance 1/5  >  PANEL  
 ffffffffffffffffffffffffff
 f777777777777777777777777f
 ffffffffffffffffffffffffff
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
+fffffffffffddddddeeeeeeeef
 ffffffffffffffffffffffffff
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
+fffffffffffffffffbbbbbbbbf
 ffffffffffffffffffffffffff
-77777777777777777777777777
+ffffffffffffffffffffffeeef
+ffffffffffffffffffffffffff
+ffffffffffffffffffffbbbbbf
+ffffffffffffffffffffffffff
+fffffffffffffffffffffddddf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffdddddf
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffdddf
+ffffffffffffffffffffffffff
+ffffffffffffddd1111111111f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

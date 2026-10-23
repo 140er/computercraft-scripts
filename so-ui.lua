@@ -203,7 +203,7 @@ U.status = function(model, w, h)
     end
   end
   if size == 'P' then
-    for i,index in ipairs({1,3}) do draw(index,1,4+(i-1)*8,w,7) end
+    U.fleetRows(C,model,4,h >= 18 and 2 or 1)
   elseif size == 'XS' then
     draw((model.page or 0) % #tiles+1,1,3,w,7)
     C.button(1,h,w,'NEXT','next','7',1)
@@ -235,5 +235,31 @@ U.alert = function(model, w, h)
   C.center(1,w,h-3,'(back to the screen in 5 s, or tap)')
   C.hit('dismiss',1,1,w,h)
   return C.frame()
+end
+
+-- Chip row: a label on navy, then { text, bg } chips right-aligned to `right`.
+-- Returns the column left of the first chip.
+U.chipRow = function(C, y, label, chips, x, right)
+  x, right = x or 2, right or C.w - 1
+  local room = right - x
+  for _, chip in ipairs(chips) do room = room - #tostring(chip[1]) - 2 end
+  C.put(x, y, label:sub(1, math.max(0, room)))
+  for i = #chips, 1, -1 do
+    local text = ' ' .. tostring(chips[i][1]) .. ' '
+    right = right - #text
+    C.put(right + 1, y, text, nil, chips[i][2])
+  end
+  return right
+end
+-- Fleet facts from the status model as chip rows: tiles 1-8, `step` rows apart.
+-- The ALERTS row is the `alerts` target.
+U.fleetRows = function(C, model, top, step)
+  for i = 1, 8 do
+    local t, y = (model.tiles or {})[i], top + (i - 1) * step
+    if t and y <= C.h then
+      U.chipRow(C, y, t.label, t.chips or { { t.value, t.bg } })
+      if i == 3 then C.hit('alerts', 2, y, C.w - 2, 1) end
+    end
+  end
 end
 return U
