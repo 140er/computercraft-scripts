@@ -351,7 +351,9 @@ that event. A failed durable append sets the disk error and queues the event in
 memory before folding it. The queue holds at most 256 events and 262144 serialized
 bytes. Overflow or an event above the single-segment budget prints an explicit
 refusal and returns false. Segment fit is checked before queue insertion. Queued events appear
-in views and history, retry in sequence, and are lost if power fails before retry. The revision is the event sequence number. `emit(key, value)` is this same call.
+in views and history, retry in sequence, and are lost if power fails before retry.
+By default, the revision is the event sequence number. Heartbeat coalescing also
+advances revisions for registry changes in memory. `emit(key, value)` is this same call.
 
 `state.get(key)` returns the last value stored under that key, or nil.
 
@@ -361,7 +363,7 @@ in views and history, retry in sequence, and are lost if power fails before retr
 
 `state.view(name, buildFn)` declares a named view. `buildFn` receives `{ rev, values, machines, jobs }` and returns the view data. The names `fleet`, `log`, `status`, and `turtle/<id>` stay built in.
 
-`state.view.get({ name = string })` returns one frame `{ t = "view.frame", name, rev, at, data }`. `rev` is the event sequence. `at` is utc milliseconds. This frame is in-process. It is not a rednet `view.frame`.
+`state.view.get({ name = string })` returns one frame `{ t = "view.frame", name, rev, at, data }`. `rev` is the view revision. `at` is utc milliseconds. This frame is in-process. It is not a rednet `view.frame`.
 
 `state.view.sub({ name = string, notify = function })` subscribes to that view. On a change, SO1 calls `notify(frame)`. The frame `rev` is greater than the previous frame for that subscriber. Two frames for one subscriber are at least 500 ms apart, so a subscriber gets at most 2 frames per second. `tick` sends a frame that was held back once the gap has passed.
 
@@ -408,6 +410,34 @@ The categories sum to `used`. `scanned` is the last ledger scan in game time. `r
 #### Log files
 
 Events live in segment files of at most 64 KB under `so-data/log/`. SO1 writes a snapshot of the folded state every 2000 events under `so-data/snap/`. On boot it loads snapshot `n` from the recovered `latest` pointer, or `n-1` if `n` is invalid, and applies later segment events. After `latest` saves, cleanup deletes older numbered snapshots and their `.tmp` and `.bak` files. Startup repeats this cleanup. Live segment bytes stay at or under 1 MB. Older segments are deleted only after the snapshot that covers them is on disk. A crash during a segment write loses at most that one event. A failed write returns false and the error. SO1 does not drop it silently.
+
+New segments target 8192 bytes of estimated serialized data. A larger valid
+event occupies one segment up to the existing 65536-byte limit. Saves still
+write and verify a full schema-1 generation before append returns success.
+Current, `.tmp` and `.bak` recovery and protocol version 1 are unchanged.
+`so-store.store` exposes `bytes`, the serialized size of its recovered or most
+recently saved generation. Log accounting uses that size without rereading it.
+Retention checkpoints leave at least 64 KB below the 1 MB window by removing
+whole covered segments. This amortizes snapshot writes across small segments.
+
+Optional `so-server.cfg` `state.coalesceHeartbeats=true` omits routine hello
+events at every disk pressure. The default is false. First contact, role,
+journal and fingerprint changes still emit `machine`. Fuel changes emit when
+the type changes, zero is crossed, or the difference from the last machine
+event reaches 100. Smaller changes update the registry in memory. Every changed
+hello advances the view revision without consuming an event sequence number.
+Subscriptions retain the 500 ms throttle. Revisions restart from durable event
+state after reboot and must not be used as history cursors.
+
+Snapshots include the current registry contact times and fuel. Their cadence
+remains event-count and retention driven, so idle freshness has no bounded
+checkpoint interval. With coalescing enabled, boot restores each machine's
+`seen` as the newer of its saved contact time and `SO.now()`. This gives restored
+machines the normal stale threshold to reconnect. Coalescing does not change
+the existing volatile disk-failure backlog or make queued events durable.
+The optional registry field `eventFuel` saves the last machine event's fuel
+baseline, so cumulative changes still reach the threshold across restarts.
+Older readers ignore that field.
 
 When the disk is 80% full or more, `status` raises the disk alert and new jobs are refused. Other events are still written while the disk accepts them.
 
