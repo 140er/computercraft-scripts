@@ -608,6 +608,8 @@ class Runtime:
                         raise RuntimeError('Installed file mismatch on '+cid)
                     installed[cid]={'role':role,'files':hashes}
                     if online:
+                        if mode=='copy' and comp.get('kind')=='pocket':
+                            self.request(name,{'op':'power','computer':cid,'action':'on'})
                         proof=self.request(name,{'op':'power','computer':cid,'action':'reboot'})
                         installed[cid]['boot']=proof
                         if mode=='copy': self.wait_boot(name,cid,proof)

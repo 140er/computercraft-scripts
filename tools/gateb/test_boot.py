@@ -118,6 +118,27 @@ class BootTests(unittest.TestCase):
         self.assertEqual([entry['action'] for entry in proof['commands']],['shutdown','turn-on'])
         self.assertEqual(result['boots'],{'1':proof})
 
+    def test_online_pocket_copy_turns_on_before_its_bridge_reboot(self):
+        sha=self.install_source()
+        self.manifest['computers']['1'].update(kind='pocket',requires_client=True)
+        atomic(self.runtime.run('one')/'manifest.json',self.manifest)
+        powered=[True]
+        actions=[]
+        def request(name,q):
+            action=q['action'];actions.append(action)
+            if action=='reboot':
+                self.assertTrue(powered[0], 'A stopped pocket cannot answer its bridge')
+            powered[0]=action!='off'
+            proof=self.proof()
+            if action=='reboot': self.snapshot()
+            return proof
+        with patch.object(self.runtime,'status',return_value={'one':123,'one:client':124}), \
+                patch.object(self.runtime,'request',side_effect=request),patch('world.time.sleep'):
+            result=self.runtime.install('one',sha)
+        self.assertEqual(actions,['off','on','reboot'])
+        self.assertEqual(result['errors'],[])
+        self.assertEqual(result['boots']['1']['state'],'ready')
+
     def test_failed_boot_is_an_install_error_with_saved_proof(self):
         sha=self.install_source()
         def fail(name,cid,proof):
