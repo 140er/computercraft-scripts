@@ -852,12 +852,12 @@ local function command(event)
     S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
-    if not ok then S.error = err or "disk guard unavailable" emit("mine.alert",{text=S.error}) return end
+    if not ok then S.error = err or "disk guard unavailable" emit("mine.alert",{text=S.error}) return "published" end
     local missing=P.missing(readiness())
     if #missing>0 then
       S.error=table.concat(missing,"; ")
       emit("mine.alert",{text=S.error,missing=missing})
-      return
+      return "published"
     end
     S.error = nil
     if call("state","get","mine.alert") then emit("mine.alert",false) end
@@ -872,7 +872,7 @@ local function command(event)
   save()
 end
 local function input(event)
-  command(event)
+  if command(event)=="published" then return end
   if type(event.text) == "string" or event.id == "start" or event.id == "stop" or tostring(event.id):match("^here:") then
     local current=call("state","get","mine.alert")
     if S.error then

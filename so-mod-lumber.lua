@@ -70,6 +70,12 @@ S.alert = function(text, point, reason)
     S.save()
   end
 end
+S.clearAlert = function()
+  local state=S.module("state")
+  local active=S.job.alert or S.admission or state.get and state.get("lumber.alert")
+  S.job.alert,S.admission=nil,nil
+  if active then S.emit("lumber.alert",false) end
+end
 S.chestAlert = function(kind, reason, point)
   if kind == "fuel" and reason == "empty" then
     local shop = S.module("shop")
@@ -1064,7 +1070,7 @@ S.input = function(ev)
     end)
     return
   end
-  if words[1] == "stop" and #words == 1 then j.running, j.alert, S.admission = false, nil, nil S.emit("lumber.alert",false)
+  if words[1] == "stop" and #words == 1 then S.clearAlert() j.running=false
   elseif words[1] == "start" and #words == 1 then
     local state = S.module("state")
     local ok, err = false, "disk guard unavailable"
@@ -1128,9 +1134,8 @@ S.input = function(ev)
       paused = row and row.paused or nil,
     }
     S.row = nil
-    j.alert,S.admission=nil,nil
+    S.clearAlert()
     if not S.save() then j.turtles[tostring(id)] = previous return end
-    S.emit("lumber.alert",false)
     if lease.clearProbe then
       local ok, clearErr = lease.clearProbe(id)
       if not ok then S.alert(clearErr) return end
@@ -1157,8 +1162,7 @@ S.input = function(ev)
     j.turtles[tostring(id)] = nil
     S.row = nil
   else S.alert("invalid command") return end
-  j.alert,S.admission=nil,nil
-  S.emit("lumber.alert",false)
+  S.clearAlert()
   S.save()
 end
 

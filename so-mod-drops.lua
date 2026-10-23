@@ -92,14 +92,14 @@ S.clone = function(list)
     local p = list[i]
     out[i] = {
       id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z,
-      side = p.side, kind = p.kind, fails = p.fails, room = p.room or nil, verified = SO.store.copy(p.verified),
+      side = p.side, kind = p.kind, fails = p.fails, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
     }
   end
   return out
 end
 
 S.pub = function(p)
-  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, verified = SO.store.copy(p.verified), disabled = p.room and not S.roomSink or nil }
+  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil, disabled = p.room and not S.roomSink or nil }
 end
 
 S.find = function(id)
@@ -342,14 +342,14 @@ S.freeTurtle = function(id, facing)
   if not lease or not lease.candidates or not lease.world then return nil,"lease unavailable" end
   local found = false
   for _, candidate in ipairs(lease.candidates()) do if candidate == id then found=true end end
-  if not found then return nil,"use an unassigned idle turtle" end
+  if not found then return nil,"no unassigned idle turtle" end
   local status=lease.status(id)
   if not status.parkBatch or not status.setupFence then return nil,"update worker for setup safety" end
   local config=SO.store.read("so-server.cfg") or {}
   local pose,err=lease.world(id,config.pos and config.pos.dim)
   if not pose then return nil,err end
   if pose.facing == nil then pose.facing=facing end
-  if pose.facing == nil then return nil,"choose facing" end
+  if pose.facing == nil then return nil,"facing unknown" end
   if not status.pose then return nil,"journal pose unavailable" end
   return pose
 end
@@ -421,7 +421,7 @@ S.beginSetup = function(id, point, facing)
   if config.setupMovement ~= true then S.message="setup movement disabled" return end
   local pose,err=S.freeTurtle(id, facing)
   if not pose then
-    if err=="choose facing" then S.compass={id=id,point=point} S.testing=true end
+    if err=="facing unknown" then S.compass={id=id,point=point} S.testing=true end
     S.message=err return
   end
   S.compass=nil
@@ -499,7 +499,7 @@ S.testPoint = function(id)
   local lease=SO.mods.lease
   for _,turtleId in ipairs(lease and lease.candidates and lease.candidates() or {}) do
     local pose,err=S.freeTurtle(turtleId)
-    if pose or err=="choose facing" then S.beginSetup(turtleId,S.points[idx]) return end
+    if pose or err=="facing unknown" then S.beginSetup(turtleId,S.points[idx]) return end
   end
   S.message="no idle turtle with known facing"
 end
@@ -532,7 +532,7 @@ S.releaseSetup = function(id)
 end
 
 S.row = function(text)
-  return { text = text, fg = "0", bg = "f" }
+  return { text = text or "", fg = "0", bg = "f" }
 end
 
 S.button = function(id, x, y, label)
@@ -779,7 +779,7 @@ S.layout = function(model, w, h)
     C.listRow(i-first+4, text, p.fails >= 3 and 'e' or 'd')
     C.hit('select:'..p.id, 1, i-first+4, w, 1)
   end
-  if model.setupActions then C.button(w-7,2,8,"TEST","testing","9",1) end
+  if model.setupActions then C.button(math.max(1,w-12),2,8,"TEST","testing","9",1) end
   if pages > 1 then
     C.button(1, actionY-1, math.floor(w/2), "PREV", "prev", '7', 1)
     C.button(math.floor(w/2)+1, actionY-1, w-math.floor(w/2), "NEXT", "next", '7', 1)
