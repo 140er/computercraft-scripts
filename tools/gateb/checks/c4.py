@@ -1,5 +1,5 @@
 import time
-from .model import Criteria, values, xyz
+from .model import Criteria, values, xyz, lumber_workers
 
 TITLE = "Native poses and world anchors"
 
@@ -19,7 +19,7 @@ def run(ctx):
     state, comparisons, display = ctx.state(), [], []
     for name in ("miner1", "miner2", "lumber"):
         native = ctx.native(name)
-        row = state["lumber"].get("turtle", {}) if name == "lumber" else state["mine"].get("turtles", {}).get(str(ctx.computer(name)), {})
+        row = lumber_workers(state["lumber"], ctx.computer(name)).get(str(ctx.computer(name)), {}) if name == "lumber" else state["mine"].get("turtles", {}).get(str(ctx.computer(name)), {})
         native_facing = {"north":0,"east":1,"south":2,"west":3}.get(native.get("facing"))
         comparisons.append(bool(row.get("pose") and xyz(row["pose"]) == xyz(native["pos"]) and row["pose"].get("facing") == native_facing))
         frame = ctx.navigate("wall", "lumber" if name == "lumber" else "mining")

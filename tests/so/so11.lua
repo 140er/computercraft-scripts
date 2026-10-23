@@ -250,8 +250,8 @@ S.run = function(rate)
       for id,w in pairs(g.workers) do
         g.killPositions[id]=S.copy(w.pos)
         local job=id==4 and g.before.lumber or g.before.mine
-        local row=id~=4 and job.turtles[tostring(id)]
-        g.workLeft[id]=job.running and (id==4 and job.phase~="waiting" or id~=4 and row.state~="done")
+        local row=job.turtles[tostring(id)]
+        g.workLeft[id]=job.running and (id==4 and row.phase~="waiting" or id~=4 and row.state~="done")
       end
       print("SO11 power cut in "..server.context.." at "..((n.time-g.start)/1000).."s")
       g.disk=S.copy(server.files)
@@ -350,7 +350,7 @@ S.run = function(rate)
   for id,row in pairs(mine.turtles) do
     print("SO11 mining "..id.." state="..tostring(row.state).." pose="..H.encode(row.pose).." error="..tostring(row.error))
   end
-  print("SO11 lumber phase="..tostring(lumber.phase).." cursor="..tostring(lumber.cursor).." alert="..tostring(lumber.alert).." pose="..H.encode(lumber.turtle.pose))
+  print("SO11 lumber phase="..tostring(lumber.turtles["4"].phase).." cursor="..tostring(lumber.turtles["4"].cursor).." alert="..tostring(lumber.turtles["4"].alert).." pose="..H.encode(lumber.turtles["4"].turtle.pose))
   record(6,(mine.progress.done or 0)>=1,"mining completed at least one branch")
   record(6,g.digs["0,60,-1"]~=nil,"mining dug shaft to bottom")
   record(6,g.ores>0,"ore delivered to ore chest")
@@ -442,7 +442,7 @@ S.runBusy = function(rate)
             local facts=lease.report
             if g.bootAt and facts then
               local saved=g.server.env.SO.store.read("so-data/"..owner.."/job").value
-              local row=id==4 and saved.turtle or saved.turtles[tostring(id)]
+              local row=id==4 and saved.turtles[tostring(id)].turtle or saved.turtles[tostring(id)]
               for _,cell in ipairs(facts.dug or {}) do
                 local world=plan.toWorld(row.frame,{x=cell.x,y=cell.y,z=cell.z,f=0})
                 local key=world.x..","..world.y..","..world.z
@@ -655,8 +655,8 @@ S.runBusy = function(rate)
       for id,w in pairs(g.workers) do
         g.killPositions[id]=S.copy(w.pos)
         local job=id==4 and g.before.lumber or g.before.mine
-        local row=id~=4 and job.turtles[tostring(id)]
-        g.workLeft[id]=job.running and (id==4 and job.phase~="waiting" or id~=4 and row.state~="done")
+        local row=job.turtles[tostring(id)]
+        g.workLeft[id]=job.running and (id==4 and row.phase~="waiting" or id~=4 and row.state~="done")
       end
       local ready=0
       for _,tree in ipairs(g.trees) do
@@ -722,7 +722,7 @@ S.runBusy = function(rate)
       local mine=g.killAt and not g.bootAt and g.before.mine or read("so-data/mine/job").value
       local stored=not (g.killAt and not g.bootAt) and read("so-data/lumber/job")
       local lumber=g.killAt and not g.bootAt and g.before.lumber or stored and stored.value or {}
-      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.phase).."\n")
+      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.turtles["4"].phase).."\n")
     end
 
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then
@@ -802,7 +802,7 @@ S.runBusy = function(rate)
   for id,row in pairs(mine.turtles) do
     print("SO11 B mining "..id.." state="..tostring(row.state).." pose="..H.encode(row.pose).." error="..tostring(row.error))
   end
-  print("SO11 B lumber phase="..tostring(lumber.phase).." cursor="..tostring(lumber.cursor).." alert="..tostring(lumber.alert).." pose="..H.encode(lumber.turtle.pose))
+  print("SO11 B lumber phase="..tostring(lumber.turtles["4"].phase).." cursor="..tostring(lumber.turtles["4"].cursor).." alert="..tostring(lumber.turtles["4"].alert).." pose="..H.encode(lumber.turtles["4"].turtle.pose))
   record(6,(mine.progress.done or 0)>=1,"mining completed at least one branch")
   record(6,g.digs["0,60,-1"]~=nil,"mining dug shaft to bottom")
   record(6,g.ores>0,"ore delivered to ore chest")

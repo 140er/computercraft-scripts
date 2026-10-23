@@ -225,7 +225,7 @@ return function(test, equal)
 
   test("range-batch lumber supply crosses the initial radius and returns", function()
     local fixture = dofile("tests/so/lumber-fixture.lua")()
-    local job, radius = fixture.job, 16
+    local job, radius = fixture.row, 16
     local function distance(p) return math.sqrt(p.x * p.x + (p.y - 2) ^ 2 + p.z * p.z) end
     fixture.mods.lease.inRange = function(_, p) return distance(p) <= radius + 8 end
     fixture.mods.cells.reserveMany = function(_, cells)

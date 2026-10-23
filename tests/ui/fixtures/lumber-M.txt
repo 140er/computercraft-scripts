@@ -7,15 +7,15 @@
         🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
          🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
         🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
-  of 4 spots                                             
                                                          
                                                          
                                                          
-  TURTLE            FUEL                NEXT GROW        
-         🬵            🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏       🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏    
-        🬳🬷🬏            ▌  🬖🬀 ▌ ▌ ▌       🬛🬋🬏🬠🬐  🬖🬀▌ ▌    
-         🬉            🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀       🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀    
-  felling           ok                                   
+                                                         
+ NEXT GROW 6:20                                          
+                                                         
+ #4 felling F1210                                        
+ #5 wait chest F640                                      
+ #6 scan F640                                            
                                                          
                                                          
     #4                   SPOTS 2/4                       
@@ -34,13 +34,13 @@ fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fdddddddddddddddddfdddddddddddddddddddfeeeeeeeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-fdddddddddddddddddfdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ddddddddddfbbbbbbccccccffffffffffffffffffffffffffffffffff
 9999999999999feeeeeeeeeeeeef77777777777777f77777777777777

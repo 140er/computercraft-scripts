@@ -50,8 +50,8 @@ return function(test,equal)
     s.points[2]={id="fuel",dim=0,x=-2,y=0,z=0,kind="fuel"}
     s.job.saplings={x=-3,y=0,z=0,side="down"}
     s.points[3]={id="saplings",dim=0,x=-3,y=0,z=0,side="down",kind="storage",broken=true}
-    s.job.turtle={id=2,pose={x=0,y=2,z=0,facing=0}}
-    s.paired[2]="paired" s.job.fuel=1000 s.input("start")
+    s.job.turtles["2"]={turtle={id=2,pose={x=0,y=2,z=0,facing=0}},fuel=1000}
+    s.paired[2]="paired" s.job.turtles["2"].fuel=1000 s.input("start")
     equal(s.job.alert,"saplings #saplings broken at -3,0,0")
     s.points[3].broken=false s.input("start") assert(s.job.running) equal(s.job.alert,nil)
     s.input("stop") s.paired[2]=nil s.input("start")

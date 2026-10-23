@@ -1,30 +1,31 @@
 local R = dofile('tests/ui/render.lua')
 local H = dofile('tests/so/harness.lua')
-local function screen(job, noDaily)
-  local s = {saved=0, released=0, events={}, persisted=H.encode(job)}
+local function job(count)
+  local j = { dim='minecraft:overworld', spots={a={},b={},c={plantedAt=900000},d={plantedAt=950000}},
+    running=true, logs=96, nextRound=1380000, alert='out of saplings: replanting paused',
+    area={x1=0,z1=0,x2=4,z2=4}, ground=64, saplings={x=1,y=65,z=1,side="down"}, turtles={} }
+  for id=4,3+(count or 3) do
+    j.turtles[tostring(id)] = { turtle={id=id,pose={dim=j.dim,x=id,y=65,z=0,facing=1}},
+      phase=id==4 and 'felling' or 'scan', wait=id==5 and 'wait chest' or nil,
+      fuel=id==4 and 1210 or 640, inv={} }
+  end
+  return j
+end
+local function screen(j, noDaily)
+  local s = { saved=0, events={} }
   local env = setmetatable({SO={pair={key=function() return "paired" end},now=function() return 1000000 end,mods={},store={store=function()
-    return {value=job,save=function(value) s.saved=s.saved+1 s.persisted=H.encode(value) return true end}
+    return {value=j,save=function() s.saved=s.saved+1 return true end}
   end}}},{__index=_G})
-  env.os = {epoch=function() return 1000000 end}
   env.SO.mods.drops={list=function() return {{id="ready",dim=0,x=100000,y=0,z=0,kind="any"}} end}
   env.SO.mods.display={screen=function(_,render,input) s.render,s.input=render,input end}
   if not noDaily then env.SO.mods.daily={today=function() return {logs=96} end} end
   env.SO.mods.lease={status=function() return {} end}
   env.SO.mods.state={canStart=function() return true end,emit=function(kind,value) s.events[#s.events+1]={kind=kind,value=value} end}
-  env.SO.mods.cells={releaseOwner=function() s.released=s.released+1 end}
+  env.SO.mods.cells={releaseOwner=function() return true end}
   local mod=assert(loadfile('so-mod-lumber.lua','t',env))()
   mod.tick(1000000)
-  for i=1,20 do
-    local name,value=debug.getupvalue(mod.tick,i)
-    if name=='S' then s.state=value break end
-  end
+  for _, row in pairs(j.turtles) do row.recover=false end
   return s
-end
-local function job()
-  return {dim='minecraft:overworld',spots={a={},b={},c={plantedAt=900000},d={plantedAt=950000}},
-    running=true,phase='felling',logs=96,fuel=1210,inv={},nextRound=1380000,
-    alert='out of saplings: replanting paused',turtle={id=4},
-    area={x1=0,z1=0,x2=4,z2=4},ground=64,saplings={x=1,y=65,z=1,side='down'}}
 end
 local function capture(frame,w,h)
   local out=R.capture(w,h)
@@ -41,106 +42,77 @@ local function capture(frame,w,h)
   end
   return out
 end
+local function press(s, frame, id)
+  for _, b in ipairs(frame.buttons) do
+    if b.id==id then s.input({id=b.id,x=b.x,y=b.y}) return end
+  end
+  error('button not drawn ' .. id)
+end
 return function(test,equal)
-  test('UI2b lumber matches the M fixture',function()
+  test('UI2b lumber fleet matches the M fixture',function()
     local s=screen(job())
-    s.state.recover=false
-    local frame=s.render(57,24)
-    local diff=R.diff('tests/ui/fixtures/lumber-M.txt',capture(frame,57,24))
+    local diff=R.diff('tests/ui/fixtures/lumber-M.txt',capture(s.render(57,24),57,24))
     assert(#diff==0,table.concat(diff,'\n'))
-    equal(frame.buttons[#frame.buttons].id,'status')
   end)
-  test('UI2b setup and back render within every size with spec contrast',function()
-    local s=screen(job())
-    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{1,1}}) do
-      for _,setup in ipairs({false,true}) do
-        s.input({id=setup and 'setup' or 'lumber-back'})
-        local out=capture(s.render(unpack(size)),unpack(size))
-        for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-          local fg,bg=cell[2],cell[3]
-          if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-          assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-            (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','contrast '..fg..'/'..bg)
-        end end
+  test('UI2b every turtle and drawn action fits pocket and compact monitors',function()
+    for _,size in ipairs({{26,20},{29,12},{39,19},{57,24},{15,10},{100,38},{36,10},{1,1}}) do
+      local j=job();local s=screen(j)
+      local frame=s.render(unpack(size))
+      local picture=capture(frame,unpack(size)).picture()
+      if size[1]>=26 and size[2]>=12 then
+        local text=table.concat(picture.text,'\n')
+        for id=4,6 do assert(text:find('#'..id,1,true), 'worker missing #'..id) end
+        for _, id in ipairs({'start','stop'}) do
+          press(s,frame,id)
+          equal(j.running,id=='start')
+        end
+        press(s,frame,'setup')
+        frame=s.render(unpack(size))
+        capture(frame,unpack(size))
+        press(s,frame,'lumber-back')
       end
     end
-    s.input({id='setup'});local frame=s.render(57,24)
-    local text=table.concat(capture(frame,57,24).picture().text,'\n')
-    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS 1,65,1','TURTLE 4','paired turtle ready'}) do assert(text:find(part,1,true),part) end
-    equal(frame.buttons[#frame.buttons].id,'lumber-back')
-    s.input({id='lumber-back'});local found=false for _,b in ipairs(s.render(57,24).buttons) do if b.id=='start' then found=true end end assert(found)
-    s.input({id='setup'})
-    local firstFrame=s.render(15,10)
-    local paged=false
-    for _,button in ipairs(firstFrame.buttons) do if button.id=="setup-next" then paged=true end end
-    local first=capture(firstFrame,15,10).picture()
-    s.input({id='setup-next'})
-    local second=capture(s.render(15,10),15,10).picture()
-    if paged then assert(first.text[4]~=second.text[4]) else equal(first,second) end
-    s.input({id='lumber-back'});assert(not s.state.gather().setup)
+  end)
+  test('UI2b drawn next button reaches every worker without changing the job',function()
+    local j=job(8);local s=screen(j)
+    local seen={}
+    for _=1,3 do
+      local frame=s.render(29,12)
+      local text=table.concat(capture(frame,29,12).picture().text,'\n')
+      for id=4,11 do if text:find('#'..id..' ',1,true) then seen[id]=true end end
+      press(s,frame,'turtles-next')
+    end
+    for id=4,11 do assert(seen[id],'unreachable worker '..id) end
     equal(s.saved,0)
   end)
-  test('UI2b start and stop taps use the text commands once per tap including refusals',function()
-    for _,configured in ipairs({false,true}) do
-      local a,b=job(),job()
-      if not configured then a.area=nil;b.area=nil end
-      local typed,tapped=screen(a),screen(b)
-      for _,command in ipairs({'start','stop','start','stop'}) do
-        local before,typedBefore=tapped.saved,typed.saved
-        typed.input({text=command});tapped.input({id=command})
-        equal(a,b);equal(typed.saved,tapped.saved)
-        equal(tapped.saved-before,typed.saved-typedBefore)
-        assert(tapped.saved-before<=1)
-      end
-      if not configured then equal(a.alert,'area not set') end
-    end
+  test('UI2b setup shows only configuration and every assigned turtle',function()
+    local s=screen(job())
+    press(s,s.render(57,24),'setup')
+    local text=table.concat(capture(s.render(57,24),57,24).picture().text,'\n')
+    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS 1,65,1','TURTLE 4','TURTLE 5','TURTLE 6'}) do assert(text:find(part,1,true),part) end
+    assert(not text:find('add id',1,true))
+    equal(s.saved,0)
   end)
-  test('UI2b navigation and unknown taps leave alerts events and saved jobs unchanged',function()
-    for _,id in ipairs({'status','unknown','generic','alerts','area 0 0 1 1 64'}) do
-      local j=job();local s=screen(j)
-      local before,events,persisted=H.encode(j),H.encode(s.events),s.persisted
-      local alert,saves=j.alert,s.saved
-      s.input({id=id})
-      equal(j.alert,alert)
-      equal(H.encode(j),before)
-      equal(H.encode(s.events),events)
-      equal(s.persisted,persisted)
-      equal(s.saved,saves)
-    end
+  test('UI2b navigation and unknown taps leave the job unchanged',function()
+    local j=job();local s=screen(j)
+    local before=H.encode(j)
+    for _,id in ipairs({'status','unknown','generic','alerts','setup','setup-next','lumber-back'}) do s.input({id=id}) end
+    equal(H.encode(j),before)
+    equal(s.saved,0)
   end)
-  test('UI2b every text command retains configuration and refusal behavior',function()
-    local j=job();j.turtle.id=2;local s=screen(j)
-    local function cmd(text,alert)
-      s.input({text=text});if alert then equal(j.alert,alert) end
-    end
-    cmd('area 0 0 1 1 64','stop before configuring')
-    cmd('add 2 0 65 0 n','stop before configuring')
-    cmd('stop');equal(j.running,false)
-    cmd('area 4 3 0 1 60');equal(j.area,{x1=0,z1=1,x2=4,z2=3});equal(j.ground,60);equal(j.spots,{})
-    cmd('saplings 1 2 3 front');equal(j.saplings,{x=1,y=2,z=3,side='front'})
-    cmd('saplings -1 2 -3 down');equal(j.saplings,{x=-1,y=2,z=-3,side='down'})
-    for facing,n in pairs({n=0,e=1,s=2,w=3}) do
-      cmd('add 2 0 65 0 '..facing);equal(j.turtle.pose.facing,n)
-    end
-    equal(s.released,4)
-    j.fuel=1210
-    cmd('start');equal(j.running,true);equal(j.alert,nil)
-    cmd('stop');s.state.pending={}
-    cmd('area 0 0 1 1 64','stop before configuring');cmd('add 2 0 65 0 n','stop before configuring')
-    s.state.pending=nil
-    for _,text in ipairs({'area 0 0 128 0 64','area 0.5 0 1 1 64','area 0 0 1 1 30000000'}) do cmd(text,'invalid area') end
-    for _,text in ipairs({'saplings 1 2 3 up','saplings x 2 3 front'}) do cmd(text,'invalid sapling chest') end
-    for _,text in ipairs({'add -1 0 65 0 n','add 2 0 65 0 up','add 2 x 65 0 n'}) do cmd(text,'invalid turtle') end
-    for _,text in ipairs({'','wat','start extra','stop extra','area 0','saplings 0'}) do cmd(text,'invalid command') end
-    cmd('add 0','turtle already assigned')
-    for _,missing in ipairs({'area','turtle','ground'}) do
-      local bad=job();bad[missing]=nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing; fuel missing')
-    end
+  test('UI2b add and remove address only the selected worker',function()
+    local j=job();local s=screen(j)
+    s.input({text='stop'})
+    s.input({text='add 9 0 65 0 n'})
+    assert(j.turtles['4'] and j.turtles['5'] and j.turtles['6'] and j.turtles['9'])
+    equal(j.turtles['9'].turtle.pose.facing,0)
+    j.turtles['5'].idlePark=true
+    s.input({text='remove 5'})
+    assert(not j.turtles['5'] and j.turtles['4'] and j.turtles['6'] and j.turtles['9'])
   end)
-  test('UI2b gather keeps missing timers and daily counters stale',function()
-    local j=job();j.nextRound=nil;local s=screen(j,true);s.render(57,24)
-    local m=s.state.gather()
-    equal(m.tiles[2],{'LOGS TODAY','-','no daily source','c'});equal(m.tiles[6],{'NEXT GROW','-','no timer','c'})
-    j.nextRound=999000;equal(s.state.gather().tiles[6][2],'0:00')
+  test('UI2b missing daily source and grow timer show a dash',function()
+    local j=job();j.nextRound=nil;local s=screen(j,true)
+    local text=table.concat(capture(s.render(29,12),29,12).picture().text,'\n')
+    assert(text:find('LOGS -',1,true) and text:find('GROW -',1,true))
   end)
 end

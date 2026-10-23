@@ -302,6 +302,7 @@ area <x1> <z1> <x2> <z2> <ground y>
 saplings <x> <y> <z> <front|down>
 add <id>
 add <id> <x> <y> <z> <n|e|s|w>
+remove <id>
 start
 stop
 ```
@@ -319,15 +320,19 @@ Distance is Manhattan distance from the turtle's current position. Ties use
 north, east, south, west order. If no eligible cell remains, the turtle holds
 with a named `saplings #<id> unreachable` alert.
 
-`add` anchors one paired worker with an axe. To replace it, stop work and wait
-for its lease to report. If `add` says it is parking the old turtle, wait for
-the report and repeat `add`. Do not remove the old turtle before that report.
-Service trips cross the farm at soil height plus two and descend at the chest
-access cell. Keep that flight path clear. Travel protects saplings and tree
-bases. A blocked service route holds until the operator fixes it and starts again.
+`add` adds a paired worker with an axe and retains the others. Stop before
+changing assignments. `remove` removes the selected worker once its lease and
+park report finish. Retry when requested. A turtle at a chest returns before
+it can be removed. Each worker recovers its own journal pose after restart.
+Workers claim separate scan positions and trees, so one lost turtle does not
+stop the others. They queue for shared chests and keep access reserved until
+clear. Keep the approaches clear. Multiple workers can detour above the normal
+flight height of soil plus two. Travel protects saplings and tree bases.
+Sapling trips return surplus supplies for the next worker before leaving.
 Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Log delivery counts require a successful drop and an inventory
-decrease. Failed wood, fuel and sapling chest inspections mark drop points broken
+decrease. A saved delivery receipt reconciles a lost report after restart and
+prevents a second count. Failed wood, fuel and sapling chest inspections mark drop points broken
 after three failures. Repair the chest, use `fix` in the generic drop editor if
 marked broken, and send `start` on the lumber screen. Sapling service reuses a
 matching drop point or adds a `storage` point to that editor. Remove unused old
@@ -337,10 +342,11 @@ while felling continues. Configure a wood drop and a fuel drop.
 Chest alerts distinguish unconfigured, broken, unreachable, full and empty
 containers. Alerts name the point and coordinates. Full and empty require an
 inspection of a chest, barrel or shulker box and a failed item transfer.
-The screen shows work state, deliveries, saplings, spots, fuel and alerts.
+The screen shows each turtle, its work state and fuel, plus deliveries, saplings,
+spots and alerts. Three turtles fit 26x20 and 29x12. NEXT pages longer lists.
 Three failed moves or digs stop work and emit an alert for the screen and AR.
-Fix the obstruction or tool, then type `start`. Other holds also show this
-recovery instruction. Refuelling starts with the distance to the fuel chest
+Fix the obstruction or tool, then type `start`. Refuelling starts with the
+distance to the fuel chest
 along the flight-height route plus 32 fuel remaining.
 At the wood chest, the turtle also drops sticks, apples, leaves and excess
 saplings. It keeps one sapling per known spot of each species, including the

@@ -72,7 +72,7 @@ return function(test,equal)
         F.check(a)
         local path = role=="mining" and "so-data/mine/job" or "so-data/lumber/job"
         local job = assert(a.s.env.SO.store.store(path,function() return true end).value)
-        local pose = role=="mining" and job.turtles["2"].pose or job.turtle.pose
+        local pose = role=="mining" and job.turtles["2"].pose or job.turtles["2"].turtle.pose
         equal({pose.x,pose.y,pose.z,pose.facing},{41,64,10,1})
         equal(a.t.pos.x,1)
         equal(a.s.env.SO.mods.lease.candidates(),{})

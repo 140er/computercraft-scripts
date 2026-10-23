@@ -17,6 +17,14 @@ class OutageReadinessTests(unittest.TestCase):
                 "mine": {"turtles": {k: {"frame": frame} for k in ("4", "5")}},
                 "lumber": {"turtle": {"frame": frame}}}
 
+    def test_per_worker_lumber_frame_is_ready_for_outage(self):
+        state = self.state()
+        turtle = state["lumber"].pop("turtle")
+        state["lumber"]["turtles"] = {"6": {"turtle": turtle}}
+        self.assertTrue(ready_for_outage(state))
+        state["lumber"]["turtles"]["6"]["turtle"].pop("frame")
+        self.assertFalse(ready_for_outage(state))
+
     def test_each_worker_needs_a_real_retreat_path(self):
         row = self.state()
         self.assertTrue(ready_for_outage(row))

@@ -338,20 +338,20 @@ return function(test,equal)
     local policy=fixture() policy.stock() policy.enable()
     local s=dofile("tests/so/lumber-fixture.lua")("scan",1,{})
     s.mods.shop=policy.shop s.env.SO.now=function() return policy.net.time end
-    s.job.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
+    s.row.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
       stage="take",back={x=0,y=2,z=0,facing=1}}
     s.tick(0)
     local q=assert(s.queued()) local results={}
     for i=1,#q.steps do results[i]={ok=true} end
     results[#q.steps]={ok=false,err="No items to take"}
     s.report(false,results)
-    equal(#policy.orders(),1) equal(s.job.blocked,"fuel") equal(s.job.fuelRetry,60000)
+    equal(#policy.orders(),1) equal(s.row.blocked,"fuel") equal(s.row.fuelRetry,60000)
     policy.net.time=60000 s.tick(60000)
-    equal(s.job.blocked,nil)
+    equal(s.row.blocked,nil)
     q=assert(s.queued()) equal(q.steps[#q.steps].op,"inspectDown")
     s.report(false,{{ok=true,data={name="minecraft:chest"}}})
     s.tick(60000) q=assert(s.queued()) equal(q.steps[#q.steps].op,"suckDown")
-    s.job.inv={{slot=1,name="minecraft:charcoal",count=64}}
+    s.row.inv={{slot=1,name="minecraft:charcoal",count=64}}
     s.report(false)
     equal(policy.shop.fuelConfig().waiting,nil)
   end)
@@ -360,10 +360,10 @@ return function(test,equal)
     local logs={slot=1,name="minecraft:oak_log",count=8}
     local s=dofile("tests/so/lumber-fixture.lua")("scan",1,{logs})
     s.mods.shop=policy.shop s.env.SO.now=function() return policy.net.time end
-    s.job.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
+    s.row.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
       stage="take",resume="scan",back={x=0,y=2,z=0,facing=1}}
     s.tick(0) equal(s.queued().steps[2].op,"suckDown")
-    s.job.inv={logs,{slot=2,name="minecraft:charcoal",count=64}} s.expire()
+    s.row.inv={logs,{slot=2,name="minecraft:charcoal",count=64}} s.expire()
     local mod=assert(loadfile("so-mod-lumber.lua","t",s.env))()
     s.tick=mod.tick s.tick(0) s.report(false)
     s.tick(0)
@@ -378,13 +378,13 @@ return function(test,equal)
       local coal={slot=3,name="minecraft:charcoal",count=64}
       local s=dofile("tests/so/lumber-fixture.lua")("scan",1,{logs})
       s.mods.shop=policy.shop s.env.SO.now=function() return policy.net.time end
-      s.job.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
+      s.row.service={kind="fuel",point={id="output",dim="minecraft:overworld",x=0,y=1,z=0,side="down"},
         stage="take",resume="scan",back={x=0,y=2,z=0,facing=1}}
       s.tick(0) equal(s.queued().steps[1].slot,2)
-      s.job.inv={logs,iron} s.report(false)
-      equal(s.job.blocked,"fuel") equal(s.job.fuelRetry,60000)
+      s.row.inv={logs,iron} s.report(false)
+      equal(s.row.blocked,"fuel") equal(s.row.fuelRetry,60000)
       assert(policy.shop.fuelConfig().waiting)
-      equal(s.job.service.rejected["2"],iron.name)
+      equal(s.row.service.rejected["2"],iron.name)
       if restart then
         local mod=assert(loadfile("so-mod-lumber.lua","t",s.env))()
         s.tick=mod.tick s.tick(0) s.report(false)
@@ -393,26 +393,26 @@ return function(test,equal)
       equal(s.queued().steps[1].op,"inspectDown")
       s.report(false,{{ok=true,data={name="minecraft:chest"}}})
       s.tick(60000) equal(s.queued().steps[1].slot,3)
-      s.job.inv={logs,iron,coal} s.report(false)
-      equal(policy.shop.fuelConfig().waiting,nil) equal(s.job.fuelRetry,nil)
+      s.row.inv={logs,iron,coal} s.report(false)
+      equal(policy.shop.fuelConfig().waiting,nil) equal(s.row.fuelRetry,nil)
       s.tick(60000)
       local q=assert(s.queued())
       equal(q.steps,{{op="select",slot=2},{op="inspectDown"},{op="dropDown",n=64}})
       if restart then
         s.report(false,{{ok=true},{ok=true,data={name="minecraft:chest"}},{ok=false,err="No space for items"}})
-        equal(s.job.blocked,"fuel") equal(s.job.fuelRetry,120000)
+        equal(s.row.blocked,"fuel") equal(s.row.fuelRetry,120000)
         policy.net.time=600000 policy.stock() policy.shop.fuelEmpty(output)
         equal(#policy.orders(),2)
         s.tick(policy.net.time)
         equal(s.queued().steps[1].slot,2)
         equal(policy.shop.fuelConfig().waiting.rid,policy.orders()[2].rid)
       end
-      s.job.inv={logs,coal}
+      s.row.inv={logs,coal}
       s.report(false,{{ok=true},{ok=true,data={name="minecraft:chest"}},{ok=true}})
       s.tick(policy.net.time) s.tick(policy.net.time)
       equal(s.queued().steps,{{op="select",slot=3},{op="refuel",n=64}})
-      s.job.inv={logs} s.job.fuel=5121 s.report(false)
-      equal(s.job.service.stage,"return") equal(s.job.inv[1],logs)
+      s.row.inv={logs} s.row.fuel=5121 s.report(false)
+      equal(s.row.service.stage,"return") equal(s.row.inv[1],logs)
       equal(#policy.orders(),restart and 2 or 1)
       if restart then equal(policy.shop.fuelConfig().waiting.rid,policy.orders()[2].rid) end
     end)

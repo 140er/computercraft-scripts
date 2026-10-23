@@ -152,10 +152,11 @@ add(c, "Mining, room monitor")
 
 # --- Lumber, M
 c = Canvas(57, 24); c.header("LUMBER", "running")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d"),("LOGS TODAY","96","","d"),("SAPLINGS","0","","e")]):
+for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","","d"),("LOGS TODAY","96","","d"),("SAPLINGS","0","","e")]):
     c.tile(x, 3, w, lab, val, sub, bg)
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","","b")]):
-    c.tile(x, 11, w, lab, val, sub, bg)
+c.text(1,12,"NEXT GROW 6:20")
+for i, text in enumerate(["#4 felling F1210", "#5 wait chest F640", "#6 scan F640"]):
+    c.text(1,14+i,text)
 c.alert("! out of saplings: replanting paused")
 c.button(0,19,10,"#4","d",h=1);c.fill(11,19,12,1,"c");c.fill(11,19,6,1,"b");c.text(25,19,"SPOTS 2/4")
 c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
