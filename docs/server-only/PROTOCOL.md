@@ -1041,7 +1041,9 @@ through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
 - `turtles` draws a twelve-edge box and heading arrow for each worker with a
-  pose. Its short `#<id>` label uses size 0.5. State comes from the machine registry and
+  pose. The arrow lies at mid height in the facing direction. Its shaft runs
+  0.55 to 1.2 blocks from the block centre. Its head runs from 1.2 to the tip at
+  1.75 blocks and is 0.6 blocks wide. Its short `#<id>` label uses size 0.5. State comes from the machine registry and
   `lease.status`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
@@ -1054,6 +1056,18 @@ boolean values. A failed save leaves the current switches unchanged.
   does not call `cells.counts()`, whose reservation scan can breathe during a burst.
 - `drops` draws a small box per point and a size-0.5 label with the first letter
   of its kind, such as O or F. Broken points use coral; other points use white.
+- cc_ar 3D lines have no width, so strokes are bundles. Shapes are turtles
+  (box and arrow), lease outlines and drop boxes. The nearest 16 shapes,
+  ordered by centre distance from the configured server position, then id, are
+  drawn thick. A thick box edge is three parallel strands: the edge itself plus
+  two copies offset 0.025 blocks at 120 and 240 degrees around it. The shaft is
+  bundled the same way. A thick head has two flat edges and two upright edges
+  from the tip, plus six flat and six upright hatches that narrow towards the
+  tip, so it reads as a filled cross from any side. Other shapes use one strand
+  per edge and a three-line arrow. A thick turtle has 55 lines, a thin one 15,
+  each plus a label when within the label limit. A thick lease or drop box has
+  36 lines, a thin one 12. Strand ids are `<edge>:s2` and `<edge>:s3`, the head
+  uses `:heading:1` to `:4`, `:h0` to `:h5` and `:v0` to `:v5`.
 - World labels sit above their blocks and stack 0.25 blocks apart when their
   horizontal positions are within two blocks. Labels use at most eight characters.
   The nearest 16 turtle labels and eight drop labels per kind remain visible,
