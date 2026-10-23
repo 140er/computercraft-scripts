@@ -564,7 +564,7 @@ D.onInput = function(msg)
   local drawn = D.drawn(msg.from)
   local session = D.session(msg.from)
   -- A tap on the previous role's frame, sent before the new one arrived.
-  if session.roleSent and session.roleSent ~= drawn then return end
+  if id and session.roleSent and session.roleSent ~= drawn then return end
   if id and id:match("^dug%.") then
     if not session.w then return end
     D.consent(body, drawn, session.w, session.h, session)

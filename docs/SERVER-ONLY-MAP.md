@@ -219,8 +219,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   A display shows one role. `assign` is the only way to change it: role nil or
   `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
   unregistered screens return `false, reason`. Success returns
-  `true, "display <id>: <role>"`; the next tick sends the new frame, and taps
-  from the old frame are ignored until then. `command`
+  `true, "display <id>: <role>"`; the next tick sends the new frame, and button
+  taps from the old frame are ignored until then. `command`
   parses the terminal line `<id> <role>` or `<id> -`. The server terminal's R
   prompt, tests and the gateb driver use it. See
   [display roles](server-only/PROTOCOL.md#display-roles).

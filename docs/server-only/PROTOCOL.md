@@ -732,8 +732,8 @@ A display shows one role. Only the server changes it:
   a saved role or a `display` registry row, or is the server's own id.
   Assignment saves through `so-store`, resets the display's status paging and
   pocket page, and the next tick sends the new frame. It never renders. Until
-  that frame is sent, taps from the display are ignored, so a tap on the old
-  role's frame cannot reach the new role. The local monitor does the same.
+  that frame is sent, button taps from the display are ignored, so a tap on
+  the old role's frame cannot reach the new role. Typed text still arrives. The local monitor does the same.
 
 Tests and the gateb driver use the same calls, for example
 `SO.mods.display.command("7 mining")`.
