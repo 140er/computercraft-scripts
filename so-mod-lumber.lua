@@ -857,7 +857,7 @@ S.layout = function(model, w, h)
   end
   if not model.setup then
     local count=#C.buttons
-    C.alert(model.alert and ("! " .. model.alert))
+    C.alert(model.alert and ((compact and "" or "! ") .. model.alert))
     if #C.buttons>count then table.insert(C.buttons,1,table.remove(C.buttons)) end
   end
   return C.frame()

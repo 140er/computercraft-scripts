@@ -172,6 +172,9 @@ end
 
 function P.chestError(kind, reason, point)
   if not point then return "no " .. kind .. " chest set" end
+  if point.id and #tostring(point.id)>8 then
+    return kind .. " " .. reason .. " " .. point.x .. "," .. point.y .. "," .. point.z .. " #" .. point.id
+  end
   return kind .. (point.id and (" #" .. point.id) or " chest") .. " " .. reason .. " at " .. point.x .. "," .. point.y .. "," .. point.z
 end
 

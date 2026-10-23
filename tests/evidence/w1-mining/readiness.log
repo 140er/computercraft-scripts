@@ -9,4 +9,5 @@ PASS mine compact main screen names the failed chest at 26x20
 PASS mine compact main screen names the failed chest at 29x12
 PASS lumber compact main screen names the failed chest at 26x20
 PASS lumber compact main screen names the failed chest at 29x12
-11 passed, 0 failed, 0 skipped checks
+PASS compact chest errors keep generated sapling point causes and coordinates visible
+12 passed, 0 failed, 0 skipped checks

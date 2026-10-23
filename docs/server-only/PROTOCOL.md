@@ -1130,6 +1130,7 @@ Planners load `local P = dofile("so-plan.lua")`. This library is pure Lua. It do
 `P.chestPresent(result)` recognizes inspected chests, barrels and shulker boxes.
 `P.transferFailure(kind, result)` keeps explicit transfer errors such as `no inventory`.
 `P.chestError(kind, reason, point)` formats a named chest cause with coordinates.
+For ids longer than eight characters, cause and coordinates precede the full id.
 `P.chestCheck(points, kind, near)` reads same-dimension points and returns `{ok,text}`.
 `P.missing(checks)` returns every unmet text in order. These helpers write no state.
 

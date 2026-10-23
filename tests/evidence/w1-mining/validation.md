@@ -28,7 +28,9 @@ next branch claim before returning through the shared lane.
 
 Compact mining and lumber alerts now draw after the tiles, with the alert hit
 target retained before navigation. The new checks verify that the missing item
-and named chest cause are visible at both compact sizes.
+and named chest cause are visible at both compact sizes. Generated sapling
+point ids put the cause and coordinates first; their full id remains in the
+alert text. The compact lumber screen omits the redundant alert prefix.
 
 The full-run fixture updates configure real paired workers, reported fuel and
 required drops before admission. SO11 B now waits for a dig in flight alongside

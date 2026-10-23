@@ -101,4 +101,15 @@ return function(test,equal)
     end)
   end end
 
+  test("compact chest errors keep generated sapling point causes and coordinates visible",function()
+    local s=fixture("lumber")
+    s.job.alert=P.chestError("saplings","broken",{id="lumber_saplings_0_18_63_0_down",x=18,y=63,z=0})
+    assert(s.job.alert:find("#lumber_saplings_0_18_63_0_down",1,true))
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local rows={}
+      for _,row in ipairs(s.render(unpack(size)).rows) do rows[#rows+1]=row.text end
+      assert(table.concat(rows,"\n"):find("saplings broken 18,63,0",1,true))
+    end
+  end)
+
 end
