@@ -8,8 +8,7 @@ Structure comes from the CC font's own thin strokes. The background is dark and 
 everything is grey or white; colour marks state only.
 
 The design record is the generator in [schematic/](schematic/) and the fixtures it writes to
-`tests/ui/fixtures/`. The route A prototype screens that are not ported yet live in
-`schematic/prototype.py`.
+`tests/ui/fixtures/`.
 
 ## 1. Type
 
@@ -245,7 +244,6 @@ Tiles still load. `tests/ui/render.lua` compares fg only where the cell is not b
 ```sh
 python3 -I docs/ui/schematic/screens.py --fixtures            # rewrite tests/ui/fixtures
 python3 -I docs/ui/schematic/screens.py --png DIR [names]     # PNGs with CC's own font
-python3 -I docs/ui/schematic/screens.py --prototype DIR       # the unported prototype screens
 ```
 
 PNGs need CC:Tweaked's `term_font.png`, which is not in this repo. The generator takes `--font`
@@ -254,9 +252,8 @@ Fixtures need no font.
 
 To port a screen: write its layout in `schematic/<screen>.py` with the kit, add it to `FIXTURES`
 in `screens.py`, take its data from a scene file the Lua test also reads, write the Lua twin, and
-compare them in a test as `tests/ui/s0.lua` does for status. Remove the screen from
-`prototype.py` and, if it had a Big Tiles fixture, add its name to `ported` in
-`docs/ui/mockup-gen.py`.
+compare them in a test as `tests/ui/s0.lua` does for status. If it had a Big Tiles fixture, add
+its name to `ported` in `docs/ui/mockup-gen.py`.
 
 ## 15. Shop
 

@@ -3,8 +3,6 @@
 python3 -I docs/ui/schematic/screens.py --fixtures DIR    write every fixture (default tests/ui/fixtures)
 python3 -I docs/ui/schematic/screens.py --png DIR [--font PATH] [names...]
     render PNGs with CC's own font, read from PATH, $CC_FONT or a CC:Tweaked jar (see ccfont.find)
-python3 -I docs/ui/schematic/screens.py --prototype DIR [--font PATH]
-    render the route A prototype screens that are not ported yet (prototype.py)
 
 Add a ported screen to FIXTURES; tests/ui/s0.lua checks that this output equals the committed files.
 """
@@ -126,18 +124,17 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixtures", nargs="?", const=os.path.join(cc_root(), "tests", "ui", "fixtures"))
     ap.add_argument("--png")
-    ap.add_argument("--prototype")
     ap.add_argument("--font")
     ap.add_argument("names", nargs="*")
     args = ap.parse_args()
-    if not (args.fixtures or args.png or args.prototype):
-        ap.error("give --fixtures, --png or --prototype")
+    if not (args.fixtures or args.png):
+        ap.error("give --fixtures or --png")
     chosen = [(n, f) for n, f in FIXTURES if not args.names or n in args.names]
     if args.fixtures:
         os.makedirs(args.fixtures, exist_ok=True)
         for name, make in chosen:
             make().fixture(os.path.join(args.fixtures, name + ".txt"))
-    if args.png or args.prototype:
+    if args.png:
         source = ccfont.find(args.font)
         if not source:
             sys.exit("no CC font: pass --font term_font.png or the cc-tweaked jar, or set CC_FONT")
@@ -153,15 +150,6 @@ def main():
             print("%-12s %3dx%-3d %6d bytes" % (name, canvas.w, canvas.h, sizes[name]))
         with open(os.path.join(args.png, "frame-bytes.json"), "w") as f:
             json.dump(sizes, f, indent=1)
-    if args.prototype:
-        import prototype
-        os.makedirs(args.prototype, exist_ok=True)
-        for name, make in prototype.SCREENS:
-            if args.names and name not in args.names:
-                continue
-            canvas = make()
-            pal = cc.STALE if name.startswith("19") else None
-            cc.png(canvas, os.path.join(args.prototype, name + ".png"), font, palette=pal)
 
 
 def cc_root():

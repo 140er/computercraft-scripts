@@ -595,6 +595,8 @@ def drop_plan(cv, m, x0, y0, pw, ph, draft=None):
         items.append((draft["x"], draft["z"]))
     if not items:
         return y0 - 1
+    if y0 > 2:  # north is up, as on the map; the compass sits on the row above the plan
+        cv.put(x0 + pw - 2, y0 - 1, "↑N", "8")
     if m["server"]:
         items.append((m["server"]["x"], m["server"]["z"]))
     if m["shaft"]:
