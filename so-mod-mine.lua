@@ -849,7 +849,6 @@ end
 local function layout(m, w, h, setup, offset)
   local c = U.canvas(w,h)
   c.header(setup and "MINING SETUP" or "MINING", m.running and "running" or "stopped")
-  if not setup then c.alert(m.alert) end
   if setup then
     local lines={}
     for _,check in ipairs(m.readiness) do
@@ -919,6 +918,11 @@ local function layout(m, w, h, setup, offset)
       c.button(x,y,width,b[1],b[2],b[3],buttonHeight)
       x, available = x+width+1, available-width
     end
+  end
+  if not setup then
+    local count=#c.buttons
+    c.alert(m.alert)
+    if #c.buttons>count then table.insert(c.buttons,1,table.remove(c.buttons)) end
   end
   return c.frame()
 end

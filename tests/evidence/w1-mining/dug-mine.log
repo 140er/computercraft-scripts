@@ -1,0 +1,10 @@
+part: dug-mine; suites: tests/so/dug-mine.lua
+part: generated 36 input files; private cwd /tmp/cc-part-q96v0xl0
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using local-1 slot
+PASS dug retirement: mining re-inspects a forgotten cell and counts its interrupted dig once
+PASS dug retirement: forgotten tunnel facts cannot bypass inspection on a later job
+part: 2 passed, 0 failed, 0 undeclared reads; Lua CPU 12.012s
+part: local Lua wall 12.035s (excludes slot queue)

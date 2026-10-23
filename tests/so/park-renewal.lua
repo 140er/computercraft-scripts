@@ -1,5 +1,5 @@
 local F = dofile("tests/so/worker-fixture.lua")
-local modules = { "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua",
+local modules = { "so-mod-drops.lua", "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua",
   "so-mod-display.lua", "so-mod-mine.lua", "so-mine-plan.lua", "so-plan.lua",
   "so-mod-lumber.lua", "so-lumber-plan.lua" }
 
@@ -11,6 +11,8 @@ local function parked(rate, role, dropReport, waiting)
   input({ text = "add 2 0 0 0 n" })
   a.n.advance(3)
   if waiting then
+    assert(a.s.env.SO.mods.drops.add({id="ready",dim=0,x=-10,y=0,z=0,side="front",kind="any"}))
+    input({text="saplings -10 0 0 down"})
     input({ text = "start" })
     a.n.advance(10)
     assert(a.s.env.SO.store.read("so-data/lumber/job").value.phase == "waiting", "lumber did not enter its planting wait")

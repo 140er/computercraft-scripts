@@ -801,7 +801,6 @@ S.layout = function(model, w, h)
   local U = S.ui
   local C = U.canvas(w, h)
   C.header("LUMBER", model.state)
-  if not model.setup then C.alert(model.alert and ("! " .. model.alert)) end
   local compact = w < 39 or h < 20
   local navRows = w < 26 and 2 or 1
   local bottom = compact and math.max(1, h - navRows + 1) or h - 3
@@ -855,6 +854,11 @@ S.layout = function(model, w, h)
       local y = bottom + (w < 26 and math.floor((i - 1) / 2) or 0)
       C.button(col.x, y, col.w, b[1], b[2], b[3], compact and 1 or 3)
     end
+  end
+  if not model.setup then
+    local count=#C.buttons
+    C.alert(model.alert and ("! " .. model.alert))
+    if #C.buttons>count then table.insert(C.buttons,1,table.remove(C.buttons)) end
   end
   return C.frame()
 end

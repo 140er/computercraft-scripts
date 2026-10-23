@@ -69,6 +69,9 @@ return function(test,equal)
     test(kind.." setup shows compact missing rows at "..size[1].."x"..size[2],function()
       local s=fixture(kind) s.input("start")
       local main=s.render(unpack(size))
+      local mainRows={}
+      for _,row in ipairs(main.rows) do mainRows[#mainRows+1]=row.text end
+      assert(table.concat(mainRows,"\n"):find(kind=="mine" and "home not set" or "area not set",1,true),"missing start reason hidden by compact tiles")
       local button
       for _,b in ipairs(main.buttons) do if b.id=="setup" then button=b end end
       assert(button)
@@ -86,4 +89,16 @@ return function(test,equal)
       error("missing setup BACK")
     end)
   end end
+  for _,kind in ipairs({"mine","lumber"}) do for _,size in ipairs({{26,20},{29,12}}) do
+    test(kind.." compact main screen names the failed chest at "..size[1].."x"..size[2],function()
+      local s=fixture(kind)
+      local text="ore #ore full at 1,0,0"
+      if kind=="mine" then s.job.turtles["2"]={pose={x=0,y=0,z=0},state="hold",fuel=1000,error=text}
+      else s.job.alert=text end
+      local rows={}
+      for _,row in ipairs(s.render(unpack(size)).rows) do rows[#rows+1]=row.text end
+      assert(table.concat(rows,"\n"):find(text,1,true),"chest error hidden by compact tiles")
+    end)
+  end end
+
 end

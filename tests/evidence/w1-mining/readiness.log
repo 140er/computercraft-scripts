@@ -5,4 +5,8 @@ PASS mine setup shows compact missing rows at 26x20
 PASS mine setup shows compact missing rows at 29x12
 PASS lumber setup shows compact missing rows at 26x20
 PASS lumber setup shows compact missing rows at 29x12
-7 passed, 0 failed, 0 skipped checks
+PASS mine compact main screen names the failed chest at 26x20
+PASS mine compact main screen names the failed chest at 29x12
+PASS lumber compact main screen names the failed chest at 26x20
+PASS lumber compact main screen names the failed chest at 29x12
+11 passed, 0 failed, 0 skipped checks

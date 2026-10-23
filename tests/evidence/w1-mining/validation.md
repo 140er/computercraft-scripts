@@ -26,6 +26,15 @@ budget extension, ore and fuel trips during return, and a newly found return vei
 Continuation keeps the old route and saves the
 next branch claim before returning through the shared lane.
 
+Compact mining and lumber alerts now draw after the tiles, with the alert hit
+target retained before navigation. The new checks verify that the missing item
+and named chest cause are visible at both compact sizes.
+
+The full-run fixture updates configure real paired workers, reported fuel and
+required drops before admission. SO11 B now waits for a dig in flight alongside
+three open work leases, so the power cut still proves interrupted dug replay
+after readiness adds setup time. Its exactly-once assertions are unchanged.
+
 The final full-suite logs are saved outside the checkout under
 `~/work/fix-round/evidence/w1-mining/`, in a folder named for the tested head.
 The PR records the result and tested SHA.

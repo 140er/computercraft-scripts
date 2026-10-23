@@ -10,6 +10,9 @@ local function addWorker(s, id)
   assert(s.server.env.SO.pair.remember(id,key))
   turtle.files["so-keys"]=H.encode({schema=1,generation=1,value={keys={["1"]=key}}})
   turtle.boot("worker.lua") s.net.flush()
+  if #s.server.env.SO.mods.drops.list()==0 then
+    assert(s.server.env.SO.mods.drops.add({id="ready",dim=0,x=100000,y=0,z=0,side="front",kind="any"}))
+  end
   return turtle
 end
 
@@ -82,7 +85,8 @@ return function(test, equal)
     local first=addWorker(s,3)
     for y=0,-80,-1 do s.net.world["0,"..y..",-1"]="minecraft:stone" end
     s.press("mining")
-    for _,text in ipairs({"home 0 0 0 n","bottom -80","length 3","mode fast","add 3 0 0 0 n","start"}) do s.typeText(text) end
+    for _,text in ipairs({"home 0 0 0 n","bottom -80","length 3","mode fast","add 3 0 0 0 n"}) do s.typeText(text) end
+    s.net.advance(1) s.typeText("start")
     s.net.advance(200)
     assert(not first.error,tostring(first.error))
     local job=s.server.env.SO.store.read("so-data/mine/job").value
@@ -125,7 +129,7 @@ return function(test, equal)
       end
       return forward()
     end
-    s.typeText("add 4 0 0 0 n") s.typeText("start")
+    s.typeText("add 4 0 0 0 n") s.net.advance(1) s.typeText("start")
     s.net.advance(200)
     assert(not turtle.error,tostring(turtle.error))
     assert(inspected,"retired tunnel was never inspected")

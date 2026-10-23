@@ -633,14 +633,18 @@ S.runBusy = function(rate)
   local epoch=server.env.os.epoch
   server.env.os.epoch=function(kind)
     if g.start and n.time-g.start>240000 and not g.killAt and server.context and not g.cutting then
-      local busy=true
+      local busy,digging=true,false
       for id=2,4 do
         local lease=g.active[id]
         local open=server.env.SO.mods.lease.status(id).open
         if not lease or open~=lease.id or lease.recover
           or lease.park then busy=false end
+        if lease then
+          for _,step in ipairs(lease.steps) do if step.op:match("^dig") then digging=true end end
+        end
+        if next(g.batchDigs[id] or {}) then digging=true end
       end
-      if not busy then return epoch(kind) end
+      if not busy or not digging then return epoch(kind) end
       g.cutting=true
       g.before=snapshot() g.killAt=n.time g.killExpires=S.copy(g.expires)
       g.killPositions,g.workLeft={},{}

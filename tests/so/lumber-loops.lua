@@ -54,7 +54,7 @@ return function(test, equal)
     local s = setup('scan', 1000, { { slot = 1, name = 'minecraft:oak_sapling', count = 64 },
       { slot = 2, name = 'minecraft:birch_sapling', count = 8 } })
     s.job.spots = { ['0,0'] = { kind = 'minecraft:oak_log' }, ['1,0'] = { kind = 'minecraft:oak_log' } }
-    s.job.service = { kind = 'wood', point = { side = 'down' }, stage = 'drop' }
+    s.job.service = { kind = 'wood', point = { id='wood',x=0,y=1,z=0,side='down' }, stage = 'drop' }
     s.tick(1)
     local q = s.queued()
     equal(q.steps[1].slot, 1)
