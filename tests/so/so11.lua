@@ -722,7 +722,7 @@ S.runBusy = function(rate)
       local mine=g.killAt and not g.bootAt and g.before.mine or read("so-data/mine/job").value
       local stored=not (g.killAt and not g.bootAt) and read("so-data/lumber/job")
       local lumber=g.killAt and not g.bootAt and g.before.lumber or stored and stored.value or {}
-      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.turtles["4"].phase).."\n")
+      io.stderr:write("SO11 B time "..second.."s mine="..tostring(mine.turtles["2"].state)..","..tostring(mine.turtles["3"].state).." lumber="..tostring(lumber.turtles and lumber.turtles["4"] and lumber.turtles["4"].phase).."\n")
     end
 
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then

@@ -1198,8 +1198,9 @@ Overlapping approaches to different chests also reserve atomically. An expired w
 end of its saved movement intersects that approach. Its possible occupied cells
 stay reserved until it reports its journal pose. A physically occupied access
 cell stays protected.
-Sapling trips return surplus saplings before releasing access, retaining one of
-the desired species. Fuel trips take at most eight items per transfer.
+With several workers, sapling trips return surplus supplies before releasing
+access, retaining one of the desired species. A lone worker keeps its supplies
+for later trees. Failed searches return the other species in either mode. Fuel trips take at most eight items per transfer.
 
 Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
 

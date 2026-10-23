@@ -19,6 +19,12 @@ updated fixture, all three turtle rows at 26x20 and 29x12, and drawn navigation
 buttons. Park renewal passed at both 1x and 4x. The range regression confirmed
 that a supply trip extends its proven range before reserving a distant approach.
 
+The first full run exposed an SO11 diagnostic that read the worker table before
+setup, and a single-worker outage timing regression. The diagnostic now guards
+that initial sample. A lone worker retains immediate movement follow-ups and
+its sapling supply. `cc-test --part tests/so/clock-so11.lua --lua-only
+--part-timeout 180` then passed all 18 accelerated integration cases.
+
 The changed production Lua files passed luacheck with zero errors and warnings,
 Lua 5.2 parsing, the clock allow-list and cobaltlocals below 185. Gate B tooling
 passed 62 driver tests and six cold-farm tests. Those Python tests use saved

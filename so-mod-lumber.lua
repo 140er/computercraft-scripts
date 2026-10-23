@@ -470,6 +470,12 @@ S.park = function(recover)
   return S.send(P.park.steps, recover and "recover" or "park", nil, recover, P.park.ms)
 end
 
+S.follow = function(motion)
+  if #S.rows() > 1 then S.row.motion = motion return end
+  return S.send(motion.steps or { { op = motion.op } }, motion.action or "motion",
+    motion.cell and { S.row.turtle.pose, motion.cell })
+end
+
 S.moveDirect = function(target)
   local p = S.row.turtle.pose
   if p.x == target.x and p.y == target.y and p.z == target.z then
@@ -613,6 +619,8 @@ S.report = function(id, turtleId, results, lease)
     if j.turtle.frame then j.turtle.pose = P.toWorld(j.turtle.frame, report.pose) end
   else
     S.row.recover = true
+    j.uncertain = S.possible(j.uncertain, pending)
+    S.suspendService()
     S.alert("missing pose")
     return
   end
@@ -675,14 +683,14 @@ S.report = function(id, turtleId, results, lease)
   elseif type(action) == "table" and action.kind == "path" then
     local block = result.ok and result.data or nil
     if not block then
-      j.motion = { op = action.move, cell = action.cell }
+      S.follow({ op = action.move, cell = action.cell })
     elseif j.service and j.service.stage == "travel" and j.service.access
       and S.cellKey(action.cell) == S.cellKey(j.service.access) then
       j.service.access, j.service.lane, j.detour = nil, nil, nil
     elseif action.cell.y > (S.job.ground or -math.huge)
       and (not j.service or action.cell.y > S.job.ground + 1) and L.canDig(block) then
       local dig = ({ up = "digUp", down = "digDown", forward = "dig" })[action.move]
-      j.motion = { op = dig, cell = action.cell }
+      S.follow({ op = dig, cell = action.cell })
     else
       local scan = j.target
       if j.phase == "scan" and not j.service and scan
@@ -736,7 +744,7 @@ S.report = function(id, turtleId, results, lease)
     end
   elseif action == "baseCheck" then
     if result.ok and L.isLog(result.data) then
-      j.motion = { op = "digDown", action = "base" }
+      S.follow({ op = "digDown", action = "base" })
     else
       j.phase = "climb"
     end
@@ -746,7 +754,7 @@ S.report = function(id, turtleId, results, lease)
     if result.ok and L.isLog(result.data) then
       local p = j.turtle.pose
       local cell = { dim = S.job.dim, x = p.x, y = p.y + 1, z = p.z }
-      j.motion = { steps = { { op = "digUp" }, { op = "up" } }, action = "ascend", cell = cell }
+      S.follow({ steps = { { op = "digUp" }, { op = "up" } }, action = "ascend", cell = cell })
     else
       j.phase = "descend"
     end
@@ -777,7 +785,7 @@ S.report = function(id, turtleId, results, lease)
     if service and service.kind == "saplings" then
       local desired = j.tree and L.saplingFor(j.tree.kind)
       if S.slot(function(name) return name == desired end) then
-        service.stage = "restock"
+        service.stage = #S.rows() > 1 and "restock" or "return"
       elseif ok and S.empty() then
         service.stage = "check"
       else
@@ -1290,6 +1298,7 @@ S.tickRow = function(row, now)
   local j, lease = S.row, S.module("lease")
   local status = lease.status(j.turtle.id)
   if status.uncertain then
+    if j.inflight or j.uncertain then S.suspendService() end
     j.blocked = "pose uncertain"
     S.alert("pose uncertain: re-add turtle " .. j.turtle.id)
     return

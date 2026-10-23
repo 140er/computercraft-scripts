@@ -328,7 +328,7 @@ Workers claim separate scan positions and trees, so one lost turtle does not
 stop the others. They queue for shared chests and keep access reserved until
 clear. Keep the approaches clear. Multiple workers can detour above the normal
 flight height of soil plus two. Travel protects saplings and tree bases.
-Sapling trips return surplus supplies for the next worker before leaving.
+With several workers, sapling trips return surplus supplies before leaving.
 Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Log delivery counts require a successful drop and an inventory
 decrease. A saved delivery receipt reconciles a lost report after restart and
