@@ -5,6 +5,7 @@ fixture is a page reached by the taps in PAGES; the Lua test makes the same taps
 """
 import math
 import os
+import re
 
 from cc import Canvas
 from kit import bar, chip, leader, rule, section
@@ -90,8 +91,8 @@ def gather(data, v, recent=()):
         elif v["tab"] == "low":
             keep = it["state"] != "ok" and (v["low"] == "all" or it["state"] == v["low"])
         else:
-            q = v["search"].lower().replace(" ", "_")
-            keep = q in it["name"].lower() or q in it["label"].lower().replace(" ", "_")
+            q = re.sub(r"\s+", "_", v["search"].lower())
+            keep = q in it["name"].lower() or q in re.sub(r"\s+", "_", it["label"].lower())
         if keep:
             m["items"].append(it)
         if it["name"] == v["selected"]:
@@ -147,13 +148,16 @@ def note(cv, m, x, y):
         cv.put(x, y, "stale", "1")
 
 
-def flow(cv, x1, x2, y, entries, active):
-    """Chips left to right with one cell between, wrapping at x2. Returns the rows used."""
+def flow(cv, x1, x2, y, entries, active, dry=False):
+    """Chips left to right with one cell between, wrapping at x2. Returns the rows used; dry only counts."""
     x, rows = x1, 1
     for bid, lab in entries:
         if x > x1 and x + len(lab) + 1 > x2:
             x, rows = x1, rows + 1
-        x = chip(cv, x, y + rows - 1, lab, bid, "plain" if bid == active else "off") + 1
+        if dry:
+            x += len(lab) + 3
+        else:
+            x = chip(cv, x, y + rows - 1, lab, bid, "plain" if bid == active else "off") + 1
     return rows
 
 
@@ -208,7 +212,7 @@ def pane(cv, m, v, it, x, y, pw, bottom, close):
                   "1" if rate < 0 else "0" if rate else "8"))
     if tall and it["sub"] != it["cat"]:
         facts.append((it["cat"], it["sub"], "0"))
-    if tall and m["recipes"].get(it["name"]):
+    if tall and m["recipes"].get(it["name"], 0) > 0:
         facts.append(("craftable", str(m["recipes"][it["name"]]), "0"))
     for lab, value, vfg in facts:
         leader(cv, x, y, pw, lab, value, vfg)
@@ -245,8 +249,9 @@ def picker(cv, m, v, y, w, bottom):
     else:
         entries, active = subs(v, m) or [], "sub:" + v["sub"]
     n = max(1, bottom - y + 1)
-    cols = max(1, -(-len(entries) // n))
+    cols = max(1, min(-(-len(entries) // n), w // 14))
     cw = (w - 2 - 2 * (cols - 1)) // cols
+    entries = entries[:n * cols]
     for i, (bid, lab) in enumerate(entries):
         x, ry = 2 + (i // n) * (cw + 2), y + i % n
         if bid == active:
@@ -270,7 +275,10 @@ def layout(m, v, w, h, title="", most=MOST):
     if v["tab"] == "items" and wide:
         y += flow(cv, 2, w - 1, y, [("cat:all", "all")] + [("cat:" + c, c) for c, _ in CATS], "cat:" + v["cat"])
         sub = v["cat"] != "all" and subs(v, m)
-        if sub:
+        if sub and flow(cv, 2, w - 1, y, sub, None, True) > 2:
+            chip(cv, 2, y + gap, v["sub"] + " ▼", "pick:subs", "on" if v["pick"] == "subs" else "plain")
+            y += gap + 1
+        elif sub:
             y += gap + flow(cv, 2, w - 1, y + gap, sub, "sub:" + v["sub"])
     elif v["tab"] == "items":
         x = chip(cv, 2, y, v["cat"] + " ▼", "pick:cats", "on" if v["pick"] == "cats" else "plain")
@@ -297,7 +305,7 @@ def layout(m, v, w, h, title="", most=MOST):
                     chip(cv, 2 + (i % per) * 4, y + gap + i // per, k, "key:" + k)
             y += gap + -(-len(KEYS) // per)
     y += gap
-    if v["pick"] and v["tab"] == "items" and not wide:
+    if v["pick"] and v["tab"] == "items" and (not wide or v["pick"] == "subs"):
         picker(cv, m, v, y, w, bottom)
         note(cv, m, chip(cv, 2, h, "back", "back") + 1, h)
         return cv

@@ -317,7 +317,8 @@ taken from its id by a rule table, then from its learned tags, then from its nam
 raw, ingot, nugget, block, gem, dust), wood, stone, plants, food, tools, redstone, mobs, mods (one
 sub per namespace) and other. ITEMS filters with `cat:<id>` and `sub:<id>`; screens 52 cells wide
 or more draw both as chip rows, narrower ones open a picker with `pick:cats` or `pick:subs`
-(`back` closes it). LOW lists items under `min(16, stack)` and empty ones, filtered by `low:all`,
+(`back` closes it). Subs that need more than two chip rows (many mod namespaces) use the
+`pick:subs` picker at every width. A `sub:` that is not a sub of the open category is ignored. LOW lists items under `min(16, stack)` and empty ones, filtered by `low:all`,
 `low:low` or `low:empty`. An item stocked within the sampled hour stays listed at 0. FIND draws
 the search, `key:A` to `key:Z`, `key:DEL`, `key:CLR`, and `keys`, which shows or hides the keypad.
 Submitted text becomes the search and opens FIND; spaces match underscores, a lone space or `*`
@@ -336,8 +337,8 @@ order chip is muted. Without `so-ui.lua`, the legacy list and its direct order b
 
 Each tap on an order chip of the open item sends one `{ cmd = "order", text = itemName, n = count,
 rid = number }` on `roomsorter`; drawing sends nothing, and another display's tap needs its own
-open item. Replies match sender and request ID. Each order is listed under the item, newest
-first, up to 8, with its time and state: sent after dispatch and on a Getting or Crafting reply,
+open item. Replies match sender and request ID. Each order from a shop display is listed under
+the item, newest first, up to 8, with its time and state: sent after dispatch and on a Getting or Crafting reply,
 delivered only after an explicit Delivered or sent-to-output-chest reply, and failed on refusal
 or a two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is the final
 observable state there. The screen never infers delivery from stock changes and never retries

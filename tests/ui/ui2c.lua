@@ -480,6 +480,60 @@ return function(test, equal)
     end
   end)
 
+  test("UI2c many mod namespaces, stale sub taps, craftable 0 and direct orders", function()
+    local s = loaded()
+    local P = assert(loadfile("so-proto.lua", "t", setmetatable({ SO = {} }, { __index = _G })))()
+    s.env.SO.proto = P
+    local totals = {}
+    for name, count in pairs(s.S.totals) do totals[name] = count end
+    for i = 1, 90 do
+      for j = 1, 4 do totals["mod" .. i .. ":part_" .. j] = i + j end
+    end
+    s.mod.listen.roomsorter_stock(9, { totals = totals })
+    -- Wide screens swap a sub chip row of more than two rows for the picker chip.
+    for _, size in ipairs({ { 57, 24 }, { 100, 38 }, { 164, 81 } }) do
+      local w, h = size[1], size[2]
+      local session = { id = 30 + w }
+      tap(s, w, h, "cat:mods", session)
+      local frame = s.render(w, h, session)
+      assert(#P.ser(frame) <= 15000, w .. "x" .. h)
+      equal(ids(frame, "^sub:(.+)$"), {})
+      assert(#ids(frame, "^item:") >= 8, "the list keeps its rows at " .. w .. "x" .. h)
+      equal(has(frame, "next").y, h)
+      tap(s, w, h, "pick:subs", session)
+      capture(s.render(w, h, session), w, h)
+      tap(s, w, h, "sub:mod1", session)
+      equal(#s.S.gather(session).items, 4)
+    end
+    -- Narrow pickers keep 12-cell columns and drop what does not fit.
+    for _, size in ipairs({ { 29, 12 }, { 26, 20 }, { 39, 19 } }) do
+      local w, h = size[1], size[2]
+      local session = { id = 40 + w }
+      tap(s, w, h, "pick:cats", session); tap(s, w, h, "cat:mods", session); tap(s, w, h, "pick:subs", session)
+      local frame = s.render(w, h, session)
+      capture(frame, w, h)
+      for _, b in ipairs(frame.buttons) do assert(b.w >= 12 or not b.id:match("^sub:"), b.id) end
+    end
+    -- A sub tap from an older frame does not filter another category.
+    local session = { id = 50 }
+    tap(s, 57, 24, "cat:ores", session)
+    s.input({ id = "cat:all", session = session })
+    s.input({ id = "sub:ingot", session = session })
+    equal(s.S.view(session).sub, "all")
+    s.input({ id = "cat:wood", session = session })
+    s.input({ id = "sub:ingot", session = session })
+    equal(s.S.view(session).sub, "all")
+    -- Rooms list recipes they cannot make now with can = 0; the pane leaves those out.
+    s.mod.listen.roomsorter(9, { rid = (function() s.S.stockAt = nil; s.mod.tick(s.now); return s.sends[#s.sends].body.rid end)(),
+      totals = totals, recipes = { { name = "minecraft:iron_ingot", can = 0 } } })
+    tap(s, 57, 24, "cat:ores", session); tap(s, 57, 24, "item:minecraft:iron_ingot", session)
+    local before = s.render(57, 24, session)
+    assert(not text(before):find("craftable", 1, true))
+    -- shop.order for the open item leaves the pane as it was.
+    equal(s.mod.order("minecraft:iron_ingot", 16), "minecraft:iron_ingot")
+    equal(s.render(57, 24, session), before)
+  end)
+
   test("UI2c stale, missing and empty stock stay visible", function()
     local s = setup()
     for _, size in ipairs({ { 57, 24 }, { 29, 12 }, { 26, 20 } }) do

@@ -232,7 +232,8 @@ from `tests/ui/shop-stock.tsv`. See [shop](../server-only/PROTOCOL.md#shop) for 
   `stale` that still does not fit moves to the footer. No storage room is a coral `missing`.
 - **Rows under the header:** ITEMS has the category chip row (wrapping) and, for an open category,
   its sub chips. Under 52 cells these become two chips, `ores ▼` and `all ▼`, that open a picker:
-  leader rows with item counts, in as many columns as the rows need. LOW has `all low empty`. FIND
+  leader rows with item counts, in as many columns of 12 cells or more as the rows need. Subs that
+  need more than two chip rows use the picker on wide screens too. LOW has `all low empty`. FIND
   has `> IRON_` with `del` and `clr` at the right and the keypad below, 13 keys a row at most.
 - **Column head:** `item`, `stock` and `/h` are the sort control; the active one is a chip with `▼`.
   `/h` and the trend column need 36 cells.
@@ -241,9 +242,9 @@ from `tests/ui/shop-stock.tsv`. See [shop](../server-only/PROTOCOL.md#shop) for 
   From 90 cells the list splits into two balanced columns with a rule between them.
 - **Item:** from 52 cells the item opens as a right-hand pane behind a rule, so the list stays
   visible with the row selected; × closes it. Narrower screens give it the page and a `back` chip.
-  The pane has the name, leaders for stock, stacks, last hour, category and sub, and craftable,
-  then ORDER with `1 16 64` and `stack all` chips, then the recent orders as `• 16 sent  21:14`
-  (green sent, muted delivered, coral failed). Under 13 rows it keeps the name, stock, last hour,
+  The pane has the name, leaders for stock, stacks, last hour, category and sub, and craftable
+  (above 0), then ORDER with `1 16 64` and `stack all` chips, then the recent orders as
+  `• 16 sent  21:14` (green sent, muted delivered, coral failed). Under 13 rows it keeps the name, stock, last hour,
   ORDER and the orders.
 - **Footer:** `1 of 2` and the `◄ ►` chips on the last row; a chip with nowhere to go is muted.
   Screens of 16 rows or more keep a blank row under the header and above the footer.

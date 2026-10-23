@@ -47,11 +47,14 @@ S.request = function(kind, name, count, view)
   if kind == "order" then
     S.latestOrder = rid
     S.orders = { "sent " .. tostring(count) .. " " .. name }
-    local list = S.recent[name] or {}
-    S.recent[name] = list
-    pending.entry = { hm = S.wall(), n = count, status = "sent" }
-    table.insert(list, 1, pending.entry)
-    if #list > 8 then table.remove(list) end
+    -- Only orders from a shop display are listed under the item; shop.order leaves displays alone.
+    local list = view and (S.recent[name] or {})
+    if list then
+      S.recent[name] = list
+      pending.entry = { hm = S.wall(), n = count, status = "sent" }
+      table.insert(list, 1, pending.entry)
+      if #list > 8 then table.remove(list) end
+    end
     if view then
       view.order, view.orderDetail, view.orderRid = "Order: sent " .. count, nil, rid
     end
@@ -84,7 +87,8 @@ S.stock = function(message)
     if type(name) == "string" and type(tags) == "table" then
       local list = {}
       for _, tag in ipairs(tags) do if type(tag) == "string" and #list < 16 then list[#list + 1] = tag end end
-      S.tags[name], S.kinds[name] = list, nil
+      if table.concat(list, " ") ~= table.concat(S.tags[name] or {}, " ") then S.kinds[name] = nil end
+      S.tags[name] = list
     end
   end
   if type(message.recipes) == "table" then
@@ -517,12 +521,13 @@ S.note = function(C, m, x, y)
   if m.note then C.put(x, y, "stale", "1") end
 end
 
--- Chips left to right with one cell between, wrapping at x2. Returns the rows used.
-S.flow = function(C, x1, x2, y, entries, active)
+-- Chips left to right with one cell between, wrapping at x2. Returns the rows used; dry only counts.
+S.flow = function(C, x1, x2, y, entries, active, dry)
   local x, rows = x1, 1
   for _, entry in ipairs(entries) do
     if x > x1 and x + #entry[2] + 1 > x2 then x, rows = x1, rows + 1 end
-    x = C.chip(x, y + rows - 1, entry[2], entry[1], entry[1] == active and "plain" or "off") + 1
+    if dry then x = x + #entry[2] + 3
+    else x = C.chip(x, y + rows - 1, entry[2], entry[1], entry[1] == active and "plain" or "off") + 1 end
   end
   return rows
 end
@@ -587,7 +592,7 @@ S.pane = function(C, m, item, x, y, pw, bottom, close)
   facts[#facts + 1] = { "last hour", rate == 0 and "0" or (rate > 0 and "\24" or "\25") .. S.short(math.abs(rate)),
     rate < 0 and "1" or rate > 0 and "0" or "8" }
   if tall and item.sub ~= item.cat then facts[#facts + 1] = { item.cat, item.sub, "0" } end
-  if tall and m.recipes[item.name] then facts[#facts + 1] = { "craftable", tostring(m.recipes[item.name]), "0" } end
+  if tall and (m.recipes[item.name] or 0) > 0 then facts[#facts + 1] = { "craftable", tostring(m.recipes[item.name]), "0" } end
   for _, fact in ipairs(facts) do
     C.leader(x, y, pw, fact[1], fact[2], fact[3])
     y = y + 1
@@ -625,9 +630,11 @@ S.picker = function(C, m, view, y, w, bottom)
   if view.pick == "cats" then
     for _, cat in ipairs(S.cats) do entries[#entries + 1] = { "cat:" .. cat[1], cat[1] } end
   else entries, active = S.subs(view, m) or {}, "sub:" .. view.sub end
+  -- Columns stay 12 cells or wider; entries past the last column are left out (mods by count).
   local n = math.max(1, bottom - y + 1)
-  local cols = math.max(1, math.ceil(#entries / n))
+  local cols = math.max(1, math.min(math.ceil(#entries / n), math.floor(w / 14)))
   local cw = math.floor((w - 2 - 2 * (cols - 1)) / cols)
+  for i = #entries, n * cols + 1, -1 do entries[i] = nil end
   for i, entry in ipairs(entries) do
     local x, ry = 2 + math.floor((i - 1) / n) * (cw + 2), y + (i - 1) % n
     if entry[1] == active then C.fill(x - 1, ry, cw + 2, 1, "7") end
@@ -643,7 +650,11 @@ S.controls = function(C, m, view, w, y, gap, wide, bottom)
     for _, cat in ipairs(S.cats) do cats[#cats + 1] = { "cat:" .. cat[1], cat[1] } end
     y = y + S.flow(C, 2, w - 1, y, cats, "cat:" .. view.cat)
     local subs = view.cat ~= "all" and S.subs(view, m)
-    if subs then y = y + gap + S.flow(C, 2, w - 1, y + gap, subs, "sub:" .. view.sub) end
+    -- More subs than two rows hold (many mod namespaces) open the picker instead.
+    if subs and S.flow(C, 2, w - 1, y, subs, nil, true) > 2 then
+      C.chip(2, y + gap, view.sub .. " " .. U.g.down, "pick:subs", view.pick == "subs" and "on" or "plain")
+      y = y + gap + 1
+    elseif subs then y = y + gap + S.flow(C, 2, w - 1, y + gap, subs, "sub:" .. view.sub) end
   elseif view.tab == "items" then
     local x = C.chip(2, y, view.cat .. " " .. U.g.down, "pick:cats", view.pick == "cats" and "on" or "plain")
     if view.cat ~= "all" and S.subs(view, m) then
@@ -684,7 +695,7 @@ S.layout = function(m, view, w, h, most)
     return C.frame()
   end
   y = S.controls(C, m, view, w, y, gap, wide, bottom)
-  if view.pick and view.tab == "items" and not wide then
+  if view.pick and view.tab == "items" and (not wide or view.pick == "subs") then
     S.picker(C, m, view, y, w, bottom)
     S.note(C, m, C.chip(2, h, "back", "back") + 1, h)
     return C.frame()
@@ -754,7 +765,11 @@ S.press = function(view, client, id)
     view.tab = tab
     if tab == "find" then view.keys = true end
   elseif known then view.tab, view.cat, view.sub = "items", cat, "all"
-  elseif sub then view.sub = sub
+  elseif sub then
+    -- Only a sub of the open category; a tap from an older frame is dropped.
+    for _, entry in ipairs(S.subs(view, S.gather(client)) or {}) do
+      if entry[1] == id then view.sub = sub end
+    end
   elseif id == "low:all" or id == "low:low" or id == "low:empty" then view.low = id:sub(5)
   elseif id == "pick:cats" or id == "pick:subs" then
     local pick = id:sub(6)
