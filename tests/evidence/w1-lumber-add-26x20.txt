@@ -1,0 +1,20 @@
+
+ LUMBER           stopped
+
+ AREA -
+ GROUND -
+ SAPLINGS -
+ TURTLE -
+       ADD HERE #2
+
+
+
+
+
+
+
+
+
+
+
+           BACK

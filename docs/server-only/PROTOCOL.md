@@ -121,7 +121,10 @@ A turtle also sends these fields.
 
 `body.inv` lists the occupied slots. Each entry is `{ slot = number, name = string, count = number }`.
 
-`body.gps` is optional. When a GPS answers, it is `{ x = number, y = number, z = number }`.
+`body.gps` is optional. When a GPS answers, it is `{ x = number, y = number, z = number, dim? = string }`.
+`dim` comes from the worker's explicit plain `so-worker.cfg` table `{dim=string}`.
+GPS does not measure dimension. Missing `dim` permits range observation but
+refuses automatic add and drop coordinates.
 
 `body.journal` is the turtle's journal. `journal.id` is a string. `journal.seq` is a number. `journal.pose` is `{ x = number, y = number, z = number, f = number }` in the turtle's own frame since boot. `f` is 0 north, 1 east, 2 south, 3 west. `journal.moves` is the last 32 completed moves, oldest first. Each move is `{ n = number, op = string, ok = true }`. `op` is `forward`, `back`, `up`, `down`, `turnLeft`, or `turnRight`. `journal.dug` is the last 32 cells this turtle dug. Each entry is `{ x = number, y = number, z = number }`. `journal.pending` is optional. It is `{ n = number, op = string, lease = string }` when a step was started and not finished.
 
@@ -338,7 +341,12 @@ Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares
 
 SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
-`state.emit(kind, data)` appends one event and folds it into the current state. `kind` is a string. `data` is a value `so-store` can save. The call returns true, or false and an error string. A false return changes nothing. The revision is the event sequence number. `emit(key, value)` is this same call.
+`state.emit(kind, data)` appends one event and folds it into the current state. `kind` is a string. `data` is a value `so-store` can save. The call returns true, or false and an error string. A false return does not fold
+that event. A failed durable append sets the disk error and queues the event in
+memory before folding it. The queue holds at most 256 events and 262144 serialized
+bytes. Overflow or an event above the single-segment budget prints an explicit
+refusal and returns false. Segment fit is checked before queue insertion. Queued events appear
+in views and history, retry in sequence, and are lost if power fails before retry. The revision is the event sequence number. `emit(key, value)` is this same call.
 
 `state.get(key)` returns the last value stored under that key, or nil.
 
@@ -358,7 +366,14 @@ SO1 owns this API on `SO.mods.state`. It also owns `so-log.lua`.
 
 `state.canStart()` returns true below 80% disk use. At 80% or more it returns false and `"disk >=80%; free space"`. It reads current capacity and free space on every call and writes nothing. Mining and lumber call it before `start` changes their jobs. A missing guard refuses start too. Recovery, stop and ongoing work remain available.
 
-`state.tick(now)` flushes held view frames. `now` is `SO.now()` game milliseconds. The server passes it once a second.
+`state.disk()` returns the same data as the status view. `state.canWork()` returns
+false while event writes have failed or events await retry. The lease dispatcher
+then refuses new movement batches. Recovery and stationary parks remain available.
+At 85% disk use, unchanged heartbeat and fuel updates stay in memory. Event-count
+checkpoints move to every 10000 events; retention checkpoints still run.
+
+`state.tick(now)` retries at most 16 queued events every five seconds, refreshes
+the disk ledger every 30 seconds, and flushes held view frames. `now` is `SO.now()` game milliseconds. The server passes it once a second.
 
 #### Events
 
@@ -378,7 +393,12 @@ Every accepted `emit` is one event `{ seq, at, gameAt?, kind, data }` in the log
 
 `log` is the last 50 retained events, oldest first. Each entry is `{ seq, at, gameAt?, kind, data }`.
 
-`status` is `{ capacity, used, free, ratio, alerts, accepting }`. `ratio` is `used / capacity`. `alerts` contains `"disk"` when `ratio` is 0.8 or more. `accepting` is false in that case.
+`status` is `{ capacity, used, free, ratio, alerts, accepting, pressure,
+pending, pendingBytes, error, stores, scanned }`. `pressure` is true at 85% use.
+`pending` and `pendingBytes` describe the volatile event queue. `stores` has byte
+counts for `log`, `snapshots`, `cells`, `jobs`, `keys`, and `other`, including all
+file generations. `other` includes filesystem allocation and unclassified files.
+The categories sum to `used`. `scanned` is the last ledger scan in game time. `ratio` is `used / capacity`. `alerts` contains `"disk"` when `ratio` is 0.8 or more. `accepting` is false in that case.
 
 #### Log files
 
@@ -451,6 +471,32 @@ A `beacon` marks the authenticated sender lost, retains its journal id, and emit
 `tick(now)` closes a silent lease after `expires + 10000` and calls its owner with nil results. It keeps the cells reserved. The planner decides how to recover them. The module also answers wire `history.page` with `state.history.page(body)`, including SO1's sequence-based entries and cursor.
 
 Lease records, callbacks, beacon journals, and observed ranges live in memory. A server restart clears them. Planners must recover reservations before sending new work after a restart.
+
+`lease.world(id, dim)` returns `{ dim, x, y, z, facing? }`, or nil and a reason.
+It requires pairing, a GPS fix at most 60 seconds old and at least as new as the
+last journal pose, matching explicit worker and server dimensions, and a certain journal. An open
+movement lease refuses it; a stationary park permits it. Facing is optional until
+GPS displacement proves the journal rotation or a world-anchored journal agrees
+with GPS. Initial journal `f=0` proves no world facing.
+
+`lease.locate(id, dim, done)` calls `done(pose, error)` from the handler or a later
+report. With unknown facing it reserves the start and four adjacent horizontal
+cells under `gps:<id>`, then leases `forward`, `gps` for 15 seconds. It never digs
+or turns. A successful forward move and unit GPS delta establish facing. The
+worker stays at the new cell. `claimProbe(id, owner, pose)` atomically hands its
+standing reservation from the probe to the job owner through `cells.handoff`.
+The other probe cells remain until the job assignment saves. Only then does
+`clearProbe(id)` release them. A blocked move with unchanged GPS releases the
+probe cells and refuses. Missing GPS or reports retain those cells for recovery.
+`clearProbe(id)` releases them after an explicit operator add has saved both
+the standing reservation and the assignment, when no lease is open. `candidates()` returns sorted unassigned paired worker IDs. Mining and lumber
+export `assigned(id)` for that list. Both accept `add <id>` and draw per-worker
+ADD HERE controls on SETUP. Explicit `add <id> x y z f` retains its recovery role.
+
+The worker accepts `gps` as a lease step. Its result is `{ ok=true,
+data={x,y,z,dim?}, counts }`, or `{ok=false,err="no GPS",counts}`. GPS waiting keeps
+processing authenticated server traffic. A probe uses normal per-step journal
+writes and the existing uncertain-pose rules after interruption.
 
 ### mine
 
@@ -629,6 +675,13 @@ sealing stack unless `all` is true. `side` defaults to `down`.
 
 ### cells
 
+`cells.handoff(from, to, x, y, z, dim)` atomically changes one reservation owner
+through the generation store. Failed saves leave the old owner in place. Other
+reservations keep their owners. Repeating a completed handoff succeeds.
+
+At 85% disk use, dug-mark KEEP prompts again after one minute. Consent remains
+required before any mark is removed.
+
 SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. All one-cell calls accept an optional last `dim` string, defaulting to `minecraft:overworld`. The same coordinates in different dimensions are separate cells. `who` is a computer id or a lease string.
 
 `cells.reserve(who, x, y, z, dim)` returns true, or false and `held` if another owner holds the cell. Reserving a cell already held by `who` succeeds.
@@ -707,6 +760,10 @@ facts after retirement. Its argument is a `{ [sectionPath] = true }` set.
 Wire type `cells.forget` takes `{ who }` and replies with `{ confirm = token }` without freeing anything. The same sender must send `{ who, confirm = token }` within 30 seconds. A valid confirmation runs `forgetOwner`. Invalid, expired, reused, or mismatched confirmations reply with `err`.
 
 ### display
+
+The DISK status control opens byte counts for every store and a persistent
+pressure or pending-event warning. AR keeps the disk warning visible until the
+condition clears, including with event alerts off.
 
 SO5 owns this API on `SO.mods.display`.
 
@@ -1047,6 +1104,12 @@ shows an error. Button `add` and typed `add` show save failures in the editor.
 No client or wire fields change.
 
 The list is saved through `so-store` in the file `so-drops`. A change emits `drops` with `{ op, id }` when `state.emit` exists.
+
+
+The drop editor's `FROM #N` copies a paired turtle's fresh world pose into the
+unsaved draft. FRONT selects the horizontal cell it faces; DOWN selects `y-1`.
+It maps the server dimension to drop dimensions 0, -1 or 1 and refuses unknown
+maps, moving turtles, stale fixes and uncertain journals. Saving still needs ADD.
 
 ### ar
 

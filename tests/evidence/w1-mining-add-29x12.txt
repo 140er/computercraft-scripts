@@ -1,0 +1,12 @@
+
+ MINING SETUP        stopped
+
+ home 0,0,0 n
+ bottom -58
+ length 64
+ mode thorough
+ ores all
+         ADD HERE #2
+
+
+            BACK

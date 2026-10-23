@@ -198,6 +198,7 @@ U.status = function(model, w, h)
     if index == 9 then
       C.button(math.max(2,x),y+1,math.max(0,math.min(w-1,x+width-1)-math.max(2,x)+1),'PAIR','pair','9',3)
     else C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height) end
+    if index == 6 then C.hit("disk",math.max(2,x)+1,y+1,4,1) end
   end
   if size == 'P' then
     for i,index in ipairs({1,3}) do draw(index,1,4+(i-1)*8,w,7) end

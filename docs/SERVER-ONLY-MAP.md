@@ -67,7 +67,7 @@ and listeners use `listener(sender, message)`.
   `store` returns `{ value, save = function(value) }`; `save` returns success
   and an optional error. `read` reads a plain Lua table without generation recovery.
 - [so-log.lua](../so-log.lua) stores bounded event segments and snapshots for state.
-  `open(store)` returns `{ snap, events(), append(ev), due(),
+  `open(store)` returns `{ snap, events(), fits(ev), append(ev), due(pressure?),
   checkpoint(payload), rawBytes(), status() }`.
   `status()` returns event availability, sequence, segment count, bytes, snapshot
   number, its saved game time and whether a checkpoint is due.
@@ -76,7 +76,7 @@ and listeners use `listener(sender, message)`.
   128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
   is at most 21000 bytes, so current, backup and temporary files fit within
   65536 bytes together. `status().bytes` counts every generation and is the
-  integration hook for a future disk ledger. Saves run at most once per 30000
+  included in the disk ledger under `other`. Saves run at most once per 30000
   game milliseconds. A failed save keeps the pending records for retry.
   `SO.error(text)` prints and records server errors. `SO.errors` exposes this
   log. `SO.health` holds startup time and the last tick's game cadence, wall
@@ -150,7 +150,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [so-mod-state.lua](../so-mod-state.lua), `state`, folds events into registry,
   jobs and views. Calls are `emit(kind, data)`, `get(path)`, `job(data)`,
-  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`,
+  `view()`, `view(name, buildFn)`, `view.get(q)`, `view.sub(q)`, `canStart()`, `disk()`, `canWork()`,
   `history.page(q)`, `diagnostics()` and `tick(now)`. `view` is a callable table.
   `view.sub` returns a subscription with `stop()`. Query fields are `name`
   and `notify` for views, and `from`, `count` or `limit` for history.
@@ -162,7 +162,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   remain available. Authenticated `hello` registers turtles and displays through
   `machine` events, on first contact, role or journal changes, fuel changes of
   at least 100 or crossing zero, and after 60 seconds. Built-in views are `fleet`, `turtle/<id>`,
-  `log` and `status`.
+  `log` and `status`. `disk()` adds byte counts by store, pressure at 85%,
+  pending event count and write errors. Failed event writes queue at most 256
+  events and 262144 bytes in memory. `canWork()` refuses new movement leases
+  until retry drains that queue. Overflow prints an explicit refusal. Pressure
+  keeps unchanged heartbeats in memory and reduces event-count checkpoints.
   See [state](server-only/PROTOCOL.md#state).
 - [so-mod-daily.lua](../so-mod-daily.lua), `daily`, counts retained `mine.ore`
   and `lumber.logs` events from one history page of at most 50 entries per tick.
@@ -189,9 +193,15 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `reanchor(id, worldPose)` sends an authenticated `worker.anchor` for an uncertain
   journal and retries until a matching hello confirms it. Mining/lumber `add`
   use it to replace an uncertain worker assignment with the operator-supplied pose.
+  `world(id, dim)` returns a fresh GPS pose and a proven facing when known.
+  `locate(id, dim, done)` resolves add-here asynchronously, probing one forward
+  step plus `gps` when needed. `candidates()` lists unassigned paired workers.
+  `claimProbe(id, owner, pose)` saves the destination reservation before add.
+  `clearProbe(id)` releases other probe cells only after assignment saves.
+  GPS fixes must carry the worker's explicit `so-worker.cfg` dimension.
   See [lease](server-only/PROTOCOL.md#lease).
 - [so-mod-cells.lua](../so-mod-cells.lua), `cells`, owns reservations and dug marks.
-  Calls are `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
+  Calls are `handoff(from, to, x, y, z, dim)`, `reserve(who, x, y, z, dim)`, `reserveMany(who, cells)`,
   `release(who, x, y, z, dim)`, `releaseOwner(who)`, `forgetOwner(who)`,
   `owner(x, y, z, dim)`, `isFree(x, y, z, dim)`, `markDug(x, y, z, dim)`,
   `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()`,
@@ -206,6 +216,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   At 1000000 bytes of section generations, eligible sections prompt every
   display and AR. Only `allow` removes sections, oldest use first, aiming for
   650000 bytes. `keep` persists a new request threshold at 150% of current use.
+  At 85% disk use, KEEP asks again after one minute without waiting for growth.
   `rememberWorker(id, worldPose, dug)` retains the last reported world-frame
   journal cells, including after job removal. Its bounded per-worker record and
   consent policy save to `so-data/dug-policy`. Reservations, running job areas,
@@ -226,6 +237,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   opens the draft editor. The list links to mining, lumber, shop, AR and panel;
   links wrap into two rows below 39 columns and three below 26. BACK
   returns the list to status and the editor to the list. Long lists have paging.
+  The kit editor also offers `FROM #N` to copy the chest cell from a fresh,
+  proven turtle pose. DOWN selects the block below the turtle.
   Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
   The kit-free editor fits below two navigation rows and above local input;
   its paging is per display.
@@ -334,6 +347,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See the [shop exception](server-only/PROTOCOL.md#shop).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
+  `assigned(id)` reports whether its job owns that worker.
   Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)` and `mapView()`;
   no wire handlers. Protection covers the running mine and saved worker routes.
   `forgetDug` clears block lookup entries for a set of retired section paths.
@@ -401,6 +415,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and park with one retry per minute. Missing drops use the same delay.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
+  `assigned(id)` reports whether its job owns that worker.
   Calls are `tick(now)` and `dugProtection(protect)`; no wire handlers.
   Protection covers the running farm at every height, saved service routes and
   worker recovery. Mining and lumber pass world-frame journal cells to cells.
@@ -470,6 +485,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   pending entry, and refuses further steps without moving or backtracking.
   An operator re-adds it with its actual pose to clear uncertainty. The worker
   saves that anchor and clears old move/dug history before confirming it.
+  `so-worker.cfg` supplies the explicit GPS dimension as a plain `{ dim = string }`
+  table. Missing dimensions disable automatic add and drop coordinates.
   `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
   adjacent inventories. The default side is down.
   It accepts authenticated server batches, not planner decisions. Keep it small

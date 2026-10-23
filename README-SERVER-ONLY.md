@@ -38,8 +38,21 @@ A larger value also works. A 1 MB or 8 MB disk cannot run the server.
 
 Mining and lumber refuse `start` when the server disk is 80% full or more.
 The screen shows `disk >=80%; free space`. Free space and submit `start` again.
-Existing jobs and recovery continue, so disk use can still grow. Dug marks remain
-on disk across jobs and have no automatic pruning or total byte limit.
+At 85% the server shows `DISK pressure`, keeps heartbeat updates in memory and
+checkpoints every 10000 events instead of 2000. Retention checkpoints still run.
+Tap DISK on status for bytes in log, snapshots, cells, jobs, keys and other files.
+The ledger counts all file generations and refreshes every 30 seconds. Other
+includes code, filesystem allocation and files outside those stores.
+
+If an event cannot save, the server folds it into memory and queues it for retry.
+The queue holds at most 256 events and 262144 serialized bytes. Status and AR show
+`DISK N events pending`. New movement leases stop until the queue drains; stationary
+parks and recovery remain available. Retries run every five seconds, at most 16
+events per tick. A full queue or an event above the log segment budget refuses the event and
+prints `DISK event refused`.
+Queued events are volatile. A power loss before retry loses those events.
+Free disk space before restarting. Snapshot failures retry at most once per minute.
+Dug marks remain on disk across jobs. Only consent removes them.
 Workers and displays download less than 800 KB each.
 
 Servers and displays use all attached modems and detect modem changes without a
@@ -139,7 +152,10 @@ Turtles draw above landmarks and cells. Only the server's dimension is shown.
 Open `MORE` from status, pocket glance or the panel header for the generic
 drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
 to cycle values, the dimension and coordinate buttons to adjust the draft,
-and `ADD` to save it. Select a point in the list for `FIX` or `REMOVE`. Use
+and `ADD` to save it. `FROM #N` copies a paired turtle's fresh, proven world
+position into the draft. `front` selects the cell the turtle faces. `down`
+selects the chest below it. Unknown facing, stale GPS and uncertain journals
+refuse the action. Review the coordinates before `ADD`. Select a point in the list for `FIX` or `REMOVE`. Use
 `PREV` and `NEXT` to page through the list. The editor's `BACK` returns to the
 list, whose `BACK` returns to status. All controls fit a 26x20 pocket or 29x12
 monitor. Big Tiles use the full display height; typing opens local input.
@@ -183,7 +199,8 @@ reservations, open leases and worker recovery paths stay protected. If an area
 becomes protected after the request appears, the server keeps it. Recovery
 history stays protected even after a worker is removed from a job.
 `keep` saves everything and remembers the choice across restarts. The server
-asks again only after section files grow by another 50 percent. Sharding onto
+asks again after section files grow by another 50 percent. At 85% disk use,
+`keep` asks again after one minute even without that growth. Sharding onto
 more server storage is a future option. The 80 percent disk guard still applies.
 
 Open the `mining` display screen. Submit these text commands:
@@ -196,6 +213,7 @@ mode thorough|fast
 branches <n>
 continuous on|off
 ores diamond,iron,...
+add <id>
 add <id> <x> <y> <z> <n|e|s|w>
 remove <id>
 start
@@ -219,7 +237,23 @@ current batch and preserves the remaining work. Increasing `branches` and
 starting again lets finished miners continue.
 `ores` selects the supported ore names and accepts spaces
 around commas, such as `ores diamond, iron`.
-`add` anchors a paired worker at its world position and facing.
+`add` anchors a paired worker at its world position and facing. `add <id>` and
+`ADD HERE #N` on SETUP use a GPS fix at most 60 seconds old in the server's
+configured dimension. On each turtle, save its current dimension in
+`so-worker.cfg`, for example `{ dim = "minecraft:overworld" }`. Use
+`minecraft:the_nether` or `minecraft:the_end` there as needed. GPS itself supplies
+no dimension. Missing or mismatched worker dimensions refuse automatic add and
+FROM. Update this setting if you move the turtle to another dimension.
+Facing comes from proven GPS movement or an anchored
+journal. The initial local journal north is never world north by assumption.
+When facing is unknown, the server reserves the turtle's cell and all four
+horizontal neighbours, then requests `forward` and `gps`. The turtle moves one
+block without digging and stays there. The successful GPS result establishes its
+new position and facing before assignment. The standing reservation transfers
+atomically to the job owner. Other probe cells stay reserved until the assignment
+saves. A blocked probe refuses the add.
+Missing GPS or uncertain pose requires the explicit coordinate command. A lost
+probe report keeps its reservations until an explicit add clears them.
 `remove` can cancel a stationary recovery or park inspection and releases the
 worker's lane and reservations. Other open leases must finish first. `stop` allows
 an already sent batch to finish. The screen shows worker state, pose, fuel, ore
@@ -232,6 +266,7 @@ Open the `lumber` screen and submit these commands:
 ```text
 area <x1> <z1> <x2> <z2> <ground y>
 saplings <x> <y> <z> <front|down>
+add <id>
 add <id> <x> <y> <z> <n|e|s|w>
 start
 stop

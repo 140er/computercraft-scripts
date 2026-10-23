@@ -1,6 +1,6 @@
 -- so-mod-state.lua - event log, machine registry, and views.
 
-local H = {}
+local H = { backlog = {}, backlogBytes = 0, pendingSizes = {} }
 
 H.copy = function(v)
   if type(v) ~= "table" then return v end
@@ -25,23 +25,60 @@ H.shallow = function(values)
   return out
 end
 
+H.ledger = function()
+  local stores = { log=0, snapshots=0, cells=0, jobs=0, keys=0, other=0 }
+  local visited = 0
+  local function walk(dir)
+    for _, name in ipairs(fs.list(dir)) do
+      local path = dir == "/" and name or dir .. "/" .. name
+      local root = not fs.getDrive or fs.getDrive(path) == fs.getDrive("/")
+      if root then
+        local ok, bytes = pcall(fs.getSize, path)
+        if fs.isDir and fs.isDir(path) or not ok then walk(path)
+        else
+          local store = path:match("^so%-data/log/") and "log"
+            or path:match("^so%-data/snap/") and "snapshots"
+            or (path:match("^so%-data/cells/") or path:match("^so%-data/dug%-policy")) and "cells"
+            or (path:match("^so%-data/mine/") or path:match("^so%-data/lumber/")) and "jobs"
+            or (path == "so-keys" or path == "so-keys.tmp" or path == "so-keys.bak") and "keys" or "other"
+          stores[store] = stores[store] + bytes
+        end
+      end
+      visited = visited + 1
+      if visited % 64 == 0 and SO.breathe then SO.breathe() end
+    end
+  end
+  walk("/")
+  H.stores, H.scanned = stores, SO.now()
+end
+
 H.disk = function()
-  local cap = fs.getCapacity("/")
-  local free = fs.getFreeSpace("/")
-  local info = { capacity = 0, used = 0, free = 0, ratio = 0, alerts = {}, accepting = true }
+  local cap, free = fs.getCapacity("/"), fs.getFreeSpace("/")
+  local info = { capacity=0, used=0, free=0, ratio=0, alerts={}, accepting=true,
+    pressure=false, pending=#H.backlog, pendingBytes=H.backlogBytes, error=H.writeError }
   if type(cap) ~= "number" or cap <= 0 then return info end
   if type(free) ~= "number" or free < 0 then free = 0 end
-  local used = cap - free
-  if used < 0 then used = 0 end
-  info.capacity = cap
-  info.used = used
-  info.free = free
-  info.ratio = used / cap
-  if info.ratio >= 0.8 then
-    info.alerts = { "disk" }
-    info.accepting = false
-  end
+  info.capacity, info.free, info.used = cap, free, math.max(0, cap-free)
+  info.ratio = info.used / cap
+  info.pressure = info.ratio >= 0.85
+  info.accepting = info.ratio < 0.8 and #H.backlog == 0 and not H.writeError
+  if not info.accepting then info.alerts = { "disk" } end
+  info.stores = H.copy(H.stores or {log=0,snapshots=0,cells=0,jobs=0,keys=0})
+  local total = 0
+  for key, bytes in pairs(info.stores) do if key ~= "other" then total = total + bytes end end
+  if total > info.used then H.ledger() return H.disk() end
+  info.stores.other = info.used-total
+  info.scanned = H.scanned
   return info
+end
+
+H.diskAlert = function(S)
+  local disk = H.disk()
+  S.values["disk.alert"] = (disk.pressure or disk.error or disk.pending > 0) and {
+    text = disk.pending > 0 and ("DISK " .. disk.pending .. " events pending")
+      or disk.error and "DISK event refused" or "DISK pressure",
+    error = disk.error,
+  } or nil
 end
 
 H.fp = function(id)
@@ -190,7 +227,13 @@ if disklog then
 end
 
 H.events = function()
-  if disklog then return disklog.events() end
+  if disklog then
+    if #H.backlog == 0 then return disklog.events() end
+    local events = {}
+    for _, ev in ipairs(disklog.events()) do events[#events+1] = ev end
+    for _, ev in ipairs(H.backlog) do events[#events+1] = ev end
+    return events
+  end
   return S.mem
 end
 
@@ -236,6 +279,7 @@ H.touch = function()
 end
 
 local function canStart()
+  if #H.backlog > 0 then return false, "DISK events pending; free space" end
   if not H.disk().accepting then return false, "disk >=80%; free space" end
   return true
 end
@@ -250,8 +294,36 @@ local function emit(kind, data)
   end
   local ev = { at = os.epoch("utc"), gameAt = SO.now(), kind = kind, data = stored }
   if disklog then
-    local ok, err = disklog.append(ev)
-    if not ok then return false, err end
+    ev.seq = S.seq + 1
+    if not disklog.fits(ev) then
+      H.writeError = "event exceeds log budget"
+      H.diskAlert(S)
+      print("DISK event refused: " .. H.writeError .. " (" .. kind .. ")")
+      return false, "event exceeds log budget; refused"
+    end
+    local ok, err
+    if #H.backlog == 0 then ok, err = disklog.append(ev) end
+    if ok then H.writeError = nil end
+    if not ok then
+      ev.seg = nil
+      ev.seq = S.seq + 1
+      local bytes = #textutils.serialize(ev)
+      H.writeError = tostring(err or H.writeError or "events pending")
+      if err and tostring(err):find("budget",1,true) then
+        H.diskAlert(S)
+        print("DISK event refused: " .. H.writeError .. " (" .. kind .. ")")
+        return false, "event exceeds log budget; refused"
+      end
+      if #H.backlog >= 256 or H.backlogBytes + bytes > 262144 then
+        H.diskAlert(S)
+        print("DISK event refused: backlog full (" .. kind .. ")")
+        return false, "DISK backlog full; event refused"
+      end
+      H.backlog[#H.backlog+1] = ev
+      H.pendingSizes[ev] = bytes
+      H.backlogBytes = H.backlogBytes + bytes
+      if #H.backlog == 1 then print("DISK event queued: " .. H.writeError) end
+    end
   else
     S.seq = S.seq + 1
     ev.seq = S.seq
@@ -260,10 +332,12 @@ local function emit(kind, data)
   -- Fold the event into memory before the snapshot, or the snapshot seq
   -- would skip this event on the next boot.
   H.apply(S, ev)
-  if disklog and disklog.due() then
+  H.diskAlert(S)
+  if disklog and #H.backlog == 0 and disklog.due(H.disk().pressure) and SO.now() >= (H.checkAfter or 0) then
     local saved, saveErr = disklog.checkpoint({
       values = S.values, machines = S.machines, jobs = S.jobs, gameAt = SO.now(),
     })
+    H.checkAfter = not saved and SO.now() + 60000 or 0
     if not saved then (SO.error or print)("so-log: snapshot failed: " .. tostring(saveErr)) end
   end
   H.touch()
@@ -357,16 +431,40 @@ local function hello(msg)
   local row = S.machines[tostring(msg.from)]
   local changed = row and fuel ~= nil and (type(fuel) ~= type(row.fuel)
     or type(fuel) == "number" and (math.abs(fuel - row.fuel) >= 100 or (fuel == 0) ~= (row.fuel == 0)))
+  if row and H.disk().pressure and role == row.role and journal == row.journal then
+    row.seen, row.fuel = now, fuel or row.fuel return
+  end
   if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
     or changed or now - (row.seen or 0) >= 60000 then
     emit("machine", { id = msg.from, role = role, fuel = fuel, seen = now, journal = journal })
   end
 end
 
+local function tick()
+  if #H.backlog > 0 and SO.now() >= (H.retryAfter or 0) then
+    H.retryAfter = SO.now() + 5000
+    for _ = 1, math.min(16, #H.backlog) do
+      local ev = H.backlog[1]
+      local bytes = H.pendingSizes[ev]
+      local ok, err = disklog.append(ev)
+      if not ok then ev.seg = nil H.writeError = tostring(err) break end
+      table.remove(H.backlog, 1)
+      H.pendingSizes[ev] = nil
+      H.backlogBytes = math.max(0, H.backlogBytes-bytes)
+    end
+    if #H.backlog == 0 then H.backlogBytes, H.writeError = 0, nil print("DISK events saved") end
+  end
+  if not H.scanned or SO.now()-H.scanned >= 30000 then H.ledger() end
+  H.diskAlert(S)
+  H.flush()
+end
+
 return {
   name = "state",
   handlers = { hello = hello },
-  tick = function() H.flush() end,
+  tick = tick,
+  disk = H.disk,
+  canWork = function() return #H.backlog == 0 and not H.writeError end,
   emit = emit,
   get = get,
   view = view,

@@ -740,10 +740,6 @@ S.input = function(ev)
     end
     S.idlePark, S.parkAt = nil, nil
     local pose = { dim = j.dim, x = x, y = y, z = z, facing = f }
-    if lease.claimProbe then
-      local ok, err = lease.claimProbe(id, "lumber:" .. id, pose)
-      if not ok then S.alert(err) return end
-    end
     if status.uncertain then
       local ok, err = lease.reanchor(id, pose)
       if not ok then S.alert(err) return end
@@ -754,6 +750,10 @@ S.input = function(ev)
     if j.turtle then
       local released, err = S.release()
       if released == false then S.alert("save failed: " .. tostring(err)) return end
+    end
+    if lease.claimProbe then
+      local ok, err = lease.claimProbe(id, "lumber:" .. id, pose)
+      if not ok then S.alert(err) return end
     end
     local previous, inv, fuel = j.turtle, j.inv, j.fuel
     j.turtle = { id = id, anchor = pose, pose = pose }

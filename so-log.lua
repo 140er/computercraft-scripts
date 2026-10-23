@@ -148,6 +148,13 @@ H.drop = function(S, ev)
   if S.cur and #S.cur > 0 and S.cur[#S.cur] == ev then S.cur[#S.cur] = nil end
 end
 
+H.fits = function(ev)
+  local copy = {}
+  for key, value in pairs(ev) do copy[key] = value end
+  copy.seg = 999999
+  return #textutils.serialize({events={copy}}) + 96 <= C.seg
+end
+
 H.append = function(S, ev)
   if type(ev) ~= "table" or type(ev.kind) ~= "string" then return false, "event" end
   if not S.box then
@@ -183,8 +190,8 @@ H.append = function(S, ev)
   return true
 end
 
-H.due = function(S)
-  if S.seq > 0 and S.seq % C.every == 0 then return true end
+H.due = function(S, pressure)
+  if S.seq > 0 and S.seq % (pressure and C.every * 5 or C.every) == 0 then return true end
   if H.raw(S) > C.window and S.first < S.last then return true end
   return false
 end
@@ -292,8 +299,9 @@ M.open = function(store)
   return {
     snap = S.snap,
     events = function() return S.all end,
+    fits = H.fits,
     append = function(ev) return H.append(S, ev) end,
-    due = function() return H.due(S) end,
+    due = function(pressure) return H.due(S, pressure) end,
     checkpoint = function(payload) return H.checkpoint(S, payload) end,
     rawBytes = function() return H.raw(S) end,
     status = function()

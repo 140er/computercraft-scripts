@@ -759,14 +759,14 @@ local function input(event)
     if status and status.probing then S.error="GPS probe pending" return end
     if job.turtles[tostring(id)] and not uncertain then S.error="already added" return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
-    local claimed, claimErr = call("lease", "claimProbe", id, owner(id), pose)
-    if claimed == false then S.error = claimErr return end
     if uncertain then
       local ok,err=call("lease","reanchor",id,pose)
       if not ok then S.error=err return end
       call("cells","releaseOwner",owner(id))
       S.pending[id],S.dugFacts[id]=nil,nil
     end
+    local claimed, claimErr = call("lease", "claimProbe", id, owner(id), pose)
+    if claimed == false then S.error = claimErr return end
     S.error=nil
     local previous = job.turtles[tostring(id)]
     job.turtles[tostring(id)]={anchor=pose,pose=pose,state="recovering",recover=true,inv={}}
