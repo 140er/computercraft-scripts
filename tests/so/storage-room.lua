@@ -69,6 +69,17 @@ local function tap(screen,id,w,h)
   error("missing drawn button "..id)
 end
 return function(test,equal)
+  test("manual shop send failures retain their existing timeout feedback",function()
+    local s=fixture() s.stock()
+    local screen=s.screens.shop
+    tap(screen,"item:minecraft:coal",29,12)
+    s.sendFail=true
+    tap(screen,"order:64:minecraft:coal",29,12)
+    s.net.time=120000 s.shop.tick(s.net.time)
+    local text=""
+    for _,row in ipairs(screen.render(29,12,screen.session).rows) do text=text..row.text end
+    assert(text:find("Order: failed, timed out",1,true),"manual order lost its failure feedback")
+  end)
   test("room fuel defaults off and refuses an unbound output",function()
     local s=fixture() s.stock()
     equal(s.shop.fuelConfig().auto,false)

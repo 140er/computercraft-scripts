@@ -34,7 +34,10 @@ S.request = function(kind, name, count, view, reservedRid)
     end
   end
   local ok = rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
-  if ok == false then S.pending[rid] = nil return nil, "send failed" end
+  if ok == false then
+    if reservedRid then S.pending[rid] = nil end
+    return nil, "send failed"
+  end
   return rid
 end
 
