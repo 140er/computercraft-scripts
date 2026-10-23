@@ -716,8 +716,11 @@ A display shows one role. Only the server changes it:
 - R on the server terminal opens role mode. It lists every known display as
   `ID  SIZE  ROLE` and reads one line: `<id> <role>` assigns, `<id> -` clears.
   Enter applies it with `display.command`, prints `role: <result>` to the log
-  and shows the result above the prompt. Backspace edits, Esc leaves. Keys
-  such as P and L type into the prompt instead of acting.
+  and shows the result above the prompt, wrapped to two rows when long. A list
+  longer than the screen ends with `+N more`. Backspace edits, Esc leaves. Keys
+  such as P and L type into the prompt instead of acting, and a panel's NEW
+  CODE request does not close it. Kit-free servers draw the same prompt as
+  plain rows.
 - `display.command(text)` parses that line and calls `display.assign`.
 - `display.assign(id, role)` returns `true, "display <id>: <role>"` or
   `false, <reason>`. Role nil or `-` clears the saved role. Roles are
@@ -728,20 +731,25 @@ A display shows one role. Only the server changes it:
   `use <id> <role> or <id> -`. An id is a display when it has a session size,
   a saved role or a `display` registry row, or is the server's own id.
   Assignment saves through `so-store`, resets the display's status paging and
-  pocket page, and the next tick sends the new frame. It never renders.
+  pocket page, and the next tick sends the new frame. It never renders. Until
+  that frame is sent, taps from the display are ignored, so a tap on the old
+  role's frame cannot reach the new role. The local monitor does the same.
 
 Tests and the gateb driver use the same calls, for example
 `SO.mods.display.command("7 mining")`.
 
 A 26x20 display with no saved role gets `pocket`; so does 26x19, which older
-pocket clients report without `fullH`. Any other display with no
+pocket clients report without `fullH`. Before R1 every navigation tap was
+saved, so a pocket keeps a saved role only when the command set it; other
+displays keep any saved role. Any other display with no
 saved role draws `unassigned`: an UNASSIGNED header and a teal block with its
 id in big digits, without buttons. A saved role whose screen is not
 registered, or whose renderer fails, draws the same block under the role name.
 Kit-free servers draw `display <id>` and the role name as text.
 
 The pocket role has two pages in the display session. The glance page is the
-26x20 status layout; its row 20 `panel` input opens the panel page. The panel
+26x20 status layout, at any height on a 26-wide pocket; its bottom-row `panel`
+input opens the panel page. The panel
 page is the `panel` screen with GLANCE (`glance`) in place of the status link.
 Neither changes the saved role. At other sizes the glance page uses the status
 layout.
@@ -826,10 +834,12 @@ display. The first page shows turtles and alerts; later pages show ore, leases,
 logs, disk, displays, drops and pairing.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
-in `so-display`, with string computer ids. Old files without `far` remain valid,
-and every role saved before R1 keeps working. `pocket` is a new saved value; a
-server older than R1 rejects a file that contains it. Both settings survive a
-restart.
+in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
+for roles set by the command. Old files without `far` or `locked` remain valid.
+Roles saved before R1 keep working on every display except pockets, which
+return to `pocket` until the operator assigns them. `pocket` is a new saved
+value; a server older than R1 rejects a file that contains it and ignores
+`locked`. All settings survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
 the next tick for a subscribed display. A failed save keeps the previous setting.

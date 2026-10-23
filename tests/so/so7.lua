@@ -244,16 +244,18 @@ return function(test, equal)
     assert(picture.rows[6].text:find("cells held",1,true),picture.rows[6].text)
     equal(g.server.env.SO.mods.cells.owner(-1,2,0,"minecraft:overworld"),"other")
   end)
-  test("SO7 the generic lumber button opens the lumber screen", function()
+  test("SO7 the server command gives a display the lumber screen", function()
     local g=setup(true)
     local d=g.server.env.SO.mods.display
     local body
     d.handlers.hello({from=3,body={w=51,h=19}})
     d.handlers["view.get"]({from=3},function(_,v) body=v end)
-    local button
-    for _, b in ipairs(body.buttons) do if b.id=="lumber" then button=b end end
-    assert(button,"generic screen has no lumber button")
-    d.handlers.input({from=3,body={id=button.id,x=button.x,y=button.y}})
+    equal(body.role,"unassigned")
+    for _, b in ipairs(body.buttons) do assert(b.id~="lumber","unassigned screen links to lumber") end
+    d.handlers.input({from=3,body={id="lumber",x=1,y=1}})
+    d.handlers["view.get"]({from=3},function(_,v) body=v end)
+    equal(body.role,"unassigned")
+    assert(d.command("3 lumber"))
     d.handlers["view.get"]({from=3},function(_,v) body=v end)
     equal(body.role,"lumber")
     assert(#body.rows>1,"lumber status missing")

@@ -102,7 +102,8 @@ S.run = function()
   local function showCode()
     misses = 0
     codeOwner = nil
-    view.mode = "code"
+    -- A panel can request a code while the operator types a role command.
+    if view.mode ~= "role" then view.mode = "code" end
     view.code = pair.invite(not term.blit and term or nil)
     view.expires = SO.now()+300000
     if not term.blit then showHostError() end
@@ -285,7 +286,10 @@ S.run = function()
     if a == keyCode("enter", 28) or a == keyCode("numPadEnter", 156) then
       local display = SO.mods.display
       local ok, text = false, "display module missing"
-      if display and type(display.command) == "function" then ok, text = display.command(view.input) end
+      if display and type(display.command) == "function" then
+        local called, a1, a2 = pcall(display.command, view.input)
+        if called then ok, text = a1, a2 else text = "role command failed: " .. tostring(a1) end
+      end
       print("role: " .. tostring(text))
       view.notice = text
       if ok then view.input = "" end

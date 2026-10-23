@@ -219,7 +219,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   A display shows one role. `assign` is the only way to change it: role nil or
   `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
   unregistered screens return `false, reason`. Success returns
-  `true, "display <id>: <role>"`; the next tick sends the new frame. `command`
+  `true, "display <id>: <role>"`; the next tick sends the new frame, and taps
+  from the old frame are ignored until then. `command`
   parses the terminal line `<id> <role>` or `<id> -`. The server terminal's R
   prompt, tests and the gateb driver use it. See
   [display roles](server-only/PROTOCOL.md#display-roles).
@@ -604,7 +605,9 @@ Do not save inside tight loops.
   `so-data/cells/<escaped-dim>/<sx>_<sy>_<sz>` for 16-cube sections.
   The cache holds at most 256 sections; tick saves at most eight dirty sections.
 - `so-drops` holds drop points and failure counts.
-- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
+- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true },
+  locked = { [stringId] = true } }`. `locked` marks roles the command set; a
+  pocket ignores an unlocked saved role from before R1.
   Roles are `status`, `pocket`, `mining`, `lumber`, `shop`, `generic`, `ar`,
   `panel` and `map`. Only `display.assign` writes them. The server's own id
   holds its local monitor role. `pocket` is new in R1; older servers reject a

@@ -30,7 +30,7 @@ return function(test, equal)
     equal(s.server.env.SO.mods.cells.isDug(0,0,-1),false)
     assert(not s.server.files[retired] and not s.server.files[retired..".bak"])
     local turtle=addWorker(s,3)
-    s.press("mining")
+    s.assign("mining")
     for _,text in ipairs({"home 0 0 0 n","bottom -2","length 3","add 3 0 0 0 n"}) do s.typeText(text) end
     s.net.advance(1)
     s.net.world["0,0,-1"]="minecraft:diamond_ore"
@@ -81,7 +81,7 @@ return function(test, equal)
     end)
     local first=addWorker(s,3)
     for y=0,-80,-1 do s.net.world["0,"..y..",-1"]="minecraft:stone" end
-    s.press("mining")
+    s.assign("mining")
     for _,text in ipairs({"home 0 0 0 n","bottom -80","length 3","mode fast","add 3 0 0 0 n","start"}) do s.typeText(text) end
     s.net.advance(200)
     assert(not first.error,tostring(first.error))

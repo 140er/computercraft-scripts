@@ -182,7 +182,11 @@ return function(test, equal)
     local function event(...) s.server.inbox[#s.server.inbox + 1] = table.pack(...) end
     local function typed(text) for c in text:gmatch(".") do event("char", c) end end
     event("key", 19, false); event("char", "r")
-    typed("2 lumber"); event("key", 28, false)
+    typed("2 lum")
+    s.net.flush()
+    assert(s.server.env.SO.pairCode(2), "panel code request")
+    equal(s.server.env.SO.terminal.mode, "role", "a panel code request left the prompt")
+    typed("ber"); event("key", 28, false)
     s.net.flush()
     local v = s.server.env.SO.terminal
     equal(v.mode, "role")
@@ -196,7 +200,7 @@ return function(test, equal)
     event("key", 14, false); event("key", 14, false); event("key", 25, false); typed("map"); event("key", 28, false)
     s.net.flush()
     equal(v.notice, "display 2: map")
-    assert(not s.server.env.SO.pair.pending(), "P inside the prompt started pairing")
+    equal(s.server.env.SO.terminal.code, s.server.env.SO.pair.pending(), "P inside the prompt renewed pairing")
     s.net.advance(1)
     equal(s.frame().role, "map")
     event("key", 1, false); s.net.flush()
@@ -243,5 +247,90 @@ return function(test, equal)
     v.mode = "role"
     D.drawTerminal(0)
     equal(v.displays, {{id=6, size="26x20", role="pocket"}, {id=8, size="57x24", role="drops"}})
+  end)
+
+  test("role-lock: a tap on the previous role's frame is ignored until the new frame arrives", function()
+    local s = setup(57, 24)
+    local D = s.display()
+    assert(D.command("2 mining"))
+    s.net.advance(1)
+    local start
+    for _, b in ipairs(s.frame().buttons) do if b.id == "start" then start = b end end
+    assert(start, "mining START")
+    local hits = 0
+    local lumber = D.screen("lumber")
+    D.screen("lumber", lumber.render, function() hits = hits + 1 end)
+    assert(D.command("2 lumber"))
+    s.client.inbox[#s.client.inbox + 1] = table.pack("mouse_click", 1, start.x, start.y)
+    s.net.flush()
+    equal(hits, 0)
+    s.net.advance(1)
+    equal(s.frame().role, "lumber")
+    s.client.inbox[#s.client.inbox + 1] = table.pack("mouse_click", 1, start.x, start.y)
+    s.net.flush()
+    equal(hits, 1)
+  end)
+
+  test("role-lock: pockets drop navigation roles saved before R1; other displays keep theirs", function()
+    local m = H.new().machine({id=1, capacity=16000000})
+    m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})
+    local e = m.env
+    e.SO = {now=function() return e.os.epoch("utc") end, mods={}, store=e.dofile("so-store.lua"),
+      proto={ser=H.encode}, pair={key=function() return "key" end}}
+    assert(e.SO.store.store("so-display", function() return true end).save({roles={["2"]="panel", ["3"]="mining",
+      ["4"]="status"}, far={}}))
+    local function boot()
+      local d = e.dofile("so-mod-display.lua")
+      for _, role in ipairs({"panel", "mining"}) do d.screen(role, function() return {rows={}, buttons={}} end) end
+      local function frame(id, w, h)
+        d.handlers.hello({from=id, body={w=w, h=h, fullH=h}})
+        local got
+        d.handlers["view.get"]({from=id}, function(_, body) got = body end)
+        return got
+      end
+      return d, frame
+    end
+    local d, frame = boot()
+    equal(frame(2, 26, 20).role, "pocket")
+    equal(frame(3, 57, 24).role, "mining")
+    local old = frame(4, 26, 19)
+    equal(old.role, "pocket")
+    local found = {}
+    for _, b in ipairs(old.buttons) do found[b.id] = b.y end
+    equal({found.prev, found.next, found.panel}, {19, 19, 19}, "26x19 pockets keep glance paging")
+    equal({d.assign(2, "panel")}, {true, "display 2: panel"})
+    equal(frame(2, 26, 20).role, "panel")
+    d, frame = boot()
+    equal(frame(2, 26, 20).role, "panel", "a commanded pocket role survives restart")
+    equal(frame(4, 26, 20).role, "pocket")
+    equal(frame(3, 57, 24).role, "mining")
+  end)
+
+  test("role-lock: kit-free servers still draw the role prompt", function()
+    local m = H.new().machine({id=1, capacity=16000000})
+    m.install({"so-store.lua", "so-mod-display.lua"})
+    local e = m.env
+    e.SO = {now=function() return 0 end, mods={}, store=e.dofile("so-store.lua"), proto={ser=H.encode},
+      pair={key=function() return "key" end}}
+    local d = e.dofile("so-mod-display.lua")
+    local frame = d.terminal({tiles={}}, {mode="role", input="8 drops", notice="no display 9",
+      displays={{id=8, size="29x12", role="unassigned"}}}, 51, 19)
+    local text = {}
+    for _, row in ipairs(frame.rows) do text[#text + 1] = row.text end
+    equal(text, {"roles", "8 29x12 unassigned", "no display 9", "> 8 drops_"})
+  end)
+
+  test("role-lock: long notices wrap and long display lists end with a count", function()
+    local s = setup()
+    local view = {id=1, mode="role", input="", notice="roles: status pocket mining lumber shop drops ar panel map",
+      displays={}}
+    for i = 1, 20 do view.displays[i] = {id=i, size="57x24", role="status"} end
+    local frame = s.display().terminal({tiles={}}, view, 51, 19)
+    local text = {}
+    for y, row in ipairs(frame.rows) do text[y] = row.text end
+    assert(text[17]:find("roles: status pocket mining", 1, true), text[17])
+    assert(text[18]:find("panel map", 1, true), text[18])
+    assert(text[16]:find("+", 1, true) and text[16]:find("more", 1, true), text[16])
+    assert(text[15]:find("^ 11 "), text[15])
   end)
 end

@@ -9,7 +9,7 @@ local D = {
   order = { "status", "pocket", "mining", "lumber", "shop", "generic", "ar", "panel", "map" },
   known = {},
   box = nil,
-  saved = { roles = {}, far = {} },
+  saved = { roles = {}, far = {}, locked = {} },
   screens = {},
   sessions = {},
   pictures = {},
@@ -28,14 +28,19 @@ D.acceptSize = function(w, h)
   return D.whole(w) and D.whole(h) and w <= D.limit and h <= D.limit
 end
 
--- The saved role wins. A pocket without one is a pocket; anything else waits
--- for the operator, showing its id.
+-- Only pocket computers are 26 wide; older clients report 19 rows without fullH.
+D.isPocket = function(session)
+  return U and session and session.w == 26 and (session.h == 20 or session.h == 19) or false
+end
+
+-- The saved role wins. Before R1 pockets saved every navigation tap, so a
+-- pocket keeps a saved role only once the server command set it (locked).
+-- A pocket without one is a pocket; anything else shows its id.
 D.roleOf = function(id)
-  local role = D.saved.roles[tostring(id)]
-  if D.known[role] then return role end
-  local session = D.sessions[id]
-  -- Only pocket computers are 26 wide; older clients report 19 rows without fullH.
-  if U and session and session.w == 26 and (session.h == 20 or session.h == 19) then return "pocket" end
+  local key = tostring(id)
+  local role, pocket = D.saved.roles[key], D.isPocket(D.sessions[id])
+  if D.known[role] and (not pocket or D.saved.locked[key]) then return role end
+  if pocket then return "pocket" end
   return "unassigned"
 end
 
@@ -45,13 +50,14 @@ D.label = function(role) return role == "generic" and "drops" or role end
 D.setRole = function(id, role)
   local name = tostring(id)
   local old = D.saved.roles[name]
-  if role == old then return true end
-  local copy = { roles = {}, far = D.saved.far }
+  if role == old and (role == nil) == not D.saved.locked[name] then return true end
+  local copy = { roles = {}, far = D.saved.far, locked = {} }
   for key, value in pairs(D.saved.roles) do copy.roles[key] = value end
-  copy.roles[name] = role
+  for key, value in pairs(D.saved.locked) do copy.locked[key] = value end
+  copy.roles[name], copy.locked[name] = role, role and true or nil
   local ok, err = D.box.save(copy)
   if not ok then return false, err end
-  D.saved.roles[name] = role
+  D.saved = copy
   return true
 end
 
@@ -95,7 +101,7 @@ end
 D.far = function(id, on)
   if type(id) ~= "number" or id < 0 or id % 1 ~= 0 or type(on) ~= "boolean" then return false end
   local key = tostring(id)
-  local copy = { roles = D.saved.roles, far = {} }
+  local copy = { roles = D.saved.roles, far = {}, locked = D.saved.locked }
   for k, v in pairs(D.saved.far) do copy.far[k] = v end
   copy.far[key] = on or nil
   local ok, err = D.box.save(copy)
@@ -450,7 +456,7 @@ D.statusFrame = function(session, w, h, now, pocket)
     copy.takeover = session.takeover
     return U.alert(copy, w, h)
   end
-  if w == 26 and h == 20 then
+  if w == 26 and (h == 20 or pocket) then
     local indices = {1,3,4,2,5,6,7,8,9}
     local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
     local c = U.canvas(w, h)
@@ -460,6 +466,7 @@ D.statusFrame = function(session, w, h, now, pocket)
       local tile = copy.tiles[index]
       if tile then
         local y = 4 + (i - 1) * 8
+        if y + 7 > h then break end
         c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
         if index == 9 then
           c.fill(3, y + 2, w-4, 3, tile.bg)
@@ -556,6 +563,8 @@ D.onInput = function(msg)
   end
   local drawn = D.drawn(msg.from)
   local session = D.session(msg.from)
+  -- A tap on the previous role's frame, sent before the new one arrived.
+  if session.roleSent and session.roleSent ~= drawn then return end
   if id and id:match("^dug%.") then
     if not session.w then return end
     D.consent(body, drawn, session.w, session.h, session)
@@ -598,6 +607,15 @@ D.paint = function(target, frame, w, h)
 end
 
 D.terminal = function(model, view, w, h)
+  if not U and view.mode == "role" then
+    local rows = { { text = "roles", fg = "0", bg = "f" } }
+    for _, row in ipairs(view.displays or {}) do
+      rows[#rows + 1] = { text = row.id .. " " .. (row.size or "-") .. " " .. row.role, fg = "0", bg = "f" }
+    end
+    rows[#rows + 1] = { text = tostring(view.notice or ""), fg = "0", bg = "f" }
+    rows[#rows + 1] = { text = "> " .. tostring(view.input or "") .. "_", fg = "0", bg = "f" }
+    return { rows = rows, buttons = {} }
+  end
   if not U then return D.legacyStatus() end
   local C = U.canvas(w,h)
   C.header("SO SERVER #" .. tostring(view.id), view.mode == "code" and "pairing" or view.mode == "role" and "roles" or view.uptime)
@@ -615,13 +633,19 @@ D.terminal = function(model, view, w, h)
     C.fill(1,3,w,1,"7"); C.put(2,3,"FULL LOG")
     first = 4
   elseif view.mode == "role" then
+    local notice, width = tostring(view.notice or ""), math.max(1,w-2)
+    local noticeRows = #notice > width and 2 or 1
+    local last = h-1-noticeRows
+    local list = view.displays or {}
     C.fill(1,4,w,1,"7"); C.put(2,4,"ID    SIZE    ROLE")
-    for i, row in ipairs(view.displays or {}) do
-      if 4+i < h-1 then
-        C.put(2,4+i,string.format("%-6s%-8s%s",tostring(row.id),row.size or "-",row.role):sub(1,math.max(0,w-2)))
+    for i, row in ipairs(list) do
+      if 4+i < last or (4+i == last and i == #list) then
+        C.put(2,4+i,string.format("%-6s%-8s%s",tostring(row.id),row.size or "-",row.role):sub(1,width))
+      elseif 4+i == last then
+        C.put(2,4+i,"+" .. (#list-i+1) .. " more")
       end
     end
-    C.put(2,h-1,tostring(view.notice or ""):sub(1,math.max(0,w-2)))
+    for r = 1, noticeRows do C.put(2,h-1-noticeRows+r,notice:sub((r-1)*width+1,r*width)) end
   else
     local cols = U.grid(w,h,math.max(1,math.min(4,math.floor((w+1)/13))))
     local bottom = 7
@@ -723,6 +747,7 @@ D.localTick = function(now)
       if m.role ~= role then m.role, m.session.page = role, nil end
       local event = m.pending
       m.pending = nil
+      if event and m.frame and m.frame.role ~= role then event = nil end
       if event and event.id:match("^dug%.") then
         D.consent(event, role, w, h, m.session)
       elseif event then
@@ -751,18 +776,22 @@ D.load = function()
     for _, role in pairs(v.roles) do
       if not D.known[role] then return false end
     end
-    if v.far ~= nil then
-      if type(v.far) ~= "table" then return false end
-      for _, on in pairs(v.far) do if type(on) ~= "boolean" then return false end end
+    for _, field in ipairs({ "far", "locked" }) do
+      if v[field] ~= nil then
+        if type(v[field]) ~= "table" then return false end
+        for _, on in pairs(v[field]) do if type(on) ~= "boolean" then return false end end
+      end
     end
     return true
   end)
-  D.saved = { roles = {}, far = {} }
+  D.saved = { roles = {}, far = {}, locked = {} }
   if D.box.value and type(D.box.value.roles) == "table" then
     for id, role in pairs(D.box.value.roles) do D.saved.roles[tostring(id)] = role end
   end
-  if D.box.value and D.box.value.far then
-    for id, on in pairs(D.box.value.far) do D.saved.far[tostring(id)] = on end
+  for _, field in ipairs({ "far", "locked" }) do
+    if D.box.value and D.box.value[field] then
+      for id, on in pairs(D.box.value[field]) do D.saved[field][tostring(id)] = on end
+    end
   end
   D.register("status", D.statusRender, function() end)
 end
