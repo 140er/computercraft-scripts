@@ -45,7 +45,7 @@ local function server()
     startTimer=function() return 99 end,pullEvent=function() return coroutine.yield() end}
   env.dofile=function(path)
     if path=="so-pair.lua" then return pair end
-    if path=="so-proto.lua" then return {decode=function() end} end
+    if path=="so-proto.lua" then return {decode=function() end,since=function() end} end
     if path=="so-store.lua" then return {clock=function() return function() return s.now end end} end
     if path=="so-mod-display.lua" then
       return {name="display",handlers={},tick=function()
