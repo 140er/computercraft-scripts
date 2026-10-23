@@ -1,4 +1,4 @@
-from .model import Criteria, values, world_pose
+from .model import Blocked, Criteria, values, world_pose
 
 TITLE = "Lumber harvest and replant"
 
@@ -13,11 +13,14 @@ def evaluate(d):
 
 
 def run(ctx):
-    config = ctx.fixture("farm")
-    allowed = {tuple(p) for p in config.get("dig_cells", [])}
+    try:
+        proof = ctx.runtime.farm_allowlist()
+    except (OSError, ValueError, KeyError) as error:
+        raise Blocked(f"Cannot read cold farm tree blocks: {error}") from None
+    ctx.record("C6-cold-allowed-cells.json", proof)
+    allowed = {tuple(b["pos"]) for b in proof["blocks"]}
     if not allowed:
-        from .model import Blocked
-        raise Blocked("Farm manifest must list native stem/canopy dig_cells to prove soil/stone safety")
+        raise Blocked("Cold farm template has no native stem/canopy cells")
     before = ctx.count_items("wood", "_log")
     ctx.lumber()
     rows = ctx.sample("C6-samples.jsonl", ctx.game_seconds(600),

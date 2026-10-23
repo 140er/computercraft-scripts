@@ -5,6 +5,38 @@ import shutil
 import time
 
 
+def farm_allowlist(world, farm):
+    """Read connected oak stems and canopies from the cold template only."""
+    import nbt
+    ground = farm['ground']
+    x1, z1, x2, z2 = farm['area']
+    # Older prepared templates declared their four roots through the farm corners.
+    roots = farm.get('trees', [[x, ground + 1, z] for x, z in ((x1,z1),(x2,z1),(x1,z2),(x2,z2))])
+    species = farm['species']
+    chunks, blocks = {}, {}
+    for root in roots:
+        rx, ry, rz = root
+        if nbt.block(world, root, chunks)['block']['Name'] != species + '_log':
+            raise ValueError('Cold farm template is missing a declared tree stem')
+        pending, seen = [tuple(root)], set()
+        while pending:
+            pos = pending.pop()
+            if pos in seen:
+                continue
+            seen.add(pos)
+            x, y, z = pos
+            # The fixture declares small oaks, with a two-block canopy radius.
+            if abs(x-rx) > 2 or abs(z-rz) > 2 or not ground < y <= ground + 64:
+                continue
+            state = nbt.block(world, pos, chunks)['block']
+            if state['Name'] not in (species + '_log', species + '_leaves'):
+                continue
+            blocks[pos] = state
+            pending.extend((x+dx,y+dy,z+dz) for dx,dy,dz in ((1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)))
+    return {'source':str(world), 'trees':roots,
+            'blocks':[{'pos':list(pos), 'block':blocks[pos]} for pos in sorted(blocks)]}
+
+
 def lua(value):
     if value is None: return 'nil'
     if value is True: return 'true'

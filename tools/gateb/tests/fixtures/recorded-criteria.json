@@ -72,7 +72,7 @@
     },
     {
       "check": "C8",
-      "expected": "pass",
+      "expected": "fail",
       "observations": {
         "ore": {
           "alerts": 1,

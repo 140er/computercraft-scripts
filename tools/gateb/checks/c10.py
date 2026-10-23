@@ -53,11 +53,28 @@ def evaluate(d):
     return c.finish(d)
 
 
+def ready_for_outage(row):
+    workers = row["workers"]
+    if len(workers) != 3:
+        return False
+    for ident, journal in workers.items():
+        if not journal.get("id") or not journal.get("pose") or journal.get("park"):
+            return False
+        miner = row["mine"].get("turtles", {}).get(ident)
+        frame = (miner if miner is not None else row["lumber"].get("turtle", {})).get("frame")
+        if not frame or len(own_path(journal, frame)) < 2:
+            return False
+    return True
+
+
 def run(ctx):
     ctx.mining(); ctx.lumber()
-    if not ctx.wait(lambda: len(ctx.state()["workers"]) == 3 and all(j.get("id") and not j.get("park") for j in ctx.state()["workers"].values()), 90):
+    ready = ctx.sample("C10-ready-samples.jsonl", 90,
+                       lambda rows: ready_for_outage(rows[-1]))
+    if not ready_for_outage(ready[-1]):
+        ctx.record("C10-wait-state.json", ready[-1])
         return evaluate({"active_workers": False})
-    before = ctx.record("C10-before.json", ctx.state())
+    before = ctx.record("C10-before.json", ready[-1])
     ctx.power("server", "off"); off = time.time()
     try:
         rows = ctx.sample("C10-off-samples.jsonl", 181)
