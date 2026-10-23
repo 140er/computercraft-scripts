@@ -40,7 +40,6 @@ A.legacyRender = function()
     local label = layer .. (A.layers[layer] and " on" or " off")
     picture.buttons[i] = { id = layer, x = 1, y = i + 1, w = #label, label = label }
   end
-  picture.buttons[5] = { id = "generic", x = 1, y = 6, w = 7, label = "generic" }
   return picture
 end
 A.gather = function()
@@ -51,7 +50,7 @@ end
 A.layout = function(model, w, h)
   local C = U.canvas(w,h)
   C.header("AR GOGGLES", model.count .. (model.count == 1 and " controller" or " controllers"))
-  local cols = U.grid(w,h,w < 39 and 2 or nil)
+  local cols = U.grid(w,h,2)
   if h < 16 then
     for i,layer in ipairs(A.order) do
       local y = i + 3
@@ -59,7 +58,6 @@ A.layout = function(model, w, h)
       C.put(2,y,(layer:upper() .. " " .. (on and '1' or '0')):sub(1,math.max(0,w-2)))
       C.hit(layer,2,y,math.max(0,w-2),1)
     end
-    C.button(1,h,w,"BACK","status",'7',1)
   else
     for i,layer in ipairs(A.order) do
       local col=cols[(i-1)%#cols+1]
@@ -69,7 +67,6 @@ A.layout = function(model, w, h)
       C.tile(col.x,y,col.w,layer:upper(),on and '1' or '0',on and 'layer on' or 'layer off',on and 'd' or 'c')
       C.hit(layer,col.x,y,col.w,height)
     end
-    C.button(1,h >= 24 and h-3 or h-2,w,"BACK","status")
   end
   return C.frame()
 end

@@ -35,11 +35,12 @@ def generate(Canvas):
             if scale == 1:
                 c.text(px + 1, py, ident, bg)
         c.header("MAP", f"N ^ 1:{scale}")
-        available = mw - 3
-        for row, labels in [(mh - 3, ["BACK", "FIT", "+", "-"]), (mh - 2, ["^", "<", "v", ">"] )]:
+        for row, labels in [(mh - 3, ["FIT", "+", "-"]), (mh - 2, ["^", "<", "v", ">"] )]:
+            n = len(labels)
+            available = mw - n + 1
             for i, label in enumerate(labels):
-                start = math.floor(i * available / 4 + 0.5)
-                end = math.floor((i + 1) * available / 4 + 0.5)
+                start = math.floor(i * available / n + 0.5)
+                end = math.floor((i + 1) * available / n + 0.5)
                 c.button(start + i, row, end - start, label, "9" if label == "FIT" else "7", h=1)
         c.button(0, mh - 1, mw, "ALL", h=1)
         scenes.append((f"map-{mw}x{mh}", c, f"Map, projected levels {mw}x{mh}"))

@@ -5,7 +5,7 @@ local function setup()
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.fs = {getCapacity=function() return 16000000 end,getFreeSpace=function() return 13900000 end}
   env.SO = { now = function() return env.os.epoch("utc") end,mods={},proto=dofile("so-proto.lua"),store={copy=function(v) local t={} for k,x in pairs(v) do t[k]=x end return t end,store=function()
-    return {value={roles={}},save=function() error("local navigation saved") end}
+    return {value={roles={}},save=function() if not s.allowSave then error("local navigation saved") end return true end}
   end},pair={key=function() error("local monitor used rednet") end}}
   env.peripheral = {find=function() s.finds=s.finds+1; return s.monitor end,getName=function() return "left" end}
   s.display=assert(loadfile("so-mod-display.lua","t",env))()
@@ -165,7 +165,7 @@ return function(test,equal)
     notice={id="request-2",status="pending",text="Choose allow or keep"}
     s.display.tick(1);equal(decisions,0)
   end)
-  test("UI3a monitor discovers at most every five seconds and navigates locally",function()
+  test("UI3a monitor discovers at most every five seconds and changes role only by command",function()
     local s=setup()
     s.display.tick(0);equal(s.finds,1)
     s.monitor=R.capture(57,24)
@@ -174,28 +174,22 @@ return function(test,equal)
     s.now=5000;s.display.tick(s.now);equal(s.finds,2)
     assert(s.monitor.picture().text[2]:find("STATUS",1,true))
     local U=dofile("so-ui.lua")
-    local mining
-    local tiles={}
-    for i=1,9 do tiles[i]={label="T",value="0",sub="",bg="d"} end
-    for _,b in ipairs(U.status({time="",tiles=tiles},57,24).buttons) do
-      if b.id=="mining" then mining=b end
-    end
-    assert(mining)
     local inputs=0
     s.display.screen("mining",function(w,h)
       equal(w,57);equal(h,24)
-      local c=U.canvas(w,h);c.header("MINING");c.button(1,h-2,10,"BACK","status")
+      local c=U.canvas(w,h);c.header("MINING");c.button(1,h-2,10,"SETUP","setup")
       return c.frame()
     end,function() inputs=inputs+1 end)
-    s.display.monitorTouch("right",mining.x,mining.y)
-    s.now=5500;s.display.tick(s.now)
+    for y=1,24,3 do for x=1,57,7 do s.display.monitorTouch("left",x,y) end;s.now=s.now+100;s.display.tick(s.now) end
     assert(s.monitor.picture().text[2]:find("STATUS",1,true))
-    s.display.monitorTouch("left",mining.x,mining.y)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    s.allowSave=true
+    equal({s.display.assign(1,"mining")},{true,"display 1: mining"})
     s.now=6000;s.display.tick(s.now)
     assert(s.monitor.picture().text[2]:find("MINING",1,true))
     s.display.monitorTouch("left",1,22);s.now=7000;s.display.tick(s.now)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true));equal(inputs,1)
+    assert(s.monitor.picture().text[2]:find("MINING",1,true));equal(inputs,1)
+    assert(s.display.assign(1,"-"));s.now=8000;s.display.tick(s.now)
+    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
     s.monitor=nil;s.now=10000;s.display.tick(s.now)
   end)
 end

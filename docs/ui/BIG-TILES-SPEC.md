@@ -129,26 +129,27 @@ Preview (the same glyphs as Unicode sextants, close to how CC draws them):
 
 ## 7. Surfaces
 
-Displays (monitor roles): status, mining, lumber, shop with its order page, drops (generic), ar, map, plus the
-alert and outage states.
-Server: its own terminal (normal and pairing), and a monitor attached to the server, which shows the status
-screen locally without rednet.
-Panel: on server-only the handheld panel is the pocket's **panel mode** (start and stop jobs, quick orders,
-alerts, pairing codes). Main's panel.lua stays main-only. The `panel` role also works on any monitor, so a
-touch panel can hang by the server.
-Pocket: **glance mode** (2 tiles per page) and panel mode. Switch with the nav row.
-MORE opens the generic drop-point list from glance, status and the panel header.
-A new pocket defaults to glance. Other new displays open the drop-point list.
-An explicit generic selection survives reconnects and restarts on every size.
+Display roles: status, pocket, mining, lumber, shop with its order page, drops (saved as generic), ar, panel and
+map, plus the alert and outage states.
+Server: its own terminal (normal, pairing and role command), and a monitor attached to the server, which shows
+its own role (status by default) locally without rednet.
 
-Navigation uses drawn buttons at every supported size, including 26x20 and 29x12.
-The drop-point list has MINING, LUMBER, SHOP, AR and PANEL links. They wrap into
-two rows below 39 columns and three below 26. ADD NEW opens the draft editor.
-Its BACK returns to the list, whose BACK returns to status.
-Mining and lumber have SETUP and BACK buttons. SETUP has a BACK to its main page.
-Shop item tiles open the order page. Its BACK returns to the item list, whose
-BACK returns to status. AR has BACK to status. Panel ALERTS and PAIR have BACK
-to panel; GLANCE returns to status and MORE opens the drop-point list.
+**One role per display.** A display shows exactly one role, and only the operator changes it, on the server
+terminal: R opens a one-line prompt for `<id> <role>`, or `<id> -` to clear. The role list above the prompt shows
+every display's id, size and role. No screen has buttons to another role. Pages inside a role keep in-role BACK
+buttons. A new pocket (26x20) gets the pocket role. Any other new display shows UNASSIGNED with its display id in
+big digits on a teal block, so the operator knows what to type. Saved roles survive reconnects and restarts.
+
+Pocket: one role with two pages, **glance** (2 tiles per page) and **panel** (start and stop jobs, quick orders,
+alerts, pairing codes). PANEL on the glance row and GLANCE on the panel row switch pages. Main's panel.lua stays
+main-only. The `panel` role also works on any monitor, so a touch panel can hang by the server; it has no GLANCE.
+
+Pages use drawn buttons at every supported size, including 26x20 and 29x12.
+The drop-point list has FIX, REMOVE and ADD NEW on its bottom rows. ADD NEW opens the draft editor; its BACK
+returns to the list.
+Mining and lumber have START, STOP and SETUP. SETUP has a BACK to its main page.
+Shop item tiles open the order page. Its BACK returns to the item list. Panel ALERTS and PAIR have BACK
+to the panel page.
 PAIR has a three-row NEW CODE button above BACK at 26x20 and 29x12.
 A paired display sees its invitation in six big digits with the time left,
 on a teal block inset one column from each screen edge.
@@ -158,12 +159,12 @@ Repeat presses preserve the pending code. Use, expiry or five wrong attempts
 restore the normal pair page. Only the requesting display receives the code;
 the server terminal also shows it. An existing invitation from another display
 or the terminal must finish before this display can create one.
-The 15x10 status page has separate NEXT and MORE buttons. At 39x19, status
-offers MINING, SHOP and MORE; lumber is reached through MORE. Other non-pocket
-status sizes offer MINING, LUMBER, SHOP and MORE.
+The 15x10 status page shows one seven-row tile with its sub-line and NEXT on
+the last row. Other status sizes have no buttons; their tiles and the terminal
+log use the rows down to the bottom padding.
 
 Compact mining rows show the worker id, full x,y,z position, then state.
-Below 26 columns, mining navigation wraps into two rows.
+Below 26 columns, START and STOP share a row and SETUP takes the row below.
 AR goggles: section 7.2.
 
 The shop has no search field on monitors or pockets. Category tabs are ALL, ORES,
@@ -186,29 +187,26 @@ it does not prove delivery. Legacy rooms currently send only that acknowledgemen
 Missing storage shows Storage room not found. Stock older than 30 seconds shows
 STALE STOCK; after five minutes the list clears and discovery resumes.
 
-Monitor panels show a SHOP button instead of typed quick orders. Keyboard panels
+Monitor panels show only the job blocks, in two columns. Keyboard panels
 keep quick search. Clients report `keyboard = false` for every monitor, including
 monitors attached to a computer with a keyboard. Missing capability flags use
 touch controls. Every action has a drawn button. No helper text is needed.
 
 ### 7.0 Top-down map
 
-A teal `MAP` button occupies the right four cells of every Big Tiles header
-when the server map module is installed. It works from status, panel, the drop
-editor and every job screen. The map's `BACK` restores the opening screen.
-Header state moves left when space allows and hides when the header is full.
-The other navigation controls retain their positions.
+The map is a role of its own. No other header or screen links to it, and it
+has no BACK.
 
 The map uses the rows below the kit header through H-3. North is up, x increases right and z increases
 down. The header reads `MAP` and `N ^ 1:<blocks per cell>`. The bottom rows are:
 
 | Row | Drawn controls |
 | --- | --- |
-| H-2 | BACK, FIT, +, - |
+| H-2 | FIT, +, - |
 | H-1 | ^, <, v, > |
 | H | MINE y / SURFACE y / ALL |
 
-Controls are one row tall with the kit's four-column grid and palette. They
+Controls are one row tall with the kit's three- and four-column grid and palette. They
 remain readable at 26x20, 29x12 and 15x10. Large screens devote every extra
 row and column to the map. There is no helper copy on the screen.
 
@@ -262,7 +260,7 @@ Status, room monitor 3x2 at scale 0.5  (57x24)
         🬳🬷🬏                🬂🬂🬓            new client:    
          🬉                 🬈🬋🬀                           
                                                          
-    MINING        LUMBER          SHOP          MORE     
+                                                         
 ```
 Background layer (blit letters, see palette):
 ```text
@@ -289,7 +287,7 @@ fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
 fdddddddddddddddddf1111111111111111111f99999999999999999f
-77777777777777f7777777777777faaaaaaaaaaaaaaf7777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ```
 
 Status, wall monitor 4x3 at scale 1  (39x19)
@@ -312,7 +310,7 @@ Status, wall monitor 4x3 at scale 1  (39x19)
      🬍🬋🬃🬇🬌  🬉           🬇🬌 🬋🬋🬀🬀🬉🬄      
   +12 last 10 min    2.1 of 16 MB      
                                        
-   MINING        SHOP          MORE    
+                                       
 ```
 Background layer (blit letters, see palette):
 ```text
@@ -334,7 +332,7 @@ fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
 fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
 fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
 fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-777777777777faaaaaaaaaaaaaf777777777777
+fffffffffffffffffffffffffffffffffffffff
 ```
 
 Pocket, glance mode  (26x20)
@@ -357,7 +355,7 @@ Pocket, glance mode  (26x20)
            🬇🬌             
   ore chest full          
                           
-           MORE           
+                          
  <  glance 1/5  >  PANEL  
 ```
 Background layer (blit letters, see palette):
@@ -380,14 +378,14 @@ feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
 feeeeeeeeeeeeeeeeeeeeeeeef
-77777777777777777777777777
+ffffffffffffffffffffffffff
 77777777777777777777777777
 ```
 
 Pocket, panel mode  (26x20)
 ```text
                           
- PANEL  MORE        22:14 
+ PANEL              22:14 
  MINING   stopped         
                           
    START         STOP     
@@ -454,7 +452,7 @@ Mining, room monitor  (57x24)
  #2      mining     12,60,-9      812   14               
  #3      wait lane   0,61,-1      640    9               
                                                          
-    START         STOP          SETUP           BACK     
+      START               STOP               SETUP       
                                                          
                                                          
 ```
@@ -482,7 +480,7 @@ Lumber, room monitor  (57x24)
                                                          
                                                          
                                                          
-    START         STOP          SETUP           BACK     
+      START               STOP               SETUP       
                                                          
                                                          
 ```
@@ -511,7 +509,7 @@ Shop, room monitor  (57x24)
                                                          
  Order: sent 16                                          
                                                          
-      <             1/3            >            BACK     
+        <                  1/3                 >         
                                                          
 ```
 
@@ -543,7 +541,7 @@ Shop order page  (57x24)
                                                          
 ```
 
-Drop points (generic)  (57x24)
+Drop points (drops role)  (57x24)
 ```text
                                                          
  DROP POINTS                                    5 points 
@@ -556,7 +554,6 @@ Drop points (generic)  (57x24)
                                                          
                                                          
                                                          
-   FIX #5        REMOVE        ADD NEW          BACK     
                                                          
                                                          
                                                          
@@ -567,10 +564,10 @@ Drop points (generic)  (57x24)
                                                          
                                                          
                                                          
-  MINING      LUMBER       SHOP         AR       PANEL   
+                                                         
+      FIX #5             REMOVE             ADD NEW      
                                                          
 ```
-The navigation row was added on Jeffrey's request.
 
 Alert takeover (5 s), coral background, ink text  (57x24)
 ```text
@@ -648,7 +645,7 @@ Server terminal, normal  (51x19)
  21:14:11 mine: #3 wait lane                       
                                                    
                                                    
- [P] pair a client     [L] full log                
+ [P] pair a client   [R] roles   [L] full log      
 ```
 Background layer (blit letters, see palette):
 ```text
@@ -724,24 +721,24 @@ AR layer switches (1 = on, 0 = off)  (57x24)
  AR GOGGLES                                 1 controller 
                                                          
                                                          
-  TURTLES           LEASES              DROPS            
-        🬞🬓                 🬞🬓                 🬖🬋🬏        
-         ▌                  ▌                 ▌ ▌        
-        🬇🬌                 🬇🬌                 🬈🬋🬀        
-  layer on          layer on            layer off        
+  TURTLES                     LEASES                     
+             🬞🬓                          🬞🬓              
+              ▌                           ▌              
+             🬇🬌                          🬇🬌              
+  layer on                    layer on                   
                                                          
                                                          
                                                          
-  ALERTS                                                 
-        🬞🬓                                               
-         ▌                                               
-        🬇🬌                                               
-  layer on                                               
+  DROPS                       ALERTS                     
+             🬖🬋🬏                         🬞🬓              
+             ▌ ▌                          ▌              
+             🬈🬋🬀                         🬇🬌              
+  layer off                   layer on                   
                                                          
                                                          
                                                          
                                                          
-                          BACK                           
+                                                         
                                                          
                                                          
 ```
@@ -755,9 +752,9 @@ Smallest monitor 1x1 at scale 0.5  (15x10)
       🬋🬋🬏      
       🬇🬋🬐      
       🬋🬋🬀      
+  3 ok, 0 los  
                
      NEXT      
-     MORE      
 ```
 
 Panel pairing ready P  (26x20)
@@ -929,7 +926,7 @@ BLOCKS  TOOLS   OTHER
          ▌  🬖🬀🬳🬷🬏▌ ▌         
         🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
  Order: sent 16              
-   <     1/18     >     BACK 
+    <       1/18        >    
 ```
 Background layer (blit letters, see palette):
 ```text
@@ -944,7 +941,7 @@ fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffff
-7777777f777777f7777777f777777
+777777777f777777777f777777777
 ```
 
 Shop, pocket touch flow  (26x20)
@@ -967,7 +964,7 @@ Shop, pocket touch flow  (26x20)
                           
  Order: sent 16           
                           
-  <     1/18    >    BACK 
+   <       1/18      >    
                           
 ```
 Background layer (blit letters, see palette):
@@ -989,9 +986,9 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-777777f777777f77777f777777
-777777f777777f77777f777777
-777777f777777f77777f777777
+77777777f77777777f77777777
+77777777f77777777f77777777
+77777777f77777777f77777777
 ```
 
 Shop, large touch monitor  (100x38)
@@ -1032,7 +1029,7 @@ Shop, large touch monitor  (100x38)
                                                                                                     
  Order: sent 16                                                                                     
                                                                                                     
-           <                        1/2                       >                       BACK          
+                <                               1/2                                >                
                                                                                                     
 ```
 
@@ -1055,7 +1052,7 @@ Status, terminal  (51x19)
                                                    
                                                    
                                                    
-   MINING       LUMBER        SHOP         MORE    
+                                                   
                                                    
 ```
 Background layer (blit letters, see palette):
@@ -1076,9 +1073,136 @@ fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777f777777777777faaaaaaaaaaaaf777777777777
-777777777777f777777777777faaaaaaaaaaaaf777777777777
-777777777777f777777777777faaaaaaaaaaaaf777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+```
+
+Unassigned display, room monitor  (57x24)
+```text
+                                                         
+ UNASSIGNED                                              
+                                                         
+                                                         
+  DISPLAY                                                
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                           🬞🬋                            
+                           🬛🬋🬏                           
+                           🬈🬋🬀                           
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+f9999999999999999999999999999999999999999999999999999999f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+```
+
+Unassigned display, smallest monitor  (15x10)
+```text
+               
+ UNASSIGNED    
+               
+               
+      🬞🬋       
+      🬛🬋🬏      
+      🬈🬋🬀      
+               
+               
+               
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffff
+f7777777777777f
+fffffffffffffff
+f9999999999999f
+f9999999999999f
+f9999999999999f
+f9999999999999f
+f9999999999999f
+f9999999999999f
+fffffffffffffff
+```
+
+Server terminal, role command (R)  (51x19)
+```text
+                                                   
+ SO SERVER #1                                roles 
+                                                   
+ ID    SIZE    ROLE                                
+ 1     57x24   status                              
+ 2     26x20   pocket                              
+ 5     57x24   mining                              
+ 6     57x24   unassigned                          
+ 7     15x10   status                              
+ 9     -       drops                               
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+ display 7: status                                 
+ > 6 shop_                [Enter] set  [Esc] back  
+```
+Background layer (blit letters, see palette):
+```text
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777777777777777777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777777777777777777777777
 ```
 
 
@@ -1115,8 +1239,9 @@ alert: ==========  ORE CHEST FULL (drop 3)  ==========   5 s
 | Frame header `palette` (16 RGB) and `scale` | same | The palette above, and a "far" scale of 1 |
 | Client re-sends `hello` with the new size after a scale change | display.lua | The layout uses the real size |
 | Outage drawing in the client | display.lua | Works without the server |
-| Server-local monitor | so-mod-display.lua plus so-server.lua (one call per tick) | The server's own monitor shows status without rednet |
-| Server terminal UI | so-server.lua (draw only; pairing logic unchanged) | Tiles plus log, pairing screen |
+| Server-local monitor | so-mod-display.lua plus so-server.lua (one call per tick) | The server's own monitor shows its role without rednet |
+| Server terminal UI | so-server.lua (draw only; pairing logic unchanged) | Tiles plus log, pairing screen, role command |
+| Role command (R1) | so-mod-display.lua `assign` and `command`, so-server.lua R prompt | Only the operator changes a display's role |
 | `panel` role and pocket glance paging | so-mod-display.lua plus new so-mod-panel.lua | Panel mode |
 | so-ui.lua (palette, sizes, font, tile, button, grid, list, header, alert) | new, server only | One kit for every screen |
 

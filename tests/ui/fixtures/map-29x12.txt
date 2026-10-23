@@ -8,7 +8,7 @@
               H              
                              
            FWS@              
- BACK    FIT      +      -   
+   FIT        +         -    
    ^      <       v      >   
              ALL             
 fffffffffffffffffffffffffffff
@@ -20,6 +20,6 @@ fffffffffffddf7ffffffffffffff
 fffffffffffddf9ffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffaaa9ffffffffffffff
-7777777f999999f7777777f777777
+999999999f777777777f777777777
 7777777f777777f7777777f777777
 77777777777777777777777777777

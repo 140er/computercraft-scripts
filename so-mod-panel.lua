@@ -66,11 +66,6 @@ end
 
 P.shop = function(c, session, x, y, w, height, compact)
   local loaded = P.states.shop ~= "not loaded"
-  if not session.keyboard then
-    if loaded then c.button(x, y, w, "SHOP", "shop", "a", compact and 3 or 5)
-    else c.fill(x, y, w, compact and 3 or 5, "c"); c.center(x, w, y + 1, "SHOP") end
-    return
-  end
   c.put(x+1,y,"SHOP")
   c.put(x+(loaded and 10 or math.min(10,math.max(1,w-10))),y,loaded and "search:" or "not loaded")
   if loaded then c.search(x+1,y+1,w-2," " .. (session.panel.search or "") .. "_","search")
@@ -133,11 +128,14 @@ P.render = function(w, h, session)
   else
     local top = P.fleet and h >= 12 and 4 or 3
     if top == 4 then c.put(2,3,P.fleet:sub(1,w-2)) end
+    -- Typed quick orders need a keyboard; monitor panels only run jobs.
+    local shop = session.keyboard
     local cols = U.grid(w,h)
+    if not shop and #cols > 2 then cols = U.grid(w,h,2) end
     if h < 19 and #cols == 1 then
       P.block(c,"mining",1,top,w,h,true)
       P.block(c,"lumber",1,top+2,w,h,true)
-      P.shop(c,session,1,top+4,w,h,true)
+      if shop then P.shop(c,session,1,top+4,w,h,true) end
     elseif #cols >= 3 then
       P.block(c,"mining",cols[1].x,top,cols[1].w,h)
       P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
@@ -145,20 +143,26 @@ P.render = function(w, h, session)
     elseif #cols == 2 then
       P.block(c,"mining",cols[1].x,top,cols[1].w,h)
       P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
-      P.shop(c,session,1,top+6,w,h)
+      if shop then P.shop(c,session,1,top+6,w,h) end
     else
       P.block(c,"mining",1,top,w,h)
       P.block(c,"lumber",1,top+5,w,h)
-      P.shop(c,session,1,top+10,w,h)
+      if shop then P.shop(c,session,1,top+10,w,h) end
     end
-    c.button(8,2,6,"MORE","generic","7",1)
+    -- On a pocket the panel is a page of the pocket role; GLANCE is its other page.
+    local labels = session.pocket and {"GLANCE","ALERTS","PAIR"} or {"ALERTS","PAIR"}
+    local ids = session.pocket and {"glance","alerts","pair"} or {"alerts","pair"}
     c.fill(1,h,w,1,"7")
     if w >= 26 then
-      c.put(2,h,"GLANCE  ALERTS  PAIR")
-      c.hit("status",1,h,8,1);c.hit("alerts",9,h,8,1);c.hit("pair",17,h,w-16,1)
+      local x = 1
+      for i,label in ipairs(labels) do
+        c.put(x+1,h,label)
+        c.hit(ids[i],x,h,i == #labels and w-x+1 or #label+2,1)
+        x = x+#label+2
+      end
     else
-      for i,col in ipairs(U.grid(w,h,3)) do
-        c.button(col.x,h,col.w,({"GLC","ALT","PAIR"})[i],({"status","alerts","pair"})[i],"7",1)
+      for i,col in ipairs(U.grid(w,h,#labels)) do
+        c.button(col.x,h,col.w,#labels == 3 and ({"GLC","ALT","PAIR"})[i] or labels[i],ids[i],"7",1)
       end
     end
   end

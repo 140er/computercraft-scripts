@@ -16,7 +16,7 @@
                           
         F W S@            
                           
- BACK   FIT     +     -   
+  FIT       +        -    
   ^      <      v     >   
            ALL            
 ffffffffffffffffffffffffff
@@ -36,6 +36,6 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffafafa9ffffffffffff
 ffffffffffffffffffffffffff
-777777f999999f77777f777777
+99999999f77777777f77777777
 777777f777777f77777f777777
 77777777777777777777777777

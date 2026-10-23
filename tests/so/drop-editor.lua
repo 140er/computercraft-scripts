@@ -38,6 +38,8 @@ local function setup(w, h, existing)
   client.boot("display.lua")
   net.flush()
   net.advance(2)
+  assert(server.env.SO.mods.display.assign(client.id, "drops"))
+  net.advance(1)
   local function frame()
     assert(not server.error, tostring(server.error))
     assert(not client.error, tostring(client.error))
@@ -91,8 +93,11 @@ return function(test, equal)
             end
           end
         end
-        for _, label in ipairs({"mining", "lumber", "shop", "status", "ar", "prev", "next",
+        for _, label in ipairs({"prev", "next",
             "kind", "side", "add", "dim+", "dim-", "x+", "x-", "y+", "y-", "z+", "z-"}) do s.button(label) end
+        for _, b in ipairs(s.frame().buttons) do
+          for _, role in ipairs({"mining", "lumber", "shop", "status", "ar", "generic"}) do assert(b.id ~= role, role) end
+        end
       end
       check()
       s.typeText("1250 72 -900")

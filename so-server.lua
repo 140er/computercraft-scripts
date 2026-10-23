@@ -278,6 +278,28 @@ S.run = function()
   end
   showPrompt()
   local pairKey = (type(keys) == "table" and keys.p) or 25
+  local roleKey = (type(keys) == "table" and keys.r) or 19
+  local function keyCode(name, legacy) return (type(keys) == "table" and keys[name]) or legacy end
+  -- R opens a one-line "<id> <role>" prompt; display.command applies it.
+  local function roleKeyEvent(a)
+    if a == keyCode("enter", 28) or a == keyCode("numPadEnter", 156) then
+      local display = SO.mods.display
+      local ok, text = false, "display module missing"
+      if display and type(display.command) == "function" then ok, text = display.command(view.input) end
+      print("role: " .. tostring(text))
+      view.notice = text
+      if ok then view.input = "" end
+    elseif a == keyCode("backspace", 14) then
+      view.input = view.input:sub(1, -2)
+    elseif a == keyCode("escape", 1) then
+      view.mode, view.input, view.notice = "normal", nil, nil
+    end
+    view.swallow = false
+  end
+  local function redraw()
+    local display = SO.mods.display
+    if display and type(display.drawTerminal) == "function" then pcall(display.drawTerminal, SO.now()) end
+  end
   local timer, ticked
   local function tick()
     if view.mode == "code" and not pair.pending() then showPrompt() end
@@ -303,6 +325,18 @@ S.run = function()
       tick()
     elseif ev == "peripheral" or ev == "peripheral_detach" then
       openModems()
+    elseif ev == "key" and view.mode == "role" then
+      roleKeyEvent(a)
+      redraw()
+    elseif (ev == "char" or ev == "paste") and view.mode == "role" then
+      if not (view.swallow and ev == "char" and a:lower() == "r") then
+        view.input = (view.input .. a):sub(1, 40)
+      end
+      view.swallow = false
+      redraw()
+    elseif ev == "key" and a == roleKey and not b and view.mode ~= "code" then
+      view.mode, view.offset, view.input, view.notice, view.swallow = "role", 0, "", nil, true
+      redraw()
     elseif ev == "key" and a == pairKey and not b then
       showCode()
     elseif ev == "key" and not b then

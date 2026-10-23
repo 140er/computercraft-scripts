@@ -1,6 +1,6 @@
 local H = dofile('tests/so/harness.lua')
 return function(test, equal)
-  test('UI5b MORE navigation switches only the tapped display once', function()
+  test('UI5b assignment switches only the target display once and the drop list links nowhere', function()
     local m = H.new().machine({id=1,capacity=16000000})
     m.install({'so-store.lua','so-ui.lua','so-mod-drops.lua','so-mod-display.lua'})
     local e = m.env
@@ -34,25 +34,33 @@ return function(test, equal)
     end
     display.handlers.hello({from=2,body={w=57,h=24}})
     display.handlers.hello({from=3,body={w=57,h=24}})
-    for i, role in ipairs({'mining','lumber','shop','ar','panel'}) do
-      tap(2,'generic')
-      local found = {}
-      for _, b in ipairs(frame(2).buttons) do found[b.id]=b end
-      for _, button in ipairs(frame(2).buttons) do assert(button.y > 1, 'header injection') end
-      local b = assert(found[role],role)
-      equal({b.x,b.y,b.w,b.h},({{1,22,11,3},{13,22,11,3},{25,22,11,3},{37,22,10,3},{48,22,10,3}})[i])
+    assert(display.assign(2,'generic'))
+    local found = {}
+    for _, b in ipairs(frame(2).buttons) do found[b.id]=b; assert(b.y > 1, 'header injection') end
+    for _, role in ipairs({'mining','lumber','shop','ar','panel','status','map'}) do assert(not found[role],role) end
+    for _, role in ipairs({'mining','lumber','shop','ar','panel'}) do
       local before = saves
       tap(2,role)
+      equal(saves,before)
+      assert(display.assign(2,role))
       equal(frame(2).role,role)
-      equal(frame(3).role,'generic')
+      equal(frame(3).role,'unassigned')
       equal(saves,before+1)
       equal(calls[role] or 0,0)
+      equal({display.assign(2,role)},{true,'display 2: '..role})
+      equal(saves,before+1,'same role saves nothing')
     end
+    equal({display.command('99 mining')},{false,'no display 99'})
+    equal({display.command('2 nope')},{false,'roles: status pocket mining lumber shop drops ar panel map'})
+    equal({display.command('2')},{false,'use <id> <role> or <id> -'})
+    equal({display.command('2 map')},{false,'map not loaded'})
+    equal({display.command(' 2  -  ')},{true,'display 2: cleared'})
+    equal(frame(2).role,'unassigned')
     local render, input
     e.SO.mods.display = {screen=function(_, r, i) render,input=r,i end}
     local editor = e.dofile('so-mod-drops.lua'); editor.tick()
     input({id='new'})
-    local found = {}
+    found = {}
     for _, b in ipairs(render(57,24).buttons) do found[b.id]=true end
     assert(found.add and found.list)
     for _, role in ipairs({'mining','lumber','shop','ar','panel'}) do assert(not found[role],role) end

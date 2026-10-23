@@ -190,9 +190,9 @@ M.render = function(w, h, session)
     end
   end end
   c.header("MAP", "N ^ 1:"..scale)
-  local controls = {{"BACK","map-back"},{"FIT","map-fit"},{"+","map-in"},{"-","map-out"}}
-  local cols = U.grid(w,h,4)
-  for i,b in ipairs(controls) do c.button(cols[i].x,h-2,cols[i].w,b[1],b[2],i==2 and "9" or "7",1) end
+  local controls = {{"FIT","map-fit"},{"+","map-in"},{"-","map-out"}}
+  local cols = U.grid(w,h,3)
+  for i,b in ipairs(controls) do c.button(cols[i].x,h-2,cols[i].w,b[1],b[2],i==1 and "9" or "7",1) end
   cols = U.grid(w,h,4)
   for i,b in ipairs({{"^","map-n"},{"<","map-w"},{"v","map-s"},{">","map-e"}}) do
     c.button(cols[i].x,h-1,cols[i].w,b[1],b[2],"7",1)

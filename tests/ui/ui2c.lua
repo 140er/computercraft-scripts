@@ -136,7 +136,7 @@ return function(test, equal)
           if page==2 then
             for _,amount in ipairs({1,16,64}) do assert(buttons["order:"..amount..":iron_ingot"]) end
             assert(buttons.items)
-          else assert(buttons.prev and buttons.next and buttons.page and buttons.letters and buttons.status) end
+          else assert(buttons.prev and buttons.next and buttons.page and buttons.letters and not buttons.status) end
         end
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
           local fg,bg=cell[2],cell[3]

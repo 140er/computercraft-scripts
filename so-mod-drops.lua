@@ -378,11 +378,10 @@ end
 
 S.listSize = function(count, w, h)
   local compact = w < 39 or h < 16
-  local navColumns = w < 26 and 2 or w < 39 and 3 or 5
-  local navRows = compact and math.ceil(5/navColumns) or 1
-  local actionY = compact and h-navRows-1 or math.min(math.max(11, count+6), h-6)
+  local actionRows = w < 26 and 2 or 1
+  local actionY = compact and h-actionRows+1 or h-2
   local capacity = math.max(1, actionY-5)
-  return { compact = compact, actionY = actionY, capacity = capacity, navColumns = navColumns, navRows = navRows,
+  return { compact = compact, actionY = actionY, capacity = capacity, actionRows = actionRows,
     pages = math.max(1, math.ceil(count/capacity)) }
 end
 
@@ -426,20 +425,11 @@ S.layout = function(model, w, h)
     C.button(1, actionY-1, math.floor(w/2), "PREV", "prev", '7', 1)
     C.button(math.floor(w/2)+1, actionY-1, w-math.floor(w/2), "NEXT", "next", '7', 1)
   end
-  local actions = {{'FIX #'..(selectedRow or '-'),'fix','9'},{'REMOVE','remove'},{'ADD NEW','new'},{'BACK','status'}}
-  local cols = U.grid(w,h,compact and 2 or 4)
-  if w==57 and not compact then cols={{x=1,w=13},{x=15,w=13},{x=29,w=14},{x=44,w=14}} end
+  local actions = {{'FIX #'..(selectedRow or '-'),'fix','9'},{'REMOVE','remove'},{'ADD NEW','new'}}
+  local cols = U.grid(w,h,size.actionRows == 2 and 2 or 3)
   for i,b in ipairs(actions) do
-    local col = cols[(i-1)%#cols+1]
-    C.button(col.x, actionY+(compact and math.floor((i-1)/2) or 0), col.w, b[1], b[2], b[3], navHeight)
-  end
-  local nav = {'mining', 'lumber', 'shop', 'ar', 'panel'}
-  local navCols = U.grid(w, h, size.navColumns)
-  if w == 57 then navCols = {{x=1,w=11},{x=13,w=11},{x=25,w=11},{x=37,w=10},{x=48,w=10}} end
-  for i, id in ipairs(nav) do
-    local col = navCols[(i-1)%#navCols+1]
-    local y = h-size.navRows*navHeight+1+math.floor((i-1)/#navCols)*navHeight
-    C.button(col.x, y, col.w, id:upper(), id, id == 'shop' and 'a' or '7', navHeight)
+    local col = i > #cols and {x=1,w=w} or cols[i]
+    C.button(col.x, actionY+math.floor((i-1)/#cols), col.w, b[1], b[2], b[3], navHeight)
   end
   return C.frame()
 end
@@ -460,9 +450,6 @@ S.input = function(ev)
   if type(ev) ~= "table" then return end
   if type(ev.text) == "string" then S.typed(ev.text); if U then S.editing = true end; return end
   if type(ev.id) ~= "string" then return end
-  if ev.id == "mining" or ev.id == "lumber" or ev.id == "shop" or ev.id == "ar" or ev.id == "panel" then
-    S.editing = false return
-  end
   if ev.id == "new" then S.editing = true return end
   if ev.id == "list" then S.editing = false return end
   if not U and (ev.id == "prev" or ev.id == "next") then

@@ -204,32 +204,23 @@ U.status = function(model, w, h)
   end
   if size == 'P' then
     for i,index in ipairs({1,3}) do draw(index,1,4+(i-1)*8,w,7) end
-    C.button(1,h-1,w,'MORE','generic','7',1)
   elseif size == 'XS' then
-    draw((model.page or 0) % #tiles+1,1,3,w,6)
-    C.button(1,h-1,w,'NEXT','next','7',1)
-    C.button(1,h,w,'MORE','generic','7',1)
+    draw((model.page or 0) % #tiles+1,1,3,w,7)
+    C.button(1,h,w,'NEXT','next','7',1)
   else
     C.alert(model.alert and ('! '..model.alert) or nil)
     local cols = U.grid(w,h,size == 'T' and 4 or size == 'L' and 2 or nil)
     local indices = size == 'T' and {1,7,6,3} or size == 'L' and {1,3,4,6} or {1,2,3,4,5,6,7,8,9}
     local wanted = math.ceil(#indices/#cols)
-    local navHeight = h >= 19 and h-7 >= wanted*8 and 3 or 1
-    local navY = h-navHeight+1
-    local height = navY-4 >= wanted*8-1 and 7 or 6
-    local count = math.max(0,math.floor((navY-3)/(height+1)))
+    local height = h-4 >= wanted*8-1 and 7 or 6
+    local count = math.max(0,math.floor((h-3)/(height+1)))
     for i,index in ipairs(indices) do
       local row,col = math.floor((i-1)/#cols),cols[(i-1)%#cols+1]
       if row < count then draw(index,col.x,4+row*(height+1),col.w,height) end
     end
     if size == 'T' then
       C.fill(2,12,w-2,1,'7'); C.put(2,12,'LOG')
-      for i,line in ipairs(model.log or {}) do if 12+i < navY then C.put(2,12+i,line:sub(1,w-2)) end end
-    end
-    local labels = size == 'L' and {'MINING','SHOP','MORE'} or {'MINING','LUMBER','SHOP','MORE'}
-    for i,col in ipairs(U.grid(w,h,#labels)) do
-      local label=labels[i]
-      C.button(col.x,navY,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7',navHeight)
+      for i,line in ipairs(model.log or {}) do if 12+i < h then C.put(2,12+i,line:sub(1,w-2)) end end
     end
   end
   return C.frame()

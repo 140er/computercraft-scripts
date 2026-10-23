@@ -1,6 +1,6 @@
 26x20 Pocket, panel mode
                           
- PANEL  MORE        22:14 
+ PANEL              22:14 
  MINING   stopped         
                           
    START         STOP     

@@ -137,7 +137,6 @@ S.legacy = function(w, h, clientId)
   local picture = {
     rows = {},
     buttons = {
-      { id = "generic", x = 1, y = 1, w = 7, label = "generic" },
       { id = "clear", x = 9, y = 1, w = 5, label = "clear" },
     },
   }
@@ -282,14 +281,13 @@ S.layout = function(m, w, h)
   local C, g = U.canvas(w, h), S.geometry(w, h)
   if w < 4 or h < 5 then return C.frame() end
   local status = m.stale and "STALE STOCK" or ("stock " .. m.time)
-  local footer = function(back)
+  local footer = function()
     local pages = math.max(1, math.ceil(#m.items / g.capacity))
-    local cols = U.grid(w, h, w < 26 and 5 or 4)
-    if w < 26 then cols[4].w = cols[4].w + cols[5].w + 1; cols[5] = nil end
-    for i, label in ipairs({"<", (m.page or 1) .. "/" .. pages, ">", "BACK"}) do
+    local cols = U.grid(w, h, 3)
+    for i, label in ipairs({"<", (m.page or 1) .. "/" .. pages, ">"}) do
       local col = cols[i]
       if i == 2 and col.w < #label then label = tostring(m.page or 1) end
-      C.button(col.x, g.bottom, col.w, label, ({"prev", "page", "next", back})[i], "7", g.nav)
+      C.button(col.x, g.bottom, col.w, label, ({"prev", "page", "next"})[i], "7", g.nav)
     end
   end
   if m.categories then
@@ -377,7 +375,7 @@ S.layout = function(m, w, h)
     end
   end
   C.put(2, g.bottom - 1, (m.order or ""):sub(1, math.max(0, w - 2)))
-  footer("status")
+  footer()
   return C.frame()
 end
 

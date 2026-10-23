@@ -136,15 +136,17 @@ T.run = function(test,equal)
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals=T.stock()})
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=3,body={w=size[1],h=size[2],fullH=size[2],keyboard=false}})
-      display.handlers.input({from=3,body={id="shop",x=1,y=1}})
+      assert(display.assign(3,"shop"))
       local function other()
         local frame
         display.handlers["view.get"]({from=3},function(_,body) frame=body end)
         return H.encode(frame)
       end
       local before=other()
-      if size[1]==26 then s.press("MORE") end
-      s.press("SHOP");s.press("ORES");s.press("NAME");s.press("A-Z");s.press("I")
+      for _,id in ipairs({"generic","shop","status"}) do display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
+      s.net.flush();equal(s.frame().role,size[1]==26 and "pocket" or "unassigned")
+      assert(display.assign(2,"shop"));s.net.advance(1);equal(s.frame().role,"shop")
+      s.press("ORES");s.press("NAME");s.press("A-Z");s.press("I")
       s.press("IRON INGOT");s.press("ORDER 16")
       local orders={}
       for _,packet in ipairs(s.server.sent) do
@@ -154,9 +156,8 @@ T.run = function(test,equal)
       equal(orders[1].payload.text,"minecraft:iron_ingot")
       equal(other(),before)
       assert(not T.text(s.frame()):lower():find("search",1,true))
-      s.press("BACK");s.press("BACK")
-      equal(s.frame().role,"status")
-      s.press("MORE");equal(s.frame().role,"generic")
+      s.press("BACK");equal(s.frame().role,"shop")
+      for _,b in ipairs(s.frame().buttons) do assert(b.id~="status" and b.id~="generic") end
       local used=0
       for _,source in pairs(s.client.files) do used=used+#source end
       assert(used<1000000)

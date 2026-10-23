@@ -102,8 +102,7 @@ status_data = [("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","open now","b"),
 def status(w,h,indices,n,title):
     c=Canvas(w,h);c.header("STATUS","21:14");c.alert("! ore chest full (drop 3)" if w!=39 else "! ore chest full")
     cols=grid(w,n);wanted=(len(indices)+n-1)//n
-    navheight=3 if h>=19 and h-7>=wanted*8 else 1
-    nav=h-navheight; height=7 if nav-3>=wanted*8-1 else 6
+    height=7 if h-4>=wanted*8-1 else 6
     for i,index in enumerate(indices):
         x,width=cols[i%n]; y=3+(i//n)*(height+1)
         lab,val,sub,bg=status_data[index]
@@ -113,19 +112,16 @@ def status(w,h,indices,n,title):
             c.fill(left+1,y+2,right-left-1,3,bg);c.center(left+1,right-left-1,y+3,"new client:")
     if w==51:
         c.fill(1,11,w-2,1,"7");c.text(1,11,"LOG")
-    labels=["MINING","SHOP","MORE"] if w==39 else ["MINING","LUMBER","SHOP","MORE"]
-    for (x,width),label in zip(grid(w,len(labels)),labels):c.button(x,nav,width,label,"a" if label=="SHOP" else "7",navheight)
     add(c,title,True)
 status(57,24,list(range(9)),3,"Status, room monitor 3x2 at scale 0.5")
 status(39,19,[0,2,3,5],2,"Status, wall monitor 4x3 at scale 1")
 c=Canvas(26,20);c.header("FLEET","21:14")
 for i,index in enumerate([0,2]):c.tile(0,3+i*8,26,*status_data[index],h=7)
-c.button(0,18,26,"MORE",h=1)
 c.fill(0,19,26,1,"7");c.text(1,19,"<  glance 1/5  >  PANEL")
 add(c,"Pocket, glance mode",True)
 
 # --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", "22:14"); c.button(7, 1, 6, "MORE", h=1)
+c = Canvas(26, 20); c.header("PANEL", "22:14")
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
@@ -144,7 +140,7 @@ c.fill(0, 17, 57, 1, "7"); c.text(1, 17, "TURTLE  STATE      POS          FUEL  
 for i, line in enumerate(["#2      mining     12,60,-9      812   14","#3      wait lane   0,61,-1      640    9"]):
     c.text(1, 18 + i, line)
 c.fill(0, 18, 1, 1, "d"); c.fill(0, 19, 1, 1, "1")
-c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
+for (x, w), (label, bg) in zip(cols, [("START", "9"), ("STOP", "e"), ("SETUP", "7")]): c.button(x, 20, w, label, bg)
 add(c, "Mining, room monitor")
 
 # --- Lumber, M
@@ -154,7 +150,7 @@ for (x, w), (lab, val, sub, bg) in zip(cols, [("TREES READY","2","of 4 spots","d
 for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLE","4","felling","d"),("FUEL","1210","ok","d"),("NEXT GROW","6:20","min:sec","b")]):
     c.tile(x, 11, w, lab, val, sub, bg)
 c.alert("! out of saplings: replanting paused")
-c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
+for (x, w), (label, bg) in zip(cols, [("START", "9"), ("STOP", "e"), ("SETUP", "7")]): c.button(x, 20, w, label, bg)
 add(c, "Lumber, room monitor")
 
 def grid(w, n):
@@ -203,7 +199,7 @@ def shop(w, h, selected=False):
         x, width = cols[i % len(cols)]
         c.tile(x, top + (i // len(cols)) * (tile + 1), width, label, value, sub, bg, tile)
     c.text(1, bottom - 1, "Order: sent 16")
-    for (x, width), label in zip(grid(w, 4), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">", "BACK"]):
+    for (x, width), label in zip(grid(w, 3), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">"]):
         c.button(x, bottom, width, label, h=nav)
     return c
 
@@ -215,10 +211,8 @@ c = Canvas(57, 24); c.header("DROP POINTS", "5 points")
 c.fill(0, 2, 57, 1, "7"); c.text(1, 2, "ID  KIND     WHERE          SIDE   STATE")
 rows = [("1  ore      10,64,-2       front  ok","d"),("2  fuel     12,64,-2       front  ok","d"),("3  wood     -4,64,10       front  ok","d"),("4  saplings -6,64,10       front  ok","d"),("5  any       0,64,4        down   broken","e")]
 for i, (t, bg) in enumerate(rows): c.fill(0, 3+i, 1, 1, bg); c.text(1, 3+i, t)
-c.button(0, 10, 13, "FIX #5", "9"); c.button(14, 10, 13, "REMOVE"); c.button(28, 10, 14, "ADD NEW"); c.button(43, 10, 14, "BACK")
-c.button(0, 21, 11, "MINING"); c.button(12, 21, 11, "LUMBER"); c.button(24, 21, 11, "SHOP", "a"); c.button(36, 21, 10, "AR"); c.button(47, 21, 10, "PANEL")
-add(c, "Drop points (generic)")
-M[-1] += "\nThe navigation row was added on Jeffrey's request."
+for (x, w), (label, bg) in zip(cols, [("FIX #5", "9"), ("REMOVE", "7"), ("ADD NEW", "7")]): c.button(x, 21, w, label, bg)
+add(c, "Drop points (drops role)")
 
 # --- Alert takeover and outage
 c = Canvas(57, 24, "e"); c.center(0, 57, 3, "ALERT"); rows = big("3")
@@ -241,7 +235,7 @@ for (x, w), (lab, val, sub, bg) in zip([(0,12),(13,12),(26,12),(39,12)], [("TURT
 c.fill(0, 11, 51, 1, "7"); c.text(1, 11, "LOG")
 for i, l in enumerate(["21:14:02 lease 2-961 reported ok","21:14:05 drops: hold ore (3)","21:14:09 pair: display 7 joined","21:14:11 mine: #3 wait lane"]):
     c.text(1, 12 + i, l)
-c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client     [L] full log")
+c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client   [R] roles   [L] full log")
 add(c, "Server terminal, normal", True)
 
 c = Canvas(51, 19); c.header("SO SERVER #1", "pairing")
@@ -255,13 +249,11 @@ add(c, "Server terminal, pairing", True)
 
 # --- AR layers screen (M) and tiny 1x1
 c = Canvas(57, 24); c.header("AR GOGGLES", "1 controller")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLES","1","layer on","d"),("LEASES","1","layer on","d"),("DROPS","0","layer off","c")]):
-    c.tile(x, 3, w, lab, val, sub, bg)
-c.tile(0, 11, 18, "ALERTS", "1", "layer on", "d")
-c.button(0, 20, 57, "BACK")
+for i, (lab, val, sub, bg) in enumerate([("TURTLES","1","layer on","d"),("LEASES","1","layer on","d"),("DROPS","0","layer off","c"),("ALERTS","1","layer on","d")]):
+    c.tile([0, 29][i % 2], 3 + (i // 2) * 8, 28, lab, val, sub, bg)
 add(c, "AR layer switches (1 = on, 0 = off)")
 
-c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
+c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "3 ok, 0 lost", "d", 7); c.button(0, 9, 15, "NEXT", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
 
 for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
@@ -282,6 +274,28 @@ add(shop(26, 20), "Shop, pocket touch flow", True)
 add(shop(100, 38), "Shop, large touch monitor")
 status(51,19,[0,6,5,2],4,"Status, terminal")
 
+# --- Displays without a role show their id; the operator assigns one on the server
+def unassigned(w, h, ident):
+    c = Canvas(w, h); c.header("UNASSIGNED", "")
+    top = 3 if h >= 10 else 2
+    height = h - top - 1
+    c.fill(1, top, w - 2, height, "9")
+    if height >= 7: c.text(2, top + 1, "DISPLAY")
+    rows = big(ident)
+    for r in range(3): c.center(1, w - 2, top + max(0, (height - 3) // 2) + r, rows[r])
+    return c
+add(unassigned(57, 24, "6"), "Unassigned display, room monitor", True)
+add(unassigned(15, 10, "6"), "Unassigned display, smallest monitor", True)
+
+c = Canvas(51, 19); c.header("SO SERVER #1", "roles")
+c.fill(0, 3, 51, 1, "7"); c.text(1, 3, "ID    SIZE    ROLE")
+for i, (ident, size, role) in enumerate([("1", "57x24", "status"), ("2", "26x20", "pocket"), ("5", "57x24", "mining"),
+        ("6", "57x24", "unassigned"), ("7", "15x10", "status"), ("9", "-", "drops")]):
+    c.text(1, 4 + i, f"{ident:<6}{size:<8}{role}")
+c.text(1, 17, "display 7: status")
+c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "> 6 shop_"); c.text(26, 18, "[Enter] set  [Esc] back")
+add(c, "Server terminal, role command (R)", True)
+
 import argparse
 from pathlib import Path
 import runpy
@@ -294,7 +308,7 @@ args = parser.parse_args()
 
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]

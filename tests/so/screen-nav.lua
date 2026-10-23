@@ -78,55 +78,64 @@ local function setup(w, h, kit)
     client.inbox[#client.inbox+1] = table.pack("key", 28)
     net.flush()
   end
-  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText}
+  local function assign(role)
+    local ok, text = server.env.SO.mods.display.command(client.id .. " " .. role)
+    assert(ok, text)
+    net.advance(1)
+  end
+  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText, assign=assign}
+end
+
+-- Roles come from the server command; every page inside a role keeps its drawn controls.
+local function noLinks(s)
+  for _, b in ipairs(s.frame().buttons) do
+    for _, id in ipairs({"status", "generic", "map", "map-back"}) do assert(b.id ~= id, "cross-role button " .. id) end
+  end
 end
 
 return function(test, equal)
   for _, size in ipairs({{26,20},{29,12},{15,10},{36,10},{39,19},{51,19},{57,24},{82,40},{100,38},{164,81}}) do
-    test("Big Tiles visible navigation graph at " .. size[1] .. "x" .. size[2], function()
+    test("Big Tiles in-role pages at " .. size[1] .. "x" .. size[2], function()
       local s = setup(size[1],size[2],true)
       local seen = {}
       local function role(name)
         equal(s.frame().role,name)
         assert(s.frame().palette, "Big Tiles kit must be active")
+        noLinks(s)
         seen[name] = true
       end
       local function header(text)
         assert(s.frame().rows[2].text:find(text,1,true), "missing " .. text .. " header")
         seen[text] = true
       end
-      if size[1]==26 then role("status");s.press("MORE") else role("generic") end
-      role("generic");header("DROP")
+      role(size[1]==26 and "pocket" or "unassigned")
+      s.assign("drops");role("generic");header("DROP")
       s.press("ADD NEW");header("ADD DROP")
       s.press("BACK");header("DROP")
-      s.press("BACK");role("status")
-      s.press("MORE");role("generic")
       for _, name in ipairs({"mining","lumber"}) do
-        s.press(name:upper());role(name)
-        s.button("BACK", "status")
+        s.assign(name);role(name)
         s.press("SETUP");header(name=="mining" and (size[1]<26 and "MINING" or "MINING SETUP") or "LUMBER")
         seen[name .. " setup"] = true
         s.press("BACK", name=="mining" and "mine-back" or "lumber-back")
-        s.button("SETUP")
-        s.press("BACK", "status");role("status")
-        s.press("MORE");role("generic")
+        s.button("SETUP");role(name)
       end
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals={["minecraft:iron_ingot"]=64}})
-      s.press("SHOP");role("shop")
+      s.assign("shop");role("shop")
       s.press("IRON INGOT");header("SHOP >")
       s.button(size[1]<26 and "16" or "ORDER 16", "order:16:minecraft:iron_ingot")
-      s.press("BACK");header("SHOP")
-      s.press("BACK");role("status")
-      s.press("MORE");s.press("AR");role("ar")
+      s.press("BACK");header("SHOP");role("shop")
+      s.assign("ar");role("ar")
       s.button("TURTLES")
-      s.press("BACK");role("status")
-      s.press("MORE");s.press("PANEL");role("panel")
-      s.press("MORE");role("generic")
-      s.press("PANEL");role("panel")
-      s.press(size[1]<26 and "ALT" or "ALERTS");header("PANEL")
+      s.assign("panel");role("panel")
+      s.press("ALERTS");header("PANEL")
       s.press("BACK");s.press("PAIR");header("PANEL")
-      s.press("BACK");s.press(size[1]<26 and "GLC" or "GLANCE");role("status")
-      if size[1]==26 then s.press("PANEL");role("panel");s.press("GLANCE");role("status") end
+      s.press("BACK");role("panel")
+      s.assign("status");role("status")
+      if size[1]==26 then
+        s.assign("-");role("pocket")
+        s.press("PANEL");header("PANEL");role("pocket")
+        s.press("GLANCE");header("FLEET");role("pocket")
+      end
       for _, name in ipairs({"status","generic","mining","lumber","shop","ar","panel","mining setup","lumber setup","SHOP >","ADD DROP"}) do
         assert(seen[name], "unreached " .. name)
       end
@@ -135,6 +144,8 @@ return function(test, equal)
   for _, size in ipairs({{26,20}, {29,12}}) do
     test("drop editor remains clickable at " .. size[1] .. "x" .. size[2], function()
       local s = setup(size[1], size[2])
+      equal(s.frame().role, "unassigned")
+      s.assign("drops")
       local function draft()
         for _, row in ipairs(s.frame().rows) do
           if row.text:match("^draft ") then return row.text end
@@ -147,7 +158,7 @@ return function(test, equal)
       equal(s.frame().role, "generic")
     end)
     for _, role in ipairs({"mining", "lumber", "shop", "status", "ar"}) do
-      test("visible " .. role .. " navigation at " .. size[1] .. "x" .. size[2], function()
+      test("kit-free " .. role .. " keeps its role through every visible button at " .. size[1] .. "x" .. size[2], function()
         local s = setup(size[1], size[2])
         for i=1,20 do
           assert(s.server.env.SO.mods.drops.add({id="drop" .. i, dim=0, x=i, y=64, z=0, side="down", kind="ore"}))
@@ -157,8 +168,7 @@ return function(test, equal)
         for i=1,20 do totals["minecraft:item_" .. i] = i end
         s.server.env.SO.mods.shop.listen.roomsorter_stock(90, {totals=totals})
         s.net.advance(1)
-        equal(s.frame().role, "generic")
-        s.press(role)
+        s.assign(role)
         equal(s.frame().role, role)
         if role=="mining" then
           for i=10,29 do
@@ -166,13 +176,15 @@ return function(test, equal)
             s.net.advance(0.25)
           end
         end
-        s.button("generic")
-        s.press("generic")
-        equal(s.frame().role, "generic")
-        s.button(role)
-        local drops = false
-        for _, row in ipairs(s.frame().rows) do if row.text=="drops" then drops=true end end
-        assert(drops, "drop editor is not reachable")
+        local ids = {}
+        for _, b in ipairs(s.frame().buttons) do ids[#ids+1] = b end
+        for _, b in ipairs(ids) do
+          s.client.inbox[#s.client.inbox+1] = table.pack(size[1]==29 and "monitor_touch" or "mouse_click",
+            size[1]==29 and "monitor" or 1, b.x, b.y)
+          s.net.flush()
+          equal(s.frame().role, role)
+        end
+        noLinks(s)
       end)
     end
   end

@@ -29,19 +29,30 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(runtime.requests[1]["code"],"os.reboot()")
         self.assertFalse(any(q["op"] == "power" for q in runtime.requests))
 
-    def test_navigation_uses_the_visible_more_button_id(self):
-        frames = {"status":{"role":"status","buttons":[{"id":"generic"}]},
-                  "generic":{"role":"generic","buttons":[{"id":"mining"}]},
-                  "mining":{"role":"mining","buttons":[{"id":"status"}]}}
-        state = ["status"]
+    def test_navigation_assigns_the_role_with_the_server_command(self):
+        state = {"role": "pocket", "calls": []}
         with tempfile.TemporaryDirectory() as temp:
-            ctx = Context(object(), "test", {}, temp, "a"*40)
-            def click(name, button):
-                if button not in [b["id"] for b in frames[state[0]]["buttons"]]: raise Blocked("Absent")
-                state[0] = button
-                return frames[state[0]]
-            with patch.object(ctx,"frame",side_effect=lambda name:frames[state[0]]), patch.object(ctx,"click",side_effect=click):
+            ctx = Context(object(), "test", {"computers":{"1":{"name":"server"},"3":{"name":"pocket"}}}, temp, "a"*40, interval=0)
+            def lua(name, code):
+                state["calls"].append((name, code))
+                state["role"] = "generic" if '"3 drops"' in code else "mining"
+                return {"ok": True, "text": "display 3: mining"}
+            with patch.object(ctx,"frame",side_effect=lambda name:{"role":state["role"],"buttons":[]}), patch.object(ctx,"lua",side_effect=lua):
                 self.assertEqual(ctx.navigate("pocket","mining")["role"], "mining")
+                self.assertEqual(state["calls"][0][0], "server")
+                self.assertIn('SO.mods.display.command("3 mining")', state["calls"][0][1])
+                self.assertEqual(ctx.navigate("pocket","drops")["role"], "generic")
+                self.assertEqual(len(state["calls"]), 2)
+                self.assertEqual(ctx.navigate("pocket","drops")["role"], "generic")
+                self.assertEqual(len(state["calls"]), 2)
+
+    def test_navigation_reports_a_refused_role(self):
+        with tempfile.TemporaryDirectory() as temp:
+            ctx = Context(object(), "test", {"computers":{"1":{"name":"server"},"3":{"name":"pocket"}}}, temp, "a"*40, interval=0)
+            with patch.object(ctx,"frame",return_value={"role":"pocket","buttons":[]}), \
+                    patch.object(ctx,"lua",return_value={"ok": False, "text": "map not loaded"}):
+                with self.assertRaisesRegex(Blocked, "map not loaded"):
+                    ctx.navigate("pocket","map")
 
     def test_admission_distinguishes_local_suites_from_parts_and_runtime(self):
         from checks.admission import full_local_suite

@@ -734,7 +734,7 @@ local function legacyRender(w)
     rows[#rows+1]={text=id.." "..row.state.." "..p.x..","..p.y..","..p.z.." fuel "..tostring(row.fuel or "?").." ores "..(row.ores or 0).." "..tostring(row.error or ""),fg=(row.state=="lost" or row.state=="range") and "e" or "0"}
     end
   end
-  return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
+  return {rows=rows,buttons={}}
 end
 local function gather()
   local m = { running = job.running, alert = S.error, turtles = {}, tiles = {}, setup = {} }
@@ -826,18 +826,12 @@ local function layout(m, w, h, setup)
         end
       end
     end
-    local buttons = {{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"},{"BACK","status","7"}}
-    local available, x = math.max(0,w-3), 1
+    local buttons = {{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"}}
+    local cols = U.grid(w,h,w < 26 and 2 or 3)
     for i,b in ipairs(buttons) do
-      local width = math.floor(available/(5-i))
-      local y = buttonY
-      if w < 26 then
-        local cols = U.grid(w,h,2)
-        local col = cols[(i-1)%2+1]
-        x, width, y = col.x, col.w, buttonY+math.floor((i-1)/2)
-      end
-      c.button(x,y,width,b[1],b[2],b[3],buttonHeight)
-      x, available = x+width+1, available-width
+      local col, y = cols[(i-1)%#cols+1], buttonY+math.floor((i-1)/#cols)
+      if i > #cols then col = {x=1,w=w} end
+      c.button(col.x,y,col.w,b[1],b[2],b[3],buttonHeight)
     end
   end
   return c.frame()

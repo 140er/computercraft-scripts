@@ -78,7 +78,13 @@ local function setup(w, h, prepare, monitor)
     client.inbox[#client.inbox+1] = table.pack("key", 28)
     net.flush()
   end
-  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText}
+  -- Roles change only through the server command, as an operator would type it.
+  local function assign(role)
+    local ok, text = server.env.SO.mods.display.command(client.id .. " " .. role)
+    assert(ok, text)
+    net.advance(1)
+  end
+  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText, assign=assign}
 end
 
 return setup

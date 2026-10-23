@@ -81,7 +81,8 @@ return function(test,equal)
       for _,setupPage in ipairs({false,true}) do
         s.input({id=setupPage and 'setup' or 'mine-back'})
         local w,h=unpack(size);local f=s.render(w,h);local out=capture(f,w,h)
-        if #f.buttons>0 then equal(f.buttons[#f.buttons].id,setupPage and 'mine-back' or 'status') end
+        if #f.buttons>0 then equal(f.buttons[#f.buttons].id,setupPage and 'mine-back' or 'setup') end
+        for _,b in ipairs(f.buttons) do assert(b.id~='status','mining links to status') end
         if w==57 then assert(out.picture().text[2]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
           local fg,bg=cell[2],cell[3]

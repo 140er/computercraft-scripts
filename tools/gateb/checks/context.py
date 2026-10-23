@@ -286,35 +286,24 @@ class Context:
         self.request("input", computer=self.computer(name), event=event, args=args)
         def changed():
             current = self.frame(name)
-            if button_id in ("status", "generic", "mining", "lumber", "shop", "ar", "map", "panel"):
-                return current if current.get("role") == button_id else None
-            if button_id == "map-back":
-                return current if current.get("role") != "map" else None
             return current if current != frame else None
         return self.wait(changed, 5) or self.frame(name)
 
     def navigate(self, name, role):
+        """Give a display its role through the server command; no screen has buttons to other roles."""
+        want = "generic" if role == "drops" else role
         initial = self.frame(name)
-        if initial.get("role") == role: return initial
-        if any(b.get("id") == "map-back" for b in values(initial.get("buttons"))):
-            self.click(name, "map-back")
-        routes = {
-            "status": (("status",), ("mine-back", "status"), ("lumber-back", "status")),
-            "generic": (("generic",), ("status", "generic")),
-            "mining": (("mining",), ("generic", "mining"), ("status", "generic", "mining")),
-            "lumber": (("lumber",), ("generic", "lumber"), ("status", "generic", "lumber")),
-            "shop": (("shop",), ("generic", "shop"), ("status", "generic", "shop")),
-            "ar": (("ar",), ("generic", "ar"), ("status", "generic", "ar")),
-            "map": (("map",), ("generic", "map"), ("status", "generic", "map")),
-        }
-        for route in routes[role]:
-            try:
-                for button in route: self.click(name, button)
-                if self.frame(name).get("role") == role: return self.frame(name)
-            except Blocked:
-                continue
-        self.record(f"navigation-{name}-{role}.json", {"requested_role": role, "last_frame": self.frame(name)})
-        raise Blocked(f"No visible navigation route from {name} to {role}")
+        if initial.get("role") == want: return initial
+        ident = self.computer(name)
+        result = self.lua("server", f'local ok, text = SO.mods.display.command("{ident} {role}") return {{ok = ok, text = text}}')
+        if not isinstance(result, dict) or not result.get("ok"):
+            self.record(f"navigation-{name}-{role}.json", {"requested_role": role, "command": result, "last_frame": initial})
+            raise Blocked(f"Server refused role {role} for {name}: {result}")
+        frame = self.wait(lambda: (lambda f: f if f.get("role") == want else None)(self.frame(name)), 10)
+        if not frame:
+            self.record(f"navigation-{name}-{role}.json", {"requested_role": role, "last_frame": self.frame(name)})
+            raise Blocked(f"{name} did not show role {role} after the server command")
+        return frame
 
     def game_clock(self):
         return self.lua("server", 'return SO and SO.now and SO.now() or os.clock() * 1000')
