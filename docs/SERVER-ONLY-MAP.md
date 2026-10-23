@@ -41,7 +41,8 @@ and listeners use `listener(sender, message)`.
 
 - [so-server.lua](../so-server.lua) boots the server, loads modules, authenticates
   dispatch and runs the event loop. Built-in handlers are
-  `pair(msg, reply)` and `hello(msg, reply)`. `SO.pairCode(id)` returns
+  `pair2(msg, reply)`, legacy `pair(msg, reply)` and `hello(msg, reply)`.
+  At start it calls `proto.since` with the current UTC time. `SO.pairCode(id)` returns
   `{ code, expires }` only for a paired requester. It reuses that requester's
   pending invitation and returns nil while another requester or the terminal
   owns one. New invitations use `pair.invite` and also appear on the terminal.
@@ -49,13 +50,19 @@ and listeners use `listener(sender, message)`.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
   `request(target, t, body, timeout, tries)`, `canonical(msg)`, `ser(value)`,
-  `sha256(msg)`, `hmac(key, msg)`, `hex(raw)` and `unhex(hex)`.
+  `sha256(msg)`, `hmac(key, msg)`, `hex(raw)`, `unhex(hex)` and `since(utc)`.
+  After `since`, `fresh` refuses envelopes stamped before that time.
   `request` waits, so never call it from the server's handlers or ticks.
-- [so-pair.lua](../so-pair.lua) pairs machines with X25519 and saves their keys.
+- [so-pair.lua](../so-pair.lua) pairs machines with CPace over X25519 and saves their keys.
   Calls are `open(proto, store, now?)`, `derive(code, serverId, clientId)`,
   `pending()`, `clear()`, `key(id)`, `peer()`, `remember(id, key)`,
-  `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)` and
-  `repairHint(sender, payload, serverId)`. The hint check only authorizes a prompt;
+  `session(clientPubHex)`, `invite(screen)`, `join(code, serverId)`,
+  `repairHint(sender, payload, serverId)`, `envelopeKey()`, `start(from, body)`,
+  `confirm(from, body)`, `blocked(id)`, `reject(id, guess)` and `rejected()`.
+  `start` and `confirm` are the server's two `pair2` steps; `confirm` returns the
+  machine key and reply body. `reject` returns true when it burned the code.
+  `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
+  SHA-512, Elligator2 and CPace helpers that tests check against the draft vectors. The hint check only authorizes a prompt;
   it never removes a saved key.
   `open` accepts the role's millisecond clock; omission uses local tick uptime.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.

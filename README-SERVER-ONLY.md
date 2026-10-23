@@ -105,6 +105,13 @@ Its panel and the server terminal show the code and time left. Other displays
 cannot see that invitation. Pressing NEW CODE again keeps the pending code.
 After use or expiry, press NEW CODE for the next client.
 Keep any leading zeros in the code.
+The server terminal shows the ids of computers whose pairing attempts it
+rejected. A computer gets three tries a minute. Ten wrong guesses from
+unpaired computers burn the code; press P for a new one. Paired machines
+never burn it.
+Pairing uses the CPace protocol, so a recorded pairing does not reveal the code.
+Update the server first. Clients from the previous release still pair this
+release; update them before the next one, which drops the old method.
 Displays show the pairing prompt and digits on the monitor and computer terminal.
 Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when

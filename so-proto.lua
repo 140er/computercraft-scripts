@@ -270,8 +270,13 @@ M.build = function(key, t, body, rid)
   return msg
 end
 
+-- Refuse envelopes stamped before utc, so a restart cannot reopen
+-- the replay window for messages an earlier run already handled.
+M.since = function(utc) S.since = utc end
+
 M.fresh = function(msg)
   local now = os.epoch("utc")
+  if S.since and msg.at < S.since then return false end
   local slot = S.seen[msg.from]
   if not slot then
     slot = {}

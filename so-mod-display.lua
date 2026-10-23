@@ -705,6 +705,8 @@ D.terminal = function(model, view, w, h)
     C.big(1,7,w,code:sub(1,3).." "..code:sub(4,6),"9")
     local left = math.max(0,math.ceil((view.expires-view.now)/1000))
     C.center(1,w,12,string.format("%d:%02d left",math.floor(left/60),left%60),"9")
+    local rejected = view.rejected or {}
+    if #rejected > 0 then C.center(1,w,14,"Rejected "..table.concat(rejected," "),"9") end
   elseif view.mode == "log" then
     C.fill(1,3,w,1,"7"); C.put(2,3,"FULL LOG")
     first = 4
