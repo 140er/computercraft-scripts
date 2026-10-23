@@ -226,30 +226,50 @@ P.input = function(event)
   end
 end
 
--- The pocket role (26x20): a one-row tab bar and four pages. ALERTS is a page
--- under FLEET, opened from its ALERTS row. Every control is one row tall.
-P.tabs = {{"tab:fleet","FLEET"},{"tab:jobs","JOBS"},{"tab:shop","SHOP"},{"tab:pair","PAIR"}}
+-- The pocket role (26x20) in route A; docs/ui/schematic/pocket.py is its twin. A tab row and four
+-- pages. ALERTS is a page under FLEET, opened from its alert rows. Every control is one row tall.
+P.tabs = {"FLEET","JOBS","SHOP","PAIR"}
 P.jobFacts = {mining={"BUSY","DEPTH","BRANCHES","MIN FUEL"},lumber={"TREES READY","SAPLINGS","NEXT GROW","FUEL"}}
+P.codeLife = 300000
 
+-- The status model (docs/server-only/PROTOCOL.md#display) with every list present.
 P.model = function()
   local display = SO.mods.display
   local model = display and type(display.statusModel) == "function" and display.statusModel()
-  return type(model) == "table" and model or {tiles={},alerts={}}
+  local m = {}
+  for k,v in pairs(type(model) == "table" and model or {}) do m[k] = v end
+  m.turtles,m.drops,m.events,m.flags = m.turtles or {},m.drops or {},m.events or {},m.flags or {}
+  m.displays,m.leases,m.time = m.displays or {},m.leases or 0,m.time or ""
+  m.server = m.server or {id="?",up="-"}
+  return m
 end
 
-P.tabBar = function(c, page, alerts)
-  c.fill(1,1,c.w,1,"7")
+-- Four tabs from column 1, the active one on the panel colour; a coral dot inside FLEET while anything needs a look.
+P.tabBar = function(c, page, dot)
   local x = 1
-  for _,tab in ipairs(P.tabs) do
-    local active = tab[1] == "tab:"..page or page == "alerts" and tab[1] == "tab:fleet"
-    c.put(x,1," "..tab[2].." ",nil,active and "9" or tab[1] == "tab:fleet" and alerts > 0 and "e" or "7")
-    c.hit(tab[1],x,1,#tab[2]+2,1)
-    x = x+#tab[2]+2
+  for _,t in ipairs(P.tabs) do
+    local label,on = " "..t.." ",t:lower() == page
+    c.put(x,1,label,on and "0" or "8",on and "7" or "f")
+    c.hit("tab:"..t:lower(),x,1,#label,1,t)
+    x = x+#label
   end
+  if dot then c.put(7,1,U.g.bullet,"e") end
+end
+
+-- Status's one-column layout under the tab row; the alert rows open ALERTS.
+P.fleetPage = function(c, m, w, h)
+  local q = {}
+  for k,v in pairs(m) do q[k] = v end
+  q.alerts = {}
+  U.st.column(c,q)
+  c.put(1,1,string.rep(" ",w),"0","f")
+  P.tabBar(c,"fleet",#m.flags > 0)
+  for y = 3,2+math.min(#m.flags,h >= 17 and 2 or 1) do c.hit("alerts",2,y,w-2,1) end
 end
 
 P.wrap = function(text, width)
   local lines, line = {}, ""
+  width = math.max(1, width)
   for word in text:gmatch("%S+") do
     while #word > width do
       if line ~= "" then lines[#lines+1],line = line,"" end
@@ -263,52 +283,102 @@ P.wrap = function(text, width)
   return lines
 end
 
--- Newest alert first, three lines at most each, a blank row between alerts.
-P.alertPage = function(c, state, alerts, w, h)
-  U.chipRow(c,3,"ALERTS",{{#alerts,#alerts > 0 and "e" or "d"}})
+-- Every flag (lost turtles, alerts, broken drops): two rows of text, two of detail, then a blank row.
+P.alertPages = function(flags, w, h)
   local pages, page, used = {}, nil, 0
-  local room = h-6
-  for i = #alerts,1,-1 do
-    local lines = P.wrap(tostring(alerts[i].text or ""),w-4)
-    lines = {lines[1] or "",lines[2],lines[3]}
-    if not page or used+#lines > room then page,used = {},0;pages[#pages+1] = page end
-    page[#page+1],used = lines,used+#lines+1
+  for _,f in ipairs(flags) do
+    local rows = {}
+    for _,part in ipairs({{f.text,"0"},{f.detail,"8"}}) do
+      local lines = P.wrap(tostring(part[1] or ""),w-4)
+      for i = 1,math.min(2,#lines) do rows[#rows+1] = {lines[i],part[2]} end
+    end
+    if not page or used+#rows > h-5 then page,used = {},0;pages[#pages+1] = page end
+    page[#page+1],used = rows,used+#rows+1
   end
+  return pages
+end
+
+P.alertPage = function(c, state, m, w, h)
+  c.section(2,3,w-2,"ALERTS",#m.flags,#m.flags > 0 and "e" or "8")
+  local pages = P.alertPages(m.flags,w,h)
   state.alertPage = (state.alertPage or 0) % math.max(1,#pages)
-  local y = 5
-  for _,lines in ipairs(pages[state.alertPage+1] or {}) do
-    for _,line in ipairs(lines) do c.fill(2,y,1,1,"e");c.put(4,y,line);y = y+1 end
+  local y = 4
+  for _,rows in ipairs(pages[state.alertPage+1] or {}) do
+    c.put(2,y,"!","e")
+    for _,row in ipairs(rows) do c.put(4,y,row[1],row[2]);y = y+1 end
     y = y+1
   end
   if #pages > 1 then
-    c.button(2,h,5,"<","alert-prev","7",1)
-    c.center(7,w-12,h,(state.alertPage+1).."/"..#pages)
-    c.button(w-5,h,5,">","alert-next","7",1)
+    c.chip(2,h,U.g.left,"alert-prev")
+    local n = (state.alertPage+1).."/"..#pages
+    c.put(math.floor((w-#n)/2)+1,h,n,"8")
+    c.chip(w-3,h,U.g.right,"alert-next")
   end
 end
 
-P.stateColour = function(state)
-  return state == "running" and "d" or (state == "stopped" or state == "not loaded") and "c" or "1"
+-- A job's facts: the module's facts() when it has one, else the status model, else the probed state.
+P.jobData = function(role, m)
+  local mod = SO.mods[role == "mining" and "mine" or "lumber"]
+  if mod and type(mod.facts) == "function" then
+    local ok,f = pcall(mod.facts)
+    if ok and type(f) == "table" then return f end
+  end
+  if role == "mining" and m.mining then
+    local mi,low = m.mining,nil
+    for _,t in ipairs(m.turtles) do
+      if t.where ~= "farm" and t.where ~= "-" and t.fuel and (not low or t.fuel < low.fuel) then low = t end
+    end
+    return {state=mi.state,done=mi.done,total=mi.total,busy=mi.busy,workers=mi.workers,
+      lane=mi.lane and {id=mi.lane.id,facing=mi.lane.facing},fuel=low and {value=low.fuel,id=low.id}}
+  elseif role == "lumber" and m.lumber then
+    local lu,farm = m.lumber,nil
+    for _,t in ipairs(m.turtles) do if t.where == "farm" then farm = t;break end end
+    return {state=lu.state,ready=lu.ready,spots=lu.spots,grow=lu.grow,fuel=farm and farm.fuel}
+  end
+  return {state=P.states[role] or "-"}
 end
 
--- Title bar with the state chip, up to `n` fact rows, a gap, then START and STOP.
-P.jobBlock = function(c, role, y, n, w)
-  local state, loaded = P.states[role] or "not loaded", P.states[role] ~= "not loaded"
-  c.fill(2,y,w-2,1,"7")
-  -- A long hold reads "hold"; the alert list has the reason.
-  local word = #state <= w-12 and state or state:match("^[^%s:;,]+") or state
-  U.chipRow(c,y,role:upper(),{{word:sub(1,w-12),P.stateColour(state)}},3,w-1)
-  for i = 1,n do
-    local label = P.jobFacts[role][i]
-    local fact = (P.facts[role] or {})[label]
-    if fact then U.chipRow(c,y+i,label,{fact},3,w-1) end
-  end
+-- A long hold reason reads as its first word; ALERTS has the rest.
+P.word = function(state, room)
+  if #state <= room then return state end
+  return (state:match("^[^ :;,]*") or state):sub(1,room)
+end
+
+-- START and STOP; the one that does nothing now is muted. Missing jobs get grey chips without targets.
+P.jobChips = function(c, y, w, role, running, loaded)
   local half = math.floor((w-4)/2)
   for i,cmd in ipairs({"start","stop"}) do
-    local x = i == 1 and 2 or w-half
-    if loaded then c.button(x,y+n+2,half,cmd:upper(),role..":"..cmd,i == 1 and "9" or "e",1)
-    else c.fill(x,y+n+2,half,1,"c");c.center(x,half,y+n+2,cmd:upper()) end
+    local x,label = i == 1 and 2 or w-half,cmd:upper()
+    if loaded then
+      local kind = i == 1 and (running and "muted" or "primary") or (running and "stop" or "muted")
+      c.chip(x,y,label,role..":"..cmd,kind,half)
+    else
+      c.put(x,y,string.rep(" ",half),"8","7")
+      c.put(x+math.floor((half-#label)/2),y,label,"8","7")
+    end
   end
+end
+
+P.job = function(c, y, w, role, f)
+  local title,loaded,lw = role:upper(),f ~= nil,w-2
+  local state = loaded and tostring(f.state or "-") or "not loaded"
+  local word = P.word(state,w-2-#title-3)
+  c.section(2,y,lw,title,word,loaded and U.tone(word) or "8")
+  if loaded and role == "mining" then
+    c.progress(2,y+1,10,f.done or 0,f.total or 0)
+    c.leader(2,y+2,lw,"busy",f.busy and f.workers and (f.busy.."/"..f.workers) or "-",f.busy and f.workers and "0" or "8")
+    local lane,fuel = f.lane,f.fuel
+    c.leader(2,y+3,lw,"lane",lane and (U.arrow(lane.facing)..lane.id) or "-",lane and "b" or "8")
+    c.leader(2,y+4,lw,"min fuel",fuel and (fuel.value.." #"..fuel.id) or "-",fuel and (fuel.value < 500 and "1" or "0") or "8")
+  elseif loaded then
+    local spots = f.spots or 0
+    c.progress(2,y+1,spots > 0 and math.min(12,spots) or 12,f.ready or 0,spots,"d",U.g.spade,"8",U.g.club)
+    for i,row in ipairs({{"next grow","grow"},{"saplings","saplings"},{"fuel","fuel"}}) do
+      local v = f[row[2]]
+      c.leader(2,y+1+i,lw,row[1],v == nil and "-" or tostring(v),v == nil and "8" or "0")
+    end
+  end
+  P.jobChips(c,y+6,w,role,loaded and state ~= "stopped",loaded)
 end
 
 -- The item the order chips act on: the tapped one while it still matches, else the best match.
@@ -317,49 +387,53 @@ P.shown = function(state, items)
   return items[1]
 end
 
--- Search, then the matches with the shown item's 1, 16 and 64 chips under it.
+-- Search, then the matches with the shown item's 1, 16 and 64 chips under it; the last order on row h-1.
 P.shopPage = function(c, state, keyboard, w, h)
   local shop = SO.mods.shop
   if not P.screens.shop or not shop or type(shop.matches) ~= "function" or type(shop.order) ~= "function" then
-    c.fill(2,3,w-2,1,"c");c.put(3,3,"shop not loaded");return
+    c.put(2,3,"shop not loaded","8");return
   end
-  local search = state.search or ""
+  local search,y = state.search or "",3
   if keyboard then
-    local width = search == "" and w-2 or w-5
-    c.search(2,3,width," "..search:sub(-(width-2)).."_","search")
-    if search ~= "" then c.button(w-3,3,3,"x","clear","7",1) end
+    local typed = search:sub(-(w-8))
+    c.put(2,3,">","8");c.put(4,3,typed,"0");c.put(4+#typed,3,"_","9")
+    if search ~= "" then c.chip(w-3,3,U.g.cross,"clear","off") end
+    c.rule(2,4,w-1)
+    y = 5
   end
-  local items, y = shop.matches(search,h), keyboard and 5 or 3
+  local items = shop.matches(search,h)
   local shown = P.shown(state,items)
-  if #items == 0 then c.put(2,y,search == "" and "no stock" or "no match") end
+  if #items == 0 then c.put(2,y,search == "" and "no stock" or "no match","8") end
   for _,item in ipairs(items) do
-    if y > h-2 - (item == shown and 2 or 0) then break end
-    local bg = item.count == 0 and "e" or item.count <= 16 and "1" or "b"
-    if item == shown then c.fill(2,y,w-2,1,"7") end
-    U.chipRow(c,y,item.label,{{item.count,bg}})
+    if y > h-2-(item == shown and 2 or 0) then break end
+    if item == shown then c.put(1,y,string.rep(" ",w),"0","7") end
+    local n = tonumber(item.count) or 0
+    c.leader(2,y,w-2,item.label,tostring(item.count),n == 0 and "8" or n < 10 and "1" or "0","0")
     c.hit("pick:"..item.name,2,y,w-2,1)
     y = y+1
     if item == shown then
-      for i,col in ipairs(U.grid(w-2,1,3)) do
-        local n = ({1,16,64})[i]
-        c.button(col.x+1,y,col.w,tostring(n),"order:"..n..":"..item.name,"a",1)
+      local cw = math.floor((w-4)/3)
+      for i,amount in ipairs({1,16,64}) do
+        c.chip(2+(i-1)*(cw+1),y,tostring(amount),"order:"..amount..":"..item.name,"plain",cw)
       end
       y = y+2
     end
   end
-  if state.sent then c.put(2,h-1,state.sent:sub(1,w-2)) end
+  if state.sent then c.put(2,h-1,state.sent[1]:sub(1,w-2),state.sent[2]) end
 end
 
--- Code block on rows 3-7: big digits on teal while pending, dashes on grey otherwise.
-P.pairPage = function(c, session, state, w)
-  local invitation, paired = P.invitation(state), P.paired(session)
-  local bg = invitation and "9" or "c"
-  c.fill(2,3,w-2,5,bg)
-  c.big(2,4,w-2,invitation and invitation.code or "------",bg)
-  local line = invitation and P.left(invitation) or state.pairBusy and "CODE IN USE"
-    or not paired and "press P on the server" or ""
-  c.center(2,w-2,7,line,bg)
-  if paired then c.button(2,9,w-2,"NEW CODE","pair-code","9",1) end
+-- The code in six line digits, a teal tick row counting its five minutes down, then NEW CODE.
+P.pairPage = function(c, session, state, w, h)
+  local invitation = P.invitation(state)
+  local code = invitation and tostring(invitation.code) or "------"
+  c.digits(math.floor((w-(#code*4-1))/2)+1,5,code,invitation and "0" or "8",3,7,1)
+  if invitation then
+    local left = math.max(0,invitation.expires-P.now())
+    local secs = math.ceil(left/1000)
+    c.ticks(2,14,18,U.filled(18,left,P.codeLife),"9")
+    c.put(21,14,string.format("%d:%02d",math.floor(secs/60),secs%60),"0")
+  elseif state.pairBusy then c.put(2,14,"code in use","1") end
+  if P.paired(session) then c.chip(2,h-2,"NEW CODE","pair-code","plain",w-2) end
 end
 
 P.pocketState = function(session)
@@ -369,17 +443,19 @@ end
 
 P.pocket = function(w, h, session)
   session = session or {}
-  local state, model, c = P.pocketState(session), P.model(), U.canvas(w,h)
-  local alerts = model.alerts or {}
-  P.tabBar(c,state.page,#alerts)
-  if state.page == "alerts" then P.alertPage(c,state,alerts,w,h)
-  elseif state.page == "jobs" then
-    local n = math.max(0,math.min(4,math.floor((h-10)/2)))
-    P.jobBlock(c,"mining",3,n,w)
-    P.jobBlock(c,"lumber",n+8,n,w)
-  elseif state.page == "shop" then P.shopPage(c,state,session.keyboard,w,h)
-  elseif state.page == "pair" then P.pairPage(c,session,state,w)
-  else U.fleetRows(c,model,3,h >= 17 and 2 or 1) end
+  local state,m,c = P.pocketState(session),P.model(),U.canvas(w,h)
+  local page = state.page
+  if page == "fleet" or not page then P.fleetPage(c,m,w,h);return c.frame() end
+  P.tabBar(c,page == "alerts" and "fleet" or page,#m.flags > 0)
+  if page == "alerts" then P.alertPage(c,state,m,w,h)
+  elseif page == "jobs" then
+    for i,role in ipairs({"mining","lumber"}) do
+      local screen = P.screens[role]
+      local loaded = screen and type(screen.render) == "function" and type(screen.input) == "function"
+      P.job(c,i == 1 and 3 or 12,w,role,loaded and P.jobData(role,m) or nil)
+    end
+  elseif page == "shop" then P.shopPage(c,state,session.keyboard,w,h)
+  elseif page == "pair" then P.pairPage(c,session,state,w,h) end
   return c.frame()
 end
 
@@ -417,7 +493,7 @@ P.pocketInput = function(event)
       for _,match in ipairs(shop.matches(state.search or "",256)) do
         if match.name == item then
           local sent = shop.order(item,tonumber(amount))
-          state.sent = sent and ("sent "..amount.." "..match.label) or "not sent: no storage"
+          state.sent = sent and {amount.." "..match.label.." sent","d"} or {"not sent","e"}
           break
         end
       end

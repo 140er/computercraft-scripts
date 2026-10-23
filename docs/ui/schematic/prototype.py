@@ -5,7 +5,7 @@ here. Render them with: python3 -I docs/ui/schematic/screens.py --prototype DIR
 """
 from cc import Canvas
 import kit
-from kit import rule, section, leader, ticks
+from kit import rule, section, leader
 from scene import S
 import mapdraw as MD
 import status as ST
@@ -20,10 +20,6 @@ def header(cv, name, tabs=(), active=None, right="", rfg="8", y=1):
 
 def alert(cv, y, text, x=2):
     kit.flag(cv, x, y, cv.w - x, text)
-
-
-def bignum(cv, x, y, text, fg="0", w=4, h=5, gap=2):
-    return kit.digits(cv, x, y, text, fg, w, h, gap)
 
 
 def chip(cv, x, y, label, bid, fg="0", bg="7", pad=1):
@@ -258,125 +254,14 @@ def map_selected():
     leader(cv, bx + 2, by + 5, bw - 4, "lease", "expired", "e")
     return cv
 
-# ------------------------------------------------------------------ pocket
-PTABS = ["FLEET", "JOBS", "SHOP", "PAIR"]
-def ptabs(cv, active):
-    x = 1
-    for t in PTABS:
-        lab = " %s " % t
-        cv.put(x, 1, lab, "0" if t == active else "8", "7" if t == active else "f")
-        cv.buttons.append({"id": "tab-" + t, "x": x, "y": 1, "w": len(lab), "h": 1, "label": t})
-        x += len(lab)
-    cv.put(7, 1, "•", "e", "7" if active == "FLEET" else "f")
-
-def pocket_fleet():
-    cv = Canvas(26, 20, "Pocket FLEET")
-    ptabs(cv, "FLEET")
-    alert(cv, 3, "#6 lost  3m"); alert(cv, 4, "drop 3 broken")
-    section(cv, 2, 6, 24, "TURTLES", "5")
-    for i, k in enumerate(ORDER):
-        t = T[k]; y = 7 + i
-        cv.put(2, y, ARROW[t["f"]], t["col"]); cv.put(4, y, t["id"], "0")
-        cv.put(7, y, t["state"], "0" if t["col"] == "d" else t["col"]); cv.put(22, y, where(t), "8")
-    section(cv, 2, 13, 24, "TODAY")
-    leader(cv, 2, 14, 24, "ore", "214"); leader(cv, 2, 15, 24, "logs", "96")
-    section(cv, 2, 17, 24, "SERVER")
-    cv.put(2, 18, "disk", "8"); ticks(cv, 7, 18, 14, 2); cv.put(22, 18, "13%", "0")
-    cv.put(2, 19, "4 displays · 3 leases", "8")
-    return cv
-
-def pocket_jobs():
-    cv = Canvas(26, 20, "Pocket JOBS")
-    ptabs(cv, "JOBS")
-    section(cv, 2, 3, 24, "MINING", "running", "d")
-    ticks(cv, 2, 4, 10, 7); cv.put(13, 4, "7/10", "0")
-    leader(cv, 2, 5, 24, "busy", "2/4"); leader(cv, 2, 6, 24, "lane", "▼4", "b")
-    leader(cv, 2, 7, 24, "min fuel", "412 #6", "1")
-    cv.button(2, 9, 11, "START", "mine-start", "8"); cv.button(15, 9, 11, "STOP", "mine-stop", "e")
-    section(cv, 2, 12, 24, "LUMBER", "running", "d")
-    cv.put(2, 13, "♠♠♠♠♠♠♠♠♠", "d"); cv.put(11, 13, "♣♣♣", "8"); cv.put(15, 13, "9/12", "0")
-    leader(cv, 2, 14, 24, "next grow", "6:20"); leader(cv, 2, 15, 24, "saplings", "14"); leader(cv, 2, 16, 24, "fuel", "1210")
-    cv.button(2, 18, 11, "START", "lum-start", "8"); cv.button(15, 18, 11, "STOP", "lum-stop", "e")
-    return cv
-
-def pocket_shop():
-    cv = Canvas(26, 20, "Pocket SHOP quick order")
-    ptabs(cv, "SHOP")
-    cv.put(2, 3, ">", "8"); cv.put(4, 3, "iron", "0"); cv.put(8, 3, "_", "9"); chip(cv, 23, 3, "×", "clear", "8", "f")
-    rule(cv, 2, 4, 25)
-    rows = [("IRON INGOT", 1240), ("IRON ORE", 312), ("RAW IRON", 48), ("IRON BLOCK", 27), ("IRON NUGGET", 5),
-            ("IRON DOOR", 3), ("IRON PICKAXE", 1), ("IRON BARS", 0)]
-    shop_row(cv, 2, 5, 24, rows[0][0], rows[0][1], "", sel=True, trend=False)
-    cv.button(2, 6, 7, "1", "o1"); cv.button(10, 6, 7, "16", "o16"); cv.button(18, 6, 7, "64", "o64")
-    for i, (nm, n) in enumerate(rows[1:]): shop_row(cv, 2, 8 + i, 24, nm, n, "", trend=False)
-    cv.put(2, 19, "16 IRON INGOT sent", "d")
-    return cv
-
-def pocket_pair():
-    cv = Canvas(26, 20, "Pocket PAIR")
-    ptabs(cv, "PAIR")
-    bignum(cv, 2, 5, "4821", "0", w=5, h=7, gap=1)
-    ticks(cv, 2, 14, 18, 12, "9"); cv.put(21, 14, "0:48", "0")
-    cv.button(2, 18, 24, "NEW CODE", "pair-new")
-    return cv
-
-# ------------------------------------------------------------------ takeovers
+# ------------------------------------------------------------------ callout frame
 def frame_box(cv, x, y, w, h, fg):
     rule(cv, x, y, x + w - 1, fg); rule(cv, x, y + h - 1, x + w - 1, fg)
     for j in range(y, y + h): cv.put(x, j, "|", fg); cv.put(x + w - 1, j, "|", fg)
     for a, b in ((x, y), (x + w - 1, y), (x, y + h - 1), (x + w - 1, y + h - 1)): cv.put(a, b, "+", fg)
 
-def alert_takeover():
-    cv = Canvas(57, 24, "Alert takeover, room monitor")
-    frame_box(cv, 1, 1, 57, 24, "e")
-    cv.put(5, 3, " #6 LOST ", "f", "e")
-    cv.put(15, 3, "184,-58,-369", "0"); cv.put(28, 3, "3 min", "8")
-    cv.put(5, 5, "lease expired, lane released", "8")
-    v = MD.view(49, 13, -58, 1, 1, 162, -371)
-    MD.draw(cv, v, 5, 7, select="6")
-    ticks(cv, 5, 22, 49, 30, "e")
-    return cv
-
-def unassigned():
-    cv = Canvas(57, 24, "Unassigned display")
-    header(cv, "UNASSIGNED")
-    bignum(cv, 24, 7, "7", "0", w=9, h=11)
-    return cv
-
-def no_server():
-    cv = ST.status(ST.model(), 57, 24)
-    cv.title = "No server: last picture in the stale palette, one coral row"
-    cv.fill(1, 1, 57, 1, "2")
-    cv.put(2, 1, "NO SERVER", "f", "2"); cv.put(13, 1, "0:42", "f", "2"); cv.put(45, 1, "retry in 8 s", "f", "2")
-    return cv
-
-
-def server_term():
-    cv = Canvas(51, 19, "Server terminal 51x19")
-    header(cv, "SO SERVER #1", right="up 3h12")
-    alert(cv, 3, "#6 lost"); alert(cv, 4, "drop 3 junk broken")
-    section(cv, 2, 6, 23, "FLEET")
-    leader(cv, 2, 7, 23, "turtles", "4 ok · 1 lost")
-    leader(cv, 2, 8, 23, "displays", "4")
-    leader(cv, 2, 9, 23, "leases", "3")
-    section(cv, 28, 6, 23, "DISK", "13%")
-    ticks(cv, 28, 7, 23, 3)
-    leader(cv, 28, 8, 23, "used", "2.1 MB")
-    leader(cv, 28, 9, 23, "pair", "4821")
-    section(cv, 2, 11, 49, "LOG")
-    for i, (t, m, c) in enumerate([("21:13:40", "lease 6-311 expired: #6 lost", "e"), ("21:14:02", "lease 2-961 reported ok", "8"),
-                                   ("21:14:05", "drops: 3 junk chest missing", "e"), ("21:14:09", "pair: display 10 joined", "8"),
-                                   ("21:14:11", "mine: #3 waits for lane", "1")]):
-        cv.put(2, 12 + i, t, "8"); cv.put(11, 12 + i, "•", c); cv.put(13, 12 + i, m, "0")
-    for i, (k, lab) in enumerate([("P", "pair"), ("R", "roles"), ("L", "log")]):
-        x = 2 + i * 12; cv.put(x, 19, "[" + k + "]", "9"); cv.put(x + 4, 19, lab, "0")
-    return cv
-
 SCREENS = [("03-mining-57x24", mining),
            ("04-mining-setup-57x24", mining_setup), ("05-lumber-57x24", lumber),
            ("08-drops-57x24", drops), ("09-map-57x24", map_room),
-           ("10-map-wall-100x38", map_wall), ("11-map-pocket-26x20", map_pocket), ("12-map-selected-57x24", map_selected),
-           ("13-pocket-fleet-26x20", pocket_fleet), ("14-pocket-jobs-26x20", pocket_jobs), ("15-pocket-shop-26x20", pocket_shop),
-           ("16-pocket-pair-26x20", pocket_pair), ("17-alert-57x24", alert_takeover), ("18-unassigned-57x24", unassigned),
-           ("19-no-server-57x24", no_server), ("20-server-terminal-51x19", server_term)]
+           ("10-map-wall-100x38", map_wall), ("11-map-pocket-26x20", map_pocket), ("12-map-selected-57x24", map_selected)]
 

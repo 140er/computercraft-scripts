@@ -1,0 +1,58 @@
+51x19 Server terminal, full log (L)
+ SO SERVER #1  --------------------------- up 3h12 
+                                                   
+ LOG ------------------------------------------ 6  
+ 21:13:40 • lease 6-311 expired: #6 lost           
+ 21:14:02 • lease 2-961 reported ok                
+ 21:14:05 • drops: 3 junk chest missing            
+ 21:14:09 • pair: display 10 joined                
+ 21:14:11 • mine: #3 waits for lane                
+ 21:14:20 • role: display 7: status                
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+ [Esc] back    [↑↓] scroll                         
+000000000000000ccccccccccccccccccccccccccc088888880
+000000000000000000000000000000000000000000000000000
+08880cccccccccccccccccccccccccccccccccccccccccc0800
+0888888880e0000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+0888888880e0000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+088888888010000000000000000000000000000000000000000
+088888888080000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+099999000000000999900000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

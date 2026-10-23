@@ -1,0 +1,21 @@
+alert mine.alert 6 ore chest full
+saplings 14
+stock minecraft:iron_ingot 1240
+stock minecraft:iron_ore 312
+stock minecraft:raw_iron 48
+stock minecraft:iron_block 27
+stock minecraft:iron_nugget 5
+stock minecraft:iron_door 3
+stock minecraft:iron_pickaxe 1
+stock minecraft:iron_bars 0
+stock minecraft:gold_ingot 4000
+search iron
+order 16 minecraft:iron_ingot
+pair 482915 168000
+outage 42000 8000
+log 21:13:40 lease 6-311 expired: #6 lost
+log 21:14:02 lease 2-961 reported ok
+log 21:14:05 drops: 3 junk chest missing
+log 21:14:09 pair: display 10 joined
+log 21:14:11 mine: #3 waits for lane
+log 21:14:20 role: display 7: status

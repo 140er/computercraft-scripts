@@ -141,13 +141,13 @@ return function(test,equal)
     t.s.co,t.s.inbox,t.s.timers=nil,{},{}
     t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
     equal(t.c.co,co)
-    assert(not t.face.text():find("stale",1,true),t.face.text())
+    assert(not t.face.text():find("NO SERVER",1,true),t.face.text())
     t.s.env.os.queueEvent("terminate"); t.n.flush(); t.n.hosts.so=nil
     t.c.co,t.c.inbox,t.c.timers=nil,{},{}
     t.c.boot("display.lua"); t.n.advance(40)
     t.s.co,t.s.inbox,t.s.timers=nil,{},{}
     t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
-    assert(not t.face.text():find("stale",1,true),t.face.text())
+    assert(not t.face.text():find("NO SERVER",1,true),t.face.text())
     assert(t.c.alive(),tostring(t.c.error))
   end)
   test("display clears a no-server code and accepts another after discovery",function()

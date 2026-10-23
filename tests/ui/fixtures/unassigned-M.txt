@@ -1,49 +1,73 @@
-57x24 Unassigned display, room monitor
-                                                         
- UNASSIGNED                                              
-                                                         
-                                                         
-  DISPLAY                                                
+57x24 Unassigned display 6, room monitor
+ UNASSIGNED  ------------------------------------------  
                                                          
                                                          
                                                          
                                                          
                                                          
                                                          
-                           🬞🬋                            
-                           🬛🬋🬏                           
-                           🬈🬋🬀                           
+                        +--------                        
+                        |                                
+                        |                                
+                        |                                
+                        |                                
+                        +-------+                        
+                        |       |                        
+                        |       |                        
+                        |       |                        
+                        |       |                        
+                        +-------+                        
                                                          
                                                          
                                                          
                                                          
                                                          
                                                          
-                                                         
-                                                         
-                                                         
-                                                         
+0000000000000cccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
-f9999999999999999999999999999999999999999999999999999999f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

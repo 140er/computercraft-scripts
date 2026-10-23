@@ -234,7 +234,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `statusModel()` returns the status model of the last gather, or nil. The gather
   builds route A fields (flags, turtles, jobs, today, disk, displays, drops, events
   from `SO.terminal.log`, and `thumb` from an optional `map.thumb`) beside the
-  tiles the terminal and pocket fleet rows still use.
+  tiles the panel role still uses. Every gather also builds `terminal` (counts,
+  disk and alert lines, no `mapView`) for the server terminal. State alerts keep
+  their `id` and `kind` so the takeover can find its subject.
   Compact rows let a blank cell join the previous run whatever its fg.
   A display shows one role. `assign` is the only way to change it: role nil or
   `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
@@ -244,9 +246,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   parses the terminal line `<id> <role>` or `<id> -`. The server terminal's R
   prompt, tests and the gateb driver use it. See
   [display roles](server-only/PROTOCOL.md#display-roles).
-  `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
-  code, log or role, `uptime`, `log`, `offset`, `code`, `expires` and `now`;
-  role mode adds `displays`, `input` and `notice`.
+  `terminal` returns a pure route A frame: alerts, FLEET, DISK, the log with a
+  coloured mark per line and `[P] pair [R] roles [L] log`. The view supplies
+  `id`, `mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
+  `expires`, `now` and `pending`; role mode adds `displays`, `input` and `notice`.
   `monitorTouch` queues local input for the next tick. Local and remote taps
   use the same drawn-button validation for dug-storage consent. Tick discovers a local
   monitor at most every five seconds and draws at scale 0.5 without rednet. It
@@ -267,10 +270,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   isolate revisions per session. With the kit, a roleless 26x20 display gets
   the `pocket` role. Status and pocket share the alert takeover; after it the
   pocket draws the registered `pocket` screen (so-mod-panel). Without that
-  screen, and for status at 26x20, it draws the eight fleet chip rows under a
-  FLEET header; their ALERTS row opens the takeover. Any other roleless
-  display draws UNASSIGNED with its id in big digits; a role whose screen is
-  missing draws the same block under the role name. Saved roles survive restart.
+  screen it draws the 26-wide status layout under a FLEET header. The takeover
+  is a coral frame with the alert's title chip, its subject's position, a crop
+  from an optional `map.crop(C, x, y, w, h, focus)` and a coral countdown row.
+  Any other roleless display draws UNASSIGNED with its id in line digits; a
+  role whose screen is missing draws the same page under the role name. Saved
+  roles survive restart.
   Status has no paging; big walls cap their rows and redraw tight over 15000
   frame bytes. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
@@ -303,20 +308,21 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
   ALERTS lists state alerts; PAIR offers NEW CODE.
-  The pocket screen keeps `session.pocket = { page, search, selected, sent,
-  alertPage, invitation, pairBusy }`; `display.assign` clears it. Tabs
-  `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair` sit on row 1; `alerts` (the FLEET ALERTS row) opens
-  the alert list with `alert-prev` and `alert-next`. FLEET and ALERTS read
-  `display.statusModel()`. Tick renders mining and lumber at 120x18 with a
-  private session and reads their header state and the compact `LABEL VALUE`
-  rows 3-8 with each row's colour; JOBS shows four of them and forwards
-  `mining:start|stop` and `lumber:start|stop` once; a frame without the
-  expected rows keeps the last facts. SHOP lists as many `shop.matches` items as
-  fit; `pick:<item>` selects, `clear` empties the search, and
-  `order:<1|16|64>:<item>` under the shown item calls `shop.order(item, count)`
-  once while that item still matches the search.
-  PAIR uses the same `pair-code` path as the panel. Inputs act only on the page
-  that drew them.
+  The pocket screen (route A, twin of `docs/ui/schematic/pocket.py`) keeps
+  `session.pocket = { page, search, selected, sent, alertPage, invitation,
+  pairBusy }`; `display.assign` clears it. Tabs `tab:fleet`, `tab:jobs`,
+  `tab:shop` and `tab:pair` sit on row 1, with a coral dot in FLEET while any
+  flag exists. FLEET is status's column layout from `display.statusModel()`;
+  each alert row is an `alerts` button that opens ALERTS (every flag with its
+  detail, `alert-prev` and `alert-next`). JOBS reads `mine.facts()` and
+  `lumber.facts()` when present, else the status model, else the state the
+  panel's 120x18 probe reads; it forwards `mining:start|stop` and
+  `lumber:start|stop` once. SHOP lists as many `shop.matches` items as fit;
+  `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64>:<item>`
+  under the shown item calls `shop.order(item, count)` once while that item
+  still matches the search. PAIR draws the code in line digits with a teal
+  countdown and uses the same `pair-code` path as the panel. Inputs act only on
+  the page that drew them.
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
   Code frames use the display's own key; other displays never receive them.
@@ -490,8 +496,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Compact text omits trailing spaces, which the client pads to the run width.
   Frames may carry a 0-based RGB palette and monitor scale 0.5 or 1. Missing
   palettes restore stock colours. A changed scale sends one resized hello.
-  Buttons accept optional height `h`, default 1. The client draws the outage
-  tile and timers without a server, preserving inverted digit cells.
+  Buttons accept optional height `h`, default 1. Without a server the client
+  keeps the last picture, swaps to the grey `stale` palette without redrawing it
+  and draws one coral row, `NO SERVER m:ss ... retry in N s`, redrawn alone
+  once a second on palette outputs and on every retry.
   Pairing prompts and digits appear on the display and
   its computer terminal. Failed pairing accepts a new code. A `pair.required`
   hint shows the same prompt without deleting the old key. Authenticated frames
@@ -736,12 +744,9 @@ from a tiles-only model, alert takeover timing and dismissal, takeover contrast,
 clipping, locked roles, size-specific revisions, source gathering and server-only
 kit installation. UI-3b covers the pocket's 20 rows.
 
-R3 adds `tests/ui/r3pocket.lua`. It checks every pocket page against its
-fixture (pocket-fleet, -alerts, -jobs, -shop, -pair, -code), tab
-routing after a takeover, one action per START, STOP and order tap, exact-item
-orders, one-row controls, contrast and bounds at 26x20 and 26x19, missing
-modules, alert paging, the fleet chips from a real gather and job facts from
-the real mining and lumber screens.
+R3 adds `tests/ui/r3pocket.lua`. It checks tab routing after a takeover,
+missing modules, the fleet chips from a real gather, exact-item orders and the
+JOBS page over the real mining and lumber modules. The route A pages moved to S4.
 
 
 UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
@@ -774,6 +779,17 @@ through the real gather. The test also checks every kit primitive, the coloured-
 contrast rule, missing modules, odd sizes, the tight wall fallback, blank-run
 compaction on the 164x81 map fixture under 16 KB, and control glyphs through
 `so-proto`, compact rows and the display client.
+
+S4 adds `tests/ui/s4.lua` and `tests/ui/scene.lua`, a running server fed from
+the status, map and `system-scene.txt` scenes. `docs/ui/schematic/pocket.py` and
+`system.py` write the pocket (`pocket-fleet/alerts/jobs/shop/pair/code-P`),
+takeover (`alert-M/W/T/P/XS`, `alert-nomap-M`), unassigned (`unassigned-M/XS`,
+`unloaded-M`), no-server (`outage-M/P`) and terminal (`server-T`, `pairing-T`,
+`log-T`, `roles-T`) fixtures. The test matches each through the real server
+path (and display.lua for no-server) in text, fg and bg, with contrast and
+bounds. It also checks the JOBS fallbacks, one action per tap, alert paging,
+takeover timing, the crop call and its failure, the grey palette and row-only
+repaint, the R prompt and frame sizes.
 
 R5 rewrites `tests/so/map.lua`. It renders every `map-*` fixture from the
 scene in `tests/ui/map-scene.txt` through the real cells module, checks a lit

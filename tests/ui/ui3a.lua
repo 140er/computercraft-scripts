@@ -64,22 +64,16 @@ local function server()
   return s
 end
 return function(test,equal)
-  test("UI3a normal and pairing match unchanged fixtures",function()
+  test("UI3a terminal modes stay inside every size (fixtures in tests/ui/s4.lua)",function()
     local d=setup().display
     assert(d.terminal,"terminal renderer missing")
-    local m={tiles={},terminalSubs={"ok","fresh","2.1 MB","see log"}}
-    for _,t in ipairs({{1,"TURTLES","3","d"},{7,"DISPLAYS","4","d"},
-      {6,"DISK","13%","d"},{3,"ALERTS","1","e"}}) do
-      m.tiles[t[1]]={label=t[2],value=t[3],bg=t[4]}
-    end
-    local v={id=1,mode="normal",uptime="up 3h12",log={
+    local m={tiles={}}
+    local v={id=1,mode="normal",uptime="up 3h12",code="482915",now=0,expires=292000,log={
       "21:14:02 lease 2-961 reported ok","21:14:05 drops: hold ore (3)",
       "21:14:09 pair: display 7 joined","21:14:11 mine: #3 wait lane"}}
-    local diff=R.diff("tests/ui/fixtures/server-T.txt",capture(d.terminal(m,v,51,19),51,19))
-    assert(#diff==0,table.concat(diff,"\n"))
-    v.mode,v.code,v.now,v.expires="code","482915",0,292000
-    diff=R.diff("tests/ui/fixtures/pairing-T.txt",capture(d.terminal(m,v,51,19),51,19))
-    assert(#diff==0,table.concat(diff,"\n"))
+    local text=capture(d.terminal(m,v,51,19),51,19).picture().text
+    assert(text[1]:find("SO SERVER #1",1,true) and text[1]:find("up 3h12",1,true),text[1])
+    assert(text[19]:find("[P] pair",1,true) and text[19]:find("[R] roles",1,true) and text[19]:find("[L] log",1,true),text[19])
     for _,size in ipairs({{1,1},{15,10},{26,20},{39,19},{100,38}}) do
       for _,mode in ipairs({"normal","code","log"}) do
         v.mode=mode;capture(d.terminal(m,v,size[1],size[2]),size[1],size[2])
@@ -118,7 +112,7 @@ return function(test,equal)
     s.env.SO.terminal={id=1,started=0,mode="normal",log={"retained server message"}}
     s.now=11520000;s.display.tick(s.now)
     local picture=s.env.term.picture()
-    assert(picture.text[2]:find("up 3h12",1,true))
+    assert(picture.text[1]:find("up 3h12",1,true))
     assert(table.concat(picture.text,"\n"):find("retained server message",1,true))
     equal(s.env.term.palette[2^9][1],s.display.palette[9])
   end)

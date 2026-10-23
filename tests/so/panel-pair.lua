@@ -83,7 +83,29 @@ end
 
 local U = dofile("so-ui.lua")
 
+-- The pocket's PAIR page draws the code in route A line digits (rows 5-11, 3 cells wide, 1 apart).
+local function readLineCode(s)
+  local code = ""
+  for i=1,6 do
+    local x, found = 2+(i-1)*4
+    for digit=0,9 do
+      local c = U.canvas(3,7)
+      c.digits(1,1,tostring(digit),"0",3,7,1)
+      local rows, matches = c.frame().rows, true
+      for row=1,7 do
+        local want = ((rows[row].text or "") .. "   "):sub(1,3)
+        if (s.client.screen[row+4] or ""):sub(x,x+2) ~= want then matches=false end
+      end
+      if matches then assert(not found,"ambiguous digit");found=tostring(digit) end
+    end
+    assert(found,"missing line digit")
+    code=code..found
+  end
+  return code
+end
+
 local function readCode(s, w)
+  if w == 26 then return readLineCode(s) end
   local code = ""
   local x = 1 + math.floor((w-18)/2)
   for i=1,6 do
@@ -101,6 +123,12 @@ local function readCode(s, w)
     x=x+3
   end
   return code
+end
+
+-- The code's countdown: row 14 on the pocket PAIR page, "m:ss left" on row 7 of the panel role.
+local function countdown(s, w)
+  if w == 26 then return (s.frame().rows[14].text or ""):match("%d+:%d%d") end
+  return (s.frame().rows[7].text or ""):match("%d+:%d%d left")
 end
 
 local function newClient(s, id, code)
@@ -134,7 +162,7 @@ return function(test, equal)
       equal(s.server.env.SO.terminal.mode,"code")
       local expires=s.server.env.SO.terminal.expires
       s.net.advance(2)
-      assert(s.frame().rows[7].text:find("4:58 left",1,true))
+      assert((countdown(s,w) or ""):find("4:58",1,true))
       s.press("NEW CODE")
       equal(readCode(s,w),code)
       equal(s.server.env.SO.terminal.expires,expires)
@@ -142,7 +170,7 @@ return function(test, equal)
       assert(s.server.env.SO.pair.key(joined.id),"client did not pair")
       equal(s.server.env.SO.pair.pending(),nil)
       s.net.advance(2)
-      assert(not s.frame().rows[7].text:find("left",1,true))
+      assert(not countdown(s,w))
       local late=newClient(s,4,code)
       s.net.advance(8)
       equal(s.server.env.SO.pair.key(late.id),nil)
@@ -167,7 +195,7 @@ return function(test, equal)
       display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
       local other
       display.handlers["view.get"]({from=5},function(_,body) other=body end)
-      for row=4,6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
+      for row=w==26 and 5 or 4,w==26 and 7 or 6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
       local proto=s.server.env.SO.proto
       for _,packet in ipairs(s.server.sent) do
         if packet.payload.t=="view.frame" then
@@ -177,7 +205,7 @@ return function(test, equal)
       end
       s.net.advance(300)
       equal(pair.pending(),nil)
-      assert(not s.frame().rows[7].text:find("left",1,true))
+      assert(not countdown(s,w))
       equal(s.server.env.SO.terminal.mode,"normal")
       s.press("NEW CODE")
       assert(pair.pending(),"new invitation after expiry")

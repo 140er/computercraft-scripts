@@ -84,13 +84,16 @@ return function(test,equal)
       assert(got.text[1]:find('^ STATUS'),size..' '..got.text[1])
     end
   end)
-  test('UI1 takeover matches alert fixture',function()
-    local m=model();m.takeover=m.alerts[1];m.takeover.count=3
-    local diff=R.diff('tests/ui/fixtures/alert-M.txt',capture(U.alert(m,57,24),57,24))
-    assert(#diff==0,table.concat(diff,'\n'))
+  test('UI1 takeover draws the route A alert (its fixtures are in tests/ui/s4.lua)',function()
+    local _,s,frame=server()
+    s.values['mine.alert']={text='ore chest full'}
+    local got=capture(frame(2),57,24).picture()
+    assert(got.text[3]:find(' ORE CHEST FULL ',1,true),got.text[3])
+    equal(got.bg[3]:sub(5,5),'e')
+    equal(got.fg[1]:sub(1,1),'e')
   end)
   test('UI1 contrast respects ink including inverted glyph cells',function()
-    -- Route A status follows the coloured-glyph rule in tests/ui/s0.lua; the takeover keeps tiles.
+    -- Route A screens follow the coloured-glyph rule in tests/ui/s0.lua and s4.lua; U.alert is the old tiled takeover.
     for _,size in ipairs({'M','L','P','XS','T'}) do
       local fixture=R.load('tests/ui/fixtures/status-'..size..'.txt')
       local frames={U.alert(model(),fixture.w,fixture.h)}
@@ -207,7 +210,7 @@ return function(test,equal)
     frame(2)
     s.now=30000;s.values['lumber.alert']={text='newest'}
     local got=frame(2)
-    assert(capture(got,57,24).picture().text[12]:find('NEWEST',1,true))
+    assert(capture(got,57,24).picture().text[3]:find('NEWEST',1,true))
     assert(#dofile('so-proto.lua').ser(got)<15000)
     local first=frame(3,15,10)
     frame(2,39,19)

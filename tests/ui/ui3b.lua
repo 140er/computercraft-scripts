@@ -115,12 +115,12 @@ return function(test,equal)
   test('UI3b pocket FLEET shows every fact on one page and pages stay per pocket',function()
     local s=setup();s.frame(2);s.frame(3)
     local text=table.concat(capture(s.frame(2),26,20).picture().text,'\n')
-    for _,label in ipairs({'TURTLES','LEASES','ALERTS','ORE TODAY','LOGS TODAY','DISK','DISPLAYS','DROPS'}) do
+    for _,label in ipairs({'TURTLES','TODAY','SERVER','disk','displays'}) do
       assert(text:find(label,1,true),label)
     end
     s.tap(2,'tab:shop')
-    assert(capture(s.frame(3),26,20).picture().text[3]:find('TURTLES',1,true))
-    assert(not capture(s.frame(2),26,20).picture().text[3]:find('TURTLES',1,true))
+    assert(table.concat(capture(s.frame(3),26,20).picture().text,'\n'):find('TURTLES',1,true))
+    assert(not table.concat(capture(s.frame(2),26,20).picture().text,'\n'):find('TURTLES',1,true))
   end)
   test('UI3b panel fixture matches and controls dispatch once per tap',function()
     local s=setup();s.now=(21*60+14)*60000;s.frame(2);assert(s.display.assign(2,'panel'));s.tap(2,nil,'iron')

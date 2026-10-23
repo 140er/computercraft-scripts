@@ -1,4 +1,4 @@
--- R3: the pocket role's own pages at 26x20. Fixtures come from docs/ui/mockup-gen.py.
+-- R3: pocket routing, missing modules and the real job and shop modules behind the pocket pages.
 local R = dofile('tests/ui/render.lua')
 local U = dofile('so-ui.lua')
 
@@ -102,31 +102,8 @@ local function find(frame, id)
   for _,b in ipairs(frame.buttons) do if b.id==id then return b end end
 end
 
--- Text on d,1,e,b,a,9 and 0 is f; on f,7,c it is 0 or 8. Inverted big-digit cells count either way.
-local function contrast(out)
-  local function ok(fg, bg)
-    return (bg=='0' and fg=='f') or (bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-      (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f'
-  end
-  for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-    local fg,bg = cell[2],cell[3]
-    local sextant = cell[1]:byte()>=128 and cell[1]:byte()<=159
-    assert(ok(fg,bg) or sextant and ok(bg,fg),'contrast '..fg..'/'..bg)
-  end end
-end
-
 return function(test, equal)
-  test('R3 every pocket page matches its fixture at 26x20', function()
-    local s = setup()
-    s.match('tests/ui/fixtures/pocket-fleet-P.txt')
-    s.tap('alerts');s.match('tests/ui/fixtures/pocket-alerts-P.txt')
-    s.tap('tab:jobs');s.match('tests/ui/fixtures/pocket-jobs-P.txt')
-    s.tap('tab:shop');s.type('iron');s.tap('order:16:minecraft:iron_ingot');s.match('tests/ui/fixtures/pocket-shop-P.txt')
-    s.tap('tab:pair');s.match('tests/ui/fixtures/pocket-pair-P.txt')
-    s.tap('pair-code');s.match('tests/ui/fixtures/pocket-code-P.txt')
-    -- status-P is route A now; tests/ui/s0.lua checks it from the real gather.
-  end)
-
+  -- The route A pages, their fixtures, one tap per action and the alert list are in tests/ui/s4.lua.
   test('R3 pocket routing: tabs change pages, a takeover comes first, the role never changes', function()
     local s = setup()
     s.D.model = nil
@@ -134,7 +111,7 @@ return function(test, equal)
     s.display.handlers.hello({from=2,body={w=26,h=19,fullH=20,keyboard=true}})
     local function frame() local f;s.display.handlers['view.get']({from=2},function(_,b) f=b end);return f end
     local f = frame();equal(f.role,'pocket')
-    assert(capture(f,26,20).picture().text[4]:find('ALERT',1,true),'new alert takes over first')
+    assert(find(f,'dismiss') and capture(f,26,20).picture().text[3]:find('ORE CHEST FULL',1,true),'new alert takes over first')
     s.display.handlers.input({from=2,body={id='dismiss',x=1,y=1}})
     f = frame();equal(f.role,'pocket')
     for _,tab in ipairs({'fleet','jobs','shop','pair'}) do
@@ -153,64 +130,6 @@ return function(test, equal)
     equal(frame().role,'status')
   end)
 
-  test('R3 one tap is one action: START, STOP and each order send exactly once', function()
-    local s = setup()
-    s.tap('mining:start');equal(#s.calls,0)
-    s.tap('tab:jobs')
-    for _,role in ipairs({'mining','lumber'}) do for _,cmd in ipairs({'start','stop'}) do
-      local n=#s.calls;s.tap(role..':'..cmd);equal(#s.calls,n+1);equal(s.calls[#s.calls],{role,cmd})
-    end end
-    s.tap('lumber:start')
-    assert(capture(s.render(),26,20).picture().text[12]:find('running',1,true),'state chip follows the job')
-    s.lumber.value='hold saplings chest; fix drop point and start';s.panel.tick(0)
-    local row=capture(s.render(),26,20).picture()
-    assert(row.text[12]:find('LUMBER',1,true) and row.text[12]:find('hold ',1,true),row.text[12])
-    assert(row.bg[12]:find('111111',1,true),'hold is amber')
-    s.lumber.value='out of range';s.panel.tick(0)
-    assert(capture(s.render(),26,20).picture().text[12]:find('out of range',1,true),'a state that fits stays whole')
-    s.tap('order:16:minecraft:iron_ingot');equal(#s.sends,0)
-    s.tap('tab:shop');s.type('iron')
-    for _,amount in ipairs({1,16,64}) do
-      assert(find(s.render(),'order:'..amount..':minecraft:iron_ingot'),'chip names its item')
-      local n=#s.sends;s.tap('order:'..amount..':minecraft:iron_ingot');equal(#s.sends,n+1)
-      local sent=s.sends[#s.sends]
-      equal({sent.id,sent.protocol,sent.body.cmd,sent.body.text,sent.body.n},{9,'roomsorter','order','minecraft:iron_ingot',amount})
-    end
-    s.tap('pick:minecraft:raw_iron')
-    local f = s.render();local chip = find(f,'order:64:minecraft:raw_iron')
-    equal(chip.y,find(f,'pick:minecraft:raw_iron').y+1)
-    s.tap('order:64:minecraft:raw_iron');equal(s.sends[#s.sends].body.text,'minecraft:raw_iron')
-    assert(capture(s.render(),26,20).picture().text[19]:find('sent 64 RAW IRON',1,true))
-    local n=#s.sends;s.render();s.panel.tick(0);s.render();equal(#s.sends,n)
-    s.tap('clear');assert(find(s.render(),'pick:minecraft:gold_ingot'),'clear shows every item')
-    s.type('missing');f=s.render()
-    for _,b in ipairs(f.buttons) do assert(not b.id:match('^order:')) end
-    s.tap('order:1:minecraft:iron_ingot');equal(#s.sends,n)
-    s.type('raw');s.tap('order:16:minecraft:iron_ingot');equal(#s.sends,n,'a chip for an item outside the search')
-    s.tap('tab:pair');n=#s.calls;s.tap('pair-code');equal(#s.calls,n+1);equal(s.calls[#s.calls],{'pair',2})
-    s.tap('tab:jobs');n=#s.calls;s.tap('pair-code');equal(#s.calls,n)
-  end)
-
-  test('R3 every pocket control is one row, inside the screen, with contrast, at 26x20 and 26x19', function()
-    for _,h in ipairs({20,19}) do
-      local s = setup()
-      for _,page in ipairs({'fleet','alerts','jobs','shop','pair'}) do
-        if page=='alerts' then s.tap('tab:fleet') end
-        s.tap(page=='alerts' and 'alerts' or 'tab:'..page)
-        if page=='shop' then s.type('iron') end
-        local f = s.render(h);local out = capture(f,26,h)
-        contrast(out)
-        local seen = {}
-        for _,b in ipairs(f.buttons) do
-          equal(b.h,1,page..' '..b.id..' height')
-          for y=b.y,b.y+b.h-1 do for x=b.x,b.x+b.w-1 do
-            assert(not seen[y..','..x],page..' overlapping '..b.id);seen[y..','..x]=true
-          end end
-        end
-      end
-    end
-  end)
-
   test('R3 missing job screens draw grey controls without targets; missing shop says so', function()
     local s = setup()
     s.D.screens.mining,s.D.screens.lumber,s.D.screens.shop = nil,nil,nil
@@ -222,32 +141,6 @@ return function(test, equal)
     s.tap('tab:shop');f = s.render()
     assert(table.concat(capture(f,26,20).picture().text,'\n'):find('shop not loaded',1,true))
     for _,b in ipairs(f.buttons) do assert(not b.id:match('^order:')) end
-  end)
-
-  test('R3 jobs keep the last facts while a job screen shows its SETUP rows', function()
-    local s = setup()
-    s.tap('tab:jobs');assert(capture(s.render(),26,20).picture().text[13]:find('TREES READY',1,true))
-    s.display.screen('lumber',function(w,h)
-      local c=U.canvas(w,h);c.header('LUMBER','stopped')
-      for i,line in ipairs({'AREA 1,2 to 3,4','GROUND 64','SAPLINGS -'}) do c.put(2,i+2,line,'0','f') end
-      return c.frame()
-    end,function() end)
-    s.panel.tick(0)
-    local text=capture(s.render(),26,20).picture().text
-    assert(text[13]:find('TREES READY',1,true) and text[14]:find('SAPLINGS',1,true),text[13])
-    assert(not table.concat(text,'\n'):find('AREA',1,true))
-  end)
-
-  test('R3 alerts page wraps, pages and returns to FLEET', function()
-    local s = setup()
-    for i=4,12 do s.D.model.alerts[i]={key='k'..i,sequence=i,text='fault number '..i..' needs a look at drop point '..i} end
-    s.tap('alerts');local f=s.render();local text=capture(f,26,20).picture().text
-    assert(text[5]:find('fault number 12',1,true));assert(find(f,'alert-next'))
-    local pages=tonumber(text[20]:match('1/(%d+)'))
-    for _=1,pages do s.tap('alert-next') end
-    assert(capture(s.render(),26,20).picture().text[5]:find('fault number 12',1,true),'paging wraps')
-    s.tap('alert-prev');assert(capture(s.render(),26,20).picture().text[20]:find(pages..'/'..pages,1,true))
-    s.tap('tab:fleet');assert(find(s.render(),'alerts'))
   end)
 
   test('R3 status gather builds the fleet chips', function()
@@ -288,10 +181,8 @@ return function(test, equal)
     mine.tick(0);lumber.tick(0);s.panel.tick(0)
     s.tap('tab:jobs')
     local text=capture(s.render(),26,20).picture().text
-    assert(text[3]:find('MINING',1,true) and text[3]:find('stopped',1,true))
-    assert(text[5]:find('DEPTH',1,true) and text[5]:find('-58',1,true))
-    assert(text[6]:find('BRANCHES',1,true) and text[6]:find('3/8',1,true))
-    assert(text[13]:find('TREES READY',1,true))
+    assert(text[3]:find('MINING',1,true) and text[3]:find('stopped',1,true),text[3])
+    assert(text[12]:find('LUMBER',1,true),text[12])
     s.tap('mining:start')
     assert(capture(s.render(),26,20).picture().text[3]:find('running',1,true))
     equal(jobs['so-data/mine/job'].running,true)

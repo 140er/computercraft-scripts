@@ -286,8 +286,8 @@ S.run = function(rate)
     for id,d in pairs(g.displays) do
       record(7,d.alive(),"display "..id.." error "..tostring(d.error))
       local pic=picture(d)
-      if g.killAt and not g.bootAt and pic:find("stale",1,true) then g.stale[id]=true end
-      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("stale",1,true) and #pic>0 then
+      if g.killAt and not g.bootAt and pic:find("NO SERVER",1,true) then g.stale[id]=true end
+      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("NO SERVER",1,true) and #pic>0 then
         g.pictures[id]=(n.time-g.bootAt)/1000
       end
     end
@@ -727,8 +727,8 @@ S.runBusy = function(rate)
     for id,d in pairs(g.displays) do
       record(7,d.alive(),"display "..id.." error "..tostring(d.error))
       local pic=picture(d)
-      if g.killAt and not g.bootAt and pic:find("stale",1,true) then g.stale[id]=true end
-      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("stale",1,true) and #pic>0 then
+      if g.killAt and not g.bootAt and pic:find("NO SERVER",1,true) then g.stale[id]=true end
+      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("NO SERVER",1,true) and #pic>0 then
         g.pictures[id]=(n.time-g.bootAt)/1000
       end
     end

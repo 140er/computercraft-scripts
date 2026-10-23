@@ -152,7 +152,7 @@ return function(test, equal)
     local f = s.frame()
     equal(f.role, "unassigned")
     equal(#f.buttons, 0)
-    assert(f.rows[2].text:find("UNASSIGNED", 1, true))
+    assert(f.rows[1].text:find("UNASSIGNED", 1, true))
     local D = s.display()
     equal({D.command("2 mining")}, {true, "display 2: mining"})
     s.net.advance(1)
@@ -232,7 +232,7 @@ return function(test, equal)
       end
       return out
     end
-    local view = {id=1, mode="role", input="6 shop", notice="display 7: status", displays={
+    local view = {id=1, uptime="up 3h12", mode="role", input="6 shop", notice="display 7: status", displays={
       {id=1, size="57x24", role="status"}, {id=2, size="26x20", role="pocket"}, {id=5, size="57x24", role="mining"},
       {id=6, size="57x24", role="unassigned"}, {id=7, size="15x10", role="status"}, {id=9, size="-", role="drops"}}}
     equal(R.diff("tests/ui/fixtures/roles-T.txt", capture(D.terminal({tiles={}}, view, 51, 19), 51, 19)), {})
@@ -335,6 +335,6 @@ return function(test, equal)
     assert(text[17]:find("roles: status pocket mining", 1, true), text[17])
     assert(text[18]:find("panel map", 1, true), text[18])
     assert(text[16]:find("+", 1, true) and text[16]:find("more", 1, true), text[16])
-    assert(text[15]:find("^ 11 "), text[15])
+    assert(text[15]:find("^ +12 "), text[15])
   end)
 end

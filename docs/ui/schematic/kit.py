@@ -135,7 +135,7 @@ def box(cv, x, y, w, h, fg):
 
 # Thin seven-segment digits drawn with - | +.
 SEG = {"0": "abcdef", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc", "5": "afgcd", "6": "afgedc",
-       "7": "abc", "8": "abcdefg", "9": "abcdfg"}
+       "7": "abc", "8": "abcdefg", "9": "abcdfg", "-": "g"}
 
 
 def digit(cv, x, y, d, fg="0", w=4, h=5):

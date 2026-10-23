@@ -105,6 +105,7 @@ muted `·`.
 
 Only for numbers read across a room: the pair code and the unassigned display id. Thin
 seven-segment digits drawn with `- | +`, default 4 cells wide, 5 rows tall, 2 cells apart.
+`-` draws the middle stroke alone, so a code not issued yet reads `------`.
 
 ## 9. Glyphs
 
@@ -249,3 +250,66 @@ from `tests/ui/shop-stock.tsv`. See [shop](../server-only/PROTOCOL.md#shop) for 
 - **Footer:** `1 of 2` and the `◄ ►` chips on the last row; a chip with nowhere to go is muted.
   Screens of 16 rows or more keep a blank row under the header and above the footer.
 
+## 16. Pocket
+
+The pocket role at 26x20 (26x19 for older clients); `so-mod-panel.lua` draws it and
+`schematic/pocket.py` is its twin.
+
+- **Tabs:** row 1 from column 1, ` FLEET  JOBS  SHOP  PAIR `, the active tab `0` on `7`, the
+  others muted. A coral `•` sits inside FLEET while any flag exists. There is no role name.
+- **FLEET:** status's column layout (section 13) under the tabs. Each alert row is an `alerts`
+  button.
+- **ALERTS** (a FLEET page): `ALERTS` with the count in coral, then every flag: a coral `!`,
+  two rows of white text and two of muted detail, a blank row between flags. More than fit
+  page with `◄` and `►` chips and a muted `n/m` on the last row.
+- **JOBS:** MINING at row 3 and LUMBER at row 12, each a section with the state word at the
+  right in its tone (a long hold reads as its first word). Mining: `|||||||··· 7/10`, `busy`,
+  `lane` (the holder's arrow and id in blue), `min fuel` (`412 #6`, amber under 500). Lumber:
+  `♠♠♠♠♠♠♠♠♠♣♣♣ 9/12`, `next grow`, `saplings`, `fuel`. Missing values are a muted `-`. START and
+  STOP are 11-cell chips two rows under the facts; the one that does nothing now is muted. A
+  missing job draws `not loaded` and grey chips without targets.
+- **SHOP:** `> iron_` (muted prompt, teal cursor) with an `×` chip to clear, a hairline, then
+  the matches as leaders, the count amber under 10 and muted at 0. The shown item sits on the
+  panel colour with its `1` `16` `64` chips under it; the last order is on row 19, green when
+  sent, coral when not.
+- **PAIR:** the code in line digits 3 cells wide and 7 tall, a teal 18-cell tick row counting
+  its five minutes down with `m:ss`, and NEW CODE on row 18. Without a code the digits read
+  `------` in muted grey; `code in use` (amber) when another display holds one.
+
+## 17. System screens
+
+`so-mod-display.lua` draws the takeover and the unassigned page, `display.lua` the no-server
+row; `schematic/system.py` is their twin.
+
+- **Alert takeover:** a coral box around the screen. Row 3 holds a coral title chip
+  (` #6 ORE CHEST FULL `) and the subject's position in white, or the position on row 4 when
+  it does not fit. The detail follows, muted, after a blank row. Below it a crop of the map
+  around the subject (`map.crop`, one block per cell, the subject inverted) fills down to five
+  rows from the bottom, and row h-2 is a coral tick row of the time left out of 5 s. Margins
+  are 4 cells from 40 columns up, else 2. Opened by a tap it has no tick row; any tap
+  dismisses it. Without a crop (no map module, or it failed) the subject's facts take its
+  place as leaders, 30 cells wide: `state`, `where`, `fuel`, `ore`, `seen` for a turtle, `kind`
+  and `state` for a drop.
+- **Unassigned:** the header holds `UNASSIGNED` (or the role whose module is missing) and the
+  display id fills the screen in line digits, at most 9 wide and 11 tall, centred. Too small
+  for digits, the id is plain text on row 3.
+- **No server:** the client keeps the last picture and swaps the palette to `U.stale`, then
+  draws row 1 on `2` (coral in that palette): ` NO SERVER  0:42` and `retry in 8 s` ending one
+  cell from the right edge (`8s`, or nothing, when narrow). Only that row is redrawn each
+  second.
+
+## 18. Server terminal
+
+51x19: the header `SO SERVER #1` with the uptime at the right, up to two alert flags, FLEET
+(`turtles 4 ok · 1 lost` with the lost count coral, `displays`, `leases`) beside DISK (the
+percentage on its section, a full-width tick row, `used`, `pair` with a pending code), then
+LOG: each line a muted `hh:mm:ss`, a `•` mark in its tone and white text. Row 19 holds the key
+hints, `[P] pair  [R] roles  [L] log`, with the keys teal. Under 48 columns DISK moves under
+FLEET.
+
+- **P:** `PAIR CODE`, the six-digit code in line digits 5x7, a teal tick row with `m:ss`, and
+  `[P] new code  [Esc] cancel`.
+- **L:** the whole log under `LOG` with its line count, `[Esc] back  [↑↓] scroll`.
+- **R:** `DISPLAYS` with the count, then id, size (muted) and role (muted when unassigned),
+  `+N more` when they do not fit, the last result above the prompt (two rows when long), and
+  `> 6 shop_` with `[Enter] set  [Esc] back` at the right.

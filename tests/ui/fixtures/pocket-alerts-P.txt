@@ -1,15 +1,13 @@
-26x20 Pocket ALERTS (a FLEET page), newest first
- FLEET  JOBS  SHOP  PAIR  
+26x20 Pocket ALERTS, a FLEET page
+ FLEET• JOBS  SHOP  PAIR  
                           
- ALERTS                3  
+ ALERTS -------------- 3  
+ ! #6 lost                
+   184,-58,-369 · 3 min   
                           
-   ore chest full         
+ ! ore chest full         
                           
-   hold saplings chest;   
-   fix drop point and     
-   start                  
-                          
-   drops: hold fuel       
+ ! drop 3 junk broken     
                           
                           
                           
@@ -19,17 +17,39 @@
                           
                           
                           
-99999997777777777777777777
+                          
+                          
+000000e8888888888888888880
+00000000000000000000000000
+08888880cccccccccccccc0e00
+0e000000000000000000000000
+00088888888888888888888000
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+7777777fffffffffffffffffff
 ffffffffffffffffffffffffff
-ffffffffffffffffffffffeeef
 ffffffffffffffffffffffffff
-feffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-feffffffffffffffffffffffff
-feffffffffffffffffffffffff
-feffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-feffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff

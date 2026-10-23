@@ -169,8 +169,13 @@ C.clipDraw = function()
       local label = type(b.label) == "string" and b.label or ""
       local room = C.w - b.x + 1
       if #label > room then label = label:sub(1, room) end
-      if out.setCursorPos then out.setCursorPos(b.x, b.y) end
-      if out.write then out.write(label) end
+      -- A label is drawn only on a blank button; drawn chips and tabs already show theirs.
+      local row = type(C.rows[b.y]) == "table" and C.expand(C.rows[b.y]) or ""
+      local span = type(b.w) == "number" and b.w > #label and b.w or #label
+      if label ~= "" and not row:sub(b.x, b.x + span - 1):find("%S") then
+        if out.setCursorPos then out.setCursorPos(b.x, b.y) end
+        if out.write then out.write(label) end
+      end
     end
   end
   C.drawInput()
@@ -180,78 +185,28 @@ C.clipDraw = function()
   end
 end
 
-C.font = {
-  ["0"] = ".###.#...##...##...##...##...#.###.",
-  ["1"] = "..#...##....#....#....#....#...###.",
-  ["2"] = ".###.#...#....#...#...#...#...#####",
-  ["3"] = "####.....#....#.###.....#....#####.",
-  ["4"] = "...#...##..#.#.#..#.#####...#....#.",
-  ["5"] = "######....####.....#....##...#.###.",
-  ["6"] = "..##..#...#....####.#...##...#.###.",
-  ["7"] = "#####....#...#...#...#....#....#...",
-  ["8"] = ".###.#...##...#.###.#...##...#.###.",
-  ["9"] = ".###.#...##...#.####....#...#..##..",
-  [":"] = "......##...##........##...##.......",
-}
+-- No server: the last picture stays and only the palette changes, to this grey ramp (so-ui.lua U.stale);
+-- slot 2 carries the one coral row.
+C.stale = { [0] = 0x6A7690, 0x46526C, 0xFF6B5E, 0x46526C, 0x46526C, 0x46526C, 0x46526C, 0x18223A,
+  0x46526C, 0x46526C, 0x46526C, 0x46526C, 0x222B3E, 0x46526C, 0x46526C, 0x0B111C }
 
+-- The coral row: NO SERVER, the time since the last frame, and the next retry at the right.
 C.drawStale = function()
-  if not C.out then return end
-  local function draw(x, y, text, fg, bg)
-    if y < 1 or y > C.h or x > C.w then return end
-    if x < 1 then text = text:sub(2 - x); x = 1 end
-    text = text:sub(1, C.w - x + 1)
-    C.out.setCursorPos(x, y)
-    C.paint(text, fg, bg)
-  end
-  for y = 1, C.h do
-    local row = C.rows[y]
-    local text, fg, bg = "", "0", "c"
-    if type(row) == "table" then text, fg, bg = C.expand(row) end
-    text = (text .. string.rep(" ", C.w)):sub(1, C.w)
-    local f, b = {}, {}
-    for x = 1, C.w do
-      local old = type(bg) == "string" and (#bg == 1 and bg or bg:sub(x, x)) or ""
-      local invert = text:byte(x) >= 128 and text:byte(x) <= 159 and ((old == "f" and type(fg) == "string"
-          and (#fg == 1 and fg or fg:sub(x, x)) ~= "0"
-          and (#fg == 1 and fg or fg:sub(x, x)) ~= "8") or old == "0")
-      f[x], b[x] = invert and "c" or "0", invert and "0" or "c"
-    end
-    draw(1, y, text, table.concat(f), table.concat(b))
-  end
-  for _, button in ipairs(C.buttons) do
-    if type(button.x) == "number" and type(button.y) == "number" and type(button.label) == "string" then
-      draw(button.x, button.y, button.label, "0", "c")
-    end
-  end
-  local x, y = math.floor((C.w - 21) / 2) + 1, math.floor((C.h - 7) / 2) + 1
-  for r = 0, 6 do draw(x, y + r, string.rep(" ", 21), "f", "e") end
-  local function center(text, row) draw(x + math.floor((21 - #text) / 2), row, text, "f", "e") end
-  center("NO SERVER", y + 1)
-  local seconds = math.max(0, math.floor((C.now() - C.lastFrame) / 1000))
-  local value = math.floor(seconds / 60) .. string.format(":%02d", seconds % 60)
-  if #value > 7 then value = "9999:59" end
-  for r = 0, 2 do
-    local cx = x + math.floor((21 - #value * 3) / 2)
-    for i = 1, #value do
-      local glyph = C.font[value:sub(i, i)]
-      for col = 0, 2 do
-        local bits = 0
-        for pixel = 0, 5 do
-          local px, py = col * 2 + pixel % 2, r * 3 + math.floor(pixel / 2)
-          if px < 5 and py >= 1 and py <= 7 and glyph:sub((py - 1) * 5 + px + 1, (py - 1) * 5 + px + 1) == "#" then
-            bits = bits + 2 ^ pixel
-          end
-        end
-        local inverse = bits >= 32
-        draw(cx, y + 2 + r, string.char(128 + (inverse and 63 - bits or bits)), inverse and "e" or "f", inverse and "f" or "e")
-        cx = cx + 1
-      end
-    end
-  end
-  center("since last frame", y + 5)
+  local out = C.out
+  if not out then return end
+  local grey = out.setPaletteColour ~= nil
+  if grey then for i = 0, 15 do out.setPaletteColour(2 ^ i, C.stale[i]) end end
+  local secs = math.max(0, math.floor((C.now() - C.lastFrame) / 1000))
+  local clock = math.floor(secs / 60) .. string.format(":%02d", secs % 60)
   local retry = math.max(0, math.ceil((C.retryAt - C.now()) / 1000))
-  draw(2, C.h - 1, "retrying in " .. retry .. " s", "0", "c")
-  if not C.out.setPaletteColour then draw(C.w - 4, C.h, "stale", "0", "c") end
+  local right = "retry in " .. retry .. " s"
+  if 13 + #clock + 1 + #right > C.w - 1 then right = retry .. "s" end
+  if 13 + #clock + 1 + #right > C.w - 1 then right = "" end
+  local text = (" NO SERVER  " .. clock .. string.rep(" ", C.w)):sub(1, C.w - #right - 1) .. right .. " "
+  text = text:sub(1, C.w)
+  local bg = grey and "2" or "e"
+  out.setCursorPos(1, 1)
+  C.paint(text, string.rep("f", #text), string.rep(bg, #text))
 end
 
 C.drawInput = function()
@@ -356,10 +311,12 @@ C.retry = function()
     C.server = rednet.lookup("so", "server")
   end
   if C.server and C.pair.key(C.server) then
+    local was = C.phase
     C.phase = C.repair and "pairing" or "stale"
     C.sendHello()
     C.sendSub()
-    if C.repair then C.drawPair() else C.clipDraw() end
+    -- Still stale: the picture is already there, only its row changes.
+    if C.repair then C.drawPair() elseif was == "stale" then C.drawStale() else C.clipDraw() end
   else
     C.phase = "pairing"
     C.drawPair()
@@ -392,7 +349,10 @@ C.loop = function()
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == C.repaint then
       C.repaint = nil
-      if C.phase == "stale" then C.clipDraw() end
+      if C.phase == "stale" then
+        C.drawStale()
+        C.repaint = os.startTimer(1)
+      end
     elseif ev == "timer" and a == C.timer then
       if C.phase == "live" then C.markStale() else C.retry() end
     elseif ev == "rednet_message" and c == "so" and a == C.server and type(b) == "table" then

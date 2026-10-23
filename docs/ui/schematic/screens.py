@@ -19,6 +19,8 @@ import ccfont  # noqa: E402
 import mapdraw as MD  # noqa: E402
 import shop as SH  # noqa: E402
 import status as ST  # noqa: E402
+import pocket as PK  # noqa: E402
+import system as SY  # noqa: E402
 
 
 def thumb(cv, x, y, w, h):
@@ -70,6 +72,29 @@ def map_sample():
     return cv
 
 
+def with_alert(m):
+    """The status model with the scene's state alert, as the gather lists it: lost turtles, alerts, drops."""
+    m = dict(m)
+    a = PK.SYS["alert"]
+    lost = [f for f in m["flags"] if f["text"].endswith(" lost")]
+    m["flags"] = lost + [dict(text=a["text"])] + m["flags"][len(lost):]
+    return m
+
+
+def alert(w, h, title, mapped=True):
+    return lambda: SY.alert(ST.model(), PK.SYS["alert"], w, h, 3000, mapped, title)
+
+
+def view(mode, **extra):
+    v = dict(id=1, uptime="up 3h12", mode=mode, log=PK.SYS["log"], offset=0)
+    v.update(extra)
+    return v
+
+
+ROLES = [dict(id=1, size="57x24", role="status"), dict(id=2, size="26x20", role="pocket"),
+         dict(id=5, size="57x24", role="mining"), dict(id=6, size="57x24", role="unassigned"),
+         dict(id=7, size="15x10", role="status"), dict(id=9, size="-", role="drops")]
+
 FIXTURES = [
     ("schematic-map-XL", map_sample),
     ("kit-M", kit_sample),
@@ -80,6 +105,29 @@ FIXTURES = [
     ("status-L", status(39, 19, "Status, wall monitor 4x3 at scale 1")),
     ("status-P", status(26, 20, "Status at 26x20 (a pocket assigned status)")),
     ("status-XS", status(15, 10, "Status, smallest monitor 1x1 at scale 0.5")),
+    ("pocket-fleet-P", lambda: PK.fleet(ST.model())),
+    ("pocket-alerts-P", lambda: PK.alerts(with_alert(ST.model()))),
+    ("pocket-jobs-P", lambda: PK.jobs(ST.model())),
+    ("pocket-shop-P", PK.shop_sent),
+    ("pocket-pair-P", lambda: PK.pair(ST.model())),
+    ("pocket-code-P", lambda: PK.pair(ST.model(), code=PK.SYS["code"], left=PK.SYS["left"])),
+    ("alert-M", alert(57, 24, "Alert takeover, room monitor 57x24, 3 s left")),
+    ("alert-W", alert(100, 38, "Alert takeover, wall 100x38")),
+    ("alert-T", alert(51, 19, "Alert takeover, 51x19")),
+    ("alert-P", alert(26, 20, "Alert takeover, pocket 26x20")),
+    ("alert-XS", alert(15, 10, "Alert takeover, smallest monitor 15x10")),
+    ("alert-nomap-M", alert(57, 24, "Alert takeover without the map module", False)),
+    ("unassigned-M", lambda: SY.unassigned(57, 24, 6, title="Unassigned display 6, room monitor")),
+    ("unassigned-XS", lambda: SY.unassigned(15, 10, 6, title="Unassigned display 6, smallest monitor")),
+    ("unloaded-M", lambda: SY.unassigned(57, 24, 9, "MAP", "Display 9 set to map while the map module is missing")),
+    ("outage-M", lambda: SY.outage(ST.status(ST.model(), 57, 24), "No server: the last status picture, stale palette")),
+    ("outage-P", lambda: SY.outage(PK.fleet(ST.model()), "No server on a pocket: the last FLEET page")),
+    ("server-T", lambda: SY.terminal(ST.model(), view("normal"), title="Server terminal 51x19")),
+    ("pairing-T", lambda: SY.terminal(ST.model(), view("code", code=PK.SYS["code"], now=0, expires=292000),
+                                      title="Server terminal, pair code")),
+    ("log-T", lambda: SY.terminal(ST.model(), view("log"), title="Server terminal, full log (L)")),
+    ("roles-T", lambda: SY.terminal(ST.model(), view("role", input="6 shop", notice="display 7: status", displays=ROLES),
+                                    title="Server terminal, role command (R)")),
 ]
 FIXTURES += SH.FIXTURES
 
@@ -109,7 +157,8 @@ def main():
         sizes = {}
         for name, make in chosen:
             canvas = make()
-            cc.png(canvas, os.path.join(args.png, name + ".png"), font)
+            pal = cc.STALE if name.startswith("outage") else None
+            cc.png(canvas, os.path.join(args.png, name + ".png"), font, palette=pal)
             sizes[name] = canvas.frame_bytes()
             print("%-12s %3dx%-3d %6d bytes" % (name, canvas.w, canvas.h, sizes[name]))
         with open(os.path.join(args.png, "frame-bytes.json"), "w") as f:

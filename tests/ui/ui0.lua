@@ -216,7 +216,7 @@ return function(test, equal)
     equal(body.buttons[1].h, 2)
   end)
 
-  test("UI0 outage matches the fixture without a server and retries continue", function()
+  test("UI0 outage draws the no-server row without a server and retries continue", function()
     local c, out, state = client(57, 24)
     c.onFrame({ body = { rows = { { text = " STATUS  (last picture, greyed)", fg = "0", bg = "f" } } } })
     local loop = coroutine.create(c.loop)
@@ -227,8 +227,11 @@ return function(test, equal)
     state.now = 42000
     c.retryAt = state.now + 8000
     assert(coroutine.resume(loop, "timer", c.repaint))
-    local differences = R.diff("tests/ui/fixtures/outage-M.txt", out)
-    assert(#differences == 0, table.concat(differences, "\n"))
+    -- The route A no-server row; tests/ui/s4.lua matches it against outage-M and outage-P.
+    local top = out.picture()
+    assert(top.text[1]:find("^ NO SERVER  0:42 +retry in 8 s $"), top.text[1])
+    equal(top.bg[1], string.rep("2", 57))
+    equal(top.text[2], string.rep(" ", 57))
     local before = #state.sends
     for i = 1, 7 do
       state.now = state.now + state.timers[c.timer] * 1000
@@ -239,7 +242,7 @@ return function(test, equal)
     assert(c.phase == "stale")
   end)
 
-  test("UI0 stale repaint preserves inverted digits and button labels", function()
+  test("UI0 stale keeps the picture under the no-server row, inverted digits included", function()
     local c, out, state = client(57, 24)
     local rows = glyphRows({ ".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###." }, "f", "d")
     c.onFrame({ body = { rows = rows, buttons = { { id = "x", x = 5, y = 1, w = 4, label = "KEEP" } } } })
@@ -247,21 +250,21 @@ return function(test, equal)
     state.now = 42000
     c.markStale()
     local after = out.picture()
-    for y = 1, 3 do
+    assert(after.text[1]:find("NO SERVER", 1, true), after.text[1])
+    for y = 2, 3 do
       equal(after.text[y], before.text[y])
-      equal(after.bg[y], string.rep("c", 57))
+      equal(after.bg[y], before.bg[y])
     end
   end)
 
   test("UI0 capture round-trips every spec glyph including inverted sextants", function()
     local spec = read("docs/ui/BIG-TILES-SPEC.md"):match("## 4%. Big digit font(.-)## 5%.")
     local count = 0
-    local c = client(57, 24)
     for ch, line in spec:gmatch("\n([0-9%%%-:/]):  ([.# ][^\n]+)") do
       local glyph = {}
       for row in line:gmatch("[.#]+") do glyph[#glyph + 1] = row end
       equal(#glyph, 7)
-      if ch:match("[0-9:]") then equal(c.font[ch], table.concat(glyph)) end
+      equal(dofile("so-ui.lua").font[ch], table.concat(glyph))
       for _, background in ipairs({ "d", "e", "b", "c", "f", "7" }) do
         local ink = (background == "c" or background == "f" or background == "7") and "0" or "f"
         local rows = glyphRows(glyph, ink, background)
@@ -335,7 +338,8 @@ return function(test, equal)
     equal(read(dir .. "/mockups.md"), assert(section) .. "\n")
     assert(os.execute(command .. " --fixtures fixtures"))
     -- Status and the shop moved to docs/ui/schematic (tests/ui/s0.lua and tests/ui/ui2c.lua check them).
-    local names = "panel-P mining-M lumber-M drops-M alert-M outage-M server-T pairing-T ar-M panelpair-P panelcode-P panelpair-S panelcode-S unassigned-M unassigned-XS roles-T map-26x20 map-29x12 map-57x24 pocket-fleet-P pocket-alerts-P pocket-jobs-P pocket-shop-P pocket-pair-P pocket-code-P"
+    -- The pocket pages, alert, outage, unassigned and terminal fixtures moved too (tests/ui/s4.lua).
+    local names = "panel-P mining-M lumber-M drops-M ar-M panelpair-P panelcode-P panelpair-S panelcode-S map-26x20 map-29x12 map-57x24"
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")
