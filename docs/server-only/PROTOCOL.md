@@ -71,15 +71,17 @@ The signed bytes are the canonical encoding of `{ v, t, rid, from, at, body }` w
 
 Canonical encoding is a Lua literal. String values use `%q`. Whole numbers use `%d`. Other numbers use `%.17g`. Booleans are `true` and `false`. Table keys are sorted by `type(key) .. ":" .. tostring(key)`. A cycle is an error. Two tables that differ only in key order encode to the same string.
 
-The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. A retry of a pair `rid` that still has a saved reply is checked with the handshake key stored beside that reply. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code and no saved handshake key for that `rid` is a bad MAC.
+The server drops a bad MAC and prints `so-server: bad mac from <id>`. It does not answer. A pair message is checked with `pair.derive` of the code on screen and the sender id. A retry of a pair `rid` that still has a saved reply is checked with the handshake key stored beside that reply. Any other message is checked with the key saved for `from`. No key is a bad MAC. A pair with no live code and no saved handshake key for that `rid` is a bad MAC. A `pair2` message and its reply are checked with the public key from `pair.envelopeKey()`, which is sha256 of `so-pair2 envelope\0` as 64 hex characters. That MAC only checks the envelope. CPace in the body protects the code.
 
-`at` must be within 60000 ms of the receiver's `os.epoch("utc")`. A larger gap is dropped as `so-server: bad message from <id>`.
+`at` must be at most 60000 ms older than the receiver's `os.epoch("utc")` and never ahead of it. Every computer reads the same host clock, so a sent stamp is never ahead of its receiver. Anything else is dropped as `so-server: bad message from <id>`.
 
 After a good MAC, the server remembers each `rid` for that `from` for 120000 ms. The window is the age of the rid, not a fixed count of entries. A repeated `rid` with no saved reply is dropped and logged as `so-server: replay from <id>`. The server does not answer. A bad MAC does not enter this window.
 
+At start the server calls `so-proto.since(os.epoch("utc"))`. From then on `fresh` refuses any envelope whose `at` is older than that start, with the same `replay from` line. An earlier run accepted only stamps up to its own clock, and a restart takes at least one 50 ms computer tick. So every message an earlier run accepted is older than this start, and a restart does not reopen the 60000 ms window. Accepting future stamps would break this: a packet stamped ahead could run before a restart and again after it. A client request that was in flight across the restart is dropped too; the client's next request carries a new `at`.
+
 The server keeps the encoded reply for each `(from, rid)` for 120000 ms. A later message with that same `from` and `rid` is sent the saved reply again. The handler does not run a second time.
 
-`so-proto.request(target, t, body, timeout, tries)` builds one message and sends that same table, with the same `rid`, on every try. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed, so the caller runs `request` in its own coroutine with `parallel.waitForAny`. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`. The return is the reply envelope, or `nil` and `timeout` or `no key`.
+`so-proto.request(target, t, body, timeout, tries)` builds one message and sends that same table, with the same `rid`, on every try. `timeout` is seconds per try. `tries` is how many sends to make. Omitted values are 3 seconds and 1 try. The call yields on `os.pullEvent`. Events that are not the matching reply stay consumed, so the caller runs `request` in its own coroutine with `parallel.waitForAny`. A handler on the server must not call `request`, because the server loop is already waiting on `os.pullEvent`. A module sends with `SO.proto.build` and `rednet.send`. A matching reply must verify under the key for `target`, or under the optional sixth argument `key` when given; pairing passes the public pair2 key that way so the saved key stays untouched. The return is the reply envelope, or `nil` and `timeout` or `no key`.
 
 A reply reuses the request `rid`. `from` on the reply is the computer that answered. The first `reply(t, body)` wins. Later calls do nothing.
 
@@ -89,7 +91,32 @@ A payload that is not a table, or an envelope that fails `decode`, is dropped an
 
 Send every message below through `so-proto`. Do not add a field here without editing this file.
 
+### pair2
+
+`pair2` runs CPACE-X25519-SHA512 from draft-irtf-cfrg-cpace-21 in the initiator-responder setting, with the explicit key confirmation of its section 10.4. The joining computer is the initiator A and the server is B. PRS is the six code digits as ASCII. CI is `lv_cat("so-pair2", clientId, serverId)` with decimal ids. ADa is the fixed label `so-pair2 client` and ADb is `so-pair2 server`. Both sides know them, so they are not sent. They give Ta and Tb different inputs even when Yb equals Ya, so a forger cannot reflect the client's Ta back as Tb. Both envelopes and replies use the public `pair.envelopeKey()`.
+
+Step 1. The client sends `pair2` with `body.sid`, 16 random bytes as 32 hex characters, and `body.y`, its share Ya as 64 hex characters. A client that already holds a key for this server adds `body.auth`, HMAC-SHA256 under that key of `so-pair2 auth\0`, the raw sid and the raw Ya, as 64 hex characters. The server answers `ack` with `body.y`, its share Yb. It keeps one session per sender with the expected tags and whether `auth` matched the key it saved for that sender. A session lasts 60000 ms.
+
+Step 2. The client computes ISK and sends `pair2` with the same `body.sid` and `body.tag`, Ta as 128 hex characters. A step 2 whose sid does not match the open session gets `err` `session` and leaves that session open. Otherwise the server checks Ta once and drops the session either way. On a match it saves the machine key, answers `ack` with `body.ok = true` and `body.tag`, Tb as 128 hex characters, and clears the code. The client refuses a Yb equal to its own Ya with `share`, checks Tb, and only then saves the key. Until then its saved key and the key in memory stay as they were.
+
+```text
+g    = Elligator2(decodeUCoordinate(SHA-512(lv_cat("CPace255", PRS, zero pad, CI, sid))[1..32]))
+Ya   = X25519(ya, g)        Yb = X25519(yb, g)        K = X25519(ya, Yb) = X25519(yb, Ya)
+ISK  = SHA-512(lv_cat("CPace255_ISK", sid, K) .. lv_cat(Ya, ADa) .. lv_cat(Yb, ADb))
+mac  = SHA-512("CPaceMac" .. sid .. ISK)
+Ta   = HMAC-SHA512(mac, lv_cat(Ya, ADa))               Tb = HMAC-SHA512(mac, lv_cat(Yb, ADb))
+key  = HKDF-SHA512(ISK, salt = empty, info = "so-pair2 machine key", 32 bytes), as 64 hex
+```
+
+A party aborts when K is all zero bytes. Nothing on the wire depends on the code without a secret scalar, so a recorded exchange gives a listener no way to test a guess. Each guess costs an online exchange with the server, and the budget in [pairing](#pairing-and-so-keys) limits those. `tests/so/pair2.lua` checks the draft's test vectors and its low-order point cases.
+
+`err` replies carry `body.code = "pair"` and a `body.text` reason. `code` means no live code. `wait` means the sender is over its budget. `body` means a malformed sid or share, and `share` a share that gives K all zero. `session` means step 2 found no open session for that sender and sid. `tag` means Ta did not match. The client reports `no code`, `busy` and `wrong code` for `code`, `wait` and `tag`, and the other reasons as they are.
+
+The envelope key is public, so any computer can send a joining client a forged `err`. The client then reports a failure even if the server saved its key; pairing again with a new code replaces that key.
+
 ### pair
+
+Legacy pairing, kept for one release so clients from before `pair2` still pair. A recorded `pair` exchange lets a listener test all 10^6 codes offline, because `pair.derive` mixes only public values and the code. The next release removes it.
 
 The joining computer sends `pair` to the server. `body.pub` is its X25519 public key, 64 lowercase hex characters. The code is not a field.
 
@@ -142,7 +169,7 @@ The server sends `err` when no built-in handler and no module handler matches `t
 
 `body.code` is `store` when the server could not save a new pair key. `body.text` is the store error.
 
-`body.code` is `pair` when `body.pub` is not a 32-byte key. `body.text` is `pub`.
+`body.code` is `pair` when `body.pub` is not a 32-byte key. `body.text` is `pub`. `pair2` uses the same code with the reasons listed under [pair2](#pair2).
 
 ### lease.batch
 
@@ -1263,7 +1290,13 @@ last 32 moves.
 
 ## Pairing and so-keys
 
-The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. Five `pair` messages with a bad MAC burn the code. When it is spent, expired, or burned, the screen shows `Press P to pair` again. A paired display can also create an invitation through the panel NEW CODE button. Re-pairing an id that already has a key needs a fresh invitation.
+The server screen shows `Press P to pair`. The P key calls `pair.invite(screen)`. That draws a 6-digit code and the server id, and prints `Pair code: <digits> server <id>`. The code includes leading zeros. It is 4 crypto random bytes, read as a big-endian integer modulo 1000000. It works once and expires after 300000 ms. When it is spent, expired, or burned, the screen shows `Press P to pair` again.
+
+The server keeps a pairing budget per sender id. A `pair2` step 1 and every rejected pairing message count as one try for that sender. Rejected messages are a legacy `pair` with a bad MAC and a `pair2` with a malformed body, a bad share or a wrong Ta. A step 2 without an open session gets `err` `session` and counts nowhere. After three tries inside 60000 ms, step 1 from that sender gets `err` `wait` and its legacy `pair` messages are dropped with `so-server: pair blocked <id>`. A wrong `pair2` code costs two tries, the start and the rejection. All senders together may start 20 exchanges per 60000 ms.
+
+A failed guess is a bad legacy MAC or a wrong Ta. Each sender may fail three guesses at one code and then waits for the next code, so one sender cannot burn a code. Ten failed guesses at one code burn it, except guesses from a sender that proved its saved key with `body.auth`. Rednet sender ids can be forged, so a paired id without that proof counts like any other sender. Legacy `pair` carries no proof, so its bad MACs always count. Each rejection prints `so-server: pair rejected <id>`.
+
+Sender ids can be forged, so these limits also let a forging computer slow pairing down. It can use up a victim id's tries for 60000 ms, use up the 20 starts for everyone, or burn a code with ten forged ids. It cannot learn the code that way. Press P for a new code. The terminal pairing screen lists the last four rejected sender ids on one `Rejected` line. A paired display can also create an invitation through the panel NEW CODE button. Re-pairing an id that already has a key needs a fresh invitation.
 
 `pair.derive(code, serverId, clientId)` returns the handshake key used only to MAC the pair exchange.
 
@@ -1290,7 +1323,11 @@ X25519 comes from ccryptolib, MIT, Copyright (c) 2023 Miguel Oliveira. `lib/ccry
 - `lib/ccryptolib/internal/edwards25519.lua`
 - `lib/ccryptolib/internal/packing.lua`
 
-`pair.join(code)` looks up `so` / `server`. `pair.join(code, serverId)` sends to `serverId` and does not call `rednet.lookup`. Both send `pair`, check `body.proof`, and save the machine key after `ack`.
+`pair.join(code)` looks up `so` / `server`. `pair.join(code, serverId)` sends to `serverId` and does not call `rednet.lookup`. Both run `pair2`, check Tb, and save the machine key after the second `ack`. `join` never sends legacy `pair`. A fallback would let a computer that answers the `so` / `server` lookup, or plain lag, turn a pairing into one a listener can test offline. Against a server from before `pair2`, `join` fails with `timeout` after two tries of 3 s. Failure reasons are `no code`, `busy`, `wrong code`, `proof`, `timeout`, `session`, `share`, `body`, `pub` and the save error.
+
+### Rollout
+
+This release accepts both `pair2` and `pair` on the server. Clients send only `pair2`. Update the server first. Then an old client pairs with legacy `pair` and a new client with `pair2`. A new client cannot pair with an old server; it reports `timeout` until the server updates. Pairings from old clients use `pair` and stay open to offline code tests, so update clients before pairing them where you can. The next release drops `pair`, `pair.derive` and `pair.session`; clients that have not updated by then must update before they can pair again. Saved machine keys keep working across both releases.
 
 Keys live in `so-keys` through `so-store`. The saved value is `{ keys = { ["<computer id>"] = "<64 hex>" } }`. On the server, the id is the paired machine. On the machine, the id is the server. The file budget is 200000 bytes.
 
@@ -1400,8 +1437,9 @@ open leases, clock reservation and recent errors. Snapshot age is unknown for
 snapshots saved before this change. Health diagnostics do not change the game
 clock or scheduling. Tick cost uses `os.clock()` and has computer tick precision.
 
-`SO.error(text)` prints and records failures. Bad messages, bad MACs, replays
-and missing reply keys stay in the volatile terminal log. These rejected
+`SO.error(text)` prints and records failures. Bad messages, bad MACs, replays,
+missing reply keys and pairing rejections (`pair rejected`, `pair blocked`)
+stay in the volatile terminal log. These rejected
 packets cannot evict persistent errors. `so-data/errors` uses generation
 recovery and a bounded ring of at most 128 messages. Each message keeps 2048
 bytes. All three generations together use at most 64 KB. Records save at most

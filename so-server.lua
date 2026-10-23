@@ -93,8 +93,9 @@ S.run = function()
     started = SO.now(), offset = 0 }
   SO.terminal = view
   local memory = 120000
-  local misses = 0
   local codeOwner
+  -- Envelopes stamped before this start were handled by an earlier run.
+  proto.since(os.epoch("utc"))
 
   local function showHostError()
     if not view.hostError then return end
@@ -114,8 +115,8 @@ S.run = function()
   end
 
   local function showCode()
-    misses = 0
     codeOwner = nil
+    view.rejected = nil
     view.mode = "code"
     view.code = pair.invite(not term.blit and term or nil)
     view.expires = SO.now()+300000
@@ -150,7 +151,41 @@ S.run = function()
     return nil, proto.fresh(msg)
   end
 
+  local function reject(id, guess, paired)
+    local _, burned = pair.charge(id, guess and "guess" or "reject", paired)
+    print("so-server: pair rejected " .. tostring(id))
+    view.rejected = pair.rejected()
+    if burned then showPrompt() end
+  end
+
   local builtin = {
+    pair2 = function(msg, reply)
+      local open = pair.envelopeKey()
+      if msg.body.tag == nil then
+        local body, why = pair.start(msg.from, msg.body)
+        if not body then
+          if why == "body" or why == "share" then reject(msg.from, false) end
+          reply("err", { code = "pair", text = why }, open)
+          return
+        end
+        reply("ack", body, open)
+        return
+      end
+      local machine, body, paired = pair.confirm(msg.from, msg.body)
+      if not machine then
+        if body == "tag" then reject(msg.from, true, paired) end
+        reply("err", { code = "pair", text = body }, open)
+        return
+      end
+      local saved, err = pair.remember(msg.from, machine)
+      if not saved then
+        reply("err", { code = "store", text = tostring(err) }, open)
+        return
+      end
+      reply("ack", body, open)
+      pair.clear()
+      showPrompt()
+    end,
     pair = function(msg, reply)
       local code = pair.pending()
       if not code then return end
@@ -227,8 +262,14 @@ S.run = function()
       return
     end
     local key
-    if msg.t == "pair" then
+    if msg.t == "pair2" then
+      key = pair.envelopeKey()
+    elseif msg.t == "pair" then
       local code = pair.pending()
+      if code and pair.blocked(msg.from) and not recall(msg) then
+        print("so-server: pair blocked " .. tostring(sender))
+        return
+      end
       if code then
         key = pair.derive(code, os.getComputerID(), msg.from)
       else
@@ -246,13 +287,7 @@ S.run = function()
         and proto.macOk(slot.hs, msg) then key = slot.hs end
     end
     if not key or not proto.macOk(key, msg) then
-      if msg.t == "pair" and pair.pending() then
-        misses = misses + 1
-        if misses >= 5 then
-          pair.clear()
-          showPrompt()
-        end
-      end
+      if msg.t == "pair" and pair.pending() then reject(msg.from, true) end
       if msg.t == "hello" or msg.t == "beacon" or msg.t == "step.report" then
         rednet.send(sender, { t = "pair.required", from = os.getComputerID() }, "so")
       end
@@ -300,11 +335,13 @@ S.run = function()
     local health = SO.health
     if health.last then health.cadence, health.wallCadence = now-health.last, wall-health.wall end
     health.last, health.wall = now, wall
-    for _, by in pairs(sent) do
+    for from, by in pairs(sent) do
       for rid, slot in pairs(by) do
         if os.epoch("utc") - slot.at > memory then by[rid] = nil end
       end
+      if next(by) == nil then sent[from] = nil end
     end
+    proto.prune()
     for i = 1, #mods do
       local fn = mods[i].tick
       if type(fn) == "function" then

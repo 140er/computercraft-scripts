@@ -133,6 +133,7 @@ return function(test, equal)
       equal(s.server.env.SO.terminal.expires,expires)
       local joined=newClient(s,3,code)
       assert(s.server.env.SO.pair.key(joined.id),"client did not pair")
+      for _,packet in ipairs(joined.sent) do assert(packet.payload.t~="pair","NEW CODE client used legacy pair") end
       equal(s.server.env.SO.pair.pending(),nil)
       s.net.advance(2)
       assert(not s.frame().rows[7].text:find("left",1,true))
@@ -209,17 +210,15 @@ return function(test, equal)
       end
     end
   end)
-  test("repeat panel requests preserve five bad attempt limit",function()
+  test("repeat panel requests preserve the bad attempt limit",function()
     local s=setup(26,20,true)
     if s.frame().role=="status" then s.press("MORE") end
       s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
-    local bad=newClient(s,9,"abcdef")
-    local env=bad.env
-    local proto=assert(env.dofile("so-proto.lua"))
-    local msg=proto.build(string.rep("cd",32),"pair",{pub=string.rep("ef",32)})
-    for i=1,5 do
-      env.rednet.send(1,msg,"so");s.net.flush()
-      if i<5 then s.press("NEW CODE");assert(s.server.env.SO.pair.pending(),"burned early") end
+    for i=1,10 do
+      local env=newClient(s,8+i,"abcdef").env
+      local proto=assert(env.dofile("so-proto.lua"))
+      env.rednet.send(1,proto.build(string.rep("cd",32),"pair",{pub=string.rep("ef",32)}),"so");s.net.flush()
+      if i<10 then s.press("NEW CODE");assert(s.server.env.SO.pair.pending(),"burned early") end
     end
     equal(s.server.env.SO.pair.pending(),nil)
     s.net.advance(2)

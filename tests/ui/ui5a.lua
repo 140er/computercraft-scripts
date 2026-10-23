@@ -65,7 +65,7 @@ local function terminal(now)
     if path=='so-ui.lua' then return U end
     if path=='so-pair.lua' then return {open=function() end} end
     if path=='so-store.lua' then return {clock=function() return function() return now end end} end
-    if path=='so-proto.lua' then return {} end
+    if path=='so-proto.lua' then return {since=function() end,prune=function() end} end
     if path=='so-mod-capture.lua' then
       return {name='capture',handlers={},tick=function() s.view=env.SO.terminal end}
     end
