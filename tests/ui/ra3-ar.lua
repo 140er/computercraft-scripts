@@ -88,11 +88,13 @@ local FIXTURES = {
   { 'ar-P', 'tests/ui/fixtures/ar-P.txt', 26, 20, 1, {} },
   { 'ar-S', 'tests/ui/fixtures/ar-S.txt', 29, 12, 0, { leases = true, alerts = true } },
   { 'ar-XS', 'tests/ui/fixtures/ar-XS.txt', 15, 10, 1, { turtles = true } },
+  { 'ar-A', 'tests/ui/fixtures/ar-A.txt', 57, 24, 1, {}, { text = 'ore chest full at -120,64,35', i = 2, n = 3 } },
+  { 'ar-AS', 'tests/ui/fixtures/ar-AS.txt', 29, 12, 1, {}, { text = 'no fuel chest set for turtle 12', i = 1, n = 1 } },
 }
-local function model(count, off)
+local function model(count, off, alert)
   local layers = {}
   for _, layer in ipairs(ORDER) do layers[layer] = not off[layer] end
-  return { count = count, layers = layers }
+  return { count = count, layers = layers, alert = alert }
 end
 
 local function ids(frame)
@@ -108,7 +110,7 @@ return function(test, equal)
       local name, path, w, h = f[1], f[2], f[3], f[4]
       local fixture = R.load(path)
       equal({ fixture.w, fixture.h }, { w, h })
-      local frame = b.A.layout(model(f[5], f[6]), w, h)
+      local frame = b.A.layout(model(f[5], f[6], f[7]), w, h)
       local out = capture(frame, w, h)
       local diff = R.diff(fixture, out)
       assert(#diff == 0, name .. '\n' .. table.concat(diff, '\n'))
@@ -189,7 +191,7 @@ return function(test, equal)
     local dir = os.tmpname()
     os.remove(dir)
     assert(os.execute("mkdir -p '" .. dir .. "'"))
-    assert(os.execute("python3 -I '" .. root .. "/docs/ui/schematic/screens.py' --fixtures '" .. dir .. "' ar-M ar-W ar-L ar-P ar-S ar-XS > /dev/null"))
+    assert(os.execute("python3 -I '" .. root .. "/docs/ui/schematic/screens.py' --fixtures '" .. dir .. "' ar-M ar-W ar-L ar-P ar-S ar-XS ar-A ar-AS > /dev/null"))
     local count = 0
     for name in read(root .. '/docs/ui/schematic/ar.py'):gmatch('\n    %("([%w%-]+)", _ar') do
       local path

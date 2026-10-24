@@ -49,10 +49,11 @@ end
 A.gather = function()
   local count = 0
   for _ in pairs(A.controllers) do count = count + 1 end
-  return { count = count, layers = SO.store.copy(A.layers) }
+  return { count = count, layers = SO.store.copy(A.layers), alert = A.shown and SO.store.copy(A.shown) }
 end
 -- Route A (docs/ui/SCHEMATIC-SPEC.md section 26); docs/ui/schematic/ar.py is the twin.
 -- Each layer is a leader row with its state word; a tap anywhere on the row toggles it.
+-- The goggles' alert sits under the layers where it fits, and a tap steps to the next alert.
 A.layout = function(model, w, h)
   local C = U.canvas(w, h)
   local right = model.count .. (model.count == 1 and " controller" or " controllers")
@@ -72,6 +73,13 @@ A.layout = function(model, w, h)
     C.put(lw - #word + 1, ry, word, state and "d" or "8")
     C.hit(layer, 1, ry, w, 1, layer)
   end
+  local alert, ay = model.alert, y + #A.order * step
+  if alert and ay + 1 <= h then
+    C.section(2, ay, lw, "ALERTS", alert.i .. "/" .. alert.n)
+    C.put(2, ay + 1, "!", "e")
+    C.put(4, ay + 1, tostring(alert.text):sub(1, lw - 2), "0")
+    C.hit("alert:next", 1, ay, w, 2, "next alert")
+  end
   return C.frame()
 end
 A.render = function(w,h)
@@ -79,6 +87,12 @@ A.render = function(w,h)
   return A.layout(A.gather(),w or 57,h or 24)
 end
 A.input = function(event)
+  if event and event.id == "alert:next" then
+    local list, at = A.active or {}, 0
+    for i, row in ipairs(list) do if row.key == (A.shown and A.shown.key) then at = i end end
+    if #list > 0 then A.pick, A.frameAt = list[at % #list + 1].key, nil end
+    return
+  end
   if not event or A.layers[event.id] == nil then return end
   local nextLayers = SO.store.copy(A.layers)
   nextLayers[event.id] = not nextLayers[event.id]
@@ -217,13 +231,16 @@ A.scene = function(now)
   end
   local drops = A.call("drops", "list") or {}
   local broken = 0
-  for _,p in ipairs(drops) do if p.broken and A.sameDim(p.dim) then broken=broken+1 end end
+  for _,p in ipairs(drops) do if p.broken and not p.disabled and A.sameDim(p.dim) then broken=broken+1 end end
   if A.layers.drops then
     for _, p in ipairs(drops) do
       if A.sameDim(p.dim) then
-        local key, color = "drop:" .. p.id, p.broken and A.red or A.white
+        -- A room point that room sinks switch off draws grey and never gets a beam.
+        local bad = p.broken and not p.disabled
+        local key, color = "drop:" .. p.id, p.disabled and A.grey or bad and A.red or A.white
         box(key .. ":box", color, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
-        label(key, color, p, p.kind:sub(1, 1):upper(), p.broken and "broken" or "drop", p.broken and "broken" or "drop:" .. p.kind)
+        -- #n is the point's DROP POINTS row number.
+        label(key, color, p, p.n and "#" .. p.n or p.kind:sub(1, 1):upper(), bad and "broken" or "drop", bad and "broken" or "drop:" .. p.kind)
       end
     end
   end
@@ -289,15 +306,25 @@ A.scene = function(now)
       return a.at > b.at or (a.at == b.at and a.key < b.key)
     end)
     alertCount = #alerts
-    local row = alerts[1]
-    if row and (row.key == "disk.alert" or A.layers.alerts and now - row.since < 5000) then
-      local text = type(row.value) == "table" and row.value.text or row.value
-      -- A route A flag: a coral ! and white text on the backing, over a coral hairline.
+    -- A newer alert takes the flag back from one the player stepped to.
+    local newest
+    for _, a in ipairs(alerts) do newest = math.max(newest or a.since, a.since) end
+    if newest and newest > (A.newest or -math.huge) then A.pick = nil end
+    A.newest, A.active, A.shown = newest, alerts, nil
+    local row, index = alerts[1], 1
+    for i, a in ipairs(alerts) do if a.key == A.pick then row, index = a, i end end
+    if row and (row.key == "disk.alert" or A.layers.alerts) then
+      local text = tostring(type(row.value) == "table" and row.value.text or row.value)
+      local count = #alerts > 1 and index .. "/" .. #alerts or ""
+      A.shown = { key = row.key, text = text, i = index, n = #alerts }
+      -- A route A flag: a coral ! and white text on the backing. The hairline flashes coral for
+      -- 5 s, then dims; the flag stays while the alert is active.
       put("alert:backing", "drawRect2D", A.backing, A.hudX, hudTop, A.hudX + A.hudWidth, hudTop + 14)
-      put("alert:rule", "drawRect2D", A.red, A.hudX, hudTop + 14, A.hudX + A.hudWidth, hudTop + 15)
+      put("alert:rule", "drawRect2D", now - row.since < 5000 and A.red or A.hair, A.hudX, hudTop + 14, A.hudX + A.hudWidth, hudTop + 15)
       put("alert:mark", "drawText2D", A.red, A.hudX + 6, hudTop + 3, "!", false)
       put("alert:" .. row.key, "drawText2D", A.white, A.hudX + 14, hudTop + 3,
-        tostring(text):sub(1, math.floor((A.hudWidth - 20) / 6)), false)
+        text:sub(1, math.floor((A.hudWidth - 20) / 6) - (count ~= "" and #count + 1 or 0)), false)
+      if count ~= "" then put("alert:count", "drawText2D", A.grey, A.hudX + A.hudWidth - 6 - #count * 6, hudTop + 3, count, false) end
       hudTop = hudTop + 16
     end
   end
@@ -309,24 +336,26 @@ A.scene = function(now)
     { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.white },
     { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.white) or A.grey },
   }
-  if broken>0 then cells[3]={"broken","BROKEN",tostring(broken),A.red} end
+  -- BROKEN takes its own row under the panel, so DISK stays in view.
+  if broken>0 then cells[4]={"broken","BROKEN",tostring(broken),A.red} end
   -- One hairline-ruled panel on translucent navy: muted caps labels, white values, coral only for
   -- trouble. Cells are split by dim rules and the panel ends on a dim hairline. Rectangles never
   -- overlap, because the controller draws its elements in no fixed order.
   for i, cell in ipairs(cells) do
-    local id, x = "hud:" .. cell[1], A.hudX + (i - 1) * A.hudCell
-    put(id .. ":backing", "drawRect2D", A.backing, i > 1 and x + 1 or x, hudTop, x + A.hudCell, hudTop + 28)
-    if i > 1 then put(id .. ":divider", "drawRect2D", A.hair, x, hudTop, x + 1, hudTop + 28) end
-    put(id .. ":rule", "drawRect2D", A.hair, x, hudTop + 28, x + A.hudCell, hudTop + 29)
-    put(id .. ":label", "drawText2D", A.grey, x + 6, hudTop + 5, cell[2], false)
-    put(id .. ":value", "drawText2D", cell[4], x + 6, hudTop + 16, cell[3], false)
+    local col, top = (i - 1) % 3, hudTop + math.floor((i - 1) / 3) * 29
+    local id, x = "hud:" .. cell[1], A.hudX + col * A.hudCell
+    put(id .. ":backing", "drawRect2D", A.backing, col > 0 and x + 1 or x, top, x + A.hudCell, top + 28)
+    if col > 0 then put(id .. ":divider", "drawRect2D", A.hair, x, top, x + 1, top + 28) end
+    put(id .. ":rule", "drawRect2D", A.hair, x, top + 28, x + A.hudCell, top + 29)
+    put(id .. ":label", "drawText2D", A.grey, x + 6, top + 5, cell[2], false)
+    put(id .. ":value", "drawText2D", cell[4], x + 6, top + 16, cell[3], false)
   end
   if retirement then
-    put("alert:dug-storage", "drawText2D", A.red, A.hudX + 6, hudTop + 34, retirement.text, false)
+    put("alert:dug-storage", "drawText2D", A.red, A.hudX + 6, hudTop + 34 + (broken > 0 and 29 or 0), retirement.text, false)
   end
   return scene, machines
 end
-A.alerts, A.serial = {}, 0
+A.alerts, A.serial, A.failed = {}, 0, {}
 A.draw = function(controller, scene)
   local ar, drawn = controller.ar, {}
   if (not controller.drawn or type(ar.delete) ~= "function") and type(ar.clear) == "function" then ar.clear() end
@@ -376,8 +405,17 @@ A.tick = function(now)
   for i = #A.controllers, 1, -1 do
     local controller = A.controllers[i]
     if controller.sig ~= sig then
-      if pcall(A.draw, controller, scene) then controller.sig = sig
-      else table.remove(A.controllers, i) end
+      local ok, err = pcall(A.draw, controller, scene)
+      local name = controller.name or "ar_controller"
+      if ok then controller.sig, A.failed[name] = sig, nil
+      else
+        table.remove(A.controllers, i)
+        -- Discovery re-adds the controller in 5 s, so one failure is logged until a draw succeeds.
+        if A.failed[name] ~= tostring(err) and type(SO.error) == "function" then
+          SO.error("so-mod-ar: draw on " .. name .. " failed: " .. tostring(err))
+        end
+        A.failed[name] = tostring(err)
+      end
     end
   end
 end

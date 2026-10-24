@@ -1188,6 +1188,7 @@ return {
     for i, point in ipairs(S.points) do
       out[i] = S.pub(point)
       out[i].broken = point.fails >= S.strikes
+      out[i].n = i
     end
     return out
   end,

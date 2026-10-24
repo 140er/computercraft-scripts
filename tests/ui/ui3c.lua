@@ -62,12 +62,13 @@ return function(test, equal)
     b.cells["lumber:2"] = { { x = 10, y = 1, z = 2 } }
     b.points = { { id = 3, kind = "ore", x = 2, y = 3, z = 4 },
       { id = 4, kind = "fuel", x = 5, y = 3, z = 4, broken = true } }
+    b.points[1].n, b.points[2].n = 1, 2
     b.tick(1000)
     local n = 0
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
     equal(n, 24, "two owners with one stroke per edge")
     equal(b.ar.elements["lease:mine:2:2"][2], 9.12, "lease outlines sit 0.12 outside the cells")
-    for _, row in ipairs({ { 3, C.white, "O" }, { 4, C.coral, "F" } }) do
+    for _, row in ipairs({ { 3, C.white, "#1" }, { 4, C.coral, "#2" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
       for i = 1, 12 do equal(b.ar.elements["drop:" .. row[1] .. ":box:" .. i][1], row[2]) end
     end
@@ -175,21 +176,21 @@ return function(test, equal)
       end
     end
   end)
-  test("UI3c alert banner expires after five seconds and retains the HUD count", function()
+  test("UI3c alert banner flashes for five seconds and stays while the alert is active", function()
     local b = boot(); b.tick(1000); b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(2000)
     equal(b.ar.elements["alert:backing"], { C.backing, 4, 72, 196, 86 })
     equal(b.ar.elements["alert:rule"], { C.coral, 4, 86, 196, 87 })
     equal(b.ar.elements["alert:mark"], { C.coral, 10, 75, "!", false })
     equal(b.ar.elements["alert:mine.alert"], { C.white, 18, 75, "CHEST FULL", false })
-    b.tick(6000); assert(b.ar.elements["alert:backing"])
-    b.tick(7000); equal(b.ar.elements["alert:backing"], nil); equal(b.ar.elements["alert:mine.alert"], nil)
+    b.tick(6000); equal(b.ar.elements["alert:rule"][1], C.coral)
+    b.tick(7000); equal(b.ar.elements["alert:rule"][1], C.dim); equal(b.ar.elements["alert:mine.alert"][4], "CHEST FULL")
     equal(b.ar.elements["hud:alerts:value"][4], "1")
-    b.tick(8000); equal(b.ar.elements["alert:backing"], nil)
+    b.tick(8000); assert(b.ar.elements["alert:backing"])
     b.values["mine.alert"] = { text = "FUEL EMPTY" }; b.tick(9000)
     equal(b.ar.elements["alert:mine.alert"][4], "FUEL EMPTY")
     b.input({ id = "alerts" }); b.tick(10000)
     equal(b.ar.elements["alert:backing"], nil); equal(b.ar.elements["hud:alerts:value"][4], "1")
-    b.input({ id = "alerts" }); b.tick(14000); equal(b.ar.elements["alert:backing"], nil)
+    b.input({ id = "alerts" }); b.tick(14000); equal(b.ar.elements["alert:mine.alert"][4], "FUEL EMPTY")
   end)
   test("UI3c repeated history alerts renew the banner without changing the count", function()
     local b = boot(); b.values["mine.alert"] = { text = "FULL" }
@@ -198,9 +199,9 @@ return function(test, equal)
       return { entries = rows }
     end }
     b.entries[1] = { seq = 1, kind = "mine.alert" }; b.tick(1000); b.tick(6000)
-    equal(b.ar.elements["alert:mine.alert"], nil)
+    equal(b.ar.elements["alert:rule"][1], C.dim)
     b.entries[2] = { seq = 2, kind = "mine.alert" }; b.tick(7000)
-    assert(b.ar.elements["alert:mine.alert"]); equal(b.ar.elements["hud:alerts:value"][4], "1")
+    equal(b.ar.elements["alert:rule"][1], C.coral); equal(b.ar.elements["hud:alerts:value"][4], "1")
   end)
   test("UI3c stable frames retain ids and removing a turtle deletes exactly its ids", function()
     local b = boot(); b.machine(2, "working"); b.machine(3, "working"); b.tick(1000)
