@@ -58,6 +58,9 @@ def views(ctx):
 
 
 def run(ctx):
+    # Assigned (unstarted) jobs give the AR layers turtles, leases and drop points to draw.
+    ctx.mining(start=False)
+    ctx.lumber(start=False)
     ctx.cli("client", ctx.run, "start", timeout=180)
     try:
         goggles = provision(ctx)

@@ -181,6 +181,8 @@ class World:
 
     def wait(self, predicate, seconds=30): return predicate()
     def frame(self, name): return {"role": "pocket", "buttons": [{"id": "x"}]}
+    def mining(self, start=True): pass
+    def lumber(self, start=True): pass
     def cli(self, *args, **kwargs): return {}
     def lua(self, name, code): return 3
     def navigate(self, name, role): return {"role": role}

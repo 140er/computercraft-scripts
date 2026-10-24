@@ -52,6 +52,11 @@ def page(ctx, name, role, want):
     return after, any("back" in i for i in ids(after)) if want == "setup" else "setup" in ids(after)
 
 
+def stocked(frame):
+    """The shop reached its storage room: no "storage room not found" notice."""
+    return not any("storage room not found" in r.get("text", "") for r in rows(frame))
+
+
 def coordinates_of(ctx, name, frame, miners):
     """Each miner's x,y,z on the mining screen: its list row when wide enough, else its details page."""
     found = []
@@ -83,6 +88,8 @@ def evaluate(d):
 
 def run(ctx):
     reached, setups, photos, coordinates = [], [], [], []
+    # The storage room boots while the jobs are set up, so the shop photos show its stock.
+    ctx.power("storage", "on")
     ctx.mining(start=False)
     ctx.lumber(start=False)
     ctx.cli("client", ctx.run, "start", timeout=180)
@@ -104,10 +111,11 @@ def run(ctx):
                     _, returned = page(ctx, name, role, "main")
                     setups.append(opened and returned)
                 view = ctx.manifest.get("client_views", {}).get(name)
+                if view and role == "shop" and not ctx.wait(lambda: stocked(ctx.frame(name)), 90):
+                    raise Blocked(f"Shop on {name} shows no storage room before its photo")
                 if view:
                     # The pocket photo shows the pocket's own screen, so it is opened first.
                     photos.append(camera.take(ctx, f"C3-{name}-{role}.png", view, pocket=name == "pocket"))
-        ctx.power("storage", "on")
         ctx.navigate("wall", "shop")
         ctx.type_text("wall", "diamond")
         ctx.wait(lambda: any(b.get("id") == "item:minecraft:diamond" for b in values(ctx.frame("wall")["buttons"])), 30)

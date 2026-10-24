@@ -219,24 +219,81 @@ class CameraTests(unittest.TestCase):
             manifest = {"client_views": {"ar": "ar view"}, "fixtures": {"goggles": {
                 "linked_player_in_template": True, "verify_command": "v", "expected_turtles": 3}}}
             run = "private"
-            def cli(self, *a, **k): return {}
+            def mining(self, start=True): taken.append(("mining", start))
+            def lumber(self, start=True): taken.append(("lumber", start))
+            def cli(self, *a, **k):
+                if a[-1] == "start": taken.append("client")
+                return {}
             def command(self, text): return {"output": "GATEB_GOGGLES_LINKED"}
             def record(self, name, value): return value
             def frame(self, name): return {"role": "ar", "buttons": [{"id": "turtles"}]}
             def wait(self, predicate, seconds=30): return predicate()
             def lua(self, name, code): return 3
             def navigate(self, name, role): return {"role": role}
-            def read_store(self, computer, path): return {"turtles": len(taken) < 1}
+            def read_store(self, computer, path): return {"turtles": len(taken) < 4}
             def click(self, name, ident): pass
             def power(self, name, action): pass
             def sleep(self, seconds): pass
         with patch.object(c13.camera, "take", side_effect=lambda ctx, name, view, pocket=False: taken.append((name, view, pocket))):
             verdict = c13.run(Ctx())
-        self.assertEqual(taken, [("C13-layers-before.png", "ar view", False), ("C13-layers-toggled.png", "ar view", False)] +
+        # The jobs are assigned but not started before the client joins, so the AR layers have turtles to draw.
+        self.assertEqual(taken[:3], [("mining", False), ("lumber", False), "client"])
+        self.assertEqual(taken[3:], [("C13-layers-before.png", "ar view", False), ("C13-layers-toggled.png", "ar view", False)] +
                          [(f"C13-stability-{i}.png", "ar view", False) for i in range(3)])
         # Candidates earn no credit: the visual evidence is missing, never passed.
         self.assertEqual(verdict.status, "blocked")
         self.assertIn("Missing evidence: real photos", verdict.findings)
+
+    def c3_context(self, taken, stock_after=0):
+        class Ctx:
+            manifest = {"client_views": {"pocket": "pocket view", "wall": "wall view"},
+                        "computers": {"4": {"name": "miner1", "pos": [0, 0, 0]}, "5": {"name": "miner2", "pos": [1, 0, 0]}}}
+            run, polls = "private", 0
+            def mining(self, start=True): taken.append("mining")
+            lumber = mining
+            def cli(self, *a, **k): return {}
+            def frame(self, name):
+                self.polls += 1
+                text = "storage room not found" if self.polls <= stock_after else "diamond 64"
+                return {"role": "shop", "rows": [{"text": text}], "buttons": [{"id": "x"}]}
+            def wait(self, predicate, seconds=30):
+                for _ in range(5):
+                    if predicate(): return True
+                return None
+            def screenshot(self, name): pass
+            def navigate(self, name, role): return {"role": role, "rows": [], "buttons": []}
+            def record(self, name, value): return value
+            def request(self, *a, **k): return {}
+            def terminal(self, name): return {}
+            def computer(self, name): return 4
+            def power(self, name, action): taken.append(("power", name, action))
+            def type_text(self, name, text): pass
+            def click(self, name, ident): pass
+            def count_items(self, fixture, suffix): return 0
+            def lua(self, name, code): return "generic"
+        return Ctx()
+
+    def run_c3(self, ctx, taken):
+        with patch.object(c3, "coordinates_of", return_value=[True, True]), \
+             patch.object(c3, "page", return_value=({}, True)), \
+             patch.object(c3.camera, "take", side_effect=lambda ctx, name, view, pocket=False: taken.append((name, view, pocket))):
+            return c3.run(ctx)
+
+    def test_c3_powers_the_storage_room_before_the_shop_photos(self):
+        taken = []
+        self.run_c3(self.c3_context(taken, stock_after=3), taken)
+        self.assertEqual(taken[0], ("power", "storage", "on"))
+        self.assertIn("C3-pocket-shop.png", [t[0] for t in taken if isinstance(t, tuple)])
+
+    def test_c3_blocks_when_the_shop_never_reaches_its_storage_room(self):
+        taken = []
+        with self.assertRaisesRegex(Blocked, "Shop on pocket shows no storage room"):
+            self.run_c3(self.c3_context(taken, stock_after=100), taken)
+        self.assertNotIn("C3-pocket-shop.png", [t[0] for t in taken if isinstance(t, tuple)])
+
+    def test_stocked_reads_the_shop_notice(self):
+        self.assertFalse(c3.stocked({"rows": {"1": {"text": " ! storage room not found"}}}))
+        self.assertTrue(c3.stocked({"rows": [{"text": " diamond ........ 64"}]}))
 
     def test_c3_opens_the_pocket_only_for_pocket_photos_and_never_passes_candidates(self):
         taken = []
