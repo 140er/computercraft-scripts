@@ -64,9 +64,9 @@ class SelectionTests(unittest.TestCase):
 
     def test_speed_gate_and_mixed_rates(self):
         with patch.object(run, "resolve", return_value="a"*40), patch.object(run, "tick_scaled", return_value=True), patch("builtins.print") as output:
-            self.assertEqual(run.main(["--checks", "C5,C9,C10,C11,C14", "--tick-rate", "80", "--plan"]), 0)
+            self.assertEqual(run.main(["--checks", "C2,C4,C5,C9,C10,C11,C13,C14", "--tick-rate", "80", "--plan"]), 0)
             plan = json.loads(output.call_args.args[0])
-            self.assertEqual(plan["tick_rates"], {"C5":80,"C9":20,"C10":20,"C11":20,"C14":20})
+            self.assertEqual(plan["tick_rates"], {"C2":20,"C4":20,"C5":80,"C9":20,"C10":20,"C11":20,"C13":20,"C14":20})
         with patch.object(run, "resolve", return_value="a"*40), patch.object(run, "tick_scaled", return_value=False), patch("sys.stderr"), self.assertRaises(SystemExit):
             run.main(["--checks", "C7", "--tick-rate", "80", "--plan"])
 

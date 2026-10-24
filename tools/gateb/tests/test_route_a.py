@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from checks import c2, c3, c13
+from checks import c2, c3, c4, c13
 from checks.context import sanitize
 from checks.model import Blocked
 
@@ -263,3 +263,59 @@ class PocketReadyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PoseChecks(Pocket):
+    def __init__(self):
+        super().__init__()
+        self.manifest["computers"]["6"] = {"name": "lumber", "pos": [10, 64, 3]}
+        self.role = "mining"
+
+    def mining(self, start=True):
+        assert not start
+
+    def lumber(self, start=True):
+        assert not start
+
+    def state(self):
+        miners = {k: {"pose": dict(zip(("x", "y", "z"), v["pos"]), facing=0)}
+                  for k, v in self.manifest["computers"].items()}
+        return {"mine": {"turtles": miners}, "lumber": {"turtles": {"6": {"turtle": miners["6"]}}}}
+
+    def native(self, name):
+        return {"pos": self.manifest["computers"][str(self.computer(name))]["pos"], "facing": "north"}
+
+    def navigate(self, name, role):
+        self.role = role
+        return self.frame(name)
+
+    def frame(self, name):
+        frame = super().frame(name)
+        if self.role == "lumber" and not self.turtle and self.page == "main":
+            frame["buttons"].append({"id": "turtle:6", "x": 2, "y": 11, "w": 24, "h": 1})
+        return frame
+
+
+class C4RouteTests(unittest.TestCase):
+    def test_c4_uses_route_a_tabs_and_full_turtle_details(self):
+        ctx = PoseChecks()
+        with patch.object(c4.time, "sleep"):
+            verdict = c4.run(ctx)
+        self.assertEqual(verdict.status, "pass")
+        self.assertNotIn("setup", ctx.clicks)
+        self.assertIn("tab:setup", ctx.clicks)
+        for ident in (4, 5, 6):
+            self.assertIn(f"turtle:{ident}", ctx.clicks)
+        self.assertEqual(ctx.clicks.count("turtle-back"), 3)
+
+    def test_c4_wrong_detail_pose_fails(self):
+        ctx = PoseChecks()
+        original = ctx.frame
+        def frame(name):
+            result = original(name)
+            if ctx.turtle == 6:
+                result["rows"][1]["text"] = "POSE 99,64,3 N"
+            return result
+        ctx.frame = frame
+        with patch.object(c4.time, "sleep"):
+            self.assertEqual(c4.run(ctx).status, "fail")
