@@ -655,4 +655,48 @@ return function(test, equal)
     equal({ d.S.draft.x, d.S.draft.y, d.S.draft.z, d.S.draft.side }, { 121, 64, -340, 'down' })
     assert(capture(d.render(57, 24, a), 57, 24).picture().text[1]:find('ADD DROP POINT', 1, true))
   end)
+
+  test('S3 drops: typed add after ROOM ON, room chests off, a verify clears strikes, setup states', function()
+    -- A typed add of a kind without room drops the draft's room mark.
+    local d, a = drops(), { id = 7 }
+    d.tap(a, 'new')
+    d.S.draft.kind = 'ore'
+    d.tap(a, 'room-point')
+    equal(d.S.draft.room, true)
+    d.type(a, 'add fuel 1 2 3')
+    equal(d.S.message, 'point added')
+    equal(d.mod.list()[#d.mod.list()].room, nil)
+    -- The only ore chest is a room chest and room sinks are off.
+    equal(d.mod.pick('ore', { dim = 0, x = 117, y = 64, z = -337 }).alert, 'ore room chests off')
+    equal(d.mod.pick('wood', { dim = 0, x = 117, y = 64, z = -337 }).point.kind, 'wood')
+    -- A chest found on a verify clears earlier strikes.
+    d.S.points[2].fails = 2
+    assert(d.S.verify(d.S.points[2].id, { ok = true, data = { name = 'minecraft:chest' } }))
+    equal(d.S.points[2].fails, 0)
+    -- Busy setup names its turtle; a failed setup row has a coral bullet beside RELEASE.
+    d.S.task = { id = 5, failed = true, steps = {}, next = 1 }
+    d.S.beginSetup(12)
+    equal(d.S.message, 'setup busy: #5')
+    local s = { id = 9 }
+    d.tap(s, 'testing')
+    local pic = capture(d.render(57, 24, s), 57, 24).picture()
+    local row
+    for y = 24, 1, -1 do if pic.text[y]:find('^ %S+ #5') then row = y end end
+    assert(row and ids(d.render(57, 24, s)).release, 'failed row')
+    equal(pic.fg[row]:sub(2, 2), 'e')
+    d.S.task.failed = nil
+    equal(capture(d.render(57, 24, s), 57, 24).picture().fg[row]:sub(2, 2), '1')
+  end)
+
+  test('S3 the farm edge stays drawn when one corner is far from the chests', function()
+    local d = drops()
+    for _, far in ipairs({ { 96, -352, 160, -341 }, { 40, -400, 108, -341 } }) do
+      d.S.ctx = { at = 1000, area = { x1 = far[1], z1 = far[2], x2 = far[3], z2 = far[4] }, server = { x = 113, z = -336 } }
+      local pic = capture(d.render(57, 24, { id = 7 }), 57, 24).picture()
+      -- A chest may sit on a corner, so count the edge rows.
+      local edges = 0
+      for y = 1, 24 do if pic.text[y]:find('+', 1, true) then edges = edges + 1 end end
+      equal(edges, 2)
+    end
+  end)
 end
