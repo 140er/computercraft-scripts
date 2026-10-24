@@ -1159,7 +1159,7 @@ chest cells and planted spots at soil height plus one. Keep access cells clear;
 these checks use the planner's known state. If no eligible cell remains,
 the turtle holds with a named `saplings #<id> unreachable at x,y,z` alert.
 
-The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtles[id] = { turtle = { id, frame, pose }, phase, inv, fuel, target?, tree?, service?, paused? }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtles[id] = { turtle = { id, frame, pose }, phase, inv, fuel, target?, tree?, service?, paused?, fuelRetry? }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
 The report sets the world pose to `P.toWorld(frame, lease.report.pose)` before
 work resumes. Recovery parks bypass the work range check; movement leases keep
@@ -1208,6 +1208,8 @@ stay reserved until it reports its journal pose. Possible cells include every
 movement endpoint in the saved in-flight batch even before lease expiry or an
 expiry callback. A physically occupied access
 cell stays protected.
+Fuel pickup slots, rejected items and retry deadlines belong to each worker.
+The optional room fuel order and physical-chest cooldown stay shared.
 With several workers, sapling trips return surplus supplies before releasing
 access, retaining one of the desired species. A lone worker keeps its supplies
 for later trees. Failed searches return the other species in either mode. Fuel trips take at most eight items per transfer.

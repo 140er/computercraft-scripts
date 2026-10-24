@@ -62,3 +62,10 @@ tests exercise three workers, PARK and confirmed RE-ADD at 26x20, 29x12 and
 57x24. PARK pauses only its selected worker after the open batch while others
 keep harvesting. A worker regression checks that pause, stationary parking and
 resumption through `start` without losing or duplicating logs.
+
+Storage #219 merged while the screens rebase was being tested. Its fuel pickup,
+rejected-item and retry fields now live in each worker row, with the room order
+policy still shared. All 22 storage tests pass after migrating their lumber
+readers. A two-worker regression leaves one worker waiting for fuel while the
+other refuels at a separate chest and harvests; after fuel arrives, both finish
+all trees and deliveries without overlap.

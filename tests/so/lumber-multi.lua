@@ -196,5 +196,39 @@ return function(test, equal)
       equal(g.net.world[spot[1] .. ',1,' .. spot[2]], 'minecraft:' .. spot[3] .. '_sapling')
     end
   end)
+  test('lumber automatic fuel retry stays local while another worker refuels and harvests', function()
+    local g = F.setup(true, 10, 'down', 2)
+    g.chests.fuel.inv={}
+    local second={name='minecraft:chest',inv={{name='minecraft:coal',count=32}}}
+    g.net.world['-4,1,2']=second
+    assert(g.server.env.SO.mods.drops.add({id='fuel-b',dim=0,x=-4,y=1,z=2,side='down',kind='fuel'}))
+    local waiting, pickups, empty = {rid='shared-output-A'}, {}, 0
+    g.server.env.SO.mods.shop={
+      fuelConfig=function() return {auto=true,waiting=waiting} end,
+      fuelEmpty=function(point) assert(point.id=='fuel') empty=empty+1 return true end,
+      fuelAvailable=function(point,order)
+        pickups[#pickups+1]={point=point.id,order=order}
+        if point.id=='fuel' then waiting=nil end
+      end,
+    }
+    F.run(g, function(v)
+      local rows=v.server.env.SO.store.read('so-data/lumber/job').value.turtles
+      return rows['2'].blocked=='fuel' and rows['3'].fuel>10
+    end)
+    local job=g.server.env.SO.store.read('so-data/lumber/job').value
+    assert(empty>0 and job.turtles['2'].fuelRetry>g.net.time and waiting)
+    equal(job.turtles['3'].fuelRetry,nil) equal(job.fuelRetry,nil)
+    equal(pickups[1].point,'fuel-b')
+    F.run(g, function(v) return #v.digs>=4 end)
+    g.chests.fuel.inv={{name='minecraft:coal',count=32}}
+    F.run(g, function(v) return F.delivered(v)==16 end)
+    job=g.server.env.SO.store.read('so-data/lumber/job').value
+    equal(job.turtles['2'].fuelRetry,nil) equal(job.turtles['3'].fuelRetry,nil)
+    equal(waiting,nil) equal(#g.digs,16)
+    for _,spot in ipairs(F.trees) do
+      equal(g.net.world[spot[1]..',1,'..spot[2]],'minecraft:'..spot[3]..'_sapling')
+    end
+    for _,item in ipairs(g.burned) do equal(item,'minecraft:coal') end
+  end)
 
 end
