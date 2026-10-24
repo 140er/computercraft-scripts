@@ -310,6 +310,7 @@ end
 S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
+    tools = SO.store.copy(row.tools), toolError = row.toolError, autoToolSwap = row.autoToolSwap == true,
     fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
@@ -358,6 +359,7 @@ S.report = function(msg)
   end
   if count ~= #lease.steps then return end
   row.open = nil
+  S.tools(row, body.tools)
   row.seen = SO.now()
   row.lost = false
   lease.report = S.facts(body)
@@ -375,7 +377,9 @@ S.report = function(msg)
     S.emit("pose", pose)
     S.observe(row, pose)
   end
-  if lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
+  if lease.owner == "tools" then
+    row.toolError = not allOk and ("tool swap failed: "..tostring(results[1].err or "failed")) or nil
+  elseif lease.owner == "gps" then S.probed(row, results, lease) else S.notify(lease, results) end
 end
 
 S.beacon = function(msg)
@@ -388,11 +392,49 @@ S.beacon = function(msg)
   S.emit("machine", { id = msg.from, fuel = msg.body.fuel, seen = row.seen, journal = row.journal })
 end
 
+S.tools = function(row, tools)
+  if type(tools) ~= "table" then row.tools = nil return end
+  local clean = {}
+  for _, side in ipairs({"left", "right"}) do
+    local name = tools[side]
+    if name ~= false and (type(name) ~= "string" or #name > 128) then row.tools = nil return end
+    clean[side] = name
+  end
+  row.tools = clean
+end
+
+S.describe = function(id, job, reason)
+  local row = S.row(id)
+  local text = job.."/"..reason
+  if row.description == text and SO.now()-(row.describedAt or 0)<30000 then return end
+  local key = SO.pair.key(id)
+  if not key then return end
+  local wire = SO.proto.encode(SO.proto.build(key,"worker.status",{job=job,reason=reason}))
+  if wire then rednet.send(id,wire,"so"); row.description, row.describedAt = text, SO.now() end
+end
+
+S.ensureTool = function(id, kind)
+  local row = S.row(id)
+  if not row.tools then return true end
+  for _, name in pairs(row.tools) do
+    if type(name) == "string" and name:match("_"..kind.."$") then row.toolError = nil return true end
+  end
+  if not row.autoToolSwap then return true, "needs "..kind end
+  if not row.open and not row.uncertain and not row.lost
+    and SO.now() >= (row.toolRetry or 0) then
+    row.toolRetry = SO.now()+30000
+    S.send(id, {{op="tool",kind=kind}}, {owner="tools"})
+  end
+  return false, row.toolError or ("needs "..kind)
+end
+
 S.hello = function(msg)
   local row = S.row(msg.from)
   row.lost = false
   row.seen = SO.now()
   row.fuel = (S.number(msg.body.fuel) or msg.body.fuel == "unlimited") and msg.body.fuel or nil
+  S.tools(row, msg.body.tools)
+  row.autoToolSwap = type(msg.body.capabilities) == "table" and msg.body.capabilities.autoToolSwap == true
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
   row.setupFence = type(msg.body.capabilities) == "table" and msg.body.capabilities.setupFence == true
   row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
@@ -488,6 +530,8 @@ return {
   end,
   status = S.status,
   peek = S.peek,
+  describe = S.describe,
+  ensureTool = S.ensureTool,
   cancelPark = S.cancelPark,
   inRange = S.inRange,
   dugProtection = S.dugProtection,

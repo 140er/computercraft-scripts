@@ -31,6 +31,18 @@ return function(test, equal)
       for _, name in ipairs(g.digs) do assert(name ~= "minecraft:chest" and name ~= "minecraft:stone",name) end
     end)
   end
+  test("SO7 default-off tool checks let a pickaxe-only turtle fell and deliver logs",function()
+    local g=setup(true,10000,"down",1,nil,{left="minecraft:diamond_pickaxe",right="computercraft:wireless_modem"})
+    local lease=g.server.env.SO.mods.lease
+    equal(lease.status(2).autoToolSwap,false)
+    equal(lease.status(2).tools.left,"minecraft:diamond_pickaxe")
+    equal(lease.ensureTool(2,"axe"),true)
+    g.net.advance(1)
+    equal(g.worker.screen[4],"needs axe")
+    run(g,function(x) return delivered(x)>=16 end)
+    equal(delivered(g),16)
+  end)
+
   test("SO7 fells four trees, replants the farm and delivers every log", function()
     local g = setup(true)
     run(g, function(v) return delivered(v)==16 end)

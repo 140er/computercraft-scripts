@@ -101,4 +101,12 @@ return function(test,equal)
     assert(row.state~="done")
   end)
 
+  test("missing pickaxe holds with a stationary park",function()
+    local s=fixture() local row=s.row() s.job.running=true
+    s.mods.lease.ensureTool=function() return false,"needs pickaxe" end
+    s.mine.tick()
+    equal(row.state,"hold");equal(row.error,"needs pickaxe")
+    equal(s.calls[1].steps,{{op="inspectDown"}})
+  end)
+
 end

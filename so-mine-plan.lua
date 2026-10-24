@@ -23,6 +23,8 @@ function M.ore(d, ores)
   return false
 end
 function M.junk(d)
+  if d.name:match("_pickaxe$") or d.name:match("_axe$") or d.name:match("_shovel$")
+    or d.name:match("_hoe$") or d.name:match("_sword$") then return false end
   if junk[d.name] then return true end
   for _, part in ipairs({ "sandstone", "terracotta", "cobble" }) do if d.name:find(part, 1, true) then return true end end
   if keep[d.name] or M.ore(d) or P.fuelValue(d.name) > 0 then return false end

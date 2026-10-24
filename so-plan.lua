@@ -198,8 +198,16 @@ end
 
 function P.missing(checks)
   local missing = {}
-  for _, check in ipairs(checks) do if not check.ok then missing[#missing+1] = check.text end end
+  for _, check in ipairs(checks) do if not check.ok and check.blocking ~= false then missing[#missing+1] = check.text end end
   return missing
+end
+
+function P.toolCheck(tools, kind, id, autoSwap)
+  local known = type(tools) == "table"
+  local equipped = known and ((type(tools.left) == "string" and tools.left:match("_"..kind.."$"))
+    or (type(tools.right) == "string" and tools.right:match("_"..kind.."$")))
+  return {ok=not known or not not equipped, blocking=autoSwap == true, text=(id and ("#"..id.." ") or "")
+    ..(not known and "tools unknown" or equipped and (kind.." ready") or ("needs "..kind))}
 end
 
 return P

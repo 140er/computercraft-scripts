@@ -102,7 +102,9 @@ and listeners use `listener(sender, message)`.
   `replay(startPose, steps, results)`, `path(from, to, opts)`, `chunk(steps, n)`,
   `inRange(lease, id, cells)`, `rangeBatch(lease, id, action)`, `fuelValue(name)`, `free(inv)`,
   `chestPresent(result)`, `transferFailure(kind, result)`, `chestError(kind, reason, point)`,
-  `chestCheck(points, kind, near)` and `missing(checks)`.
+  `chestCheck(points, kind, near)`, `toolCheck(tools, kind, id?, autoSwap?)` and `missing(checks)`.
+  `toolCheck` returns `{ok,text,blocking}`. Missing tools are informational unless
+  `autoSwap` is true; `missing` excludes nonblocking checks. Absent equipment facts are unknown.
   `chestCheck` returns `{ok,text}` without writes. `missing` returns unmet text in order.
   `rangeBatch` returns the longest prefix within range of complete `action.actions`,
   rebuilding its steps, cells and final pose. It returns the original action when
@@ -215,7 +217,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [daily](server-only/PROTOCOL.md#daily).
 - [so-mod-lease.lua](../so-mod-lease.lua), `lease`, dispatches worker batches
   without waiting. Calls are `send(id, steps, opts)`, `onReport(owner, fn)`,
-  `status(id)`, `peek(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)` and `tick(now)`.
+  `status(id)`, `peek(id)`, `cancelPark(id, "mine")`, `inRange(id, pos)`, `describe(id, job, reason)`,
+  `ensureTool(id, kind)` and `tick(now)`. `status` also returns read-only `tools`
+  and `toolError`, plus the worker opt-in as `autoToolSwap`. `ensureTool` returns true
+  for equipped or unknown tools, or when swaps are disabled, otherwise
+  false and a reason. It may send one tool lease when the worker advertises opt-in;
+  retries wait 30000 game milliseconds. `describe` sends authenticated worker status
+  on change or after 30000 game milliseconds.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Unreported single-step `inspectDown` parks retry every game second with the

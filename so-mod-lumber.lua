@@ -152,6 +152,7 @@ S.readiness = function()
     local id = row.turtle.id
     local status = type(lease.status)=="function" and lease.status(id)
     paired = paired and SO.pair and SO.pair.key(id) ~= nil and status and not status.uncertain and not status.lost
+    checks[#checks+1]=P.toolCheck(status and status.tools,"axe",id,status and status.autoToolSwap)
     fueled = fueled and type(row.fuel)=="number" and row.fuel~=0
   end
   paired, fueled = #rows > 0 and paired, #rows > 0 and fueled
@@ -1328,6 +1329,10 @@ S.tickRow = function(row, now)
   S.row = row
   local j, lease = S.row, S.module("lease")
   local status = lease.status(j.turtle.id)
+  local tool = P.toolCheck(status.tools,"axe")
+  if type(lease.describe) == "function" then
+    lease.describe(j.turtle.id,"lumber",not tool.ok and tool.text or j.alert or j.blocked or j.phase or "idle")
+  end
   if status.uncertain then
     if j.inflight or j.uncertain then S.suspendService() end
     j.blocked = "pose uncertain"
@@ -1354,6 +1359,11 @@ S.tickRow = function(row, now)
       S.emit("lumber.alert",false)
       S.save()
     end
+  end
+  if type(lease.ensureTool) == "function" then
+    local equipped, reason = lease.ensureTool(j.turtle.id,"axe")
+    if not equipped then S.alert(reason) S.park() return end
+    if j.alert and (j.alert == "needs axe" or j.alert:match("^tool swap failed:")) then j.alert=nil S.save() end
   end
   if j.blocked or j.paused or not S.job.running or not S.job.area or not j.turtle.frame then
     if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end
