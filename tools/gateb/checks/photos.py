@@ -24,13 +24,20 @@ def fraction(path, crop, formula):
     return float(out.stdout)
 
 
-def changed(a, b):
-    """Share of pixels that differ by more than 3% between two screenshots."""
-    out = subprocess.run(["compare", "-metric", "AE", "-fuzz", "3%", str(a), str(b), "null:"],
+# The pocket GUI with its bezel. A pocket photo looks at the sky, where clouds drift and
+# the item list and minimap redraw, so only this area has to hold still.
+POCKET_AREA = (548, 620, 392, 50)
+
+
+def changed(a, b, area=None):
+    """Share of pixels in area (width, height, x, y; default the whole frame) that differ by more than 3%."""
+    width, height, x, y = area or (WIDTH, HEIGHT, 0, 0)
+    out = subprocess.run(["compare", "-metric", "AE", "-fuzz", "3%",
+                          f"{a}[{width}x{height}+{x}+{y}]", f"{b}[{width}x{height}+{x}+{y}]", "null:"],
                          capture_output=True, text=True, timeout=60)
     if out.returncode > 1:
         raise Blocked("Native photo checks need ImageMagick")
-    return float(out.stderr.split()[0]) / (WIDTH * HEIGHT)
+    return float(out.stderr.split()[0]) / (width * height)
 
 
 # The pocket screen's yellow bezel at both sides of the centred pocket GUI.
@@ -95,7 +102,7 @@ def settled(ctx, name, pocket, seconds=90, limit=.02):
             ctx.sleep(2); previous = None; continue
         if pocket_open(shot) != pocket:
             (open_pocket if pocket else close_screens)(ctx); previous = None; continue
-        if previous is not None and changed(previous, shot) < limit:
+        if previous is not None and changed(previous, shot, POCKET_AREA if pocket else None) < limit:
             return shot
         previous = shot
         ctx.sleep(1)

@@ -52,7 +52,7 @@ def probes(test):
     """Read the scripted state back from each fake screenshot."""
     state = lambda p: Path(p).read_text()
     for name, fn in (("pocket_open", lambda p: state(p) == "pocket"), ("menu_open", lambda p: state(p) == "menu"),
-                     ("loading", lambda p: state(p) == "loading"), ("changed", lambda a, b: 0.0 if state(a) == state(b) else 1.0)):
+                     ("loading", lambda p: state(p) == "loading"), ("changed", lambda a, b, area=None: 0.0 if state(a) == state(b) else 1.0)):
         patcher = patch.object(photos, name, side_effect=fn)
         patcher.start(); test.addCleanup(patcher.stop)
 
@@ -103,6 +103,20 @@ class SettledFrameTests(unittest.TestCase):
         with patch.object(photos, "pocket_open", return_value=False), \
              self.assertRaisesRegex(Blocked, "did not settle for C13-stability-0.png"):
             photos.settled(Moving(["world"], self.dir), "C13-stability-0.png", pocket=False, seconds=0.05)
+
+    def test_pocket_photos_ignore_motion_outside_the_pocket(self):
+        # The pocket camera faces the sky: drifting clouds, the item list and the minimap
+        # change every frame around a pocket screen that holds still (smoke run, C3-pocket-mining).
+        areas = []
+        def changed(a, b, area=None):
+            areas.append(area)
+            return 0.0 if area == photos.POCKET_AREA else 0.06
+        with patch.object(photos, "changed", side_effect=changed):
+            photos.settled(Client(["pocket"], self.dir), "C3-pocket-mining.png", pocket=True)
+            self.assertEqual(areas, [photos.POCKET_AREA])
+            with self.assertRaisesRegex(Blocked, "did not settle"):
+                photos.settled(Client(["world"], self.dir), "C3-wall-mining.png", pocket=False, seconds=0.05)
+        self.assertIsNone(areas[-1])
 
     def test_a_closed_pocket_is_reopened_for_a_pocket_photo(self):
         ctx = Client(["world", "pocket", "pocket", "pocket"], self.dir)
@@ -177,6 +191,16 @@ class ImageProbeTests(unittest.TestCase):
         self.assertTrue(photos.loading(loading)); self.assertFalse(photos.loading(world))
         self.assertEqual(photos.changed(world, world), 0)
         self.assertAlmostEqual(photos.changed(world, loading), .25, places=2)
+
+    def test_motion_outside_the_pocket_area_is_not_counted(self):
+        still = self.image("still.png", "-fill", "#0b111c", "-draw", "rectangle 426,84 905,635")
+        clouds = self.image("clouds.png", "-fill", "#0b111c", "-draw", "rectangle 426,84 905,635",
+                            "-fill", "white", "-draw", "rectangle 0,0 380,719", "-draw", "rectangle 960,0 1279,300")
+        self.assertGreater(photos.changed(still, clouds), .1)
+        self.assertEqual(photos.changed(still, clouds, photos.POCKET_AREA), 0)
+        text = self.image("text.png", "-fill", "#0b111c", "-draw", "rectangle 426,84 905,635",
+                          "-fill", "white", "-draw", "rectangle 450,90 860,110")
+        self.assertGreater(photos.changed(still, text, photos.POCKET_AREA), 0)
 
 
 class CameraTests(unittest.TestCase):
