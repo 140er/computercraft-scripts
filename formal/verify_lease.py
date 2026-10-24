@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -10,7 +11,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_COMMIT = "a073aefa612a93db6f7d3e89a8ae1288961849cb"
+SYNC_COMMIT = "ac48c96003f15ace2951d2ef2e11b6da49e8e796"
 MUTATIONS = {
     "dispatch": (
         'if row.open then return nil, "busy" end',
@@ -38,17 +39,31 @@ MUTATIONS = {
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--check-evidence", type=Path, help="reject evidence for different source bytes")
     parser.add_argument("--source", type=Path, default=ROOT / "so-mod-lease.lua")
     args = parser.parse_args()
     lua = shutil.which("lua5.2")
     if lua is None:
         raise SystemExit("lua5.2 is required")
-    source = args.source.resolve().read_text()
+    source_bytes = args.source.resolve().read_bytes()
+    source = source_bytes.decode()
+    source_hash = hashlib.sha256(source_bytes).hexdigest()
+    test_path = ROOT / "tests/so/lease.lua"
+    test_source = test_path.read_text()
+    test_anchor = r'local evidenceSourceHash = "[0-9a-f]{64}"'
+    if args.check_evidence:
+        recorded = json.loads(args.check_evidence.read_text())
+        if recorded.get("source_sha256") != source_hash:
+            raise SystemExit("lease evidence hash differs from source; rerun verification")
+        if f'local evidenceSourceHash = "{source_hash}"' not in test_source:
+            raise SystemExit("lease test evidence hash differs from source; rerun verification")
+        print("PASS lease evidence and test hashes match source")
+        return
     started = time.monotonic()
     evidence = {
         "sync_commit": SYNC_COMMIT,
         "covered_file": "so-mod-lease.lua",
-        "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
+        "source_sha256": source_hash,
         "tool": subprocess.check_output([lua, "-v"], stderr=subprocess.STDOUT, text=True).strip(),
         "bounds": {"event_permutations": 40320, "events_per_trace": 8,
                    "workers_with_work": 1, "foreign_sender": 3, "dispatch_attempts": 2,
@@ -89,7 +104,11 @@ def main():
     evidence["elapsed_seconds"] = round(time.monotonic() - started, 3)
     if args.evidence:
         args.evidence.parent.mkdir(parents=True, exist_ok=True)
+        if len(re.findall(test_anchor, test_source)) != 1:
+            raise SystemExit("lease test evidence anchor changed")
         args.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
+        test_path.write_text(re.sub(test_anchor,
+                                   f'local evidenceSourceHash = "{source_hash}"', test_source))
     print(f"PASS real-source verification and all 5 scratch defects; {evidence['elapsed_seconds']}s")
 
 

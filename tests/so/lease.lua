@@ -1,4 +1,7 @@
 local H = dofile("tests/so/harness.lua")
+-- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
+-- Part tests carry this hash because their input set excludes formal evidence.
+local evidenceSourceHash = "314bc6ac21b553c5a72ce02cd3bc6c4946754c5b3472ac48a30b7eba0e970103"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -68,7 +71,13 @@ local function setup(position, gpsPos)
 end
 local origin = { dim = 0, x = 0, y = 0, z = 0 }
 local steps = { { op = "forward" }, { op = "up" } }
-return function(test, equal)
+return function(test, equal, read)
+  test("lease formal evidence matches the current source bytes", function()
+    local s = setup(origin)
+    local proto = s.server.env.SO.proto
+    equal(proto.hex(proto.sha256(read("so-mod-lease.lua"))), evidenceSourceHash,
+      "lease evidence is stale; rerun python3 formal/verify_lease.py --evidence formal/evidence/lease-orderings.json")
+  end)
   test("lease refuses a second open batch without sending", function()
     local s = setup(origin)
     local id = assert(s.lease.send(2, steps, { owner = "mine" }))
