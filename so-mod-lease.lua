@@ -192,7 +192,7 @@ S.probed = function(row, results, lease)
     probe.done(nil, not ok and err or "probe blocked; use explicit add")
   else
     row.fix = nil
-    probe.done(nil, "probe pose unknown; use explicit add")
+    probe.done(nil, results and "probe pose unknown; use explicit add" or "GPS probe lost; retry add")
   end
 end
 
