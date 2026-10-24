@@ -381,6 +381,7 @@ return function(test,equal)
     s.m.env.SO.mods.lease={status=function() return {} end,inRange=function() return true end,
       onReport=function(_,fn) callback=fn end,send=function(_,steps) queued=steps return "lease" end}
     s.m.env.SO.mods.cells={owner=function() return standing end,reserveMany=function() return true end,
+      reserve=function(who) equal(who,standing) return true end,
       release=function() error("standing reservation released") end}
     local mine=s.m.env.dofile("so-mod-mine.lua")
     mine.tick()
