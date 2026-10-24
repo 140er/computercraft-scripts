@@ -122,11 +122,12 @@ return function(test,equal)
       for _,command in ipairs({'start','stop','start','stop'}) do
         local before,typedBefore=tapped.saved,typed.saved
         typed.input({text=command});tapped.input({id=command})
+        if not configured and command=="start" then equal(a.alert,"area not set") end
         equal(a,b);equal(typed.saved,tapped.saved)
         equal(tapped.saved-before,typed.saved-typedBefore)
         assert(tapped.saved-before<=1)
       end
-      if not configured then equal(a.alert,'area not set') end
+      equal(a.alert,nil)
     end
   end)
   test('UI2b navigation and unknown taps leave alerts events and saved jobs unchanged',function()

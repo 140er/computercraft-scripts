@@ -61,7 +61,11 @@ local function setup()
     local got;d.handlers['view.get']({from=id},function(_,b) got=b end);return got
   end
   s.tap=function(id,button,text)
-    d.handlers.input({from=id,body={id=button,text=text,x=1,y=1}})
+    local frame
+    d.handlers['view.get']({from=id},function(_,body) frame=body end)
+    local x,y=1,1
+    for _,b in ipairs(frame.buttons) do if b.id==button then x,y=b.x,b.y break end end
+    d.handlers.input({from=id,body={id=button,text=text,x=x,y=y}})
   end
   return s
 end
@@ -172,6 +176,7 @@ return function(test,equal)
     for _,size in ipairs({{26,20},{57,24},{39,19},{15,10},{29,12}}) do
       local w,h=unpack(size)
       for _,page in ipairs({'panel-back','alerts','pair'}) do
+        if page~='panel-back' then s.tap(2,'panel-back') end
         s.tap(2,page)
         local f=s.frame(2,w,h);equal(f.role,'panel')
         local out=capture(f,w,h)
@@ -185,7 +190,7 @@ return function(test,equal)
         end
       end
     end
-    s.tap(2,'status');equal(s.frame(2).role,'status')
+    s.tap(2,'panel-back');s.tap(2,'status');equal(s.frame(2).role,'status')
     s.tap(2,'panel');equal(s.frame(2).role,'panel')
   end)
   test('UI3b missing modules have disabled blocks and no action targets',function()

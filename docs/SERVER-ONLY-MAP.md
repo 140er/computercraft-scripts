@@ -908,3 +908,27 @@ fuel IDs, shared physical-chest cooldowns, save/send failures, power cuts before
 send, restart alerts, room readiness, worker unloads and drawn controls at
 26x20 and 29x12. Gate B must still verify the room's outside input/output
 access cells, actual fuel delivery, sorting stock and furnace fuel consumption.
+
+### Setup UX additions
+
+`drops.busy(id)` identifies the turtle held by an active or failed chest setup
+operation. The drop editor owns scan candidates in memory, setup report routing
+and scan/test/release commands. Setup requires `so-server.cfg.setupMovement=true`
+and a worker with `parkBatch` and `setupFence`. It reserves the complete non-digging round trip
+under `setup:<id>`, rejects the mining lane and retains cells after failures.
+`drops.list()` includes optional `verified={at,block}` from a successful visit.
+Readiness shows verification without refusing otherwise usable points.
+
+`build.assigned(id)` joins the existing mining and lumber assignment queries.
+`lease.candidates()` excludes all three jobs, open leases, GPS reservations and
+active setup operations. `lease.status(id)` also exposes `parkBatch` and `setupFence`.
+Machine registry rows and views include an optional sanitized 16-character
+`label`. State retains `pair.done={id,at,role?,label?}` for panel notices.
+Mining publishes command refusals through its existing `mine.alert` state key
+and clears the key after accepted commands.
+
+Setup completion retains the occupied cell as `gps:<id>` before freeing its
+route. `lease.status(id).fuel` reports the latest hello or accepted step-report
+fuel for round-trip admission. The display dispatcher keeps a per-session map
+of the last delivered frame's button ids and rejects hidden or stale ids before
+any screen action. Local monitor input uses its last painted frame.

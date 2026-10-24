@@ -203,6 +203,8 @@ S.run = function()
       end
       reply("ack", body, hs)
       pair.clear()
+      local state = SO.mods.state
+      if state and state.emit then state.emit("pair.done", {id=msg.from,at=SO.now()}) end
       showPrompt()
     end,
     hello = function(_msg, reply)

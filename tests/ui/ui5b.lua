@@ -19,9 +19,10 @@ return function(test, equal)
     local display = e.dofile('so-mod-display.lua')
     e.SO.mods.display = display
     local drops = e.dofile('so-mod-drops.lua'); drops.tick()
+    local U=e.dofile('so-ui.lua')
     local calls = {}
     for _, role in ipairs({'mining','lumber','shop','ar','panel','build'}) do
-      display.screen(role, function() return {rows={},buttons={}} end,
+      display.screen(role, function(w,h) local c=U.canvas(w,h);c.button(1,h,w,'MORE','generic','7',1);return c.frame() end,
         function() calls[role] = (calls[role] or 0)+1 end)
     end
     local function frame(id)
@@ -30,7 +31,9 @@ return function(test, equal)
       return result
     end
     local function tap(id, button)
-      display.handlers.input({from=id,body={id=button,x=1,y=1}})
+      local f=frame(id);local x,y=1,1
+      for _,b in ipairs(f.buttons) do if b.id==button then x,y=b.x,b.y break end end
+      display.handlers.input({from=id,body={id=button,x=x,y=y}})
     end
     display.handlers.hello({from=2,body={w=57,h=24}})
     display.handlers.hello({from=3,body={w=57,h=24}})

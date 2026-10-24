@@ -156,9 +156,14 @@ return function(test, equal)
       equal(s.server.env.SO.pairCode(5),nil)
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=5,body={w=w,h=h}})
-      display.handlers.input({from=5,body={id="panel",x=1,y=1}})
-      display.handlers.input({from=5,body={id="pair",x=1,y=1}})
-      display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
+      for _,id in ipairs({"panel","pair","pair-code"}) do
+        local f
+        display.handlers["view.get"]({from=5},function(_,body) f=body end)
+        local drawn
+        for _,b in ipairs(f.buttons) do if b.id==id then drawn=b break end end
+        assert(drawn,"missing displayed control "..id)
+        display.handlers.input({from=5,body={id=id,x=drawn.x,y=drawn.y}})
+      end
       local other
       display.handlers["view.get"]({from=5},function(_,body) other=body end)
       for row=4,6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end

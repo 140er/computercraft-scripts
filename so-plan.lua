@@ -192,7 +192,7 @@ function P.chestCheck(points, kind, near)
     end
   end
   local point = best or broken
-  return {ok=best ~= nil, text=point and P.chestError(kind, best and "ready" or "broken", point)
+  return {ok=best ~= nil, text=point and P.chestError(kind, best and (best.verified and "verified by visit" or "unverified") or "broken", point)
     or "no " .. kind .. " chest set"}
 end
 

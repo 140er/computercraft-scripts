@@ -164,8 +164,16 @@ return function(test,equal)
         local c=kit.canvas(cw,ch) c.header("PANEL","22:14") return c.frame()
       end,function() end)
       s.display.handlers.hello({from=22,body={w=w,h=h,fullH=h}})
-      s.display.handlers.input({from=22,body={id="generic",x=1,y=1}})
-      s.display.handlers.input({from=22,body={id="panel",x=1,y=1}})
+      local function press(id)
+        local f;s.display.handlers["view.get"]({from=22},function(_,body) f=body end)
+        local drawn
+        for _,b in ipairs(f.buttons) do if b.id==id then drawn=b break end end
+        assert(drawn,"missing displayed control "..id)
+        s.display.handlers.input({from=22,body={id=id,x=drawn.x,y=drawn.y}})
+      end
+      local initial;s.display.handlers["view.get"]({from=22},function(_,body) initial=body end)
+      if initial.role~="generic" then press("generic") end
+      press("panel")
       local frame
       s.display.handlers["view.get"]({from=22,body={}},function(_,body) frame=body end)
       local target=button(frame,"map",w,h)
@@ -333,7 +341,10 @@ return function(test,equal)
       for _,role in ipairs({"status","generic","mining","lumber","shop","ar","panel"}) do
         d.screen(role,function(cw,ch)
           local c=U.canvas(cw,ch) c.header(role:upper(),"ok")
-          if role~="generic" then c.button(1,ch,cw,"MORE","generic","7",1) end
+          if role~="generic" then c.button(1,ch,cw,"MORE","generic","7",1)
+          else
+            for i,id in ipairs({"status","mining","lumber","shop","ar","panel"}) do c.button(1,i+2,cw,id:upper(),id,"7",1) end
+          end
           return c.frame()
         end,function() end)
       end
@@ -350,13 +361,13 @@ return function(test,equal)
       for _,role in ipairs({"generic","status","mining","lumber","shop","ar","panel"}) do
         if frame().role~="generic" then press("generic") end
         if role~="generic" then
-          d.handlers.input({from=22,body={id=role,x=1,y=1}})
+          press(role)
         end
         equal(frame().role,role)
         press("map") equal(frame().role,"map")
         press("map-out") press("map-n") press("map-level")
         press("map-back") equal(frame().role,role)
-        d.handlers.input({from=22,body={id="generic",x=1,y=1}})
+        if role~="generic" then press("generic") end
       end
       press("map")
       local reboot=s.machine.env.dofile("so-mod-display.lua")

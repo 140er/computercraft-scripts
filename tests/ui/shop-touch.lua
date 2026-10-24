@@ -136,7 +136,16 @@ T.run = function(test,equal)
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals=T.stock()})
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=3,body={w=size[1],h=size[2],fullH=size[2],keyboard=false}})
-      display.handlers.input({from=3,body={id="shop",x=1,y=1}})
+      local function open(id)
+        local frame
+        display.handlers["view.get"]({from=3},function(_,body) frame=body end)
+        local drawn
+        for _,b in ipairs(frame.buttons) do if b.id==id then drawn=b break end end
+        assert(drawn,"missing displayed control "..id)
+        display.handlers.input({from=3,body={id=id,x=drawn.x,y=drawn.y}})
+      end
+      if size[1]==26 then open("generic") end
+      open("shop")
       local function other()
         local frame
         display.handlers["view.get"]({from=3},function(_,body) frame=body end)
