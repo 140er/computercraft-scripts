@@ -107,8 +107,8 @@ return function(test, equal)
   test('R3 pocket routing: tabs change pages, a takeover comes first, the role never changes', function()
     local s = setup()
     s.D.model = nil
-    s.env.SO.mods.state = {get=function() return {} end,view=function() return {values={['mine.alert']={text='ore chest full'}}} end}
     s.display.handlers.hello({from=2,body={w=26,h=19,fullH=20,keyboard=true}})
+    s.env.SO.mods.state = {get=function() return {} end,view=function() return {values={['mine.alert']={text='ore chest full'}}} end}
     local function frame() local f;s.display.handlers['view.get']({from=2},function(_,b) f=b end);return f end
     local f = frame();equal(f.role,'pocket')
     assert(find(f,'dismiss') and capture(f,26,20).picture().text[3]:find('ORE CHEST FULL',1,true),'new alert takes over first')
