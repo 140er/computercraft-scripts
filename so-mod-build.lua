@@ -110,14 +110,16 @@ local function send(steps, action, recover)
   steps[1].park = true
   local start, at = j.turtle.pose, j.turtle.pose
   local reserved = { start }
-  for _, step in ipairs(steps) do
-    at = P.apply(at, step.op)
-    reserved[#reserved+1] = at
-    if step.op == "placeDown" or step.op == "inspectDown" or step.op == "suckDown" then
-      reserved[#reserved+1] = {dim=j.dim,x=at.x,y=at.y-1,z=at.z}
-    elseif step.op == "inspect" or step.op == "suck" then
-      local x,y,z = P.ahead(at,"forward")
-      reserved[#reserved+1] = {dim=j.dim,x=x,y=y,z=z}
+  if action ~= "fuel" then
+    for _, step in ipairs(steps) do
+      at = P.apply(at, step.op)
+      reserved[#reserved+1] = at
+      if step.op == "placeDown" or step.op == "inspectDown" or step.op == "suckDown" then
+        reserved[#reserved+1] = {dim=j.dim,x=at.x,y=at.y-1,z=at.z}
+      elseif step.op == "inspect" or step.op == "suck" then
+        local x,y,z = P.ahead(at,"forward")
+        reserved[#reserved+1] = {dim=j.dim,x=x,y=y,z=z}
+      end
     end
   end
   if not recover then
@@ -126,7 +128,10 @@ local function send(steps, action, recover)
   end
   if not cells.reserveMany then alert("cells unavailable") return false end
   local ok, err = cells.reserveMany(owner(),reserved)
-  if not ok then alert(err == "held" and "cells held" or "reservation save failed", "cells") return false end
+  if not ok then
+    if action ~= "fuel" or err ~= "held" then alert(err == "held" and "cells held" or "reservation save failed", "cells") end
+    return false
+  end
   j.intent = {action=action, steps=steps, pose=start}
   if not save() then return false end
   local id

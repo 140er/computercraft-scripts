@@ -167,6 +167,51 @@ return function(test,equal)
     f.tick() f.report() f.tick() f.fuel="unlimited" f.report()
     equal(f.job().blocked,nil) f.run() equal(f.count(),1)
   end)
+  for _,conflict in ipairs({"below","current"}) do
+    test("builder resumes after refuelling with a fuel probe reservation conflict "..conflict,function()
+      local f=fixture()
+      f.setPose({dim="minecraft:overworld",x=0,y=1,z=0,facing=1})
+      f.inventory[1]={name="minecraft:stone",count=2}
+      f.configure("floor",2,1,1) f.input("start")
+      for _=1,20 do
+        f.tick() if f.queued() then f.report() end
+        if f.count()==1 then break end
+      end
+      equal(f.count(),1)
+      f.tick() equal(f.job().intent.action,"move")
+      equal(f.queued().steps,{{op="up",park=true}})
+      f.report(false,0)
+      local pose=f.job().turtle.pose
+      equal(pose.y,2)
+      local below=pose.x..","..(pose.y-1)..","..pose.z
+      local current=pose.x..","..pose.y..","..pose.z
+      local held=conflict=="below" and below or current
+      f.held[held]="mine:7"
+      local reserveMany=f.mods.cells.reserveMany
+      local reserved
+      f.mods.cells.reserveMany=function(owner,cells)
+        reserved=cells
+        return reserveMany(owner,cells)
+      end
+      for _=1,2 do
+        f.tick()
+        equal(f.job().blocked,"fuel") equal(f.job().alert,"out of fuel")
+        equal(#reserved,1) equal(reserved[1],pose)
+        if conflict=="below" then
+          equal(f.job().intent.action,"fuel")
+          equal(f.queued().steps,{{op="inspectDown",park=true}})
+          f.report()
+        else equal(f.queued(),nil) end
+        equal(f.job().blocked,"fuel") equal(f.job().alert,"out of fuel")
+        equal(f.held[held],"mine:7") equal(f.count(),1)
+      end
+      f.mods.cells.reserveMany=reserveMany
+      f.held[held]=nil f.fuel=5
+      f.tick() equal(f.job().intent.action,"fuel") f.report()
+      equal(f.job().blocked,nil) equal(f.job().fuel,5)
+      f.run() equal(f.count(),2)
+    end)
+  end
   for _,case in ipairs({{0,"Movement obstructed","out of fuel","fuel"},
     {5,"Out of fuel","out of fuel","fuel"},{5,"Movement obstructed","path blocked; clear route","path"}}) do
     test("builder reports failed movement with fuel "..case[1].." and "..case[2],function()

@@ -66,7 +66,7 @@ return function()
   f.setPose=function(value) pose=copy(value) end
   f.mod=function() return mod end
   f.tick=function() f.now=f.now+100 mod.tick() end
-  f.report=function(drop)
+  f.report=function(drop,reportedFuel)
     local q=assert(queued,"no queued lease") queued=nil
     local results={}
     for i,step in ipairs(q.steps) do
@@ -102,6 +102,7 @@ return function()
       end
       results[i]=result
     end
+    if reportedFuel~=nil then f.fuel=reportedFuel end
     if not drop then
       callback(q.id,q.turtleId,results,{report={pose={x=pose.x,y=pose.y,z=pose.z,f=pose.facing},inv=inventory(),fuel=f.fuel}})
     end
