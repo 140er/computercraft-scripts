@@ -32,7 +32,11 @@ preserve existing UTC-based saved timers and ages. It writes a `ticks-v1`
 upper reservation to `so-data/clock` before returning time within it. A server start
 resumes at that reservation, consuming at most one extra game second. Offline
 server time pauses. The clock and all job/state generations form one backup;
-restore them together. A checkpoint failure refuses further clock reads.
+restore them together.
+A checkpoint failure freezes time at its last issued value and sets `SO.clock.refused`
+with the save error in `SO.clock.error`. The event loop and health screens keep running.
+Later reads retry the save and resume from the frozen time after storage recovers,
+without charging the outage.
 Clients persist recovery facts rather than lease deadlines, so their clocks
 can reset on reboot. Server recovery sends a new stationary lease.
 
@@ -93,6 +97,11 @@ Send every message below through `so-proto`. Do not add a field here without edi
 
 ### pair2
 
+Before generating pairing or enrollment secrets, the device tries timing-based random
+initialization at most three times, yielding between failed attempts without discarding
+queued events. If initialization still fails, the operation returns nil and `"random source unavailable"` and creates no new secret. A later attempt can retry
+initialization. Saved pairing keys and a saved enrollment token remain available.
+
 `pair2` runs CPACE-X25519-SHA512 from draft-irtf-cfrg-cpace-21 in the initiator-responder setting, with the explicit key confirmation of its section 10.4. The joining computer is the initiator A and the server is B. PRS is the six code digits as ASCII. CI is `lv_cat("so-pair2", clientId, serverId)` with decimal ids. ADa is the fixed label `so-pair2 client` and ADb is `so-pair2 server`. Both sides know them, so they are not sent. They give Ta and Tb different inputs even when Yb equals Ya, so a forger cannot reflect the client's Ta back as Tb. Both envelopes and replies use the public `pair.envelopeKey()`.
 
 Step 1. The client sends `pair2` with `body.sid`, 16 random bytes as 32 hex characters, and `body.y`, its share Ya as 64 hex characters. A client that already holds a key for this server adds `body.auth`, HMAC-SHA256 under that key of `so-pair2 auth\0`, the raw sid and the raw Ya, as 64 hex characters. The server answers `ack` with `body.y`, its share Yb. It keeps one session per sender with the expected tags and whether `auth` matched the key it saved for that sender. A session lasts 60000 ms.
@@ -130,6 +139,10 @@ Batch enrollment, off unless `so-server.cfg` has `enroll = true`. With the flag
 off the server treats `enroll` like any unknown message from an unpaired
 sender: a bad MAC and no answer. Envelopes and replies use the public
 `pair.envelopeKey()`, as `pair2` does. The tags below carry the security.
+
+Timing initialization follows the [pairing rule](#pair2), including the three-attempt
+limit, event-preserving yields and refusal without a new secret. Saved keys and
+a saved enrollment token remain available for a later attempt.
 
 The owner opens a window on the panel. It holds a token, the server's X25519
 key pair for the window and up to 20 pending rows, in memory only. It ends after
@@ -247,7 +260,8 @@ A turtle also sends these fields.
 `body.tools` is optional `{left=string|false,right=string|false}`, with equipped
 item names or false for an empty side. Missing queries on older workers omit it.
 Unknown equipment does not fail readiness. Missing equipment is informational
-when automatic swaps are disabled; START and ongoing planning remain unchanged. `body.capabilities.autoToolSwap` is
+when automatic swaps are disabled. Mining still refuses dig batches without a
+reported equipped pickaxe and shows `needs pickaxe`. `body.capabilities.autoToolSwap` is
 true only when `so-worker.cfg` has `autoToolSwap=true` at boot.
 
 `body.free` is how many of the 16 slots are empty.
@@ -324,6 +338,19 @@ observation stays uncertain. The worker retains the pending entry and sends
 `journal.pose` then contains only the last committed pose. The worker stays still
 and refuses subsequent steps with `pose uncertain` until an operator re-adds it.
 The server discards its cached journal pose and refuses new leases while uncertain.
+
+Before every lease step or expiry backtrack move, the worker must save its pending
+journal record. A failed pending save refuses the step and the remaining batch,
+including when the lease omits `journal`, or stops backtracking. The same rule covers
+temporary turns and retries when clearing a known-dug cell behind the turtle. Temporary
+turns keep the pose uncertain until the restored facing is saved. A saved
+`pending.reverse` flag tells reboot recovery to remove the original move after a
+completed reversal. If a step outcome or reboot recovery cannot be saved, the worker
+marks its pose uncertain and stops. A failed outcome save retains the pending record and
+retries saving the uncertain state. Reboot recovery preserves saved uncertainty without
+inferring another move from that pending record. If all outcome writes fail, the durable
+pending record remains available for the existing fuel or GPS recovery checks. Lease
+message fields are unchanged.
 
 `discard` accepts `side = "front" | "up" | "down"`, defaulting to `down`,
 and optional count `n`. It drops only after inspection establishes an empty cell.
@@ -502,9 +529,11 @@ delivered only after an explicit Delivered or sent-to-output-chest reply, and fa
 or a two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is the final
 observable state there. The screen never infers delivery from stock changes and never retries
 orders. `shop.order(search, count)` remains a direct one-order API for keyboard panel and pocket
-quick orders and leaves shop displays unchanged. An exact stocked item id wins over a
-better-stocked partial match; the call returns the id it sent, or nil and a reason.
-`shop.best(search)` returns that id and its count without ordering. `shop.matches(search,
+quick orders and leaves shop displays unchanged. An exact id present in the latest totals wins over a better-stocked partial match,
+including when its count is zero. `shop.best(search)` returns that id and its count
+without ordering. `shop.order` refuses a zero-stock exact id and returns nil with `out of stock`; it never substitutes a partial match. Otherwise it returns the id it sent, or
+nil and a reason. A failed rednet send removes the pending request and marks its
+displayed order failed immediately. `shop.matches(search,
 limit?)` is read-only and returns up to `limit` (default 10) `{ name, count, label }` stocked
 items whose id or display name contains the search, most stock first, then by id.
 
@@ -524,10 +553,15 @@ Cooldown keys use dimension and chest coordinates, independent of point id or
 access side. Deadlines use `SO.now()` and last 600000 ms. Save precedes send.
 The ledger retains at most 64 unexpired chest entries and refuses overflow.
 Turning the policy off or selecting another output preserves cooldowns and the
-outstanding order. `fuelEmpty` sends nothing while any order is waiting, even
-after its cooldown expires. A matching confirmed refusal or failed send clears
-the saved wait while retaining its failure alert. Unknown replies keep waiting.
-Timeouts only alert; they never authorize another order.
+outstanding order. `fuelEmpty` sends nothing while an order is waiting. A matching
+confirmed refusal or failed send clears the saved wait while retaining its failure
+alert. Unknown replies keep waiting until the deadline. With fuel auto enabled, an order
+waiting 120000 ms is cleared through so-store and leaves a `fuel order timed out` alert,
+including after restart. This permits a later `fuelEmpty` to order again, subject to the
+physical chest's 600000 ms cooldown, fresh stock and the one-outstanding-order rule. The
+timeout alert survives restart and the cooldown. A new order, usable pickup, manual
+clear, policy change or later fuel failure may replace or clear it. If saving the
+timeout fails, waiting remains and no alert event is emitted; tick retries the save.
 
 `shop.fuelAvailable(point, orderRid?)` clears the waiting delivery and fuel alert after a
 pickup of usable fuel at the outstanding order's output. Its saved coordinates
@@ -535,11 +569,14 @@ remain authoritative after the configured output changes. Worker pickup reports
 pass the order id saved before `suck`; false means no order was outstanding.
 A stale id or false cannot clear a later pending order. Explicit matching
 delivery replies also clear it.
-A Getting or Crafting acknowledgement does not. After 120000 ms the saved
-waiting order raises `delivery unconfirmed`, including after restart.
-The waiting order saves its request id and sender. Late delivery replies match
-that durable record even after the pending cache expires or the server restarts.
-The saved request serial prevents reuse of a prior fuel request id.
+A Getting or Crafting acknowledgement does not clear waiting or extend its 120000 ms
+deadline. Waiting saves its request id and sender. A matching delivery received before
+timeout can clear that durable record after restart. After a timeout has saved, replies
+for its old request id are ignored, including Delivered and refusals, and cannot clear a
+newer order. The saved request serial prevents reuse of a prior fuel request id.
+`shop.fuelClear()` is the manual CLEAR fallback. It clears waiting and the fuel alert
+only after a successful save, removes that order's pending reply and retains every chest
+cooldown. It returns true, or false and the save error.
 `shop.fuelAlerts()` returns copied active fuel failures for the attention list.
 `shop.alert` events contain `{reason,text,point}` and clear with false. A policy
 save failure sends nothing and remains visible through `fuelAlerts()`.
@@ -797,7 +834,10 @@ commands through that screen's `input.text`:
   Ores blocking the route are still dug.
 - `add <id> <x> <y> <z> <n|e|s|w>` anchors a paired worker's journal frame.
 - `remove <id>` removes a worker after its lease closes or cancels its stationary
-  recovery or park inspection. It releases the worker's lane and reservations.
+  recovery or park inspection. It refuses a reported pose in the shared shaft or
+  bottom spine. Off-lane removal releases its reservations and saves unfinished
+  branch claims, including a return-trip claim, for reassignment before a new
+  branch is allocated. Reassignment does not increase `nextBranch` again.
   Movement and digging leases still prevent removal.
 - `branches <n>` sets a job budget of 1..4096 branches and enables continuous mining.
   `continuous on|off` changes that flag. Its default is off; the budget defaults to eight.
@@ -805,7 +845,29 @@ commands through that screen's `input.text`:
   added paired worker without an uncertain or lost pose, and a nonzero reported fuel
   value for every added worker. Refusal emits `mine.alert {text, missing}` with an
   ordered list. Existing saved homes remain configured.
-  `stop` lets an already sent batch finish. A valid command clears the prior command error.
+  `stop` waits for outstanding batches to settle and clears route geometry.
+  `start` rebuilds routes using existing branch claims. A valid command clears
+  the prior command error.
+
+Mining refuses `home`, `bottom`, `length`, `branches`, `continuous` and `mode` edits
+while the job runs or a turtle row still holds a route. Changes to home, bottom, length
+or mode start fresh geometry and progress; branch-budget and continuous-mode changes
+retain progress.
+
+A cell that fails three mining digs is skipped, with its failure count saved across
+server restarts. Mining bypasses skipped cells and continues the branch. Detours avoid
+known containers and protected cells. If inspection discovers an obstacle on a saved
+detour, mining discards that path and replans. If no path is found within the bounded
+search, the unreachable goal is saved as skipped and the job continues without waiting
+for the player. Recovery counts an interrupted dig attempt unless the worker's dug
+history confirms success. Skipped cells are never recorded as dug. Mining refreshes its
+standing-cell reservation even when it already owns the cell, so a pending release
+cannot free the occupied pose.
+
+Mining refuses dig batches when reported equipment has no equipped pickaxe and shows
+`needs pickaxe`, even when automatic tool swaps are disabled. Automatic swaps remain
+opt-in. Workers without equipment reports retain the existing unknown-tool behavior.
+Lumber tool behavior is unchanged.
 
 Adding a worker sends a recovery park lease. Startup also sends each saved worker
 one recovery park lease before planning. Reports supply the real journal pose,
@@ -963,6 +1025,12 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 `cells.reserveMany(who, cells)` takes `{ {dim, x, y, z}, ... }`. It reserves all cells or changes nothing. A conflict returns false, `held`, and the conflicting input cell.
 
 `cells.release(who, x, y, z, dim)` returns true. It frees the cell only when `who` holds it. `cells.releaseOwner(who)` frees all cells held by that owner. Silence never expires a reservation.
+
+If `releaseOwner(who)` cannot save the recovery policy or reservations, it records the
+exact cells requested for release. `tick(now)` retries only those cells still held by
+the same owner. `reserve` and `reserveMany` remove their requested cells from that
+owner's pending release, including renewals that need no save. Pending retries are
+memory-only; saved reservations still survive a server restart.
 
 `cells.owner(x, y, z, dim)` returns the owner or nil. `cells.isFree(x, y, z, dim)` returns a boolean.
 
@@ -1607,7 +1675,9 @@ Calls without dimensions retain the legacy rows. Successful deliveries emit `lum
 SO8 owns this API on `SO.mods.drops`. It handles `drops.edit`.
 
 `drops.pick(kind, nearPos)` takes a kind string and `nearPos = { dim, x, y, z }`, all integers. Kind is `fuel`, `ore`, `junk`, `wood`, `storage`, or `any`. It returns `{ point, chain, alert, reason, failedPoint }`. `point` is `{ id, dim, x, y, z, side, kind }` for the nearest usable place, or nil. Usable means the same dimension, fewer than 3 inspect failures, and an enabled room sink when the point has `room=true`. The chain is the requested kind, then `any`, then the string `hold`. When the requested kind is `any`, that stage appears once. Each stage before `hold` is `{ kind, point, usable }`. `point` on the result is the first usable stage. When no stage is usable, `point` is nil and `reason` is `none` when no matching point is configured, or `broken` when all
-matching points have three inspection strikes. `failedPoint` identifies the nearest
+matching points have three inspection strikes. When the only matching point is a
+marked room point and room sinks are off, `reason` is `none` and the alert reads
+`<kind> room chests off`. `failedPoint` identifies the nearest
 broken point. The alert names the kind, cause and point coordinates. That call also
 emits `drops.alert` with `{ kind, text, reason, point }` when `SO.mods.state.emit` is a function. A call whose first argument is not a string returns nil. `tests/so/so0.lua` calls `pick({ name = "minecraft:cobble", n = 1 })` and gets nil.
 
@@ -1893,6 +1963,11 @@ an attention row for the most recently forgotten id. The device's next hello
 receives the existing unsigned `pair.required` hint. Its local key remains
 until a successful pairing replaces it.
 
+A forgotten builder frees its active assignment slot. Another paired turtle can take the
+slot with `add` using its known pose or an explicit pose. Reservations owned by the old
+`build:<id>` remain protected after replacement and restart. Re-adding the same
+forgotten turtle still requires an explicit pose.
+
 ## Store
 
 `so-store.store(path, valid, budget)` loads the newest valid generation from `path`, `path .. ".tmp"`, and `path .. ".bak"`. The file is `{ schema = 1, generation = number, value = ... }`. `valid(value)` must be true. A present file with no valid generation is an error.
@@ -2000,13 +2075,16 @@ open leases, clock reservation and recent errors. Snapshot age is unknown for
 snapshots saved before this change. Health diagnostics do not change the game
 clock or scheduling. Tick cost uses `os.clock()` and has computer tick precision.
 
-`SO.error(text)` prints and records failures. Bad messages, bad MACs, replays,
+`SO.error(text, force?)` prints and records failures. A true force argument
+bypasses the 30000 game-millisecond flush interval. The server forces its final
+stop line. Failed saves, including forced saves, keep pending records for retry. Bad messages, bad MACs, replays,
 missing reply keys and pairing rejections (`pair rejected`, `pair blocked`)
 stay in the volatile terminal log. These rejected
 packets cannot evict persistent errors. `so-data/errors` uses generation
 recovery and a bounded ring of at most 128 messages. Each message keeps 2048
 bytes. All three generations together use at most 64 KB. Records save at most
-once per 30 game seconds, so a power loss can discard recent unsaved records.
+once per 30 game seconds unless forced, so a power loss can discard recent
+unsaved records.
 The first record can save immediately. Save failures retain pending records and
 appear on HEALTH. `SO.errors.status()` returns `bytes`, `cap`, `count`, `pending`
 and `error`. The byte count includes current, backup and temporary files, for
@@ -2037,6 +2115,13 @@ Its drawn controls are the tabs `tab:job` and `tab:setup` (the old ids `setup` a
 `stop`. The old BACK id `status` is no longer drawn and still does nothing.
 Reservations use `build:<id>`. Supply uses existing storage drop points.
 Saved intents and target inspection reconcile placement after restart.
+While a running builder is held for fuel, it sends a stationary `inspectDown` probe
+whenever no lease is pending. The probe reserves only the turtle's current cell. If that
+reservation conflicts, the fuel hold stays active and later ticks retry. Refuel the
+turtle to let the next probe refresh its fuel and resume the build. A zero-fuel report
+keeps the "out of fuel" hold and sends no movement. Failed movement reports "out of
+fuel" when the worker reports a fuel error or zero fuel.
+
 See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.
 
 ### Setup observations
@@ -2049,11 +2134,15 @@ Machine events and registry views also carry the optional 16-character label.
 Drop points accept optional `verified = {at, block}` in `so-drops` and in
 `drops.list()` results. The editor saves it only after an authenticated setup
 visit inspects a chest, barrel or shulker box at that point. A missing inventory
-clears it and increments the normal failure count. Unverified points remain
+clears it and increments the normal failure count. A found inventory clears earlier
+failures. Unverified points remain
 usable. Readiness describes the last successful visit without adding a gate.
 
 Chest setup reuses `lease.batch` and `step.report`, with no new worker operation.
-`so-server.cfg.setupMovement` defaults to false. All setup batches require
+`so-server.cfg.setupMovement` defaults to false. A refused setup reports
+`setupMovement off`, or `setup busy: #<id>` with the turtle that holds setup. A
+turtle without a facing gets the FACING prompt. CANCEL or BACK drops the prompt,
+and so does any refusal other than `facing unknown`. All setup batches require
 `capabilities.parkBatch` and `capabilities.setupFence` and set their first step's `park=true`. Setup only uses
 unassigned idle turtles. The whole route is reserved under `setup:<id>` before
 sending its first step, including the occupied cell, outward path and return.
