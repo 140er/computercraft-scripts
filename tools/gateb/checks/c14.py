@@ -1,8 +1,7 @@
 import hashlib
 import subprocess
-import time
 from .model import Criteria, Blocked
-from .context import pinned_http_update
+from .context import pinned_http_update, wait_http_update
 
 TITLE = "Interrupted HTTP update and recovery"
 
@@ -36,9 +35,9 @@ def run(ctx):
     ctx.power("wall", "reboot")
     old_boot = ctx.wait(lambda: ctx.frame("wall").get("role") is not None, 30)
     full = ctx.request("lua_async", computer=ctx.computer("wall"), code=update)
-    complete = ctx.wait(lambda: ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"]).get("state") in ("done", "failed"), 120)
-    full_job = ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"])
-    transport = (full_job.get("values") or [{}])[0]
+    complete = wait_http_update(ctx, "wall", full, "/display.lua", 120)
+    ctx.record("C14-full-update.json", complete)
+    transport = complete["transport"] if complete else {}
     after_full = ctx.integrity("wall")
     exact = True
     for path, digest in after_full["files"].items():
@@ -50,5 +49,5 @@ def run(ctx):
     return evaluate(ctx.record("C14-observations.json", {"real_http_staging": True, "native_interruption": native_interruption,
        "old_files_unchanged": before["files"] == after_interrupt["files"],
        "pairing_unchanged": before["pairing"] == after_interrupt["pairing"] == after_full["pairing"],
-       "old_role_rebooted": bool(old_boot), "full_update_exact": bool(complete) and revision == ctx.commit and exact and transport.get("requests", 0) >= len(after_full["files"]) and transport.get("failures") == 0,
+       "old_role_rebooted": bool(old_boot), "full_update_exact": bool(complete and complete["role_running"]) and revision == ctx.commit and exact and transport.get("requests", 0) >= len(after_full["files"]) and transport.get("failures") == 0,
        "final_rebooted": bool(final_boot)}))

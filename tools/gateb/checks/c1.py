@@ -1,7 +1,8 @@
 import hashlib
+from contextlib import ExitStack
 import subprocess
-from .model import Criteria, Blocked
-from .context import HTTP_UPDATE
+from .model import Criteria, Blocked, pocket_frame
+from .context import HTTP_UPDATE, wait_http_update
 
 TITLE = "Normal install and reboot"
 
@@ -17,23 +18,33 @@ def evaluate(d):
 
 def run(ctx):
     names = ("server", "wall", "pocket", "miner1", "miner2", "lumber")
-    exact, rebooted, errors, transports = True, 0, [], {}
     current = subprocess.run(["git", "ls-remote", "origin", "refs/heads/server-only"], capture_output=True, text=True)
     if current.returncode or not current.stdout.split() or current.stdout.split()[0] != ctx.commit:
         raise Blocked("Normal HTTP installer must resolve the exact requested server-only tip")
+    with ExitStack() as cleanup:
+        status = ctx.runtime.status()
+        if not all(ctx.run + suffix in status for suffix in (":client", ":xvfb")):
+            cleanup.callback(ctx.cli, "client", ctx.run, "stop")
+            ctx.cli("client", ctx.run, "start", timeout=180)
+        pocket_frame(ctx)
+        return install_roles(ctx, names)
+
+
+def install_roles(ctx, names):
+    exact, rebooted, errors, transports = True, 0, [], {}
     for name in names:
         ctx.wait(lambda: bool(ctx.terminal(name).get("lines")), 30)
         job = ctx.request("lua_async", computer=ctx.computer(name), code=HTTP_UPDATE)
-        finished = ctx.wait(lambda: ctx.request("lua_job", computer=ctx.computer(name), job=job["job"]).get("state") in ("done", "failed"), 180)
+        program = "/so-server.lua" if name == "server" else "/display.lua" if name in ("wall", "pocket") else "/worker.lua"
+        finished = wait_http_update(ctx, name, job, program, 180)
         if not finished:
             ctx.request("lua_cancel", computer=ctx.computer(name), job=job["job"])
             errors.append(f"{name} HTTP installation timed out")
             continue
-        status = ctx.request("lua_job", computer=ctx.computer(name), job=job["job"])
-        transport = (status.get("values") or [{}])[0]
+        transport = finished["transport"]
         files = ctx.integrity(name)["files"]
         transports[name] = transport
-        if status.get("state") != "done" or transport.get("failures") != 0 or transport.get("requests", 0) < len(files):
+        if not finished["role_running"] or transport.get("failures") != 0 or transport.get("requests", 0) < len(files):
             errors.append(f"{name} normal HTTP installation failed")
         for path, digest in files.items():
             source = subprocess.run(["git", "show", f"{ctx.commit}:{path}"], capture_output=True)
