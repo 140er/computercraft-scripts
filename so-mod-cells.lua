@@ -1,5 +1,5 @@
 local S = {
-  reservations = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
+  reservations = {}, pendingReleases = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
   clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
@@ -202,6 +202,7 @@ S.release = function(who, x, y, z, dim)
 end
 
 S.releaseOwner = function(who)
+  if S.whoValid(who) then S.pendingReleases[who] = true end
   if S.policyDirty then
     local ok, err = S.savePolicy(S.policy)
     if not ok then return false, err end
@@ -211,9 +212,13 @@ S.releaseOwner = function(who)
     if held == who then count = count + 1 else copy[key] = held end
     S.pause()
   end
-  if count == 0 then return true, 0 end
+  if count == 0 then
+    if S.whoValid(who) then S.pendingReleases[who] = nil end
+    return true, 0
+  end
   local ok, err = S.commit(copy)
   if not ok then return false, err end
+  S.pendingReleases[who] = nil
   return true, count
 end
 
@@ -594,6 +599,11 @@ S.tick = function(now)
   if S.policyDirty then
     local ok, err = S.savePolicy(S.policy)
     if not ok then return false, err end
+  end
+  for who in pairs(S.pendingReleases) do
+    local ok, err = S.releaseOwner(who)
+    if not ok then return false, err end
+    S.pause()
   end
   local saved = 0
   for _, section in pairs(S.sections) do
