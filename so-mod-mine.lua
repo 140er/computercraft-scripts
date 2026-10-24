@@ -1193,7 +1193,8 @@ V.setupRoom = function(C, m, editing)
   local w, ya = C.w, C.h - 1
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
   local rx = math.max(32, math.floor(w / 2))
-  local left, right = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3), nil
+  local left = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
+  local right
   if editing then
     for i, name in ipairs(V.ores) do C.chip(rx + 3, 2 + i, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
     right = 2 + #V.ores
