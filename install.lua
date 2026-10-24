@@ -148,6 +148,15 @@ end
 local function validRevision(sha)
   return type(sha) == "string" and #sha == 40 and not sha:find("[^%x]")
 end
+local function installedRevision()
+  local sha = fs.exists("/.so-revision") and readFile("/.so-revision"):match("^%s*(.-)%s*$")
+  return validRevision(sha) and sha:sub(1, 7) or "unknown"
+end
+local function startUpdated(previous)
+  local role = readFile("/.so-role"):match("^%s*(.-)%s*$")
+  print("Updated " .. role .. " from " .. previous .. " to " .. installedRevision())
+  shell.run("/" .. ROLES[role].program)
+end
 local function gitRevision()
   local body = fetch("https://github.com/140er/computercraft-scripts.git/info/refs?service=git-upload-pack")
   local at = 1
@@ -181,6 +190,7 @@ local function revision()
   error("Cannot resolve server-only commit and no valid saved commit exists", 0)
 end
 local function download(path, sha)
+  print(path)
   local bytes = fetch(BASE .. sha .. "/" .. path)
   if path:match("%.lua$") then
     local fn, why = load(bytes, "@" .. path, "t", _ENV)
@@ -267,7 +277,7 @@ local function rollback()
   if not ok then fs.delete(NEW); error(err, 0) end
   -- An older worker never reads or deletes the enroll token and secret.
   fs.delete("/so-enroll")
-  if swap(entries) then print("Restored previous release") end
+  return swap(entries)
 end
 local function install(role, config, handoff)
   local entries, wanted, files = {}, {}, {}
@@ -336,9 +346,22 @@ local function main(command, handoff)
   local enroll = handoff and enrollToken(handoff.enroll)
   if not handoff and enrollToken(command) then enroll, command = enrollToken(command), nil end
   if command == "recover" then return end
-  if command == "rollback" then return rollback() end
+  local previous = (command == "update" or command == "rollback") and installedRevision()
+  if command == "rollback" then
+    if rollback() then startUpdated(previous) end
+    return
+  end
   if command == "reset" then
-    print('Delete this machine\'s files? Type "yes" to confirm.')
+    local count = 0
+    for _, path in ipairs({ "/so-keys", "/so-keys.bak" }) do
+      local ok, saved = pcall(function() return textutils.unserialize(readFile(path)) end)
+      if ok and type(saved) == "table" and type(saved.value) == "table"
+        and type(saved.value.keys) == "table" then
+        for _ in pairs(saved.value.keys) do count = count + 1 end
+        break
+      end
+    end
+    print('Delete this machine\'s files and ' .. count .. ' paired keys? Type "yes" to confirm.')
     if read() ~= "yes" then return end
     local drive = fs.getDrive("/")
     for _, name in ipairs(fs.list("/")) do
@@ -361,6 +384,10 @@ local function main(command, handoff)
     error("Role does not match this machine", 0)
   end
   if enroll and role ~= "worker" then error("Enroll tokens are for turtles", 0) end
+  if enroll and (fs.exists("/so-keys") or fs.exists("/so-keys.bak") or fs.exists("/so-keys.tmp")) then
+    print("This turtle has paired keys. Run install reset first.")
+    return
+  end
   if role == "server" then
     local cap = fs.getCapacity("/")
     if type(cap) ~= "number" or cap < 16000000 then
@@ -389,14 +416,13 @@ local function main(command, handoff)
   end
   handoff.updating = updating
   if not install(role, config, handoff) then return end
+  if updating then startUpdated(previous); return end
   print("Installed " .. role .. ". Use install update to update.")
-  if not updating then
-    if enroll then
-      writeFile("/so-enroll", textutils.serialize({ token = enroll }))
-      print("Enrolling with server " .. enroll:match("^%d+") .. ". Approve it on the panel.")
-    elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
-    shell.run("/" .. ROLES[role].program)
-  end
+  if enroll then
+    writeFile("/so-enroll", textutils.serialize({ token = enroll }))
+    print("Enrolling with server " .. enroll:match("^%d+") .. ". Approve it on the panel.")
+  elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
+  shell.run("/" .. ROLES[role].program)
 end
 if ... == "prepare" then return main end
 return main(...)
