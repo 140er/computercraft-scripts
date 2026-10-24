@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SYNC_COMMIT = "ac48c96003f15ace2951d2ef2e11b6da49e8e796"
+SYNC_COMMIT = "5da0379c7f50d75ba796da2addcdc0d2cc4c9cf6"
 MUTATIONS = {
     "dispatch": (
         'if row.open then return nil, "busy" end',
@@ -104,6 +104,7 @@ def main():
     evidence["elapsed_seconds"] = round(time.monotonic() - started, 3)
     if args.evidence:
         args.evidence.parent.mkdir(parents=True, exist_ok=True)
+        test_source = test_path.read_text()
         if len(re.findall(test_anchor, test_source)) != 1:
             raise SystemExit("lease test evidence anchor changed")
         args.evidence.write_text(json.dumps(evidence, indent=2) + "\n")
