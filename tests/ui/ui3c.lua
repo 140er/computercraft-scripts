@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 local C = { green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, coral = 0xFFFF6B5E - 2^32,
-  blue = 0xFF5AB0FF - 2^32, teal = 0xFF2DD4BF - 2^32, stale = 0xFF4A5468 - 2^32,
-  white = 0xFFF2F4F8 - 2^32, backing = 0xC00E1626 - 2^32 }
+  blue = 0xFF5AB0FF - 2^32, teal = 0xFF2DD4BF - 2^32, stale = 0xFF7886A3 - 2^32,
+  white = 0xFFE6EAF2 - 2^32, grey = 0xFF7886A3 - 2^32, dim = 0xFF28344D - 2^32, backing = 0xE00B111C - 2^32 }
 local function boot()
   local m = H.new().machine({ id = 1, capacity = 16000000 })
   m.install({ "so-store.lua", "so-mod-ar.lua", "so-mod-cells.lua" })
@@ -33,7 +33,7 @@ local function boot()
   return b
 end
 return function(test, equal)
-  test("UI3c turtle labels and twelve box edges use known state colours", function()
+  test("UI3c turtle labels use known state colours; box edges are white when ok, else the state colour", function()
     local b = boot()
     local cases = { { "mining", C.green, "MINING" }, { "waiting", C.amber, "WAITING" },
       { "hold", C.amber, "HOLD" }, { "idle", C.coral, "LOST" }, { "idle", C.stale, "STALE" },
@@ -49,9 +49,10 @@ return function(test, equal)
       local key = "turtle:" .. id
       equal(b.ar.elements[key][1], row[2]); assert(b.ar.elements[key][7] <= 0.5)
       equal(b.ar.elements[key][8], "#" .. id)
+      local edgeColor = (row[2] == C.green or row[2] == C.teal) and C.white or row[2]
       for edge = 1, 12 do
         equal(b.ar.methods[key .. ":box:" .. edge], "drawLine3D")
-        equal(b.ar.elements[key .. ":box:" .. edge][1], row[2])
+        equal(b.ar.elements[key .. ":box:" .. edge][1], edgeColor)
       end
     end
   end)
@@ -64,8 +65,8 @@ return function(test, equal)
     b.tick(1000)
     local n = 0
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
-    equal(n, 120, "two owners with five-strand outlines")
-    equal(b.ar.elements["lease:mine:2:2"][2], 9)
+    equal(n, 24, "two owners with one stroke per edge")
+    equal(b.ar.elements["lease:mine:2:2"][2], 9.12, "lease outlines sit 0.12 outside the cells")
     for _, row in ipairs({ { 3, C.white, "O" }, { 4, C.coral, "F" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
       for i = 1, 12 do equal(b.ar.elements["drop:" .. row[1] .. ":box:" .. i][1], row[2]) end
@@ -89,22 +90,42 @@ return function(test, equal)
     equal(sleeps, 0)
     equal(b.ar.frames, 1)
     for edge = 1, 12 do equal(b.ar.elements["lease:mine:2:" .. edge][1], C.blue) end
-    equal(b.ar.elements["lease:mine:2:2"][2], 201)
+    equal(b.ar.elements["lease:mine:2:2"][2], 201.12)
   end)
-  test("UI3c HUD has three padded fifty-six pixel tiles with backing and four pixel bars", function()
+  test("UI3c HUD is one hairline-ruled panel on navy with muted labels and coral only for trouble", function()
     local b = boot(); b.machine(2, "working"); b.machine(3, "lost"); b.status[3] = {lost=true}
     b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(1000)
+    -- The alert strip takes rows 72 to 87, so the panel starts at 88.
     for i, id in ipairs({ "turtles", "alerts", "disk" }) do
-      local key = "hud:" .. id
+      local key, x = "hud:" .. id, 4 + (i - 1) * 64
       equal(b.ar.methods[key .. ":backing"], "drawRect2D")
-      equal(b.ar.elements[key .. ":backing"], { C.backing, 4 + (i - 1) * 64, 86, 60 + (i - 1) * 64, 116 })
-      equal(b.ar.elements[key .. ":bar"], { i == 3 and C.green or C.coral, 4 + (i - 1) * 64, 86, 60 + (i - 1) * 64, 90 })
-      equal(b.ar.elements[key .. ":label"][4], id:upper())
+      equal(b.ar.elements[key .. ":backing"], { C.backing, i > 1 and x + 1 or x, 88, x + 64, 116 })
+      equal(b.ar.elements[key .. ":divider"], i > 1 and { C.dim, x, 88, x + 1, 116 } or nil)
+      equal(b.ar.elements[key .. ":rule"], { C.dim, x, 116, x + 64, 117 })
+      equal(b.ar.elements[key .. ":label"], { C.grey, x + 6, 93, id:upper(), false })
+      equal(b.ar.elements[key .. ":value"][1], i == 3 and C.white or C.coral)
+      equal(b.ar.elements[key .. ":bar"], nil)
     end
     equal(b.ar.elements["hud:turtles:value"][4], "2")
     equal(b.ar.elements["hud:alerts:value"][4], "1")
     equal(b.ar.elements["hud:disk:value"][4], "13%")
-    b.free = 1600000; b.tick(2000); equal(b.ar.elements["hud:disk:bar"][1], C.coral)
+    -- No filled colour blocks: a rectangle is navy backing or a one-pixel rule, and none overlap,
+    -- because the controller draws elements in no fixed order.
+    local rects = {}
+    for id, args in pairs(b.ar.elements) do
+      if b.ar.methods[id] == "drawRect2D" then
+        assert(args[1] == C.backing or args[4] - args[2] == 1 or args[5] - args[3] == 1, "filled block " .. id)
+        rects[#rects + 1] = args
+      end
+    end
+    for i, r in ipairs(rects) do for j = i + 1, #rects do
+      local o = rects[j]
+      assert(r[4] <= o[2] or o[4] <= r[2] or r[5] <= o[3] or o[5] <= r[3], "overlapping rectangles")
+    end end
+    b.free = 1600000; b.tick(2000); equal(b.ar.elements["hud:disk:value"][1], C.coral)
+    b.machines[3] = nil; b.status[3] = nil; b.values["mine.alert"] = nil
+    b.free = 13920000; b.tick(3000)
+    equal(b.ar.elements["hud:turtles:value"][1], C.white)
   end)
   test("UI3c HUD label ranges stay padded and separated with consent and alerts", function()
     local b = boot()
@@ -123,8 +144,8 @@ return function(test, equal)
       assert(right <= tile[4]-4)
       equal(value[2],label[2]); assert(value[3] >= label[3]+10)
       assert(value[3]+8 <= tile[5]-4)
-      local banner = b.ar.elements["alert:backing"]
-      equal(tile[3], banner[5])
+      local rule = b.ar.elements["alert:rule"]
+      equal(tile[3], rule[5] + 1)
       assert(b.ar.elements["alert:dug-storage"][3] >= tile[5]+4)
     end
   end)
@@ -156,8 +177,10 @@ return function(test, equal)
   end)
   test("UI3c alert banner expires after five seconds and retains the HUD count", function()
     local b = boot(); b.tick(1000); b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(2000)
-    equal(b.ar.elements["alert:backing"], { C.coral, 4, 72, 188, 86 })
-    equal(b.ar.elements["alert:mine.alert"][4], "CHEST FULL")
+    equal(b.ar.elements["alert:backing"], { C.backing, 4, 72, 196, 86 })
+    equal(b.ar.elements["alert:rule"], { C.coral, 4, 86, 196, 87 })
+    equal(b.ar.elements["alert:mark"], { C.coral, 10, 75, "!", false })
+    equal(b.ar.elements["alert:mine.alert"], { C.white, 18, 75, "CHEST FULL", false })
     b.tick(6000); assert(b.ar.elements["alert:backing"])
     b.tick(7000); equal(b.ar.elements["alert:backing"], nil); equal(b.ar.elements["alert:mine.alert"], nil)
     equal(b.ar.elements["hud:alerts:value"][4], "1")
@@ -182,11 +205,11 @@ return function(test, equal)
   test("UI3c stable frames retain ids and removing a turtle deletes exactly its ids", function()
     local b = boot(); b.machine(2, "working"); b.machine(3, "working"); b.tick(1000)
     local ids = {}; for id in pairs(b.ar.elements) do ids[id] = true end
-    assert(ids["hud:turtles:bar"], "stable scene includes the new HUD")
+    assert(ids["hud:turtles:rule"], "stable scene includes the new HUD")
     b.tick(1500); equal(b.ar.frames, 1); b.tick(2000); equal(b.ar.frames, 1)
     for id in pairs(b.ar.elements) do assert(ids[id]); ids[id] = nil end
     equal(ids, {}); equal(b.ar.deleted, {})
-    b.machines[2] = nil; b.tick(3000); equal(b.ar.frames, 2); equal(#b.ar.deleted, 118)
+    b.machines[2] = nil; b.tick(3000); equal(b.ar.frames, 2); equal(#b.ar.deleted, 15)
     for _, id in ipairs(b.ar.deleted) do assert(id == "turtle:2" or id:match("^turtle:2:")) end
     b.input({ id = "turtles" }); b.tick(4000); equal(b.ar.elements["turtle:3"], nil)
   end)

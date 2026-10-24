@@ -426,7 +426,8 @@ return function(test, equal)
   end)
 
   test('S0 fixtures load with and without the fg layer', function()
-    local old = R.load('tests/ui/fixtures/ar-M.txt')
+    -- ar-M was the last Big Tiles fixture; this sample keeps the two-layer format loading.
+    local old = R.load('tests/ui/two-layer-sample.txt')
     assert(old.fg == nil and #old.bg == old.h)
     local new = R.load('tests/ui/fixtures/status-M.txt')
     equal(#new.fg, new.h)
@@ -459,7 +460,7 @@ return function(test, equal)
     if os.execute(gen .. " --png '" .. dir .. "/png' kit-M > /dev/null 2>&1") then
       equal(read(dir .. '/png/kit-M.png'):sub(1, 8), '\137PNG\r\n\26\n')
     else
-      dofile('tests/skips.lua').record('S0 schematic PNG render', 'no CC:Tweaked font (set CC_FONT)')
+      dofile('tests/skips.lua').record('S0 schematic PNG render', 'font not found, PNG renders skipped (needs a local CC:Tweaked jar)')
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)

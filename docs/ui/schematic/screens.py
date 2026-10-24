@@ -23,6 +23,7 @@ import system as SY  # noqa: E402
 import jobs as J  # noqa: E402
 import panel as PN  # noqa: E402
 import other as O  # noqa: E402
+import ar as AR  # noqa: E402
 
 
 def status(w, h, title, wall_map=False):
@@ -122,6 +123,7 @@ FIXTURES += SH.FIXTURES + MS.FIXTURES
 FIXTURES += J.FIXTURES
 FIXTURES += PN.FIXTURES
 FIXTURES += O.FIXTURES
+FIXTURES += AR.FIXTURES
 
 
 def main():
@@ -141,7 +143,9 @@ def main():
     if args.png:
         source = ccfont.find(args.font)
         if not source:
-            sys.exit("no CC font: pass --font term_font.png or the cc-tweaked jar, or set CC_FONT")
+            # The font is CC:Tweaked's (CCPL) and never goes in this repo; without a local jar, say so and stop.
+            print("font not found, PNG renders skipped: needs a local CC:Tweaked jar (--font, $CC_FONT or a known mods folder)", file=sys.stderr)
+            sys.exit(3)
         font = ccfont.Font(source)
     if args.png:
         os.makedirs(args.png, exist_ok=True)

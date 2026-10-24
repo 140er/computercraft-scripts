@@ -339,8 +339,9 @@ return function(test, equal)
     assert(os.execute(command .. " --fixtures fixtures"))
     -- Status, the shop and the map moved to docs/ui/schematic (tests/ui/s0.lua, tests/ui/ui2c.lua and tests/so/map.lua check them).
     -- The pocket pages, alert, outage, unassigned and terminal fixtures moved too (tests/ui/s4.lua),
-    -- and mining, lumber and drops (tests/ui/s3.lua), and the panel, pair and paired pages (tests/ui/panel.lua).
-    local names = "ar-M"
+    -- and mining, lumber and drops (tests/ui/s3.lua), and the panel, pair and paired pages (tests/ui/panel.lua),
+    -- and the AR screen (tests/ui/ra3-ar.lua). No Big Tiles fixture is left to compare.
+    local names = ""
     for name in names:gmatch("%S+") do
       equal(read(dir .. "/fixtures/" .. name .. ".txt"), read("tests/ui/fixtures/" .. name .. ".txt"))
       R.load(dir .. "/fixtures/" .. name .. ".txt")

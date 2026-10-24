@@ -86,12 +86,13 @@ return function(test,equal)
     equal(first,'select:p37')
     ui.input({id='select:p64'});ui.input({id='remove'});equal(#d.list(),63)
   end)
-  test('UI2d AR tile toggles once and survives reload',function()
+  test('UI2d AR row toggles once and survives reload',function()
     local _,_,screens,_,_,e=boot();local n=0;local store=e.SO.store.store
     e.SO.store.store=function(...) local b=store(...);local save=b.save;b.save=function(v) n=n+1;return save(v) end;return b end
     local ar=e.dofile('so-mod-ar.lua');ar.tick(0);screens.ar.input({id='drops'});equal(n,1)
     local reloaded=e.dofile('so-mod-ar.lua');reloaded.tick(0)
-    assert(capture(screens.ar.render(57,24),57,24).picture().text[15]:find('OFF',1,true))
+    -- Route A: the drops row (row 9 at 57x24) reads [off]; tests/ui/ra3-ar.lua has the fixtures.
+    assert(capture(screens.ar.render(57,24),57,24).picture().text[9]:find('[off]',1,true))
   end)
   test('UI2d layouts fit all sizes and respect contrast',function()
     local d,_,screens,s,a=boot();points(d);assert(s.layout and a.layout,'pure layouts')
@@ -104,12 +105,9 @@ return function(test,equal)
         contrast(capture(frame,w,h))
       end
       local frame=a.layout({count=1,layers={turtles=true,leases=false,drops=true,alerts=false}},w,h)
-      for _,row in ipairs(capture(frame,w,h).cells) do for _,cell in ipairs(row) do
-        local fg,bg=cell[2],cell[3]
-        if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-        assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-          (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','contrast '..fg..'/'..bg)
-      end end
+      equal(#frame.rows,h)
+      for _,b in ipairs(frame.buttons) do assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=w and b.y+(b.h or 1)-1<=h) end
+      contrast(capture(frame,w,h))
     end
   end)
   test('UI2d taps keep each role and the drop list draws no links',function()

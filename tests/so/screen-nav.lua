@@ -136,7 +136,7 @@ return function(test, equal)
       s.press(size[1]>=52 and "\215" or "back", "items");role("shop")
       assert(s.frame().rows[1].text:find("low",1,true), "missing shop tabs")
       s.assign("ar");role("ar")
-      s.button("TURTLES")
+      s.button("turtles", "turtles") -- route A: the whole layer row is the toggle
       s.assign("panel");role("panel")
       s.press("ALERTS");header("PANEL")
       s.press("BACK");s.press("PAIR");header("PANEL")

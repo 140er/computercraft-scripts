@@ -82,9 +82,11 @@ return function(test,equal)
       end
       for id=2,farm.count+1 do
         equal(s.elements["turtle:"..id].args[8],"#"..id)
-        equal(s.elements["turtle:"..id..":box:1"].args[2],id*3-0.05)
+        equal(s.elements["turtle:"..id..":box:1"].args[2],id*3-0.08)
         assert(s.elements["turtle:"..id..":heading"])
-        assert(s.elements["lease:lumber:"..id..":1"],"each worker's reservations visible")
+        -- Each worker reserves just its own cell, so the reservation merges into its box: blue or a trouble colour.
+        equal(s.elements["lease:lumber:"..id..":1"],nil,"one outline per worker")
+        assert(s.elements["turtle:"..id..":box:1"].args[1]~=0xFFE6EAF2-2^32,"each worker's reservation visible")
       end
       equal(s.elements["turtle:2"].args[1],0xFFFFC24B-2^32,"registry fuel retained")
       equal(s.elements["turtle:8"],nil)
@@ -208,14 +210,14 @@ return function(test,equal)
     equal(s.elements["preview:branch"].args,{0xFF5AB0FF-2^32,0.5,60.5,-4.5,100.5,60.5,-4.5})
     equal(s.elements["trail:1"].args[1],0xFF3DDC84-2^32)
     equal(s.elements["trail:2"].args[1],0xFFFFC24B-2^32)
-    equal(s.elements["trail:done:0"].args[1],0x504A5468)
+    equal(s.elements["trail:done:0"].args[1],0x507886A3)
     s.mine.trails[1].state="lost" s.ar.tick(2000)
     equal(s.elements["trail:1"].args[1],0xFFFF6B5E-2^32)
     s.mine.trails[1].state="mining"
     s.mods.lease={peek=function() return {uncertain=true} end}
     s.ar.tick(3000) equal(s.elements["trail:1"].args[1],0xFFFF6B5E-2^32)
     s.mods.lease=nil s.ar.tick(130000)
-    equal(s.elements["trail:1"].args[1],0xFF4A5468-2^32)
+    equal(s.elements["trail:1"].args[1],0xFF7886A3-2^32)
     s.screens.ar.input({id="turtles"}) s.screens.ar.input({id="leases"}) s.ar.tick(131000)
     equal(s.elements["trail:1"],nil) equal(s.elements["preview:branch"],nil)
   end)
