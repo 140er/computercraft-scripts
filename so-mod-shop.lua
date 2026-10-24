@@ -61,7 +61,12 @@ S.request = function(kind, name, count, view, reservedRid)
   end
   local ok = rednet.send(S.turtle, { cmd = kind, text = name, n = count, rid = rid }, "roomsorter")
   if ok == false then
-    if reservedRid then S.pending[rid] = nil end
+    S.pending[rid] = nil
+    if kind == "order" then
+      S.orders = { "failed: send failed" }
+      if pending.entry then pending.entry.status = "failed" end
+      if view then view.order, view.orderDetail = "Order: failed", "send failed" end
+    end
     return nil, "send failed"
   end
   return rid
@@ -118,10 +123,13 @@ S.fuelAlert = function(reason, point, failed)
   if S.fuel.alert and S.fuel.alert.text == text and not (failed and S.fuel.waiting) then return end
   local nextPolicy = SO.store.copy(S.fuel)
   nextPolicy.alert = {reason=reason,text=text,point=point}
+  local waiting = S.fuel.waiting
   if failed then nextPolicy.waiting = nil end
-  S.fuelSave(nextPolicy)
+  if not S.fuelSave(nextPolicy) then return false end
+  if failed and waiting then S.pending[waiting.rid] = nil end
   local state = SO.mods.state
   if state and state.emit then state.emit("shop.alert", nextPolicy.alert) end
+  return true
 end
 S.fuelConfig = function(auto, output)
   if auto == nil and output == nil then return SO.store.copy(S.fuel) end
@@ -139,15 +147,21 @@ S.fuelConfig = function(auto, output)
   if not nextPolicy.waiting then nextPolicy.alert = nil end
   return S.fuelSave(nextPolicy)
 end
+S.fuelClear = function()
+  local waiting = S.fuel.waiting
+  if not waiting and not S.fuel.alert then return true end
+  local nextPolicy = SO.store.copy(S.fuel)
+  nextPolicy.waiting, nextPolicy.alert = nil, nil
+  local ok, err = S.fuelSave(nextPolicy)
+  if ok and waiting then S.pending[waiting.rid] = nil end
+  return ok, err
+end
 S.fuelAvailable = function(point, orderRid)
   local waiting = S.fuel.waiting
   if orderRid ~= nil and (waiting and waiting.rid ~= orderRid or not waiting and orderRid ~= false) then return end
   local expected = S.fuel.waiting and S.fuel.waiting.point or S.fuel.output
   if S.fuelKey(point) ~= S.fuelKey(expected) then return end
-  if not S.fuel.waiting and not S.fuel.alert then return end
-  local nextPolicy = SO.store.copy(S.fuel)
-  nextPolicy.waiting, nextPolicy.alert = nil, nil
-  S.fuelSave(nextPolicy)
+  return S.fuelClear()
 end
 S.fuelEmpty = function(point)
   if not S.fuel.auto or not S.fuelPointOk(point) then return false end
@@ -335,10 +349,10 @@ S.matches = function(search, limit)
   return list
 end
 
--- The item an order for `search` goes to: a stocked exact id, else the first match.
+-- An exact id keeps its stock count, including zero; other searches use the first match.
 S.best = function(search)
   if type(search) ~= "string" or search == "" then return nil end
-  if (S.totals[search] or 0) > 0 then return search, S.totals[search] end
+  if S.totals[search] ~= nil then return search, S.totals[search] end
   local best = S.matches(search, 1)[1]
   if best and best.count > 0 then return best.name, best.count end
   return nil
@@ -348,9 +362,11 @@ end
 -- Changes no display's screen state.
 S.order = function(search, count)
   if count ~= 1 and count ~= 16 and count ~= 64 then return nil, "bad count" end
-  local name = S.best(search)
+  local name, stock = S.best(search)
   if not name then return nil, "no match" end
-  if not S.request("order", name, count) then return nil, "storage room not found" end
+  if stock <= 0 then return nil, "out of stock" end
+  local rid, err = S.request("order", name, count)
+  if not rid then return nil, err end
   return name
 end
 
@@ -957,8 +973,8 @@ S.input = function(event)
 end
 
 S.tick = function(now)
-  if S.fuel.auto and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 and not S.fuel.alert then
-    S.fuelAlert("delivery unconfirmed", S.fuel.waiting.point)
+  if S.fuel.auto and S.fuel.waiting and now - S.fuel.waiting.at >= 120000 then
+    S.fuelAlert("fuel order timed out", S.fuel.waiting.point, true)
   end
   local display = SO.mods.display
   if not S.registered and type(display) == "table" and type(display.screen) == "function" then
@@ -1007,5 +1023,6 @@ return {
   fuelConfig = S.fuelConfig,
   fuelEmpty = S.fuelEmpty,
   fuelAvailable = S.fuelAvailable,
+  fuelClear = S.fuelClear,
   fuelAlerts = S.fuelAlerts,
 }
