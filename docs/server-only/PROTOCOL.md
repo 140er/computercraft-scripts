@@ -198,8 +198,12 @@ against its `K`. It ignores replies whose tag fails or whose `Xs` equals its own
 `conflict`. Since the real server tags every answer to a valid tag1, a forged
 tag3 loses whenever the device hears the real server in the same attempt. It
 keeps at most 16 replies per 3 s round and runs at most four new X25519
-exchanges per round. It saves the key only after a valid tag3, then deletes
-`so-enroll`. `conflict`, a valid tag4 or a tagged `busy`, `full` or `paired`,
+exchanges per round. A round is noisy when it drops a reply over either cap
+or sees more than 64 rednet messages, since CraftOS may then have dropped
+queued events. A noisy round may be missing the real server's reply, so a
+tag3 in it counts as pending; a sustained flood only delays the device. It
+saves the key only after a valid tag3 in a round that is not noisy, then
+deletes `so-enroll`. `conflict`, a valid tag4 or a tagged `busy`, `full` or `paired`,
 or, with nothing tagged that round, an untagged `closed`, `token`, `share` or
 `body` also deletes `so-enroll`. After 660000 ms without one of those it
 deletes the file with `timeout`.

@@ -265,6 +265,8 @@ local function rollback()
     writeFile(NEW .. "/rollback", "yes")
   end)
   if not ok then fs.delete(NEW); error(err, 0) end
+  -- An older worker never reads or deletes the enroll token and secret.
+  fs.delete("/so-enroll")
   if swap(entries) then print("Restored previous release") end
 end
 local function install(role, config, handoff)

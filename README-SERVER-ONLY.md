@@ -155,7 +155,8 @@ answer "not found".
 
 Run `install rollback` to restore the release saved by the last successful update,
 including its installer, startup, file list and pinned commit. Rollback works offline
-and preserves pairing, configuration, saved data and journals. Only one previous
+and preserves pairing, configuration, saved data and journals. It deletes a
+waiting enroll token, so enroll again after a rollback. Only one previous
 release is kept. A successful rollback consumes it; another update replaces it.
 Interrupted swaps recover on startup. A rollback across different recorded protocol
 versions is refused. Releases without protocol metadata use protocol 1.

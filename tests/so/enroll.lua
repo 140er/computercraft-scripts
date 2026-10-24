@@ -719,4 +719,54 @@ return function(test, equal)
     assert(calls <= 4, "exchanges in one round: " .. calls)
     equal(savedKey(w, 1), nil)
   end)
+
+  -- A token holder hides the real server's reply behind cheap junk and
+  -- sends its own valid ok first in every round.
+  local function hidden(junk)
+    local t = boot(true)
+    local token = t.open()
+    local P = t.so.pair
+    local fake = string.rep("f", 32)
+    local fx = t.x.publicKey(fake)
+    local pubs = {}
+    for i = 1, 60 do pubs[i] = t.hex(t.x.publicKey(string.rep(string.char(i + 64), 32))) end
+    local w = t.net.machine({ id = 10, modem = true, turtle = true, capacity = 1000000 })
+    w.install(WORKER)
+    libs(w)
+    w.files["so-enroll"] = H.encode({ token = token })
+    w.env.read = function() return coroutine.yield() end
+    local send, rounds = w.env.rednet.send, 0
+    local function push(body, rid)
+      w.inbox[#w.inbox + 1] = table.pack("rednet_message", 1,
+        t.proto.encode(t.proto.build(P.envelopeKey(), "ack", body, rid)), "so")
+    end
+    w.env.rednet.send = function(id, payload, protocol)
+      -- Queue the forgeries before the real server sees the request.
+      if type(payload) == "table" and payload.t == "enroll" then
+        rounds = rounds + 1
+        local pub = t.unhex(payload.body.pub)
+        local k = t.x.exchange(fake, pub)
+        push({ state = "ok", pub = t.hex(fx), tag = t.hex(t.tag(token, 3, "1", "10", pub, "turtle", fx, k)) }, payload.rid)
+        for i = 1, junk do
+          push({ state = "pending", pub = pubs[(rounds * junk + i) % #pubs + 1], tag = string.rep("ab", 32) }, payload.rid)
+        end
+      end
+      send(id, payload, protocol)
+    end
+    w.boot("worker.lua")
+    t.net.advance(30)
+    assert(w.alive(), tostring(w.error))
+    assert(rounds >= 5, "rounds " .. rounds)
+    equal(savedKey(w, 1), nil, "turtle saved the token holder's key")
+    -- The real request is still pending on the server.
+    equal(#t.so.enroll.view(OWNER).rows, 1)
+  end
+
+  test("enroll: sixteen junk replies hiding the real server never confirm a key", function()
+    hidden(16)
+  end)
+
+  test("enroll: junk that uses up the exchange cap never confirms a key", function()
+    hidden(4)
+  end)
 end

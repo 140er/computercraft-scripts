@@ -714,6 +714,8 @@ and uses the same manifest swap. `/.so-new/rollback` makes committed cleanup con
 the previous release instead of retaining the release being undone. An interrupted
 rollback recovers to the current release before commit or the previous release after
 commit. Rollback never downloads or changes pairing, config, data or journals.
+It deletes `so-enroll` before the swap, because an older worker never reads or
+deletes it.
 Different protocol metadata refuses rollback; missing metadata means protocol 1.
 Client tests measure the peak with one retained release and rollback staging under
 1000000 bytes.

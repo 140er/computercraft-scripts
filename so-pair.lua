@@ -743,21 +743,29 @@ end
 
 -- Sends one request and keeps every reply to it for E.poll seconds. Reply
 -- envelopes use the public key, so the tags decide what counts.
+-- Also returns true when the round was noisy: a reply was dropped by the
+-- cap of 16, or so many messages arrived that CraftOS may have dropped
+-- events from its queue. A noisy round may be missing the real server's
+-- reply, so it can never confirm a key.
 E.ask = function(server, body)
   local msg = S.proto.build(S.envelope, "enroll", body)
-  local wire, out = S.proto.encode(msg), {}
-  if not wire then return out end
+  local wire, out, seen, noisy = S.proto.encode(msg), {}, 0, false
+  if not wire then return out, true end
   rednet.send(server, wire, "so")
   local timer = os.startTimer(E.poll)
   while true do
     local ev, a, b, c = os.pullEvent()
-    if ev == "timer" and a == timer then return out end
+    if ev == "timer" and a == timer then return out, noisy end
+    if ev == "rednet_message" then
+      seen = seen + 1
+      if seen > 64 then noisy = true end
+    end
     if ev == "rednet_message" and c == "so" and a == server and type(b) == "table" then
       local reply = S.proto.decode(b)
-      -- A flood of forged replies costs at most 16 checks per round.
       if reply and reply.rid == msg.rid and reply.from == server and type(reply.body) == "table"
-        and #out < 16 and S.proto.macOk(S.envelope, reply) then
-        out[#out + 1] = reply
+        and S.proto.macOk(S.envelope, reply) then
+        -- A flood of forged replies costs at most 16 checks per round.
+        if #out < 16 then out[#out + 1] = reply else noisy = true end
       end
     end
   end
@@ -765,7 +773,8 @@ end
 
 -- Checks one reply against the device's request. Returns the server
 -- share, what it says and K, or nil. Notices carry no K. At most four new
--- X25519 exchanges per round, and known shares reuse theirs.
+-- X25519 exchanges per round, and known shares reuse theirs; a reply
+-- skipped by that cap returns nil and "skip".
 E.judge = function(ctx, reply)
   local b = reply.body
   local xs = raw32(b.pub)
@@ -781,7 +790,7 @@ E.judge = function(ctx, reply)
   end
   local k = ctx.k[xs]
   if k == nil then
-    if ctx.new >= 4 then return nil end
+    if ctx.new >= 4 then return nil, "skip" end
     ctx.new = ctx.new + 1
     k = S.x.exchange(ctx.sk, xs)
     if k == string.rep("\0", 32) then k = false end
@@ -819,8 +828,10 @@ M.enroll = function(kind, show)
     if show then show(lock and "pending" or "wait", fp) end
     local outcome, plain, key
     ctx.new = 0
-    for _, reply in ipairs(E.ask(server, body)) do
+    local replies, noisy = E.ask(server, body)
+    for _, reply in ipairs(replies) do
       local xs, what, k = E.judge(ctx, reply)
+      if what == "skip" then noisy = true end
       if xs then
         if lock and lock ~= xs then outcome = "conflict" end
         lock = lock or xs
@@ -837,6 +848,9 @@ M.enroll = function(kind, show)
         plain = reply.body.text
       end
     end
+    -- The conflict check needs every reply of the round. Without them an
+    -- ok might come from a token holder hiding the real server, so wait.
+    if outcome == "ok" and noisy then outcome = "pending" end
     if outcome == "ok" then
       local ok, err = M.remember(server, key)
       if not ok then return nil, err end
