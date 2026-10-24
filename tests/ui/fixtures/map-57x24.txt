@@ -1,5 +1,5 @@
 57x24 Map, room monitor 57x24
- MAP  FIT   -   +    ◄   ▲   ▼   ►         ▼  ALL  ▲  ↑N 
+ MAP  FIT   -   +    ◄   ▲   ▼   ►   ×1    ▼  ALL  ▲  ↑N 
             10 ·································         
                ¦           3 wait                        
              9 +----------►·····················         
@@ -23,7 +23,7 @@
    +-----+-----ºshaft                                    
           ore+--fuel                                     
      server@ • •×junk                                    
-00000fffff00000000000000000000000000000000000000000000880
+00000fffff00000000000000000000000000eeee00000000000000880
 000000000000880b88888888888888888888888888888888000000000
 000000000000000b00000000000111111000000000000000000000000
 000000000000080b33333333331b88888888888888888888000000000
@@ -47,7 +47,7 @@
 000ccccccc33333988888000000000000000000000000000000000000
 000000000088833388880000000000000000000000000000000000000
 0000088888890000eeeee000000000000000000000000000000000000
-fffff99999f777f777ff777f777f777f777fffffff777fffff777ffff
+fffff99999f777f777ff777f777f777f777f7777ff777fffff777ffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

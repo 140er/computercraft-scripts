@@ -1,10 +1,10 @@
-Lumber hold
+Lumber stopped
 Logs delivered 0
 Saplings 0
 Spots 0 planted 0
-Fuel 0
+Fuel 4000
 disk >=80%; free space
-Fix cause, then type start
+#3 stopped F4000
 
 
 

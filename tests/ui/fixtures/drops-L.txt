@@ -1,12 +1,12 @@
 39x19 Drop points, wall monitor 4x3 at scale 1
  DROP POINTS  ---------------------- 5 
                                        
- id kind      where         side       
- 1  ore       117,64,-337   front      
- 2  fuel      120,64,-337   front      
- 3  junk      123,64,-337   front      
- 4  wood      110,64,-344   front      
- 5  storage   110,64,-348   front      
+ id kind      where        side        
+ 1  ore room  117,64,-337  front     · 
+ 2  fuel      120,64,-337  front     • 
+ 3  junk      123,64,-337  front     × 
+ 4  wood      110,64,-344  front     · 
+ 5  storage   110,64,-348  front     · 
                                        
  ! 3 junk broken                       
                                        
@@ -17,15 +17,15 @@
                                        
                                        
                                        
-    FIX 3     REMOVE 3       ADD       
+  FIX 3   REMOVE 3   ADD      SCAN     
 00000000000000cccccccccccccccccccccc080
 000000000000000000000000000000000000000
-088088880000008888800000000088880000000
-000000000000008888888888800088888000000
-000000000000008888888888800088888000000
-0e00eeee0000008888888888800088888000000
-000000000000008888888888800088888000000
-000000000000008888888888800088888000000
+088088880000008888800000000888800000000
+000088888888008888888888800888880000080
+0000000000000088888888888008888800000d0
+0e00eeee00000088888888888008888800000e0
+000000000000008888888888800888880000080
+000000000000008888888888800888880000080
 000000000000000000000000000000000000000
 0e0000000000000000000000000000000000000
 000000000000000000000000000000000000000
@@ -36,7 +36,7 @@
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
 000000000000000000000000000000000000000
-0999999999990eeeeeeeeeee000000000000000
+0999999990eeeeeeee000000000000000000000
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
@@ -55,4 +55,4 @@ fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
-f77777777777f77777777777f77777777777fff
+f77777777f77777777f77777777f77777777fff

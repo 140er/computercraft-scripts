@@ -1,0 +1,18 @@
+PASS lumber counts only successful log drops
+PASS lumber holds without delivery credit when worker reports no inventory
+PASS lumber marks failed wood inspections broken without counting lost logs
+PASS lumber checks fuel chest before taking supplies
+PASS lumber checks saplings chest before taking supplies
+PASS lumber rechecks supply service saved before inspection support
+PASS lumber takes supplies after a successful inspection and clears strikes
+PASS lumber names missing and marked broken wood chests
+PASS lumber names missing and marked broken fuel chests
+PASS lumber names missing and marked broken saplings chests
+PASS lumber names an inspected empty fuel chest
+PASS lumber names an inspected empty saplings chest
+PASS lumber registers sapling chest for inspection failures
+PASS lumber distinguishes successful wrong saplings from an empty chest
+PASS lumber distinguishes no inventory at wood chests
+PASS lumber distinguishes no inventory at fuel chests
+PASS lumber distinguishes no inventory at saplings chests
+17 passed, 0 failed, 0 skipped checks

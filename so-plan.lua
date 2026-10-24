@@ -1,4 +1,26 @@
 local P = {}
+P.dimensions = {
+  ["minecraft:overworld"] = { drop = 0 },
+  ["minecraft:the_nether"] = { drop = -1, min = 1, max = 126, bottom = 15 },
+  ["minecraft:the_end"] = { drop = 1, min = 1, max = 255, bottom = 48 },
+}
+function P.dimension(name)
+  return ({overworld="minecraft:overworld", nether="minecraft:the_nether", the_nether="minecraft:the_nether",
+    ["end"]="minecraft:the_end", the_end="minecraft:the_end"})[name] or (P.dimensions[name] and name)
+end
+function P.dimensionError(dim, config)
+  if not P.dimensions[dim] then return "invalid dimension" end
+  if dim ~= "minecraft:overworld" and not (type(config) == "table" and config.remoteDimensions == true) then
+    return "remote dimensions disabled"
+  end
+end
+function P.heightError(dim, y)
+  local rule = P.dimensions[dim]
+  if not rule then return "invalid dimension" end
+  if rule.min and (y < rule.min or y > rule.max) then
+    return dim == "minecraft:the_nether" and "Nether bedrock boundary" or "End void or height boundary"
+  end
+end
 local dx = { [0] = 0, 1, 0, -1 }
 local dz = { [0] = -1, 0, 1, 0 }
 
@@ -152,6 +174,62 @@ function P.free(inv)
   local n = 16
   for _ in pairs(occupied) do n = n - 1 end
   return n
+end
+
+function P.chestPresent(result)
+  local block=result and result.ok and result.data
+  if type(block)~="table" or type(block.name)~="string" then return false end
+  return block.name:find("chest",1,true) ~= nil or block.name:find("barrel",1,true) ~= nil
+    or block.name:find("shulker_box",1,true) ~= nil
+    or (block.tags and (block.tags["c:chests"] or block.tags["forge:chests"])) == true
+end
+
+function P.transferFailure(kind, result)
+  local err=type(result.err)=="string" and result.err:lower() or "failed"
+  if err=="no space for items" then return (kind=="ore" or kind=="wood") and "full" or "inventory full" end
+  if err=="no items to take" then return "empty" end
+  if err=="failed" then return (kind=="ore" or kind=="wood") and "full" or "empty" end
+  return err
+end
+
+function P.chestError(kind, reason, point)
+  if not point then return "no " .. kind .. " chest set" end
+  if point.id and #tostring(point.id)>8 then
+    return kind .. " " .. reason .. " " .. point.x .. "," .. point.y .. "," .. point.z .. " #" .. point.id
+  end
+  return kind .. (point.id and (" #" .. point.id) or " chest") .. " " .. reason .. " at " .. point.x .. "," .. point.y .. "," .. point.z
+end
+
+function P.chestCheck(points, kind, near)
+  local best, broken, distance, brokenDistance
+  for _, point in ipairs(points or {}) do
+    if not point.disabled and point.dim == near.dim and (point.kind == kind or point.kind == "any") then
+      local d = math.abs(point.x-near.x) + math.abs(point.y-near.y) + math.abs(point.z-near.z)
+      if point.broken then
+        if not broken or d < brokenDistance then broken, brokenDistance = point, d end
+      elseif not best or point.kind==kind and best.kind~=kind
+          or point.kind==best.kind and (d < distance or d==distance and point.id<best.id) then
+        best, distance = point, d
+      end
+    end
+  end
+  local point = best or broken
+  return {ok=best ~= nil, text=point and P.chestError(kind, best and (best.verified and "verified by visit" or "unverified") or "broken", point)
+    or "no " .. kind .. " chest set"}
+end
+
+function P.missing(checks)
+  local missing = {}
+  for _, check in ipairs(checks) do if not check.ok and check.blocking ~= false then missing[#missing+1] = check.text end end
+  return missing
+end
+
+function P.toolCheck(tools, kind, id, autoSwap)
+  local known = type(tools) == "table"
+  local equipped = known and ((type(tools.left) == "string" and tools.left:match("_"..kind.."$"))
+    or (type(tools.right) == "string" and tools.right:match("_"..kind.."$")))
+  return {ok=not known or not not equipped, blocking=autoSwap == true, text=(id and ("#"..id.." ") or "")
+    ..(not known and "tools unknown" or equipped and (kind.." ready") or ("needs "..kind))}
 end
 
 return P

@@ -37,6 +37,7 @@ local function addLive(s,id)
   turtle.files["so-keys"]=H.encode({schema=1,generation=1,value={keys={["1"]=key}}})
   turtle.boot("worker.lua") s.net.flush()
   s.input("add "..id.." 0 0 0 n")
+  if #s.mods.drops.list()==0 then assert(s.mods.drops.add({id="ready",dim=0,x=100000,y=0,z=0,side="front",kind="any"})) end
   return turtle
 end
 local function contains(s,text)
@@ -50,10 +51,12 @@ return function(test,equal)
     s.mods.state.canStart=function() return false,"disk >=80%; free space" end
     s.input("start") assert(contains(s,"disk >=80%; free space"))
     s.mods.state.canStart=canStart
-    s.input("start") assert(contains(s,"set home before start"))
-    s.input("length 4") assert(not contains(s,"set home before start"))
+    s.input("start") assert(contains(s,"home not set"))
+    s.input("length 4") assert(not contains(s,"home not set"))
     assert(not s.job().running)
-    s.input("home 0 0 0 n") s.input("start") assert(s.job().running)
+    s.input("home 0 0 0 n")
+    addLive(s,2) s.net.advance(1)
+    s.input("start") assert(s.job().running)
     s.input("ores diamond, iron") equal(s.job().ores,{"diamond","iron"})
     s.input("ores diamond, unknown") assert(contains(s,"unknown ore"))
     s.input("stop") assert(not contains(s,"unknown ore"))
@@ -114,10 +117,10 @@ return function(test,equal)
     local pose={dim="minecraft:overworld",x=99,y=-2,z=-5,facing=0}
     local s=setup({home={x=0,y=0,z=0,facing=0},dim=pose.dim,bottom=-2,length=3,mode="thorough",ores={},
       progress={nextBranch=0,done=0},running=true,turtles={["2"]={pose=pose,anchor=pose,
-      state="wait lane",laneWait={at=0,passes=10},inv={}}}})
+      state="wait lane",laneWait={at=0,passes=10},fuel=4000,inv={}}}})
+    local turtle=addLive(s,3) s.net.advance(1)
     s.input("start") assert(s.job().running)
     equal(s.job().turtles["2"].laneWait,nil)
-    local turtle=addLive(s,3)
     s.net.advance(80)
     assert(not s.server.error,tostring(s.server.error))
     assert(not turtle.error,tostring(turtle.error))

@@ -64,9 +64,9 @@ return function(test, equal)
       local find=server.env.peripheral.find
       server.env.peripheral.find=function(kind) if kind=="ar_controller" then return ar end return find(kind) end
     end)
-    assert(drawn["alert:dug-storage"]:find("Choose allow or keep",1,true))
+    equal(drawn["alert:dug-storage"],s.server.env.SO.mods.cells.retirement().text)
     s.net.advance(301)
-    assert(drawn["alert:dug-storage"]:find("Choose allow or keep",1,true),"pending AR alert expired")
+    equal(drawn["alert:dug-storage"],s.server.env.SO.mods.cells.retirement().text)
     local display=s.server.env.SO.mods.display
     display.handlers.hello({from=3,body={w=29,h=11}})
     display.handlers["view.sub"]({from=3})

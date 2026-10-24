@@ -9,7 +9,7 @@ local function boot()
   e.SO = { now = function() return e.os.epoch("utc") end, store = e.dofile("so-store.lua"), proto = { ser = H.encode }, mods = {} }
   local mods = e.SO.mods
   mods.state = { get = function() return b.machines end, view = function() return { values = b.values } end }
-  mods.lease = { status = function(id) return b.status[id] end, inRange = function(id) return not b.outside[id] end }
+  mods.lease = { peek = function(id) return b.status[id] end, inRange = function(id) return not b.outside[id] end }
   mods.drops = { list = function() return b.points end }
   mods.cells = { list = function(owner) return b.cells[owner] end, counts = function()
     local reserved = {}; for owner in pairs(b.cells) do reserved[owner] = 1 end
@@ -97,8 +97,8 @@ return function(test, equal)
     for i, id in ipairs({ "turtles", "alerts", "disk" }) do
       local key = "hud:" .. id
       equal(b.ar.methods[key .. ":backing"], "drawRect2D")
-      equal(b.ar.elements[key .. ":backing"], { C.backing, 4 + (i - 1) * 64, 18, 56, 30 })
-      equal(b.ar.elements[key .. ":bar"], { i == 3 and C.green or C.coral, 4 + (i - 1) * 64, 18, 56, 4 })
+      equal(b.ar.elements[key .. ":backing"], { C.backing, 4 + (i - 1) * 64, 86, 60 + (i - 1) * 64, 116 })
+      equal(b.ar.elements[key .. ":bar"], { i == 3 and C.green or C.coral, 4 + (i - 1) * 64, 86, 60 + (i - 1) * 64, 90 })
       equal(b.ar.elements[key .. ":label"][4], id:upper())
     end
     equal(b.ar.elements["hud:turtles:value"][4], "2")
@@ -110,6 +110,9 @@ return function(test, equal)
     local b = boot()
     b.env.SO.mods.cells.retirement = function() return {text="Dug storage full",status="pending"} end
     b.values["mine.alert"] = {text="CHEST FULL"}; b.tick(1000)
+    local strips = 0
+    for id in pairs(b.ar.elements) do if id:match("^alert:.*backing$") then strips = strips + 1 end end
+    equal(strips, 1)
     local right = 0
     for _,id in ipairs({"turtles","alerts","disk"}) do
       local tile = b.ar.elements["hud:"..id..":backing"]
@@ -117,17 +120,43 @@ return function(test, equal)
       local value = b.ar.elements["hud:"..id..":value"]
       assert(label[2] >= tile[2]+4 and label[2] >= right+8)
       right = label[2]+#label[4]*6
-      assert(right <= tile[2]+tile[4]-4)
+      assert(right <= tile[4]-4)
       equal(value[2],label[2]); assert(value[3] >= label[3]+10)
-      assert(value[3]+8 <= tile[3]+tile[5]-4)
+      assert(value[3]+8 <= tile[5]-4)
       local banner = b.ar.elements["alert:backing"]
-      assert(tile[3] >= banner[3]+banner[5]+4)
-      assert(banner[3] >= b.ar.elements["alert:dug-storage"][3]+8)
+      equal(tile[3], banner[5])
+      assert(b.ar.elements["alert:dug-storage"][3] >= tile[5]+4)
+    end
+  end)
+  test("UI3c HUD clears measured Difficulty bounds at common GUI scales", function()
+    for _,scale in ipairs({1,2,3,4}) do
+      for _,alert in ipairs({false,true}) do
+        for _,consent in ipairs({false,true}) do
+          local b=boot()
+          if alert then b.values["mine.alert"]={text=string.rep("W",80)} end
+          if consent then b.env.SO.mods.cells.retirement=function() return {text="Dug storage full"} end end
+          b.tick(1000)
+          for _,id in ipairs({"hud:turtles:backing","hud:alerts:backing","hud:disk:backing","alert:backing"}) do
+            local rect=b.ar.elements[id]
+            if rect then
+              assert(rect[2]<rect[4] and rect[3]<rect[5],"rectangle uses opposite corners")
+              assert(rect[3]*scale>63,"Difficulty bottom measured at y=63 in the reference")
+              assert(rect[3]>21,"Difficulty bottom in GUI units at reference scale 3")
+              assert(rect[4]*scale<=1280 and rect[5]*scale<=720)
+            end
+          end
+          if alert then
+            local text=b.ar.elements["alert:mine.alert"]
+            local strip=b.ar.elements["alert:backing"]
+            assert(text[2]+#text[4]*6<=strip[4]-4)
+          end
+        end
+      end
     end
   end)
   test("UI3c alert banner expires after five seconds and retains the HUD count", function()
     local b = boot(); b.tick(1000); b.values["mine.alert"] = { text = "CHEST FULL" }; b.tick(2000)
-    equal(b.ar.elements["alert:backing"], { C.coral, 0, 0, 120, 14 })
+    equal(b.ar.elements["alert:backing"], { C.coral, 4, 72, 188, 86 })
     equal(b.ar.elements["alert:mine.alert"][4], "CHEST FULL")
     b.tick(6000); assert(b.ar.elements["alert:backing"])
     b.tick(7000); equal(b.ar.elements["alert:backing"], nil); equal(b.ar.elements["alert:mine.alert"], nil)

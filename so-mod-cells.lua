@@ -157,6 +157,16 @@ S.copyReservations = function()
   return copy
 end
 
+S.handoff = function(from, to, x, y, z, dim)
+  if not S.whoValid(from) or not S.whoValid(to) then return false, "owner" end
+  local key = S.cell(x, y, z, dim)
+  if S.reservations[key] == to then return true end
+  if S.reservations[key] ~= from then return false, "held" end
+  local nextRes = S.copyReservations()
+  nextRes[key] = to
+  return S.commit(nextRes)
+end
+
 S.reserveMany = function(who, cells)
   if not S.whoValid(who) or type(cells) ~= "table" then return false, "bad" end
   local keys = {}
@@ -462,7 +472,7 @@ S.protection = function()
     protect(worker.pose.dim, worker.pose, 48)
     protect(worker.pose.dim, worker.dug, 0)
   end
-  for _, name in ipairs({ "mine", "lumber", "lease" }) do
+  for _, name in ipairs({ "mine", "lumber", "lease", "build" }) do
     local mod = SO.mods[name]
     if mod and (type(mod.dugProtection) ~= "function" or mod.dugProtection(protect) ~= true) then return nil end
   end
@@ -515,7 +525,10 @@ S.retirement = function()
 end
 
 S.checkRetirement = function(now)
-  if S.request or S.migrations > 0 or S.total < S.policy.nextAsk or (S.checked and now - S.checked < 10000) then return end
+  local state = SO.mods.state
+  local pressure = state and state.disk and state.disk().pressure
+  local pressureAsk = pressure and S.policy.choice == "keep" and now >= (S.pressureAfter or 0)
+  if S.request or S.migrations > 0 or (S.total < S.policy.nextAsk and not pressureAsk) or (S.checked and now - S.checked < 10000) then return end
   S.checked = now
   local candidates, reclaim = S.candidates()
   if #candidates == 0 then return end
@@ -566,6 +579,7 @@ S.decideRetirement = function(id, choice)
     policy.nextAsk = math.max(S.threshold, math.ceil(S.total * 1.5))
     S.savePolicy(policy)
   end
+  S.pressureAfter = SO.now() + 60000
   S.request = nil
   local text = choice == "keep" and "Kept. More server storage (sharding) is a future option."
     or ("Forgot marks for " .. forgotten .. " old areas. Freed " .. S.amount(freed) .. ".")
@@ -635,7 +649,7 @@ S.loading = false
 
 return {
   name = "cells", handlers = { ["cells.forget"] = S.onForget }, tick = S.tick,
-  reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
+  handoff = S.handoff, reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
   releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner,
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,

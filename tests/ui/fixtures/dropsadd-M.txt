@@ -13,9 +13,9 @@
                                  |                       
  z           -     -337    +     |             ºshaft    
                                  |                       
+ room        point   sinks       |                       
                                  |                       
-                                 |                       
-                                 |          •1 •2 ×3 •   
+ from        #12                 |          •1 •2 ×3 •   
                                  |      @server          
                                  |                       
                                  |                       
@@ -37,9 +37,9 @@
 000000000000000000000000000000000c00000000000000000000000
 080000000000000000000000000000000c00000000000009888880000
 000000000000000000000000000000000c00000000000000000000000
+088880000000888888808888888000000c00000000000000000000000
 000000000000000000000000000000000c00000000000000000000000
-000000000000000000000000000000000c00000000000000000000000
-000000000000000000000000000000000c0000000000080080ee0f000
+088880000000000000000000000000000c0000000000080080ee0f000
 000000000000000000000000000000000c00000098888880000000000
 000000000000000000000000000000000c00000000000000000000000
 000000000000000000000000000000000c00000000000000000000000
@@ -63,7 +63,7 @@ ffffffffffff777fffffffffff777ffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffff9fff
+ffffffffffff77777ffffffffffffffffffffffffffffffffffff9fff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

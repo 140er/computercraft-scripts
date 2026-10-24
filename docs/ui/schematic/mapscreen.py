@@ -35,10 +35,13 @@ def level_label(level):
     return "ALL" if level == "all" else "Y%d" % level
 
 
-def controls(cv, L, w, h, level, fit):
-    kind = L["kind"]
+DIM = {"overworld": "OVER", "the_nether": "NETH", "the_end": "END"}
+
+
+def controls(cv, L, w, h, level, fit, dim=None):
+    """dim names the shown dimension when remoteDimensions is on; it adds the dimension chip."""
+    kind, edge = L["kind"], None
     if kind in ("room", "wall", "pocket"):
-        cv.put(2, 1, "MAP", "0")
         x = chip(cv, 6, 1, "FIT", "map-fit", "on" if fit else "plain") + 1
         if kind != "pocket":
             x = chip(cv, x, 1, "-", "map-out") + 1
@@ -51,6 +54,7 @@ def controls(cv, L, w, h, level, fit):
                 chip(cv, x0 + 4 * i, h, a, "map-" + d)
             chip(cv, x0 + 17, h, "-", "map-out")
             chip(cv, x0 + 21, h, "+", "map-in")
+        edge = x
     else:
         x0 = 1 + (w - 15) // 2
         for i, (a, d) in enumerate((("◄", "w"), ("▲", "n"), ("▼", "s"), ("►", "e"))):
@@ -65,6 +69,21 @@ def controls(cv, L, w, h, level, fit):
     cv.put(x + 3 + (5 - len(text)) // 2, 1, text, "0")
     cv.hit("map-level", x + 3, 1, 5, 1, text)
     chip(cv, x + 8, 1, "▲", "map-up")
+    # The dimension chip, then the broken chest count, in the free run before the level chips;
+    # with no room there they take the title's place, the dimension first.
+    title = kind != "tiny"
+    adds = [(DIM[dim], "map-dim", "plain")] if dim else []
+    broken = sum(1 for d in S["drops"] if d["broken"])
+    if broken:
+        adds.append(("×%d" % min(broken, 99), "map-broken", "stop"))
+    for label, bid, kind_ in adds:
+        if edge is not None and edge + len(label) + 1 <= w - 16:
+            edge = chip(cv, edge, 1, label, bid, kind_) + 1
+        elif title:
+            chip(cv, 1, 1, label, bid, kind_, 5)
+            title = False
+    if title:
+        cv.put(2, 1, "MAP", "0")
     MD.compass(cv, w - 2, 1)
 
 
@@ -85,8 +104,9 @@ def roster(cv, L, w):
         cv.put(x + 16, y, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")
 
 
-def screen(w, h, title, level="all", scale=None, centre=None, pick=None):
-    """scale (sx, sz) and centre (cx, cz) give a panned or zoomed view; without them the view fits."""
+def screen(w, h, title, level="all", scale=None, centre=None, pick=None, dim=None):
+    """scale (sx, sz) and centre (cx, cz) give a panned or zoomed view; without them the view fits.
+    dim (remoteDimensions) adds the dimension chip."""
     cv = Canvas(w, h, title)
     L = layout(w, h, len(S["turtles"]))
     if scale:
@@ -94,12 +114,20 @@ def screen(w, h, title, level="all", scale=None, centre=None, pick=None):
     else:
         v = MD.fit(L["mw"], L["mh"], level)
     taken, _ = MD.draw(cv, v, L["mx"], L["my"], pick=pick)
-    if pick:
-        MD.callout(cv, v, L["mx"], L["my"], pick, taken)
-    controls(cv, L, w, h, level, not scale)
+    got = MD.callout(cv, v, L["mx"], L["my"], pick, taken) if pick else None
+    controls(cv, L, w, h, level, not scale, dim)
     if L.get("roster"):
         roster(cv, L, w)
-    cv.hit("map-pick", L["mx"], L["my"], L["mw"], L["mh"])
+    # The tap area is cut around a callout chip, so no two buttons overlap.
+    x1, y1, x2, y2 = L["mx"], L["my"], L["mx"] + L["mw"], L["my"] + L["mh"]
+    parts = [(x1, y1, L["mw"], L["mh"])]
+    if got and got[4]:
+        cx, cy, cw = got[4]
+        parts = [(x1, y1, L["mw"], cy - y1), (x1, cy, cx - x1, 1), (cx + cw, cy, x2 - cx - cw, 1),
+                 (x1, cy + 1, L["mw"], y2 - cy - 1)]
+    for x, y, w_, h_ in parts:
+        if w_ > 0 and h_ > 0:
+            cv.hit("map-pick", x, y, w_, h_)
     return cv
 
 

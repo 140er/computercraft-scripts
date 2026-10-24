@@ -181,10 +181,11 @@ return function(test, equal)
       return handle
     end
     local ok, err = machine.env.state.emit("k", "lost")
-    assert(ok == false, "killed write was stored")
-    assert(type(err) == "string" and #err > 0, "missing error")
-    equal(machine.env.state.get("k"), 30)
-    equal(machine.env.state.view().rev, 30)
+    assert(ok == true and err == nil, "failed write was not accepted into the volatile queue")
+    equal(machine.env.state.disk().pending, 1)
+    assert(machine.env.state.get("disk.alert").text:find("events pending", 1, true))
+    equal(machine.env.state.get("k"), "lost")
+    equal(machine.env.state.view().rev, 31)
 
     local restarted = net.machine({ id = 6, capacity = 16000000 })
     lay(restarted, MODS)

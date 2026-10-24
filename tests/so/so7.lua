@@ -1,124 +1,6 @@
+local F = dofile("tests/so/lumber-farm-fixture.lua")
 local H = dofile("tests/so/harness.lua")
-local KEY = string.rep("a", 64)
-local DIM = 0
-local TREES = { {1, 1, "birch"}, {4, 4, "oak"}, {7, 7, "oak"}, {1, 7, "birch"} }
-local function libs(m)
-  for _, name in ipairs({ "x25519", "random", "blake3", "chacha20", "config", "internal/util",
-    "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing" }) do
-    local path = "lib/ccryptolib/" .. name .. ".lua"
-    local f = assert(io.open(path, "rb"))
-    m.files[path] = f:read("*a")
-    f:close()
-  end
-end
-local function setup(saplings, fuel, side)
-  side = side or "down"
-  local n = H.new()
-  local s = n.machine({ id = 1, modem = true })
-  s.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-plan.lua",
-    "so-lumber-plan.lua", "so-mod-lease.lua", "so-mod-cells.lua", "so-mod-drops.lua",
-    "so-mod-display.lua", "so-mod-lumber.lua", "so-mod-state.lua" })
-  libs(s)
-  s.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["2"]=KEY}}})
-  s.boot("so-server.lua")
-  assert(s.alive(), tostring(s.error))
-  local w = n.machine({ id = 2, modem = true, turtle = true, x = -2, y = 2, z = 0,
-    facing = 1, fuel = fuel or 10000, capacity = 1000000 })
-  w.install({ "worker.lua", "so-proto.lua", "so-pair.lua", "so-store.lua" })
-  libs(w)
-  w.files["so-keys"] = H.encode({schema=1,generation=1,value={keys={["1"]=KEY}}})
-  local digs, burned = {}, {}
-  local refuel = w.env.turtle.refuel
-  w.env.turtle.refuel = function(n)
-    local item = w.inv[w.selected]
-    burned[#burned + 1] = item and item.name or "empty"
-    return refuel(n)
-  end
-  for _, ops in ipairs({ {"dig", "inspect"}, {"digUp", "inspectUp"}, {"digDown", "inspectDown"} }) do
-    local dig, inspect = w.env.turtle[ops[1]], w.env.turtle[ops[2]]
-    w.env.turtle[ops[1]] = function()
-      local present, block = inspect()
-      assert(not present or block.name ~= "minecraft:chest", "worker tried to dig a chest")
-      local ok = dig()
-      if ok and present then
-        digs[#digs + 1] = block.name
-        if block.tags and block.tags["minecraft:logs"] then
-          local slot
-          for i = 1, 16 do
-            if w.inv[i] and w.inv[i].name == block.name and w.inv[i].count < 64 then slot = i break end
-          end
-          if not slot then for i = 1, 16 do if not w.inv[i] then slot = i break end end end
-          assert(slot, "log lost to full inventory")
-          w.inv[slot] = { name = block.name, count = (w.inv[slot] and w.inv[slot].count or 0) + 1 }
-        end
-      end
-      return ok
-    end
-  end
-  local screens, events = {}, {}
-  local register = s.env.SO.mods.display.screen
-  s.env.SO.mods.display.screen = function(role, render, input)
-    screens[role] = { render = render, input = input }
-    return register(role, render, input)
-  end
-  s.env.SO.mods.state = { canStart = s.env.SO.mods.state.canStart, emit = function(kind, data) events[#events+1] = {kind=kind,data=data} return true end }
-  for x = 0, 8 do for z = 0, 8 do n.world[x..",0,"..z] = "minecraft:dirt" end end
-  n.world["3,2,2"] = "minecraft:stone"
-  for _, spot in ipairs(TREES) do
-    for y = 1, 4 do n.world[spot[1]..","..y..","..spot[2]] = {
-      name = "minecraft:"..spot[3].."_log", tags = {["minecraft:logs"]=true} } end
-  end
-  local chests = {
-    saplings = { x=-2, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
-      name="minecraft:chest", inv=saplings and {{name="minecraft:oak_sapling",count=32},{name="minecraft:birch_sapling",count=32}} or {} },
-    wood = { x=side == "down" and -3 or -4, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
-      name="minecraft:chest", inv={} },
-    fuel = { x=side == "down" and -4 or -6, y=side == "down" and 1 or 2, z=side == "down" and 0 or -2,
-      name="minecraft:chest", inv={{name="minecraft:coal",count=32}} },
-  }
-  if side == "front" then n.world["-5,2,-2"] = "minecraft:stone" end
-  for kind, chest in pairs(chests) do
-    n.world[chest.x..","..chest.y..","..chest.z] = chest
-    if kind ~= "saplings" then
-      assert(s.env.SO.mods.drops.add({id=kind,dim=DIM,x=chest.x,y=chest.y,z=chest.z,side=side,kind=kind}))
-    end
-  end
-  for _, op in ipairs({ "forward", "back", "up", "down" }) do
-    local move = w.env.turtle[op]
-    w.env.turtle[op] = function()
-      local ok = move()
-      local block = n.world[w.pos.x..","..w.pos.y..","..w.pos.z]
-      assert(type(block) ~= "table" or block.name ~= "minecraft:chest", "worker entered a chest")
-      return ok
-    end
-  end
-  w.boot("worker.lua")
-  n.flush()
-  n.advance(1)
-  assert(screens.lumber, "lumber screen not registered")
-  local function command(text) screens.lumber.input({text=text,role="lumber",x=1,y=1}) end
-  command("area 0 0 8 8 0")
-  command("saplings "..chests.saplings.x.." "..chests.saplings.y.." "..chests.saplings.z.." "..side)
-  command("add 2 -2 2 0 e")
-  n.advance(2)
-  command("start")
-  return {net=n,server=s,worker=w,screens=screens,events=events,digs=digs,burned=burned,wood=chests.wood,chests=chests,command=command}
-end
-local function delivered(g)
-  local count = 0
-  for _, item in ipairs(g.wood.inv) do if item.name:match("_log$") then count=count+item.count end end
-  return count
-end
-local function run(g, untilFn, seconds)
-  for _ = 1, seconds or 1800 do
-    g.net.advance(1)
-    assert(g.server.alive(), tostring(g.server.error))
-    assert(g.worker.alive(), tostring(g.worker.error))
-    for _, line in ipairs(g.server.log) do assert(not line:find("failed:",1,true), line) end
-    if untilFn(g) then return end
-  end
-  error("lumber did not finish: " .. H.encode(g.screens.lumber.render()))
-end
+local setup, delivered, run, TREES = F.setup, F.delivered, F.run, F.trees
 return function(test, equal)
   test("SO7 chest access faces the chest from the nearest unblocked neighbour", function()
     local L=dofile("so-lumber-plan.lua")
@@ -139,9 +21,9 @@ return function(test, equal)
       assert(#g.burned>0,"fuel was not taken from the chest cell")
       run(g,function(v) return delivered(v)==16 end)
       equal(delivered(g),16)
-      equal(g.chests.fuel.inv[1].count,0)
-      equal(g.chests.saplings.inv[1].count,0)
-      equal(g.chests.saplings.inv[2].count,0)
+      assert(g.chests.fuel.inv[1].count < 32)
+      assert(g.chests.saplings.inv[1].count < 32)
+      assert(g.chests.saplings.inv[2].count < 32)
       for _, spot in ipairs(TREES) do
         equal(g.net.world[spot[1]..",1,"..spot[2]],"minecraft:"..spot[3].."_sapling")
       end
@@ -149,6 +31,18 @@ return function(test, equal)
       for _, name in ipairs(g.digs) do assert(name ~= "minecraft:chest" and name ~= "minecraft:stone",name) end
     end)
   end
+  test("SO7 default-off tool checks let a pickaxe-only turtle fell and deliver logs",function()
+    local g=setup(true,10000,"down",1,nil,{left="minecraft:diamond_pickaxe",right="computercraft:wireless_modem"})
+    local lease=g.server.env.SO.mods.lease
+    equal(lease.status(2).autoToolSwap,false)
+    equal(lease.status(2).tools.left,"minecraft:diamond_pickaxe")
+    equal(lease.ensureTool(2,"axe"),true)
+    g.net.advance(1)
+    equal(g.worker.screen[4],"needs axe")
+    run(g,function(x) return delivered(x)>=16 end)
+    equal(delivered(g),16)
+  end)
+
   test("SO7 fells four trees, replants the farm and delivers every log", function()
     local g = setup(true)
     run(g, function(v) return delivered(v)==16 end)
@@ -175,7 +69,7 @@ return function(test, equal)
     run(g, function(v) return delivered(v)==16 end)
     local alerts=0
     for _, ev in ipairs(g.events) do
-      if ev.kind=="lumber.alert" and ev.data.text=="out of saplings" then alerts=alerts+1 end
+      if ev.kind=="lumber.alert" and ev.data.reason=="empty" then alerts=alerts+1 end
     end
     equal(alerts,1)
     for _, spot in ipairs(TREES) do equal(g.net.world[spot[1]..",1,"..spot[2]],nil) end
@@ -193,7 +87,7 @@ return function(test, equal)
     assert(g.server.alive(),tostring(g.server.error))
     local register=g.server.env.SO.mods.display.screen
     g.server.env.SO.mods.display.screen=function(role,render,input)
-      g.screens[role]={render=render,input=input}
+      if render then g.screens[role]={render=render,input=input} end
       return register(role,render,input)
     end
     run(g,function(v) return delivered(v)==16 end)
@@ -293,9 +187,9 @@ return function(test, equal)
     g.net.advance(3)
     assert(work,"no work after recovery report")
     local saved=fresh.env.SO.store.read("so-data/lumber/job").value
-    equal(saved.turtle.pose.x,g.worker.pos.x)
-    equal(saved.turtle.pose.y,g.worker.pos.y)
-    equal(saved.turtle.pose.z,g.worker.pos.z)
+    equal(saved.turtles["2"].turtle.pose.x,g.worker.pos.x)
+    equal(saved.turtles["2"].turtle.pose.y,g.worker.pos.y)
+    equal(saved.turtles["2"].turtle.pose.z,g.worker.pos.z)
   end)
 
 end

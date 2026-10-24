@@ -38,8 +38,35 @@ A larger value also works. A 1 MB or 8 MB disk cannot run the server.
 
 Mining and lumber refuse `start` when the server disk is 80% full or more.
 The screen shows `disk >=80%; free space`. Free space and submit `start` again.
-Existing jobs and recovery continue, so disk use can still grow. Dug marks remain
-on disk across jobs and have no automatic pruning or total byte limit.
+At 85% the server shows `DISK pressure`, keeps heartbeat updates in memory and
+checkpoints every 10000 events instead of 2000. Retention checkpoints still run.
+
+Event saves remain synchronous. New log segments target 8 KB to reduce rewrite
+work. The schema, 64 KB single-event limit, retention budget and generation
+recovery stay compatible with `install rollback`. Completed appends survive a
+crash during the next write. The event whose write was interrupted may be absent.
+
+To omit routine heartbeat events, add `state = { coalesceHeartbeats = true }`
+to the existing `so-server.cfg` table and restart the server. The setting defaults
+to false. Role, journal, fingerprint and significant fuel changes still create
+events. Views receive current contact times and fuel without routine log writes.
+Snapshots save those values on the existing event-count and retention cadence.
+There is no time-based snapshot, so idle freshness can remain volatile until
+another checkpoint. After restart, restored machines receive a fresh boot-time
+contact timestamp before normal stale thresholds apply.
+Tap DISK on status for bytes in log, snapshots, cells, jobs, keys and other files.
+The ledger counts all file generations and refreshes every 30 seconds. Other
+includes code, filesystem allocation and files outside those stores.
+
+If an event cannot save, the server folds it into memory and queues it for retry.
+The queue holds at most 256 events and 262144 serialized bytes. Status and AR show
+`DISK N events pending`. New movement leases stop until the queue drains; stationary
+parks and recovery remain available. Retries run every five seconds, at most 16
+events per tick. A full queue or an event above the log segment budget refuses the event and
+prints `DISK event refused`.
+Queued events are volatile. A power loss before retry loses those events.
+Free disk space before restarting. Snapshot failures retry at most once per minute.
+Dug marks remain on disk across jobs. Only consent removes them.
 Workers and displays download less than 800 KB each.
 
 Servers and displays use all attached modems and detect modem changes without a
@@ -50,6 +77,23 @@ name, the server shows its ID and keeps running for paired clients. Reboot after
 the name becomes available to register it. A paired display reconnects directly
 to its saved server ID, even if another server answers discovery. Fresh clients
 still use hostname discovery, so isolate competing networks while pairing.
+
+## Turtle tools
+
+Workers report equipped tool names without moving or digging. Mining readiness
+checks for a pickaxe and lumber checks for an axe. Missing tools appear in NEEDS YOU.
+With automatic swaps off, these warnings never block START or interrupt planning.
+Older workers without equipment queries show `tools unknown` and keep working.
+The turtle terminal shows its label, assigned job, current step, fuel and reason.
+
+Automatic swaps default to off. To enable them on a worker, add
+`autoToolSwap=true` to its plain `so-worker.cfg` table and reboot. Keep any existing
+`dim` field. Put one replacement tool in an inventory slot. The worker swaps only
+into an empty side or a side holding a tool, keeping its modem equipped. The old
+tool goes into inventory. A failed swap keeps the old tool and appears in NEEDS YOU;
+retries wait 30 game seconds. Tools stay in inventory during cleanup and unloading.
+Swaps check equipment first, so a replay after reboot does not swap the old tool back.
+Tool durability is not checked.
 
 ## Install and pair
 
@@ -65,8 +109,11 @@ a mouse click, or monitor touch. With a monitor attached, display is the default
 
 For the server, the installer checks disk capacity before any download.
 It tries GPS for two seconds. If GPS does not answer, enter the server's
-`x y z` coordinates. Enter the dimension, or press Enter for
-`minecraft:overworld`. The position is saved in `so-server.cfg`.
+`x y z` block coordinates. X and Z must be within 30000000 blocks of zero;
+Y must be between -2048 and 2048. Select `minecraft:overworld`,
+`minecraft:the_nether` or `minecraft:the_end`, also accepted as `0`, `-1` or `1`.
+Enter defaults to the overworld. The installer shows the coordinates and dimension
+before saving. Enter confirms; `n` starts over. The position is saved in `so-server.cfg`.
 
 For a worker or display, press P on the running server, then enter its six-digit
 code on the client. The code works once and expires after five minutes.
@@ -75,6 +122,14 @@ Its panel and the server terminal show the code and time left. Other displays
 cannot see that invitation. Pressing NEW CODE again keeps the pending code.
 After use or expiry, press NEW CODE for the next client.
 Keep any leading zeros in the code.
+The server terminal shows the ids of computers whose pairing attempts it
+rejected. A computer gets two wrong codes a minute and three per code. Ten
+wrong codes burn the code; press P for a new one. Wrong codes from a machine
+that proves its saved key do not count toward the ten.
+Pairing uses the CPace protocol, so a recorded pairing does not reveal the code.
+Update the server first. Updated clients cannot pair with an older server.
+Clients from the previous release still pair this release; update them before
+the next one, which drops the old method.
 Displays show the pairing prompt and digits on the monitor and computer terminal.
 Backspace removes a digit. The sixth digit starts pairing. If it fails, the
 display shows the reason and accepts a new code. Displays keep looking when
@@ -97,6 +152,14 @@ non-empty HTTP 200 responses, and Lua files must compile before any installed
 file changes. Startup recovers interrupted swaps before launching the program.
 A failed download leaves the installed files in place. A private repository may
 answer "not found".
+
+Run `install rollback` to restore the release saved by the last successful update,
+including its installer, startup, file list and pinned commit. Rollback works offline
+and preserves pairing, configuration, saved data and journals. It deletes a
+waiting enroll token, so enroll again after a rollback. Only one previous
+release is kept. A successful rollback consumes it; another update replaces it.
+Interrupted swaps recover on startup. A rollback across different recorded protocol
+versions is refused. Releases without protocol metadata use protocol 1.
 
 Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and
@@ -134,13 +197,90 @@ bottom y level. Surface selects the server's y level, or the farm ground when
 there is no server position. All projects the scene and scans dug blocks at the mine bottom, tunnel roof,
 surface, farm ground, and known chest and turtle levels. Dug blocks appear progressively, with at
 most 256 cell reads per frame. At coarse zoom, several blocks share one cell.
-Turtles draw above landmarks and cells. Only the server's dimension is shown.
+Turtles draw above landmarks and cells. The map starts in the server's dimension.
+With remote jobs enabled, the bottom-right button cycles WORLD, NETHER and END.
+Each display keeps its dimension choice. Workers, chests, routes and dug marks
+always use the selected dimension.
+
+## Nether and End jobs
+
+Remote jobs default to off. Set `remoteDimensions = true` in `so-server.cfg`
+to enable them. Keep its existing position and other settings. Use ender modems
+on the server and remote turtles. They work across dimensions with unlimited
+range. This flag leaves overworld radio-range checks unchanged.
+
+Update the workers, then set each remote turtle's `so-worker.cfg` to its actual
+dimension, for example `{ dim = "minecraft:the_nether" }`. Restart the worker.
+The server requires a matching dimension and the updated worker's safety
+capability before it sends remote work. A dimension change in a worker with
+journal history marks its pose uncertain. Explicit add re-anchors it and clears
+that old move and dug history before work resumes.
+
+Set a mining home with `home <x> <y> <z> <n|e|s|w> [dimension]`, or a lumber
+farm with `area <x1> <z1> <x2> <z2> <ground> [dimension]`. Dimensions accept
+`minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`, or the short
+names `overworld`, `nether`, `end`. Omit the dimension to keep the current one.
+Stop the job and remove its workers before changing dimensions. The new home
+or area replaces the old one. Mining starts with bottom 15 in the Nether or
+48 in the End. Set the intended depth before starting.
+
+Use `add <id> <x> <y> <z> <n|e|s|w>` with the turtle's actual coordinates and
+heading. Remote ADD HERE refuses GPS, even if it returns coordinates. GPS
+replies do not identify the hosts' dimension, and ender modems can hear a
+constellation in another dimension. An explicit pose anchors the journal
+without GPS. Interrupted moves with finite fuel use the saved fuel count.
+Unlimited-fuel moves without reliable evidence require an explicit re-add.
+
+Overworld journals keep their existing format. An absent journal dimension
+means overworld in memory, and saves omit the overworld dimension field.
+
+Remote turtle movement stays within Y 1..126 in the Nether and 1..255 in the
+End. The End's void below Y 0 is outside every route. Turtles fly, so a route
+can cross open air above that limit. Lumber also requires room for its ground
+plus four travel level. A worker inspects immediately before every remote move
+and refuses lava, water or an unknown cell. It stops the remaining batch on a
+failed move. After each Nether move it also inspects all six adjacent cells.
+The horizontal scan turns in place and journals each turn, then restores its
+heading. Source or flowing lava stops the batch, parks the turtle and raises
+`lava at x,y,z` with the observed lava's world coordinates. A completed move
+still counts as movement, so recovery retains the turtle's new pose.
+
+Inspection and movement are separate commands. Lava can flow into the destination
+between them, and these checks cannot prevent every entry into liquid. Lava can
+also change during or after the surrounding scan. The post-move check reduces
+silent work beside lava; it does not make movement atomic or inspect the block
+occupied by the turtle. Turtles take no lava damage. Clear the reported hazard
+and check the turtle before restarting. Mining can seal fluids or scoop source
+lava before retrying.
+The ore filter accepts `quartz`, `nether_gold` and `ancient_debris`.
+
+Set ore, wood, fuel and sapling chests in the job's dimension. Drop-point
+numbers are 0 for overworld, -1 for Nether and 1 for End. Jobs never travel
+through portals or use a chest in another dimension. Reservations and dug
+marks remain separate even when coordinates overlap.
+
+These jobs do not load chunks. Keep the turtle, route and service chests loaded
+while it works. Leaving the dimension can unload them and stall the job.
+The screen shows `remote silent; unloaded?` after a missing lease report.
+That is a possible cause, not a measurement of chunk state. Reservations stay
+held, and remote workers beacon in place after expiry. They never reverse an
+old route without inspection. Restore chunk loading, wait for recovery and
+resolve any displayed cause before restarting work.
+
+AR draws only the configured server dimension by default, or overworld when
+there is no position. Set `arDim = "minecraft:the_nether"` or
+`arDim = "minecraft:the_end"` in `so-server.cfg` and restart the server to select
+a remote overlay. Match that setting to the dimension where the goggles are
+used. The controller cannot infer the wearer's dimension.
 
 ## Drop points
 
 Assign the `drops` role to a display for the drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
 to cycle values, the dimension and coordinate buttons to adjust the draft,
-and `ADD` to save it. Select a point in the list for `FIX` or `REMOVE`. Use
+and `ADD` to save it. `FROM #N` copies a paired turtle's fresh, proven world
+position into the draft. `front` selects the cell the turtle faces. `down`
+selects the chest below it. Unknown facing, stale GPS and uncertain journals
+refuse the action. Review the coordinates before `ADD`. Select a point in the list for `FIX` or `REMOVE`. Use
 `PREV` and `NEXT` to page through the list. The editor's `BACK` returns to the
 list. All controls fit a 26x20 pocket or 29x12
 monitor. Big Tiles use the full display height; typing opens local input.
@@ -181,7 +321,8 @@ reservations, open leases and worker recovery paths stay protected. If an area
 becomes protected after the request appears, the server keeps it. Recovery
 history stays protected even after a worker is removed from a job.
 `keep` saves everything and remembers the choice across restarts. The server
-asks again only after section files grow by another 50 percent. Sharding onto
+asks again after section files grow by another 50 percent. At 85% disk use,
+`keep` asks again after one minute even without that growth. Sharding onto
 more server storage is a future option. The 80 percent disk guard still applies.
 
 Open the `mining` display screen. Submit these text commands:
@@ -191,7 +332,10 @@ home <x> <y> <z> <n|e|s|w>
 bottom <y>
 length <n>
 mode thorough|fast
+branches <n>
+continuous on|off
 ores diamond,iron,...
+add <id>
 add <id> <x> <y> <z> <n|e|s|w>
 remove <id>
 start
@@ -199,15 +343,57 @@ stop
 ```
 
 `home` sets the chest-side position and is required before the first `start`.
+`start` requires an ore drop, a fuel drop, an added paired turtle with a
+reported pose and fuel, and the existing disk guard. Broken drops do not pass.
+SETUP shows each missing item in red. A home stays unset until `home` is sent.
 `bottom` sets the shaft bottom.
 Branch length defaults to 64 blocks. `thorough` inspects walls, while `fast`
-uses faster branches. `ores` selects the supported ore names and accepts spaces
+uses faster branches. `branches <n>` enables continuous mining and sets the
+whole job's branch budget from 1 to 4096. The default budget is eight.
+`continuous off` keeps the existing one-branch-per-worker behavior and is the
+default for new and saved jobs. `continuous on` uses the saved budget.
+Completed miners unload, count their branch once, return through its junction
+and take the next unassigned branch. They park when the budget is assigned.
+Assignments, return routes and counts survive restarts. `stop` pauses after the
+current batch and preserves the remaining work. Increasing `branches` and
+starting again lets finished miners continue.
+`ores` selects the supported ore names and accepts spaces
 around commas, such as `ores diamond, iron`.
-`add` anchors a paired worker at its world position and facing.
+`add` anchors a paired worker at its world position and facing. `add <id>` and
+`ADD HERE #N` on SETUP use a GPS fix at most 60 seconds old in the server's
+configured dimension. On each turtle, save its current dimension in
+`so-worker.cfg`, for example `{ dim = "minecraft:overworld" }`. Use
+`minecraft:the_nether` or `minecraft:the_end` there as needed. GPS itself supplies
+no dimension. Missing or mismatched worker dimensions refuse automatic add and
+FROM. Update this setting if you move the turtle to another dimension.
+Facing comes from proven GPS movement or an anchored
+journal. The initial local journal north is never world north by assumption.
+When facing is unknown, the server reserves the turtle's cell and all four
+horizontal neighbours, then requests `forward` and `gps`. The turtle moves one
+block without digging and stays there. The successful GPS result establishes its
+new position and facing before assignment. The standing reservation transfers
+atomically to the job owner. Other probe cells stay reserved until the assignment
+saves. A blocked probe refuses the add.
+Missing GPS or uncertain pose requires the explicit coordinate command. A lost
+probe report keeps its reservations until an explicit add clears them.
 `remove` can cancel a stationary recovery or park inspection and releases the
 worker's lane and reservations. Other open leases must finish first. `stop` allows
 an already sent batch to finish. The screen shows worker state, pose, fuel, ore
 count and errors.
+
+Tap a worker row or a turtle arrow on the map to open its detail page. It shows
+pose, fuel, inventory, lease, pending step, ore, last seen, branch progress and
+errors. BACK returns to the same page. Mining rows show branch progress bars;
+lumber shows planted spots against known spots. The pocket header has MAP and
+MORE, with paging and PANEL in one footer row.
+
+PARK ALL stops the mining job after its current batches. Lumber PARK parks the
+selected turtle after its current batch; the other turtles continue. Lumber
+`start` resumes parked turtles. Mining REMOVE needs two taps within five seconds
+and follows the same lease checks as the command. Lumber `remove <id>` remains
+available through text commands. An uncertain
+pose appears as POSE ?. RE-ADD opens a coordinate and facing editor; confirm the
+worker's actual position there, then press RE-ADD twice to submit it.
 
 ## Lumber
 
@@ -216,11 +402,18 @@ Open the `lumber` screen and submit these commands:
 ```text
 area <x1> <z1> <x2> <z2> <ground y>
 saplings <x> <y> <z> <front|down>
+add <id>
 add <id> <x> <y> <z> <n|e|s|w>
+remove <id>
+park <id>
 start
 stop
 ```
 
+`start` requires farm bounds and soil height, wood and fuel drops, a configured
+sapling chest, paired turtles with reported fuel, and the disk guard. Every
+added worker must be paired, have a certain pose and report nonzero fuel.
+SETUP lists missing items in red and configured items in green.
 `area` sets farm bounds and soil height. `saplings` sets the sapling chest's own
 coordinates. With `front`, the planner chooses the nearest eligible cell beside
 the chest at the same height and faces the turtle towards it to take saplings.
@@ -229,27 +422,37 @@ Leave these access cells clear. The planner excludes cells at or below soil
 height, known obstacles, chest cells and planted spots at soil height plus one.
 Distance is Manhattan distance from the turtle's current position. Ties use
 north, east, south, west order. If no eligible cell remains, the turtle holds
-with `no access to saplings chest`.
+with a named `saplings #<id> unreachable` alert.
 
-`add` anchors one paired worker with an axe. To replace it, stop work and wait
-for its lease to report. If `add` says it is parking the old turtle, wait for
-the report and repeat `add`. Do not remove the old turtle before that report.
-Service trips cross the farm at soil height plus two and descend at the chest
-access cell. Keep that flight path clear. Travel protects saplings and tree
-bases. A blocked service route holds until the operator fixes it and starts again.
+`add` adds a paired worker with an axe and retains the others. `add <id>` uses
+the same GPS fix and facing probe as mining. Stop before
+changing assignments. `remove` removes the selected worker once its lease and
+park report finish. Retry when requested. A turtle at a chest returns before
+it can be removed. Each worker recovers its own journal pose after restart.
+Workers claim separate scan positions and trees, so one lost turtle does not
+stop the others. They queue for shared chests and keep access reserved until
+clear. A turtle already occupying an access column finishes service before
+queued arrivals enter. Keep the approaches clear. Multiple workers can detour above the normal
+flight height of soil plus two. Travel protects saplings and tree bases.
+With several workers, sapling trips return surplus supplies before leaving.
 Work stays stopped until configured and started. `stop` parks after the current
 lease reports. Log delivery counts require a successful drop and an inventory
-decrease. Failed wood, fuel and sapling chest inspections mark drop points broken
+decrease. A saved delivery receipt reconciles a lost report after restart and
+prevents a second count. Failed wood, fuel and sapling chest inspections mark drop points broken
 after three failures. Repair the chest, use `fix` in the generic drop editor if
 marked broken, and send `start` on the lumber screen. Sapling service reuses a
 matching drop point or adds a `storage` point to that editor. Remove unused old
 sapling points there after changing the coordinates.
 Dark oak is excluded. Empty sapling chests disable replanting
 while felling continues. Configure a wood drop and a fuel drop.
-The screen shows work state, deliveries, saplings, spots, fuel and alerts.
+Chest alerts distinguish unconfigured, broken, unreachable, full and empty
+containers. Alerts name the point and coordinates. Full and empty require an
+inspection of a chest, barrel or shulker box and a failed item transfer.
+The screen shows each turtle, its work state and fuel, plus deliveries, saplings,
+spots and alerts. Three turtles fit 26x20 and 29x12. NEXT pages longer lists.
 Three failed moves or digs stop work and emit an alert for the screen and AR.
-Fix the obstruction or tool, then type `start`. Other holds also show this
-recovery instruction. Refuelling starts with the distance to the fuel chest
+Fix the obstruction or tool, then type `start`. Refuelling starts with the
+distance to the fuel chest
 along the flight-height route plus 32 fuel remaining.
 At the wood chest, the turtle also drops sticks, apples, leaves and excess
 saplings. It keeps one sapling per known spot of each species, including the
@@ -316,3 +519,166 @@ stays the same, clients show an "Old key kept" pairing prompt. Press P on the
 server and type the new code on each client. Turtles also require Enter. The
 client keeps its old key until pairing succeeds. A normal authenticated reply
 restores the client screen, so a false prompt does not require a reset.
+
+### Fuel auto-order
+
+Fuel auto-order defaults to off. Register the room's OUTPUT chest as a `fuel`
+drop point. In MINING > SETUP, tap OUTPUT to select that point, then tap FUEL AUTO
+to turn it on. The equivalent commands are `fuel output <point-id>` and `fuel auto on`.
+`fuel auto off` stops orders. Mining and lumber share this policy.
+
+Only an empty report from that output chest triggers an order. The server orders
+64 `minecraft:charcoal`, or 64 `minecraft:coal` when charcoal stock is below 64.
+It requires stock less than 30 seconds old. A saved ten-minute cooldown covers
+the physical chest across workers, point aliases and server restarts. The server
+saves the cooldown and outstanding order before sending. Only one fuel order
+can be outstanding. A matching delivery or refusal, or a worker observing usable
+fuel at that output, ends the wait. The cooldown, acknowledgements, configuration
+changes and restarts never replace a waiting order. A power cut before send can
+leave it waiting; `delivery unconfirmed` stays in attention until it is resolved.
+
+Missing storage, stale stock, low stock, refused orders, failed sends and policy
+save failures appear in NEEDS attention. An acknowledgement is not delivery.
+After two minutes without an explicit delivery reply or a successful worker
+pickup of usable fuel, attention shows `delivery unconfirmed`. Mining retries
+its fuel trip on its normal schedule. Lumber retries once a minute while this
+policy is on. It temporarily retains non-fuel pickups in tracked slots while
+searching for fuel, then returns them to the output before refueling. Job cargo
+stays in its original slots. These pickup records survive restart. A full
+inventory or failed return stays in attention and keeps its retry. Turning auto
+off leaves the normal manual fuel hold in place.
+
+### Room input sinks
+
+Room sinks default to off. Use the existing drop-point editor to register the
+room's INPUT chest twice, once as `ore` and once as `wood`. On each draft, tap
+ROOM ON before ADD. Tap SINKS ON to enable all marked room points. These are
+ordinary drop points; the room sorts and smelts their contents through its
+existing input flow. Mining keeps its junk cleanup separate.
+
+For an existing point, `room <point-id> on` marks it and
+`room <point-id> off` removes the mark. `room sink on` enables marked points;
+`room sink off` excludes them from selection and job readiness. These commands
+belong to the drop-point screen. The server API is also available for setup:
+
+```lua
+SO.mods.drops.add({id="room_ore",dim=0,x=X,y=Y,z=Z,side="down",kind="ore",room=true})
+SO.mods.drops.add({id="room_wood",dim=0,x=X,y=Y,z=Z,side="down",kind="wood",room=true})
+SO.mods.drops.roomSink(true)
+```
+
+Coordinates identify the chest block. Verify access in the test world before
+enabling either feature. For `down`, the cell at X,Y+1,Z must be outside the
+room, free and reachable. For `front`, a reachable outside cell must be beside
+the chest at its height, and the worker must select that outside approach.
+The room's internal map uses relative coordinates and does not prove this
+outside access. If the input or output can only be reached from inside the
+room, leave the feature off until the chest or route is changed.
+
+After a test delivery, compare the room's ore and log stock, confirm the output
+pickup and check its furnace fuel. Room geometry and actual sorting need Gate B
+in a disposable world. Mock unload tests do not prove them.
+
+## Health and attention
+
+Open `HEALTH` or `ATTENTION` from `MORE` or the panel. HEALTH pages server,
+clock, storage and network diagnostics. ATTENTION lists issues that need a
+person and opens the screen for each repair. The list refreshes every five
+game seconds. `ALERTS` keeps retained alert events after they clear. `EVENTS`
+browses state history with a kind filter. `ERRORS` shows the bounded persistent
+server error log. `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
+Recent errors save at most once per 30 game seconds; a power loss can lose
+records still waiting to save.
+
+AR shows up to four broken-chest beams above the normal label budget. Its third
+HUD tile shows BROKEN while a chest in the server dimension needs attention.
+On the map, FOCUS centres the first broken chest; BROKEN opens its drop-list
+page. Tapping a broken chest opens that point. Status also has a BROKEN tile.
+The next unassigned mining branch appears in blue in AR and amber on the map.
+AR trails show active progress and up to 64 recent completed branches.
+For C13 label trials, set `arLabelScale = 0.6` in `so-server.cfg` and restart.
+Allowed scales are 0.5 to 0.7; the default stays 0.5 until measured in-game.
+
+### Chest setup
+
+The drop editor's TEST button opens chest setup. SCAN lists adjacent chests,
+barrels and shulker boxes around an unassigned, idle turtle. Choose its facing
+with N, E, S or W when GPS has not established it. Select a found coordinate,
+choose the kind, then ADD. The scan restores the original facing and transfers
+no items. A chest above the turtle uses DOWN access from above the chest.
+
+New setup movement requires `setupMovement = true` in `so-server.cfg`. It is off
+by default. Workers must advertise `capabilities.parkBatch` and `capabilities.setupFence`. GPS must identify
+the turtle's dimension and position, and the server must know its journal pose.
+Assigned mining, lumber and builder turtles are excluded.
+
+Select a drop point, open TEST, then press TEST #id. A free turtle visits the
+access cell, inspects the block and returns to its starting pose. Visits never
+dig, use at most a 64-block outward distance and refuse mining lanes, reserved
+cells and routes beyond radio range. A blocked move stops the visit. Its route
+stays reserved until a fresh GPS fix and a worker acknowledgment permit RELEASE. After a server restart,
+`release <turtle-id>` on the drop editor releases the saved setup route using
+that fresh fix. Uncertain workers need their normal explicit reanchor first.
+
+The editor also accepts `scan <turtle-id>` and `test <point-id>`. Successful
+visits save `{at, block}` on the point. Missing inventories clear verification
+and count toward the existing broken-point limit. FIX remains required for a
+broken point. Readiness rows show "verified by visit" or "unverified";
+unverified points remain usable. Verification records an observation, so a
+later removed chest can still fail during normal work.
+
+Pairing shows a panel notice for 30 game seconds. Mining and lumber setup list
+unassigned turtles with labels, ids on ADD HERE, and fuel. Labels use at most
+16 characters. Refused mining commands appear in the panel's mining block;
+an accepted command clears the reason.
+
+Chest visits refuse unknown fuel or a fuel level below the complete round trip.
+The refusal shows the needed and available fuel. After setup, the turtle's
+standing cell remains reserved until its next setup or assignment takes it.
+Display button presses must belong to the last delivered screen; stale controls
+need a fresh frame before they can be used.
+
+### Forget a paired device
+
+Open PANEL, PAIR, PAIRED. Find the id and tap FORGET, then CONFIRM within
+15 seconds. The panel lists the role or kind, time since last seen and a
+four-character key fingerprint. A display cannot forget itself.
+
+The server removes the key and parks mine, lumber and build assignments. It
+keeps possibly occupied cell reservations because the turtle may still be
+moving, and sends a best-effort stationary park. Other lumber workers continue.
+Setup scans and chest visits are cancelled. Their route moves from setup
+ownership to GPS recovery holds until the turtle is explicitly re-added. Re-pair and
+explicitly re-add the turtle at its actual pose before resuming it. The next
+hello shows the normal pairing prompt. NEEDS includes the most recent forget
+event.
+
+### Enroll many turtles
+
+Enrollment is off by default. Add `enroll = true` to the existing
+`so-server.cfg` table and restart the server.
+
+Open PANEL, PAIR and tap ENROLL. The page shows a token such as
+`12-K7QP-3MXA-9WTD-HR2E`, the time left and how many turtles joined. The window
+lasts ten minutes and takes at most 20 turtles. Paste the same command on each
+turtle:
+
+```text
+wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/server-only/install.lua 12-K7QP-3MXA-9WTD-HR2E
+```
+
+If the turtle still shows `Code:` after the install, paste or type the token
+there and press Enter. Each turtle then appears on the panel as a row with its
+id, `TURTLE` and a four-character fingerprint. The turtle shows the same
+fingerprint on its screen. Tap OK or NO per row, or APPROVE ALL for the rows on
+the screen. Rows that did not fit wait for the next tap. CLOSE ends the window. Approved turtles keep their own keys;
+the token is never a key and the server does not save it.
+
+Only the display that opened the window sees the token and its controls.
+Anyone who has the token can ask to join, so approve only turtles you expect;
+compare fingerprints if in doubt. When two requests use the same id, that id
+cannot join in this window. A turtle stops and keeps no key when two different
+servers answer its token.
+The token file on the turtle is deleted when it joins, is denied or the
+window closes. A server restart closes the window.
+

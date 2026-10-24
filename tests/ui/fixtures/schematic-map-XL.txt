@@ -1,5 +1,5 @@
 164x81 Map, largest wall 164x81
- MAP  FIT   -   +    ◄   ▲   ▼   ►                                                                                                                    ▼  ALL  ▲  ↑N 
+ MAP  FIT   -   +    ◄   ▲   ▼   ►   ×1                                                                                                               ▼  ALL  ▲  ↑N 
                                                                                                                                                                     
                                                                                                                                                                     
                                                                                                                                                                     
@@ -80,7 +80,7 @@
                                                                                                                                                                     
  TURTLES ------------------------------------------------------------------------------------------------------------------------------------------------------- 5  
  ► 2  mining     160,-58,-373     ► 3  wait lane  142,-58,-377     ▼ 4  unload     120,-58,-352     ► 5  felling    101,65,-347      ► 6  lost       184,-58,-369   
-00000fffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000880
+00000fffff00000000000000000000000000eeee0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000880
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -161,7 +161,7 @@
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 088888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0800
 0d00000000000000088888888888800000100001111111110088888888888800000d00000000000000088888888888800000d00000000000000088888888888000000e0000eeee0000000888888888888000
-fffff99999f777f777ff777f777f777f777ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777fffff777ffff
+fffff99999f777f777ff777f777f777f777f7777fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff777fffff777ffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

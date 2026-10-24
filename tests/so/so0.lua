@@ -52,6 +52,13 @@ local function installTree(machine)
   end
 end
 
+-- The client half of the previous release, which only knows legacy pair.
+local function legacyClient(machine)
+  local handle = assert(io.open("tests/so/fixtures/pair-v1/so-pair.lua", "rb"))
+  machine.files["so-pair.lua"] = handle:read("*a")
+  handle:close()
+end
+
 local JOIN = [[
 proto = dofile("so-proto.lua")
 store = dofile("so-store.lua")
@@ -421,7 +428,8 @@ HELLO = reply
       if type(value) == "string" then
         assert(value ~= saved, "key appeared on the wire")
       elseif type(value) == "table" then
-        if type(value.pub) == "string" then pubs[#pubs + 1] = value.pub end
+        local share = value.pub or value.y
+        if type(share) == "string" and #share == 64 then pubs[#pubs + 1] = share end
         for k, item in pairs(value) do
           collect(k)
           collect(item)
@@ -572,11 +580,12 @@ HELLO = reply
     assert(saw, "timing failure was not attempted")
   end)
 
-  test("a retried pair message gets the saved ack", function()
+  test("a retried legacy pair message gets the saved ack", function()
     local net, server = bootServer(16000000, true)
     assert(server.alive(), tostring(server.error))
     local code = pressP(net, server)
     local client = bootClient(net, 2)
+    legacyClient(client)
     local send = server.env.rednet.send
     local skipped = false
     server.env.rednet.send = function(id, payload, protocol)
@@ -661,7 +670,7 @@ HELLO = reply
     equal(code, string.format("%06d", n % 1000000))
   end)
 
-  test("five bad pair MACs burn the code and join can pin the server id", function()
+  test("bad pair MACs burn the code only across senders and join can pin the server id", function()
     local net, server = bootServer(16000000, true)
     assert(server.alive(), tostring(server.error))
     local code = pressP(net, server)
@@ -679,9 +688,18 @@ HELLO = reply
       net.flush()
       assert(not server.error, tostring(server.error))
     end
-    for _ = 1, 4 do poke() end
-    assert(tostring(server.screen[1]):find(code, 1, true), "code burned early: " .. tostring(server.screen[1]))
-    poke()
+    for _ = 1, 5 do poke() end
+    assert(tostring(server.screen[1]):find(code, 1, true), "one sender burned the code: " .. tostring(server.screen[1]))
+    assert(logtext(server):find("so-server: pair blocked 6", 1, true), logtext(server))
+    for id = 20, 26 do
+      local other = bootClient(net, id)
+      other.spawn([[
+        proto = dofile("so-proto.lua")
+        rednet.send(1, proto.build("]] .. string.rep("ab", 32) .. [[", "pair", { pub = "]] .. string.rep("cd", 32) .. [[" }), "so")
+      ]])
+      net.flush()
+      if id < 26 then assert(tostring(server.screen[1]):find(code, 1, true), "code burned early") end
+    end
     equal(server.screen[1], "Press P to pair")
     local late = bootClient(net, 7)
     late.spawn(string.format(JOIN, code))
@@ -706,7 +724,7 @@ HELLO = reply
       PINNED = ok
       PINERR = err
     ]], fresh, fresh, server.id))
-    net.advance(8)
+    net.advance(30)
     assert(not pinned.error, tostring(pinned.error))
     assert(pinned.env.LOOKUP == nil, "lookup was trusted")
     assert(pinned.env.PINNED == true, tostring(pinned.env.PINERR))

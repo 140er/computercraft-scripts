@@ -1,12 +1,12 @@
 import time
-from .model import Criteria, own_path, values, world_pose, xyz
+from .model import Criteria, own_path, values, world_pose, xyz, lumber_workers
 
 TITLE = "Active outage and own-path recovery"
 
 
 def analyze(before, rows, off, boot):
     workers = before["workers"]
-    frames = {k: (before["mine"]["turtles"][k]["frame"] if k in before["mine"].get("turtles", {}) else before["lumber"]["turtle"]["frame"]) for k in workers}
+    frames = {k: (before["mine"]["turtles"][k]["frame"] if k in before["mine"].get("turtles", {}) else lumber_workers(before["lumber"], k)[k]["frame"]) for k in workers}
     allowed = {k: own_path(j, frames[k]) for k,j in workers.items()}
     outside, collisions, duplicates, recovered = [], [], [], {}
     retreat = {k:set() for k in workers}
@@ -61,7 +61,7 @@ def ready_for_outage(row):
         if not journal.get("id") or not journal.get("pose") or journal.get("park"):
             return False
         miner = row["mine"].get("turtles", {}).get(ident)
-        frame = (miner if miner is not None else row["lumber"].get("turtle", {})).get("frame")
+        frame = (miner if miner is not None else lumber_workers(row["lumber"], ident).get(ident, {})).get("frame")
         if not frame or len(own_path(journal, frame)) < 2:
             return False
     return True

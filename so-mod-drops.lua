@@ -2,10 +2,12 @@ local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
 local S = {
   points = {},
+  roomSink = false,
+  candidates = {},
   box = nil,
   rev = 0,
   views = {},
-  message = "type x y z, then add",
+  message = nil,
   wired = false,
   cap = 64,
   strikes = 3,
@@ -42,11 +44,17 @@ S.recordOk = function(p)
   for key in pairs(p) do
     keys = keys + 1
     if key ~= "id" and key ~= "dim" and key ~= "x" and key ~= "y" and key ~= "z"
-      and key ~= "side" and key ~= "kind" and key ~= "fails" then
+      and key ~= "side" and key ~= "kind" and key ~= "fails" and key ~= "verified" and key ~= "room" then
       return false
     end
   end
-  if keys ~= 8 then return false end
+  if keys ~= 8+(p.verified and 1 or 0)+(p.room ~= nil and 1 or 0) then return false end
+  if p.verified then
+    if type(p.verified) ~= "table" or not S.whole(p.verified.at) or p.verified.at<0
+      or type(p.verified.block) ~= "string" or #p.verified.block > 256 then return false end
+    for key in pairs(p.verified) do if key ~= "at" and key ~= "block" then return false end end
+  end
+  if p.room ~= nil and (type(p.room) ~= "boolean" or p.room and p.kind ~= "ore" and p.kind ~= "wood") then return false end
   if type(p.id) ~= "string" or not p.id:match("^[%w_%-]+$") then return false end
   if not S.whole(p.dim) or not S.whole(p.x) or not S.whole(p.y) or not S.whole(p.z) then return false end
   if not S.face[p.side] or not S.kinds[p.kind] then return false end
@@ -57,8 +65,9 @@ end
 S.valid = function(value)
   if type(value) ~= "table" or type(value.points) ~= "table" then return false end
   for key in pairs(value) do
-    if key ~= "points" then return false end
+    if key ~= "points" and key ~= "roomSink" then return false end
   end
+  if value.roomSink ~= nil and type(value.roomSink) ~= "boolean" then return false end
   local points = value.points
   local n = #points
   if n > S.cap then return false end
@@ -83,14 +92,14 @@ S.clone = function(list)
     local p = list[i]
     out[i] = {
       id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z,
-      side = p.side, kind = p.kind, fails = p.fails,
+      side = p.side, kind = p.kind, fails = p.fails, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil,
     }
   end
   return out
 end
 
 S.pub = function(p)
-  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind }
+  return { id = p.id, dim = p.dim, x = p.x, y = p.y, z = p.z, side = p.side, kind = p.kind, room = p.room or nil, verified = p.verified and {at=p.verified.at,block=p.verified.block} or nil, disabled = p.room and not S.roomSink or nil }
 end
 
 S.find = function(id)
@@ -101,7 +110,7 @@ end
 
 S.same = function(p, point)
   return p.dim == point.dim and p.x == point.x and p.y == point.y and p.z == point.z
-    and p.side == point.side and p.kind == point.kind
+    and p.side == point.side and p.kind == point.kind and (p.room or false) == (point.room or false)
 end
 
 S.emit = function(key, value)
@@ -111,7 +120,7 @@ S.emit = function(key, value)
 end
 
 S.commit = function(previous, op, id)
-  local ok, err = S.box.save({ points = S.clone(S.points) })
+  local ok, err = S.box.save({ points = S.clone(S.points), roomSink = S.roomSink or nil })
   if not ok then
     S.points = previous
     return false, err
@@ -130,6 +139,7 @@ S.add = function(point)
   end
   if not S.kinds[point.kind] then return false, "kind" end
   if not S.face[point.side] then return false, "side" end
+  if point.room ~= nil and (type(point.room) ~= "boolean" or point.room and point.kind ~= "ore" and point.kind ~= "wood") then return false,"kind" end
   local idx = S.find(point.id)
   if idx then
     if S.same(S.points[idx], point) then return true end
@@ -139,9 +149,28 @@ S.add = function(point)
   local previous = S.clone(S.points)
   S.points[#S.points + 1] = {
     id = point.id, dim = point.dim, x = point.x, y = point.y, z = point.z,
-    side = point.side, kind = point.kind, fails = 0,
+    side = point.side, kind = point.kind, fails = 0, room = point.room or nil,
   }
   return S.commit(previous, "add", point.id)
+end
+
+S.setRoomSink = function(on)
+  if type(on) ~= "boolean" then return false,"bad" end
+  local previous = S.roomSink
+  S.roomSink = on
+  local ok, err = S.commit(S.clone(S.points),"roomSink")
+  if not ok then S.roomSink = previous end
+  return ok, err
+end
+
+S.roomMark = function(id, on)
+  local idx = S.find(id)
+  if not idx then return false,"missing" end
+  if type(on) ~= "boolean" then return false,"bad" end
+  if on and S.points[idx].kind ~= "ore" and S.points[idx].kind ~= "wood" then return false,"kind" end
+  local previous = S.clone(S.points)
+  S.points[idx].room = on or nil
+  return S.commit(previous,"room",id)
 end
 
 S.remove = function(id)
@@ -176,6 +205,7 @@ S.note = function(id, blockName)
     return false, "bad"
   end
   local previous = S.clone(S.points)
+  if blockName == nil then S.points[idx].verified = nil end
   S.points[idx].fails = nextFails
   return S.commit(previous, "note", id)
 end
@@ -183,22 +213,27 @@ end
 S.scan = function(kind, nearPos)
   local want, wantDist, wantId
   local anyPoint, anyDist, anyId
+  local broken, brokenDist
   for i = 1, #S.points do
     local p = S.points[i]
-    if p.dim == nearPos.dim and p.fails < S.strikes and (p.kind == kind or p.kind == "any") then
+    if (not p.room or S.roomSink) and p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
       local dz = p.z - nearPos.z
       local dist = dx * dx + dy * dy + dz * dz
-      if p.kind == kind and (not want or dist < wantDist or (dist == wantDist and p.id < wantId)) then
-        want, wantDist, wantId = p, dist, p.id
-      end
-      if p.kind == "any" and (not anyPoint or dist < anyDist or (dist == anyDist and p.id < anyId)) then
-        anyPoint, anyDist, anyId = p, dist, p.id
+      if p.fails >= S.strikes then
+        if not broken or dist < brokenDist or dist == brokenDist and p.id < broken.id then broken, brokenDist = p, dist end
+      else
+        if p.kind == kind and (not want or dist < wantDist or (dist == wantDist and p.id < wantId)) then
+          want, wantDist, wantId = p, dist, p.id
+        end
+        if p.kind == "any" and (not anyPoint or dist < anyDist or (dist == anyDist and p.id < anyId)) then
+          anyPoint, anyDist, anyId = p, dist, p.id
+        end
       end
     end
   end
-  return want, anyPoint
+  return want, anyPoint, broken
 end
 
 S.pick = function(kind, nearPos)
@@ -207,7 +242,7 @@ S.pick = function(kind, nearPos)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
     return nil
   end
-  local want, anyPoint = S.scan(kind, nearPos)
+  local want, anyPoint, broken = S.scan(kind, nearPos)
   local chain = { { kind = kind, point = want and S.pub(want) or nil, usable = want ~= nil } }
   if kind ~= "any" then
     chain[2] = { kind = "any", point = anyPoint and S.pub(anyPoint) or nil, usable = anyPoint ~= nil }
@@ -220,12 +255,14 @@ S.pick = function(kind, nearPos)
       break
     end
   end
-  local alert
+  local alert, reason, failedPoint
   if not point then
-    alert = "drops: hold " .. kind
-    S.emit("drops.alert", { kind = kind, text = alert })
+    reason, failedPoint = broken and "broken" or "none", broken and S.pub(broken) or nil
+    alert = broken and (kind .. " #" .. broken.id .. " broken at " .. broken.x .. "," .. broken.y .. "," .. broken.z)
+      or ("no " .. kind .. " chest set")
+    S.emit("drops.alert", { kind = kind, text = alert, reason = reason, point = failedPoint })
   end
-  return { point = point, chain = chain, alert = alert }
+  return { point = point, chain = chain, alert = alert, reason = reason, failedPoint = failedPoint }
 end
 
 S.steps = function(point)
@@ -270,8 +307,264 @@ S.onEdit = function(msg, reply)
   S.replyErr(reply, err)
 end
 
+S.inventory = function(result)
+  return result and result.ok and type(result.data) == "table" and type(result.data.name) == "string"
+    and (result.data.name:find("chest",1,true) or result.data.name:find("barrel",1,true)
+      or result.data.name:find("shulker_box",1,true)) ~= nil
+end
+
+S.verify = function(id, result)
+  local idx = S.find(id)
+  if not idx then return false, "missing" end
+  if S.points[idx].fails >= S.strikes then return false, "fix broken point first" end
+  local previous = S.clone(S.points)
+  if not result or not result.ok and result.err ~= "No block to inspect" then
+    return false,"inspection failed; test again"
+  end
+  local block = result.ok and result.data and result.data.name or "minecraft:air"
+  S.points[idx].verified = S.inventory(result) and {at=SO.now(),block=block} or nil
+  if not S.inventory(result) then S.points[idx].fails = math.min(S.strikes,S.points[idx].fails+1) end
+  S.message = S.inventory(result) and "chest found" or ("no chest: "..tostring(block))
+  return S.commit(previous,"verify",id)
+end
+
+S.inLane = function(p)
+  local mine = SO.mods.mine
+  local map = mine and mine.mapView and mine.mapView()
+  if not map or not map.homeSet or map.dim ~= p.dim then return false end
+  local M = dofile("so-mine-plan.lua")
+  return M.inLane({dim=map.dim,home=map.home,bottom=map.bottom,mode=map.mode,
+    turtles={{branch=math.max(0,(map.branches or 0)-1)}}},p)
+end
+
+S.freeTurtle = function(id, facing)
+  local lease = SO.mods.lease
+  if not lease or not lease.candidates or not lease.world then return nil,"lease unavailable" end
+  local found = false
+  for _, candidate in ipairs(lease.candidates()) do if candidate == id then found=true end end
+  if not found then return nil,"no unassigned idle turtle" end
+  local status=lease.status(id)
+  if not status.parkBatch or not status.setupFence then return nil,"update worker for setup safety" end
+  local config=SO.store.read("so-server.cfg") or {}
+  local pose,err=lease.world(id,config.pos and config.pos.dim)
+  if not pose then return nil,err end
+  if pose.facing == nil then pose.facing=facing end
+  if pose.facing == nil then return nil,"facing unknown" end
+  if not status.pose then return nil,"journal pose unavailable" end
+  return pose
+end
+
+S.setupSend = function()
+  local task=S.task
+  local step=task.steps[task.next]
+  if not step then
+    local message=task.message or "scan complete"
+    if S.finishRelease(task.id,task.pose) then S.message=message end
+    return
+  end
+  step.park=true
+  local lid,err=SO.mods.lease.send(task.id,{step},{owner="setup",ms=15000,journal=SO.mods.lease.status(task.id).journal,pose=dofile("so-plan.lua").apply(task.pose,step.op)})
+  if lid then task.lease=lid else S.message=tostring(err) task.failed=true end
+end
+
+S.setupReport = function(lid,id,results,lease)
+  if S.releasing and S.releasing.lease==lid and S.releasing.id==id then
+    local pending=S.releasing
+    S.releasing=nil
+    local result=results and results[1]
+    local fix=result and result.ok and result.data
+    local facts=lease.report
+    if not fix or not facts or facts.uncertain or not facts.pose or facts.journal==pending.journal
+      or fix.dim ~= pending.dim or not S.whole(fix.x) or not S.whole(fix.y) or not S.whole(fix.z) then
+      S.message="release unconfirmed; reservations held" return
+    end
+    S.finishRelease(id,{dim=fix.dim,x=fix.x,y=fix.y,z=fix.z})
+    return
+  end
+  local task=S.task
+  if not task or task.lease ~= lid or task.id ~= id then return end
+  task.lease=nil
+  local P=dofile("so-plan.lua")
+  local facts=lease.report
+  if not results or not facts or not facts.pose or facts.uncertain then
+    task.failed=true S.message="setup pose unknown; reservations held" return
+  end
+  local step=task.steps[task.next]
+  local result=results[1]
+  local actual=P.toWorld(task.frame,facts.pose)
+  local expected=P.apply(task.pose,step.op)
+  if actual.x ~= expected.x or actual.y ~= expected.y or actual.z ~= expected.z or actual.facing ~= expected.facing
+    or not result.ok and step.op ~= "inspect" and step.op ~= "inspectUp" and step.op ~= "inspectDown" then
+    task.failed=true S.message="setup blocked; reservations held" return
+  end
+  task.pose=actual
+  if step.scan and S.inventory(result) then
+    local p=SO.store.copy(step.scan)
+    p.block=result.data.name
+    S.candidates[#S.candidates+1]=p
+  end
+  if step.verify then
+    local idx=S.find(step.verify)
+    if idx and S.same(S.points[idx],task.point) then
+      local ok,err=S.verify(step.verify,result)
+      task.message=ok and S.message or tostring(err)
+    else task.message="point changed; test again" end
+  end
+  task.next=task.next+1
+  S.setupSend()
+end
+
+S.beginSetup = function(id, point, facing)
+  if S.task or S.releasing then S.message="setup busy" return end
+  local config=SO.store.read("so-server.cfg") or {}
+  if config.setupMovement ~= true then S.message="setup movement disabled" return end
+  local pose,err=S.freeTurtle(id, facing)
+  if not pose then
+    if err=="facing unknown" then S.compass={id=id,point=point} S.testing=true end
+    S.message=err return
+  end
+  S.compass=nil
+  local P=dofile("so-plan.lua")
+  local dim=({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[pose.dim]
+  if not dim then S.message="unknown dimension" return end
+  local steps={}
+  if point then
+    if point.dim ~= dim or point.fails >= S.strikes then S.message="fix point or dimension first" return end
+    local distance=math.abs(point.x-pose.x)+math.abs(point.y-pose.y)+math.abs(point.z-pose.z)
+    if distance>64 then S.message="test route exceeds 64 blocks" return end
+    local goals={}
+    if point.side == "down" then goals[1]={dim=pose.dim,x=point.x,y=point.y+1,z=point.z}
+    else
+      for f=0,3 do goals[#goals+1]={dim=pose.dim,x=point.x-({[0]=0,1,0,-1})[f],y=point.y,
+        z=point.z-({[0]=-1,0,1,0})[f],facing=f} end
+    end
+    table.sort(goals,function(a,b)
+      local function dist(p) return math.abs(p.x-pose.x)+math.abs(p.y-pose.y)+math.abs(p.z-pose.z) end
+      return dist(a)<dist(b)
+    end)
+    local chosen
+    for _,goal in ipairs(goals) do
+      local path=P.path(pose,goal)
+      local safe=true
+      for _,cell in ipairs(path.cells) do
+        local held=SO.mods.cells.owner(cell.x,cell.y,cell.z,cell.dim)
+        if held or S.inLane(cell) or cell.x==point.x and cell.y==point.y and cell.z==point.z then safe=false break end
+      end
+      if safe then chosen=goal steps=path.steps break end
+    end
+    if not chosen then S.message="no free test route" return end
+    local at=SO.store.copy(pose)
+    for _,step in ipairs(steps) do at=P.apply(at,step.op) end
+    while chosen.facing ~= nil and at.facing ~= chosen.facing do
+      steps[#steps+1]={op="turnRight"} at=P.apply(at,"turnRight")
+    end
+    local outward=#steps
+    steps[#steps+1]={op=point.side=="down" and "inspectDown" or "inspect",verify=point.id}
+    local inverse={forward="back",back="forward",up="down",down="up",turnLeft="turnRight",turnRight="turnLeft"}
+    for i=outward,1,-1 do steps[#steps+1]={op=inverse[steps[i].op]} end
+  else
+    S.candidates={}
+    local function scan(op,p)
+      p.dim=dim
+      steps[#steps+1]={op=op,scan=p}
+    end
+    scan("inspectUp",{x=pose.x,y=pose.y+1,z=pose.z,side="down"})
+    scan("inspectDown",{x=pose.x,y=pose.y-1,z=pose.z,side="down"})
+    local at=SO.store.copy(pose)
+    for _=1,4 do
+      local x,y,z=P.ahead(at,"forward")
+      scan("inspect",{x=x,y=y,z=z,side="front"})
+      steps[#steps+1]={op="turnRight"} at=P.apply(at,"turnRight")
+    end
+  end
+  local cells,at,moves={pose},pose,0
+  for _,step in ipairs(steps) do
+    at=P.apply(at,step.op) cells[#cells+1]=at
+    if step.op=="forward" or step.op=="back" or step.op=="up" or step.op=="down" then moves=moves+1 end
+  end
+  if moves>0 then
+    local fuel=SO.mods.lease.status(id).fuel
+    if fuel ~= "unlimited" and fuel ~= -1 then
+      if not S.whole(fuel) or fuel<0 then S.message="fuel #"..id.." unknown" return end
+      if fuel<moves then S.message="fuel #"..id..": need "..moves..", have "..fuel return end
+    end
+  end
+  if not P.inRange(SO.mods.lease,id,cells) then S.message="test route out of range" return end
+  for _,cell in ipairs(cells) do if S.inLane(cell) then S.message="mining lane" return end end
+  local owner="setup:"..id
+  local claimed,claimErr=SO.mods.lease.claimProbe(id,owner,pose)
+  if claimed==false then S.message=claimErr return end
+  local ok,why=SO.mods.cells.reserveMany(owner,cells)
+  if not ok then S.message=why return end
+  S.task={id=id,owner=owner,steps=steps,next=1,pose=pose,point=point and SO.store.copy(point),
+    frame=P.frame(pose,SO.mods.lease.status(id).pose)}
+  S.message=point and "testing chest" or "scanning"
+  S.setupSend()
+end
+
+S.testPoint = function(id)
+  local idx=S.find(id)
+  if not idx then S.message="missing point" return end
+  local lease=SO.mods.lease
+  for _,turtleId in ipairs(lease and lease.candidates and lease.candidates() or {}) do
+    local pose,err=S.freeTurtle(turtleId)
+    if pose or err=="facing unknown" then S.beginSetup(turtleId,S.points[idx]) return end
+  end
+  S.message="no idle turtle with known facing"
+end
+
+S.finishRelease = function(id,pose)
+  local cells=SO.mods.cells
+  local owner="setup:"..id
+  local held=cells.owner(pose.x,pose.y,pose.z,pose.dim)
+  local ok,why
+  if held==owner then ok,why=cells.handoff(owner,"gps:"..id,pose.x,pose.y,pose.z,pose.dim)
+  else ok,why=cells.reserve("gps:"..id,pose.x,pose.y,pose.z,pose.dim) end
+  if not ok then S.message=why return end
+  ok,why=cells.releaseOwner(owner)
+  if ok == false then S.message=why return end
+  S.task=nil S.message="setup released"
+  return true
+end
+
+S.releaseSetup = function(id)
+  local lease=SO.mods.lease
+  if S.releasing or S.task and (S.task.id ~= id or S.task.lease) then S.message="setup busy" return end
+  local config=SO.store.read("so-server.cfg") or {}
+  local pose,err=lease.world(id,config.pos and config.pos.dim)
+  if not pose then S.message=err return end
+  local status=lease.status(id)
+  if not status.setupFence or not status.journal then S.message="update worker for setup safety" return end
+  local lid,why=lease.send(id,{{op="gps",park=true}},{owner="setup",ms=15000,journal=status.journal})
+  if not lid then S.message=why return end
+  S.releasing={id=id,lease=lid,journal=status.journal,dim=pose.dim}
+  S.message="confirming release"
+end
+
+S.forget = function(id)
+  local task = S.task and S.task.id == id and S.task
+  local releasing = S.releasing and S.releasing.id == id and S.releasing
+  if task then task.failed, task.lease = true, nil end
+  if releasing then releasing.lease = nil end
+  local cells = SO.mods.cells
+  if not cells or not cells.list or not cells.handoff then return false, "cells unavailable" end
+  local owner = "setup:" .. id
+  -- A forgotten worker may still receive a delayed visit step. Keep the route
+  -- protected until explicit re-add claims its actual pose and clears GPS holds.
+  for _, cell in ipairs(cells.list(owner, math.huge)) do
+    local ok, err = cells.handoff(owner, "gps:" .. id, cell.x, cell.y, cell.z, cell.dim)
+    if not ok then return false, err end
+  end
+  local ok, err = cells.releaseOwner(owner)
+  if not ok then return false, err end
+  if task then S.task, S.candidates = nil, {} end
+  if releasing then S.releasing = nil end
+  if S.compass and S.compass.id == id then S.compass = nil end
+  return true
+end
+
 S.row = function(text)
-  return { text = text, fg = "0", bg = "f" }
+  return { text = text or "", fg = "0", bg = "f" }
 end
 
 S.button = function(id, x, y, label)
@@ -325,16 +618,31 @@ S.addDraft = function()
   local d = S.draft
   local id = string.format("%d_%d_%d_%d_%s_%s", d.dim, d.x, d.y, d.z, d.side, d.kind)
   local ok, err = S.add({
-    id = id, dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind,
+    id = id, dim = d.dim, x = d.x, y = d.y, z = d.z, side = d.side, kind = d.kind, room = d.room,
   })
   S.message = ok and "point added" or (S.errText[err] or tostring(err))
 end
 
 S.typed = function(text)
+  local scan=text:match("^scan%s+(%d+)$")
+  if scan then S.beginSetup(tonumber(scan)) return end
+  local visit=text:match("^test%s+([%w_%-]+)$")
+  if visit then S.testPoint(visit) return end
+  local release=text:match("^release%s+(%d+)$")
+  if release then S.releaseSetup(tonumber(release)) return end
   local words = {}
   for word in text:gmatch("%S+") do words[#words + 1] = word end
+  if words[1] == "room" then
+    if #words ~= 3 or words[3] ~= "on" and words[3] ~= "off" then S.message = "invalid room command" return end
+    local ok, err
+    if words[2] == "sink" then ok,err = S.setRoomSink(words[3] == "on")
+    else ok,err = S.roomMark(words[2],words[3] == "on") end
+    S.message = ok and "room saved" or (S.errText[err] or tostring(err))
+    return
+  end
   local d = S.draft
-  local dim, x, y, z, kind, side = d.dim, nil, nil, nil, d.kind, d.side
+  local dim, kind, side = d.dim, d.kind, d.side
+  local x, y, z
   local direct = words[1] == "add"
   if direct then
     if #words < 5 or #words > 7 then S.message = "add kind x y z [side/dim]" return end
@@ -361,15 +669,14 @@ S.typed = function(text)
   if not S.whole(dim) or not S.whole(x) or not S.whole(y) or not S.whole(z) then
     S.message = "dim/x/y/z: integers only" return
   end
-  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side }
+  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = d.room }
   S.drafted = true
-  S.message = "draft set; tap add"
+  S.message = nil
   if direct then S.addDraft() end
 end
 
 -- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of S.gather
 -- and the layouts and writes their fixtures. Page, selection and the editor belong to the display.
-S.hints = { ["type x y z, then add"] = true, ["draft set; tap add"] = true }
 S.scales = { 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64 }
 S.dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } }
 S.key = function(session, from)
@@ -380,6 +687,22 @@ S.selectedPoint = function(view)
   if view and view.selected and S.find(view.selected) then return view.selected end
   for _, p in ipairs(S.points) do if p.fails >= S.strikes then return p.id end end
   return S.points[1] and S.points[1].id
+end
+S.fromTurtle = function(id)
+  S.fromError = true
+  local lease = SO.mods.lease
+  local config = SO.store.read("so-server.cfg")
+  local dim = config and config.pos and config.pos.dim
+  local number = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[dim]
+  if not number or not lease or not lease.world then S.message = "turtle world pose unavailable" return end
+  local p, err = lease.world(id, dim)
+  if not p then S.message = err return end
+  local x, y, z = p.x, p.y, p.z
+  if S.draft.side == "down" then y = y-1
+  elseif p.facing == nil then S.message = "facing unknown; add turtle first" return
+  else x, z = x+({[0]=0,1,0,-1})[p.facing], z+({[0]=-1,0,1,0})[p.facing] end
+  S.draft.x, S.draft.y, S.draft.z, S.draft.dim = x, y, z, number
+  S.drafted, S.message, S.fromError = true, nil, nil
 end
 S.call = function(name, fn)
   local mod = SO.mods[name]
@@ -409,10 +732,21 @@ S.gather = function(view)
   local ctx, list = S.context(), {}
   for i, p in ipairs(S.points) do
     list[i] = { n = i, id = p.id, dim = p.dim, kind = p.kind, x = p.x, y = p.y, z = p.z, side = p.side,
-      broken = p.fails >= S.strikes }
+      broken = p.fails >= S.strikes, verified = p.verified ~= nil, room = p.room == true }
   end
+  -- Unassigned turtles for the editor's from row and the setup tab's scans.
+  local turtles, state, lease = {}, SO.mods.state, SO.mods.lease
+  local machines = state and type(state.get) == "function" and state.get("machines") or {}
+  for id, row in pairs(machines) do
+    if (row.role == "turtle" or row.role == "worker") and SO.pair and SO.pair.key(tonumber(id)) then turtles[#turtles+1] = tonumber(id) end
+  end
+  if lease and lease.candidates then turtles = lease.candidates() end
+  table.sort(turtles)
   return { points = list, selected = S.selectedPoint(view), page = view.page, editing = view.editing,
-    message = not S.hints[S.message] and S.message or nil, draft = S.draft,
+    -- A turtle waiting for its facing shows the compass on every drop display until it is answered.
+    testing = view.testing or S.compass ~= nil and not view.editing,
+    message = S.message, draft = S.draft, roomSink = S.roomSink, turtles = turtles,
+    from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area }
 end
 S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
@@ -507,23 +841,24 @@ S.list = function(C, m)
   local ya, pts, broken = room and h - 1 or h, m.points, {}
   for _, p in ipairs(pts) do if p.broken then broken[#broken + 1] = p end end
   local nf = math.min(#broken, h >= 19 and 2 or 1)
-  local lw, head, roomy = room and 34 or w - 1, h >= 14 and 4 or 3, w >= 30
+  local lw, head = room and 34 or w - 1, h >= 14 and 4 or 3
   local cap = math.max(1, math.min(24, ya - 1 - (nf > 0 and nf + 1 or 0) - head - (room and 1 or 0) + 1))
   local pages = math.max(1, math.ceil(#pts / cap))
   local page = math.min(m.page, pages)
-  local right = tostring(#pts)
+  local right, roomy = tostring(#pts), w >= 30
   if pages > 1 then right = string.format(roomy and "    %d/%d    " or " %d/%d ", page, pages) end
   C.bar(roomy and "DROP POINTS" or "DROPS", {}, nil, right, "8")
   if pages > 1 then
     C.chip(w - #right, 1, U.g.left, "prev", "plain", roomy and 3 or 1)
     C.chip(w - (roomy and 3 or 1), 1, U.g.right, "next", "plain", roomy and 3 or 1)
   end
-  local wide = lw >= 30
+  local wide = lw >= 34
+  local wx = wide and 15 or 13
   if head == 4 then
     C.put(2, 3, "id", "8")
     C.put(5, 3, "kind", "8")
-    C.put(wide and 15 or 14, 3, "where", "8")
-    if wide then C.put(29, 3, "side", "8") end
+    C.put(wx, 3, "where", "8")
+    if wide then C.put(28, 3, "side", "8") end
   end
   local shown, sel = 0, nil
   for i = (page - 1) * cap + 1, math.min(#pts, page * cap) do
@@ -531,12 +866,15 @@ S.list = function(C, m)
     local bg = p.id == m.selected and "7" or nil
     if bg then C.fill(1, y, lw, 1, "7") end
     local c = p.broken and "e" or "0"
+    -- Room points read "ore room" where it fits, muted while room sinks are off.
+    local kind = p.room and #p.kind + 5 <= wx - 6 and p.kind .. " room" or p.kind
     C.put(2, y, tostring(p.n), c, bg)
-    C.put(5, y, p.kind:sub(1, 8), c, bg)
+    C.put(5, y, kind:sub(1, wx - 6), p.room and not m.roomSink and not p.broken and "8" or c, bg)
     if wide then
-      C.put(15, y, S.at(p):sub(1, 13), "8", bg)
-      C.put(29, y, p.side, "8", bg)
-    else C.put(14, y, S.at(p):sub(1, lw - 14), "8", bg) end
+      C.put(15, y, S.at(p):sub(1, 12), "8", bg)
+      C.put(28, y, p.side, "8", bg)
+    else C.put(13, y, S.at(p):sub(1, lw - 14), "8", bg) end
+    C.put(lw, y, p.broken and U.g.cross or p.verified and U.g.bullet or U.g.dot, p.broken and "e" or p.verified and "d" or "8", bg)
     C.hit("select:" .. p.id, 1, y, lw, 1)
     shown = shown + 1
   end
@@ -547,14 +885,98 @@ S.list = function(C, m)
   end
   for _, p in ipairs(pts) do if p.id == m.selected then sel = p end end
   local tag = sel and " " .. sel.n or ""
+  -- SCAN opens chest setup from 24 columns; narrow rows shorten REMOVE before they cut it.
+  local n, gap = w >= 24 and 4 or 3, room and 2 or 1
+  local bw = math.floor((w - 2 - gap * (n - 1)) / n)
   local fix, rem = "FIX" .. tag, "REMOVE" .. tag
-  if #rem > math.floor((w - 2 - 2 * (room and 2 or 1)) / 3) then fix, rem = "FIX", "REMOVE" end
-  U.actions(C, ya, { { fix, "fix", sel and sel.broken and "primary" or "muted" }, { rem, "remove", sel and "stop" or "muted" },
-    { "ADD", "new", "plain" } }, room and 2 or 1)
+  if #rem > bw then fix, rem = "FIX", "REMOVE" end
+  if n == 4 and #rem > bw then rem = "DEL" end
+  local items = { { fix, "fix", sel and sel.broken and "primary" or "muted" }, { rem, "remove", sel and "stop" or "muted" },
+    { "ADD", "new", "plain" } }
+  if n == 4 then items[4] = { "SCAN", "testing", "plain" } end
+  U.actions(C, ya, items, gap)
   if room then
     local bottom = S.plan(C, m, 38, 3, math.min(w - 38, 48), math.min(ya - 4, 32))
     for y = 3, bottom do C.put(36, y, "|", "c") end
   end
+end
+-- Chips in one row from x to right, starting at item first (wrapping); a + chip scrolls on.
+S.scroll = function(C, list, first, x, y, right, chip)
+  first = first % #list
+  local shown = 0
+  for k = first + 1, #list do
+    local label, id = chip(list[k])
+    if x + #label + 1 + ((k < #list or first > 0) and 4 or 0) > right then break end
+    x = C.chip(x, y, label, id, "plain") + 1
+    shown = shown + 1
+  end
+  if shown < #list then C.chip(x, y, "+", "from-next", "plain") end
+end
+-- Chest setup with an idle turtle: the selected point, the turtles to scan with (RELEASE on the one
+-- doing setup), the chests the scans found, and TEST, FIX and BACK. A turtle without a facing
+-- asks for it first.
+S.okText = { ["chest found"] = true, ["scan complete"] = true, ["setup released"] = true, ["scanning"] = true,
+  ["testing chest"] = true, ["confirming release"] = true, ["room saved"] = true, ["point added"] = true }
+S.setup = function(C, m)
+  local w, h = C.w, C.h
+  local room = w >= 52 and h >= 22
+  local ya, stop, sel = room and h - 1 or h, (room and h - 1 or h) - 2, nil
+  C.bar(w >= 30 and "CHEST SETUP" or "SETUP", {}, nil, "", "8")
+  for _, p in ipairs(m.points) do if p.id == m.selected then sel = p end end
+  C.put(2, 3, "point", "8")
+  -- Narrow screens drop the kind, then the side, before they cut the position.
+  local text = "-"
+  if sel then
+    for _, t in ipairs({ sel.n .. " " .. sel.kind .. " " .. S.at(sel) .. " " .. sel.side, sel.n .. " " .. S.at(sel) .. " " .. sel.side,
+        sel.n .. " " .. S.at(sel) }) do
+      text = t
+      if #t <= w - 9 then break end
+    end
+  end
+  C.put(8, 3, text:sub(1, math.max(0, w - 9)), sel and (sel.broken and "e" or "0") or "8")
+  local y = 5
+  if m.compass then
+    C.section(2, y, w - 2, "FACING #" .. m.compass.id)
+    local x = 2
+    for i, label in ipairs({ "N", "E", "S", "W" }) do x = C.chip(x, y + 1, label, "facing:" .. (i - 1), "primary", 5) + 1 end
+  else
+    local items, section = {}, nil
+    local listed = false
+    for _, id in ipairs(m.turtles) do items[#items + 1] = { "TURTLES", id } listed = listed or id == m.task end
+    if m.task and not listed then items[#items + 1] = { "TURTLES", m.task } end
+    if #items == 0 then items[1] = { "TURTLES" } end
+    for i, p in ipairs(m.found) do items[#items + 1] = { "FOUND", i, p } end
+    local k = m.from % #items + 1
+    while k <= #items and y <= stop do
+      local it = items[k]
+      if it[1] ~= section then
+        if y + 1 > stop then break end
+        section = it[1]
+        C.section(2, y, w - 2, section)
+        y = y + 1
+      end
+      if y == stop and k < #items then
+        C.put(4, y, "+" .. (#items - k + 1) .. " more", "8")
+        C.hit("from-next", 2, y, w - 2, 1)
+        break
+      end
+      if it[3] then
+        C.put(2, y, U.g.bullet, "0")
+        C.put(4, y, (S.at(it[3]) .. " " .. it[3].side):sub(1, math.max(0, w - 10)), "0")
+        C.chip(w - 5, y, "add", "candidate:" .. it[2], "plain")
+      elseif it[2] then
+        local busy = m.task == it[2]
+        C.put(2, y, U.g.bullet, busy and "1" or "d")
+        C.put(4, y, "#" .. it[2], "0")
+        if busy then C.chip(w - 9, y, "release", "release", "stop") else C.chip(w - 6, y, "scan", "scan:" .. it[2], "primary") end
+      else C.put(4, y, "-", "8") end
+      y, k = y + 1, k + 1
+    end
+  end
+  if m.message and S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
+  elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
+  U.actions(C, ya, { { "TEST", "test", sel and "primary" or "muted" }, { "FIX", "fix", sel and sel.broken and "primary" or "muted" },
+    { "BACK", "list", "plain" } }, room and 2 or 1)
 end
 S.editor = function(C, m)
   local w, h = C.w, C.h
@@ -581,7 +1003,18 @@ S.editor = function(C, m)
     else U.stepper(C, vx, y, d[field], field, vw) end
     y = y + step
   end
-  if m.message == "point added" then C.put(2, ya - 1, m.message, "d")
+  if w >= 24 and y <= ya - 2 then
+    C.put(2, y, "room", "8")
+    local nx = C.chip(vx, y, "point", "room-point", d.room and "on" or "off") + 1
+    C.chip(nx, y, "sinks", "room-sink", m.roomSink and "on" or "off")
+    y = y + step
+  end
+  -- The draft from a turtle's position: the cell ahead, or below for a down point.
+  if w >= 24 and #m.turtles > 0 and y <= ya - 2 then
+    C.put(2, y, "from", "8")
+    S.scroll(C, m.turtles, m.from, vx, y, room and vx + vw + 11 or w - 1, function(id) return "#" .. id, "from:" .. id end)
+  end
+  if S.okText[m.message] then C.put(2, ya - 1, m.message, "d")
   elseif m.message then C.flag(2, ya - 1, w - 2, m.message) end
   U.actions(C, ya, { { "ADD", "add", "primary" }, { "BACK", "list", "plain" } }, room and 3 or 1)
   if room then
@@ -592,7 +1025,7 @@ S.editor = function(C, m)
 end
 S.layout = function(model, w, h)
   local C = U.canvas(w, h)
-  if model.editing then S.editor(C, model) else S.list(C, model) end
+  if model.editing then S.editor(C, model) elseif model.testing then S.setup(C, model) else S.list(C, model) end
   return C.frame()
 end
 S.listSize = function(count, w, h)
@@ -601,7 +1034,7 @@ S.listSize = function(count, w, h)
   for _, p in ipairs(S.points) do if p.fails >= S.strikes then broken = broken + 1 end end
   local nf = math.min(broken, h >= 19 and 2 or 1)
   local cap = math.max(1, math.min(24, (room and h - 1 or h) - 1 - (nf > 0 and nf + 1 or 0) - (h >= 14 and 4 or 3) - (room and 1 or 0) + 1))
-  return { pages = math.max(1, math.ceil(count / cap)) }
+  return { pages = math.max(1, math.ceil(count / cap)), capacity = cap }
 end
 
 S.render = function(w, h, session)
@@ -609,7 +1042,12 @@ S.render = function(w, h, session)
   w, h = w or 57, h or 24
   local view = S.view(S.key(session))
   local model = S.gather(view)
-  model.page = math.min(model.page, S.listSize(#model.points, w, h).pages)
+  local size = S.listSize(#model.points, w, h)
+  if view.focus then
+    for i,p in ipairs(model.points) do if p.id==view.focus then model.page=math.floor((i-1)/size.capacity)+1 end end
+    view.focus=nil
+  end
+  model.page = math.min(model.page, size.pages)
   view.page, view.armed = model.page, true
   local frame = S.layout(model, w, h)
   frame.rev = S.rev
@@ -619,10 +1057,17 @@ end
 S.input = function(ev)
   if type(ev) ~= "table" then return end
   local view = S.view(S.key(ev.session, ev.from))
-  if type(ev.text) == "string" then S.typed(ev.text); if U then view.editing = true end; return end
+  if type(ev.text) == "string" then
+    S.typed(ev.text)
+    -- Typed scan, test and release follow on the setup tab; room changes leave the page alone.
+    if U and (ev.text:match("^scan%s") or ev.text:match("^test%s") or ev.text:match("^release%s")) then
+      view.testing, view.editing = true, false
+    elseif U and not ev.text:match("^room%s") then view.editing = true end
+    return
+  end
   if type(ev.id) ~= "string" then return end
   if ev.id == "new" then
-    view.editing = true
+    view.editing, view.testing = true, false
     local idx = S.find(S.selectedPoint(view) or "")
     if not S.drafted and idx then
       local p = S.points[idx]
@@ -630,13 +1075,43 @@ S.input = function(ev)
     end
     return
   end
-  if ev.id == "list" then view.editing = false return end
+  if ev.id == "list" then view.editing, view.testing = false, false return end
+  if ev.id == "testing" then view.editing, view.testing = false, true return end
+  if ev.id == "room-sink" then
+    local ok,err = S.setRoomSink(not S.roomSink)
+    S.message = ok and "room saved" or tostring(err)
+    return
+  end
+  if ev.id == "room-point" then
+    if S.draft.kind == "ore" or S.draft.kind == "wood" then S.draft.room, S.drafted = not S.draft.room or nil, true
+    else S.message = "room needs ore or wood" end
+    return
+  end
+  local facing=tonumber(ev.id:match("^facing:([0-3])$"))
+  if facing and S.compass then local pick=S.compass S.beginSetup(pick.id,pick.point,facing) return end
+  if ev.id == "test" then local id=S.selectedPoint(view); if id then S.testPoint(id) end return end
+  if ev.id == "release" and S.task then S.releaseSetup(S.task.id) return end
+  local scan=ev.id:match("^scan:(%d+)$")
+  if scan then S.beginSetup(tonumber(scan)) return end
+  local candidate=tonumber(ev.id:match("^candidate:(%d+)$"))
+  if candidate and S.candidates[candidate] then
+    local p=S.candidates[candidate]
+    S.draft,S.drafted={dim=p.dim,x=p.x,y=p.y,z=p.z,side=p.side,kind="ore"},true
+    view.testing,view.editing=false,true return
+  end
   if not U and (ev.id == "prev" or ev.id == "next") then
     view.page = math.max(1, math.min(view.pages, view.page + (ev.id == "next" and 1 or -1)))
     return
   end
   if ev.id == "next" then view.page = view.page + 1 return end
   if ev.id == "prev" then view.page = math.max(1, view.page-1) return end
+  if ev.id == "from-next" then view.fromPage = (view.fromPage or 0)+1 return end
+  local from = ev.id:match("^from:(%d+)$")
+  if from then S.fromTurtle(tonumber(from)) return end
+  local focused = ev.id:match("^focus:(.+)$")
+  if focused and S.find(focused) then
+    view.editing,view.testing,view.selected,view.focus=false,false,focused,focused return
+  end
   local selected = ev.id:match("^select:(.+)$")
   if selected and S.find(selected) then view.selected = selected return end
   if ev.id == "fix" then local id = S.selectedPoint(view); if id then view.selected = id; S.fix(id) end return end
@@ -656,6 +1131,7 @@ S.input = function(ev)
       if S.kindOrder[i] == S.draft.kind then at = i end
     end
     S.draft.kind, S.drafted = S.kindOrder[at % #S.kindOrder + 1], true
+    if S.draft.kind ~= "ore" and S.draft.kind ~= "wood" then S.draft.room = nil end
     return
   end
   if ev.id == "side" then
@@ -677,6 +1153,9 @@ S.input = function(ev)
 end
 
 S.tick = function()
+  if not S.callback and SO.mods.lease and SO.mods.lease.onReport then
+    SO.mods.lease.onReport("setup",S.setupReport) S.callback=true
+  end
   if S.wired then return end
   local display = SO.mods.display
   if type(display) ~= "table" or type(display.screen) ~= "function" then return end
@@ -687,6 +1166,7 @@ end
 S.box = SO.store.store("so-drops", S.valid)
 if S.box.value and type(S.box.value.points) == "table" then
   S.points = S.clone(S.box.value.points)
+  S.roomSink = S.box.value.roomSink == true
 end
 
 return {
@@ -707,4 +1187,8 @@ return {
   remove = S.remove,
   fix = S.fix,
   note = S.note,
+  roomMark = S.roomMark,
+  roomSink = S.setRoomSink,
+  forget = S.forget,
+  busy = function(id) return S.task and S.task.id == id or S.releasing and S.releasing.id == id end,
 }

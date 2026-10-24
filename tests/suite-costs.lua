@@ -26,6 +26,7 @@ return {
   ["tests/so/mine-travel.lua"] = 0.020616,
   ["tests/so/mine-underground.lua"] = 4.595135,
   ["tests/so/minor-ui.lua"] = 0.203525,
+  ["tests/so/pair2.lua"] = 9.500000,
   ["tests/so/panel-pair.lua"] = 8.175567,
   ["tests/so/range-batch.lua"] = 47.864224,
   ["tests/so/screen-nav.lua"] = 8.952065,

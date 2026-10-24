@@ -1,0 +1,20 @@
+
+ DISK                  2%
+
+ LOG                  314
+ SNAPSHOTS              0
+ CELLS                  0
+ JOBS                   0
+ KEYS                 127
+ OTHER             346148
+ USED 346589
+
+
+
+
+
+
+
+
+
+           BACK

@@ -55,7 +55,42 @@ def mining_model():
     job = dict(home=dict(x=g["home"][0], y=g["home"][1], z=g["home"][2], facing=hf), homeSet=True,
                bottom=g["bottom"], length=g["length"], mode=g["mode"], ores=[],
                running=ST["mining"]["running"], done=ST["mining"]["done"], total=ST["mining"]["total"])
-    return mining_gather(job, rows, ST["today"]["ore"], None)
+    m = mining_gather(job, rows, ST["today"]["ore"], None)
+    mining_setup(m, rows)
+    return m
+
+
+def chest_check(points, kind, near):
+    """so-plan's chestCheck for unverified points: the nearest working point of the kind or any."""
+    best = None
+    for p in points:
+        if p["kind"] in (kind, "any") and not p["broken"]:
+            d = abs(p["x"] - near["x"]) + abs(p["y"] - near["y"]) + abs(p["z"] - near["z"])
+            if best is None or p["kind"] == kind and best[1]["kind"] != kind or \
+                    p["kind"] == best[1]["kind"] and (d < best[0] or d == best[0] and p["id"] < best[1]["id"]):
+                best = (d, p)
+    if not best:
+        return (False, "no %s chest set" % kind)
+    p = best[1]
+    return (True, "%s #%s unverified at %d,%d,%d" % (kind, p["id"], p["x"], p["y"], p["z"]))
+
+
+def mining_setup(m, rows):
+    """The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
+    The scene's drop lines are the drop list with ids 1, 2, ...; no turtle is paired."""
+    h = m["home"]
+    points = [dict(d, id=str(i + 1)) for i, d in enumerate(x for x in S["drops"] if x["kind"] != "saplings")]
+    ready = [(True, "home %d,%d,%d" % (h["x"], h["y"], h["z"]))]
+    ready += [chest_check(points, kind, h) for kind in ("ore", "fuel")]
+    ready.append((False, "paired turtle missing"))
+    for row in sorted(rows, key=lambda x: x["id"]):
+        ready.append((True, "#%d tools unknown" % row["id"]))
+        ready.append((True, "fuel #%d %d" % (row["id"], row["fuel"])))
+    m["checks"] = ready
+    m["available"] = [dict(id=int(a), fuel=int(b)) for a, b in EXTRA.get("candidate", [])]
+    m["policy"] = None
+    for auto, out in EXTRA.get("fuelpolicy", []):
+        m["policy"] = dict(auto=auto == "on", out=next((p["id"] for p in points if p["id"] == out), "-"))
 
 
 def mining_gather(job, rows, ore, alert):
@@ -68,13 +103,17 @@ def mining_gather(job, rows, ore, alert):
     m = dict(state="running" if job["running"] else "stopped", alert=alert, length=length, gap=gap,
              bottom=bottom, done=job["done"], total=total, extents=[length] * total, turtles=[], busy=0,
              workers=0, lane=None, fuel=None, ore=ore, home=h, homeSet=job["homeSet"], mode=job["mode"],
-             ores=job["ores"])
+             ores=job["ores"], dim="minecraft:overworld", branches=8, continuous=False)
     for row in sorted(rows, key=lambda x: x["id"]):
         p = row["pose"]
         word = "lost" if row["lost"] else row["state"]
         t = dict(id=row["id"], facing=(p["facing"] - h["facing"]) % 4, state=word, tone=tone(word),
                  where="lane" if row["lane"] else "b%d" % (row["branch"] + 1) if row["branch"] is not None else "-",
                  at=where(p), fuel=row["fuel"], ore=row["ores"], lost=row["lost"], spine=False, row=None, along=0)
+        # Live branch progress: b1 12/48 (so-ui's U.branchProgress).
+        if row["branch"] is not None and not row["lane"]:
+            dug = length if row["state"] == "done" else (p["x"] - h["x"]) * -d[1] + (p["z"] - h["z"]) * d[0]
+            t["prog"] = "%s %d/%d" % (t["where"], max(0, min(length, dug)), length)
         k = (p["x"] - tx) * d[0] + (p["z"] - tz) * d[1]
         along = (p["x"] - tx) * r[0] + (p["z"] - tz) * r[1]
         near = (2 * k + gap) // (2 * gap)
@@ -176,8 +215,8 @@ def turtle_rows(cv, m, top, nt, right):
         cv.put(2, y, arrow(t["facing"]), t["tone"])
         cv.put(4, y, str(t["id"]), "0")
         cv.put(7, y, t["state"][:10], state_fg(t["tone"]))
-        cv.put(18, y, t["where"][:5], "8")
-        cv.put(24, y, t["at"][:max(0, right - 36)], "e" if t["lost"] else "8")
+        cv.put(18, y, (t.get("prog") or t["where"])[:9], "8")
+        cv.put(28, y, t["at"][:max(0, right - 40)], "e" if t["lost"] else "8")
         fuel = "-" if t["fuel"] is None else str(t["fuel"])
         cv.put(right - 5 - len(fuel), y, fuel, "8" if t["fuel"] is None else "1" if t["fuel"] < 500 else "0")
         ore = str(t["ore"])
@@ -202,15 +241,26 @@ def mine_room(cv, m):
     turtle_rows(cv, m, 3 + shown + 3, nt, lx + 10)
 
 
+def alert_rows(cv, y, text):
+    """The alert ending on row y: one flag row, or two when it is longer than the row and splits
+    at a space. Returns the rows used."""
+    width = cv.w - 4
+    cut = text[:width + 1].rfind(" ") + 1 if len(text) > width else 0
+    if cut < 2:
+        flag(cv, 2, y, cv.w - 2, text)
+        return 1
+    flag(cv, 2, y - 1, cv.w - 2, text[:cut - 1])
+    cv.put(4, y, text[cut:cut + width], "0")
+    return 2
+
+
 def mine_column(cv, m):
     w, h = cv.w, cv.h
     shown = role_bar(cv, "MINING", TABS, SHORT, 0, m["state"], tone(m["state"]))
     ya = last_row(h, False)
     run_chips(cv, ya, m, 1)
-    if m["alert"]:
-        flag(cv, 2, ya - 1, w - 2, m["alert"])
     facts = mining_facts(m)
-    end = ya - 2 - (1 if m["alert"] else 0)
+    end = ya - 2 - (alert_rows(cv, ya - 1, m["alert"]) if m["alert"] else 0)
     if w < 30:
         rows = ([] if shown else [("state", m["state"], state_fg(tone(m["state"])))]) + \
                [facts[0], facts[1], facts[3], facts[5]]
@@ -224,22 +274,60 @@ def mine_column(cv, m):
         for i in range(3):
             leader(cv, 2, top + i, lw, *facts[i])
             leader(cv, rx, top + i, w - rx, *facts[3 + i])
+    # Up to four turtle rows between the diagram and the leaders.
+    nt = max(0, min(len(m["turtles"]), 4, top - 5))
+    if nt:
+        top = top - 2 - nt
+        section(cv, 2, top, w - 2, "TURTLES")
+        mine_list(cv, m, top + 1, top + nt, w - 1)
     diagram(cv, m, 3, top - 6, w - 1)
 
 
-def tiny_rows(cv, m, rows, shown):
+def mine_list(cv, m, top, stop, right):
+    """Compact turtle rows: arrow, id, then the branch progress while working or the state word;
+    +N more. Returns the last row drawn."""
+    ts, nt = m["turtles"], stop - top + 1
+    if not ts or nt < 1:
+        return top - 1
+    per = max(1, nt - 1) if len(ts) > nt else nt
+    for i in range(nt):
+        y = top + i
+        if (i == nt - 1 or i >= len(ts)) and len(ts) > nt:
+            cv.put(4, y, "+%d more" % (len(ts) - min(per, len(ts))), "8")
+            return y
+        if i >= len(ts):
+            return y - 1
+        t = ts[i]
+        working = t["tone"] == "d" and t.get("prog")
+        text = t["prog"] if working else t["state"]
+        cv.put(2, y, arrow(t["facing"]), t["tone"])
+        cv.put(4, y, str(t["id"]), "0")
+        cv.put(7, y, text[:max(0, right - 6)], "0" if working else state_fg(t["tone"]))
+    return stop
+
+
+def tiny_rows(cv, m, rows, shown, listing=None):
     """Leaders from row 3 (2 on very short screens) to h-2, the alert on h-1, the actions on h."""
     w, h = cv.w, cv.h
     if not shown:
         rows = [("state", m["state"], state_fg(tone(m["state"])))] + rows
+    # A long alert wraps onto a second row from 8 rows up.
+    used = 0
+    if m["alert"] and h >= 4:
+        if h >= 8:
+            used = alert_rows(cv, h - 1, m["alert"])
+        else:
+            flag(cv, 2, h - 1, w - 2, m["alert"])
+            used = 1
+    stop = h - 1 - max(1, used)
     y = 3 if h >= 6 else 2
     for a, b, c in rows:
-        if y > h - 2:
+        if y > stop:
             break
         leader(cv, 2, y, w - 2, a, b, c)
         y += 1
-    if m["alert"] and h >= 4:
-        flag(cv, 2, h - 1, w - 2, m["alert"])
+    if listing:
+        listing(y, stop)
     run_chips(cv, h, m, 1)
 
 
@@ -255,7 +343,11 @@ def tiny_bar(cv, name, m):
 def mine_tiny(cv, m):
     shown = tiny_bar(cv, "MINING", m)
     f = mining_facts(m)
-    tiny_rows(cv, m, [f[0], f[3], f[1], f[5], f[4]], shown)
+    # Busy and done, then the turtles; without turtles the other leaders.
+    if m["turtles"]:
+        tiny_rows(cv, m, [f[0], f[3]], shown, lambda y, stop: mine_list(cv, m, y, stop, cv.w - 1))
+    else:
+        tiny_rows(cv, m, [f[0], f[3], f[1], f[5], f[4]], shown)
 
 
 # ---------------------------------------------------------------- mining setup
@@ -275,6 +367,11 @@ def ore_on(m, name):
 
 def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
     """The setup controls from row y, step rows apart, none below row stop. Returns the last row."""
+    if m["dim"] != "minecraft:overworld":
+        if y <= stop:
+            cv.put(x, y, "dim", "8")
+            cv.put(vx, y, m["dim"].replace("minecraft:", "", 1)[:right - vx + 1], "0")
+        y += step
     if y <= stop:
         cv.put(x, y, "home", "8")
         cv.put(vx, y, home_text(m)[:right - vx + 1], "0" if m["homeSet"] else "8")
@@ -309,34 +406,66 @@ def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
         return y
     y += step
     if y <= stop:
+        cv.put(x, y, "branches" if vx - x >= 9 else "branch", "8")
+        cv.put(vx, y, ("%d %s" % (m["branches"], "continuous" if m["continuous"] else "single"))[:right - vx + 1], "0")
+    if m.get("policy"):
+        y += step
+        if y <= stop:
+            cv.put(x, y, "fuel", "8")
+            nx = chip(cv, vx, y, "auto", "fuel-auto", "on" if m["policy"]["auto"] else "off") + 1
+            chip(cv, nx, y, "out " + m["policy"]["out"], "fuel-output", "plain")
+    y += step
+    if y <= stop:
         cv.put(x, y, "turtles", "8")
         cv.put(vx, y, " ".join("#%d" % t["id"] for t in m["turtles"])[:right - vx + 1] or "-", "0")
     return max(last, y)
+
+
+def ready_items(m):
+    """The missing start checks, the unassigned turtles with their id, then the checks that pass."""
+    items = [("e", text, None) for good, text in m["checks"] if not good]
+    items += [("1", "#%d fuel %d" % (t["id"], t["fuel"]), t["id"]) for t in m["available"]]
+    items += [("d", text, None) for good, text in m["checks"] if good]
+    return items, sum(1 for good, _ in m["checks"] if good)
+
+
+def ready_rows(cv, m, x, y, right, stop, page=0, lead=0):
+    """READY from row y to row stop between x and right; lead pages come before the list (the
+    narrow setup's controls). Returns the last row drawn (None on a lead page) and the pages."""
+    items, ok = ready_items(m)
+    cap = stop - y
+    if cap < 1 or not items:
+        return y - 1, 1
+    pages = -(-len(items) // cap) + lead
+    page %= pages
+    if page < lead:
+        return None, pages
+    if pages > 1:
+        section(cv, x, y, right - x + 1, "READY", "%d/%d" % (page + 1, pages))
+    else:
+        section(cv, x, y, right - x + 1, "READY", "%d/%d" % (ok, len(m["checks"])), "d" if ok == len(m["checks"]) else "1")
+    last = y
+    for mk, text, here in items[(page - lead) * cap:(page - lead + 1) * cap]:
+        last += 1
+        cv.put(x, last, "•", mk)
+        cv.put(x + 2, last, text[:max(0, right - x - 1 - (6 if here else 0))], "0")
+        if here:
+            chip(cv, right - 4, last, "add", "here:%d" % here, "primary")
+    return last, pages
 
 
 def setup_room(cv, m, editing):
     w, h = cv.w, cv.h
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
     ya = last_row(h, True)
-    rx = w - 19
+    rx = max(32, w // 2)
     left = setup_rows(cv, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
-    px = rx + 3
     if editing:
         for i, name in enumerate(ORES):
-            chip(cv, px, 3 + i, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
+            chip(cv, rx + 3, 3 + i, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
         right = 3 + len(ORES) - 1
     else:
-        n = min(10, ya - 2 - 3 - 4)
-        for i in range(n):
-            b, y = n - i, 3 + i
-            cv.put(px + 2 - len(str(b)), y, str(b), "8")
-            cv.put(px + 3, y, "+", "3")
-            for x in range(px + 4, w):
-                cv.put(x, y, "·", "8")
-        cv.put(px + 3, 3 + n, "|", "3")
-        cv.put(px + 3, 4 + n, "º", "9")
-        cv.put(px, 6 + n, "%d × %d" % (n * m["gap"], m["length"]), "8")
-        right = 6 + n
+        right = ready_rows(cv, m, rx + 2, 3, w - 1, ya - 3)[0]
     for y in range(3, max(left, right) + 1):
         cv.put(rx, y, "|", "c")
     if m["alert"]:
@@ -349,8 +478,21 @@ def setup_column(cv, m, editing):
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
     ya = last_row(h, False)
     wide = w >= 36
-    setup_rows(cv, m, 2, 3, 2 if h >= 19 else 1, 13 if wide else 10, 8 if wide else 6, w - 1, editing,
-               ya - 2 if m["alert"] else ya - 1)
+    stop = ya - 2 if m["alert"] else ya - 1
+    vx, vw = (13, 8) if wide else (10, 6)
+    # READY follows the controls; when it does not fit under them it gets pages of its own after
+    # the controls' page, which ends with the READY row.
+    last = setup_rows(Canvas(w, h, ""), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
+    if len(ready_items(m)[0]) <= max(0, stop - last - 2):
+        setup_rows(cv, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
+        ready_rows(cv, m, 2, last + 2, w - 1, stop)
+    elif stop >= 4:
+        shown, pages = ready_rows(cv, m, 2, 3, w - 1, stop, 0, 1)
+        if shown is None:
+            setup_rows(cv, m, 2, 3, 1, vx, vw, w - 1, editing, stop - 1)
+            section(cv, 2, stop, w - 2, "READY", "1/%d" % pages)
+    else:
+        setup_rows(cv, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
     if m["alert"]:
         flag(cv, 2, ya - 1, w - 2, m["alert"])
     run_chips(cv, ya, m, 1)
@@ -373,7 +515,7 @@ def mining(m, w, h, setup=False, editing=False, title=""):
 # ================================================================ lumber
 
 def lumber_model():
-    """What so-mod-lumber's gather builds: the farm, its chests, the turtle and the facts."""
+    """What so-mod-lumber's gather builds: the farm, its chests, the turtles and the facts."""
     a = S["area"]
     t = next(x for x in ST["turtles"] if x["job"] == "lumber")
     p = S["poses"][str(t["id"])]
@@ -389,10 +531,29 @@ def lumber_model():
     return dict(state="running" if ST["lumber"]["running"] else "stopped", alert=None,
                 area=dict(x1=a["x1"], z1=a["z1"], x2=a["x2"], z2=a["z2"]), ground=a["ground"],
                 spots=S["spots"], chests=chests,
-                turtle=dict(id=t["id"], facing=p["f"], x=p["x"], y=p["y"], z=p["z"], state=word, tone=tone(word)),
+                turtles=[dict(id=t["id"], facing=p["f"], x=p["x"], y=p["y"], z=p["z"], state=word, tone=tone(word))] +
+                [dict(id=int(i), facing=int(f), x=int(x), y=int(y), z=int(z), state=st.replace("_", " "), tone=tone(st.replace("_", " ")))
+                 for i, st, _, x, y, z, f in EXTRA.get("woodturtle", [])],
                 ready=ready, total=len(S["spots"]), grow="%d:%02d" % (grow // 60, grow % 60),
-                logs=ST["today"]["logs"], saplings=int(EXTRA["saplings"][0][0]), fuel=t["fuel"],
+                logs=ST["today"]["logs"], saplings=int(EXTRA["saplings"][0][0]),
+                fuel=min([t["fuel"]] + [int(x[2]) for x in EXTRA.get("woodturtle", [])]),
                 chest=next(dict(x=d["x"], y=d["y"], z=d["z"], side="front") for d in S["drops"] if d["kind"] == "saplings"))
+
+
+def lumber_setup_facts(m):
+    """S.readiness for the scene: the drop lines are the drop list with ids 1, 2, ...; the first
+    turtle is the reference for the nearest chests; no turtle is paired."""
+    points = [dict(d, id=str(i + 1)) for i, d in enumerate(x for x in S["drops"] if x["kind"] != "saplings")]
+    first = m["turtles"][0]
+    ready = [(True, "area ready"), (True, "ground %d" % m["ground"])]
+    ready += [chest_check(points, kind, first) for kind in ("wood", "fuel")]
+    ready.append((True, "saplings chest ready"))
+    ready += [(True, "#%d tools unknown" % t["id"]) for t in sorted(m["turtles"], key=lambda t: t["id"])]
+    ready.append((False, "paired turtle missing"))
+    ready.append((True, "fuel ready" if len(m["turtles"]) > 1 else "fuel %d" % m["fuel"]))
+    m["checks"] = ready
+    m["available"] = [dict(id=int(a), fuel=int(b)) for a, b in EXTRA.get("candidate", [])]
+    return m
 
 
 def lumber_facts(m):
@@ -444,8 +605,9 @@ def farm_plan(cv, m, x0, y0, pw, ph):
         cv.put(x, y, "×" if c["broken"] else "•", "e" if c["broken"] else "0")
         lx = x + 2 if x > c2 or x >= c1 and x + 2 + len(c["label"]) <= x0 + pw else x - 1 - len(c["label"])
         cv.put(lx, y, c["label"], "e" if c["broken"] else "8")
-    t = m["turtle"]
-    if t and bx1 <= t["x"] <= bx2 and bz1 <= t["z"] <= bz2:
+    for t in m["turtles"]:
+        if not bx1 <= t["x"] <= bx2 or not bz1 <= t["z"] <= bz2:
+            continue
         x, y = col(t["x"]), row(t["z"])
         label = str(t["id"])
         for lx, ly in ((x + 1, y - 1), (x + 1, y + 1)):
@@ -458,14 +620,27 @@ def farm_plan(cv, m, x0, y0, pw, ph):
     return row(bz2)
 
 
-def lumber_turtle(cv, m, y):
-    t = m["turtle"]
-    if not t:
-        return
-    cv.put(2, y, arrow(t["facing"]), t["tone"])
-    cv.put(4, y, str(t["id"]), "0")
-    cv.put(7, y, t["state"][:10], state_fg(t["tone"]))
-    cv.put(18, y, where(t)[:max(0, cv.w - 19)], "8")
+def lumber_turtles(cv, m, top, stop):
+    """The turtles from row top to row stop; +N more. Returns the last row drawn."""
+    ts, nt = m["turtles"], stop - top + 1
+    if not ts or nt < 1:
+        return top - 1
+    per = max(1, nt - 1) if len(ts) > nt else nt
+    for i in range(nt):
+        y = top + i
+        if i == nt - 1 and len(ts) > nt:
+            cv.put(4, y, "+%d more" % (len(ts) - min(per, len(ts))), "8")
+            return y
+        if i >= len(ts):
+            return y - 1
+        t = ts[i]
+        cv.put(2, y, arrow(t["facing"]), t["tone"])
+        cv.put(4, y, str(t["id"]), "0")
+        cv.put(7, y, t["state"][:min(10, cv.w - 7)], state_fg(t["tone"]))
+        # The position only when it fits whole.
+        if len(where(t)) <= cv.w - 19:
+            cv.put(18, y, where(t), "8")
+    return top + nt - 1
 
 
 def lumber_room(cv, m):
@@ -477,8 +652,8 @@ def lumber_room(cv, m):
     for i, (a, b, c) in enumerate(facts):
         leader(cv, fx, 4 + 2 * i, 14, a, b, c)
     bottom = farm_plan(cv, m, 2, 4, min(fx - 5, 64), min(ya - 9, 32))
-    lumber_turtle(cv, m, bottom + 3)
-    for y in range(3, max(bottom + 3, 4 + 2 * len(facts) - 2) + 1):
+    last = lumber_turtles(cv, m, bottom + 3, ya - 3)
+    for y in range(3, max(last, 4 + 2 * len(facts) - 2) + 1):
         cv.put(fx - 2, y, "|", "c")
     if m["alert"]:
         flag(cv, 2, ya - 2, w - 2, m["alert"])
@@ -490,10 +665,8 @@ def lumber_column(cv, m):
     shown = role_bar(cv, "LUMBER", TABS, SHORT, 0, m["state"], tone(m["state"]))
     ya = last_row(h, False)
     run_chips(cv, ya, m, 1)
-    if m["alert"]:
-        flag(cv, 2, ya - 1, w - 2, m["alert"])
     facts = lumber_facts(m)
-    end = ya - 2 - (1 if m["alert"] else 0)
+    end = ya - 2 - (alert_rows(cv, ya - 1, m["alert"]) if m["alert"] else 0)
     if w < 30:
         rows = ([] if shown else [("state", m["state"], state_fg(tone(m["state"])))]) + \
                [facts[0], facts[2], facts[5]]
@@ -507,13 +680,23 @@ def lumber_column(cv, m):
         for i, (j, k) in enumerate(((0, 4), (2, 5))):
             leader(cv, 2, top + i, lw, *facts[j])
             leader(cv, rx, top + i, w - rx, *facts[k])
+    # Up to three turtle rows between the plan and the leaders.
+    nt = max(0, min(len(m["turtles"]), 3, top - 8))
+    if nt:
+        top = top - 1 - nt
+        lumber_turtles(cv, m, top, top + nt - 1)
+        top -= 1
     farm_plan(cv, m, 2, 3, min(w - 1, 64), min(top - 3, 32))
 
 
 def lumber_tiny(cv, m):
     shown = tiny_bar(cv, "LUMBER", m)
     f = lumber_facts(m)
-    tiny_rows(cv, m, [f[0], ("grow",) + f[2][1:], f[4], f[5], f[3]], shown)
+    # Ready and grow, then the turtles; without turtles the other leaders.
+    if m["turtles"]:
+        tiny_rows(cv, m, [f[0], ("grow",) + f[2][1:]], shown, lambda y, stop: lumber_turtles(cv, m, y, stop))
+    else:
+        tiny_rows(cv, m, [f[0], ("grow",) + f[2][1:], f[4], f[5], f[3]], shown)
 
 
 def lumber_setup(cv, m):
@@ -523,22 +706,53 @@ def lumber_setup(cv, m):
     ya = last_row(h, room)
     step = 2 if h >= 19 else 1
     vx = 13 if w >= 36 else 11
-    a, c, t = m["area"], m["chest"], m["turtle"]
-    rows = [("area", "%d,%d %d,%d" % (a["x1"], a["z1"], a["x2"], a["z2"]) if a else "-"),
-            ("ground", str(m["ground"]) if m["ground"] is not None else "-"),
-            ("saplings", "%d,%d,%d %s" % (c["x"], c["y"], c["z"], c["side"]) if c else "-"),
-            ("turtle", "#%d %s" % (t["id"], where(t)) if t else "-")]
+    rx = max(32, w // 2) if room else w + 2
+    a, c = m["area"], m["chest"]
+    ts = ["#%d %s" % (t["id"], where(t)) for t in m["turtles"]]
+    rows = [("area", ["%d,%d %d,%d" % (a["x1"], a["z1"], a["x2"], a["z2"]) if a else "-"]),
+            ("ground", [str(m["ground"]) if m["ground"] is not None else "-"]),
+            ("saplings", ["%d,%d,%d %s" % (c["x"], c["y"], c["z"], c["side"]) if c else "-"]),
+            ("turtles" if len(ts) > 1 else "turtle", ts or ["-"])]
     # Narrow screens put each value on its own line under its label.
     narrow = w < 36 and h >= 14
-    for i, (label, value) in enumerate(rows):
-        y = 3 + i * (3 if narrow else step)
-        if y + (1 if narrow else 0) > ya - 2:
-            break
-        cv.put(2, y, label, "8")
-        if narrow:
-            cv.put(4, y + 1, value[:w - 4], "0" if value != "-" else "8")
+
+    def values(cv, y, stop):
+        last = y - 1
+        for label, vals in rows:
+            if y + (1 if narrow else 0) > stop:
+                break
+            cv.put(2, y, label, "8")
+            last = y
+            for i, value in enumerate(vals):
+                vy = y + i + (1 if narrow else 0)
+                if vy > stop:
+                    break
+                if narrow:
+                    cv.put(4, vy, value[:w - 4], "0" if value != "-" else "8")
+                else:
+                    cv.put(vx, vy, value[:min(w - 1, rx - 3) - vx + 1], "0" if value != "-" else "8")
+                last = vy
+            y += len(vals) - 1 + (3 if narrow else step)
+        return last
+    stop = ya - 2 if m["alert"] else ya - 1
+    if room:
+        last = values(cv, 3, ya - 2)
+        right = ready_rows(cv, m, rx + 2, 3, w - 1, ya - 3)[0]
+        for yy in range(3, max(last, right) + 1):
+            cv.put(rx, yy, "|", "c")
+    else:
+        # READY follows the values; when it does not fit under them it gets pages of its own after
+        # the values' page, which ends with the READY row.
+        last = values(Canvas(w, h, ""), 3, ya - 2)
+        if len(ready_items(m)[0]) <= max(0, stop - last - 2):
+            ready_rows(cv, m, 2, values(cv, 3, ya - 2) + 2, w - 1, stop)
+        elif stop >= 4:
+            shown, pages = ready_rows(cv, m, 2, 3, w - 1, stop, 0, 1)
+            if shown is None:
+                values(cv, 3, min(ya - 2, stop - 1))
+                section(cv, 2, stop, w - 2, "READY", "1/%d" % pages)
         else:
-            cv.put(vx, y, value[:w - vx], "0" if value != "-" else "8")
+            values(cv, 3, ya - 2)
     if m["alert"]:
         flag(cv, 2, ya - (2 if room else 1), w - 2, m["alert"])
     run_chips(cv, ya, m, 3 if room else 1)
@@ -559,17 +773,23 @@ def lumber(m, w, h, setup=False, title=""):
 
 # ================================================================ drop points
 
-def drops_model(selected=None, editing=False):
-    """What so-mod-drops' gather builds: the points in list order, the selection, the plan's context."""
+def drops_model(selected=None, editing=False, testing=False):
+    """What so-mod-drops' gather builds: the points in list order, the selection, the plan's context,
+    the unassigned turtles and the chests their scans found."""
     points = []
+    verified = {int(x[0]) for x in EXTRA.get("verified", [])}
+    room = {int(x[0]) for x in EXTRA.get("roompoint", [])}
     for d in S["drops"]:
         kind = "storage" if d["kind"] == "saplings" else d["kind"]
         points.append(dict(n=d["id"], id="0_%d_%d_%d_front_%s" % (d["x"], d["y"], d["z"], kind), dim=0, kind=kind,
-                           x=d["x"], y=d["y"], z=d["z"], side="front", broken=d["broken"]))
+                           x=d["x"], y=d["y"], z=d["z"], side="front", broken=d["broken"],
+                           verified=d["id"] in verified, room=d["id"] in room))
     if selected is None:
         selected = next((p["id"] for p in points if p["broken"]), points[0]["id"] if points else None)
     g, a = S["g"], S["area"]
-    return dict(points=points, selected=selected, page=1, editing=editing, message=None,
+    return dict(points=points, selected=selected, page=1, editing=editing, testing=testing, message=None,
+                roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None,
+                found=[dict(x=int(x), y=int(y), z=int(z), side=sd) for x, y, z, sd in EXTRA.get("found", [])],
                 server=dict(x=S["server"][0], z=S["server"][2]), shaft=dict(x=g["x"], z=g["z"]),
                 area=dict(x1=a["x1"], z1=a["z1"], x2=a["x2"], z2=a["z2"]),
                 draft=dict(dim=0, x=126, y=64, z=-337, side="front", kind="ore"))
@@ -664,6 +884,10 @@ def drop_pages(n, cap):
     return max(1, -(-n // max(1, cap)))
 
 
+OK_TEXT = {"chest found", "scan complete", "setup released", "scanning", "testing chest", "confirming release",
+           "room saved", "point added"}
+
+
 def drops_list(cv, m):
     w, h = cv.w, cv.h
     room = w >= 52 and h >= 22
@@ -683,13 +907,14 @@ def drops_list(cv, m):
     if pages > 1:
         chip(cv, w - len(right), 1, "◄", "prev", "plain", 3 if roomy else 1)
         chip(cv, w - (3 if roomy else 1), 1, "►", "next", "plain", 3 if roomy else 1)
-    wide = lw >= 30
+    wide = lw >= 34
+    wx = 15 if wide else 13
     if head == 4:
         cv.put(2, 3, "id", "8")
         cv.put(5, 3, "kind", "8")
-        cv.put(15 if wide else 14, 3, "where", "8")
+        cv.put(wx, 3, "where", "8")
         if wide:
-            cv.put(29, 3, "side", "8")
+            cv.put(28, 3, "side", "8")
     for i, p in enumerate(pts[(page - 1) * cap:page * cap]):
         y = head + i
         sel = p["id"] == m["selected"]
@@ -697,13 +922,17 @@ def drops_list(cv, m):
         if sel:
             cv.fill(1, y, lw, 1, "7")
         c = "e" if p["broken"] else "0"
+        # Room points read "ore room" where it fits, muted while room sinks are off.
+        kind = p["kind"] + " room" if p["room"] and len(p["kind"]) + 5 <= wx - 6 else p["kind"]
         cv.put(2, y, str(p["n"]), c, bg)
-        cv.put(5, y, p["kind"][:8], c, bg)
+        cv.put(5, y, kind[:wx - 6], "8" if p["room"] and not m["roomSink"] and not p["broken"] else c, bg)
         if wide:
-            cv.put(15, y, where(p)[:13], "8", bg)
-            cv.put(29, y, p["side"], "8", bg)
+            cv.put(15, y, where(p)[:12], "8", bg)
+            cv.put(28, y, p["side"], "8", bg)
         else:
-            cv.put(14, y, where(p)[:lw - 14], "8", bg)
+            cv.put(13, y, where(p)[:lw - 14], "8", bg)
+        cv.put(lw, y, "×" if p["broken"] else "•" if p["verified"] else "·",
+               "e" if p["broken"] else "d" if p["verified"] else "8", bg)
         cv.hit("select:" + p["id"], 1, y, lw, 1)
     first_flag = head + len(pts[(page - 1) * cap:page * cap]) + 1
     for i, p in enumerate(broken[:nf]):
@@ -713,12 +942,19 @@ def drops_list(cv, m):
         flag(cv, 2, first_flag + i, lw - 1, text)
     sel = next((p for p in pts if p["id"] == m["selected"]), None)
     tag = " %d" % sel["n"] if sel else ""
+    # SCAN opens chest setup from 24 columns; narrow rows shorten REMOVE before they cut it.
+    n, gap = (4 if w >= 24 else 3), (2 if room else 1)
+    bw = (w - 2 - gap * (n - 1)) // n
     fix, rem = "FIX" + tag, "REMOVE" + tag
-    n3 = (w - 2 - 2 * (2 if room else 1)) // 3
-    if len(rem) > n3:
+    if len(rem) > bw:
         fix, rem = "FIX", "REMOVE"
-    actions(cv, ya, [(fix, "fix", "primary" if sel and sel["broken"] else "muted"),
-                     (rem, "remove", "stop" if sel else "muted"), ("ADD", "new", "plain")], 2 if room else 1)
+    if n == 4 and len(rem) > bw:
+        rem = "DEL"
+    items = [(fix, "fix", "primary" if sel and sel["broken"] else "muted"),
+             (rem, "remove", "stop" if sel else "muted"), ("ADD", "new", "plain")]
+    if n == 4:
+        items.append(("SCAN", "testing", "plain"))
+    actions(cv, ya, items, gap)
     if room:
         bottom = drop_plan(cv, m, 38, 3, min(w - 38, 48), min(ya - 4, 32))
         for y in range(3, bottom + 1):
@@ -752,9 +988,18 @@ def drops_editor(cv, m):
         else:
             stepper(cv, vx, y, d[field], field, vw)
         y += step
+    if w >= 24 and y <= ya - 2:
+        cv.put(2, y, "room", "8")
+        nx = chip(cv, vx, y, "point", "room-point", "on" if d.get("room") else "off") + 1
+        chip(cv, nx, y, "sinks", "room-sink", "on" if m["roomSink"] else "off")
+        y += step
+    # The draft from a turtle's position: the cell ahead, or below for a down point.
+    if w >= 24 and m["turtles"] and y <= ya - 2:
+        cv.put(2, y, "from", "8")
+        scroll(cv, ["#%d" % t for t in m["turtles"]], m["start"], vx, y, vx + vw + 11 if room else w - 1)
     msg = m["message"]
     if msg:
-        if msg == "point added":
+        if msg in OK_TEXT:
             cv.put(2, ya - 1, msg, "d")
         else:
             flag(cv, 2, ya - 1, w - 2, msg)
@@ -766,9 +1011,84 @@ def drops_editor(cv, m):
             cv.put(rx, yy, "|", "c")
 
 
+def scroll(cv, labels, first, x, y, right):
+    """Chips in one row from x to right, starting at item first (wrapping); a + chip scrolls on."""
+    first %= len(labels)
+    shown = 0
+    for k in range(first, len(labels)):
+        if x + len(labels[k]) + 1 + (4 if k < len(labels) - 1 or first > 0 else 0) > right:
+            break
+        x = chip(cv, x, y, labels[k], "from:" + labels[k][1:], "plain") + 1
+        shown += 1
+    if shown < len(labels):
+        chip(cv, x, y, "+", "from-next", "plain")
+
+
+def drops_setup(cv, m):
+    """Chest setup with an idle turtle: the selected point, the turtles to scan with (RELEASE on the
+    one doing setup), the chests the scans found, and TEST, FIX and BACK."""
+    w, h = cv.w, cv.h
+    room = w >= 52 and h >= 22
+    ya = last_row(h, room)
+    stop = ya - 2
+    bar(cv, "CHEST SETUP" if w >= 30 else "SETUP", [], None, "", "8")
+    sel = next((p for p in m["points"] if p["id"] == m["selected"]), None)
+    cv.put(2, 3, "point", "8")
+    # Narrow screens drop the kind, then the side, before they cut the position.
+    text = "-"
+    if sel:
+        for text in ("%d %s %s %s" % (sel["n"], sel["kind"], where(sel), sel["side"]),
+                     "%d %s %s" % (sel["n"], where(sel), sel["side"]), "%d %s" % (sel["n"], where(sel))):
+            if len(text) <= w - 9:
+                break
+    cv.put(8, 3, text[:max(0, w - 9)], ("e" if sel["broken"] else "0") if sel else "8")
+    y = 5
+    items = [("TURTLES", t, None) for t in m["turtles"]]
+    if m["task"] is not None and m["task"] not in m["turtles"]:
+        items.append(("TURTLES", m["task"], None))
+    items = items or [("TURTLES", None, None)]
+    items += [("FOUND", i + 1, p) for i, p in enumerate(m["found"])]
+    k, section_ = m["start"] % len(items), None
+    while k < len(items) and y <= stop:
+        name, n, p = items[k]
+        if name != section_:
+            if y + 1 > stop:
+                break
+            section_ = name
+            section(cv, 2, y, w - 2, name)
+            y += 1
+        if y == stop and k < len(items) - 1:
+            cv.put(4, y, "+%d more" % (len(items) - k), "8")
+            break
+        if p:
+            cv.put(2, y, "•", "0")
+            cv.put(4, y, ("%s %s" % (where(p), p["side"]))[:max(0, w - 10)], "0")
+            chip(cv, w - 5, y, "add", "candidate:%d" % n, "plain")
+        elif n is not None:
+            busy = m["task"] == n
+            cv.put(2, y, "•", "1" if busy else "d")
+            cv.put(4, y, "#%d" % n, "0")
+            if busy:
+                chip(cv, w - 9, y, "release", "release", "stop")
+            else:
+                chip(cv, w - 6, y, "scan", "scan:%d" % n, "primary")
+        else:
+            cv.put(4, y, "-", "8")
+        y, k = y + 1, k + 1
+    msg = m["message"]
+    if msg:
+        if msg in OK_TEXT:
+            cv.put(2, ya - 1, msg, "d")
+        else:
+            flag(cv, 2, ya - 1, w - 2, msg)
+    actions(cv, ya, [("TEST", "test", "primary" if sel else "muted"),
+                     ("FIX", "fix", "primary" if sel and sel["broken"] else "muted"),
+                     ("BACK", "list", "plain")], 2 if room else 1)
+
+
 def drops(m, w, h, title=""):
     cv = Canvas(w, h, title)
-    (drops_editor if m["editing"] else drops_list)(cv, m)
+    (drops_editor if m["editing"] else drops_setup if m["testing"] else drops_list)(cv, m)
     return cv
 
 
@@ -779,11 +1099,11 @@ def _mining(w, h, title, setup=False, editing=False):
 
 
 def _lumber(w, h, title, setup=False):
-    return lambda: lumber(lumber_model(), w, h, setup, title)
+    return lambda: lumber(lumber_setup_facts(lumber_model()) if setup else lumber_model(), w, h, setup, title)
 
 
-def _drops(w, h, title, editing=False):
-    return lambda: drops(drops_model(editing=editing), w, h, title)
+def _drops(w, h, title, editing=False, testing=False):
+    return lambda: drops(drops_model(editing=editing, testing=testing), w, h, title)
 
 
 FIXTURES = [
@@ -811,4 +1131,6 @@ FIXTURES = [
     ("dropsadd-M", _drops(57, 24, "Add a drop point, room monitor 57x24", True)),
     ("dropsadd-P", _drops(26, 20, "Add a drop point at 26x20", True)),
     ("dropsadd-XS", _drops(15, 10, "Add a drop point, smallest monitor", True)),
+    ("dropssetup-M", _drops(57, 24, "Chest setup, room monitor 57x24", testing=True)),
+    ("dropssetup-P", _drops(26, 20, "Chest setup at 26x20", testing=True)),
 ]

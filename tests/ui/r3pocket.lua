@@ -172,9 +172,14 @@ return function(test, equal)
       return {value=jobs[path],save=function(value) jobs[path]=value;return true end}
     end
     s.env.SO.mods.state={canStart=function() return true end}
+    -- A job that passes the start checks (#213): home, ore and fuel chests, and paired turtle #2 with fuel.
+    local at={dim='minecraft:overworld',x=0,y=64,z=0,facing=0}
     jobs['so-data/mine/job']={home={x=0,y=64,z=0,facing=0},homeSet=true,dim='minecraft:overworld',bottom=-58,
-      length=48,mode='thorough',ores={},turtles={},progress={done=3,nextBranch=8}}
-    s.env.SO.mods.lease={onReport=function() end}
+      length=48,mode='thorough',ores={},turtles={['2']={pose=at,anchor=at,state='parked',fuel=900,inv={}}},
+      progress={done=3,nextBranch=8}}
+    s.env.SO.mods.drops={list=function() return {{id='ore',dim=0,x=1,y=64,z=0,side='front',kind='ore'},
+      {id='fuel',dim=0,x=2,y=64,z=0,side='front',kind='fuel'}} end}
+    s.env.SO.mods.lease={onReport=function() end,status=function() return {} end}
     local mine=assert(loadfile('so-mod-mine.lua','t',s.env))()
     local lumber=assert(loadfile('so-mod-lumber.lua','t',s.env))()
     s.env.SO.mods.mine,s.env.SO.mods.lumber=mine,lumber

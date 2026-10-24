@@ -20,7 +20,7 @@ if "parser.add_argument('--part')" in source:
         raise SystemExit('cc-test adapter was edited; refusing to overwrite it')
     source = backup.read_text()
 changes = [
-    ("    parser.add_argument('--slot',", "    parser.add_argument('--shards', type=int, default=1)\n    parser.add_argument('--slot',"),
+    ("    parser.add_argument('--slot',", "    parser.add_argument('--changed', nargs='?', const='origin/server-only', metavar='BASE')\n    parser.add_argument('--shards', type=int, default=1)\n    parser.add_argument('--slot',"),
     ("    branch = git('branch', '--show-current').decode().strip() or 'detached'", "    branch = 'part' if (root / 'tests/part-manifest.lua').is_file() else (git('branch', '--show-current').decode().strip() or 'detached')"),
     ("def snapshot(root):\n", """def snapshot(root):
     if (root / 'tests/part-manifest.lua').is_file():
@@ -36,6 +36,19 @@ changes = [
     ("    os.chdir(root)\n", """    part_temporary = None
     if not 1 <= options.part_timeout <= 1200:
         parser.error('--part-timeout must be between 1 and 1200 seconds')
+    if not 1 <= options.shards <= 64:
+        parser.error('--shards must be between 1 and 64')
+    if options.changed is not None:
+        if options.part:
+            parser.error('--changed cannot be combined with --part')
+        sys.path.insert(0, str(root / 'tools'))
+        from test_changed import run
+        try:
+            return run(root, str(Path(__file__).resolve()), options.changed,
+                       lua_only=options.lua_only, timeout=options.part_timeout,
+                       slot=options.slot, shards=options.shards, args=args)
+        except ValueError as error:
+            parser.error(str(error))
     if options.lua_only and not options.part:
         parser.error('--lua-only requires --part')
     if options.part:

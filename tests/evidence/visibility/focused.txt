@@ -1,0 +1,9 @@
+cc-test --part visibility --part-timeout 90
+Emulator PASS: Pack-ROM product server/protocol/display and peripheral contracts passed (9.355s)
+Evidence: /tmp/craftos-evidence-rh0aroaq
+PASS visibility error ring survives restart, rate limits and caps all generations
+PASS visibility attention facts appear, link to fixes and clear
+PASS visibility drawn screen navigation and history at 26x20
+PASS visibility drawn screen navigation and history at 29x12
+part: 4 passed, 0 failed, 0 undeclared reads; Lua CPU 1.416s
+part: local Lua wall 1.425s (excludes slot queue)

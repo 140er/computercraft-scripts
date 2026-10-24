@@ -93,7 +93,10 @@ local function setup(opts)
     if j.job == "mine" then
       scene.mine.turtles[tostring(j.id)] = {pose=pose, state=j.state, dim="minecraft:overworld", ores=j.ore,
         lane=j.at == "lane", branch=tonumber(j.at)}
-    else lumber.turtle = {id=j.id, pose=pose, state="lumber", phase=j.state} end
+    else
+      lumber.turtles = lumber.turtles or {}
+      lumber.turtles[tostring(j.id)] = {id=j.id, pose=pose, state="lumber", phase=j.state}
+    end
   end
   t.mine, t.lumber, t.machines = scene.mine, lumber, machines
   local store = m.env.dofile("so-store.lua")
@@ -101,8 +104,9 @@ local function setup(opts)
     breathe=function() end, pair={key=function() return "key" end}, mods={
     mine={mapView=function() return t.mine end}, lumber={mapView=function() return t.lumber end},
     state={get=function() return t.machines end},
-    lease={status=function(id) return {open=t.leases[id] == "open" and "l" or nil, lost=t.leases[id] == "lost" or nil} end,
-      inRange=function() return true end},
+    -- peek reads a lease without creating its row; the map never calls status.
+    lease={peek=function(id) return {open=t.leases[id] == "open" and "l" or nil, lost=t.leases[id] == "lost" or nil} end,
+      status=function() t.statusCalls = (t.statusCalls or 0) + 1 return {} end, inRange=function() return true end},
     drops={list=function() return scene.drops end}}}
   local cells = m.env.dofile("so-mod-cells.lua")
   for _, p in ipairs(scene.dug) do assert(cells.markDug(p.x, p.y, p.z)) end
@@ -217,6 +221,8 @@ return function(test,equal)
       end
       assert(checked > 0, "no dug marks in view")
       for _, id in ipairs(CONTROLS) do button(frame, id, w, h) end
+      -- The scene's broken chest: a coral count chip on row 1, beside the controls or in the title.
+      if w >= 25 then equal(button(frame, "map-broken", w, h).y, 1) end
       local bytes = #s.machine.env.SO.proto.ser(frame)
       assert(bytes < 16384, view.name .. " frame bytes " .. bytes)
     end)
@@ -509,7 +515,8 @@ return function(test,equal)
       for _, b in ipairs(frame.buttons) do
         if b.id ~= "map-pick" then assert(b.y == 1 or b.y >= size[2] - 1, "control rows " .. b.id) end
       end
-      if size[1] >= 25 then assert(row(frame, 1):find("^ MAP"), row(frame, 1)) end
+      -- The title gives way to the broken chest count when the row has no room for both.
+      if size[1] >= 25 then assert(row(frame, 1):find("^ MAP") or row(frame, 1):find("^ " .. U.g.cross .. "1"), row(frame, 1)) end
       compass(frame, size[1], session.map)
     end
   end)
@@ -773,4 +780,100 @@ return function(test,equal)
       equal(restored.role,"map","saved map role survives restart")
     end)
   end
+
+  test("map broken chest chip centres and picks each broken chest, and a broken chest wins its cell", function()
+    local s = setup()
+    local drops = s.scene.drops
+    drops[#drops+1] = {id=#drops+1, kind="ore", dim=0, x=150, y=-58, z=-366, broken=true}
+    s.mine.turtles["2"].pose = {x=123, y=64, z=-337, facing=0}
+    s.step()
+    local session = {map={level="all", fit=true}}
+    local frame = s.settle(57, 24, session)
+    local chip = button(frame, "map-broken", 57, 24)
+    equal(row(frame, 1):sub(chip.x, chip.x + chip.w - 1), " " .. U.g.cross .. "2 ")
+    local function press(id) s.screen.input({id=id, session=session, x=1, y=1}) end
+    press("map-broken")
+    local v = session.map
+    equal(v.pick.id, "3") equal(v.cx, 123) equal(v.cz, -337) equal(v.sx, 1) equal(v.sz, 1) equal(v.fit, false)
+    local out = picture(s.settle(57, 24, session), 57, 24)
+    equal(cell(out, v, 123, -337)[1], U.g.cross, "the beacon wins over the turtle on it")
+    assert(table.concat(out.picture().text, "\n"):find("broken", 1, true), "the callout names the state")
+    press("map-broken") equal(v.pick.id, "5") equal(v.cx, 150)
+    press("map-broken") equal(v.pick.id, "3")
+    press("map-drop:5") equal(v.pick.id, "5")
+    press("map-focus") equal(v.pick.id, "3")
+    for _, d in ipairs(drops) do d.broken = false end
+    s.step()
+    frame = s.settle(57, 24, {map={level="all", fit=true}})
+    for _, b in ipairs(frame.buttons) do assert(b.id ~= "map-broken", "no chip without broken chests") end
+    assert(row(frame, 1):find("^ MAP"))
+  end)
+
+  test("map draws the next branch of a running job in amber", function()
+    local s = setup()
+    s.mine.preview = {{x=120, y=-58, z=-381}, {x=184, y=-58, z=-381}}
+    s.step()
+    local session = {map={level=-58, fit=false, sx=1, sz=1, cx=150, cz=-378}}
+    local out, v = picture(s.settle(57, 24, session), 57, 24), session.map
+    equal(cell(out, v, 170, -381)[2], "1") equal(cell(out, v, 170, -381)[1], U.g.dot)
+    equal(cell(out, v, 130, -377)[2], "3", "dug cells stay steel")
+    s.mine.preview = nil s.step()
+    out = picture(s.settle(57, 24, session), 57, 24)
+    equal(cell(out, v, 170, -381)[2], "8", "planned again once a turtle takes it")
+    s.mine.preview = {{x=120, y=-58, z=-381}, {x=184, y=-58, z=-381}} s.mine.dim = "minecraft:the_nether" s.step()
+    out = picture(s.settle(57, 24, session), 57, 24)
+    for x = 121, 184 do local c = cell(out, v, x, -381) assert(not c or c[2] ~= "1", "preview from another dimension") end
+  end)
+
+  test("map shows every lumber turtle on the farm and reads leases with peek", function()
+    local s = setup()
+    s.lumber.turtles["8"] = {id=8, pose={x=104, y=65, z=-342, facing=1}, state="lumber", phase="plant"}
+    s.statusCalls = nil
+    s.step()
+    local session = {map={level="all", fit=true, pick={k="turtle", id="8"}}}
+    local text = table.concat(picture(s.settle(57, 24, session), 57, 24).picture().text, "\n")
+    assert(text:find("#8 planting", 1, true), text)
+    session.map.pick = {k="turtle", id="5"}
+    text = table.concat(picture(s.settle(57, 24, session), 57, 24).picture().text, "\n")
+    assert(text:find("#5", 1, true), text)
+    equal(s.statusCalls, nil, "lease.status creates rows; the map only peeks")
+  end)
+
+  test("map turtle callout offers the turtle details", function()
+    local s = setup()
+    local session = {map={level=-58, fit=false, sx=1, sz=1, cx=158, cz=-367, pick={k="turtle", id="6"}}}
+    local frame = s.settle(57, 24, session)
+    local b = button(frame, "turtle:6", 57, 24)
+    equal(frame.rows[b.y].text:sub(b.x, b.x + b.w - 1), " DETAILS ")
+  end)
+
+  test("map switches dimension only with remoteDimensions on", function()
+    local s = setup()
+    local m = s.machine
+    s.mine.turtles["9"] = {pose={x=10, y=40, z=10, facing=0}, state="mining", dim="minecraft:the_nether"}
+    s.machines["9"] = {id=9, role="worker", fuel=900, seen=m.env.os.epoch("utc")}
+    local session = {map={level="all", fit=true}}
+    local frame = s.settle(57, 24, session)
+    for _, b in ipairs(frame.buttons) do assert(b.id ~= "map-dim", "dimension chip while off") end
+    s.screen.input({id="map-dim", session=session, x=1, y=1})
+    equal(session.map.dim, nil)
+    m.files["so-server.cfg"] = H.encode({pos=s.scene.server, remoteDimensions=true})
+    s.net.advance(6) s.map.tick(m.env.SO.now())
+    for _, size in ipairs({{57,24},{26,20},{100,38},{39,19}}) do
+      frame = s.screen.render(size[1], size[2], {map={level="all", fit=true}})
+      local b = button(frame, "map-dim", size[1], size[2])
+      assert(frame.rows[1].text:sub(b.x, b.x + b.w - 1):find("OVER"), frame.rows[1].text)
+      -- Pocket 26 has room for one chip: the dimension takes the title's place.
+      if size[1] ~= 26 then button(frame, "map-broken", size[1], size[2]) end
+    end
+    s.screen.input({id="map-dim", session=session, x=1, y=1})
+    equal(session.map.dim, "minecraft:the_nether")
+    session.map.pick = {k="turtle", id="9"}
+    frame = s.screen.render(57, 24, session)
+    local text = table.concat(picture(frame, 57, 24).picture().text, "\n")
+    assert(text:find("NETH", 1, true) and text:find("#9 mining", 1, true), text)
+    assert(not text:find("server", 1, true), "the overworld server is not in the nether")
+    s.screen.input({id="map-dim", session=session, x=1, y=1}) equal(session.map.dim, "minecraft:the_end")
+    s.screen.input({id="map-dim", session=session, x=1, y=1}) equal(session.map.dim, "minecraft:overworld")
+  end)
 end

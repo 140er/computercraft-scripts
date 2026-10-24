@@ -1,0 +1,81 @@
+# Multi-turtle lumber verification
+
+The change was reviewed for shared claims, chest queue release, per-worker
+recovery and delivery accounting. The review found four issues. The fix round
+releases unused approaches after expiry while retaining possible occupied cells,
+returns saplings after unsuccessful searches, migrates the park-renewal reader,
+and reconciles delivery intents with saved event receipts.
+
+`cc-test --part tests/so/lumber-multi.lua --lua-only --part-timeout 120` passed
+all eight cases on the Windows slot. They cover two and three workers with
+front and down chests, all 16 logs delivered once, all spots replanted, a worker
+lost mid-tree, a restart with three active workers, a worker lost in the chest
+queue, and a lost delivery report followed by two server restarts. Movement
+wrappers reject any attempted entry into another turtle's occupied cell.
+
+The focused lumber unit checks passed, including unsuccessful sapling searches
+and delivery receipt replay. UI0 ran on Linux without skips. UI2b checked the
+updated fixture, all three turtle rows at 26x20 and 29x12, and drawn navigation
+buttons. Park renewal passed at both 1x and 4x. The range regression confirmed
+that a supply trip extends its proven range before reserving a distant approach.
+
+The first full run exposed an SO11 diagnostic that read the worker table before
+setup, and a single-worker outage timing regression. The diagnostic now guards
+that initial sample. A lone worker retains immediate movement follow-ups and
+its sapling supply. `cc-test --part tests/so/clock-so11.lua --lua-only
+--part-timeout 180` then passed all 18 accelerated integration cases.
+
+The changed production Lua files passed luacheck with zero errors and warnings,
+Lua 5.2 parsing, the clock allow-list and cobaltlocals below 185. Gate B tooling
+passed 62 driver tests and six cold-farm tests. Those Python tests use saved
+fixtures and do not provide in-game evidence.
+
+After the visibility merge, its attention reader also accepts per-worker lumber
+holds and alerts. Its focused tests passed, including independent clearing of
+two workers' notices.
+
+The final plain `cc-test` result and tested head belong in the PR. Logs are
+saved locally under `tests/evidence/w2-lumber-multi/` and in the suite runner's
+reported output directory.
+
+No Minecraft server was started. Gate B C6 remains for the orchestrator, with a
+two-worker proposal in `tools/gateb/C6-multi.md`. The C4 and C10 frame readers
+accept both the new worker rows and existing recordings. W1 readiness and GPS
+behavior is retained after rebasing onto bbe6240. Readiness checks all added
+workers, GPS add hands its reservation to the selected worker, and chest alerts
+retain their cause, point and coordinates.
+
+The orchestrator's follow-up found two chest-contention failures. Both new
+regressions fail against the preceding implementation: an uncertain hello during
+an open movement lease permits a collision at the fuel access, and a later-ticket
+occupant cannot service its chest. With the fixes, both pass. Possible in-flight
+positions protect reservations before and after expiry. An existing occupant
+finishes service ahead of its waiter, after which both turtles refuel, deliver
+all 16 logs and replant the farm. The branch also includes builder merge 79b90d4.
+The saved before/after logs are `review-blockers-before.log` and
+`review-blockers-after.log` under the local evidence directory.
+
+After screens #215 and pair2 #216 merged, the detail adapter exports every lumber
+worker. Drawn fleet rows and map arrows open the selected worker; pose, fuel,
+inventory, step and alerts stay per worker, with shared SPOTS progress. Detail
+tests exercise three workers, PARK and confirmed RE-ADD at 26x20, 29x12 and
+57x24. PARK pauses only its selected worker after the open batch while others
+keep harvesting. A worker regression checks that pause, stationary parking and
+resumption through `start` without losing or duplicating logs.
+
+Storage #219 merged while the screens rebase was being tested. Its fuel pickup,
+rejected-item and retry fields now live in each worker row, with the room order
+policy still shared. All 22 storage tests pass after migrating their lumber
+readers. A two-worker regression leaves one worker waiting for fuel while the
+other refuels at a separate chest and harvests; after fuel arrives, both finish
+all trees and deliveries without overlap.
+
+After AR #218 merged, map and AR both read every worker from lumber's `turtles`
+snapshot. AR retains registry fuel and freshness without changing the registry.
+Two integration cases load saved jobs with two Nether workers and three End
+workers. They check drawn map targets at 26x20 and 29x12, AR labels, boxes,
+headings and per-worker reservations, dimension filtering, numeric-id
+deduplication and removal of retired markers. Both cases fail before the AR
+integration and pass with it. All 15 AR/map cases pass, including #218's broken
+chest beacons, branch preview and trails. The health fixtures were regenerated.
+The rebase retains all upstream test registrations before the fleet tests.

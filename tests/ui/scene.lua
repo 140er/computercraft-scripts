@@ -206,7 +206,12 @@ S.new = function(opts)
     d.handlers['view.get']({ from = id }, function(_, body) got = body end)
     return got
   end
-  s.tap = function(id, button) d.handlers.input({ from = id, body = { id = button, x = 1, y = 1 } }) end
+  -- A display taps what it was last sent: fetch the frame, then press the drawn control there.
+  s.tap = function(id, button)
+    local x, y = 1, 1
+    for _, b in ipairs((s.view(id) or {}).buttons or {}) do if b.id == button then x, y = b.x, b.y break end end
+    d.handlers.input({ from = id, body = { id = button, x = x, y = y } })
+  end
   s.type = function(id, text) d.handlers.input({ from = id, body = { text = text, x = 1, y = 1 } }) end
   -- Status or a takeover at any size for a private session, through the same fit and compact.
   s.frame = function(session, w, h, pocket)

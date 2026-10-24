@@ -168,6 +168,7 @@ return function(test, equal)
       equal(s.server.env.SO.terminal.expires,expires)
       local joined=newClient(s,3,code)
       assert(s.server.env.SO.pair.key(joined.id),"client did not pair")
+      for _,packet in ipairs(joined.sent) do assert(packet.payload.t~="pair","NEW CODE client used legacy pair") end
       equal(s.server.env.SO.pair.pending(),nil)
       s.net.advance(2)
       assert(not countdown(s,w))
@@ -191,8 +192,15 @@ return function(test, equal)
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=5,body={w=w,h=h}})
       if w~=26 then assert(display.assign(5,"panel")) end
-      display.handlers.input({from=5,body={id=w==26 and "tab:pair" or "pair",x=1,y=1}})
-      display.handlers.input({from=5,body={id="pair-code",x=1,y=1}})
+      -- Taps count only on controls drawn in the frame this display was sent.
+      for _,id in ipairs({w==26 and "tab:pair" or "pair","pair-code"}) do
+        local f
+        display.handlers["view.get"]({from=5},function(_,body) f=body end)
+        local drawn
+        for _,b in ipairs(f.buttons) do if b.id==id then drawn=b break end end
+        assert(drawn,"missing displayed control "..id)
+        display.handlers.input({from=5,body={id=id,x=drawn.x,y=drawn.y}})
+      end
       local other
       display.handlers["view.get"]({from=5},function(_,body) other=body end)
       for row=w==26 and 5 or 4,w==26 and 7 or 6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
@@ -244,17 +252,15 @@ return function(test, equal)
       end
     end
   end)
-  test("repeat panel requests preserve five bad attempt limit",function()
+  test("repeat panel requests preserve the bad attempt limit",function()
     local s=setup(26,20,true)
     openPanel(s)
       s.press("PAIR");s.press("NEW CODE")
-    local bad=newClient(s,9,"abcdef")
-    local env=bad.env
-    local proto=assert(env.dofile("so-proto.lua"))
-    local msg=proto.build(string.rep("cd",32),"pair",{pub=string.rep("ef",32)})
-    for i=1,5 do
-      env.rednet.send(1,msg,"so");s.net.flush()
-      if i<5 then s.press("NEW CODE");assert(s.server.env.SO.pair.pending(),"burned early") end
+    for i=1,10 do
+      local env=newClient(s,8+i,"abcdef").env
+      local proto=assert(env.dofile("so-proto.lua"))
+      env.rednet.send(1,proto.build(string.rep("cd",32),"pair",{pub=string.rep("ef",32)}),"so");s.net.flush()
+      if i<10 then s.press("NEW CODE");assert(s.server.env.SO.pair.pending(),"burned early") end
     end
     equal(s.server.env.SO.pair.pending(),nil)
     s.net.advance(2)

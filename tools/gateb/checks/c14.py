@@ -2,7 +2,7 @@ import hashlib
 import subprocess
 import time
 from .model import Criteria, Blocked
-from .context import HTTP_UPDATE
+from .context import pinned_http_update
 
 TITLE = "Interrupted HTTP update and recovery"
 
@@ -15,9 +15,10 @@ def evaluate(d):
 
 
 def run(ctx):
+    update = pinned_http_update(ctx.commit)
     before = ctx.integrity("wall")
     old_terminal = " ".join(l["text"] for l in ctx.terminal("wall")["lines"])
-    job = ctx.request("lua_async", computer=ctx.computer("wall"), code=HTTP_UPDATE)
+    job = ctx.request("lua_async", computer=ctx.computer("wall"), code=update)
     def staged():
         result = ctx.request("files", computer=ctx.computer("wall"), path=".so-new/update.lua")
         return bool(result.get("content"))
@@ -34,7 +35,7 @@ def run(ctx):
     after_interrupt = ctx.integrity("wall")
     ctx.power("wall", "reboot")
     old_boot = ctx.wait(lambda: ctx.frame("wall").get("role") is not None, 30)
-    full = ctx.request("lua_async", computer=ctx.computer("wall"), code=HTTP_UPDATE)
+    full = ctx.request("lua_async", computer=ctx.computer("wall"), code=update)
     complete = ctx.wait(lambda: ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"]).get("state") in ("done", "failed"), 120)
     full_job = ctx.request("lua_job", computer=ctx.computer("wall"), job=full["job"])
     transport = (full_job.get("values") or [{}])[0]

@@ -86,6 +86,16 @@ reports blocked if the runtime cannot provide six-role installation evidence
 without starting another client.
 File-copy preparation never counts as a normal HTTP installation.
 
+C2 runs the real `pair2` client through the probe's native modem. Isolated client
+environments supply distinct rednet sender ids for rejection tests. It observes
+each wrong-code reply and the live invitation: one sender reaches its minute
+budget, reaches three wrong codes after the budget windows expire, and remains
+blocked at that code. Seven other senders bring the total to ten. The invitation
+must survive guesses one through nine and burn at ten. A fresh invitation must
+then pair the native probe successfully. Evidence records reply reasons, message
+types and invitation presence; it never records invitation codes or machine keys.
+The two minute-budget waits use the server's game clock at 20 TPS.
+
 C3 saves a real client overview after login. That image is context and does not
 supply visual pass credit. C3 reads actual received button rectangles and injects native mouse or monitor
 input. Successful queuing alone never establishes navigation success. Optional
@@ -120,7 +130,9 @@ without enabling helpers, rebooting computers or sending job input. Only changed
 x/y/z counts as resumed movement. Turns do not count.
 
 C14 starts a real HTTP update asynchronously, observes staging, and uses the
-runtime's native terminate delivery to interrupt that updater. It verifies old
+runtime's native terminate delivery to interrupt that updater. Both the interrupted
+and recovery updater pin the branch resolver response to the commit under test;
+all payload downloads still use real HTTP. It verifies old
 files and pairing integrity, reboots, completes a normal update and compares the
 installed hashes against the requested commit. If the updater finishes before
 staging can be interrupted, the check is blocked. Pairing values never enter

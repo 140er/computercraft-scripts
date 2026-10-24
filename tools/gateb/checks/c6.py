@@ -1,4 +1,4 @@
-from .model import Blocked, Criteria, values, world_pose
+from .model import Blocked, Criteria, values, world_pose, lumber_workers
 
 TITLE = "Lumber harvest and replant"
 
@@ -27,7 +27,7 @@ def run(ctx):
                       lambda rs: sum(bool(s.get("plantedAt")) for s in rs[-1]["lumber"].get("spots", {}).values()) >= 4 and ctx.count_items("wood", "_log") > before)
     dug = set()
     for r in rows:
-        frame = r["lumber"].get("turtle", {}).get("frame")
+        frame = lumber_workers(r["lumber"], ctx.computer("lumber")).get(str(ctx.computer("lumber")), {}).get("frame")
         if frame:
             for p in values(r["workers"].get(str(ctx.computer("lumber")), {}).get("dug")):
                 dug.add(world_pose(p, frame))

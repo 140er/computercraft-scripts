@@ -1,0 +1,72 @@
+part: clock-so11; suites: tests/so/clock-so11.lua
+part: generated 35 input files; private cwd /tmp/cc-part-9c6ftoz2
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: local-1, local-2, win, pc-1, pc-2, pc-3, pc-4 slots busy; retrying in 15 s
+cc-test: using local-1 slot
+PASS SO11 harness reboots with the same disk and id and drops outage messages at 4x
+PASS SO11 new mining jobs accept every ore by default at 4x
+SO11 time 60s
+SO11 time 120s
+SO11 time 180s
+SO11 time 240s
+SO11 time 300s
+SO11 power cut in display.tick at 360s
+SO11 time 360s
+SO11 time 420s
+SO11 time 480s
+SO11 time 540s
+SO11 time 600s
+SO11 time 660s
+SO11 time 720s
+SO11 mining 2 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-5} error=nil
+SO11 mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=24,["y"]=60,["z"]=-9} error=nil
+SO11 lumber phase=waiting cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=28,["y"]=64,["z"]=7}
+SO11 summary dug cells=80 ores delivered=4 trees felled=4 logs=16 leases sent=1294 reports=1294
+SO11 worker 2 recovery park=1s work=idle beacon=held lease
+SO11 worker 3 recovery park=1s work=idle beacon=held lease
+SO11 worker 4 recovery park=1s work=idle beacon=held lease
+SO11 display 5 recovery=25s
+SO11 display 6 recovery=16s
+SO11 elapsed 31 real seconds
+PASS SO11 integration check 1 at 4x
+PASS SO11 integration check 2 at 4x
+PASS SO11 integration check 3 at 4x
+PASS SO11 integration check 4 at 4x
+PASS SO11 integration check 5 at 4x
+PASS SO11 integration check 6 at 4x
+PASS SO11 integration check 7 at 4x
+PASS SO11 B retries an unreported recovery park with a fresh envelope at 4x
+PASS SO11 B lumber recovery marks journal digs exactly once at 4x
+SO11 B time 60s mine=mining,mining lumber=nil
+SO11 B time 120s mine=mining,mining lumber=nil
+SO11 B time 180s mine=mining,mining lumber=nil
+SO11 B cut worker 2 lease={["id"]="2-1700000244350-961",["park"]=false,["steps"]={[1]={["op"]="inspect"}}}
+SO11 B cut worker 3 lease={["id"]="3-1700000244150-960",["park"]=false,["steps"]={[1]={["op"]="inspect"}}}
+SO11 B cut worker 4 lease={["id"]="4-1700000244450-962",["park"]=false,["recover"]=false,["steps"]={[1]={["op"]="digDown"}}}
+SO11 B power cut in lease.handlers.step.report at 240.45s
+SO11 B time 240s mine=mining,mining lumber=base
+SO11 B time 300s mine=mining,mining lumber=base
+SO11 B time 360s mine=mining,mining lumber=base
+SO11 B time 420s mine=mining,mining lumber=scan
+SO11 B time 480s mine=mining,mining lumber=scan
+SO11 B time 540s mine=ore,done lumber=scan
+SO11 B mining 2 state=ore pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=2,["y"]=60,["z"]=-5} error=nil
+SO11 B mining 3 state=done pose={["dim"]="minecraft:overworld",["facing"]=0,["x"]=48,["y"]=60,["z"]=-9} error=nil
+SO11 B lumber phase=roundEnd cursor=28 alert=nil pose={["dim"]="minecraft:overworld",["facing"]=1,["x"]=20,["y"]=64,["z"]=0}
+SO11 B summary dug cells=128 ores delivered=4 trees felled=4 logs=16 leases sent=1914 reports=1912
+SO11 B worker 2 recovery park=1s work=9.45s beacon=114.9s
+SO11 B worker 3 recovery park=1s work=7.45s beacon=114.7s
+SO11 B worker 4 recovery park=1s work=8.45s beacon=115s
+SO11 B display 5 recovery=29s
+SO11 B display 6 recovery=16s
+SO11 B interrupted report cells=1
+SO11 B elapsed 52 real seconds
+PASS SO11 B integration check 1 at 4x
+PASS SO11 B integration check 2 at 4x
+PASS SO11 B integration check 3 at 4x
+PASS SO11 B integration check 4 at 4x
+PASS SO11 B integration check 5 at 4x
+PASS SO11 B integration check 6 at 4x
+PASS SO11 B integration check 7 at 4x
+part: 18 passed, 0 failed, 0 undeclared reads; Lua CPU 82.566s
+part: local Lua wall 82.656s (excludes slot queue)

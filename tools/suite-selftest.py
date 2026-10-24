@@ -9,7 +9,7 @@ import io
 import json
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_suite import dispatch
+from test_suite import dispatch, timings
 
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as directory:
@@ -43,6 +43,12 @@ test("skips", function() return dofile("tests/skips.lua").record("skips", "fixtu
         combined = json.loads((Path(logs) / 'result.json').read_text())
         assert (combined['passed'], combined['failed'], combined['skipped']) == (1, 0, 1), combined
         assert combined['skipped_checks'] == ['skips: fixture'], combined
+        assert 'tests/run.lua' in combined['part_cpu_seconds']
+        assert (Path(logs) / 'suite-costs.lua').is_file()
+    (staged / 'tests/run.lua').write_text(fixture + '\ntest("broken", function() error("scratch") end)\n')
+    with tempfile.TemporaryDirectory() as logs, contextlib.redirect_stdout(io.StringIO()):
+        assert dispatch(staged, 2, output=logs) == 1
+        assert not (Path(logs) / 'suite-costs.lua').exists()
     (staged / 'tests/so').mkdir()
     shutil.copy2(root / 'tests/so/clock-so11.lua', staged / 'tests/so/clock-so11.lua')
     (staged / 'tests/so/so11.lua').write_text('''return function(test)
@@ -69,6 +75,15 @@ dofile("tests/so/clock-so11.lua")(test, equal)
     assert result.returncode == 1, result.stdout + result.stderr
     assert 'W111' in result.stdout and 'accidental' in result.stdout and 'W113' in result.stdout and 'absent' in result.stdout, result.stdout
     assert 'W211' in result.stdout and 'unused' in result.stdout, result.stdout
+with tempfile.TemporaryDirectory() as directory:
+    scratch = Path(directory) / 'warning.lua'
+    scratch.write_text('local unused = 1\n')
+    result = subprocess.run(['lua5.2', 'tools/luacheck.lua', str(scratch)], cwd=root,
+                            capture_output=True, text=True)
+    assert result.returncode == 1 and '0 errors, 1 warnings' in result.stdout, result.stdout
+assert timings('CHECK-TIME 1.25 tests/so/so11.lua | SO11 A example\n'
+               'CHECK-TIME 2.5 tests/so/so11.lua | SO11 B example\n') == {
+                   'tests/so/so11.lua': 1.25, 'tests/so/so11.lua:B': 2.5}
 probe = r"""
 io.popen = function()
   return { read = function() return [[C:\fixture]] end, close = function() end }

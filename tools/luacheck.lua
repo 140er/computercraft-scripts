@@ -28,4 +28,4 @@ for _, path in ipairs(files) do
   end
 end
 print(string.format("luacheck: %d errors, %d warnings, %d files", errors, warnings, #files))
-os.exit(errors > 0 and 1 or 0)
+os.exit(errors + warnings > 0 and 1 or 0)

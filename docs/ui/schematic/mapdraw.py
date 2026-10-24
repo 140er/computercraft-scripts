@@ -4,14 +4,14 @@ This is the twin of the drawing half of so-mod-map.lua; tests/so/map.lua compare
 cell through the fixtures. North is up at every size: x grows to the right and z downwards, and the
 two axes only scale. The axis the branches step along snaps to the branch gap.
 """
-from kit import age, box, leader
+from kit import age, box, chip, leader
 from scene import S
 
 ARROW = {0: "▲", 1: "►", 2: "▼", 3: "◄"}
 SX = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]  # cells along a free axis
 SN = [1, 2, 4, 8, 16, 32, 64]  # cells along the branch axis: divisors and multiples of the gap
 MARGIN = 7  # blocks read past the view, so a cut dig still counts its full size (up to 6)
-PLAN, DUG, HELD = 1, 2, 4
+PLAN, DUG, HELD, NEXT = 1, 2, 4, 8  # NEXT: the branch a running job starts next
 
 
 def snapped(g):
@@ -106,7 +106,7 @@ def cell(v, x, z):
 
 
 def blocks(v):
-    """(x, z) -> PLAN|DUG|HELD bits, for the view and MARGIN blocks around it."""
+    """(x, z) -> PLAN|DUG|HELD|NEXT bits, for the view and MARGIN blocks around it."""
     g, level, cls = S["g"], v["level"], {}
     x1, z1 = v["left"] - MARGIN, v["top"] - MARGIN
     x2, z2 = v["left"] + v["mw"] * v["sx"] - 1 + MARGIN, v["top"] + v["mh"] * v["sz"] - 1 + MARGIN
@@ -126,13 +126,13 @@ def blocks(v):
                     # Farm travel marks are not tunnels; the farm draws as a farm.
                     if not (farm and fx1 <= x <= fx2 and fz1 <= z <= fz2):
                         add(x, z, DUG)
+    def line(bx, bz, ux, uz, n, bit=PLAN):
+        # Cells four or more blocks long along the line keep its first two blocks per cell.
+        size, base, o = (v["sx"], bx, v["left"]) if ux else (v["sz"], bz, v["top"])
+        for k in range(1, n + 1):
+            if size < 4 or (base + (ux + uz) * k - o) % size < 2:
+                add(bx + ux * k, bz + uz * k, bit)
     if level == "all" or level == g["bottom"]:
-        def line(bx, bz, ux, uz, n):
-            # Cells four or more blocks long along the line keep its first two blocks per cell.
-            size, base, o = (v["sx"], bx, v["left"]) if ux else (v["sz"], bz, v["top"])
-            for k in range(1, n + 1):
-                if size < 4 or (base + (ux + uz) * k - o) % size < 2:
-                    add(bx + ux * k, bz + uz * k, PLAN)
         line(g["x"], g["z"], g["dx"], g["dz"], g["spine"])
         axis = snapped(g)
         snap, origin = (v["sz"], v["top"]) if axis == "z" else (v["sx"], v["left"])
@@ -148,6 +148,12 @@ def blocks(v):
             for x in range(min(rx1, rx2), max(rx1, rx2) + 1):
                 for z in range(min(rz1, rz2), max(rz1, rz2) + 1):
                     add(x, z, HELD)
+    q = S.get("preview")
+    if q and (level == "all" or level == q["y"]):
+        ux = (q["ex"] > q["x"]) - (q["ex"] < q["x"])
+        uz = (q["ez"] > q["z"]) - (q["ez"] < q["z"])
+        if ux == 0 or uz == 0:
+            line(q["x"], q["z"], ux, uz, min(4096, abs(q["ex"] - q["x"]) + abs(q["ez"] - q["z"])), NEXT)
     return cls
 
 
@@ -182,12 +188,13 @@ def cells(v):
         p = cell(v, x, z)
         if not p:
             continue
-        a = agg.setdefault(p, [True, 0, 0, False, False])
+        a = agg.setdefault(p, [True, 0, 0, False, False, False])
         if (x, z) in dots:
             continue
         a[0] = False
         a[3] = a[3] or bits & DUG != 0
         a[4] = a[4] or bits & HELD != 0
+        a[5] = a[5] or bits & NEXT != 0
         for dx in (1, -1):
             q = (x + dx, z)
             if q in cls and q not in dots:
@@ -197,7 +204,7 @@ def cells(v):
             if q in cls and q not in dots:
                 a[2] += 1
     out = {}
-    for p, (dot, h, vv, dug, held) in agg.items():
+    for p, (dot, h, vv, dug, held, nxt) in agg.items():
         if dot:
             out[p] = ("·", "3")
             continue
@@ -209,7 +216,7 @@ def cells(v):
             ch = "-" if dug else "·"
         else:
             ch = "·"
-        out[p] = (ch, "b" if held else "3" if dug else "8")
+        out[p] = (ch, "b" if held else "3" if dug else "1" if nxt else "8")
     return out
 
 
@@ -295,7 +302,9 @@ def draw(cv, v, ox, oy, select=None, labels=True, drop_label="kind", select_drop
             farm_label = ("farm %d/%d" % (ready, len(S["spots"])), (c1[0] - 1, c1[1]))
     marks = markers(v, drop_label)
     taken = {}
-    for m in marks:
+    # A broken chest is a beacon: it wins its cell over a turtle; labels keep the marker order.
+    beacon = [m for m in marks if m[5] == "drop" and m[6]["broken"]]
+    for m in beacon + [m for m in marks if m not in beacon]:
         if m[0] in taken:
             continue
         sel = is_pick(m, pick)
@@ -409,7 +418,8 @@ def numbers(cv, v, ox, oy, occ, taken, placed):
 # ---------------------------------------------------------------- callouts
 
 def callout_lines(pick, v):
-    """(box colour, rows) for the picked thing; a row is ('text', [(dx, text, fg)]) or ('leader', label, value, fg)."""
+    """(box colour, rows) for the picked thing; a row is ('text', [(dx, text, fg)]), ('leader', label, value, fg)
+    or ('chip', label, id)."""
     k = pick[0]
     if k == "turtle":
         t = next((t for t in S["turtles"] if t["id"] == str(pick[1])), None)
@@ -422,7 +432,8 @@ def callout_lines(pick, v):
             ("text", [(0, "%d,%d,%d" % (t["x"], t["y"], t["z"]), "8")]),
             ("leader", "fuel", str(t["fuel"]), "1" if isinstance(t["fuel"], int) and t["fuel"] < 500 else "0"),
             ("leader", "ore", str(t["ore"]), "0"),
-            ("leader", "lease", t["lease"], "e" if t["lease"] == "expired" else "0" if t["lease"] == "open" else "8")]
+            ("leader", "lease", t["lease"], "e" if t["lease"] == "expired" else "0" if t["lease"] == "open" else "8"),
+            ("chip", "DETAILS", "turtle:" + t["id"])]
     if k == "drop":
         d = next((d for d in S["drops"] if did(d) == str(pick[1])), None)
         if not d:
@@ -470,7 +481,8 @@ def callout_lines(pick, v):
 
 
 def callout(cv, v, ox, oy, pick, taken=None):
-    """A hairline box beside the picked marker, joined to it. Returns the box (x, y, w, h) in map cells."""
+    """A hairline box beside the picked marker, joined to it. Returns the box (x, y, w, h) in map cells
+    and its chip (x, y, w) on the canvas, or None."""
     got = callout_lines(pick, v)
     if not got:
         return None
@@ -486,6 +498,8 @@ def callout(cv, v, ox, oy, pick, taken=None):
     for row in rows:
         if row[0] == "leader":
             widest = max(widest, len(row[1]) + len(row[2]) + 4)
+        elif row[0] == "chip":
+            widest = max(widest, len(row[1]) + 2)
         else:
             left = max([dx + len(t) for dx, t, _ in row[1] if dx >= 0] or [0])
             right = sum(len(t) + 1 for dx, t, _ in row[1] if dx < 0)
@@ -513,17 +527,20 @@ def callout(cv, v, ox, oy, pick, taken=None):
     if link is not None:
         cv.put(ox + tx, oy + link, "|", colour)
         cv.put(ox + tx, oy + joint, "+", colour)
-    iw = bw - 4
+    iw, detail = bw - 4, None
     for i, row in enumerate(rows):
         y = oy + by + 1 + i
         if row[0] == "leader":
             leader(cv, ox + bx + 2, y, iw, row[1], row[2], row[3])
+        elif row[0] == "chip":
+            detail = (ox + bx + 2, y, len(row[1]) + 2)
+            chip(cv, ox + bx + 2, y, row[1], row[2])
         else:
             for dx, text, fg in row[1]:
                 at = dx if dx >= 0 else iw + dx
                 text = text[:max(0, iw - at)]
                 cv.put(ox + bx + 2 + at, y, text, fg)
-    return bx, by, bw, bh
+    return bx, by, bw, bh, detail
 
 
 def thumb(cv, x, y, w, h):

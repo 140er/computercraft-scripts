@@ -33,14 +33,16 @@ function M.store(path, valid, limit)
   assert(type(valid) == "function", "valid")
   local budget = limit or 900000
   local generation, current, source
+  local box = {}
   local function recover(allowEmpty)
     local newest, value, picked, exists = 0, nil, nil, false
     for _, file in ipairs({ path, path .. ".tmp", path .. ".bak" }) do
       exists = exists or fs.exists(file)
-      local t = M.read(file)
+      local t, bytes = M.read(file)
       if type(t) == "table" and t.schema == 1 and type(t.generation) == "number"
         and t.generation % 1 == 0 and t.generation > newest and valid(t.value) then
         newest, value, picked = t.generation, t.value, file
+        box.bytes = #bytes
       end
     end
     assert(value or not exists or allowEmpty, "no valid generation: " .. path)
@@ -48,50 +50,50 @@ function M.store(path, valid, limit)
   end
   recover()
   local needsRecovery = false
-  return {
-    value = current,
-    save = function(value)
-      if needsRecovery then
-        local recovered, recoveryErr = pcall(recover, generation == 0 and current == nil)
-        if not recovered then return false, recoveryErr end
+  box.value = current
+  box.save = function(value)
+    if needsRecovery then
+      local recovered, recoveryErr = pcall(recover, generation == 0 and current == nil)
+      if not recovered then return false, recoveryErr end
+    end
+    local text
+    local prepared, prepErr = pcall(function()
+      assert(valid(value), "invalid state")
+      text = textutils.serialize({ schema = 1, generation = generation + 1,
+        value = M.copy(value) }, { compact = true })
+    end)
+    if not prepared then return false, prepErr end
+    if #text > budget then return false, "budget exceeded" end
+    local checked, spaceErr = pcall(function()
+      local free = fs.getFreeSpace(path)
+      assert(type(free) ~= "number" or free >= #text + 8192, "disk full")
+    end)
+    if not checked then return false, spaceErr end
+    local h
+    local ok, err = pcall(function()
+      if source and source ~= path then
+        if fs.exists(path) then fs.delete(path) end
+        fs.move(source, path)
+        source = path
       end
-      local text
-      local prepared, prepErr = pcall(function()
-        assert(valid(value), "invalid state")
-        text = textutils.serialize({ schema = 1, generation = generation + 1,
-          value = M.copy(value) }, { compact = true })
-      end)
-      if not prepared then return false, prepErr end
-      if #text > budget then return false, "budget exceeded" end
-      local checked, spaceErr = pcall(function()
-        local free = fs.getFreeSpace(path)
-        assert(type(free) ~= "number" or free >= #text + 8192, "disk full")
-      end)
-      if not checked then return false, spaceErr end
-      local h
-      local ok, err = pcall(function()
-        if source and source ~= path then
-          if fs.exists(path) then fs.delete(path) end
-          fs.move(source, path)
-          source = path
-        end
-        if fs.exists(path .. ".tmp") then fs.delete(path .. ".tmp") end
-        h = assert(fs.open(path .. ".tmp", "w"), "open failed")
-        h.write(text)
-        h.close()
-        h = nil
-        local parsed, bytes = M.read(path .. ".tmp")
-        assert(bytes == text and parsed and valid(parsed.value), "verification failed")
-        if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
-        if fs.exists(path) then fs.move(path, path .. ".bak") end
-        fs.move(path .. ".tmp", path)
-        generation, source = generation + 1, path
-      end)
-      if h then pcall(h.close) end
-      needsRecovery = not ok
-      return ok, err
-    end,
-  }
+      if fs.exists(path .. ".tmp") then fs.delete(path .. ".tmp") end
+      h = assert(fs.open(path .. ".tmp", "w"), "open failed")
+      h.write(text)
+      h.close()
+      h = nil
+      local parsed, bytes = M.read(path .. ".tmp")
+      assert(bytes == text and parsed and valid(parsed.value), "verification failed")
+      if fs.exists(path .. ".bak") then fs.delete(path .. ".bak") end
+      if fs.exists(path) then fs.move(path, path .. ".bak") end
+      fs.move(path .. ".tmp", path)
+      generation, source = generation + 1, path
+      box.bytes = #text
+    end)
+    if h then pcall(h.close) end
+    needsRecovery = not ok
+    return ok, err
+  end
+  return box
 end
 
 function M.clock()

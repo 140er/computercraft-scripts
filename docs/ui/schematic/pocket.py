@@ -2,7 +2,7 @@
 in so-mod-panel.lua. The data comes from the status model (status.py) and tests/ui/system-scene.txt.
 """
 from cc import Canvas
-from kit import chip, digits, filled, leader, progress, rule, section, ticks, tone
+from kit import actions, chip, digits, filled, leader, progress, rule, section, ticks, tone
 import status as ST
 from scene import lines
 
@@ -260,7 +260,8 @@ def code_digits(cv, y, w, text, fg):
     digits(cv, (w - width) // 2 + 1, y, text, fg, 3, 7, 1)
 
 
-def pair(m, w=26, h=20, code=None, left=0, busy=False, paired=True):
+def pair(m, w=26, h=20, code=None, left=0, busy=False, paired=True, enroll=None):
+    """enroll is None without the enroll window module, else whether ENROLL can open now."""
     cv = Canvas(w, h, "Pocket PAIR " + ("with a code" if code else "ready"))
     tabs(cv, "pair", len(m["flags"]) > 0)
     code_digits(cv, 5, w, code or "------", "0" if code else "8")
@@ -272,4 +273,9 @@ def pair(m, w=26, h=20, code=None, left=0, busy=False, paired=True):
         cv.put(2, 14, "code in use", "1")
     if paired:
         chip(cv, 2, h - 2, "NEW CODE", "pair-code", "plain", w - 2)
+    # The paired devices and the enroll window open as pages of the PAIR tab.
+    if enroll is None:
+        chip(cv, 2, h - 4, "PAIRED", "paired", "plain", w - 2)
+    else:
+        actions(cv, h - 4, [("PAIRED", "paired", "plain"), ("ENROLL", "enroll", "primary" if enroll else "muted")])
     return cv

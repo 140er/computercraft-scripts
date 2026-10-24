@@ -14,7 +14,11 @@ local M = { planes = {}, keys = {}, columns = {}, layouts = {}, aux = {}, serial
   pan = {["map-n"]={0,-1},["map-e"]={1,0},["map-s"]={0,1},["map-w"]={-1,0}},
   prefer = {"r","l","ur","dr","ul","dl","u","d"}, east = {"ur","dr","r","ul","dl","l"}, along = {"r","l","ur","dr"},
   drop = {"r","l","d","dr","dl","u","ur","ul"}, farm = {"u","ur","r"},
-  compass = "\24N", hex = {}, bitsOf = {} }
+  compass = "\24N", hex = {}, bitsOf = {}, scenes = {},
+  -- The dimension chip (remoteDimensions only): its label and the next dimension.
+  dimLabel = {["minecraft:overworld"]="OVER",["minecraft:the_nether"]="NETH",["minecraft:the_end"]="END"},
+  nextDim = {["minecraft:overworld"]="minecraft:the_nether",["minecraft:the_nether"]="minecraft:the_end",
+    ["minecraft:the_end"]="minecraft:overworld"} }
 for i = 0, 15 do
   M.hex[("0123456789abcdef"):byte(i + 1)] = i
   M.bitsOf[i] = {}
@@ -54,15 +58,23 @@ end
 M.farmOn = function(s, level) return s.area ~= nil and (level == "all" or level >= s.ground and level <= s.ground + 8) end
 M.near = function(p, level) return level == "all" or math.abs((p.y or level) - level) <= 1 end
 
-M.gather = function(now)
+-- The scene of one dimension: the server's own, or pick (remoteDimensions). Returns it and keeps
+-- it in M.scenes; callers set M.scene.
+M.gather = function(now, pick)
   if not M.config or now >= (M.configAt or 0)+5000 then
     M.config, M.configAt = SO.store.read("so-server.cfg") or {}, now
   end
   local config = M.config
   local mine = M.call("mine", "mapView") or {}
   local lumber = M.call("lumber", "mapView") or {}
-  local dim = M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
-  local s = {dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}}
+  local dim = pick or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
+  local s = {dim=dim, g=M.geometry(mine, dim), turtles={}, drops={}, spots={}, broken=0}
+  -- The next branch a running job will start, amber until a turtle takes it.
+  local pv = type(mine.preview) == "table" and mine.preview
+  if pv and type(pv[1]) == "table" and type(pv[2]) == "table" and M.dim(mine.dim) == dim
+      and tonumber(pv[1].x) and tonumber(pv[1].z) and tonumber(pv[2].x) and tonumber(pv[2].z) then
+    s.preview = {x=pv[1].x, y=pv[1].y, z=pv[1].z, ex=pv[2].x, ez=pv[2].z}
+  end
   local pos = config.pos
   if type(pos) == "table" and tonumber(pos.x) and tonumber(pos.z) and M.dim(pos.dim) == dim then s.server = pos end
   if lumber.area and M.dim(lumber.dim) == dim then
@@ -78,15 +90,18 @@ M.gather = function(now)
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then jobs[tostring(id)] = {} end
   end
   for id, row in pairs(mine.turtles or {}) do jobs[tostring(id)] = row end
-  if lumber.turtle then
-    local row = lumber.turtle
-    jobs[tostring(row.id)] = {pose=row.pose, state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
+  -- Every turtle on the farm (lumber.turtles), or the one turtle of an older lumber view.
+  local wood = lumber.turtles or {}
+  if lumber.turtle then wood = {lumber.turtle} end
+  for id, row in pairs(wood) do
+    jobs[tostring(row.id or id)] = {pose=row.pose, dim=row.dim or lumber.dim,
+      state=row.state == "lumber" and (M.phases[row.phase] or "working") or row.state}
   end
   for id, row in pairs(jobs) do
     local machine = machines[id] or machines[tonumber(id)] or {}
     local p = row.pose or machine.pose
-    if type(p) == "table" and tonumber(p.x) and tonumber(p.z) and M.dim(p.dim or row.dim or mine.dim) == dim then
-      local status = M.call("lease", "status", tonumber(id) or id) or {}
+    if type(p) == "table" and tonumber(p.x) and tonumber(p.z) and M.dim(p.dim or row.dim or machine.dim) == dim then
+      local status = M.call("lease", "peek", tonumber(id) or id) or {}
       local word = tostring(row.state or "idle")
       if status.lost then word = "lost"
       elseif M.call("lease", "inRange", tonumber(id) or id, p) == false then word = "range" end
@@ -111,6 +126,7 @@ M.gather = function(now)
     local p = sap
     s.drops[#s.drops+1] = {id="saplings", kind="saplings", x=p.x, y=p.y, z=p.z, broken=false}
   end
+  for _, p in ipairs(s.drops) do if p.broken then s.broken = s.broken + 1 end end
   local reserved, version = M.call("cells", "reserved", dim, 4096)
   s.reserved = reserved or {}
   local terrain, markers = {dim, tostring(version)}, {}
@@ -119,6 +135,10 @@ M.gather = function(now)
     for _, key in ipairs({"x1","z1","x2","z2"}) do terrain[#terrain+1] = s.area[key] end
     terrain[#terrain+1] = s.ground
     for _, spot in ipairs(s.spots) do terrain[#terrain+1] = spot.x .. "," .. spot.z .. (spot.ready and "r" or "") end
+  end
+  if s.preview then
+    local q = s.preview
+    terrain[#terrain+1] = table.concat({"p", q.x, tostring(q.y), q.z, q.ex, q.ez}, ",")
   end
   for _, t in ipairs(s.turtles) do
     markers[#markers+1] = table.concat({t.id, t.pose.x, t.pose.y, t.pose.z, tostring(t.facing), t.word,
@@ -129,7 +149,14 @@ M.gather = function(now)
   s.terrain, s.markers = table.concat(terrain, ";"), table.concat(markers, ";")
   M.version, M.newMarks = M.call("cells", "dugVersion")
   M.version = M.version or 0
-  M.scene = s
+  M.scenes[dim] = s
+  return s
+end
+-- The scene a view shows: its own dimension with remoteDimensions on, else the server's.
+M.selected = function(v)
+  if not (M.config and M.config.remoteDimensions == true and v.dim) then return M.scene end
+  if not M.scenes[v.dim] then M.gather(SO.now(), v.dim) end
+  return M.scenes[v.dim]
 end
 
 M.view = function(session)
@@ -371,7 +398,7 @@ M.clip = function(base, step, lo, hi, kmin, kmax)
   if a > b then a, b = b, a end
   return math.max(kmin, math.ceil(a)), math.min(kmax, math.floor(b))
 end
--- Blocks in the view and its margin: key -> 1 planned, 2 dug, 4 held.
+-- Blocks in the view and its margin: key -> 1 planned, 2 dug, 4 held, 8 the next branch.
 M.blocks = function(v, s, planes)
   local x1, z1, x2, z2 = M.rect(v)
   local cls, level, g, a = {}, v.level, s.g, s.area
@@ -390,29 +417,34 @@ M.blocks = function(v, s, planes)
       if not (farm and c[i] >= a.x1 and c[i] <= a.x2 and c[i+1] >= a.z1 and c[i+1] <= a.z2) then add(c[i], c[i+1], 2) end
     end
   end
-  if g and (level == "all" or level == g.bottom) then
-    -- Cells four or more blocks long along a line get only its first two blocks per cell:
-    -- the glyph is the same and the work stays per cell, not per block.
-    local function line(bx, bz, ux, uz, n)
+  -- Cells four or more blocks long along a line get only its first two blocks per cell:
+  -- the glyph is the same and the work stays per cell, not per block.
+  local function line(bx, bz, ux, uz, n, bit)
       local k1, k2 = M.clip(bx, ux, x1, x2, 1, n)
       local k3, k4 = M.clip(bz, uz, z1, z2, 1, n)
       local size, base, o, u = ux ~= 0 and v.sx or v.sz, ux ~= 0 and bx or bz, ux ~= 0 and v.left or v.top, ux + uz
       local k = math.max(k1, k3)
       while k <= math.min(k2, k4) do
         local offset = (base + u * k - o) % size
-        if size < 4 or offset < 2 then add(bx + ux * k, bz + uz * k, 1) k = k + 1
+        if size < 4 or offset < 2 then add(bx + ux * k, bz + uz * k, bit) k = k + 1
         else k = k + (u > 0 and size - offset or offset - 1) end
       end
-    end
-    line(g.x, g.z, g.dx, g.dz, g.spine)
+  end
+  if g and (level == "all" or level == g.bottom) then
+    line(g.x, g.z, g.dx, g.dz, g.spine, 1)
     -- Branches that share a cell row (or column) with an earlier branch add nothing new.
     local snap, origin = v.axis == "z" and v.sz or v.sx, v.axis == "z" and v.top or v.left
     local b1, b2 = M.clip(v.axis == "z" and g.z or g.x, (v.axis == "z" and g.dz or g.dx) * g.gap,
       v.axis == "z" and z1 or x1, v.axis == "z" and z2 or x2, 1, g.branches)
     for b = b1, b2 do
       local bx, bz = g.x + g.dx * b * g.gap, g.z + g.dz * b * g.gap
-      if ((v.axis == "z" and bz or bx) - origin) % snap == 0 then line(bx, bz, g.rx, g.rz, g.length) end
+      if ((v.axis == "z" and bz or bx) - origin) % snap == 0 then line(bx, bz, g.rx, g.rz, g.length, 1) end
     end
+  end
+  local q = s.preview
+  if q and (level == "all" or level == q.y) then
+    local ux, uz = q.ex > q.x and 1 or q.ex < q.x and -1 or 0, q.ez > q.z and 1 or q.ez < q.z and -1 or 0
+    if ux == 0 or uz == 0 then line(q.x, q.z, ux, uz, math.min(4096, math.abs(q.ex - q.x) + math.abs(q.ez - q.z)), 8) end
   end
   for _, c in ipairs(s.reserved) do
     if level == "all" or c.y == level then add(c.x, c.z, 4) end
@@ -454,9 +486,9 @@ M.cells = function(v, s, planes)
     if cx then
       local i = cy * v.mw + cx
       local a = agg[i]
-      if not a then a = {cx, cy, true, 0, 0, false, false} agg[i] = a end
+      if not a then a = {cx, cy, true, 0, 0, false, false, false} agg[i] = a end
       if not dots[k] then
-        a[3], a[6], a[7] = false, a[6] or M.has(bits, 2), a[7] or M.has(bits, 4)
+        a[3], a[6], a[7], a[8] = false, a[6] or M.has(bits, 2), a[7] or M.has(bits, 4), a[8] or M.has(bits, 8)
         if line(k + M.row) then a[4] = a[4] + 1 end
         if line(k - M.row) then a[4] = a[4] + 1 end
         if line(k + 1) then a[5] = a[5] + 1 end
@@ -473,7 +505,7 @@ M.cells = function(v, s, planes)
       elseif vv > h then ch = dug and "|" or U.g.gap
       elseif h > 0 then ch = dug and "-" or U.g.dot
       else ch = U.g.dot end
-      out[i] = {a[1], a[2], ch, a[7] and "b" or dug and "3" or "8"}
+      out[i] = {a[1], a[2], ch, a[7] and "b" or dug and "3" or a[8] and "1" or "8"}
     end
   end
   return out
@@ -483,7 +515,8 @@ M.label = function(t, sx)
   if t.tone == "d" or sx >= 3 then return t.id end
   return t.id .. " " .. t.word:match("^%S*")
 end
--- Turtles, then drops and the server, then the shaft; the first marker in a cell wins it.
+-- Turtles, then drops and the server, then the shaft; the first marker in a cell wins it, except that
+-- a broken chest is a beacon and wins over everything (M.draw).
 M.markers = function(v, s, dropLabel)
   local out, level = {}, v.level
   local function add(x, z, item)
@@ -547,7 +580,10 @@ M.draw = function(C, v, s, ox, oy, pick, dropLabel)
     if M.cellOf(v, a.x1, a.z1) then farmLabel = {"farm " .. ready .. "/" .. #s.spots, x1 - 1, y1} end
   end
   local marks = M.markers(v, s, dropLabel)
-  for _, m in ipairs(marks) do
+  local order = {}
+  for _, m in ipairs(marks) do if m.kind == "drop" and m.ref.broken then order[#order+1] = m end end
+  for _, m in ipairs(marks) do if not (m.kind == "drop" and m.ref.broken) then order[#order+1] = m end end
+  for _, m in ipairs(order) do
     local i = m.cy * mw + m.cx
     if not taken[i] then
       if M.picked(m, pick) then C.put(ox + m.cx, oy + m.cy, m.glyph, "f", m.fg)
@@ -643,8 +679,8 @@ M.numbers = function(C, v, s, ox, oy, occ, taken, placed)
   end
 end
 
--- The thing a pick names, as {colour, x, z, rows}; a row is {"text", {{dx, text, fg}, ...}} or
--- {"leader", label, value, fg}.
+-- The thing a pick names, as {colour, x, z, rows}; a row is {"text", {{dx, text, fg}, ...}},
+-- {"leader", label, value, fg} or {"chip", label, id}.
 M.callout = function(v, s, pick)
   if pick.k == "turtle" then
     for _, t in ipairs(s.turtles) do
@@ -656,7 +692,8 @@ M.callout = function(v, s, pick)
           {"text", {{0, p.x .. "," .. p.y .. "," .. p.z, "8"}}},
           {"leader", "fuel", fuel, type(t.fuel) == "number" and t.fuel < 500 and "1" or "0"},
           {"leader", "ore", tostring(t.ore or "-"), "0"},
-          {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"}}}
+          {"leader", "lease", lease, lease == "expired" and "e" or lease == "open" and "0" or "8"},
+          {"chip", "DETAILS", "turtle:" .. t.id}}}
       end
     end
   elseif pick.k == "drop" then
@@ -713,7 +750,8 @@ M.callout = function(v, s, pick)
     return {"3", pick.x, pick.z, rows}
   end
 end
--- A hairline box beside the picked marker, joined to it. Returns the box in map cells.
+-- A hairline box beside the picked marker, joined to it. Returns the box in map cells and its chip
+-- {x, y, w} on the canvas, if any.
 M.box = function(C, v, s, ox, oy, pick, taken)
   local got = M.callout(v, s, pick)
   if not got then return end
@@ -727,6 +765,7 @@ M.box = function(C, v, s, ox, oy, pick, taken)
   local widest = 0
   for _, row in ipairs(rows) do
     if row[1] == "leader" then widest = math.max(widest, #row[2] + #row[3] + 4)
+    elseif row[1] == "chip" then widest = math.max(widest, #row[2] + 2)
     else
       local left, right = 0, 0
       for _, part in ipairs(row[2]) do
@@ -757,10 +796,13 @@ M.box = function(C, v, s, ox, oy, pick, taken)
   C.fill(ox + bx, oy + by, bw, bh, "f")
   C.box(ox + bx, oy + by, bw, bh, colour)
   if link then C.put(ox + tx, oy + link, "|", colour) C.put(ox + tx, oy + joint, "+", colour) end
-  local iw = bw - 4
+  local iw, chip = bw - 4, nil
   for i, row in ipairs(rows) do
     local y = oy + by + i
     if row[1] == "leader" then C.leader(ox + bx + 2, y, iw, row[2], row[3], row[4])
+    elseif row[1] == "chip" then
+      chip = {ox + bx + 2, y, #row[2] + 2}
+      C.chip(chip[1], y, row[2], row[3])
     else
       for _, part in ipairs(row[2]) do
         local at = part[1] >= 0 and part[1] or iw + part[1]
@@ -768,7 +810,7 @@ M.box = function(C, v, s, ox, oy, pick, taken)
       end
     end
   end
-  return {bx, by, bw, bh}
+  return {bx, by, bw, bh, chip}
 end
 -- Where the pick is now: a turtle's pick follows the turtle.
 M.focus = function(v, s)
@@ -780,11 +822,11 @@ M.focus = function(v, s)
 end
 
 M.levelText = function(level) return level == "all" and "ALL" or "Y" .. level end
-M.controls = function(C, L, w, h, v)
+M.controls = function(C, L, w, h, v, s)
   local kind = L.kind
   local arrows = {{U.g.left, "map-w"}, {U.g.up, "map-n"}, {U.g.down, "map-s"}, {U.g.right, "map-e"}}
+  local edge
   if kind ~= "tiny" then
-    C.put(2, 1, "MAP", "0")
     local x = C.chip(6, 1, "FIT", "map-fit", v.fit and "on" or "plain") + 1
     if kind ~= "pocket" then
       x = C.chip(x, 1, "-", "map-out") + 1
@@ -796,6 +838,7 @@ M.controls = function(C, L, w, h, v)
       C.chip(x0 + 17, h, "-", "map-out")
       C.chip(x0 + 21, h, "+", "map-in")
     end
+    edge = x
   else
     local x0 = 1 + math.floor((w - 15) / 2)
     for i, a in ipairs(arrows) do C.chip(x0 + 4 * (i - 1), h - 1, a[1], a[2]) end
@@ -809,6 +852,16 @@ M.controls = function(C, L, w, h, v)
   C.put(x + 3 + math.floor((5 - #text) / 2), 1, text, "0")
   C.hit("map-level", x + 3, 1, 5, 1, text)
   C.chip(x + 8, 1, U.g.up, "map-up")
+  -- The dimension chip, then the broken chest count, in the free run before the level chips;
+  -- with no room there they take the title's place, the dimension first.
+  local title = kind ~= "tiny"
+  local function chip(label, id, tone)
+    if edge and edge + #label + 1 <= w - 16 then edge = C.chip(edge, 1, label, id, tone) + 1
+    elseif title then C.chip(1, 1, label, id, tone, 5) title = false end
+  end
+  if M.config and M.config.remoteDimensions == true then chip(M.dimLabel[s.dim] or "OVER", "map-dim") end
+  if s.broken > 0 then chip(U.g.cross .. math.min(s.broken, 99), "map-broken", "stop") end
+  if title then C.put(2, 1, "MAP", "0") end
   -- North is up on every map, so the compass never turns; it sits outside the map area.
   C.put(w - 2, 1, M.compass, "8")
 end
@@ -828,6 +881,17 @@ M.roster = function(C, L, w, s)
   end
 end
 
+-- The tap area over the map, cut around a callout chip: display clients take the last button
+-- under a tap and the local monitor the first, so the two never overlap.
+M.pickArea = function(C, L, chip)
+  local x2, y2 = L.mx + L.mw, L.my + L.mh
+  local parts = {{L.mx, L.my, L.mw, L.mh}}
+  if chip then
+    parts = {{L.mx, L.my, L.mw, chip[2] - L.my}, {L.mx, chip[2], chip[1] - L.mx, 1},
+      {chip[1] + chip[3], chip[2], x2 - chip[1] - chip[3], 1}, {L.mx, chip[2] + 1, L.mw, y2 - chip[2] - 1}}
+  end
+  for _, r in ipairs(parts) do if r[3] > 0 and r[4] > 0 then C.hit("map-pick", r[1], r[2], r[3], r[4]) end end
+end
 -- Places the view, loads its planes and rebuilds its cells when the view or the data changed.
 M.prepare = function(v, s, valign)
   M.place(v, s, valign)
@@ -858,20 +922,21 @@ end
 M.render = function(w, h, session, tries)
   session = type(session)=="table" and session or {}
   M.seen = SO.now()
-  if not M.scene then M.gather(M.seen) end
-  local s, v = M.scene, M.view(session)
+  if not M.scene then M.scene = M.gather(M.seen) end
+  local v = M.view(session)
+  local s = M.selected(v)
   local L = M.layout(w, h, #s.turtles)
   v.mw, v.mh, v.L, v.h = L.mw, L.mh, L, h
   local key = M.prepare(v, s)
   local p = v.pick or {}
-  local fkey = table.concat({key, w, h, s.markers, tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
+  local fkey = table.concat({key, w, h, s.markers, tostring(M.config and M.config.remoteDimensions), tostring(v.fit), tostring(p.k), tostring(p.id), tostring(p.x), tostring(p.z)}, ":")
   if v.frame and v.fkey == fkey then return v.frame end
   local C = U.canvas(w, h)
   v.taken = M.draw(C, v, s, L.mx, L.my, v.pick)
   v.box = v.pick and M.box(C, v, s, L.mx, L.my, v.pick, v.taken)
-  M.controls(C, L, w, h, v)
+  M.controls(C, L, w, h, v, s)
   if L.roster then M.roster(C, L, w, s) end
-  C.hit("map-pick", L.mx, L.my, L.mw, L.mh)
+  M.pickArea(C, L, v.box and v.box[5])
   local frame = M.pack(C)
   -- Frames stay under the 16 KB message limit: a crowded view draws one zoom step out.
   if (tries or 0) < 4 and SO.proto and #SO.proto.ser(frame) > M.heavy then
@@ -890,7 +955,7 @@ M.auxView = function(key, v)
 end
 M.ensure = function()
   M.seen = SO.now()
-  if not M.scene then M.gather(M.seen) end
+  if not M.scene then M.scene = M.gather(M.seen) end
   return M.scene
 end
 -- The status wall thumbnail: the compass on its first row, the whole scene north up under it.
@@ -931,7 +996,7 @@ M.zoom = function(v, step)
   if not (v.sx and v.sz) then return end
   local nx = M.step(v.sx, v.axis == "x" and M.snap or M.free, step)
   local nz = M.step(v.sz, v.axis == "z" and M.snap or M.free, step)
-  local f = M.focus(v, M.scene)
+  local f = M.focus(v, M.selected(v))
   if f and (nx ~= v.sx or nz ~= v.sz) and M.cellOf(v, f.x, f.z) then
     -- Keep the picked block where it is on screen.
     v.cx = f.x - math.floor((f.x - v.cx) * nx / v.sx + 0.5)
@@ -951,12 +1016,33 @@ M.tap = function(v, cx, cy)
     v.pick = nil
   else v.pick = pick end
 end
+-- Centres one block per cell on a broken chest and picks it: the drop id, else the broken chest
+-- after the picked one, else the first.
+M.focusBroken = function(v, s, id)
+  local list, at = {}, 1
+  for _, d in ipairs(s.drops or {}) do
+    if d.broken and (not id or d.id == id) then list[#list+1] = d end
+  end
+  if #list == 0 then return end
+  table.sort(list, function(a, b) return a.id < b.id end)
+  for i, d in ipairs(list) do
+    if v.pick and v.pick.k == "drop" and v.pick.id == d.id then at = i % #list + 1 end
+  end
+  local d = list[at]
+  v.fit, v.sx, v.sz, v.cx, v.cz, v.level, v.pick = false, 1, 1, d.x, d.z, "all", {k="drop", id=d.id}
+end
 M.input = function(event)
   if not event.session then return end
-  local v, id, s = M.view(event.session), event.id, M.scene or {}
+  local v, id = M.view(event.session), event.id
+  local s = M.selected(v) or {}
   local g, surface = s.g, M.surface(s)
+  local drop = type(id) == "string" and id:match("^map%-drop:(.+)$")
   v.extra = nil
-  if id == "map-fit" then v.fit = true
+  if id == "map-broken" or id == "map-focus" or drop then M.focusBroken(v, s, drop)
+  elseif id == "map-dim" and M.config and M.config.remoteDimensions == true then
+    v.dim = M.nextDim[v.dim or s.dim] or "minecraft:overworld"
+    v.fit, v.pick, v.colsKey = true, nil, nil
+  elseif id == "map-fit" then v.fit = true
   elseif id == "map-in" or id == "map-out" then M.zoom(v, id == "map-in" and -1 or 1)
   elseif M.pan[id] then
     local d = M.pan[id]
@@ -980,5 +1066,11 @@ end
 return {name="map",handlers={},render=M.render,input=M.input,thumb=M.thumb,crop=M.crop,tick=function(now)
   M.ticks, M.budget = M.ticks + 1, 16
   if not M.wired and SO.mods.display then SO.mods.display.screen("map",M.render,M.input) M.wired=true end
-  if M.seen and now - M.seen < 10000 then M.gather(now) M.revalidate() end
+  if M.seen and now - M.seen < 10000 then
+    M.scene = M.gather(now)
+    if M.config.remoteDimensions == true then
+      for _, dim in pairs(M.dimensions) do if dim ~= M.scene.dim then M.gather(now, dim) end end
+    end
+    M.revalidate()
+  end
 end}
