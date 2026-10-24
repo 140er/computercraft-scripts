@@ -257,12 +257,21 @@ class Context:
             return {"action": action, "computer": self.computer(name), "uptime_reset": True}
         return self.request("power", computer=self.computer(name), action=action)
 
-    def screenshot(self, name):
+    def shot(self):
+        """A fresh native client screenshot, left in the runtime's shots folder."""
         result = self.cli("client", self.run, "shot")
-        source = Path(result["path"] if isinstance(result, dict) else result)
-        target = self.output / name
-        target.write_bytes(source.read_bytes())
-        self.evidence.append(name)
+        return Path(result["path"] if isinstance(result, dict) else result)
+
+    def keep(self, source, name):
+        (self.output / name).write_bytes(Path(source).read_bytes())
+        if name not in self.evidence:
+            self.evidence.append(name)
+
+    def sleep(self, seconds):
+        time.sleep(seconds)
+
+    def screenshot(self, name):
+        self.keep(self.shot(), name)
 
     def integrity(self, name):
         return self.lua(name, '''local p=dofile("so-proto.lua"); local function hash(path)

@@ -1,7 +1,6 @@
 import re
-import time
 from .model import Criteria, Blocked, pocket_frame
-from .visual import check
+from . import photos as camera
 
 TITLE = "Real goggles alignment and layer persistence"
 
@@ -49,7 +48,19 @@ def provision(ctx):
     return {"linked_player_in_template": True, "verify_command": worn, "expected_turtles": turtles, "native": True}
 
 
+def views(ctx):
+    """The AR camera: client_views.ar, else the wall camera."""
+    configured = ctx.manifest.get("client_views", {})
+    view = configured.get("ar") or configured.get("wall")
+    if not view:
+        raise Blocked("C13 photos need a client_views.ar or client_views.wall camera")
+    return view
+
+
 def run(ctx):
+    # Assigned (unstarted) jobs give the AR layers turtles, leases and drop points to draw.
+    ctx.mining(start=False)
+    ctx.lumber(start=False)
     ctx.cli("client", ctx.run, "start", timeout=180)
     try:
         goggles = provision(ctx)
@@ -61,24 +72,23 @@ def run(ctx):
         pocket_frame(ctx)
         count = ctx.lua("server", 'local n=0;for _,m in pairs(SO.mods.state.get("machines") or {}) do if m.role=="worker" or m.role=="turtle" then n=n+1 end end;return n')
         ctx.navigate("pocket", "ar")
+        view = views(ctx)
         before = ctx.read_store("server", "so-data/ar")
-        ctx.screenshot("C13-layers-before.png")
-        before_pixels = check(ctx, "C13-layers-before.png")
+        before_pixels = camera.take(ctx, "C13-layers-before.png", view)
         for layer in ("turtles", "leases", "drops", "alerts"):
             ctx.click("pocket", layer)
-        ctx.screenshot("C13-layers-toggled.png")
-        toggled_pixels = check(ctx, "C13-layers-toggled.png")
+        toggled_pixels = camera.take(ctx, "C13-layers-toggled.png", view)
         toggled = ctx.read_store("server", "so-data/ar")
         ctx.power("server", "reboot")
         ctx.wait(lambda: ctx.lua("server", "return SO ~= nil"), 30)
         persisted = ctx.read_store("server", "so-data/ar") == toggled and toggled != before
-        stable = True
+        stability = []
         for i in range(3):
-            time.sleep(1)
-            ctx.screenshot(f"C13-stability-{i}.png")
-            stable &= check(ctx, f"C13-stability-{i}.png")
+            ctx.sleep(1)
+            stability.append(camera.take(ctx, f"C13-stability-{i}.png", view))
+        stable = camera.credit(stability)
         return evaluate(ctx.record("C13-observations.json", {"linked_goggles": linked, "layers_persist": persisted,
-            "real_photos": True, "labels_boxes_headings_aligned": before_pixels, "no_overlap": before_pixels,
+            "real_photos": camera.credit([before_pixels, toggled_pixels, *stability]), "labels_boxes_headings_aligned": before_pixels, "no_overlap": before_pixels,
             "stable_frames": stable, "hud_matches_server": count == goggles.get("expected_turtles") and before_pixels, "native_layer_removal": toggled_pixels}))
     finally:
         ctx.cli("client", ctx.run, "stop")
