@@ -1044,8 +1044,11 @@ Up to 64 recent completed branches remain as faint trails until START resumes
 a stopped job or the server restarts. Trail history is display-only memory.
 `lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtles }`.
 The turtle map is keyed by id, with `{ id, pose, state }` for every assigned worker.
-These getters do not save or advance jobs. The map calls them from tick, together with registry, lease and
-drop APIs. Registry workers without a job also appear when their pose is known.
+These getters do not save or advance jobs. The map calls them from tick,
+together with registry, lease and drop APIs. AR merges every lumber worker's
+planner pose and state with registry freshness and fuel. Both views use the
+farm dimension when a lumber pose has no dimension of its own. Registry
+workers without a job also appear when their pose is known.
 Numeric drop dimensions are normalized to world dimension strings.
 
 A running mine's next branch is an amber `1` line above planned grey geometry.

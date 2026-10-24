@@ -69,3 +69,13 @@ policy still shared. All 22 storage tests pass after migrating their lumber
 readers. A two-worker regression leaves one worker waiting for fuel while the
 other refuels at a separate chest and harvests; after fuel arrives, both finish
 all trees and deliveries without overlap.
+
+After AR #218 merged, map and AR both read every worker from lumber's `turtles`
+snapshot. AR retains registry fuel and freshness without changing the registry.
+Two integration cases load saved jobs with two Nether workers and three End
+workers. They check drawn map targets at 26x20 and 29x12, AR labels, boxes,
+headings and per-worker reservations, dimension filtering, numeric-id
+deduplication and removal of retired markers. Both cases fail before the AR
+integration and pass with it. All 15 AR/map cases pass, including #218's broken
+chest beacons, branch preview and trails. The health fixtures were regenerated.
+The rebase retains all upstream test registrations before the fleet tests.

@@ -122,7 +122,15 @@ A.scene = function(now)
       line(id .. ":" .. (k + 8), color, p[1], y, p[2], p[1], v, p[2])
     end
   end
-  local machines = A.call("state", "get", "machines") or {}
+  local machines = SO.store.copy(A.call("state", "get", "machines") or {})
+  local lumber = A.call("lumber", "mapView") or {}
+  for id, worker in pairs(lumber.turtles or {}) do
+    id = tostring(id)
+    local machine = machines[id] or machines[tonumber(id)] or {}
+    machine.role, machine.pose, machine.state = "worker", worker.pose, worker.state
+    if machine.pose and machine.pose.dim == nil then machine.pose.dim = lumber.dim end
+    machines[tonumber(id)], machines[id] = nil, machine
+  end
   local lostCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose

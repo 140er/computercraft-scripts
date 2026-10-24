@@ -51,6 +51,52 @@ local function mineFixture()
   return s
 end
 return function(test,equal)
+  for _, farm in ipairs({{count=2,dim="minecraft:the_nether",alias=-1},
+      {count=3,dim="minecraft:the_end",alias=1}}) do
+    test("map and AR show every saved lumber worker in "..farm.dim,function()
+      local s=setup({pos={dim=farm.alias,x=0,y=64,z=0}})
+      s.m.install({"so-plan.lua","so-lumber-plan.lua","so-mod-lumber.lua"})
+      local job={dim=farm.dim,spots={},running=true,turtles={}}
+      for id=2,farm.count+1 do
+        job.turtles[tostring(id)]={turtle={id=id,pose={x=id*3,y=64,z=0,facing=1}},fuel=1000}
+      end
+      job.turtles["8"]={turtle={id=8,pose={dim="minecraft:overworld",x=0,y=64,z=0}}}
+      assert(s.m.env.SO.store.store("so-data/lumber/job",function(v) return type(v)=="table" end).save(job))
+      s.mods.lumber=s.m.env.dofile("so-mod-lumber.lua")
+      local machines={[2]={role="worker",pose={dim=farm.dim,x=-100,y=64,z=0},seen=1000,fuel=10}}
+      local before=H.encode(machines)
+      s.mods.state.get=function() return machines end
+      s.mods.cells={list=function(owner)
+        local id=tonumber(owner:match("^lumber:(%d+)$"))
+        return id and id<8 and {{dim=farm.dim,x=id*3,y=64,z=0}} or {}
+      end}
+      s.map.tick(1000) s.ar.tick(1000)
+      for _,size in ipairs({{26,20},{29,12}}) do
+        local frame=s.screens.map.render(size[1],size[2],{})
+        for id=2,farm.count+1 do button(frame,"turtle:"..id) end
+        for _,target in ipairs(frame.buttons) do assert(target.id~="turtle:8","other dimension hidden") end
+      end
+      for id=2,farm.count+1 do
+        equal(s.elements["turtle:"..id].args[8],"#"..id)
+        equal(s.elements["turtle:"..id..":box:1"].args[2],id*3-0.05)
+        assert(s.elements["turtle:"..id..":heading"])
+        assert(s.elements["lease:lumber:"..id..":1"],"each worker's reservations visible")
+      end
+      equal(s.elements["turtle:2"].args[1],0xFFFFC24B-2^32,"registry fuel retained")
+      equal(s.elements["turtle:8"],nil)
+      equal(s.elements["hud:turtles:value"].args[4],tostring(farm.count+1),"numeric registry id deduplicated")
+      equal(H.encode(machines),before,"registry remains unchanged")
+      equal(s.mods.lumber.mapView().turtles["3"].pose.dim,nil,"snapshot remains unchanged")
+      job.turtles["3"]=nil
+      assert(s.m.env.SO.store.store("so-data/lumber/job",function(v) return type(v)=="table" end).save(job))
+      s.mods.lumber=s.m.env.dofile("so-mod-lumber.lua")
+      s.map.tick(2000) s.ar.tick(2000)
+      equal(s.elements["turtle:3"],nil,"removed worker label retired")
+      equal(s.elements["turtle:3:box:1"],nil,"removed worker box retired")
+      equal(s.elements["lease:lumber:3:1"],nil,"removed worker reservation retired")
+      assert(s.elements["turtle:2"])
+    end)
+  end
   test("broken chest labels and beams have a separate four-point budget",function()
     local s=setup()
     for i=1,10 do s.points[#s.points+1]={id="near"..i,kind="ore",dim=0,x=i,y=64,z=0} end
