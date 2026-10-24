@@ -51,6 +51,31 @@ H.pruneSnaps = function(n)
   end
 end
 
+H.segments = function(first, retain, newest)
+  local found, numbers = {}, {}
+  -- Probe saved boundaries, then include listed files beyond any gaps.
+  for _, start in ipairs({ first, retain, newest or first }) do
+    local n = start
+    while n >= 1 and n < 1000000 and n % 1 == 0 and not found[n] and H.exists(H.segPath(n)) do
+      found[n] = true
+      numbers[#numbers + 1] = n
+      n = n + 1
+    end
+  end
+  for _, name in ipairs(fs.list("so-data/log")) do
+    local digits = name:match("^(%d%d%d%d%d%d)$")
+      or name:match("^(%d%d%d%d%d%d)%.tmp$")
+      or name:match("^(%d%d%d%d%d%d)%.bak$")
+    local n = digits and tonumber(digits)
+    if n and n >= 1 and not found[n] then
+      found[n] = true
+      numbers[#numbers + 1] = n
+    end
+  end
+  table.sort(numbers)
+  return numbers
+end
+
 H.liveBytes = function(path)
   local pick = path
   if not fs.exists(pick) then pick = path .. ".bak" end
@@ -265,6 +290,7 @@ H.load = function(S)
   if latest then
     H.pruneSnaps(latest.value.n)
     S.snapN = latest.value.n
+    S.seq = math.max(S.seq, latest.value.seq)
     if S.snapN > 1 then
       previous = H.readBox(S.store, H.snapPath(S.snapN - 1), H.validSnap, 900000)
     end
@@ -277,32 +303,27 @@ H.load = function(S)
   end
   local first = 1
   if S.snap and type(S.snap.first) == "number" then first = S.snap.first end
-  if S.snap and previous then first = math.min(first, previous.value.first) end
-  S.first = first
+  local retain = first
+  if S.snap and previous then retain = math.min(first, previous.value.first) end
+  S.first = retain
   if S.snap and type(S.snap.seq) == "number" and S.snap.seq > S.seq then S.seq = S.snap.seq end
-  local i = 1
-  while i < first do
-    if H.exists(H.segPath(i)) then H.wipe(H.segPath(i)) end
-    i = i + 1
-  end
   S.last = first - 1
-  local n, guard = first, 0
-  while guard < 1000000 do
-    guard = guard + 1
+  local segments = H.segments(first, retain, latest and latest.value.first)
+  for i, n in ipairs(segments) do
     local path = H.segPath(n)
-    if not H.exists(path) then break end
-    local box = H.readBox(S.store, path, H.validSeg, C.seg)
-    if not box then
-      if H.exists(H.segPath(n + 1)) then
-        n = n + 1
-      else
-        H.wipe(path)
-        break
-      end
+    if n < retain then
+      H.wipe(path)
     else
-      H.take(S, n, box)
-      S.box = box
-      n = n + 1
+      local box = H.readBox(S.store, path, H.validSeg, C.seg)
+      if n < first then
+        -- Count files pinned for fallback without replaying their older events.
+        S.sizes[n] = box and box.bytes or H.liveBytes(path)
+      elseif box then
+        H.take(S, n, box)
+        S.box = box
+      elseif i == #segments then
+        H.wipe(path)
+      end
     end
   end
 end

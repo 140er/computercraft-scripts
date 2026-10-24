@@ -1,9 +1,9 @@
 local H = dofile("tests/so/harness.lua")
 
 return function(test, equal)
-  local function machine(files)
+  local function machine(files, directories)
     local net = H.new()
-    local m = net.machine({ id = 1, directories = true })
+    local m = net.machine({ id = 1, directories = directories ~= false })
     m.install({ "so-store.lua", "so-log.lua" })
     for path, text in pairs(files or {}) do m.files[path] = text end
     return m
@@ -84,6 +84,68 @@ return function(test, equal)
     assert(m.files["so-data/snap/000002"])
   end)
 
+  local function legacySave()
+    local files = {}
+    local function save(path, value, generation)
+      files[path] = H.encode({ schema=1, generation=generation or 1, value=value })
+    end
+    save("so-data/snap/000001", {seq=16,first=1,values={mark=16},machines={}})
+    save("so-data/snap/000002", {seq=24,first=6,values={mark=24},machines={}})
+    save("so-data/snap/latest", {n=2,seq=24,first=6}, 2)
+    save("so-data/snap/latest.bak", {n=1,seq=16,first=1})
+    -- The old checkpoint at 24 already deleted segments 1 through 5.
+    for seq=6,25 do
+      save(string.format("so-data/log/%06d",seq), {
+        events={{seq=seq,seg=seq,kind="value",data=seq}},
+      })
+    end
+    return files
+  end
+
+  test("old saves recover committed event 25 without reusing its sequence", function()
+    for _, unreadable in ipairs({false, true}) do
+      for _, directories in ipairs({false, true}) do
+        local m = machine(legacySave(), directories)
+        if unreadable then m.files["so-data/snap/000002"] = "broken" end
+        run(m, boot)
+        equal(m.env.log.snap.seq, unreadable and 16 or 24)
+        run(m, [[
+          local events = log.events()
+          assert(#events == 20 and events[1].seq == 6)
+          assert(events[#events].seq == 25 and events[#events].data == 25)
+          assert(log.status().seq == 25)
+          local ev = {kind="value",data=26}
+          assert(log.append(ev) and ev.seq == 26, "committed sequence reused")
+        ]])
+        local recovered = machine(m.files, directories)
+        run(recovered, boot .. [[
+          assert(log.status().seq == 26)
+          assert(log.events()[#log.events()].seq == 26)
+          local ev = {kind="value",data=27}
+          assert(log.append(ev) and ev.seq == 27)
+        ]])
+      end
+    end
+  end)
+
+  test("old saves skip missing leading segments and recover surviving generations", function()
+    for _, unreadable in ipairs({false, true}) do
+      local files = legacySave()
+      for n=6,8 do files[string.format("so-data/log/%06d",n)] = nil end
+      files["so-data/log/000009.tmp"], files["so-data/log/000009"] = files["so-data/log/000009"], nil
+      files["so-data/log/000025.bak"], files["so-data/log/000025"] = files["so-data/log/000025"], nil
+      if unreadable then files["so-data/snap/000002"] = "broken" end
+      local m = machine(files)
+      run(m, boot .. [[
+        local events = log.events()
+        assert(events[1].seq == 9 and events[#events].seq == 25)
+        assert(log.status().seq == 25)
+        local ev = {kind="value"}
+        assert(log.append(ev) and ev.seq == 26)
+      ]])
+    end
+  end)
+
   local function windowSeed(last)
     local m = machine()
     run(m, "local last=" .. (last or 24) .. boot .. [[
@@ -138,6 +200,7 @@ return function(test, equal)
     run(m, boot .. [[
       local previous = store.store("so-data/snap/000002",function() return true end).value
       assert(previous.first > 1 and previous.first < log.snap.first)
+      assert(log.events()[1].seg == log.snap.first, "replayed below the newest snapshot's first")
       for n=1,24 do
         local path = string.format("so-data/log/%06d",n)
         assert(fs.exists(path) == (n >= previous.first), "wrong retained segment " .. n)
