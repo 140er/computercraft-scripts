@@ -23,11 +23,12 @@ local function grid(w,h)
   g.text=function() local a={} for n=1,h do a[n]=g.line(n) end return table.concat(a,"\n") end
   return g
 end
-local function setup(w,h,wall,absent)
+local function setup(w,h,wall,absent,cfg)
   local n=H.new()
   local s=n.machine({id=1,modem=true}); install(s,true)
   if not absent then s.boot("so-server.lua"); n.flush() end
   local c=n.machine({id=2,modem=true,capacity=1000000}); install(c)
+  if cfg then c.files["so-display.cfg"]=H.encode(cfg) end
   local face=grid(w,h); local own=wall and grid(51,19) or face
   c.env.term=own
   local pull=c.env.os.pullEvent
@@ -271,4 +272,128 @@ return function(test,equal)
     equal(t.face.line(20),string.rep(" ",26))
   end)
 
+  -- Sends hello/view.sub with their game time, so tests can check the retry spacing.
+  local function stamp(t)
+    local log,send={},t.c.env.rednet.send
+    t.c.env.rednet.send=function(id,payload,protocol)
+      if type(payload)=="table" then log[#log+1]={t=payload.t,id=id,at=t.n.time} end
+      return send(id,payload,protocol)
+    end
+    return log
+  end
+  local function count(log,kind) local n=0 for _,e in ipairs(log) do if e.t==kind then n=n+1 end end return n end
+  local function stale(t)
+    t.s.env.os.queueEvent("terminate"); t.n.flush()
+    for _=1,400 do
+      if t.face.text():find("NO SERVER",1,true) then return end
+      t.n.advance(0.05)
+    end
+    error("never stale: "..t.face.text())
+  end
+  test("retryInput: a key in NO SERVER sends one hello at once, two seconds apart with timers",function()
+    local t=setup(29,12,true,false,{retryInput=true}); pair(t); t.n.advance(3)
+    stale(t)
+    local log=stamp(t)
+    event(t,"key",57)
+    equal(count(log,"hello"),1,"key did not retry at once")
+    equal(count(log,"view.sub"),1)
+    for _,e in ipairs({{"char","a"},{"key",28},{"monitor_touch","right",3,3},{"mouse_click",1,3,3}}) do
+      event(t,table.unpack(e))
+    end
+    equal(count(log,"hello"),1,"repeated input queued a retry")
+    t.n.advance(1.9)
+    event(t,"key",57)
+    equal(count(log,"hello"),1,"timer or input broke the 2 s limit")
+    t.n.advance(60)
+    for _=1,40 do event(t,"monitor_touch","right",2,2); t.n.advance(0.25) end
+    assert(count(log,"hello")>=2,"no later retries")
+    equal(count(log,"hello"),count(log,"view.sub"))
+    local prev
+    for _,e in ipairs(log) do
+      if e.t=="hello" then
+        if prev then assert(e.at-prev>=2000,"hellos "..(e.at-prev).." ms apart") end
+        prev=e.at
+      end
+    end
+  end)
+  for _,cfg in ipairs({false,{},{retryInput=false}}) do
+    test("retryInput off ("..(cfg and "key "..tostring(cfg.retryInput) or "no file").."): input in NO SERVER waits for the timer",function()
+      local t=setup(26,20,false,false,cfg or nil); pair(t); t.n.advance(3)
+      stale(t)
+      local log=stamp(t)
+      event(t,"key",57); event(t,"char","a"); event(t,"mouse_click",1,2,2)
+      equal(count(log,"hello"),0,"input retried with the flag off")
+      t.n.advance(1.1)
+      equal(count(log,"hello"),1,"timed retry changed")
+    end)
+  end
+  test("monitor_touch cannot change the server or keys in NO SERVER or pairing",function()
+    local t=setup(29,12,true,false,{retryInput=true}); pair(t); t.n.advance(3)
+    local old=t.c.files["so-keys"]
+    t.c.env.rednet.lookup=function() return 77 end
+    stale(t)
+    local log=stamp(t)
+    local function taps()
+      for y=1,12 do for x=1,29,4 do event(t,"monitor_touch","right",x,y) end t.n.advance(0.3) end
+    end
+    taps()
+    event(t,"rednet_message",1,{t="pair.required",from=1},"so")
+    assert(t.face.text():find("Old key kept",1,true),t.face.text())
+    taps()
+    t.n.advance(40); taps()
+    equal(t.c.files["so-keys"],old)
+    assert(count(log,"hello")>0)
+    for _,e in ipairs(log) do equal(e.id,1,"sent to another server") end
+    assert(not t.face.text():find("Code: %d"),t.face.text())
+  end)
+  test("Up and Down recall sent lines",function()
+    local t=setup(26,20,false)
+    t.s.env.SO.mods.display.screen("generic",function() return {rows={{text="Commands"}},buttons={}} end,function() end)
+    pair(t)
+    assert(t.s.env.SO.mods.display.command(t.c.id.." drops")) t.n.advance(1)
+    for _,line in ipairs({"scan 1","scan 2","scan 3"}) do typeText(t,line); event(t,"key",257) end
+    event(t,"key",265)
+    equal(t.face.line(20):sub(1,9),"> scan 3 ")
+    event(t,"key",265); event(t,"key",265); event(t,"key",265)
+    equal(t.face.line(20):sub(1,9),"> scan 1 ")
+    event(t,"key",264)
+    equal(t.face.line(20):sub(1,9),"> scan 2 ")
+    event(t,"key",264); event(t,"key",264)
+    equal(t.face.line(20):sub(1,3),">  ")
+    event(t,"key",264)
+    equal(t.face.line(20):sub(1,3),">  ")
+    event(t,"key",265); event(t,"key",257)
+    equal(last(t,"input").body.text,"scan 3")
+    for n=1,25 do typeText(t,"x"..n); event(t,"key",257) end
+    for _=1,30 do event(t,"key",265) end
+    equal(t.face.line(20):sub(1,6),"> x6  ")
+  end)
+  test("pasted six digits start one pairing",function()
+    local t=setup(26,20,false)
+    local log=stamp(t)
+    event(t,"paste"," "..code(t).." "); t.n.advance(1)
+    assert(t.c.files["so-keys"],"paste did not pair")
+    equal(count(log,"pair2"),2,"not one pair2 exchange")
+    assert(last(t,"view.sub"))
+  end)
+  test("paste ignores text and over-long codes while pairing",function()
+    local t=setup(26,20,false)
+    event(t,"paste","hello"); event(t,"paste","1234567")
+    equal(t.face.text():match("Code: (%d*)"),"")
+    event(t,"paste","12"); event(t,"char","3")
+    equal(t.face.text():match("Code: (%d*)"),"123")
+  end)
+  test("pasted command text is sent on Enter",function()
+    local t=setup(26,20,false)
+    t.s.env.SO.mods.display.screen("generic",function() return {rows={{text="Commands"}},buttons={}} end,function() end)
+    pair(t)
+    assert(t.s.env.SO.mods.display.command(t.c.id.." drops")) t.n.advance(1)
+    local before=last(t,"input")
+    event(t,"paste","scan 3")
+    equal(last(t,"input"),before,"paste sent before Enter")
+    equal(t.face.line(20):sub(1,9),"> scan 3 ")
+    event(t,"paste",string.rep("z",80))
+    event(t,"key",257)
+    equal(last(t,"input").body.text,"scan 3"..string.rep("z",58))
+  end)
 end
