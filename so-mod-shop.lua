@@ -1001,12 +1001,16 @@ S.tick = function(now)
     S.sample(now)
   end
   for rid, pending in pairs(S.pending) do
-    if now - pending.at >= 120000 then
+    local timeout = pending.acknowledged and 600000 or 120000
+    if now - pending.at >= timeout then
       S.pending[rid] = nil
-      if pending.kind == "order" and not pending.acknowledged then
-        if rid == S.latestOrder then S.orders = { "reply timed out" } end
+      if pending.kind == "order" then
+        local reason = pending.acknowledged and "no delivery" or "timed out"
+        if rid == S.latestOrder then S.orders = { pending.acknowledged and reason or "reply timed out" } end
         if pending.entry then pending.entry.status = "failed" end
-        if pending.view and pending.view.orderRid == rid then pending.view.order = "Order: failed, timed out" end
+        if pending.view and pending.view.orderRid == rid then
+          pending.view.order, pending.view.orderDetail = "Order: failed, " .. reason, reason
+        end
       end
     end
   end
