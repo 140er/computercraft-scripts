@@ -255,14 +255,20 @@ function M.travel(from, goal, point, job, row)
     end
   end
 end
-local function blocked(job, cell)
-  return (job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
+function M.impassable(job, cell, lookup, protected)
+  local key = M.key(cell)
+  local known = lookup and lookup(cell)
+  return (job.digFailures and job.digFailures[key] or 0) >= 3
+    or job.skipped and job.skipped[key]
+    or P.heightError(job.dim or cell.dim or "minecraft:overworld",cell.y)
+    or protected and M.same(cell,protected)
+    or known and (known.protected or P.chestPresent({ok=true,data=known}))
 end
-local function bypass(job, from, cell, target)
+local function bypass(job, from, cell, target, lookup, protected)
   local dx,dy,dz = cell.x-from.x,cell.y-from.y,cell.z-from.z
   target = target or {dim=from.dim,x=cell.x+dx,y=cell.y+dy,z=cell.z+dz}
   for _=1,16 do
-    if not blocked(job,target) then break end
+    if not M.impassable(job,target,lookup,protected) then break end
     target = {dim=from.dim,x=target.x+dx,y=target.y+dy,z=target.z+dz}
   end
   local queue, head, seen, parents = {from}, 1, {[M.key(from)]=0}, {}
@@ -283,7 +289,7 @@ local function bypass(job, from, cell, target)
     for _, offset in ipairs({{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) do
       local nextCell={dim=from.dim,x=p.x+offset[1],y=p.y+offset[2],z=p.z+offset[3]}
       local key=M.key(nextCell)
-      if not seen[key] and not blocked(job,nextCell) and not P.heightError(job.dim or from.dim or "minecraft:overworld",nextCell.y) then
+      if not seen[key] and not M.impassable(job,nextCell,lookup,protected) then
         seen[key],parents[key]=seen[M.key(p)]+1,p queue[#queue+1]=nextCell
       end
     end
@@ -295,16 +301,39 @@ local function detourGoal(path, pose)
   return path[1]
 end
 local nextOne
+local function reroute(job, row, lookup, inv, fuel, cell, target)
+  local path=bypass(job,row.pose,cell,target,lookup,row.trip and row.trip.point)
+  if not path then return {kind="skip",steps={},cells={},cell=row.goal,detour=false} end
+  local cursor={pose=row.pose,goal=row.goal,trip=row.trip,veins=row.veins,detour=path}
+  local action=nextOne(job,cursor,lookup,inv,fuel)
+  action.detour=path
+  return action
+end
 nextOne = function(job, row, lookup, inv, fuel)
   local p, goal = row.pose, row.goal
   local out = { steps = {}, cells = {}, pose = p }
   if not goal or M.same(p, goal) then out.kind = "arrived" return out end
+  local boundary = P.heightError(job.dim or p.dim or "minecraft:overworld",goal.y)
+  if boundary then out.kind,out.error="hold",boundary return out end
+  local protected = row.trip and row.trip.point
+  if M.impassable(job,goal,lookup,protected) then
+    out.kind,out.cell,out.detour="skip",goal,false
+    return out
+  end
+  for _, cell in ipairs(row.detour or {}) do
+    if M.impassable(job,cell,lookup,protected) then
+      local cursor={pose=p,goal=row.goal,trip=row.trip,veins=row.veins}
+      local action=nextOne(job,cursor,lookup,inv,fuel)
+      if action.detour == nil then action.detour=false end
+      return action
+    end
+  end
   local detour=detourGoal(row.detour,p)
   local tripRoute
   if detour then goal=detour
   elseif row.trip then
     tripRoute = M.travel(p, goal, row.trip.point, job, row)
-    if not tripRoute or not tripRoute[1] then out.kind, out.error = "hold", "no route around drop" return out end
+    if not tripRoute or not tripRoute[1] then return reroute(job,row,lookup,inv,fuel,goal,goal) end
     goal = tripRoute[1]
   end
   local dir, want
@@ -317,20 +346,12 @@ nextOne = function(job, row, lookup, inv, fuel)
   local turn = want and M.turn(p, want)
   if turn then out.steps = { turn } out.pose = P.apply(p, turn.op) out.kind = "turn" return out end
   local cell = M.cell(p, dir)
-  if blocked(job,cell) then
-    local target = not row.trip and M.distance(p,goal)<=32 and goal or nil
+  if M.impassable(job,cell,lookup,protected) then
+    local target = not row.trip and M.distance(p,row.goal)<=32 and row.goal or nil
     for i=2,#(tripRoute or {}) do
-      if not blocked(job,tripRoute[i]) then target=tripRoute[i] break end
+      if not M.impassable(job,tripRoute[i],lookup,protected) then target=tripRoute[i] break end
     end
-    local path=bypass(job,p,cell,target)
-    if path then
-      local cursor={pose=p,goal=row.goal,trip=row.trip,veins=row.veins,detour=path}
-      local action=nextOne(job,cursor,lookup,inv,fuel)
-      action.detour=path
-      return action
-    end
-    out.kind,out.error="hold","no route around skipped cell"
-    return out
+    return reroute(job,row,lookup,inv,fuel,cell,target)
   end
   local hazard = P.heightError(job.dim or p.dim or "minecraft:overworld", cell.y)
   if hazard then out.kind, out.error = "hold", hazard return out end
@@ -352,9 +373,6 @@ nextOne = function(job, row, lookup, inv, fuel)
       end
       out.kind, out.error = "hold", job.dim == "minecraft:overworld" and "fluid needs bucket or sealing block"
         or known.name .. " needs bucket or sealing block"
-    elseif known.name:find("chest", 1, true) or known.name:find("barrel", 1, true)
-        or (known.tags and (known.tags["c:chests"] or known.tags["forge:chests"])) then
-      out.kind, out.error = "hold", "container blocks route"
     else out.steps, out.kind = { { op = "dig" .. suffix } }, "dig" out.ore = M.ore(known) and known.name or nil end
   else out.steps, out.kind, out.pose = { { op = dir } }, "move", P.apply(p, dir) end
   return out
@@ -381,7 +399,7 @@ function M.next(job, row, lookup, inv, fuel)
     out.pose = action.pose
     if action.kind ~= "move" and action.kind ~= "turn" then break end
     cursor.pose = action.pose
-    if action.detour then cursor.detour = action.detour end
+    if action.detour ~= nil then cursor.detour = action.detour or nil end
     if action.kind == "move" and (not row.trip and row.pose.y == row.goal.y
         or row.trip and row.trip.shared~=false and not M.inLane(job,action.pose)) then break end
   end

@@ -121,6 +121,98 @@ return function(test,equal)
     end)
   end
 
+  test("mining replans a bedrock detour around a newly inspected chest",function()
+    local s=setup() local worker=s.add(2,0)
+    assert(s.server.env.SO.mods.drops.add({id="all",dim=0,x=-10,y=0,z=0,side="front",kind="any"}))
+    s.command("home 0 0 0 n") s.command("bottom -2") s.command("length 4") s.command("mode fast")
+    s.command("continuous on") s.command("branches 1")
+    local bedrock,chest="2,-2,-3","1,-2,-2"
+    s.net.world[bedrock]="minecraft:bedrock"
+    s.net.world[chest]={name="minecraft:chest",inv={}}
+    s.net.world["3,-2,-3"]="minecraft:stone"
+    local tries,inspected=0,0
+    for _,op in ipairs({"dig","digUp","digDown","inspect","inspectUp","inspectDown"}) do
+      local original=worker.env.turtle[op]
+      worker.env.turtle[op]=function(...)
+        local pose={x=worker.pos.x,y=worker.pos.y,z=worker.pos.z,facing=worker.heading}
+        local target=M.cell(pose,op:find("Up") and "up" or op:find("Down") and "down" or "forward")
+        if op:find("dig",1,true) then
+          assert(M.key(target)~=chest,"mining tried to dig the chest")
+          if M.key(target)==bedrock then tries=tries+1 return false,"Unbreakable block detected" end
+        elseif M.key(target)==chest then inspected=inspected+1 end
+        return original(...)
+      end
+    end
+    s.command("start")
+    for _=1,240 do
+      s.net.advance(1)
+      assert(not s.server.error,tostring(s.server.error))
+      assert(not worker.error,tostring(worker.error))
+      local row=s.job().turtles["2"]
+      assert(row.state~="hold",tostring(row.error))
+      if s.job().progress.done==1 then break end
+    end
+    equal(tries,3) assert(inspected>0,"the detour never discovered the chest")
+    equal(s.net.world[chest].name,"minecraft:chest")
+    equal(s.net.world["3,-2,-3"],nil)
+    equal(s.job().progress.done,1) equal(s.job().turtles["2"].state,"done")
+  end)
+
+  test("mining detours avoid known containers, protected cells and failed digs",function()
+    local job={dim="minecraft:overworld",digFailures={["2,-2,-3"]=3}}
+    local chest={x=1,y=-2,z=-2}
+    local protected={x=1,y=-1,z=-3}
+    local row={pose={x=1,y=-2,z=-3,facing=1},goal={x=3,y=-2,z=-3},detour={chest}}
+    local function lookup(cell)
+      if M.same(cell,chest) then return {name="minecraft:chest"} end
+      if M.same(cell,protected) then return {name="minecraft:stone",protected=true} end
+      return false
+    end
+    local action=M.next(job,row,lookup,{},4000)
+    assert(action.detour and #action.detour>0,"stale detour was not replanned")
+    for _,cell in ipairs(action.detour) do assert(not M.impassable(job,cell,lookup)) end
+    assert(M.impassable(job,{x=0,y=-2,z=0},lookup,{x=0,y=-2,z=0}),"drop point was not protected")
+    for _,block in ipairs({{name="minecraft:barrel"},{name="minecraft:shulker_box"},
+      {name="mod:box",tags={["c:chests"]=true}}}) do
+      assert(M.impassable(job,chest,function() return block end),block.name.." was not avoided")
+    end
+  end)
+
+  test("mining skips an unreachable goal instead of holding",function()
+    local job={dim="minecraft:overworld"}
+    local row={pose={x=1,y=-2,z=-3,facing=1},goal={x=3,y=-2,z=-3}}
+    local action=M.next(job,row,function(cell)
+      if M.same(cell,row.pose) or M.same(cell,row.goal) then return false end
+      return {name="minecraft:barrel"}
+    end,{},4000)
+    equal(action.kind,"skip") equal(action.cell,row.goal) equal(#action.steps,0)
+  end)
+
+  test("mining completes skipped branch cells when no detour exists",function()
+    local s=setup() local worker=s.add(2,0)
+    assert(s.server.env.SO.mods.drops.add({id="all",dim=0,x=-10,y=0,z=0,side="front",kind="any"}))
+    s.command("home 0 0 0 n") s.command("bottom -2") s.command("length 4") s.command("mode fast")
+    s.command("continuous on") s.command("branches 1") s.command("start")
+    local enclosed=false
+    for _=1,240 do
+      s.net.advance(1)
+      assert(not s.server.error,tostring(s.server.error))
+      assert(not worker.error,tostring(worker.error))
+      local row=s.job().turtles["2"]
+      if not enclosed and row.pose.x==1 and row.pose.y==-2 and row.pose.z==-3 then
+        for _,delta in ipairs({{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}) do
+          s.net.world[(1+delta[1])..","..(-2+delta[2])..","..(-3+delta[3])]="minecraft:barrel"
+        end
+        enclosed=true
+      end
+      assert(row.state~="hold",tostring(row.error))
+      if s.job().progress.done==1 then break end
+    end
+    assert(enclosed) equal(s.job().progress.done,1)
+    equal(s.job().turtles["2"].state,"done")
+    assert(s.job().skipped["4,-2,-3"],"unreachable branch end was not skipped")
+  end)
+
   for _,duringReturn in ipairs({false,true}) do
     test("removed miner returns its unfinished claim, returning="..tostring(duringReturn),function()
       local s=setup() local worker=s.add(2,0)

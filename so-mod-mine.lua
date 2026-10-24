@@ -28,7 +28,8 @@ end
 local function emit(kind, data) call("state", "emit", kind, data) end
 local function owner(id) return "mine:" .. id end
 local function skipped(cell)
-  return cell and (job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
+  return cell and ((job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
+    or job.skipped and job.skipped[M.key(cell)])
 end
 local function failedDig(id, row, cell, reason)
   local key = M.key(cell)
@@ -408,6 +409,11 @@ local function report(_, id, results, lease)
       elseif action.kind == "inspect" or action.kind == "scan" then
         local result = results[#results]
         S.known[M.key(action.cell)] = result.ok and result.data or false
+        if row.detour and M.impassable(job,action.cell,lookup,row.trip and row.trip.point) then
+          for _, cell in ipairs(row.detour) do
+            if M.same(cell,action.cell) then row.detour, row.error = nil, nil break end
+          end
+        end
         if action.kind == "scan" then
           row.scan.index = row.scan.index + 1
           if result.ok and result.data and (result.data.name == "minecraft:lava" or result.data.name == "minecraft:water") then row.fluid = action.cell end
@@ -493,6 +499,18 @@ local function report(_, id, results, lease)
       and (not S.handoffAt or now-S.handoffAt>50) then plan(id,row) end
 end
 local function send(id, row, action)
+  if action.kind == "skip" then
+    job.skipped = job.skipped or {}
+    job.skipped[M.key(action.cell)] = true
+    row.detour, row.error = nil, nil
+    if row.returning then
+      keepBranch(row.returning.branch)
+      row.returning, row.state = nil, "done"
+    end
+    row.trip, row.resumeTrip = nil, nil
+    emit("mine.alert",{id=id,text="skipped unreachable cell "..M.key(action.cell)})
+    return save()
+  end
   if #action.steps == 0 then return false end
   for _, step in ipairs(action.steps) do
     if step.op == "dig" or step.op == "digUp" or step.op == "digDown" then
@@ -507,7 +525,7 @@ local function send(id, row, action)
     end
   end
   for _, part in ipairs(action.actions or {action}) do
-    if part.detour then row.detour = part.detour end
+    if part.detour ~= nil then row.detour = part.detour or nil end
   end
   local proposed=action
   action = P.rangeBatch(mod("lease"), id, action)
@@ -769,7 +787,8 @@ plan = function(id,row)
     if not row.goal and last and not skipped(last) and not M.same(row.pose,last) then row.goal=last end
     if not row.goal and last and skipped(last) and M.inLane(job,row.pose) then
       local endPose=SO.store.copy(last) endPose.facing=(job.home.facing+1)%4
-      row.goal=M.cell(endPose,"forward")
+      local exit=M.cell(endPose,"forward")
+      if not skipped(exit) then row.goal=exit end
     end
     if not row.goal then
       for _, item in ipairs(row.inv) do
@@ -1493,7 +1512,7 @@ local function command(event)
     end
   else S.error="invalid mining command" return end
   if geometry and cmd ~= "branches" and cmd ~= "continuous" then
-    job.progress, job.unfinished, job.digFailures = {nextBranch=0,done=0}, {}, {}
+    job.progress, job.unfinished, job.digFailures, job.skipped = {nextBranch=0,done=0}, {}, {}, {}
     S.known, S.trailDone, S.trailOrder = {}, {}, {}
     for id, row in pairs(job.turtles) do
       row.branch, row.rebuild, row.index, row.counted, row.reclaimed = nil, nil, nil, nil, nil
