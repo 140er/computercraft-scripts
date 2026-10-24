@@ -658,6 +658,20 @@ return function(test, equal, read)
       equal(m.env.fs.exists("/.so-prev"), false)
     end
   end)
+  test("SO9 rollback deletes an enroll token the older worker would keep", function()
+    local m = installed("worker")
+    m.run("update")
+    m.files["so-enroll"] = "token and secret"
+    m.files["so-keys"] = "pairing"
+    m.source = m.files["install.lua"]
+    m.run("rollback")
+    equal(m.files["so-enroll"], nil)
+    equal(m.files["so-keys"], "pairing")
+    -- A refused rollback leaves it alone.
+    m.files["so-enroll"] = "token and secret"
+    equal(pcall(m.run, "rollback"), false)
+    equal(m.files["so-enroll"], "token and secret")
+  end)
   test("SO9 pinned bootstrap retains the previous release without a handoff update flag", function()
     local m = installed("worker")
     m.source = source:gsub(", updating = updating", "")

@@ -46,6 +46,8 @@ and listeners use `listener(sender, message)`.
   `{ code, expires }` only for a paired requester. It reuses that requester's
   pending invitation and returns nil while another requester or the terminal
   owns one. New invitations use `pair.invite` and also appear on the terminal.
+  With `so-server.cfg` `enroll = true` it adds the built-in `enroll` handler and
+  `SO.enroll` with `open`, `view`, `close` and `decide`; otherwise `SO.enroll` is nil.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
   Calls are `encode(value)`, `decode(value)`, `build(key, t, body, rid)`,
   `sign(key, msg)`, `macOk(key, msg)`, `fresh(msg)`, `bind(keyFor)`,
@@ -68,6 +70,11 @@ and listeners use `listener(sender, message)`.
   Kinds `reject` and `guess` return true and then true when they burned the code.
   `machineKey` turns a pairing secret into the stored 64-hex key with HKDF-SHA512.
   `join` sends only `pair2`.
+  Batch enrollment adds `enrollOpen(owner)`, `enrollView(owner)`, `enrollClose()`,
+  `enrollDecide(id, n, approve)` and `enrollAnswer(from, body)` on the server,
+  `enroll(kind, show)` and `enrollSave(text)` on devices, `enrollToken(text)` and
+  `enrollDrop(id)`, which `forget` calls. The window and its token stay in memory.
+  See [enroll](server-only/PROTOCOL.md#enroll).
   `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
   SHA-512, Elligator2 and CPace helpers that tests check against the draft vectors. The hint check only authorizes a prompt;
   it never removes a saved key.
@@ -614,6 +621,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   the lava coordinates. See the protocol for the remaining fluid race.
   `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
   adjacent inventories. The default side is down.
+  An unpaired worker with `so-enroll` enrolls with the token's server before any
+  lookup. The `Code:` prompt also accepts a pasted token, shown masked.
   It accepts authenticated server batches, not planner decisions. Keep it small
   and add no new turtle files.
 - [display.lua](../display.lua) pairs, sends `hello` and `view.sub`, draws
@@ -674,7 +683,9 @@ that list or the running installer's list, plus unlisted root `so-mod-*.lua` fil
 Those deletions share the backup manifest and roll back with the replacements.
 `/.so-revision` and `/.so-files` also participate in the swap.
 
-`/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
+`install <token>` on a fresh turtle install passes an enroll token to the
+pinned installer, which writes `so-enroll` after the swap. Other roles refuse a
+token. `/.so-role` contains the plain role name. Updates trim surrounding whitespace. `startup.lua` runs installer recovery,
 then the role program. A fresh server install writes `so-server.cfg` as the
 plain table `{ pos = { dim = string, x = number, y = number, z = number } }`.
 The installer uses GPS or integer manual coordinates. X and Z are bounded to
@@ -703,6 +714,8 @@ and uses the same manifest swap. `/.so-new/rollback` makes committed cleanup con
 the previous release instead of retaining the release being undone. An interrupted
 rollback recovers to the current release before commit or the previous release after
 commit. Rollback never downloads or changes pairing, config, data or journals.
+It deletes `so-enroll` before the swap, because an older worker never reads or
+deletes it.
 Different protocol metadata refuses rollback; missing metadata means protocol 1.
 Client tests measure the peak with one retained release and rollback staging under
 1000000 bytes.
@@ -759,7 +772,8 @@ Every `so` payload goes through `so-proto`. See
 [MAC and replay](server-only/PROTOCOL.md#mac-and-replay) for authentication.
 The message definitions are linked here rather than repeated:
 
-- [pair](server-only/PROTOCOL.md#pair), [hello](server-only/PROTOCOL.md#hello),
+- [pair](server-only/PROTOCOL.md#pair), [enroll](server-only/PROTOCOL.md#enroll),
+  [hello](server-only/PROTOCOL.md#hello),
   [ack](server-only/PROTOCOL.md#ack), [err](server-only/PROTOCOL.md#err).
 - [lease.batch](server-only/PROTOCOL.md#leasebatch),
   [step.report](server-only/PROTOCOL.md#stepreport), [beacon](server-only/PROTOCOL.md#beacon).
@@ -813,6 +827,8 @@ Do not save inside tight loops.
 - `so-data/ar` holds the four AR layer switches, enabled by default.
 - `so-journal` is the worker's bounded recovery journal. `so-code` supplies a
   boot-time pairing code and is deleted after successful worker pairing.
+  `so-enroll` holds a worker's enroll token and X25519 secret until it joins,
+  is denied or the window closes.
 
 Lease records, owner callbacks, observed ranges, lost flags and journal facts
 are memory-only. Reply/replay caches, display sessions and pictures, state

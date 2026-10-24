@@ -232,6 +232,35 @@ S.run = function()
     end,
   }
 
+  -- Batch enrollment stays off unless so-server.cfg sets enroll = true.
+  local config = type(store.read) == "function" and store.read("so-server.cfg")
+  if type(config) == "table" and config.enroll == true then
+    SO.enroll = {
+      open = pair.enrollOpen,
+      view = pair.enrollView,
+      close = pair.enrollClose,
+      decide = function(id, n, approve)
+        local ok, err = pair.enrollDecide(id, n, approve)
+        if not ok then return nil, err end
+        print("so-server: enroll " .. (approve and "approved " or "denied ") .. tostring(id))
+        local state = SO.mods.state
+        if approve and state and state.emit then state.emit("pair.done", {id=id,at=SO.now()}) end
+        return true
+      end,
+    }
+    builtin.enroll = function(msg, reply)
+      -- Network input stays out of the SO.errors ring, so no error() here.
+      local ok, t, body, event = pcall(pair.enrollAnswer, msg.from, msg.body)
+      if not ok then
+        print("so-server: enroll failed for " .. tostring(msg.from))
+        t, body, event = "err", { code = "enroll", text = "failed" }, nil
+      end
+      if event then print("so-server: enroll " .. event .. " " .. tostring(msg.from)) end
+      if event == "rejected" then view.rejected = pair.rejected() end
+      reply(t, body, pair.envelopeKey())
+    end
+  end
+
   local function replyTo(msg, t, body, key)
     if not key then key = pair.key(msg.from) end
     if not key then
@@ -284,7 +313,7 @@ S.run = function()
       return
     end
     local key
-    if msg.t == "pair2" then
+    if msg.t == "pair2" or (msg.t == "enroll" and builtin.enroll) then
       key = pair.envelopeKey()
     elseif msg.t == "pair" then
       local code = pair.pending()

@@ -890,25 +890,44 @@ W.readCode = function()
     return nil
   end
   W.codeText = W.codeText or ""
+  -- The prompt also takes an enroll token, shown masked.
+  local function shown()
+    local text = W.codeText
+    return text:find("%D") and string.rep("*", #text) or text
+  end
   term.setCursorPos(1, 5)
-  term.write("Code: " .. W.codeText)
+  term.write("Code: " .. shown())
+  if W.pairError then
+    term.setCursorPos(1, 6)
+    term.write(W.pairError)
+  end
   local timer = os.startTimer(2)
   while true do
     local ev, value = os.pullEvent()
     if ev == "timer" and value == timer then return nil end
     if ev == "char" or ev == "paste" then
-      W.codeText = (W.codeText .. tostring(value):gsub("%D", "")):sub(1, 6)
+      W.codeText = (W.codeText .. tostring(value):upper():gsub("[^%w%-]", "")):sub(1, 32)
+      if not W.codeText:find("%D") then W.codeText = W.codeText:sub(1, 6) end
     elseif ev == "key" and value == 259 then
       W.codeText = W.codeText:sub(1, -2)
-    elseif ev == "key" and value == 257 and #W.codeText == 6 then
+    elseif ev == "key" and value == 257 and W.codeText:match("^%d%d%d%d%d%d$") then
       os.cancelTimer(timer)
       local code = W.codeText
       W.codeText = ""
       return code
+    elseif ev == "key" and value == 257 and W.pair.enrollSave(W.codeText) then
+      os.cancelTimer(timer)
+      W.codeText = ""
+      return nil
     end
     term.setCursorPos(1, 5)
-    term.write("Code: " .. W.codeText .. " ")
+    term.write("Code: " .. shown() .. " ")
   end
+end
+
+W.showEnroll = function(state, fp)
+  W.stepName = "enroll " .. fp .. " " .. state
+  W.paint()
 end
 
 W.boot = function()
@@ -937,8 +956,15 @@ W.boot = function()
   W.mode = "idle"
   W.stepName = "idle"
   local saved = W.pair.peer()
+  if saved then fs.delete("so-enroll") end
   local delay, code = 2, nil
   while true do
+    -- A token names its server, so enrolling needs no lookup.
+    if not saved and fs.exists("so-enroll") then
+      local server, why = W.pair.enroll("turtle", W.showEnroll)
+      saved, W.pairError = server, not server and ("Enroll: " .. tostring(why)) or nil
+      W.stepName = "idle"
+    end
     local found = rednet.lookup("so", "server")
     W.server = type(found) == "number" and found or nil
     if saved then
