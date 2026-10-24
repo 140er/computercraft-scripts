@@ -59,7 +59,7 @@ local function setup(monitor, padded)
       scene.levels[y]=true
       return x==1 and y==60 and z==-7
     end},
-    lease={status=function(id) return scene.lost==id and {lost=true} or {} end,inRange=function() return true end},
+    lease={peek=function(id) return scene.lost==id and {lost=true} or {} end,status=function(id) return scene.lost==id and {lost=true} or {} end,inRange=function() return true end},
     drops={list=function() return {{kind="ore",dim=0,x=5,y=60,z=-5},
       {kind="fuel",dim=0,x=-5,y=64,z=2},{kind="wood",dim=0,x=-3,y=64,z=2},
       {kind="ore",dim=-1,x=10000,y=60,z=10000}} end}}}

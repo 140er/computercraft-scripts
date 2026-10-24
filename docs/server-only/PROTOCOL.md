@@ -558,6 +558,13 @@ so a lookup cannot discard a renewal or a work batch.
 
 `SO.mods.lease` dispatches worker batches. Planners call it from handlers or ticks.
 
+`lease.peek(id)` returns the same copied status fields as `status(id)` for an
+existing worker, or nil for an unknown id. It never creates a worker row.
+AR and map use `peek`; completed trails skip lease lookups entirely.
+`lease.inRange(id, pos)` also reads without creating a row, using the initial
+range of 16 for unknown workers. `status(id)` still creates a row when missing.
+
+
 `lease.send(id, steps, opts)` sends 1..16 steps through `so-proto` without waiting. `opts` has optional `ms`, `owner`, `recover`, and `pose = { dim, x, y, z, facing }`. The default duration is 60000 ms. It returns a lease id `<id>-<n>`, or nil and a reason. An open lease returns `busy`. A beaconing turtle returns `lost` unless `opts.recover` is true. Recovery still refuses an open lease with `busy`. Invalid arguments, an absent pair key, or a failed send also return nil and a reason.
 
 `lease.onReport(owner, fn)` registers one callback for an owner tag. It receives `(leaseId, turtleId, results, lease)`. The lease record has `id`, `turtleId`, `steps`, `owner`, `pose`, `expires`, and `status`. Status is `reported` after a report and `expired` after silence. An accepted report stores `lease.report = { pose, journal, fuel, inv, dug }`. Each field is type-checked independently. A bad field is omitted while valid fields remain. These facts are stored for successful batches and batches with failed or expired steps. A later registration replaces the callback.
@@ -1022,13 +1029,31 @@ in `session.mapReturn`. Input `map-back` restores that role, or status after a
 restart. This also works on the server's local monitor.
 
 `mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
-branches, turtles }`. `branches` covers assigned branches and progress.
+branches, turtles, preview?, trails }`. `branches` covers assigned branches, progress and the visible preview.
 `turtles[id]` has `{ pose, state, dim }` in world coordinates.
+`preview` has two branch endpoints, excluding the shaft and spine. It appears
+only while running, below the continuous branch limit, and when no worker has
+that branch assigned or reserved for its return. Geometry is cached by home,
+dimension, bottom, length, mode and next branch. A frame never computes a route.
+`trails` has `{ id, state, points }` rows with two endpoints each. Active lengths
+project the worker pose onto its branch and clamp to the configured length.
+Up to 64 recent completed branches remain as faint trails until START resumes
+a stopped job or the server restarts. Trail history is display-only memory.
 `lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtle }`.
 The optional turtle has `{ id, pose, state }`. These getters do not save or
 advance jobs. The map calls them from tick, together with registry, lease and
 drop APIs. Registry workers without a job also appear when their pose is known.
 Numeric drop dimensions are normalized to world dimension strings.
+
+A running mine's next branch is an amber `1` line above planned grey geometry.
+The map header replaces the scale with drawn FOCUS and BROKEN count buttons
+when broken chests exist. FOCUS centres the first broken chest at one block per
+cell and selects ALL levels. BROKEN also opens the drop list at that chest.
+Tapping a broken chest glyph opens that exact chest, on its list page. These
+controls also work on the server's monitor. The status BROKEN button and tile open the
+first broken chest. The pocket places BROKEN below its MAP/MORE header.
+A broken chest glyph replaces any covered turtle tap target. Drop-list input `focus:<id>` exits the editor, selects that
+chest and reveals its page at the next render.
 
 `render(w, h, session)` stores its state under `session.map`. `fit` starts true.
 `x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
@@ -1264,8 +1289,8 @@ through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
 - `turtles` draws a twelve-edge box and heading arrow for each worker with a
-  pose. Its short `#<id>` label uses size 0.5. State comes from the machine registry and
-  `lease.status`, with `lease.inRange` checked when available. Two minutes
+  pose. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
+  `lease.peek`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
   is exempt. Working, mining, running and lumber states use green. Other open
@@ -1283,6 +1308,18 @@ boolean values. A failed save leaves the current switches unchanged.
   ordered by distance from the configured server position, then element id.
   Without server coordinates, element id determines the order. Boxes and arrows
   remain visible when their labels exceed these limits.
+- Broken drops have a separate four-label budget, ahead of healthy labels.
+  Each visible broken label has a coral vertical beam from chest y+1 to y+7.
+  The third HUD tile shows BROKEN and the dimension's broken count when nonzero;
+  otherwise it shows DISK. The status page retains disk use.
+- The turtle layer draws one green line per active branch trail, amber for wait
+  or hold, and faint grey for completed branches. Lost, uncertain, low-fuel and
+  stale trails use the turtle marker status colours. Completed endpoints stay
+  fixed when job configuration changes. The leases layer draws the
+  next branch preview as one blue line. Each is within the 16/64 segment budgets.
+- `so-server.cfg` may set `arLabelScale` from 0.5 to 0.7 for native font trials.
+  The default remains 0.5 pending measured C13 captures. Larger scales increase
+  the vertical stack gap to half the scale. The HUD stays at its existing size.
 - The HUD starts at `(4,72)` in GUI units, below the Difficulty overlay.
   Its three 56-unit tiles have eight-unit gaps for TURTLES total, ALERTS count and DISK percent.
   Each has a translucent backing, white text and a four-pixel state bar.

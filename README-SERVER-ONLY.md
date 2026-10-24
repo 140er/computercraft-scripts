@@ -477,3 +477,12 @@ browses state history with a kind filter. `ERRORS` shows the bounded persistent
 server error log. `PREV`, `NEXT` and `BACK` work on pockets and compact monitors.
 Recent errors save at most once per 30 game seconds; a power loss can lose
 records still waiting to save.
+
+AR shows up to four broken-chest beams above the normal label budget. Its third
+HUD tile shows BROKEN while a chest in the server dimension needs attention.
+On the map, FOCUS centres the first broken chest; BROKEN opens its drop-list
+page. Tapping a broken chest opens that point. Status also has a BROKEN tile.
+The next unassigned mining branch appears in blue in AR and amber on the map.
+AR trails show active progress and up to 64 recent completed branches.
+For C13 label trials, set `arLabelScale = 0.6` in `so-server.cfg` and restart.
+Allowed scales are 0.5 to 0.7; the default stays 0.5 until measured in-game.

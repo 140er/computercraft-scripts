@@ -41,7 +41,7 @@ M.gather = function(now)
   for id, row in pairs(workers) do
     local p = row.pose
     if p and M.dim(p.dim or row.dim or mine.dim) == dim then
-      local status = M.call("lease", "status", tonumber(id) or id) or {}
+      local status = M.call("lease", "peek", tonumber(id) or id) or {}
       local range = M.call("lease", "inRange", tonumber(id) or id, p)
       local state, color = tostring(row.state or "idle"), "1"
       if status.lost or status.uncertain or range == false or state == "lost" or state == "range" or state == "out of range"
@@ -58,6 +58,10 @@ M.gather = function(now)
   if lumber.saplings and M.dim(lumber.dim) == dim then
     local p = SO.store.copy(lumber.saplings) p.kind = "saplings" scene.drops[#scene.drops+1] = p
   end
+  table.sort(scene.drops,function(a,b)
+    if (a.broken==true)~=(b.broken==true) then return not not a.broken end
+    return tostring(a.id or a.kind)<tostring(b.id or b.kind)
+  end)
   M.scene = scene
 end
 M.view = function(session)
@@ -151,6 +155,12 @@ M.render = function(w, h, session)
           or (z1<=area.z1 and z2>=area.z1 or z1<=area.z2 and z2>=area.z2) and x2>=area.x1 and x1<=area.x2) then
         c.put(x,z," ","f","d")
       end
+      local preview = s.mine.preview
+      if preview and M.dim(s.mine.dim)==s.dim and (v.level=="all" or y==preview[1].y) then
+        local a,b = preview[1],preview[2]
+        if x2>=math.min(a.x,b.x) and x1<=math.max(a.x,b.x)
+          and z2>=math.min(a.z,b.z) and z1<=math.max(a.z,b.z) then c.put(x,z," ","f","1") end
+      end
       if g then
         local ax,az = x1-g.x,z1-g.z
         local bx,bz = x2-g.x,z2-g.z
@@ -160,7 +170,7 @@ M.render = function(w, h, session)
         if (v.level=="all" or y==g.bottom) and
             (r1<=0 and r2>=0 and a2>=0 and a1<=g.count*g.gap
             or branch<=g.count and branch*g.gap<=a2 and r2>=0 and r1<=g.length) then
-          if not v.dug[(z-mapTop)*vw+x] then c.put(x,z," ","f","7") end
+          if not v.dug[(z-mapTop)*vw+x] and not (preview and c.cells[z][x][3]=="1") then c.put(x,z," ","f","7") end
         end
       end
     end
@@ -169,7 +179,7 @@ M.render = function(w, h, session)
     mark({x=g.x,z=g.z},"H","9")
   end
   for _, p in ipairs(s.drops) do
-    if visible(p) then mark(p,(p.kind or "chest"):sub(1,1):upper(),p.broken and "e" or "a") end
+    if visible(p) and not p.broken then mark(p,(p.kind or "chest"):sub(1,1):upper(),"a") end
   end
   if s.server and visible(s.server) then mark(s.server,"@","9") end
   local occupied = {}
@@ -196,7 +206,28 @@ M.render = function(w, h, session)
       if free then c.put(x+1,z,t.id,"f",t.color) end
     end
   end end
-  c.header("MAP", "N ^ 1:"..scale)
+  local marked={}
+  for _,p in ipairs(s.drops) do if p.broken and p.id and visible(p) then
+    local x,z=project(p.x,p.z)
+    local key=z*vw+x
+    if not marked[key] then
+      local px,pz=mark(p,(p.kind or "chest"):sub(1,1):upper(),"e")
+      if px then
+        for i=#c.buttons,1,-1 do
+          local b=c.buttons[i]
+          if b.x==px and b.y==pz and b.id:match("^turtle:") then table.remove(c.buttons,i) end
+        end
+        c.hit("map-drop:"..p.id,px,pz,1,1) marked[key]=true
+      end
+    end
+  end end
+  local broken=0
+  for _,p in ipairs(s.drops) do if p.broken then broken=broken+1 end end
+  c.header("MAP", broken>0 and "" or "N ^ 1:"..scale)
+  if broken>0 then
+    if w>=26 then c.button(6,M.headerRow,7,"FOCUS","map-focus","7",1) end
+    c.button(w-9,M.headerRow,10,"BROKEN "..broken,"map-broken","e",1)
+  end
   local controls = {{"BACK","map-back"},{"FIT","map-fit"},{"+","map-in"},{"-","map-out"}}
   local cols = U.grid(w,h,4)
   for i,b in ipairs(controls) do c.button(cols[i].x,h-2,cols[i].w,b[1],b[2],i==2 and "9" or "7",1) end
@@ -210,7 +241,14 @@ end
 M.input = function(event)
   if not event.session then return end
   local v,id = M.view(event.session), event.id
-  if id=="map-fit" then v.fit=true
+  local dropId = type(id)=="string" and id:match("^map%-drop:(.+)$")
+  if id=="map-broken" or id=="map-focus" or dropId then
+    for _,p in ipairs(M.scene.drops) do if p.broken and (not dropId or p.id==dropId) then
+      v.fit,v.x,v.z,v.scale,v.level=false,p.x,p.z,1,"all"
+      if id~="map-focus" and event.open then event.open("generic",{"list","focus:"..p.id}) end
+      break
+    end end
+  elseif id=="map-fit" then v.fit=true
   elseif id=="map-level" then v.level=({mine="surface",surface="all",all="mine"})[v.level]
   elseif id=="map-in" or id=="map-out" then
     v.fit=false v.scale=math.max(1,math.min(4096,(v.scale or 1)*(id=="map-in" and 0.5 or 2)))

@@ -164,7 +164,7 @@ return function(test,equal)
     equal(got.palette,U.palette);equal(got.scale,0.5)
     local text=capture(got,57,24).picture().text
     assert(text[5]:find('TURTLES',1,true));assert(text[12]:find('ORE TODAY',1,true))
-    assert(text[19]:find('DROPS',1,true));assert(text[12]:find('DISK',1,true))
+    assert(text[19]:find('BROKEN',1,true));assert(text[12]:find('DISK',1,true))
     assert(d.far(2,true));equal(frame(2).scale,1)
   end)
   test('UI1 roleless machine rows count turtles, open leases and lost workers',function()

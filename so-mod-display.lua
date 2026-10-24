@@ -434,7 +434,7 @@ D.gather = function()
     {label="LOGS TODAY",value=today and tostring(today.logs) or "-",sub=today and "" or "no source",bg=today and "d" or "c"},
     {label="DISK",value=disk,sub=diskSub,bg=(diskState.pending or 0) > 0 and "e" or ratio and (ratio >= 0.8 and "e" or "d") or "c"},
     {label="DISPLAYS",value=tostring(displays),sub=stale > 0 and (stale .. " stale") or "all fresh",bg=stale > 0 and "1" or "d"},
-    {label="DROPS",value=tostring(#points),sub=broken .. " broken",bg=broken > 0 and "1" or "d"},
+    {label=broken>0 and "BROKEN" or "DROPS",value=tostring(broken>0 and broken or #points),sub="",bg=broken > 0 and "e" or "d",id=broken>0 and "broken" or nil},
     {label="PAIR",value="",sub="",bg="9"},
   }
   model.oreShort = model.tiles[4].sub
@@ -523,13 +523,17 @@ D.statusFrame = function(session, w, h, now)
     local page = (session.page or 0) % math.max(1, math.ceil(#model.tiles / 2))
     local c = U.canvas(w, h)
     U.pocketHeader(c,"FLEET")
+    if copy.tiles[8].id=="broken" then c.button(2,3,w-2,"BROKEN "..copy.tiles[8].value,"broken","e",1) end
     for i = 1, 2 do
       local index = indices[page * 2 + i]
       local tile = copy.tiles[index]
       if tile then
         local y = 4 + (i - 1) * 8
         if index == 9 then c.button(2,y+1,w-2,"PAIR","pair","9",3)
-        else c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7) end
+        else
+          c.tile(1, y, w, tile.label, tile.value, index == 4 and copy.oreShort or tile.sub, tile.bg, 7)
+          if tile.id then c.hit(tile.id,1,y,w,7) end
+        end
         if index == 6 then c.hit("disk",3,y+1,4,1) end
       end
     end
@@ -929,7 +933,11 @@ D.load = function()
     for id, on in pairs(D.box.value.far) do D.saved.far[tostring(id)] = on end
   end
   if U then D.register("disk", D.diskRender, function() end) end
-  D.register("status", D.statusRender, function() end)
+  D.register("status", D.statusRender, function(event)
+    if event.id~="broken" or not event.open then return end
+    local points = SO.mods.drops and SO.mods.drops.list() or {}
+    for _,p in ipairs(points) do if p.broken then event.open("generic",{"list","focus:"..p.id}) return end end
+  end)
   D.register("generic", D.genericRender, function() end)
 end
 

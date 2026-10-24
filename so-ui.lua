@@ -191,13 +191,17 @@ end
 U.status = function(model, w, h)
   local C, size = U.canvas(w, h), U.size(w, h)
   local tiles = model.tiles
-  C.header((size == 'P' or size == 'XS') and 'FLEET' or 'STATUS', (size == 'XS' or size == 'P') and 'ok' or model.time or 'ok')
+  C.header((size == 'P' or size == 'XS') and 'FLEET' or 'STATUS', tiles[8] and tiles[8].id=='broken' and '' or (size == 'XS' or size == 'P') and 'ok' or model.time or 'ok')
+  local broken=tiles[8] and tiles[8].id=="broken" and tiles[8].value
   local function draw(index, x, y, width, height)
     local t = tiles[index]
     if not t then return end
     if index == 9 then
       C.button(math.max(2,x),y+1,math.max(0,math.min(w-1,x+width-1)-math.max(2,x)+1),'PAIR','pair','9',3)
-    else C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height) end
+    else
+      C.tile(x,y,width,t.label,t.value,t.sub,t.bg,height)
+      if t.id then C.hit(t.id,x,y,width,height) end
+    end
     if index == 6 then C.hit("disk",math.max(2,x)+1,y+1,4,1) end
   end
   if size == 'P' then
@@ -230,6 +234,10 @@ U.status = function(model, w, h)
       local label=labels[i]
       C.button(col.x,navY,col.w,label,label == 'MORE' and 'generic' or label:lower(),label == 'SHOP' and 'a' or '7',navHeight)
     end
+  end
+  if broken and w>=26 then
+    if size=='P' then C.button(2,3,w-2,"BROKEN "..broken,"broken","e",1)
+    else C.button(w-14,2,10,"BROKEN "..broken,"broken","e",1) end
   end
   return C.frame()
 end

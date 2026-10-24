@@ -22,6 +22,10 @@ A.box = SO.store.store("so-data/ar", A.valid)
 if A.box.value then A.layers = SO.store.copy(A.box.value) end
 A.config = SO.store.read("so-server.cfg") or {}
 A.dim = A.config.pos and A.config.pos.dim
+if type(A.config.arLabelScale)=="number" then
+  A.labelScale=math.max(0.5,math.min(0.7,A.config.arLabelScale))
+  A.labelGap=math.max(A.labelGap,A.labelScale*0.5)
+end
 A.sameDim = function(dim)
   return A.dim == nil or (A.dimensions[dim] or dim) == (A.dimensions[A.dim] or A.dim)
 end
@@ -122,7 +126,7 @@ A.scene = function(now)
   local lostCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose
-    local status = A.call("lease", "status", tonumber(id) or id) or {}
+    local status = A.call("lease", "peek", tonumber(id) or id) or {}
     local color = A.turtle(machine, status, now, p and A.call("lease", "inRange", tonumber(id) or id, p))
     if machine.role == nil or machine.role == "worker" or machine.role == "turtle" then
       turtleCount = turtleCount + 1
@@ -144,6 +148,25 @@ A.scene = function(now)
       end
     end
   end
+  local mine = A.call("mine", "mapView") or {}
+  if A.layers.turtles and A.sameDim(mine.dim) then
+    for _, trail in ipairs(mine.trails or {}) do
+      local a,b = trail.points[1],trail.points[2]
+      local color = 0x504A5468
+      if trail.state~="done" then
+        local machine = machines[trail.id] or machines[tonumber(trail.id)] or {}
+        local status = A.call("lease","peek",tonumber(trail.id) or trail.id) or {}
+        color = A.turtle({state=trail.state,seen=machine.seen,fuel=machine.fuel},status,now,
+          machine.pose and A.call("lease","inRange",tonumber(trail.id) or trail.id,machine.pose))
+        if status.uncertain then color=A.red end
+      end
+      line("trail:"..trail.id, color, a.x+0.5,a.y+0.25,a.z+0.5,b.x+0.5,b.y+0.25,b.z+0.5)
+    end
+  end
+  if A.layers.leases and mine.preview and A.sameDim(mine.dim) then
+    local a,b = mine.preview[1],mine.preview[2]
+    line("preview:branch", A.blue, a.x+0.5,a.y+0.5,a.z+0.5,b.x+0.5,b.y+0.5,b.z+0.5)
+  end
   if A.layers.leases then
     local owners = {}
     for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
@@ -163,26 +186,35 @@ A.scene = function(now)
       if bounds then box("lease:" .. owner, A.blue, unpack(bounds)) end
     end
   end
+  local drops = A.call("drops", "list") or {}
+  local broken = 0
+  for _,p in ipairs(drops) do if p.broken and A.sameDim(p.dim) then broken=broken+1 end end
   if A.layers.drops then
-    for _, p in ipairs(A.call("drops", "list") or {}) do
+    for _, p in ipairs(drops) do
       if A.sameDim(p.dim) then
         local key, color = "drop:" .. p.id, p.broken and A.red or A.white
         box(key .. ":box", color, p.x + 0.2, p.y + 0.2, p.z + 0.2, p.x + 0.8, p.y + 0.8, p.z + 0.8)
-        label(key, color, p, p.kind:sub(1, 1):upper(), "drop", "drop:" .. p.kind)
+        label(key, color, p, p.kind:sub(1, 1):upper(), p.broken and "broken" or "drop", p.broken and "broken" or "drop:" .. p.kind)
       end
     end
   end
-  table.sort(labels, function(a, b) return a.distance < b.distance or a.distance == b.distance and a.id < b.id end)
+  table.sort(labels, function(a, b)
+    if (a.kind=="broken")~=(b.kind=="broken") then return a.kind=="broken" end
+    return a.distance < b.distance or a.distance == b.distance and a.id < b.id
+  end)
   local placed, counts = {}, {}
   for _, row in ipairs(labels) do
     local count = counts[row.group] or 0
-    if count < A.labelLimits[row.kind] then
+    if count < (row.kind=="broken" and 4 or A.labelLimits[row.kind]) then
       counts[row.group] = count + 1
+      if row.kind=="broken" then
+        line(row.id..":beam", A.red, row.x,row.y-0.25,row.z,row.x,row.y+5.75,row.z)
+      end
       local moved
       repeat
         moved = false
         for _, other in ipairs(placed) do
-          if (row.x - other.x)^2 + (row.z - other.z)^2 <= 4 and math.abs(row.y - other.y) < A.labelGap then
+          if (row.x - other.x)^2 + (row.z - other.z)^2 <= 4 and math.abs(row.y - other.y) < A.labelGap - 0.000001 then
             row.y = other.y + A.labelGap
             moved = true
           end
@@ -244,6 +276,7 @@ A.scene = function(now)
     { "alerts", "ALERTS", tostring(alertCount), alertCount > 0 and A.red or A.green },
     { "disk", "DISK", ratio and math.floor(ratio * 100) .. "%" or "?", ratio and (ratio >= 0.8 and A.red or A.green) or A.grey },
   }
+  if broken>0 then tiles[3]={"broken","BROKEN",tostring(broken),A.red} end
   for i, tile in ipairs(tiles) do
     local id, x = "hud:" .. tile[1], A.hudX + (i - 1) * 64
     put(id .. ":backing", "drawRect2D", A.backing, x, hudTop, x + 56, hudTop + 30)
