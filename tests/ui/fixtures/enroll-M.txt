@@ -1,0 +1,73 @@
+57x24 Panel ENROLL 57x24
+ PANEL  -----------------------------------------------  
+                                                         
+ ENROLL ------------------------------------------ 9:54  
+ 1-K7QP-3MXA-9WTD-HR2E                                   
+ joined ··········································· 3/20 
+ PENDING -------------------------------------------- 3  
+ #10 computer                             3296 [OK] [NO] 
+ #11 turtle                               8F1A [OK] [NO] 
+ #12 turtle                               C0DE [OK] [NO] 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  APPROVE ALL                                     CLOSE  
+00000000ccccccccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+08888880cccccccccccccccccccccccccccccccccccccccccc0000000
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc000000
+088888880cccccccccccccccccccccccccccccccccccccccccccc0800
+00000888888880000000000000000000000000000000000899808ee80
+00000888888000000000000000000000000000000000000899808ee80
+00000888888000000000000000000000000000000000000899808ee80
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999999999990000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f7777777777777fffffffffffffffffffffffffffffffffff7777777f

@@ -1,0 +1,54 @@
+# Build, the health pages and turtle details. docs/ui/schematic/other.py draws the fixtures from
+# these lines and tests/ui/ra2-other.lua feeds them to so-mod-build, so-mod-health and U.turtle.
+
+# A walls job blocked on material: 11 x 3 x 11 is 120 cells, 37 placed.
+build shape walls
+build area 10 64 -5 20 66 5
+build material minecraft:cobblestone
+build turtle 8 12 67 -5 1
+build home 12 64 -5 1
+build cursor 38
+build running
+build fuel 840
+build blocked material
+build alert out of material
+
+# Turtle #2 as tests/ui/w2screens.lua sets it up: mining branch 0, low fuel, one slot of ore.
+detail now 100000
+detail id 2
+detail role mining
+detail state mining
+detail pose 12 60 -5 1
+detail fuel 42
+detail inv 14
+detail lease lease-2
+detail step forward
+detail ore 14
+detail seen 97000
+detail branch 0
+detail done 12
+detail total 48
+# The pose editor's draft for an uncertain #2.
+draft 12 60 -5 1
+
+# The server's health at now. The disk numbers are fixed here, so no fixture depends on the host.
+health now 3600000
+health runtime 600000 50 50 4
+health log 1234 4 81920 7 3480000
+health disk 0.42 524288
+health modems 1
+health clock 46800000
+health machine 2 worker 3590000
+health machine 3 worker 3000000
+health machine 4 worker 3598000
+health lease 4 open
+health point ore broken
+health hold lumber 8 out of saplings
+health errors 2 340
+health error 3420000 tick failed: so-mod-mine.lua:120 attempt to index a nil value
+health error 3590000 lease 7 report rejected
+health event 3000000 mine.alert -
+health event 3300000 drops.broken chest 3 broken
+health event 3500000 lumber.alert out of saplings
+health event 3560000 mine.ore 3 diamond
+health event 3590000 mine.alert ore chest full

@@ -126,13 +126,14 @@ return function(test,equal)
         seen[b.id]=true
       end
       assert(not seen["forget:2"] and seen["forget:3"])
-      local first=f.rows[3].text
+      -- The PAIRED section is row 3; the keys start under it.
+      local first=f.rows[4].text
       assert(first:find("#2",1,true))
       local fingerprint=s.so.pair.list()[1].fingerprint
       equal(#fingerprint,4)
       assert(first:find(fingerprint,1,true))
       s.press(2,"paired-next")
-      assert(s.frame(2).rows[3].text~=first)
+      assert(s.frame(2).rows[4].text~=first)
       s.press(2,"paired-prev")
       assert(s.so.pairCode(3))
       s.press(2,"forget:3")

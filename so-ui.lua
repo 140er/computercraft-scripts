@@ -743,82 +743,169 @@ T.draft = function(p)
   out.facing = finite(p.facing) and p.facing % 1 == 0 and p.facing >= 0 and p.facing <= 3 and p.facing or 0
   return out
 end
+-- Turtle details in route A (docs/ui/schematic/other.py turtle): the state word in the header, an
+-- error flag, leaders, branch or spot progress, then the job's chips with BACK on the last row, where
+-- D.turtleInput finds it even when composing fails.
 T.render = function(w,h,selection,row,now)
   local c = U.canvas(w,h)
   row = row or {}
-  local color = (row.uncertain or row.error) and 'e' or
-    ({lost='e',range='e',waiting='1',['wait lane']='1',hold='1',stopped='c',done='b'})[row.state] or 'd'
-  c.header('#'..selection.id, '')
+  local gap, lw, name = h >= 16 and 1 or 0, math.min(w - 2, 36), 'TURTLE #'..selection.id
   if selection.draft then
     local p = T.draft(selection.draft)
-    c.put(2,3,'POSE '..T.pose(p))
+    c.bar(name, nil, nil, row.uncertain and 'pose ?' or '', 'e')
+    local y = 2 + gap
+    c.section(2, y, w - 2, 'POSE', T.pose(p), '0')
     for i,axis in ipairs({'x','y','z','facing'}) do
-      local y = 3+i*(h >= 19 and 3 or 1)
-      local value = axis == 'facing' and ({[0]='N','E','S','W'})[p.facing] or p[axis]
-      c.put(2,y,axis:upper()..' '..value)
-      c.button(w-9,y,4,'-','pose:'..axis..':-1','7',1)
-      c.button(w-4,y,4,'+','pose:'..axis..':1','7',1)
+      local ry = y + gap + 1 + (i - 1) * (h >= 19 and 2 or 1)
+      local value = axis == 'facing' and ({[0]='N','E','S','W'})[p.facing] or tostring(p[axis])
+      c.put(2, ry, axis, '8')
+      c.chip(w - 15, ry, '-', 'pose:'..axis..':-1')
+      c.put(w - 12 + math.floor((9 - #value) / 2), ry, value, '0')
+      c.chip(w - 3, ry, '+', 'pose:'..axis..':1')
     end
-    c.button(1,h-1,w,'RE-ADD','turtle-save',selection.confirm == 'add' and 'e' or '9',1)
-    c.button(1,h,w,'BACK','turtle-cancel','7',1)
+    local armed = selection.confirm == 'add'
+    U.controlRows(c, {{armed and 'CONFIRM' or 'RE-ADD', 'turtle-save', armed and 'stop' or 'primary'}},
+      {'BACK', 'turtle-cancel', 'plain'})
     return c.frame()
   end
-  c.fill(1,3,w,1,color) c.put(2,3,row.uncertain and 'POSE ?' or tostring(row.state or 'unassigned'))
-  local slots,items = 0,0
-  for _,item in pairs(row.inv or {}) do slots=slots+1 items=items+(item.count or 0) end
-  local lines = {
-    {'POS '..(row.uncertain and '?' or T.pose(row.pose)),row.uncertain and 'e' or '7'},
-    {'FUEL '..tostring(row.fuel or '-'),type(row.fuel)=='number' and row.fuel < 64 and '1' or 'd'},
-    {'INV '..slots..'/16 '..items..' items','b'},
-    {'LEASE '..tostring(row.lease or '-'),'7'},
-    {'STEP '..tostring(row.step or '-')..'  ORE '..tostring(row.ore or 0),'7'},
-    {'SEEN '..(row.seen and math.max(0,math.floor((now-row.seen)/1000))..'s' or '-'),'7'},
+  local state = row.uncertain and 'pose ?' or tostring(row.state or 'unassigned')
+  local fg = row.uncertain and 'e' or row.state and U.tone(state) or '8'
+  if #state > w - #name - 5 then state = state:match('%S+'):sub(1, math.max(0, w - #name - 5)) end
+  c.bar(name, nil, nil, state, fg)
+  local items, role = {}, row.role
+  local assigned = role == 'mining' or role == 'lumber'
+  if assigned then items[#items+1] = {role == 'mining' and 'PARK ALL' or 'PARK', 'turtle-park', 'plain'} end
+  if role == 'mining' then
+    items[#items+1] = {selection.confirm == 'remove' and 'CONFIRM' or 'REMOVE', 'turtle-remove', 'stop'}
+  end
+  if assigned and row.uncertain then items[#items+1] = {'RE-ADD', 'turtle-add', 'primary'} end
+  local top = U.controlRows(c, items, {'BACK', 'turtle-back', 'plain'})
+  local y, bottom = 2 + gap, top - 1 - gap
+  local retry = row.retry and ('retry '..math.max(0, math.ceil((row.retry - now) / 1000))..'s') or ''
+  if row.error or retry ~= '' then y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, 2) + gap end
+  local slots, count = 0, 0
+  for _,item in pairs(row.inv or {}) do slots = slots + 1 count = count + (item.count or 0) end
+  local fuel = row.fuel
+  local facts = {
+    {'pose', row.uncertain and '?' or T.pose(row.pose), row.uncertain and 'e'},
+    {'fuel', tostring(fuel or '-'), type(fuel) == 'number' and fuel < 64 and '1'},
+    {'inventory', slots..'/16 '..U.g.dot..' '..count},
+    {'lease', tostring(row.lease or '-')},
+    {'step', tostring(row.step or '-')},
+    {'ore', tostring(row.ore or 0)},
+    {'seen', row.seen and (math.max(0, math.floor((now - row.seen) / 1000))..'s') or '-'},
   }
-  local bottom = h-2
-  if h < 19 then
-    lines[2][1] = 'FUEL '..tostring(row.fuel or '-')..'  INV '..slots..'/16'
-    table.remove(lines,3)
+  local shown = math.max(0, math.min(#facts, bottom - y + 1 - (row.total and 1 + gap or 0)))
+  for i = 1, shown do
+    local f = facts[i]
+    c.leader(2, y + i - 1, lw, f[1], f[2], f[3] or (f[2] == '-' and '8' or '0'))
   end
-  for i,line in ipairs(lines) do
-    local y = i+3
-    if y < bottom then c.fill(1,y,w,1,line[2]) c.put(2,y,line[1]:sub(1,w-2)) end
-  end
-  local progressY = h >= 19 and 11 or 9
-  local label = row.role == 'lumber' and 'SPOTS' or 'B'..tostring(row.branch or '-')
   if row.total then
-    if row.done == nil then
-      c.put(2,math.min(progressY,bottom),label..' -/'..row.total)
-    elseif progressY <= bottom then
-      U.progress(c,2,progressY,math.min(12,w-2),row.done or 0,row.total,'b')
-      c.put(15,progressY,label..' '..(row.done or 0)..'/'..row.total)
+    local py = y + shown + gap
+    local label = role == 'lumber' and 'spots' or 'b'..(tonumber(row.branch) and row.branch + 1 or '-')
+    c.put(2, py, label, '8')
+    local x = 2 + #label + 1
+    if row.done == nil then c.put(x, py, '-/'..row.total, '0')
     else
-      c.put(2,9,label..' '..(row.done or 0)..'/'..row.total,'f','b')
+      local frac = row.done..'/'..row.total
+      c.progress(x, py, math.max(1, math.min(12, w - 1 - x - #frac)), row.done, row.total)
     end
   end
-  local errorText = row.error
-  if row.retry then
-    local retry = 'RETRY '..math.max(0,math.ceil((row.retry-now)/1000))..'s'
-    errorText = errorText and (errorText..' '..retry) or retry
-  end
-  if errorText then
-    local y = h >= 19 and 13 or 10
-    local limit = bottom
-    for first=1,#errorText,math.max(1,w-2) do
-      if y <= limit then c.fill(1,y,w,1,'e') c.put(2,y,errorText:sub(first,first+w-3)) end
-      y=y+1
-    end
-  end
-  local buttons = {}
-  local assigned = row.role == 'mining' or row.role == 'lumber'
-  if assigned then buttons[#buttons+1]={row.role=='mining' and 'PARK ALL' or 'PARK','turtle-park','1'} end
-  if row.role == 'mining' then buttons[#buttons+1]={'REMOVE','turtle-remove',selection.confirm=='remove' and 'e' or '7'} end
-  if assigned and row.uncertain then buttons[#buttons+1]={'RE-ADD','turtle-add','9'} end
-  for i,col in ipairs(U.grid(w,h,math.max(1,#buttons))) do
-    local b=buttons[i]
-    if b then c.button(col.x,h-1,col.w,b[1],b[2],b[3],1) end
-  end
-  c.button(1,h,w,'BACK','turtle-back','7',1)
   return c.frame()
 end
 U.turtle = T
+-- Group other (RA2): Build, the health pages and turtle details in route A. docs/ui/schematic/other.py
+-- has the same calls and makes their fixtures.
+-- Word wrap; a word longer than the width is cut. The twin of pocket.wrap.
+U.wrap = function(text, width)
+  local out, line = {}, ""
+  width = math.max(1, width)
+  for word in tostring(text):gmatch("%S+") do
+    while #word > width do
+      if line ~= "" then out[#out + 1], line = line, "" end
+      out[#out + 1], word = word:sub(1, width), word:sub(width + 1)
+    end
+    if line == "" then line = word
+    elseif #line + 1 + #word <= width then line = line .. " " .. word
+    else out[#out + 1], line = line, word end
+  end
+  if line ~= "" then out[#out + 1] = line end
+  return out
+end
+-- The text cut to width at the last space that fits, or mid-word when one word is longer.
+U.fit = function(text, width)
+  text = tostring(text)
+  if #text <= width then return text end
+  return text:sub(1, width + 1):match("^(.*%S)%s") or text:sub(1, math.max(0, width))
+end
+-- ! and the text wrapped over at most n rows, the detail muted after it when it fits, else on the
+-- next row. Returns the rows drawn.
+U.flagLines = function(C, x, y, width, text, detail, n)
+  local lines, room, dy, dx = U.wrap(text or "", width - 2), width - 2, nil, nil
+  while #lines > n do lines[#lines] = nil end
+  if detail and detail ~= "" then
+    local last = lines[#lines]
+    if last and #last + 1 + #detail <= room then dy, dx = #lines, #last + 1
+    elseif #lines < n then dy, dx = #lines + 1, 0; lines[dy] = "" end
+  end
+  if #lines == 0 then return 0 end
+  C.put(x, y, "!", "e")
+  for i, line in ipairs(lines) do C.put(x + 2, y + i - 1, line, "0") end
+  if dy then C.put(x + 2 + dx, y + dy - 1, detail, "8") end
+  return #lines
+end
+-- Tab groups from column 1, the active tab on the panel colour, a hairline after the last tab of a
+-- row. A group that does not fit beside the one before starts the next row; reserve keeps the right
+-- end of row 1 free for a visited page's x chip. Tabs are { label, id, accent? }: accent colours the
+-- label's last word (a count). Returns the last tab row.
+U.tabRows = function(C, groups, active, reserve)
+  local x, y = 1, 1
+  for i, group in ipairs(groups) do
+    local width = 0
+    for _, t in ipairs(group) do width = width + #t[1] + 2 end
+    if i > 1 and x + 2 + width - 1 > C.w - (y == 1 and reserve or 0) then
+      C.rule(x + 1, y, C.w - 1)
+      x, y = 1, y + 1
+    elseif i > 1 then x = x + 2 end
+    for _, t in ipairs(group) do
+      local on = t[2] == active
+      C.put(x, y, " " .. t[1] .. " ", on and "0" or "8", on and "7" or "f")
+      if t[3] then
+        local word = t[1]:match("%S+$")
+        C.put(x + 1 + #t[1] - #word, y, word, t[3])
+      end
+      C.hit(t[2], x, y, #t[1] + 2, 1, t[1])
+      x = x + #t[1] + 2
+    end
+  end
+  C.rule(x + 1, y, C.w - 1)
+  return y
+end
+-- Paging on row y: a muted note, then the left and right chips at the right end; a chip with
+-- nowhere to go is muted.
+U.pager = function(C, y, note, back, forward)
+  C.chip(C.w - 7, y, U.g.left, "prev", back and "plain" or "muted")
+  C.chip(C.w - 3, y, U.g.right, "next", forward and "plain" or "muted")
+  if note and note ~= "" then C.put(C.w - 8 - #note, y, note, "8") end
+end
+-- Chips flowed over the last rows from column 2, then back right-aligned on the last row, beside the
+-- last chips when it fits. Chips are { label, id, kind }. Returns the first control row.
+U.controlRows = function(C, items, back)
+  local rows, x = { {} }, 2
+  for _, item in ipairs(items) do
+    if x + #item[1] + 2 > C.w and #rows[#rows] > 0 then rows[#rows + 1], x = {}, 2 end
+    local row = rows[#rows]
+    row[#row + 1] = item
+    x = x + #item[1] + 3
+  end
+  local bx = C.w - #back[1] - 2
+  if #rows[#rows] > 0 and x > bx then rows[#rows + 1] = {} end
+  local top = C.h - #rows + 1
+  for i, row in ipairs(rows) do
+    local cx = 2
+    for _, item in ipairs(row) do cx = C.chip(cx, top + i - 1, item[1], item[2], item[3]) + 1 end
+  end
+  C.chip(bx, C.h, back[1], back[2], back[3])
+  return top
+end
 return U

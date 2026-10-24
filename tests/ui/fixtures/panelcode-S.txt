@@ -1,25 +1,37 @@
-29x12 Panel pairing code S
+29x12 Panel PAIR 29x12 with a code
+ PANEL  -------------------  
                              
- PANEL                 01:00 
- PAIR NEW CLIENT             
-     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋       
-      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏      
-     🬇🬌 🬍🬋🬃🬋🬋🬀 🬉 🬈🬋🬀🬈🬋🬀      
-          4:52 left          
-           PAIRED            
+   | | +-+ --+ +-+  |  +--   
+   | | | |   | | |  |  |     
+   +-+ +-+ +-+ +-+  |  +-+   
+     | | | |     |  |    |   
+     | +-+ +-- --+  |  --+   
                              
-          NEW CODE           
+   ||||||||||········ 2:48   
+  PAIRED                     
                              
-            BACK             
+  NEW CODE             BACK  
+00000000ccccccccccccccccccc00
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00099999999998888888800000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
 fffffffffffffffffffffffffffff
-f777777777777777777777777777f
 fffffffffffffffffffffffffffff
-f999999999999999999999999999f
-f999999999999999999999999999f
-f999999999999999999999999999f
-f999999999999999999999999999f
-77777777777777777777777777777
-99999999999999999999999999999
-99999999999999999999999999999
-99999999999999999999999999999
-77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f77777777ffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777fffffffffff777777f

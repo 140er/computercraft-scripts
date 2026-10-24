@@ -1,0 +1,73 @@
+57x24 Panel PAIRED 57x24, FORGET armed on #4
+ PANEL  -----------------------------------------------  
+                                                         
+ PAIRED --------------------------------------------- 9  
+ #2    display   749F  1m                                
+ #3    display   83A5  34s                      [FORGET] 
+ #4    turtle    419A  42s                     [CONFIRM] 
+ #5    turtle    052A  42s                      [FORGET] 
+ #6    turtle    5A35  3m                       [FORGET] 
+ #7    status    1967  5s                       [FORGET] 
+ #8              3191  -                        [FORGET] 
+ #9    pocket    4CDF  3s                       [FORGET] 
+ #10             2DB6  -                        [FORGET] 
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+  ◄  1/1  ►                                        BACK  
+00000000ccccccccccccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccccc0800
+000000088888880000000008800000000000000000000000000000000
+000000088888880000000008880000000000000000000000800000080
+000000088888800000000008880000000000000000000008eeeeeee80
+000000088888800000000008880000000000000000000000800000080
+000000088888800000000008800000000000000000000000800000080
+000000088888800000000008800000000000000000000000800000080
+000000000000000000000008000000000000000000000000800000080
+000000088888800000000008800000000000000000000000800000080
+000000000000000000000008000000000000000000000000800000080
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088808880888000000000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777fffff777ffffffffffffffffffffffffffffffffffffff777777f

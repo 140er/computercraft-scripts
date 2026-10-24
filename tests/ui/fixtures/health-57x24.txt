@@ -1,0 +1,73 @@
+57x24 Health, room monitor 57x24
+ HEALTH  NEEDS 3    EVENTS  ALERTS  ERRORS  ------------ 
+                                                         
+ uptime ····························· 50m                
+ tick ·················· 50ms · wall 50ms                
+ tick cost ·························· 4ms                
+ clock reserve ··················· 12h00m                
+ events ··················· #1234 · 4 seg                
+ event bytes ······················ 81920                
+ snapshot ························· #7 2m                
+ disk ······························· 42%                
+ disk free ····················· 524288 B                
+ errors ······················· 2 · 340 B                
+ modems ······························· 1                
+ paired ··············· 2 online · 1 lost                
+ leases ·························· 1 open                
+ last lease 7 report rejected                            
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                             1/1  ◄   ►  
+000000008888888e8008888888888888888888888880cccccccccccc0
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccc00000000000000000000
+088880cccccccccccccccccc000000000000000000000000000000000
+08888888880cccccccccccccccccccccccccc00000000000000000000
+088888888888880ccccccccccccccccccc00000000000000000000000
+08888880ccccccccccccccccccc000000000000000000000000000000
+0888888888880cccccccccccccccccccccc0000000000000000000000
+0888888880ccccccccccccccccccccccccc0000000000000000000000
+088880ccccccccccccccccccccccccccccccc00000000000000000000
+08888888880ccccccccccccccccccccc0000000000000000000000000
+08888880ccccccccccccccccccccccc00000000000000000000000000
+08888880ccccccccccccccccccccccccccccccc000000000000000000
+08888880ccccccccccccccc000000000000eeeeee0000000000000000
+08888880cccccccccccccccccccccccccc00000000000000000000000
+088880000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000888088808880
+77777777fffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffff777f777f

@@ -86,6 +86,14 @@ local function capture(frame,w,h)
   end
   return out,table.concat(out.picture().text,'\n')
 end
+-- A route A leader row: the label at the left, the value at the right end.
+local function leader(text,label,value)
+  for line in (text..'\n'):gmatch('(.-)\n') do
+    local l=line:match('^%s*(.-)%s*$')
+    if l:sub(1,#label+1)==label..' ' and l:sub(-#value)==value then return true end
+  end
+  return false
+end
 return function(test,equal)
   test('G8a branch progress follows every axis and clamps',function()
     local dirs={[0]={0,-1},{1,0},{0,1},{-1,0}}
@@ -107,12 +115,23 @@ return function(test,equal)
       local _,text=capture(s.frame(),w,h) assert(text:find('b1 12/48',1,true),text)
       s.press('turtle:2')
       local out,detail=capture(s.frame(),w,h)
-      for _,value in ipairs({'#2','mining','12,60,-5 E','FUEL 42','INV 1/16','LEASE lease-2','STEP forward','SEEN 3s','B0 12/48','PARK ALL','REMOVE','BACK'}) do
+      for _,value in ipairs({'#2','mining','12,60,-5 E','b1 ','12/48','PARK ALL','REMOVE','BACK'}) do
         assert(detail:find(value,1,true),'missing '..value..' '..detail)
+      end
+      for _,pair in ipairs({{'fuel','42'},{'inventory','1/16 \194\183 14'},{'lease','lease-2'},{'step','forward'},{'seen','3s'}}) do
+        assert(leader(detail,pair[1],pair[2]),'missing '..pair[1]..' '..pair[2]..' '..detail)
       end
       local diff=R.diff(fixtures[w],out)
       assert(#diff==0,table.concat(diff,'\n'))
-      equal(out.cells[5][2][3],'1','low fuel')
+      -- Low fuel is an amber value.
+      local fuel=false
+      for _,row in ipairs(out.cells) do
+        local line={}
+        for x,cell in ipairs(row) do line[x]=cell[1] end
+        line=table.concat(line)
+        if line:find(' fuel ',1,true) then equal(row[line:find('42',1,true)][2],'1','low fuel') fuel=true end
+      end
+      assert(fuel,'no fuel row')
       s.mine.turtles['2'].pose.x=24 s.display.tick(s.now)
       s.press('turtle-back') local _,back=capture(s.frame(),w,h) assert(back:find('MINING',1,true))
       assert(back:find('b1 24/48',1,true),back)
@@ -141,7 +160,7 @@ return function(test,equal)
       local screen=s.display.screen('mining')
       local original=screen.input screen.input=function(e) if e.text then commands[#commands+1]=e.text else original(e) end end
       s.press('turtle:2')
-      local _,detail=capture(s.frame(),w,h) assert(detail:find('POSE ?',1,true)) assert(not detail:find('12,60,-5',1,true))
+      local _,detail=capture(s.frame(),w,h) assert(detail:find('pose ?',1,true)) assert(not detail:find('12,60,-5',1,true))
       s.press('turtle-add') s.press('pose:x:1') s.press('pose:facing:1') capture(s.frame(),w,h)
       s.press('turtle-save') equal(#commands,0)
       s.press('turtle-save') equal(commands,{'add 2 13 60 -5 s'})
@@ -152,9 +171,9 @@ return function(test,equal)
     end)
     test('G8a lumber spots and turtle detail at '..w..'x'..h,function()
       local s=setup(w,h) assert(s.display.assign(9,'lumber'))
-      -- Route A's ready leader counts the unplanted or grown spots; the detail keeps SPOTS planted/total.
+      -- Route A's ready leader counts the unplanted or grown spots; the detail keeps spots planted/total.
       local _,text=capture(s.frame(),w,h) assert(text:find('ready ',1,true) and text:find('1/2',1,true),text)
-      s.press('turtle:4') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 1/2',1,true))
+      s.press('turtle:4') local _,detail=capture(s.frame(),w,h) assert(detail:find('spots ',1,true) and detail:find('1/2',1,true))
       s.press('turtle-back') s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
       local _,updated=capture(s.frame(),w,h) assert(updated:find('0/2',1,true),updated)
     end)
@@ -168,17 +187,18 @@ return function(test,equal)
         row.pending={action={kind='path'}}
         s.press('turtle:'..id)
         local _,detail=capture(s.frame(),w,h)
-        for _,text in ipairs({'#'..id,'FUEL '..row.fuel,'LEASE lease-'..id,'STEP path','SPOTS 1/2'}) do
-          assert(detail:find(text,1,true),text)
+        assert(detail:find('#'..id,1,true) and detail:find('spots ',1,true) and detail:find('1/2',1,true))
+        for _,pair in ipairs({{'fuel',tostring(row.fuel)},{'lease','lease-'..id},{'step','path'}}) do
+          assert(leader(detail,pair[1],pair[2]),pair[1])
         end
         row.fuel=row.fuel+7 s.display.tick(s.now)
-        local _,updated=capture(s.frame(),w,h) assert(updated:find('FUEL '..row.fuel,1,true))
+        local _,updated=capture(s.frame(),w,h) assert(leader(updated,'fuel',tostring(row.fuel)))
         s.press('turtle-back')
         local _,main=capture(s.frame(),w,h) assert(main:find('LUMBER',1,true))
       end
       s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
       local _,main=capture(s.frame(),w,h) assert(main:find('0/2',1,true),main)
-      s.press('turtle:5') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 2/2',1,true))
+      s.press('turtle:5') local _,detail=capture(s.frame(),w,h) assert(detail:find('spots ',1,true) and detail:find('2/2',1,true))
     end)
     test('G8a lumber PARK targets only the selected worker at '..w..'x'..h,function()
       local s=setup(w,h) lumberWorkers(s)
@@ -195,7 +215,7 @@ return function(test,equal)
       local anchored
       s.env.SO.mods.lease.reanchor=function(id,p) anchored={id=id,pose=p} s.uncertain=nil return true end
       s.press('turtle:5')
-      local _,detail=capture(s.frame(),w,h) assert(detail:find('POSE ?',1,true))
+      local _,detail=capture(s.frame(),w,h) assert(detail:find('pose ?',1,true))
       s.press('turtle-add') s.press('pose:x:1') s.press('pose:facing:1')
       s.press('turtle-save') equal(anchored,nil)
       s.press('turtle-save') equal(anchored.id,5)
@@ -219,7 +239,7 @@ return function(test,equal)
       local _,main=capture(s.frame(),w,h) assert(main:find('b1 -/48',1,true),main)
       s.press('turtle:2')
       local _,detail=capture(s.frame(),w,h)
-      assert(detail:find('POS -',1,true)) assert(detail:find('B0 -/48',1,true))
+      assert(leader(detail,'pose','-')) assert(detail:find('b1 -/48',1,true))
       equal(U.branchProgress(s.mine,s.mine.turtles['2']),nil)
     end)
     test('G8a re-add fills partial coordinates before drawing at '..w..'x'..h,function()
@@ -268,7 +288,7 @@ return function(test,equal)
     s.display.handlers.input({from=9,body={id='turtle-remove',x=1,y=1}}) equal(#commands,0)
     s.press('turtle-remove',9) equal(commands,{'remove 2'})
     s.press('turtle-back',9)
-    local _,detail=capture(s.frame(10),29,12) assert(detail:find('LEASE lease-2',1,true))
+    local _,detail=capture(s.frame(10),29,12) assert(leader(detail,'lease','lease-2'))
   end)
   test('G8a compact mining pages every drawn worker row',function()
     local s=setup(29,12)

@@ -87,3 +87,16 @@ def lumber_workers(job, legacy_id=None):
         return {str(ident): row["turtle"] for ident, row in job["turtles"].items()}
     turtle = job.get("turtle")
     return {str(turtle.get("id", legacy_id)): turtle} if turtle else {}
+
+
+def pocket_frame(ctx, seconds=180):
+    """The pocket's first received frame; it ticks only once the client player has joined."""
+    def ready():
+        try:
+            return ctx.frame("pocket")
+        except Blocked:
+            return None
+    frame = ctx.wait(ready, seconds)
+    if not frame:
+        raise Blocked("Pocket did not become available after client login")
+    return frame

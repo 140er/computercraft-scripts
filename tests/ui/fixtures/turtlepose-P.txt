@@ -1,0 +1,61 @@
+26x20 Pose editor for an uncertain turtle at 26x20
+ TURTLE #2  ------ pose ? 
+                          
+ POSE ------- 12,60,-5 E  
+                          
+ x         -    12     +  
+                          
+ y         -    60     +  
+                          
+ z         -    -5     +  
+                          
+ facing    -     E     +  
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  RE-ADD            BACK  
+000000000000cccccc0eeeeee0
+00000000000000000000000000
+088880ccccccc0000000000000
+00000000000000000000000000
+08000000000000000000000000
+00000000000000000000000000
+08000000000000000000000000
+00000000000000000000000000
+08000000000000000000000000
+00000000000000000000000000
+08888880000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999900000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffff777fffffffff777f
+ffffffffffffffffffffffffff
+ffffffffff777fffffffff777f
+ffffffffffffffffffffffffff
+ffffffffff777fffffffff777f
+ffffffffffffffffffffffffff
+ffffffffff777fffffffff777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777ffffffffff777777f

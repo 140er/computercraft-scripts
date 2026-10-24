@@ -1061,12 +1061,13 @@ Rows and map arrows use drawn `turtle:<id>` buttons. The display session retains
 its selected worker and confirmation state; BACK restores the source screen.
 Mining and lumber provide read-only `turtleView()` snapshots for each assigned
 worker. Lumber snapshots keep pose, fuel, inventory, error and pending step per
-worker; SPOTS progress describes the shared farm. Mining PARK ALL forwards
+worker; spots progress describes the shared farm. Mining PARK ALL forwards
 `stop`; lumber PARK forwards `park <id>` for the selected worker. Mining REMOVE
 forwards `remove <id>`, and uncertain-pose
 RE-ADD forwards `add <id> <x> <y> <z> <facing>` after coordinate confirmation.
 Mining labels its stop action PARK ALL because it stops the whole mining job.
 Lumber exposes PARK and RE-ADD; its command interface also accepts `remove <id>`.
+An armed REMOVE or RE-ADD is drawn as a coral CONFIRM chip with the same id.
 
 
 SO5 owns this API on `SO.mods.display`.
@@ -1436,8 +1437,10 @@ The saved display role can be `panel`; no new saved file or wire type is added.
 
 Tick reads registered screens through `SO.mods.display.screen(role)` and reads
 mining and lumber state from their rendered headers. It gathers the state view's
-`.alert` values for the alert list. Render uses these cached facts and the local
-session. Missing registered screens show grey controls marked `not loaded`.
+`.alert` values for the alert list. Render uses these cached facts, the jobs'
+`facts()` or the status model for the job facts, and the local session. Missing
+registered screens show grey controls marked `not loaded`. The pages are drawn in
+route A ([SCHEMATIC-SPEC section 22](../ui/SCHEMATIC-SPEC.md#22-panel)).
 
 Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
 `lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
@@ -1450,25 +1453,24 @@ the existing shop search and selection state, shared with full shop screens.
 
 The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
 blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
-`alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
+`alert-next` wrapping pages. `pair` opens the PAIR page. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
 request it through authenticated `input`. The server-local `SO.pairCode(id)`
 returns `{ code, expires }` for that requester, or nil if another display or
 the terminal owns a pending invitation. It calls the same invitation path as P.
 Repeated requests from the owner preserve the code, expiry and bad-attempt count.
-The session holds the invitation. Its own signed `view.frame` shows six kit
-big digits and remaining minutes and seconds. No invitation enters shared
+The session holds the invitation. Its own signed `view.frame` shows six line
+digits and remaining minutes and seconds. No invitation enters shared
 screen data or broadcast frames. Other displays keep the normal pair page.
 Use, expiry, five bad attempts or terminal cancellation restore that page.
 `panel-back` returns to the main panel.
-At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
-screens use compact controls. The pairing handshake and job planning are unchanged.
+The fixtures `panel-*`, `panelpair-*`, `panelcode-*`, `paired-*` and `enroll-*` show every
+size. The pairing handshake and job planning are unchanged.
 
 With `enroll = true`, PAIR splits its PAIRED row with an ENROLL button. ENROLL
 opens a window through `SO.enroll.open(id)` for a paired display session and
-shows the ENROLL page: the token as normal text (the big font has no letters),
-the time left, joins out of 20 in big digits, one row per waiting device with
-OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
+shows the ENROLL page: the time left, the token as normal text, joins out of 20,
+one row per waiting device with OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
 `enroll-ok:<id>:<n>`, `enroll-no:<id>:<n>`, `enroll-all` and `enroll-close`,
 where `n` is the row's window-unique number, so a delayed tap cannot decide a
 later request from the same id. APPROVE ALL is `enroll-all:<id>-<n>.<id>-<n>...`
@@ -1972,10 +1974,13 @@ Only a successful authenticated pairing saves the replacement key.
 
 ## Visibility
 
-`MORE` and the panel have `HEALTH` and `ATTENTION` buttons. These pages also
-link to `ALERTS`, `EVENTS` and `ERRORS`. Paging and event filters belong to each
-display session. `EVENTS` cycles known kinds with `KIND`, or accepts an exact
-kind as text. `ALL` clears the filter. History pages query retained state events
+`MORE` and the panel have `HEALTH` and `ATTENTION` buttons. These pages draw
+tabs for each other (`health`, `attention` drawn as NEEDS with its count, `events`,
+`alerts`, `errors`) and page with the `prev` and `next` chips. Paging and event
+filters belong to each display session. `EVENTS` cycles known kinds with the
+`kind` chip, or accepts an exact kind as text. `ALL` clears the filter. The
+pages draw no BACK; a page visited from another role gets the `visit-back` chip,
+and `generic` still returns. History pages query retained state events
 newest first. Clearing an alert leaves its event in history until normal log
 retention removes it. The browser does not copy the event log into another file.
 
@@ -2027,6 +2032,10 @@ The module also exports `tick()` and `dugProtection(protect)`.
 
 The screen accepts `area x1 y1 z1 x2 y2 z2`, `shape <kind>`, `material <name>`,
 `add <id> [x y z n|e|s|w]`, `import <main builder command>`, `start` and `stop`.
+Its drawn controls are the tabs `tab:job` and `tab:setup` (the old ids `setup` and
+`build-back` still switch them), the shape chips `shape floor`, `shape walls` and
+`shape box` (one `shape-next` chip that cycles them where the three do not fit), `start` and
+`stop`. The old BACK id `status` is no longer drawn and still does nothing.
 Reservations use `build:<id>`. Supply uses existing storage drop points.
 Saved intents and target inspection reconcile placement after restart.
 See [builder jobs](BUILD.md) for command conventions and proposed Gate B C15.

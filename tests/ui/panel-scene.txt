@@ -1,0 +1,16 @@
+needs 2
+paired 2 display 60000
+paired 3 display 34000
+paired 4 turtle 42000
+paired 5 turtle 42000
+paired 6 turtle 180000
+paired 7 status 5000
+paired 8 - -
+paired 9 pocket 3000
+paired 10 - -
+self 2
+confirm 4
+enroll 1-K7QP-3MXA-9WTD-HR2E 594000 3 20
+pending 10 computer 3296 1
+pending 11 turtle 8F1A 1
+pending 12 turtle C0DE 2

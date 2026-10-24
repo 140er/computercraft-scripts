@@ -1,25 +1,37 @@
-29x12 Builder job 29x12
+29x12 Build, job tab at 29x12
+ BUILD   job   setup  -----  
+ ! out of material           
+ WALLS ----------- material  
+ ||||||·············· 37/120 
+ material ······ cobblestone 
+ turtle ················· #8 
+ position ······· 12,67,-5 E 
+ fuel ·················· 840 
+ from ············· 10,64,-5 
+ to ················ 20,66,5 
                              
- BUILD               stopped 
-                             
-            FLOOR            
-             🬖🬋🬏             
-             ▌ ▌             
-             🬈🬋🬀             
-                             
- OF 0                        
-                             
-                             
- START   STOP   SETUP   BACK 
-fffffffffffffffffffffffffffff
-f777777777777777777777777777f
-fffffffffffffffffffffffffffff
-ddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd
-ddddddddddddddddddddddddddddd
+     START         STOP      
+0000000000000088888880ccccc00
+0e000000000000000000000000000
+0888880ccccccccccc01111111100
+03333338888888888888800000000
+0888888880cccccc0000000000000
+08888880ccccccccccccccccc0000
+0888888880ccccccc000000000000
+088880cccccccccccccccccc00000
+088880ccccccccccccc0000000000
+0880cccccccccccccccc000000000
+00000000000000000000000000000
+088888888888880eeeeeeeeeeeee0
+ffffffff77777ffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-9999999feeeeeef7777777f777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

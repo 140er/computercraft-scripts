@@ -69,7 +69,8 @@ class Pair2Tests(unittest.TestCase):
         # Three wrong codes by the first sender plus seven distinct senders,
         # two budget rejections, then one successful native-probe join.
         self.assertEqual(c2.run(ctx).status, "pass")
-        self.assertEqual(ctx.waits, 2)
+        # Two budget waits plus the wait for the redrawn server prompt.
+        self.assertEqual(ctx.waits, 3)
         self.assertTrue(ctx.assert_success_code)
 
     @unittest.skipUnless(shutil.which("lua5.2"), "Lua 5.2 unavailable")

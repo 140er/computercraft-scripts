@@ -1,25 +1,37 @@
-29x12 Panel pairing ready S
-                             
- PANEL                 01:00 
- PAIR NEW CLIENT             
+29x12 Panel PAIR 29x12, no code
+ PANEL  -------------------  
                              
                              
                              
+   --- --- --- --- --- ---   
                              
-           PAIRED            
                              
-          NEW CODE           
                              
-            BACK             
+                             
+  PAIRED                     
+                             
+  NEW CODE             BACK  
+00000000ccccccccccccccccccc00
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00088808880888088808880888000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
 fffffffffffffffffffffffffffff
-f777777777777777777777777777f
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-77777777777777777777777777777
-99999999999999999999999999999
-99999999999999999999999999999
-99999999999999999999999999999
-77777777777777777777777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f77777777ffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777fffffffffff777777f

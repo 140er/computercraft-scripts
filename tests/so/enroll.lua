@@ -505,13 +505,17 @@ return function(test, equal)
       for _, b in ipairs(f.buttons) do
         assert(b.x >= 1 and b.y >= 1 and b.x + b.w - 1 <= w and b.y + (b.h or 1) - 1 <= h, b.id)
       end
-      -- Only page words, ids, kinds, fingerprints, the timer and the token.
+      -- Only page words, ids, kinds, fingerprints, counts, the timer and the token. Hairlines, leader
+      -- dots, action brackets and the pocket's tabs are structure.
       local text = table.concat(s.text(OWNER), "\n")
-      local flat = text:gsub("[\128-\255]", "")
+      local flat = text:gsub("[\7\128-\255]", ""):gsub("[%[%]]", " ")
       assert(flat:find(token, 1, true) or flat:find(token:match("^%d+%-%w+%-%w+"), 1, true), flat)
+      assert(flat:find("#10 turtle", 1, true), "kind label cut at " .. w .. "x" .. h)
       for word in flat:gmatch("[^%s]+") do
-        local ok = ({ ENROLL = true, APPROVE = true, ALL = true, CLOSE = true, OK = true, NO = true, TURTLE = true })[word]
-          or word:match("^#%d+$") or fps[word] or word:match("^%d+:%d%d$") or token:find(word, 1, true)
+        local ok = ({ ENROLL = true, PENDING = true, joined = true, APPROVE = true, ALL = true, CLOSE = true, OK = true,
+          NO = true, turtle = true, PANEL = true, FLEET = true, JOBS = true, SHOP = true, PAIR = true })[word]
+          or word:match("^#%d+$") or fps[word] or word:match("^%d+:%d%d$") or word:match("^%d+/?%d*$")
+          or word:match("^%-+$") or token:find(word, 1, true)
         assert(ok, "unexpected text " .. word .. " at " .. w .. "x" .. h)
       end
       assert(s.button(OWNER, "enroll-ok:12"), "third row missing at " .. w .. "x" .. h)

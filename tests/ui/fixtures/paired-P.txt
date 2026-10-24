@@ -1,41 +1,61 @@
-26x20 Paired devices P
+26x20 Pocket PAIRED, keys only
+ FLEET  JOBS  SHOP  PAIR  
                           
- PAIRED                   
- #2 ?                749F 
+ PAIRED -------------- 9  
+ #2                  749F 
  -                        
+ #3                  83A5 
+ -               [FORGET] 
+ #4                  419A 
+ -               [FORGET] 
+ #5                  052A 
+ -               [FORGET] 
+ #6                  5A35 
+ -               [FORGET] 
+ #7                  1967 
+ -               [FORGET] 
+ #8                  3191 
+ -               [FORGET] 
                           
- #3 ?                83A5 
- -              FORGET    
                           
- #4 ?                419A 
- -              FORGET    
-                          
- #5 ?                052A 
- -              FORGET    
-                          
- #6 ?                5A35 
- -              FORGET    
-                          
-                          
-                          
-  PREV     BACK     NEXT  
-ffffffffffffffffffffffffff
-f777777777777777777777777f
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-fffffffffffff777777777777f
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-fffffffffffff777777777777f
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-fffffffffffff777777777777f
-ffffffffffffffffffffffffff
-ffffffffffffffffffffffffff
-fffffffffffff777777777777f
+  ◄  1/2  ►         BACK  
+88888888888888888880000000
+00000000000000000000000000
+08888880cccccccccccccc0800
+00000000000000000000000000
+08000000000000000000000000
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+08000000000000000800000080
+00000000000000000000000000
+00000000000000000000000000
+00000888000000000000000000
+fffffffffffffffffff777777f
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-77777777f77777777f77777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f777fffff777fffffff777777f

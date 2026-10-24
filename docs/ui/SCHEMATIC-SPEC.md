@@ -318,8 +318,8 @@ The pocket role at 26x20 (26x19 for older clients); `so-mod-panel.lua` draws it 
   `------` in muted grey; `code in use` (amber) when another display holds one. Row 16 holds
   PAIRED (`paired`), which opens the paired devices with their confirmed FORGET. With the enroll
   window on, PAIRED and ENROLL (`enroll`, primary) share the row; ENROLL has no target and is
-  drawn muted while another display holds the window. Both pages draw in the panel's look, and
-  their BACK or CLOSE returns to PAIR.
+  drawn muted while another display holds the window. Both pages are the panel's (section 22)
+  under the pocket's tabs, and their BACK or CLOSE returns to PAIR.
 
 ## 17. System screens
 
@@ -423,3 +423,98 @@ FLEET.
 - **Editor:** `ADD DROP POINT`, chips for kind and side, steppers for dim, x, y and z,
   ADD and BACK. Room monitors draw the plan with the draft as an inverted teal `•`.
   Results show in the row above the actions: `point added` in green, errors as a flag.
+
+## 22. Panel
+
+`so-mod-panel.lua` draws the panel role; `schematic/panel.py` is the twin. Fixtures
+`panel-M/W/L/S/XS/P`, `panelalerts-M`, `panelpair-P/S`, `panelcode-P/S/M`, `paired-P/S/M` and
+`enroll-P/S/M`, from `tests/ui/panel-scene.txt` and the status and system scenes.
+
+- **Header:** `PANEL`, then on the main page with the health module (26x12 and up) a `HEALTH`
+  chip and a `NEEDS 2` chip with the count amber above 0, a hairline, and the time. Pages have
+  no time.
+- **Main:** a `turtles` leader on row 3 (`4 ok · 1 lost`, the lost count coral), or a green `•`
+  and `Paired turtle #2` for 30 s after a pairing. Then the job blocks: MINING and LUMBER as
+  on the pocket's JOBS (section 16), and SHOP on keyboard sessions (`> iron_` and `1 16 64`
+  chips). Blocks sit in as many columns of 16 cells or more as fit, at most 36 wide, with a dim
+  `|` between them. When rows run out, the lowest row of blocks drops its spare row, then its
+  facts (section and START STOP only). A refused start is a flag above the chips (`! home not
+  set`). A job that is not loaded shows its section and grey chips. ALERTS and PAIR are chips
+  on the last row.
+- **ALERTS:** the section with the count in coral, one flag per alert, `◄ 1/2 ►` and BACK on
+  the last row.
+- **PAIR:** the code in line digits from row 3, as large as fit (up to 9 by 11; 3 by 5 at
+  29x12), the teal tick row under it, PAIRED (and ENROLL) on row h-2, NEW CODE and BACK on the
+  last row. Under 12 rows the code is plain text.
+- **PAIRED:** the section with the key count (`save failed` in coral after a failed forget).
+  From 40 columns one row per key: id, kind (muted), fingerprint, age (muted). Narrower, the
+  age goes to a second row. Each other device has `[FORGET]` at the right end, `[CONFIRM]`
+  in coral once armed. `◄ 1/3 ►` and BACK on the last row; on a single page the arrows are muted.
+- **ENROLL:** the section with the time left, the token (split after its third part when too
+  long), `joined ··· 3/20`, then PENDING with the count and one row per request: id, kind
+  (muted, left out when it does not fit whole), fingerprint, `[OK]` in teal and `[NO]` in
+  coral. When an id and kind do not fit beside them, each request takes two rows. APPROVE ALL
+  (primary) and CLOSE on the last row.
+- **List actions:** a row's own action is bracketed text (`[FORGET]`), not a chip, so a list of
+  them never stacks into a slab.
+
+## 23. Build
+
+`so-mod-build.lua` draws it; `schematic/other.py` is the twin. Fixtures `build-26x20/29x12/57x24`
+and `buildsetup-26x20/29x12/57x24`, from the `build` lines of `tests/ui/other-scene.txt`.
+
+- **Header:** `BUILD job setup` (`tab:job`, `tab:setup`). The job's alert follows as a flag,
+  wrapped over at most two rows.
+- **Job:** a section with the shape in capitals and the state word at the right: green while
+  running, muted when stopped, amber for a hold (`material`, `range`), coral when lost. Under
+  it a tick row of the cells placed with `37/120`, then leaders for material, turtle,
+  position, fuel and the two area corners. Leaders are 40 cells wide at most.
+- **Setup:** label column at 2, values at 13 (11 below 36 columns). `shape` is a row of
+  `floor walls box` chips, the active one plain and the others off, or one chip that cycles
+  them where the three do not fit. `from`, `to`, `material`, `turtle` and `home` are values;
+  area, material and turtle are text commands only.
+- **Actions:** START and STOP on the last row of both tabs; the one that does nothing now is
+  muted, STOP is coral while the job runs.
+
+## 24. Health pages
+
+`so-mod-health.lua` draws `health`, `attention`, `alerts`, `events` and `errors`;
+`schematic/other.py` is the twin. Fixtures `health-*`, `attention-*`, `alerts-*`, `events-*`
+and `errors-*` at 26x20 and 29x12, `health-57x24` and `events-57x24`, from the `health` lines
+of `tests/ui/other-scene.txt`.
+
+- **Tabs:** two groups from column 1, ` HEALTH  NEEDS 3 ` and ` EVENTS  ALERTS  ERRORS `,
+  the active one `0` on `7`, the others muted. The NEEDS count is coral while a severe item
+  exists, else amber. The second group moves to row 2 when it does not fit beside the first
+  with four cells to spare, which keep room for the `×` chip of a visited page.
+- **HEALTH:** leaders: uptime, tick and wall tick, tick cost, clock reserve, events, event
+  bytes, snapshot (amber with `due`), disk (coral from 80%), disk free, errors, modems,
+  paired (the lost count coral), leases. A failed error save is a flag; the newest error
+  follows as `last` and its text over at most two rows.
+- **NEEDS:** one row per item: `!` coral for a severe item, amber otherwise, then white text.
+  The whole row opens the item's fix. No items: `all clear` in green.
+- **EVENTS, ALERTS, ERRORS:** `•` in the line's tone, the age muted, the kind muted (ALERTS
+  drops its `.alert`), then white text cut at a word. EVENTS has a `kind` row with the filter
+  chip (`all` or the kind) above the list.
+- **Paging:** the last row holds `1/2` (not on EVENTS and ALERTS, which page by cursor) and the
+  `◄ ►` chips at the right end; a chip with nowhere to go is muted. Screens of 16 rows or more
+  keep a blank row under the tabs and above the last row.
+
+## 25. Turtle details
+
+`U.turtle.render` in `so-ui.lua` draws them (the overlay that `so-mod-display.lua` opens from
+`turtle:<id>`); `schematic/other.py` is the twin. Fixtures `turtle-P/S/M` and `turtlepose-P/S`,
+from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
+`tests/ui/w2screens.lua` builds through the real mining module).
+
+- **Header:** `TURTLE #2` and the state word at the right in its tone; `pose ?` in coral while
+  the pose is uncertain, `unassigned` muted.
+- **Body:** an error flag with its retry countdown muted (two rows at most), then leaders for
+  pose, fuel (amber under 64), inventory (`1/16 · 14`), lease, step, ore and seen, then the
+  progress row: `b1` (the one-based branch) or `spots`, a tick row and `12/48`. Leaders drop
+  from the end when rows run out.
+- **Controls:** PARK ALL (mining) or PARK (lumber), REMOVE in coral, RE-ADD in teal for an
+  uncertain pose; an armed REMOVE or RE-ADD reads CONFIRM in coral. They flow over the last
+  rows from column 2 and BACK sits at the right end of the last row, beside them when it fits.
+- **Pose editor:** `POSE` with the draft at the right, then x, y, z and facing as `-` value `+`
+  (ids `pose:<axis>:-1` and `pose:<axis>:1`), RE-ADD and BACK (`turtle-cancel`) on the last row.
