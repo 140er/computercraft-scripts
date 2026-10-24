@@ -255,8 +255,11 @@ python3 -I docs/ui/schematic/screens.py --fixtures            # rewrite tests/ui
 python3 -I docs/ui/schematic/screens.py --png DIR [names]     # PNGs with CC's own font
 ```
 
-PNGs need CC:Tweaked's `term_font.png`, which is not in this repo. The generator takes `--font`
-(the png or the mod jar), `$CC_FONT`, or the first `cc-tweaked-*.jar` in a known mods folder.
+PNGs need CC:Tweaked's `term_font.png`, so the PNG checks need a local CC:Tweaked jar. The font is
+under the ComputerCraft Public License and never goes in this repo, nor does any glyph data made from it.
+The generator takes `--font` (the png or the mod jar), `$CC_FONT`, or the first `cc-tweaked-*.jar` in a
+known mods folder. Without one it prints `font not found, PNG renders skipped` and exits 3, and the S0
+test records that line as a skip.
 Fixtures need no font.
 
 To port a screen: write its layout in `schematic/<screen>.py` with the kit, add it to `FIXTURES`

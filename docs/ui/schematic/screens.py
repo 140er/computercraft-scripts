@@ -141,7 +141,9 @@ def main():
     if args.png:
         source = ccfont.find(args.font)
         if not source:
-            sys.exit("no CC font: pass --font term_font.png or the cc-tweaked jar, or set CC_FONT")
+            # The font is CC:Tweaked's (CCPL) and never goes in this repo; without a local jar, say so and stop.
+            print("font not found, PNG renders skipped: needs a local CC:Tweaked jar (--font, $CC_FONT or a known mods folder)", file=sys.stderr)
+            sys.exit(3)
         font = ccfont.Font(source)
     if args.png:
         os.makedirs(args.png, exist_ok=True)

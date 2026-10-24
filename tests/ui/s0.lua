@@ -459,7 +459,7 @@ return function(test, equal)
     if os.execute(gen .. " --png '" .. dir .. "/png' kit-M > /dev/null 2>&1") then
       equal(read(dir .. '/png/kit-M.png'):sub(1, 8), '\137PNG\r\n\26\n')
     else
-      dofile('tests/skips.lua').record('S0 schematic PNG render', 'no CC:Tweaked font (set CC_FONT)')
+      dofile('tests/skips.lua').record('S0 schematic PNG render', 'font not found, PNG renders skipped (needs a local CC:Tweaked jar)')
     end
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
