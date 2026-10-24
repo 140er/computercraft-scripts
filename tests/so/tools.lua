@@ -15,12 +15,14 @@ local function setup(enabled, fail, full)
   t.select = function(slot) selected=slot return true end
   t.getItemDetail = function(slot) return inventory[slot or selected] end
   t.getItemCount = function(slot) return inventory[slot] and inventory[slot].count or (full and 64 or 0) end
-  t.equipLeft = function()
+  local function equip(side)
     calls=calls+1
     if fail then return false,"inventory full" end
-    equipped.left,inventory[selected]=inventory[selected],equipped.left
+    equipped[side],inventory[selected]=inventory[selected],equipped[side]
     return true
   end
+  t.equipLeft = function() return equip("left") end
+  t.equipRight = function() return equip("right") end
   end
   a.t.files["so-worker.cfg"] = "{autoToolSwap="..tostring(enabled).."}"
   a.n.kill(a.t); a.t=a.n.boot(a.t); a.n.advance(5)
@@ -123,6 +125,22 @@ return function(test,equal)
     s.tick(2)
     equal(checked,1);equal(s.queued().steps[1].op,"inspectDown")
     equal(s.row.alert,"needs axe")
+  end)
+
+  test("worker equips an axe on the empty side before replacing a tool",function()
+    for _, empty in ipairs({"left","right"}) do
+      local a=setup(true)
+      local occupied=empty == "left" and "right" or "left"
+      a.equipped[empty]=nil
+      a.equipped[occupied]={name="minecraft:diamond_pickaxe"}
+      a.inventory[1]={name="minecraft:diamond_axe",count=1}
+      F.send(a,{{op="tool",kind="axe"}});a.n.advance(1)
+      equal(report(a).results[1].ok,true);equal(a.calls(),1)
+      equal(a.equipped[empty].name,"minecraft:diamond_axe")
+      equal(a.equipped[occupied].name,"minecraft:diamond_pickaxe")
+      equal(a.inventory[1],nil)
+      F.check(a)
+    end
   end)
 
 end
