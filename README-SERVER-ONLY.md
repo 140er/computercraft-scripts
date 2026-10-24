@@ -643,3 +643,33 @@ ownership to GPS recovery holds until the turtle is explicitly re-added. Re-pair
 explicitly re-add the turtle at its actual pose before resuming it. The next
 hello shows the normal pairing prompt. NEEDS includes the most recent forget
 event.
+
+### Enroll many turtles
+
+Enrollment is off by default. Add `enroll = true` to the existing
+`so-server.cfg` table and restart the server.
+
+Open PANEL, PAIR and tap ENROLL. The page shows a token such as
+`12-K7QP-3MXA-9WTD-HR2E`, the time left and how many turtles joined. The window
+lasts ten minutes and takes at most 20 turtles. Paste the same command on each
+turtle:
+
+```text
+wget run https://raw.githubusercontent.com/140er/computercraft-scripts/refs/heads/server-only/install.lua 12-K7QP-3MXA-9WTD-HR2E
+```
+
+If the turtle still shows `Code:` after the install, paste or type the token
+there and press Enter. Each turtle then appears on the panel as a row with its
+id, `TURTLE` and a four-character fingerprint. The turtle shows the same
+fingerprint on its screen. Tap OK or NO per row. APPROVE ALL approves every
+waiting turtle as of the last screen update, including rows below the bottom of
+the screen; a turtle that asks after that update waits for the next tap. CLOSE
+ends the window. Approved turtles keep their own keys;
+the token is never a key and the server does not save it.
+
+Only the display that opened the window sees the token and its controls.
+Anyone who has the token can ask to join, so approve only turtles you expect.
+A turtle stops and keeps no key when two different servers answer its token.
+The token file on the turtle is deleted when it joins, is denied or the
+window closes. A server restart closes the window.
+

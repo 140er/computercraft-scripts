@@ -315,12 +315,24 @@ local function install(role, config, handoff)
   if handoff.updating then writeFile(NEW .. "/keep", "yes") end
   return swap(entries)
 end
+-- An enroll token S-XXXX-XXXX-XXXX-XXXX, normalised, or nil.
+local function enrollToken(text)
+  if type(text) ~= "string" then return nil end
+  text = text:upper():gsub("%s", "")
+  local id, rest = text:match("^(%d+)%-([%w%-]+)$")
+  if not id or #id > 10 then return nil end
+  rest = rest:gsub("%-", "")
+  if #rest ~= 16 or rest:find("[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]") then return nil end
+  return id .. "-" .. rest:sub(1, 4) .. "-" .. rest:sub(5, 8) .. "-" .. rest:sub(9, 12) .. "-" .. rest:sub(13, 16)
+end
 local function main(command, handoff)
   if type(handoff) ~= "table" then handoff = nil end
   if not handoff then recover()
   else
     assert(validRevision(handoff.revision) and type(handoff.previous) == "table", "Bad installer handoff")
   end
+  local enroll = handoff and enrollToken(handoff.enroll)
+  if not handoff and enrollToken(command) then enroll, command = enrollToken(command), nil end
   if command == "recover" then return end
   if command == "rollback" then return rollback() end
   if command == "reset" then
@@ -346,6 +358,7 @@ local function main(command, handoff)
     (pocket and role ~= "display") or (role == "worker" and not turtle) then
     error("Role does not match this machine", 0)
   end
+  if enroll and role ~= "worker" then error("Enroll tokens are for turtles", 0) end
   if role == "server" then
     local cap = fs.getCapacity("/")
     if type(cap) ~= "number" or cap < 16000000 then
@@ -363,7 +376,8 @@ local function main(command, handoff)
       download("install.lua", sha)
       local nextInstaller = assert(load(readFile(NEW .. "/install.lua"), "@install.lua", "t", _ENV))("prepare")
       assert(type(nextInstaller) == "function", "Commit installer does not support pinned updates")
-      nextInstaller(command, { revision = sha, previous = previous, role = role, config = config, updating = updating })
+      nextInstaller(command, { revision = sha, previous = previous, role = role, config = config, updating = updating,
+        enroll = enroll })
     end)
     if not ok then
       if not fs.exists(OLD .. "/manifest") and not fs.exists(NEW .. "/committed") then fs.delete(NEW) end
@@ -375,7 +389,10 @@ local function main(command, handoff)
   if not install(role, config, handoff) then return end
   print("Installed " .. role .. ". Use install update to update.")
   if not updating then
-    if role ~= "server" then print("On the server press P, then type the 6-digit code here") end
+    if enroll then
+      writeFile("/so-enroll", textutils.serialize({ token = enroll }))
+      print("Enrolling with server " .. enroll:match("^%d+") .. ". Approve it on the panel.")
+    elseif role ~= "server" then print("On the server press P, then type the 6-digit code here") end
     shell.run("/" .. ROLES[role].program)
   end
 end

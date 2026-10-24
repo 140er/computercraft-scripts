@@ -350,6 +350,7 @@ M.forget = function(id)
   local ok, err = S.box.save({ keys = copy })
   if not ok then return false, err end
   S.keys[name], S.sessions[name] = nil, nil
+  M.enrollDrop(id)
   return true
 end
 M.repairHint = function(sender, payload, server)
@@ -503,6 +504,296 @@ M.confirm = function(from, body)
     and S.proto.unhex(body.tag)
   if not C.same(tag, slot.ta) then return nil, "tag", slot.paired end
   return M.machineKey(slot.isk), { ok = true, tag = S.proto.hex(slot.tb) }
+end
+
+-- Batch enrollment: an owner opens a window, devices present an 80-bit
+-- token, and the owner approves each one. The token is an HMAC key over
+-- the transcript, never a machine key, and the server keeps it in memory.
+local E = {
+  alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
+  life = 600000,
+  linger = 60000,
+  cap = 20,
+  poll = 3,
+  file = "so-enroll",
+  kinds = { turtle = true, pocket = true, computer = true },
+  -- One fixed role label per tag, so no tag can stand in for another.
+  label = { "so-enroll-1 device\0", "so-enroll-2 server pending\0",
+    "so-enroll-3 server approved\0", "so-enroll-4 server denied\0" },
+  final = { closed = true, token = true, full = true, busy = true, paired = true,
+    share = true, body = true },
+  done = {},
+  seq = 0,
+}
+
+-- Returns the server id and the 16 token symbols, or nil.
+E.parse = function(text)
+  if type(text) ~= "string" then return nil end
+  text = text:upper():gsub("%s", "")
+  local id, rest = text:match("^(%d+)%-([%w%-]+)$")
+  if not id or #id > 10 then return nil end
+  rest = rest:gsub("%-", "")
+  if #rest ~= 16 or rest:find("[^" .. E.alpha .. "]") then return nil end
+  return tonumber(id), rest
+end
+
+E.format = function(id, x)
+  return tostring(id) .. "-" .. x:sub(1, 4) .. "-" .. x:sub(5, 8) .. "-" .. x:sub(9, 12) .. "-" .. x:sub(13, 16)
+end
+
+E.key = function(x) return S.proto.sha256("so-enroll-key\0" .. x) end
+E.tag = function(tk, n, ...) return S.proto.hmac(tk, E.label[n] .. C.lv(...)) end
+E.fp = function(pub) return S.proto.hex(S.proto.sha256(pub)):sub(1, 4):upper() end
+E.err = function(text) return { code = "enroll", text = text } end
+E.unhex = function(hex)
+  return type(hex) == "string" and #hex == 64 and hex:match("^%x+$") and S.proto.unhex(hex) or nil
+end
+-- tag2, tag3 and the denial tag also cover the server share and the X25519
+-- secret, so only the holder of the server scalar can make them.
+E.machine = function(server, device, pub, xs, k)
+  return M.machineKey(C.sha512(C.lv("so-enroll isk", server, device, pub, xs, k)))
+end
+
+-- The live window, after closing it once its time is up.
+E.window = function()
+  local now = S.now()
+  for name, row in pairs(E.done) do
+    if now - row.at > E.linger then E.done[name] = nil end
+  end
+  if S.win and now >= S.win.exp then M.enrollClose() end
+  return S.win
+end
+
+M.enrollToken = E.parse
+
+M.enrollClose = function()
+  if not S.win then return end
+  S.win = nil
+  print("so-server: enroll window closed")
+end
+
+-- Opens a window for owner. Returns true, or nil and "busy" while another
+-- owner holds one.
+M.enrollOpen = function(owner)
+  local w = E.window()
+  if w then
+    if w.owner ~= owner then return nil, "busy" end
+    return true
+  end
+  loadCrypto()
+  local raw, acc, bits, x = S.rnd.random(10), 0, 0, {}
+  for i = 1, 10 do
+    acc, bits = acc * 256 + raw:byte(i), bits + 8
+    while bits >= 5 do
+      bits = bits - 5
+      local v = math.floor(acc / 2 ^ bits) % 32
+      x[#x + 1] = E.alpha:sub(v + 1, v + 1)
+    end
+    acc = acc % 2 ^ bits
+  end
+  x = table.concat(x)
+  local sk = S.rnd.random(32)
+  S.win = { owner = owner, x = x, tk = E.key(x), exp = S.now() + E.life, sk = sk,
+    pk = S.x.publicKey(sk), joined = 0, rows = {}, order = {} }
+  print("so-server: enroll window open")
+  return true
+end
+
+-- Window facts for the panel. Only the owner gets the token.
+M.enrollView = function(owner)
+  local w = E.window()
+  if not w then return nil end
+  local out = { owner = w.owner, left = w.exp - S.now(), joined = w.joined, cap = E.cap, rows = {} }
+  if owner ~= nil and owner == w.owner then out.token = E.format(os.getComputerID(), w.x) end
+  for _, name in ipairs(w.order) do
+    local row = w.rows[name]
+    out.rows[#out.rows + 1] = { id = tonumber(name), kind = row.kind, fp = row.fp, n = row.n }
+  end
+  return out
+end
+
+E.unrow = function(w, name)
+  w.rows[name] = nil
+  for i = #w.order, 1, -1 do
+    if w.order[i] == name then table.remove(w.order, i) end
+  end
+end
+
+-- Forgetting a device drops its request; forgetting the owner closes the window.
+M.enrollDrop = function(id)
+  local name, w = tostring(id), S.win
+  E.done[name] = nil
+  if not w then return end
+  if w.owner == id then return M.enrollClose() end
+  E.unrow(w, name)
+end
+
+-- Approves or denies pending row n of id. Approval saves the machine key.
+M.enrollDecide = function(id, n, approve)
+  local w = E.window()
+  local name = tostring(id)
+  local row = w and w.rows[name]
+  if not row or row.n ~= n then return nil, "gone" end
+  local t, body = "err", { code = "enroll", text = "denied", pub = S.proto.hex(w.pk), tag = S.proto.hex(row.no) }
+  if approve then
+    if S.keys[name] then return nil, "paired" end
+    local ok, err = M.remember(id, row.key)
+    if not ok then return nil, err end
+    w.joined = w.joined + 1
+    t, body = "ack", { state = "ok", pub = S.proto.hex(w.pk), tag = S.proto.hex(row.yes) }
+  end
+  E.done[name] = { pub = row.pub, tag = row.tag, kind = row.kind, t = t, body = body, at = S.now() }
+  E.unrow(w, name)
+  if w.joined >= E.cap then M.enrollClose() end
+  return true
+end
+
+-- Server side of enroll: body { pub, kind, tag }. Returns the reply type,
+-- the reply body and "pending" or "rejected" for the terminal line.
+-- A repeated request from a known device costs nothing and changes nothing.
+M.enrollAnswer = function(from, body)
+  local name = tostring(from)
+  body = type(body) == "table" and body or {}
+  local pub, tag = raw32(body.pub), E.unhex(body.tag)
+  local w = E.window()
+  local done, row = E.done[name], w and w.rows[name]
+  if done and pub and done.kind == body.kind and C.same(done.pub, pub) and C.same(done.tag, tag) then
+    return done.t, done.body
+  end
+  if not w then return "err", E.err("closed") end
+  if row and pub and row.kind == body.kind and C.same(row.pub, pub) and C.same(row.tag, tag) then
+    return "ack", { state = "pending", pub = S.proto.hex(w.pk), tag = S.proto.hex(row.wait) }
+  end
+  local kind = E.kinds[body.kind] and body.kind
+  if not pub or not tag or not kind then
+    M.charge(from, "reject")
+    return "err", E.err("body"), "rejected"
+  end
+  if not M.charge(from, "start") then return "err", E.err("wait") end
+  local server = tostring(os.getComputerID())
+  if not C.same(tag, E.tag(w.tk, 1, server, name, pub, kind)) then
+    M.charge(from, "reject")
+    return "err", E.err("token"), "rejected"
+  end
+  if S.keys[name] then return "err", E.err("paired") end
+  if row or done then return "err", E.err("busy") end
+  if #w.order >= E.cap or w.joined >= E.cap then return "err", E.err("full") end
+  -- A mirrored share or a low-order point gives no usable secret.
+  local k = pub ~= w.pk and S.x.exchange(w.sk, pub)
+  if not k or k == string.rep("\0", 32) then return "err", E.err("share") end
+  E.seq = E.seq + 1
+  row = { pub = pub, tag = tag, kind = kind, fp = E.fp(pub), n = E.seq,
+    key = E.machine(server, name, pub, w.pk, k),
+    wait = E.tag(w.tk, 2, server, name, pub, kind, w.pk, k),
+    yes = E.tag(w.tk, 3, server, name, pub, kind, w.pk, k),
+    no = E.tag(w.tk, 4, server, name, pub, kind, w.pk, k) }
+  w.rows[name] = row
+  w.order[#w.order + 1] = name
+  return "ack", { state = "pending", pub = S.proto.hex(w.pk), tag = S.proto.hex(row.wait) }, "pending"
+end
+
+-- Device side. so-enroll holds { token, sk? } as a serialized table.
+E.read = function()
+  if not fs.exists(E.file) then return nil end
+  local handle = fs.open(E.file, "r")
+  if not handle then return nil end
+  local text = handle.readAll()
+  handle.close()
+  local value = type(text) == "string" and textutils.unserialize(text)
+  return type(value) == "table" and value or nil
+end
+
+E.write = function(value)
+  local handle = fs.open(E.file, "w")
+  if not handle then return false end
+  handle.write(textutils.serialize(value))
+  handle.close()
+  return true
+end
+
+-- Saves a typed or pasted token for the next enroll attempt.
+M.enrollSave = function(text)
+  local id, x = E.parse(text)
+  if not id then return false end
+  return E.write({ token = E.format(id, x) })
+end
+
+-- Sends one request and keeps every reply to it for E.poll seconds. Reply
+-- envelopes use the public key, so the tags decide what counts.
+E.ask = function(server, body)
+  local msg = S.proto.build(S.envelope, "enroll", body)
+  local wire, out = S.proto.encode(msg), {}
+  if not wire then return out end
+  rednet.send(server, wire, "so")
+  local timer = os.startTimer(E.poll)
+  while true do
+    local ev, a, b, c = os.pullEvent()
+    if ev == "timer" and a == timer then return out end
+    if ev == "rednet_message" and c == "so" and a == server and type(b) == "table" then
+      local reply = S.proto.decode(b)
+      if reply and reply.rid == msg.rid and reply.from == server and type(reply.body) == "table"
+        and S.proto.macOk(S.envelope, reply) then
+        out[#out + 1] = reply
+      end
+    end
+  end
+end
+
+-- Runs the device side from so-enroll. show(state, fingerprint) reports
+-- progress. Returns the server id once the machine key is saved, or nil
+-- and a reason. Nothing is saved until tag3 checks out. The first valid
+-- server share is kept; a second valid share means another token holder
+-- is answering, and the attempt stops.
+M.enroll = function(kind, show)
+  if not S.proto then return nil, "not open" end
+  local saved = E.read()
+  local server, x = E.parse(saved and saved.token)
+  if not server or not E.kinds[kind] then
+    fs.delete(E.file)
+    return nil, "token"
+  end
+  loadCrypto()
+  local sk = raw32(saved.sk)
+  if not sk then
+    sk = S.rnd.random(32)
+    if not E.write({ token = saved.token, sk = S.proto.hex(sk) }) then return nil, "disk" end
+  end
+  local pub, tk = S.x.publicKey(sk), E.key(x)
+  local sname, dname = tostring(server), tostring(os.getComputerID())
+  local body = { pub = S.proto.hex(pub), kind = kind, tag = S.proto.hex(E.tag(tk, 1, sname, dname, pub, kind)) }
+  local fp, lock, stop = E.fp(pub), nil, S.now() + E.life + E.linger
+  local step = { ack = { pending = 2, ok = 3 }, err = { denied = 4 } }
+  while S.now() < stop do
+    if show then show(lock and "pending" or "wait", fp) end
+    local outcome, plain, key
+    for _, reply in ipairs(E.ask(server, body)) do
+      local b = reply.body
+      local n = step[reply.t] and step[reply.t][reply.t == "ack" and b.state or b.text]
+      local xs = raw32(b.pub)
+      local k = n and xs and xs ~= pub and S.x.exchange(sk, xs)
+      if k and k ~= string.rep("\0", 32) and C.same(E.unhex(b.tag), E.tag(tk, n, sname, dname, pub, kind, xs, k)) then
+        if lock and lock ~= xs then outcome = "conflict" end
+        lock = xs
+        if outcome ~= "conflict" and n == 3 then outcome, key = "ok", E.machine(sname, dname, pub, xs, k) end
+        if outcome ~= "conflict" and outcome ~= "ok" and n == 4 then outcome = "denied" end
+        outcome = outcome or "pending"
+      elseif reply.t == "err" and E.final[b.text] then
+        plain = b.text
+      end
+    end
+    if outcome == "ok" then
+      local ok, err = M.remember(server, key)
+      if not ok then return nil, err end
+      fs.delete(E.file)
+      return server
+    end
+    if outcome == "conflict" or outcome == "denied" or (not outcome and plain) then
+      fs.delete(E.file)
+      return nil, outcome or plain
+    end
+  end
+  fs.delete(E.file)
+  return nil, "timeout"
 end
 
 M.invite = function(screen)

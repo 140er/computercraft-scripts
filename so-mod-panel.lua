@@ -133,6 +133,36 @@ P.pairedFrame = function(c, w, h, session)
   end
 end
 
+P.enrollFrame = function(c, w, h, session, view)
+  local panel = session.panel
+  local left = math.max(0,math.ceil(view.left/1000))
+  c.header("ENROLL",string.format("%d:%02d",math.floor(left/60),left%60))
+  if panel.enrollFailed then c.put(2,1,"SAVE FAILED","e") end
+  local token, top = view.token, 3
+  if #token <= w-2 then c.put(2,3,token)
+  else
+    local cut = select(2,token:find("^%d+%-%w+%-%w+"))
+    c.put(2,3,token:sub(1,cut)); c.put(2,4,token:sub(cut+2)); top = 4
+  end
+  c.fill(2,top+1,w-2,3,"9")
+  c.big(2,top+1,w-2,view.joined.."/"..view.cap,"9")
+  local step = h >= 16 and 2 or 1
+  local y = top+4+step-1
+  panel.enrollShown = {}
+  for _,row in ipairs(view.rows) do
+    panel.enrollShown[#panel.enrollShown+1] = {id=row.id,n=row.n}
+    if y <= h-2 then
+      c.put(2,y,("#"..row.id.." "..row.kind:upper()):sub(1,w-16))
+      c.put(w-13,y,row.fp)
+      c.button(w-8,y,4,"OK","enroll-ok:"..row.id..":"..row.n,"9",1)
+      c.button(w-3,y,4,"NO","enroll-no:"..row.id..":"..row.n,"e",1)
+    end
+    y = y+step
+  end
+  c.button(1,h-1,w,"APPROVE ALL","enroll-all","9",1)
+  c.button(1,h,w,"CLOSE","enroll-close","7",1)
+end
+
 P.drawn = function(event)
   local panel = event.session.panel
   local b = panel.drawn and panel.drawn[event.id]
@@ -145,12 +175,17 @@ P.render = function(w, h, session)
   session = session or {}
   session.panel = session.panel or {search="",page="main"}
   local c = U.canvas(w,h)
+  local enroll = SO.enroll and SO.enroll.view(session.id)
+  if session.panel.page == "enroll" and not (enroll and enroll.token) then session.panel.page = "pair" end
   local page = session.panel.page
-  c.header(page == "paired" and "PAIRED" or "PANEL",page == "paired" and "" or P.time())
-  if w == 26 and page ~= "paired" then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
+  local inner = page == "paired" or page == "enroll"
+  c.header(page == "paired" and "PAIRED" or "PANEL",inner and "" or P.time())
+  if w == 26 and not inner then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
   if page ~= "paired" then session.panel.confirm = nil end
   if page == "paired" then
     P.pairedFrame(c,w,h,session)
+  elseif page == "enroll" then
+    P.enrollFrame(c,w,h,session,enroll)
   elseif page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
     local invitation = session.panel.invitation
@@ -172,7 +207,18 @@ P.render = function(w, h, session)
       c.fill(1,h < 12 and h-1 or h-3,w,h < 12 and 1 or 3,"c")
       c.center(1,w,h < 12 and h-1 or h-2,"NEW CODE")
     end
-    c.button(1,h-4,w,"PAIRED","paired","7",1)
+    if SO.enroll then
+      local cols = U.grid(w,h,2)
+      c.button(cols[1].x,h-4,cols[1].w,"PAIRED","paired","7",1)
+      if P.trusted(session) and (not enroll or enroll.token) then
+        c.button(cols[2].x,h-4,cols[2].w,"ENROLL","enroll","9",1)
+      else
+        c.fill(cols[2].x,h-4,cols[2].w,1,"c")
+        c.center(cols[2].x,cols[2].w,h-4,"ENROLL")
+      end
+    else
+      c.button(1,h-4,w,"PAIRED","paired","7",1)
+    end
     c.button(1,h,w,"BACK","panel-back","7",1)
   elseif page == "alerts" then
     c.put(2,3,"ALERTS")
@@ -234,11 +280,45 @@ P.render = function(w, h, session)
   return frame
 end
 
+-- A paired display acting through its own session on a drawn control.
+P.trusted = function(session, event)
+  return session.id ~= nil and session.isDisplay and session.w and SO.pair.key(session.id) ~= nil
+    and (not event or (event.from == session.id and P.drawn(event)))
+end
+
+P.enrollInput = function(event, panel, id)
+  if not SO.enroll or not P.trusted(event.session, event) then return end
+  local owner = event.from
+  panel.drawn = nil
+  if id == "enroll" then
+    if SO.enroll.open(owner) then panel.page, panel.enrollFailed = "enroll", nil end
+    return
+  end
+  local view = SO.enroll.view(owner)
+  if not view or not view.token then return end
+  local failed
+  local function decide(device, n, approve)
+    local ok, err = SO.enroll.decide(device, n, approve)
+    if not ok and err ~= "gone" then failed = true end
+  end
+  if id == "enroll-close" then
+    SO.enroll.close()
+    panel.page = "pair"
+  elseif id == "enroll-all" then
+    for _,row in ipairs(panel.enrollShown or {}) do decide(row.id,row.n,true) end
+  else
+    local verb, device, n = id:match("^enroll%-(%a+):(%d+):(%d+)$")
+    if verb == "ok" or verb == "no" then decide(tonumber(device),tonumber(n),verb == "ok") end
+  end
+  panel.enrollFailed = failed
+end
+
 P.input = function(event)
   local session = event.session
   if not session then return end
   session.panel = session.panel or {search="",page="main"}
   local panel,id = session.panel,event.id
+  if type(id) == "string" and id:match("^enroll") then return P.enrollInput(event,panel,id) end
   if id == "paired" or id == "paired-back" or id == "paired-prev" or id == "paired-next"
     or type(id) == "string" and id:match("^forget") then
     if event.from ~= session.id or not session.isDisplay or not session.w or not SO.pair.key(event.from) or not P.drawn(event) then return end

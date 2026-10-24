@@ -124,6 +124,83 @@ The server answers `ack` when the MAC matches the live code. `body.ok` is `true`
 
 The envelope MAC on that `pair` and its `ack` uses the handshake key from `pair.derive`, not the stored machine key. A retry of the same `rid` gets the saved `ack` again. The server keeps that handshake key for 120000 ms next to the saved reply, so the retry still verifies after the code is cleared. A new `rid` for an id that already has a key needs a new code. A different computer needs a new code.
 
+### enroll
+
+Batch enrollment, off unless `so-server.cfg` has `enroll = true`. With the flag
+off the server treats `enroll` like any unknown message from an unpaired
+sender: a bad MAC and no answer. Envelopes and replies use the public
+`pair.envelopeKey()`, as `pair2` does. The tags below carry the security.
+
+The owner opens a window on the panel. It holds a token, the server's X25519
+key pair for the window and up to 20 pending rows, in memory only. It ends after
+600000 ms, after 20 approvals, on CLOSE, when its owner is forgotten and on
+server restart.
+
+The token is `S-XXXX-XXXX-XXXX-XXXX`. `S` is the server computer id in
+decimal. The 16 symbols come from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no 0, 1,
+I or O), 5 bits each from 10 random bytes: 80 bits. Parsing uppercases, drops
+spaces and dashes after `S`, and needs exactly 16 symbols. `X` is those symbols.
+
+```text
+tk   = SHA-256("so-enroll-key\0" .. X)
+tag1 = HMAC-SHA256(tk, "so-enroll-1 device\0"          .. lv(S, D, Xd, kind))
+tag2 = HMAC-SHA256(tk, "so-enroll-2 server pending\0"  .. lv(S, D, Xd, kind, Xs, K))
+tag3 = HMAC-SHA256(tk, "so-enroll-3 server approved\0" .. lv(S, D, Xd, kind, Xs, K))
+tag4 = HMAC-SHA256(tk, "so-enroll-4 server denied\0"   .. lv(S, D, Xd, kind, Xs, K))
+K    = X25519(sd, Xs) = X25519(ss, Xd)
+key  = pair.machineKey(SHA-512(lv("so-enroll isk", S, D, Xd, Xs, K)))
+```
+
+`lv` is the `pair2` length-prefixed concatenation. `S` and `D` are decimal
+ids, `Xd` and `Xs` raw 32-byte public keys. Every tag has its own role label, so
+no tag passes as another, and tags 2 to 4 also cover `K`, so only the holder of
+the window's server scalar can make them. The machine key is derived like
+`pair2`'s and is never the token.
+
+The device sends `enroll` to `S` directly, never through the `so/server`
+lookup. `body.pub` is hex `Xd`, `body.kind` is `turtle`, `pocket` or `computer`
+(claimed, shown on the panel), `body.tag` is hex tag1. It repeats the request
+every 3 s with a new `rid` and keeps every reply to each request for those 3 s.
+
+The server answers:
+
+- `ack` `{ state = "pending", pub = hex Xs, tag = hex tag2 }` while the row waits.
+- `ack` `{ state = "ok", pub, tag = hex tag3 }` after approval. The server saved
+  the key through `pair.remember` at approval.
+- `err` `{ code = "enroll", text = "denied", pub, tag = hex tag4 }` after denial.
+- `err` with `text` `closed` (no window), `token` (tag1 wrong), `wait` (over the
+  pairing budget), `body` (malformed), `paired` (the id already has a key),
+  `busy` (the id has another request in this window), `full` (20 rows or 20
+  joins) or `share` (`Xd` equals `Xs` or gives an all-zero `K`).
+
+A repeat of a known request, matched on `pub`, `kind` and tag1, gets the same
+answer and costs nothing. Answers to approved and denied rows stay for 60000 ms
+after the decision, also after the window closes. A new request first spends a
+`pair.charge(id, "start")`; a wrong tag1 or a malformed body also spends a
+`reject`. Enroll and `pair2` share that budget.
+
+The device checks tag2, tag3 and tag4 against its own `Xd`, `kind` and `K`. It
+ignores replies whose tag fails or whose `Xs` equals its own `Xd`. It keeps the
+first `Xs` with a valid tag. A valid tag under a different `Xs` means a second
+token holder answered, and the device stops with `conflict`. It saves the key
+only after a valid tag3, then deletes `so-enroll`. A valid tag4, `conflict`, or
+an untagged `closed`, `token`, `full`, `busy`, `paired`, `share` or `body` also
+deletes `so-enroll`. After 660000 ms without one of those it deletes the file
+with `timeout`.
+
+`so-enroll` on the device is a serialized `{ token, sk? }`. The installer writes
+the token. The worker adds its X25519 secret before the first request, so a
+reboot resumes the same request. A worker that already has a key deletes the
+file at boot.
+
+Untagged errors can be forged, since the envelope key is public. A forger can
+end a device's attempt, which costs the owner a new install line, but cannot
+make it save a key. Anyone with the token is a token holder: it can ask to join
+under any unpaired id, and the owner must approve it. A token holder could also
+answer a device that cannot hear the real server; the conflict check only helps
+when the device hears both. The token reaches the owner's display in its signed
+`view.frame`, which is not encrypted.
+
 ### hello
 
 A paired computer sends `hello` to the server.
@@ -1153,6 +1230,17 @@ Use, expiry, five bad attempts or terminal cancellation restore that page.
 `panel-back` returns to the main panel.
 At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
 screens use compact controls. The pairing handshake and job planning are unchanged.
+
+With `enroll = true`, PAIR splits its PAIRED row with an ENROLL button. ENROLL
+opens a window through `SO.enroll.open(id)` for a paired display session and
+shows the ENROLL page: the token as normal text (the big font has no letters),
+the time left, joins out of 20 in big digits, one row per waiting device with
+OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
+`enroll-ok:<id>:<n>`, `enroll-no:<id>:<n>`, `enroll-all` and `enroll-close`,
+where `n` is the row's window-unique number, so a delayed tap cannot decide a
+later request from the same id. APPROVE ALL decides the rows from that
+session's last render. Only the owner session gets the token and the controls;
+other displays see ENROLL greyed while the window is open.
 
 ### lumber
 
