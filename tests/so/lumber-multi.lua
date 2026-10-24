@@ -1,5 +1,29 @@
 local F = dofile('tests/so/lumber-farm-fixture.lua')
 return function(test, equal)
+  test('lumber three pickaxe-only workers keep harvesting with tool swaps off',function()
+    local g=F.setup(true,10000,'down',3,nil,
+      {left='minecraft:diamond_pickaxe',right='computercraft:wireless_modem'})
+    g.net.advance(1)
+    local leases,machines={},{}
+    for _,worker in ipairs(g.workers) do
+      local status=g.server.env.SO.mods.lease.status(worker.id)
+      equal(status.autoToolSwap,false)
+      equal(status.tools.left,'minecraft:diamond_pickaxe')
+      equal(g.server.env.SO.mods.lease.ensureTool(worker.id,'axe'),true)
+      equal(worker.screen[4],'needs axe')
+      leases[tostring(worker.id)],machines[tostring(worker.id)]=status,{}
+    end
+    local job=g.server.env.SO.store.read('so-data/lumber/job').value
+    local rows=dofile('so-mod-health.lua').attention({now=0,disk={},jobs={lumber=job},machines=machines,leases=leases})
+    equal(#rows,3)
+    for _,row in ipairs(rows) do assert(row.text:find('needs axe',1,true));equal(row.target,'lumber') end
+    F.run(g,function(v) return F.delivered(v)==16 end)
+    equal(F.delivered(g),16)
+    local contributed=0
+    for _,n in pairs(g.dugCells) do if n>0 then contributed=contributed+1 end end
+    assert(contributed>=2,'tool warnings prevented shared work')
+  end)
+
   for _, count in ipairs({ 2, 3 }) do
     for _, side in ipairs({ 'down', 'front' }) do
       test('lumber ' .. count .. ' workers share ' .. side .. ' chests and replant every tree once', function()
