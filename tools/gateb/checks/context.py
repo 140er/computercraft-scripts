@@ -7,6 +7,7 @@ import time
 from .lua_data import parse
 from .model import Blocked, values, lumber_workers
 from .admission import admit
+from .readiness import start_job
 
 HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local requests,failures=0,0
   print=function(...) local parts={};for i=1,select('#',...) do parts[i]=tostring(select(i,...)) end
@@ -208,7 +209,7 @@ class Context:
             self.screen_input("mining", text)
         for name in ("miner1", "miner2"):
             self.anchor(name, "mining")
-        if start: self.screen_input("mining", "start")
+        if start: start_job(self, "mining")
 
     def lumber(self, start=True):
         self.drops()
@@ -219,7 +220,7 @@ class Context:
         self.screen_input("lumber", f"saplings {' '.join(map(str, chest['pos']))} {chest.get('side', 'front')}")
         if str(self.computer("lumber")) not in lumber_workers(self.state()["lumber"]):
             self.anchor("lumber", "lumber")
-        if start: self.screen_input("lumber", "start")
+        if start: start_job(self, "lumber")
 
     def terminal(self, name):
         return self.request("terminal", computer=self.computer(name))

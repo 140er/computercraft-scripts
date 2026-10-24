@@ -109,3 +109,18 @@ for execution ownership and repeat reporting. C8 and C10 run three independent
 attempts by default. Every attempt keeps separate evidence and the report
 includes its status and wall-time spread. No failed or blocked attempt is
 hidden by a later successful run.
+
+The requested tick rate applies only to C5, C6, C7 and C8. Other checks stay
+at 20 TPS. C10 measures a real 180-second server outage and real recovery
+time. C2 covers pairing expiry, C4 uses a real ten-second settling wait, and
+C13 captures client rendering. These checks keep their baseline timing even
+when the run requests 80 TPS. Use `--plan` to inspect the effective rates.
+
+Mining and lumber setup wait up to 60 seconds for the product's READY checks,
+disk admission and every assigned worker's fuel, pose and paired lease status.
+The driver checks that START sets the job running and retries one readiness
+refusal after waiting for fresh reports. Readiness and refusal evidence stays
+next to each check's samples. C4 reads full poses from visible turtle details.
+C3 already accepts Route A tabs and turtle ids. C5, C6, C7 and C8 use text
+commands rather than tapped ids. C12's `item:` and `order:` ids still match
+the shop screen.
