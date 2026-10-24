@@ -562,7 +562,8 @@ Open PANEL, PAIR, PAIRED. Find the id and tap FORGET, then CONFIRM within
 four-character key fingerprint. A display cannot forget itself.
 
 The server removes the key and parks mine, lumber and build assignments. It
-keeps cell reservations because the turtle may still be moving. Re-pair and
+keeps possibly occupied cell reservations because the turtle may still be
+moving, and sends a best-effort stationary park. Other lumber workers continue. Re-pair and
 explicitly re-add the turtle at its actual pose before resuming it. The next
 hello shows the normal pairing prompt. NEEDS includes the most recent forget
 event.

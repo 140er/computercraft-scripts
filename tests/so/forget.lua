@@ -43,8 +43,8 @@ local function setup(w,h)
   s.press=function(id,name)
     local f=s.frame(id)
     for _,b in ipairs(f.buttons) do
-      if b.id==name then
-        d.handlers.input({from=id,body={id=name,x=b.x,y=b.y}})
+      if b.id==name or b.id:sub(1,#name+1)==name..":" then
+        d.handlers.input({from=id,body={id=b.id,x=b.x,y=b.y}})
         return
       end
     end
@@ -122,11 +122,16 @@ return function(test,equal)
     input({from=2,body={id="forget-confirm:3",x=14,y=7}})
     assert(s.so.pair.key(3))
     s.press(2,"forget:3")
+    local confirmation
+    for _,b in ipairs(s.frame(2).buttons) do
+      if b.id:match("^forget%-confirm:3:") then confirmation=b end
+    end
+    assert(confirmation)
     s.open(4)
-    input({from=4,body={id="forget-confirm:3",x=14,y=7}})
+    input({from=4,body={id=confirmation.id,x=confirmation.x,y=confirmation.y}})
     assert(s.so.pair.key(3))
     s.net.advance(15.001)
-    input({from=2,body={id="forget-confirm:3",x=14,y=7}})
+    input({from=2,body={id=confirmation.id,x=confirmation.x,y=confirmation.y}})
     assert(s.so.pair.key(3))
     s.press(2,"forget:3")
     assert(s.so.pair.remember(3,string.rep("ab",32)))
@@ -136,6 +141,60 @@ return function(test,equal)
     assert(s.so.pair.forget(2))
     s.press(2,"forget-confirm:3")
     assert(s.so.pair.key(3))
+  end)
+  test("forget delayed authenticated confirm cannot authorize a later attempt",function()
+    for _,size in ipairs({{26,20},{29,12}}) do
+      local s=setup(unpack(size))
+      local proto,key=s.so.proto,s.so.pair.key(2)
+      local function packet(t,body)
+        local msg=proto.build(key,t,body)
+        msg.from=2
+        msg.mac=proto.sign(key,msg)
+        return assert(proto.encode(msg))
+      end
+      local function deliver(wire)
+        s.m.env.os.queueEvent("rednet_message",2,wire,"so")
+        s.net.flush()
+        assert(s.m.alive(),tostring(s.m.error))
+      end
+      local function frame()
+        deliver(packet("view.get",{}))
+        for i=#s.m.sent,1,-1 do
+          local msg=proto.decode(s.m.sent[i].payload)
+          if s.m.sent[i].id==2 and msg and msg.t=="view.frame" then return msg.body end
+        end
+        error("missing authenticated frame")
+      end
+      local function button(name)
+        for _,b in ipairs(frame().buttons) do
+          if b.id==name or b.id:sub(1,#name+1)==name..":" then return b end
+        end
+        error("missing drawn button "..name)
+      end
+      local function tap(name)
+        local b=button(name)
+        deliver(packet("input",{id=b.id,x=b.x,y=b.y}))
+      end
+      deliver(packet("hello",{role="display",w=size[1],h=size[2]}))
+      if frame().role~="panel" then tap("panel") end
+      tap("pair");tap("paired");tap("forget:3")
+      local old=button("forget-confirm:3")
+      local delayed=packet("input",{id=old.id,x=old.x,y=old.y})
+      tap("paired-back")
+      local session=private(s.so.mods.display.handlers.hello,"D").sessions[2]
+      equal(session.panel.confirm,nil)
+      assert(s.so.pair.remember(3,string.rep("ab",32)))
+      tap("paired");tap("forget:3")
+      local current=button("forget-confirm:3")
+      local count=s.so.errors.status().count
+      deliver(delayed)
+      assert(s.so.pair.key(3),"delayed confirmation deleted replacement key")
+      equal(s.so.errors.status().count,count)
+      assert(current.id~=old.id,"confirmation token reused")
+      deliver(packet("input",{id=current.id,x=current.x,y=current.y}))
+      equal(s.so.pair.key(3),nil)
+      equal(session.panel.confirm,nil)
+    end
   end)
   test("forget uses composed banner coordinates and refuses worker-role sessions",function()
     local s=setup(29,12)
@@ -153,7 +212,7 @@ return function(test,equal)
         s.so.mods.display.handlers.input({from=2,body={id=b.id,x=b.x,y=b.y}})
       end
     end
-    for _,b in ipairs(s.frame(2).buttons) do assert(b.id~="forget-confirm:4") end
+    for _,b in ipairs(s.frame(2).buttons) do assert(not b.id:match("^forget%-confirm:4:")) end
     assert(s.so.pair.key(4))
     equal(s.so.errors.status().count,count)
   end)
@@ -180,6 +239,26 @@ return function(test,equal)
       if sent.id==3 and type(sent.payload)=="table" and sent.payload.t=="pair.required" then found=true end
     end
     assert(found,"forgotten hello needs pair.required")
+  end)
+  test("forget parks one lumber worker while the rest of its fleet continues",function()
+    local F=dofile("tests/so/lumber-farm-fixture.lua")
+    local g=F.setup(true,10000,"down",3)
+    F.run(g,function(v) return #v.digs>=2 end)
+    local so=g.server.env.SO
+    local job=private(so.mods.lumber.forget,"S").job
+    local forgotten
+    for _,worker in ipairs(g.workers) do
+      if job.turtles[tostring(worker.id)].tree then forgotten=worker.id break end
+    end
+    assert(forgotten)
+    local before=#g.digs
+    assert(so.forgetDevice(forgotten))
+    assert(job.turtles[tostring(forgotten)].turtle.forgotten and job.running)
+    F.run(g,function(v) return #v.digs>before and F.delivered(v)>=12 end)
+    equal(so.pair.key(forgotten),nil)
+    local row=job.turtles[tostring(forgotten)]
+    assert(row.turtle.forgotten and row.paused and not row.pending)
+    assert(so.mods.cells.list("lumber:"..forgotten,1)[1],"forgotten worker lost its reservations")
   end)
   test("forget parks every planner and lease without releasing possibly occupied reservations",function()
     local s=setup(26,20)

@@ -951,12 +951,16 @@ that id's pending pair2 exchange. It returns success and an optional save error.
 `SO.forgetDevice(id, actor)` parks assignments through `mine.forget(id)`,
 `lumber.forget(id)` and `build.forget(id)`, then removes the key, clears reply
 caches, and calls `lease.forget(id)` and `display.forget(id)`. Planner forget
-calls return success and save a `forgotten` flag. Lease forget detaches callbacks
-and marks the pose uncertain. Display forget deletes the session. Reservations
-remain intact. These are local calls, with no new wire handler.
+calls return success and save a `forgotten` flag. Lease forget accepts the previous key as an optional second argument, sends a
+best-effort stationary park after revocation, detaches callbacks and marks the
+pose uncertain. Display forget deletes the session. Possibly occupied reservations
+remain intact. Lumber suspends unused service queues through its existing safe
+path and pauses only the forgotten worker. These are local calls, with no new wire handler.
 
 Panel PAIR has a PAIRED button. Each session pages its own list and confirms
-through a drawn FORGET then CONFIRM button within 15000 ms. It requires a paired
+through a drawn FORGET then CONFIRM button within 15000 ms. Each confirmation
+button carries a unique attempt token so delayed inputs cannot confirm a later
+forget flow. It requires a paired
 display session, checks the button coordinates and the current target key, and
 rejects self-forget. `pair.forgotten` records the id and actor in state history
 and supplies an attention row linking back to PAIR.

@@ -1,6 +1,6 @@
 local U
 if not fs or not fs.exists or fs.exists("so-ui.lua") then U = dofile("so-ui.lua") end
-local P = { screens = {}, states = {}, alerts = {} }
+local P = { screens = {}, states = {}, alerts = {}, confirmSeq = 0 }
 
 P.now = function() return SO.now() end
 P.time = function() return U and U.clock(os.epoch("utc")).hm or "" end
@@ -124,7 +124,7 @@ P.paired = function(c, w, h, session)
       if row.id ~= session.id then
         local confirm = panel.confirm and panel.confirm.id == row.id
         c.button(w-12,y+1,12,confirm and "CONFIRM" or "FORGET",
-          (confirm and "forget-confirm:" or "forget:")..row.id,"e",1)
+          confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,"e",1)
       end
     end
   end
@@ -249,14 +249,16 @@ P.input = function(event)
     else
       local target = tonumber(id:match("^forget:(%d+)$"))
       if target and target ~= session.id and SO.pair.key(target) then
-        panel.confirm = {id=target,expires=P.now()+15000,key=SO.pair.key(target)}
+        P.confirmSeq = P.confirmSeq + 1
+        panel.confirm = {id=target,token=tostring(P.confirmSeq),expires=P.now()+15000,key=SO.pair.key(target)}
         panel.drawn = nil
         return
       end
-      target = tonumber(id:match("^forget%-confirm:(%d+)$"))
+      local device, token = id:match("^forget%-confirm:(%d+):(%d+)$")
+      target = tonumber(device)
       local confirm = panel.confirm
       panel.confirm, panel.drawn = nil, nil
-      if target and target ~= session.id and confirm and confirm.id == target and P.now() < confirm.expires
+      if target and target ~= session.id and confirm and confirm.id == target and confirm.token == token and P.now() < confirm.expires
         and SO.pair.key(target) == confirm.key and type(SO.forgetDevice) == "function" then
         local ok = SO.forgetDevice(target,event.from)
         if not ok then panel.forgetFailed = true else panel.forgetFailed = nil end
@@ -266,6 +268,7 @@ P.input = function(event)
     panel.confirm, panel.drawn = nil, nil
     return
   end
+  if id == "panel-back" or id == "pair" or id == "alerts" then panel.confirm, panel.drawn = nil, nil end
   if type(event.text) == "string" and session.keyboard then panel.search = event.text:sub(1,256);return end
   if event.open and SO.mods.health and (id == "health" or id == "attention" or id == "alerts") then
     event.open(id);return
