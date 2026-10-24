@@ -134,7 +134,9 @@ and listeners use `listener(sender, message)`.
 - [so-lumber-plan.lua](../so-lumber-plan.lua) classifies trees and plans scans and chest access.
   Calls are `isLog(block)`, `isLeaves(block)`, `isSapling(name)`, `saplingFor(name)`,
   `canDig(block)`, `scan(area, ground, dim)`, `access(point, near, blocked)`,
-  `travel(from, target, ground)` and `distance(a, b)`. `travel` returns the next
+  `travel(from, target, ground)`, `nextCell(from, target, ground, blocked)` and `distance(a, b)`.
+  `nextCell` searches at most 2048 cells and returns the first movement cell around
+  other workers and their reservations, or nil when no route was found. `travel` returns the next
   service waypoint, with horizontal travel at ground plus two. `access` takes the chest's own coordinates. For `front`,
   it chooses the nearest unblocked horizontal neighbour by Manhattan distance
   and faces the chest. Ties use north, east, south, west order. For `down`,
@@ -330,7 +332,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   opens a session-local detail overlay; BACK restores the source page and map view.
   Tick gathers module `turtleView()` snapshots, registry last-seen and lease status;
   rendering reads that cache. Detail actions validate their drawn coordinates.
-  PARK ALL sends mining's existing `stop`; lumber PARK sends its existing `stop`.
+  PARK ALL sends mining's `stop`; lumber PARK sends `park <id>` for the selected
+  worker, leaving the other workers running.
   Mining REMOVE sends `remove <id>` after two taps within five seconds. Lumber has
   no remove command. Uncertain workers show POSE ? and a coordinate editor; RE-ADD
   requires two taps after editing and forwards the existing `add` command.
@@ -501,6 +504,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
   `assigned(id)` reports whether its job owns that worker.
+  `turtleView()` returns a copied detail row per worker, including its pose, fuel,
+  inventory, state and step, plus shared farm progress.
   Calls are `tick(now)` and `dugProtection(protect)`; no wire handlers.
   Protection covers the running farm at every height, saved service routes and
   worker recovery. Mining and lumber pass world-frame journal cells to cells.
@@ -508,10 +513,18 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
   Screen callbacks are `render(w, h)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
-  `mapView()` returns copied dimension, area, ground, sapling chest and turtle
-  pose/state fields for the map.
+  `mapView()` returns copied dimension, area, ground, sapling chest and a
+  `turtles` map of `{ id, pose, state }` rows for the map. Saved jobs use
+  `turtles[id]` for each worker's journal frame, pose, phase, inventory and trip.
+  Old single-worker jobs migrate when loaded. Shared scan claims reserve target
+  cells until felling and replanting finish. FIFO tickets serialize chest access.
+  Workers retain the access column until their return leaves it. Lost workers
+  keep their uncertain cells while the others continue.
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
-  the text command path. SETUP pages configuration commands; its BACK returns
+  the text command path. Every turtle appears with its phase and fuel. Three
+  fit 26x20 and 29x12; NEXT pages longer lists. Drawn worker rows open detail
+  pages. `park <id>` saves a per-worker pause; `start` resumes paused workers.
+  SETUP pages configuration; its BACK returns
   to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
   Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
   tile when missing. Calls without a size retain
@@ -523,7 +536,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `start` is required after fixing the cause. Fuel trips reserve the route
   distance plus 32 fuel. Wood service removes junk and excess saplings while
   preserving one per known spot of each species and the current tree.
-  Log delivery counts require a successful drop report and an inventory decrease.
+  Wood inspections save a delivery intent before the transfer lease. Reports
+  credit the inventory decrease. Recovery reconciles a lost report against that
+  intent. `lumber.logs` carries total and per-worker receipt sequences to prevent
+  duplicate events after a crash between the event and job saves.
   Wood and supply inspections call `drops.note`. Sapling service reuses a matching
   drop point or registers a stable `storage` point for the drop editor.
   See [[server-only/PROTOCOL#lumber]] ([lumber](server-only/PROTOCOL.md#lumber)).

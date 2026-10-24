@@ -15,7 +15,7 @@ local function parked(rate, role, dropReport, waiting)
     input({text="saplings -10 0 0 down"})
     input({ text = "start" })
     a.n.advance(10)
-    assert(a.s.env.SO.store.read("so-data/lumber/job").value.phase == "waiting", "lumber did not enter its planting wait")
+    assert(a.s.env.SO.store.read("so-data/lumber/job").value.turtles["2"].phase == "waiting", "lumber did not enter its planting wait")
   end
   local lease = a.s.env.SO.mods.lease
   assert(not lease.status(2).open and not lease.status(2).lost, "initial park failed")

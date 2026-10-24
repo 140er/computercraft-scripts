@@ -10,12 +10,12 @@ return function(test, equal)
     for _, height in ipairs({ 2, 7 }) do
       test('lumber service flight ' .. side .. ' height ' .. height, function()
         local f = setup()
-        local j = f.job
+        local j = f.row
         j.turtle.pose.y = height
-        local back = { dim = j.dim, x = 0, y = height, z = 0, facing = 1 }
+        local back = { dim = f.job.dim, x = 0, y = height, z = 0, facing = 1 }
         j.service = { kind = 'wood', stage = 'travel', resume = 'waiting',
           point = { x = 6, y = 1, z = 0, side = side }, back = back }
-        j.detour = { dim = j.dim, x = 5, y = 1, z = 0 }
+        j.detour = { dim = f.job.dim, x = 5, y = 1, z = 0 }
         local returned = false
         for n = 1, 150 do
           f.tick(n)
@@ -54,26 +54,26 @@ return function(test, equal)
   end
   test('lumber service does not dig an unknown log base', function()
     local f = setup()
-    f.job.turtle.pose.y = 2
+    f.row.turtle.pose.y = 2
     f.job.obstacles = {}
-    f.job.service = { kind = 'wood', stage = 'travel', resume = 'scan',
+    f.row.service = { kind = 'wood', stage = 'travel', resume = 'scan',
       point = { x = 0, y = 0, z = 0, side = 'down' } }
     f.tick(1)
     f.report(false, { { ok = true, data = { name = 'minecraft:oak_log', tags = { ['minecraft:logs'] = true } } } })
     equal(f.queued() == nil, true, 'no dig sent')
     f.tick(2)
-    equal(f.job.blocked ~= nil, true, 'blocked route holds')
+    equal(f.row.blocked ~= nil, true, 'blocked route holds')
   end)
   for _, name in ipairs({ 'minecraft:oak_sapling', 'minecraft:mangrove_propagule', 'minecraft:oak_log' }) do
     test('lumber return protects ' .. name, function()
       local f = setup()
       f.job.obstacles = {}
-      f.job.service = { kind = 'wood', stage = 'return', resume = 'scan',
+      f.row.service = { kind = 'wood', stage = 'return', resume = 'scan',
         back = { dim = f.job.dim, x = 0, y = 1, z = 0 } }
       f.tick(1)
       f.report(false, { { ok = true, data = { name = name, tags = { ['minecraft:logs'] = name:match('_log$') ~= nil } } } })
       equal(f.queued() == nil, true, 'does not send dig')
-      equal(f.job.blocked, 'blocked')
+      equal(f.row.blocked, 'blocked')
     end)
   end
   test('lumber failed send releases reservations and parks', function()
@@ -84,7 +84,7 @@ return function(test, equal)
     f.mods.lease.send = function() return nil, 'offline' end
     f.tick(1)
     equal(releases > 0, true)
-    equal(f.job.blocked ~= nil, true)
+    equal(f.row.blocked ~= nil, true)
     f.mods.lease.send = send
     f.tick(2)
     equal(f.queued().opts.ms, P.park.ms)
@@ -99,42 +99,45 @@ return function(test, equal)
       elseif failure == 'held' then f.mods.cells.reserveMany = function() return false end
       else f.mods.lease.inRange = function() return false end end
       f.tick(2)
-      equal(f.job.blocked ~= nil, true)
+      equal(f.row.blocked ~= nil, true)
       f.mods.cells.reserveMany, f.mods.lease.inRange = reserve, range
       f.tick(3)
       equal(f.queued().opts.ms, P.park.ms)
     end)
   end
-  test('lumber replacement waits for old lease and confirmed park', function()
+  test('lumber add retains existing workers and remove waits for its own park', function()
     local f = setup()
-    f.tick(1)
-    f.report(false)
     f.input('stop')
     f.input('add 3 8 2 0 e')
-    equal(f.job.turtle.id, 2, 'old turtle retained while parking')
+    equal(f.job.turtles['2'], f.row)
+    equal(f.job.turtles['3'].turtle.id, 3)
+    f.row.idlePark = false
+    f.input('remove 2')
+    equal(f.job.turtles['2'], f.row)
     equal(f.queued().opts.ms, P.park.ms)
-    f.input('add 3 8 2 0 e')
-    equal(f.job.turtle.id, 2, 'open park cannot be abandoned')
-    f.report(false, { { ok = false } })
-    f.input('add 3 8 2 0 e')
-    equal(f.job.turtle.id, 3)
-  end)
-  test('lumber replacement retains a turtle whose park report expired', function()
-    local f = setup()
-    f.tick(1)
+    f.input('remove 2')
+    equal(f.job.turtles['2'], f.row)
     f.report(false)
+    f.input('remove 2')
+    equal(f.job.turtles['2'], nil)
+    equal(f.job.turtles['3'].turtle.id, 3)
+  end)
+  test('lumber remove retains a turtle whose park report expired', function()
+    local f = setup()
     f.input('stop')
+    f.row.idlePark = false
     f.tick(2)
     f.expire()
-    f.input('add 3 8 2 0 e')
-    equal(f.job.turtle.id, 2)
+    f.input('remove 2')
+    equal(f.job.turtles['2'], f.row)
     equal(f.queued().opts.recover, true)
   end)
-  test('lumber replacement refuses an external open lease', function()
+  test('lumber add refuses the selected worker with an external open lease', function()
     local f = setup()
     f.input('stop')
     f.mods.lease.status = function() return { open = true } end
     f.input('add 3 8 2 0 e')
-    equal(f.job.turtle.id, 2)
+    equal(f.job.turtles['3'], nil)
+    equal(f.job.turtles['2'], f.row)
   end)
 end

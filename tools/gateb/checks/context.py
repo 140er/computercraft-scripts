@@ -5,7 +5,7 @@ import subprocess
 import time
 
 from .lua_data import parse
-from .model import Blocked, values
+from .model import Blocked, values, lumber_workers
 from .admission import admit
 
 HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local requests,failures=0,0
@@ -205,7 +205,7 @@ class Context:
         self.screen_input("lumber", f"area {' '.join(map(str, config['area']))} {config['ground']}")
         chest = self.fixture("saplings")
         self.screen_input("lumber", f"saplings {' '.join(map(str, chest['pos']))} {chest.get('side', 'front')}")
-        if not self.state()["lumber"].get("turtle"):
+        if str(self.computer("lumber")) not in lumber_workers(self.state()["lumber"]):
             self.anchor("lumber", "lumber")
         if start: self.screen_input("lumber", "start")
 

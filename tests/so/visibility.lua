@@ -59,6 +59,25 @@ return function(test,equal)
     equal(#mod.attention({now=0,disk={},jobs={},machines={}}),0)
   end)
 
+  test("visibility shows each lumber worker hold and clears it independently",function()
+    local s=setup(26,20,prepare)
+    local facts={now=0,disk={},jobs={lumber={turtles={
+      ["7"]={turtle={id=7},blocked="hold",alert="fuel chest empty"},
+      ["8"]={turtle={id=8},alert="out of saplings"},
+    }}}}
+    local rows=s.server.env.SO.mods.health.attention(facts)
+    equal(#rows,2)
+    local targets={}
+    for _,row in ipairs(rows) do targets[row.key]=row.target end
+    equal(targets["lumber/7"],"lumber")
+    equal(targets["lumber/8"],"lumber")
+    facts.jobs.lumber.turtles["7"].blocked=nil
+    facts.jobs.lumber.turtles["7"].alert=nil
+    rows=s.server.env.SO.mods.health.attention(facts)
+    equal(#rows,1)
+    equal(rows[1].key,"lumber/8")
+  end)
+
   test("visibility records tick, handler and listener failures",function()
     local s=setup(26,20,prepare)
     local so=s.server.env.SO

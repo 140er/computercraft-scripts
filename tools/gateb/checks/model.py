@@ -80,3 +80,10 @@ def own_path(journal, frame):
         elif op == "down": p["y"] += 1
         path.add(world_pose(p, frame))
     return path
+
+
+def lumber_workers(job, legacy_id=None):
+    if "turtles" in job:
+        return {str(ident): row["turtle"] for ident, row in job["turtles"].items()}
+    turtle = job.get("turtle")
+    return {str(turtle.get("id", legacy_id)): turtle} if turtle else {}

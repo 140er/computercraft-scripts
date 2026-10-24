@@ -890,11 +890,14 @@ condition clears, including with event alerts off.
 Turtle detail pages are server-local display state and add no wire messages.
 Rows and map arrows use drawn `turtle:<id>` buttons. The display session retains
 its selected worker and confirmation state; BACK restores the source screen.
-Mining and lumber provide read-only `turtleView()` snapshots for this view.
-PARK forwards `stop`, mining REMOVE forwards `remove <id>`, and uncertain-pose
+Mining and lumber provide read-only `turtleView()` snapshots for each assigned
+worker. Lumber snapshots keep pose, fuel, inventory, error and pending step per
+worker; SPOTS progress describes the shared farm. Mining PARK ALL forwards
+`stop`; lumber PARK forwards `park <id>` for the selected worker. Mining REMOVE
+forwards `remove <id>`, and uncertain-pose
 RE-ADD forwards `add <id> <x> <y> <z> <facing>` after coordinate confirmation.
 Mining labels its stop action PARK ALL because it stops the whole mining job.
-Lumber exposes PARK and RE-ADD; its command interface has no remove operation.
+Lumber exposes PARK and RE-ADD; its command interface also accepts `remove <id>`.
 
 
 SO5 owns this API on `SO.mods.display`.
@@ -1039,10 +1042,13 @@ dimension, bottom, length, mode and next branch. A frame never computes a route.
 project the worker pose onto its branch and clamp to the configured length.
 Up to 64 recent completed branches remain as faint trails until START resumes
 a stopped job or the server restarts. Trail history is display-only memory.
-`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtle }`.
-The optional turtle has `{ id, pose, state }`. These getters do not save or
-advance jobs. The map calls them from tick, together with registry, lease and
-drop APIs. Registry workers without a job also appear when their pose is known.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtles }`.
+The turtle map is keyed by id, with `{ id, pose, state }` for every assigned worker.
+These getters do not save or advance jobs. The map calls them from tick,
+together with registry, lease and drop APIs. AR merges every lumber worker's
+planner pose and state with registry freshness and fuel. Both views use the
+farm dimension when a lumber pose has no dimension of its own. Registry
+workers without a job also appear when their pose is known.
 Numeric drop dimensions are normalized to world dimension strings.
 
 A running mine's next branch is an amber `1` line above planned grey geometry.
@@ -1128,19 +1134,22 @@ screens use compact controls. The pairing handshake and job planning are unchang
 
 `start` checks the disk guard, configured area and ground height, usable wood and
 fuel drops, a configured unbroken sapling chest, an added paired worker without
-an uncertain or lost pose, and reported nonzero fuel. Refusals name every missing
+an uncertain or lost pose, and reported nonzero fuel for every added worker. Refusals name every missing
 item in order. Empty sapling chests still permit felling after start.
 SETUP uses compact red and green readiness rows. Chest alerts use the mining
 cause format and include the drop point and reason in `lumber.alert`.
 
 
-`SO.mods.lumber` plans a tree farm for one paired worker with an axe. It is stopped until the operator configures it and sends `start`. It uses `so-plan.lua` and the pure helpers in `so-lumber-plan.lua`.
+`SO.mods.lumber` plans a tree farm for paired workers with axes. It is stopped until the operator configures it and sends `start`. It uses `so-plan.lua` and the pure helpers in `so-lumber-plan.lua`.
 
 The `lumber` display accepts these text commands:
 
 - `area <x1> <z1> <x2> <z2> <ground y>` sets the farm bounds and soil height.
 - `saplings <x> <y> <z> <front|down>` sets the sapling chest's own coordinates and access side.
-- `add <id> <x> <y> <z> <n|e|s|w>` anchors one worker. A recovery park report supplies the journal pose for `P.frame`.
+- `add <id>` uses a fresh GPS fix and proven facing, probing one cell when needed. It retains existing workers.
+- `add <id> <x> <y> <z> <n|e|s|w>` adds or reanchors that worker without replacing the others. A recovery park report supplies the journal pose for `P.frame`.
+- `remove <id>` removes that worker after its open lease and stationary park report finish. Retry when the screen requests it. A turtle still holding chest access must return first.
+- `park <id>` parks only that worker after its current batch. Its claims and recovery state remain saved while other workers continue. `start` resumes parked workers.
 - `start` begins work. `stop` parks after the current lease reports.
 
 For `front`, `L.access` chooses a horizontal neighbour at the chest's height
@@ -1153,14 +1162,27 @@ chest cells and planted spots at soil height plus one. Keep access cells clear;
 these checks use the planner's known state. If no eligible cell remains,
 the turtle holds with a named `saplings #<id> unreachable at x,y,z` alert.
 
-The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtle = { id, frame, pose }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
+The job saves through `so-store` at `so-data/lumber/job`. It contains `dim`, `area`, `ground`, `saplings`, `turtles[id] = { turtle = { id, frame, pose }, phase, inv, fuel, target?, tree?, service?, paused?, fuelRetry? }`, and `spots`, keyed by `"x,z"` with `{ kind, plantedAt }`. It also stores the planner phase, progress, inventory facts, and delivery count for recovery. A restart sends a stationary recovery park on its first tick using the saved
 frame. It does not require a memory-only lease pose or range observation.
 The report sets the world pose to `P.toWorld(frame, lease.report.pose)` before
 work resumes. Recovery parks bypass the work range check; movement leases keep
 both range and reservation checks. A worker without a saved frame or an `add`
 anchor shows `waiting for reported pose`.
 
-The planner sends at most one lease, tagged `lumber`. It reserves cells under `lumber:<id>` and checks every planned cell with `P.inRange`. Lost or expired leases require recovery. Idle workers receive `P.park`.
+Each worker has at most one lease, tagged `lumber`. Reports select the row by turtle
+id and lease id. Recovery, inventory, fuel, holds and service trips belong to that
+row. A lost worker keeps its uncertain cells while the others continue. The
+planner reserves cells under `lumber:<id>` and checks every planned cell with
+`P.inRange`. Idle workers receive `P.park` and retain their occupied cell.
+
+`visited` records completed scan positions for the shared round. Each worker
+claims an unvisited scan position or discovered tree by distance. It retains
+the target reservation through felling, service interruptions and replanting.
+Other workers skip claimed columns. With multiple workers, movement searches
+at most 2048 cells around occupied cells, reservations and known obstacles.
+Horizontal detours stay at least two blocks above the soil. Reservations remain
+in the job dimension. A restart discards pending movement decisions, obtains
+each worker's journal pose through its own park, then inspects again.
 
 Service trips use `L.travel(from, target, ground)` in both directions. Horizontal
 travel stays at soil height plus two. Vertical travel uses the departure or
@@ -1171,11 +1193,29 @@ Old saved detours are cleared for service trips. Blocked service routes hold
 instead of bypassing the obstacle. A failed lease send releases the lumber
 reservations and holds work while the next tick attempts a stationary park.
 
-Replacing a turtle requires its lease to be closed. A different turtle also
-requires a stationary park report for the old one. If needed, `add` parks the
-old turtle and asks the operator to retry after its report. Until then, the
-old turtle remains assigned. Replacement clears the cached park state.
-Idle park expiry still needs the worker fix that prevents journal backup.
+`add` requires the selected worker's lease to be closed, unless it is an uncertain
+worker being reanchored. Stop before adding or reanchoring a certain worker.
+Removing one worker leaves the others assigned and releases only its claims.
+Its last cell remains a known obstacle until observed empty.
+
+Chest trips receive saved FIFO tickets per chest coordinate. A turtle already
+occupying the access column services the chest ahead of queued arrivals, so the
+head cannot wait for its own waiter to move. An admitted trip keeps priority
+until it leaves the column. Other arrivals follow ticket order. Only one trip
+reserves the chest and the vertical access column through soil height plus three.
+It keeps that reservation through the transfer and return until it leaves the
+column. Other trips wait at their departure positions and show `wait chest`.
+Overlapping approaches to different chests also reserve atomically. An expired worker gives up its ticket and unused approach when no possible
+position in its saved movement intersects that approach. Its possible occupied cells
+stay reserved until it reports its journal pose. Possible cells include every
+movement endpoint in the saved in-flight batch even before lease expiry or an
+expiry callback. A physically occupied access
+cell stays protected.
+Fuel pickup slots, rejected items and retry deadlines belong to each worker.
+The optional room fuel order and physical-chest cooldown stay shared.
+With several workers, sapling trips return surplus supplies before releasing
+access, retaining one of the desired species. A lone worker keeps its supplies
+for later trees. Failed searches return the other species in either mode. Fuel trips take at most eight items per transfer.
 
 Search rows are three blocks apart at soil height plus two. Probes find logs at soil height plus one and remember their spots. Dark oak is excluded. The worker fells each column and replants the matching sapling from above. Movement inspects before digging and permits only logs, leaves, and small plants. Soil and stone remain intact. Planted spots become eligible again after ten minutes.
 
@@ -1183,12 +1223,17 @@ An empty sapling chest disables replanting while felling continues. It emits `lu
 
 Move and dig failures increment a saved `failures` count. Successful inspections do not reset it. Successful movement or digging resets it. Three failures hold and emit `lumber.alert`. Holds park and show `Fix cause, then type start`. The operator fixes the cause and sends `start` to clear the hold and retry through pose recovery. Low fuel uses a fuel drop and `P.fuelValue`; logs are never burned. Its threshold is the distance to the selected fuel chest access cell via soil height plus two, plus a margin of 32 fuel.
 
-Wood deliveries count the reported inventory decrease only when every step in the
-select, inspect and drop batch succeeds. Failed inspections call `drops.note` for
-wood, fuel and sapling chests. Supply trips inspect before taking items. A failed
-inspection holds the turtle. Repair the chest and send `start` to retry. Three
-failed inspections mark the drop point broken in the generic editor. Use `fix`
-there after repairing it. Successful inspections clear earlier failure counts.
+Wood deliveries inspect the chest in a separate lease, then save a per-worker
+`delivery = { seq, before, slot, step }` before sending the transfer. A successful
+transfer report credits the inventory decrease. If its report is lost, recovery
+compares the journal inventory with the saved count. The `lumber.logs` event also
+carries `total` and a `receipts` map of worker ids to delivery sequences. Those
+receipts restore the total and prevent another event if the server stops between
+emitting the event and saving the job. Failed inspections still receive no credit.
+Supply trips inspect before taking items. Failed inspections call `drops.note`
+for wood, fuel and sapling chests. Repair the chest and send `start` to retry.
+Three failures mark the point broken in the generic editor. Use `fix` there
+after repairing it. Successful inspections clear earlier failure counts.
 
 Sapling service reuses a registered point at the same coordinates, dimension and
 side. If none exists, it registers a `storage` point with the stable id
@@ -1197,12 +1242,12 @@ A broken point or failed registration holds the turtle and asks for `start` afte
 the drop point is fixed. Changing the sapling coordinates leaves old points in
 the editor, where the operator can remove them.
 
-The screen callback accepts `render(w, h)` and draws Big Tiles from job state.
-It shows eligible spots, delivered logs, carried saplings, turtle phase, fuel,
-and the next scan countdown. A missing countdown uses a stale tile. The logs
-tile uses the delivered total because no daily total exists. START and STOP
-use the text commands above. SETUP lists the area, ground, sapling chest, turtle
-and their text commands, with NEXT on small screens. Its BACK button returns
+The screen callback accepts `render(w, h)` and draws eligible spots, daily delivered
+logs, carried saplings, the grow countdown and every turtle's id, phase and fuel.
+Missing daily data or timers show a dash. Three turtles fit both 26x20 and 29x12.
+Longer lists have a drawn NEXT button. START and STOP use the text commands
+above. SETUP lists the area, ground, sapling chest and assigned turtles, with
+NEXT on small screens. Its BACK button returns
 to lumber; the main BACK has
 id `status`. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 

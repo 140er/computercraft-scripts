@@ -72,13 +72,25 @@ return function(test,equal)
         F.check(a)
         local path = role=="mining" and "so-data/mine/job" or "so-data/lumber/job"
         local job = assert(a.s.env.SO.store.store(path,function() return true end).value)
-        local pose = role=="mining" and job.turtles["2"].pose or job.turtle.pose
+        local pose = role=="mining" and job.turtles["2"].pose or job.turtles["2"].turtle.pose
         equal({pose.x,pose.y,pose.z,pose.facing},{41,64,10,1})
         equal(a.t.pos.x,1)
         equal(a.s.env.SO.mods.lease.candidates(),{})
       end)
     end
   end
+  test("lumber GPS add retains an existing worker and reserves the new pose",function()
+    local a=setup({id=2,modem=true,turtle=true,capacity=1000000,facing=1})
+    gps(a)
+    local screen=a.s.env.SO.mods.display.screen("lumber")
+    screen.input({text="add 3 60 64 10 n"})
+    screen.input({text="add 2"})
+    a.n.advance(1) F.check(a)
+    local job=assert(a.s.env.SO.store.store("so-data/lumber/job",function() return true end).value)
+    assert(job.turtles["2"] and job.turtles["3"])
+    equal(job.turtles["2"].turtle.pose.x,41)
+    equal(job.turtles["3"].turtle.pose.x,60)
+  end)
   test("add here refuses no GPS and uncertain journals without moving",function()
     local a=setup()
     local screen=a.s.env.SO.mods.display.screen("mining")

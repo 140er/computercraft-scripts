@@ -469,18 +469,18 @@ Lumber, room monitor  (57x24)
         🬖🬋🬏              🬖🬋🬏🬞🬋                🬖🬋🬏        
          🬖🬀              🬈🬋▌🬛🬋🬏               ▌ ▌        
         🬍🬋🬃              🬇🬅 🬈🬋🬀               🬈🬋🬀        
-  of 4 spots                                             
                                                          
                                                          
                                                          
-  TURTLE            FUEL                NEXT GROW        
-         🬵            🬞🬓 🬖🬋🬏🬞🬓 🬖🬋🬏       🬞🬋 🬞🬏 🬖🬋🬏🬖🬋🬏    
-        🬳🬷🬏            ▌  🬖🬀 ▌ ▌ ▌       🬛🬋🬏🬠🬐  🬖🬀▌ ▌    
-         🬉            🬇🬌 🬍🬋🬃🬇🬌 🬈🬋🬀       🬈🬋🬀🬁🬀 🬍🬋🬃🬈🬋🬀    
-  felling           ok                                   
+              SPOTS 2/4                                  
+ NEXT GROW 6:20                                          
+                                                         
+ #4 felling F1210                                        
+ #5 wait chest F640                                      
+ #6 scan F640                                            
                                                          
                                                          
-    #4                   SPOTS 2/4                       
+                                                         
                                                          
     START         STOP          SETUP           BACK     
                                                          

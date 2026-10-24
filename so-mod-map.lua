@@ -33,10 +33,11 @@ M.gather = function(now)
     row.seen = previous and previous.seen
     workers[tostring(id)] = row
   end
-  if lumber.turtle then
-    local previous = workers[tostring(lumber.turtle.id)]
-    lumber.turtle.seen = previous and previous.seen
-    workers[tostring(lumber.turtle.id)] = lumber.turtle
+  for id, row in pairs(lumber.turtles or {}) do
+    local previous = workers[tostring(id)]
+    row.seen = previous and previous.seen
+    row.dim = row.dim or lumber.dim
+    workers[tostring(id)] = row
   end
   for id, row in pairs(workers) do
     local p = row.pose
