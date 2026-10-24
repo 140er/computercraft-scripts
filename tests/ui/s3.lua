@@ -422,11 +422,14 @@ return function(test, equal)
   test('S3 setup controls change the job exactly like the typed commands, one save per tap', function()
     for _, case in ipairs({ { 'set-bottom-', 'bottom -59' }, { 'set-bottom+', 'bottom -57' }, { 'set-length-', 'length 56' },
         { 'set-length+', 'length 72' }, { 'mode-fast', 'mode fast' }, { 'mode-thorough', 'mode thorough' },
-        { 'ore-coal', 'ores copper,iron,gold,redstone,lapis,diamond' } }) do
+        { 'ore-coal', 'ores copper,iron,gold,redstone,lapis,diamond,quartz,nether_gold,ancient_debris' },
+        { 'single', 'continuous off' }, { 'continuous', 'continuous on' },
+        { 'set-branches-', 'branches 7' }, { 'set-branches+', 'branches 9' } }) do
       local a, b, session = mining(), mining(), { id = 7 }
       a.type('stop') b.type('stop')
-      a.saves, b.saves = 0, 0
       a.tap(session, 'tab:setup')
+      if case[1]:find('^set%-branches') then a.type('continuous on') b.type('continuous on') end
+      a.saves, b.saves = 0, 0
       if case[1]:find('^ore') then a.tap(session, 'ores-edit') end
       assert(ids(a.render(57, 24, session))[case[1]], 'no drawn ' .. case[1])
       a.tap(session, case[1])
@@ -438,9 +441,9 @@ return function(test, equal)
     t.type('stop')
     t.tap(session, 'tab:setup')
     t.tap(session, 'ore-coal')
-    equal(#t.job.ores, 6)
+    equal(#t.job.ores, 9)
     t.tap(session, 'ore-coal')
-    equal(#t.job.ores, 7)
+    equal(#t.job.ores, 10)
     assert(capture(t.render(57, 24, session), 57, 24).picture().text[11]:find('ores       all', 1, true))
     t.type('ores iron')
     local saves = t.saves

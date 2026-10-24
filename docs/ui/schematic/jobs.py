@@ -13,7 +13,7 @@ EXTRA = {}
 for _p in lines("jobs-scene.txt"):
     EXTRA.setdefault(_p[0], []).append(_p[1:])
 
-ORES = ["coal", "copper", "iron", "gold", "redstone", "lapis", "diamond"]
+ORES = ["coal", "copper", "iron", "gold", "redstone", "lapis", "diamond", "quartz", "nether_gold", "ancient_debris"]
 TABS, SHORT = ["overview", "setup"], ["main", "setup"]
 PHASES = {"scan": "scanning", "base": "felling", "climb": "felling", "descend": "felling",
           "plant": "planting", "plantPlace": "planting"}
@@ -85,6 +85,8 @@ def mining_setup(m, rows):
     """The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
     The scene's drop lines are the drop list with ids 1, 2, ...; no turtle is paired."""
     h = m["home"]
+    branches = m["branches"]
+    m["fuelNeed"] = branches * m["length"] + m["gap"] * branches * (branches + 1) // 2 + 2 * (1 + abs(h["y"] - m["bottom"]))
     points = [dict(d, id=str(i + 1)) for i, d in enumerate(x for x in S["drops"] if x["kind"] != "saplings")]
     ready = [(True, "home %d,%d,%d" % (h["x"], h["y"], h["z"]))]
     ready += [chest_check(points, kind, h) for kind in ("ore", "fuel")]
@@ -414,8 +416,13 @@ def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
         return y
     y += step
     if y <= stop:
-        cv.put(x, y, "branches" if vx - x >= 9 else "branch", "8")
-        cv.put(vx, y, ("%d %s" % (m["branches"], "continuous" if m["continuous"] else "single"))[:right - vx + 1], "0")
+        nx = chip(cv, x, y, "SINGLE", "single", "off" if m["continuous"] else "plain") + 1
+        chip(cv, nx, y, "CONTINUOUS", "continuous", "plain" if m["continuous"] else "off")
+    if m["continuous"]:
+        y += step
+        if y <= stop:
+            cv.put(x, y, "branches" if vx - x >= 9 else "branch", "8")
+            stepper(cv, vx, y, m["branches"], "set-branches", vw)
     if m.get("policy"):
         y += step
         if y <= stop:
@@ -465,6 +472,7 @@ def ready_rows(cv, m, x, y, right, stop, page=0, lead=0):
 def setup_room(cv, m, editing):
     w, h = cv.w, cv.h
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
+    cv.put(2, 2, "fuel ~%d" % m["fuelNeed"], "8")
     ya = last_row(h, True)
     rx = max(32, w // 2)
     left = setup_rows(cv, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
@@ -484,6 +492,7 @@ def setup_room(cv, m, editing):
 def setup_column(cv, m, editing):
     w, h = cv.w, cv.h
     role_bar(cv, "MINING", TABS, SHORT, 1, m["state"], tone(m["state"]))
+    cv.put(2, 2, "fuel ~%d" % m["fuelNeed"], "8")
     ya = last_row(h, False)
     wide = w >= 36
     stop = ya - 2 if m["alert"] else ya - 1

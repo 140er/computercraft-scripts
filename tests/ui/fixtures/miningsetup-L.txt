@@ -1,12 +1,12 @@
 39x19 Mining setup, wall monitor 4x3
  MINING   overview   setup  -- running 
-                                       
+ fuel ~902                             
  home       120,64,-340 n              
  bottom      -    Y -58    +           
  length      -      64     +           
  mode        fast   thorough           
  ores       all                  edit  
- branches   8 single                   
+  SINGLE   CONTINUOUS                  
  fuel        auto   out 2              
  turtles    #2 #3 #4 #6                
                                        
@@ -19,13 +19,13 @@
  READY -------------------------- 1/2  
        START               STOP        
 0000000008888888888000000000cc0ddddddd0
-000000000000000000000000000000000000000
+088888888800000000000000000000000000000
 088880000000000000000000000000000000000
 088888800000000000000000000000000000000
 088888800000000000000000000000000000000
 088880000000888888000000000000000000000
 088880000000000000000000000000000000000
-088888888000000000000000000000000000000
+000000000088888888888800000000000000000
 088880000000ffffff000000000000000000000
 088888880000000000000000000000000000000
 000000000000000000000000000000000000000
@@ -44,7 +44,7 @@ ffffffffffff777fffffffffff777ffffffffff
 ffffffffffff777fffffffffff777ffffffffff
 fffffffffffffffffff7777777777ffffffffff
 ffffffffffffffffffffffffffffffff777777f
-fffffffffffffffffffffffffffffffffffffff
+f77777777ffffffffffffffffffffffffffffff
 ffffffffffff999999f7777777fffffffffffff
 fffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffff
