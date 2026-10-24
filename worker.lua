@@ -127,6 +127,15 @@ W.markPending = function(op)
   return W.save()
 end
 
+W.finishPending = function()
+  local pending = W.journal.pending
+  W.journal.pending = nil
+  if W.save() then return true end
+  W.journal.pending, W.journal.uncertain = pending, true
+  W.save()
+  return false
+end
+
 W.pushMove = function(op)
   local moves = W.journal.moves
   moves[#moves + 1] = { n = W.journal.seq, op = op, ok = true }
@@ -252,7 +261,7 @@ W.gpsFix = function()
 end
 
 W.resolvePending = function()
-  if W.journal.dimensionChanged then return end
+  if W.journal.dimensionChanged or W.journal.uncertain then return end
   local pending = W.journal.pending
   if not pending or not C.moves[pending.op] then return end
   local moved
@@ -280,7 +289,10 @@ W.resolvePending = function()
     if moved then W.apply(pending.op) W.pushMove(pending.op) end
     W.journal.pending = nil
   end
-  W.save()
+  if not W.save() then
+    W.journal.uncertain = true
+    W.save()
+  end
 end
 
 W.hello = function()
@@ -543,8 +555,7 @@ W.scanNether = function(guard)
     end
     local result=W.exec({op="turnRight"})
     if not result.ok then W.journal.uncertain=true return "remote safety: surroundings turn failed" end
-    W.journal.pending=nil
-    if not W.save() then W.journal.uncertain=true return "remote safety: surroundings journal failed" end
+    if not W.finishPending() then return "remote safety: surroundings journal failed" end
   end
   return hazard
 end
@@ -619,8 +630,7 @@ W.exec = function(step)
       W.apply(op)
       W.pushMove(op)
       if step.safety and step.safety.dim=="minecraft:the_nether" then
-        W.journal.pending=nil
-        if W.save() then result.hazard=W.scanNether(step.safety)
+        if W.finishPending() then result.hazard=W.scanNether(step.safety)
         else
           W.journal.uncertain=true
           result.hazard="remote safety: movement journal failed"
@@ -695,7 +705,7 @@ W.startBatch = function(msg)
       W.journal.pending = nil
       break
     end
-    if body.journal ~= nil and not saved then
+    if not saved then
       W.refuse(results,i,n)
       break
     end
@@ -715,8 +725,11 @@ W.startBatch = function(msg)
       W.save()
       break
     end
-    W.journal.pending = nil
-    W.save()
+    if not W.finishPending() then
+      for j = i+1, n do results[j] = {ok=false,err="journal save failed",counts=W.counts()} end
+      safetyStop = true
+      break
+    end
   end
   W.report(results)
   if safetyStop then W.queued=nil W.enterSlow() return end
