@@ -316,4 +316,28 @@ return function(test,equal)
       end
     end
   end)
+  test('UB-14 a long error keeps its retry countdown first and marks the cut at 26x20',function()
+    local frame=U.turtle.render(26,20,{id='8'},{role='mining',state='waiting',branch=0,done=2,total=10,
+      error='ore chest full at drop 3 and the spare chest is full too, place a new chest',retry=6000,inv={}},1000)
+    local text=capture(frame,26,20).picture().text
+    equal(text[3]:sub(1,13),' ! retry 5s  ')
+    assert(text[4]:find('ore chest full',1,true),text[4])
+    assert(text[5]:find('%.%.%. *$'),text[5])
+    assert(not text[6]:find('chest',1,true),text[6])
+    -- A short error keeps the countdown on its own row and draws no cut mark.
+    text=capture(U.turtle.render(26,20,{id='8'},{role='mining',state='waiting',error='ore chest full',retry=6000,
+      inv={}},1000),26,20).picture().text
+    equal(text[3]:sub(1,12),' ! retry 5s ') equal(text[4]:sub(1,17),'   ore chest full')
+    assert(not table.concat(text):find('...',1,true))
+  end)
+  test('U.confirm draws REMOVE, then CONFIRM on the turtle page',function()
+    local sel={id='8'}
+    local row={role='mining',state='waiting',inv={}}
+    local function chip(frame)
+      for _,b in ipairs(frame.buttons) do if b.id=='turtle-remove' then return b.label end end
+    end
+    equal(chip(U.turtle.render(26,20,sel,row,1000)),'REMOVE')
+    U.confirm(sel,'remove','remove',1000)
+    equal(chip(U.turtle.render(26,20,sel,row,1000)),'CONFIRM')
+  end)
 end

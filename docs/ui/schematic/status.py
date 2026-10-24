@@ -63,15 +63,19 @@ def state_fg(t):
     return t if t in ("1", "e", "8") else "0"
 
 
-def turtle(cv, x, y, t, w):
-    """Arrow, id, state, where. w is the row width; narrow rows put where at the right edge."""
+def turtle(cv, x, y, t, w, pos=None, pfg="8"):
+    """Arrow, id, state, where. w is the row width; narrow rows put where at the right edge. A narrow
+    row with pos puts pos right-aligned before where and cuts the state instead."""
     cv.put(x, y, arrow(t["facing"]), t["tone"])
     cv.put(x + 2, y, str(t["id"]), "0")
-    if w >= 30:
+    if w >= 30 and pos is None:
         cv.put(x + 5, y, t["state"][:10], state_fg(t["tone"]))
         cv.put(x + 16, y, t["where"][:5], "8")
     else:
-        cv.put(x + 5, y, t["state"][:w - 11], state_fg(t["tone"]))
+        n = len(pos) + 1 if pos is not None else 0
+        cv.put(x + 5, y, t["state"][:max(0, w - 11 - n)], state_fg(t["tone"]))
+        if pos is not None:
+            cv.put(x + w - 4 - n, y, pos, pfg)
         cv.put(x + w - 4, y, t["where"][:4], "8")
 
 
@@ -174,6 +178,8 @@ def room(cv, m):
     ts = m["turtles"]
     room_rows = max(0, h - top - 11)
     nt = min(len(ts), room_rows)
+    # Positions go at column 24 when every one fits there; otherwise each sits before its branch.
+    narrow = lw < 30 or any(len(at(t)) > lw - 22 for t in ts[:nt])
     section(cv, 2, top, lw, "TURTLES", len(ts))
     for i in range(nt):
         y = top + 1 + i
@@ -181,8 +187,12 @@ def room(cv, m):
             more(cv, 4, y, len(ts) - i)
             break
         t = ts[i]
-        turtle(cv, 2, y, t, lw)
-        cv.put(24, y, at(t)[:lw - 22], "e" if t["lost"] else "8")
+        pos, fg = at(t), "e" if t["lost"] else "8"
+        if narrow:
+            turtle(cv, 2, y, t, lw, pos, fg)
+        else:
+            turtle(cv, 2, y, t, lw)
+            cv.put(24, y, pos, fg)
     jy = top + nt + 2
     section(cv, 2, jy, lw, "JOBS")
     jobs(cv, 2, jy + 1, m)
@@ -196,10 +206,14 @@ def room(cv, m):
     leader(cv, rx, top + 9, 19, "up", m["server"]["up"])
     dy = max(jy + 2, top + 9) + 2
     section(cv, 2, dy, w - 2, "DROPS", len(m["drops"]))
+    # Broken drops first; a +N ends the row when some do not fit.
+    ds = [d for d in m["drops"] if d["broken"]] + [d for d in m["drops"] if not d["broken"]]
     x = 2
-    for d in m["drops"]:
+    for i, d in enumerate(ds):
         text = "%d %s" % (d["id"], d["kind"])
-        if x + 1 + len(text) > w - 1:
+        rest = len("+%d" % (len(ds) - i - 1)) + 3 if i < len(ds) - 1 else 0
+        if x + 1 + len(text) + rest > w - 1:
+            cv.put(x, dy + 1, "+%d" % (len(ds) - i), "8")
             break
         c = "e" if d["broken"] else "0"
         cv.put(x, dy + 1, "×" if d["broken"] else "•", c)
@@ -231,7 +245,9 @@ def wall(cv, m):
             break
         t = ts[i]
         turtle(cv, 2, y, t, lw)
-        cv.put(24, y, at(t, True), "0")
+        # x,y,z when it fits before fuel, else x,z: a cut z would read as a real position.
+        pos = at(t, True)
+        cv.put(24, y, at(t) if len(pos) > 15 else pos, "0")
         fuel = t.get("fuel")
         cv.put(39, y, "%5s" % ("-" if fuel is None else fuel), "1" if fuel is not None and fuel < 500 else "0")
         cv.put(46, y, "%4s" % t.get("ore", "-"), "0")

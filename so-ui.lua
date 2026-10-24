@@ -340,15 +340,18 @@ end
 -- The model comes from so-mod-display's gather (see docs/server-only/PROTOCOL.md#display).
 U.st = {}
 U.st.fg = function(tone) return (tone == "1" or tone == "e" or tone == "8") and tone or "0" end
--- Arrow, id, state, where; rows under 30 cells put where at the right edge.
-U.st.turtle = function(C, x, y, t, width)
+-- Arrow, id, state, where; rows under 30 cells put where at the right edge. A narrow row with pos
+-- puts pos right-aligned before where and cuts the state instead.
+U.st.turtle = function(C, x, y, t, width, pos, pfg)
   C.put(x, y, U.arrow(t.facing), t.tone)
   C.put(x + 2, y, tostring(t.id), "0")
-  if width >= 30 then
+  if width >= 30 and not pos then
     C.put(x + 5, y, t.state:sub(1, 10), U.st.fg(t.tone))
     C.put(x + 16, y, t.where:sub(1, 5), "8")
   else
-    C.put(x + 5, y, t.state:sub(1, math.max(0, width - 11)), U.st.fg(t.tone))
+    local n = pos and #pos + 1 or 0
+    C.put(x + 5, y, t.state:sub(1, math.max(0, width - 11 - n)), U.st.fg(t.tone))
+    if pos then C.put(x + width - 4 - n, y, pos, pfg) end
     C.put(x + width - 4, y, t.where:sub(1, 4), "8")
   end
 end
@@ -453,10 +456,17 @@ U.st.room = function(C, m)
   local top = na > 0 and 4 + na or 3
   local lw, rx, ts = w - 24, w - 19, m.turtles
   local nt = math.min(#ts, math.max(0, h - top - 11))
+  -- Positions go at column 24 when every one fits there; otherwise each sits before its branch.
+  local narrow = lw < 30
+  for i = 1, nt do narrow = narrow or #U.st.at(ts[i]) > lw - 22 end
   C.section(2, top, lw, "TURTLES", #ts)
   U.st.rows(C, ts, nt, top + 1, function(t, y)
-    U.st.turtle(C, 2, y, t, lw)
-    C.put(24, y, U.st.at(t):sub(1, lw - 22), t.lost and "e" or "8")
+    local pos, fg = U.st.at(t), t.lost and "e" or "8"
+    if narrow then U.st.turtle(C, 2, y, t, lw, pos, fg)
+    else
+      U.st.turtle(C, 2, y, t, lw)
+      C.put(24, y, pos, fg)
+    end
   end)
   local jy = top + nt + 2
   C.section(2, jy, lw, "JOBS")
@@ -470,10 +480,17 @@ U.st.room = function(C, m)
   C.leader(rx, top + 9, 19, "up", m.server.up)
   local dy = math.max(jy + 2, top + 9) + 2
   C.section(2, dy, w - 2, "DROPS", #m.drops)
-  local x = 2
-  for _, d in ipairs(m.drops) do
+  -- Broken drops first; a +N ends the row when some do not fit.
+  local ds, x = {}, 2
+  for _, d in ipairs(m.drops) do if d.broken then ds[#ds + 1] = d end end
+  for _, d in ipairs(m.drops) do if not d.broken then ds[#ds + 1] = d end end
+  for i, d in ipairs(ds) do
     local text = d.id .. " " .. d.kind
-    if x + 1 + #text > w - 1 then break end
+    local rest = i < #ds and #("+" .. (#ds - i)) + 3 or 0
+    if x + 1 + #text + rest > w - 1 then
+      C.put(x, dy + 1, "+" .. (#ds - i + 1), "8")
+      break
+    end
     local c = d.broken and "e" or "0"
     C.put(x, dy + 1, d.broken and U.g.cross or U.g.bullet, c)
     C.put(x + 2, dy + 1, text, c)
@@ -498,7 +515,9 @@ U.st.wall = function(C, m)
   for _, c in ipairs({ { 24, "position" }, { 40, "fuel" }, { 47, "ore" }, { 52, "seen" } }) do C.put(c[1], top + 1, c[2], "8") end
   U.st.rows(C, ts, nt, top + 2, function(t, y)
     U.st.turtle(C, 2, y, t, lw)
-    C.put(24, y, U.st.at(t, true), "0")
+    -- x,y,z when it fits before fuel, else x,z: a cut z would read as a real position.
+    local pos = U.st.at(t, true)
+    C.put(24, y, #pos > 15 and U.st.at(t) or pos, "0")
     C.put(39, y, string.format("%5s", tostring(t.fuel or "-")), t.fuel and t.fuel < 500 and "1" or "0")
     C.put(46, y, string.format("%4s", tostring(t.ore or "-")), "0")
     C.put(52, y, U.age(t.ago), t.lost and "e" or t.ago >= 120000 and "1" or "8")
@@ -728,6 +747,21 @@ U.actions = function(C, y, items, gap)
   local bw = math.floor((C.w - 2 - gap * (#items - 1)) / #items)
   for i, item in ipairs(items) do C.chip(2 + (i - 1) * (bw + gap), y, item[1], item[2], item[3], bw) end
 end
+-- Two-tap controls. state is the caller's table; state.confirm holds the armed key and
+-- state.confirmAt when it armed. A tap on key arms it, a second tap within window (5 s) returns true,
+-- and any other tap disarms. The caller passes every tap and acts on true.
+U.confirm = function(state, key, tapped, now, window)
+  if state.confirm and now - (state.confirmAt or now) > (window or 5000) then state.confirm = nil end
+  if tapped ~= key then state.confirm = nil return false end
+  if state.confirm == key then state.confirm = nil return true end
+  state.confirm, state.confirmAt = key, now
+  return false
+end
+-- The chip for a two-tap control: CONFIRM in coral while key is armed, else label as kind.
+U.confirmChip = function(state, key, label, id, kind)
+  if state.confirm == key then return { 'CONFIRM', id, 'stop' } end
+  return { label, id, kind }
+end
 local T = {}
 T.pose = function(p)
   if type(p) ~= 'table' or not finite(p.x) or not finite(p.y) or not finite(p.z) then return '-' end
@@ -763,8 +797,7 @@ T.render = function(w,h,selection,row,now)
       c.put(w - 12 + math.floor((9 - #value) / 2), ry, value, '0')
       c.chip(w - 3, ry, '+', 'pose:'..axis..':1')
     end
-    local armed = selection.confirm == 'add'
-    U.controlRows(c, {{armed and 'CONFIRM' or 'RE-ADD', 'turtle-save', armed and 'stop' or 'primary'}},
+    U.controlRows(c, {U.confirmChip(selection, 'add', 'RE-ADD', 'turtle-save', 'primary')},
       {'BACK', 'turtle-cancel', 'plain'})
     return c.frame()
   end
@@ -776,13 +809,16 @@ T.render = function(w,h,selection,row,now)
   local assigned = role == 'mining' or role == 'lumber'
   if assigned then items[#items+1] = {role == 'mining' and 'PARK ALL' or 'PARK', 'turtle-park', 'plain'} end
   if role == 'mining' then
-    items[#items+1] = {selection.confirm == 'remove' and 'CONFIRM' or 'REMOVE', 'turtle-remove', 'stop'}
+    items[#items+1] = U.confirmChip(selection, 'remove', 'REMOVE', 'turtle-remove', 'stop')
   end
   if assigned and row.uncertain then items[#items+1] = {'RE-ADD', 'turtle-add', 'primary'} end
   local top = U.controlRows(c, items, {'BACK', 'turtle-back', 'plain'})
   local y, bottom = 2 + gap, top - 1 - gap
   local retry = row.retry and ('retry '..math.max(0, math.ceil((row.retry - now) / 1000))..'s') or ''
-  if row.error or retry ~= '' then y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, 2) + gap end
+  -- The countdown leads on its own row, so a long error cannot push it out.
+  if row.error or retry ~= '' then
+    y = y + U.flagLines(c, 2, y, w - 2, row.error or '', retry, retry ~= '' and 3 or 2, true) + gap
+  end
   local slots, count = 0, 0
   for _,item in pairs(row.inv or {}) do slots = slots + 1 count = count + (item.count or 0) end
   local fuel = row.fuel
@@ -838,12 +874,18 @@ U.fit = function(text, width)
   if #text <= width then return text end
   return text:sub(1, width + 1):match("^(.*%S)%s") or text:sub(1, math.max(0, width))
 end
--- ! and the text wrapped over at most n rows, the detail muted after it when it fits, else on the
--- next row. Returns the rows drawn.
-U.flagLines = function(C, x, y, width, text, detail, n)
+-- ! and the text wrapped over at most n rows, ... marking a cut. The detail is muted after the text
+-- when it fits, else on the next row; with first it takes row 1 alone. Returns the rows drawn.
+U.flagLines = function(C, x, y, width, text, detail, n, first)
   local lines, room, dy, dx = U.wrap(text or "", width - 2), width - 2, nil, nil
-  while #lines > n do lines[#lines] = nil end
-  if detail and detail ~= "" then
+  local lead = first and detail and detail ~= ""
+  if lead then table.insert(lines, 1, ""); dy, dx = 1, 0 end
+  if #lines > n then
+    while #lines > n do lines[#lines] = nil end
+    local last = lines[n]
+    if last ~= "" then lines[n] = (#last + 3 <= room and last or U.fit(last, room - 3)) .. "..." end
+  end
+  if detail and detail ~= "" and not lead then
     local last = lines[#lines]
     if last and #last + 1 + #detail <= room then dy, dx = #lines, #last + 1
     elseif #lines < n then dy, dx = #lines + 1, 0; lines[dy] = "" end

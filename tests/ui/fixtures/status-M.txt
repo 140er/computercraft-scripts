@@ -16,7 +16,7 @@
  lumber  running  ♠♠♠♠♠♠♠♠♣♣ 9/12    up ··········· 3h12 
                                                          
  DROPS ---------------------------------------------- 5  
- • 1 ore   • 2 fuel   × 3 junk   • 4 wood   • 5 saplings 
+ × 3 junk   • 1 ore   • 2 fuel   • 4 wood   • 5 saplings 
                                                          
  EVENTS -----------------------------------------------  
  21:14 • #3 waits for the lane                           
@@ -40,7 +40,7 @@
 000000000ddddddd00dddddddd88000000000880ccccccccccc000000
 000000000000000000000000000000000000000000000000000000000
 0888880cccccccccccccccccccccccccccccccccccccccccccccc0800
-0000000000000000000000e0eeeeee000000000000000000000000000
+0e0eeeeee000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000
 08888880ccccccccccccccccccccccccccccccccccccccccccccccc00
 088888010000000000000000000000000000000000000000000000000
