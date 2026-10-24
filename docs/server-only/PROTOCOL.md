@@ -1436,8 +1436,10 @@ The saved display role can be `panel`; no new saved file or wire type is added.
 
 Tick reads registered screens through `SO.mods.display.screen(role)` and reads
 mining and lumber state from their rendered headers. It gathers the state view's
-`.alert` values for the alert list. Render uses these cached facts and the local
-session. Missing registered screens show grey controls marked `not loaded`.
+`.alert` values for the alert list. Render uses these cached facts, the jobs'
+`facts()` or the status model for the job facts, and the local session. Missing
+registered screens show grey controls marked `not loaded`. The pages are drawn in
+route A ([SCHEMATIC-SPEC section 22](../ui/SCHEMATIC-SPEC.md#22-panel)).
 
 Main-screen inputs are `mining:start`, `mining:stop`, `lumber:start`,
 `lumber:stop`, `search`, `order:1`, `order:16` and `order:64`. Typed text changes
@@ -1450,25 +1452,24 @@ the existing shop search and selection state, shared with full shop screens.
 
 The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
 blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
-`alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
+`alert-next` wrapping pages. `pair` opens the PAIR page. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
 request it through authenticated `input`. The server-local `SO.pairCode(id)`
 returns `{ code, expires }` for that requester, or nil if another display or
 the terminal owns a pending invitation. It calls the same invitation path as P.
 Repeated requests from the owner preserve the code, expiry and bad-attempt count.
-The session holds the invitation. Its own signed `view.frame` shows six kit
-big digits and remaining minutes and seconds. No invitation enters shared
+The session holds the invitation. Its own signed `view.frame` shows six line
+digits and remaining minutes and seconds. No invitation enters shared
 screen data or broadcast frames. Other displays keep the normal pair page.
 Use, expiry, five bad attempts or terminal cancellation restore that page.
 `panel-back` returns to the main panel.
-At 26x20 the controls match panel-P. Larger monitors use the kit grid; short
-screens use compact controls. The pairing handshake and job planning are unchanged.
+The fixtures `panel-*`, `panelpair-*`, `panelcode-*`, `paired-*` and `enroll-*` show every
+size. The pairing handshake and job planning are unchanged.
 
 With `enroll = true`, PAIR splits its PAIRED row with an ENROLL button. ENROLL
 opens a window through `SO.enroll.open(id)` for a paired display session and
-shows the ENROLL page: the token as normal text (the big font has no letters),
-the time left, joins out of 20 in big digits, one row per waiting device with
-OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
+shows the ENROLL page: the time left, the token as normal text, joins out of 20,
+one row per waiting device with OK and NO, then APPROVE ALL and CLOSE. Button ids are `enroll`,
 `enroll-ok:<id>:<n>`, `enroll-no:<id>:<n>`, `enroll-all` and `enroll-close`,
 where `n` is the row's window-unique number, so a delayed tap cannot decide a
 later request from the same id. APPROVE ALL is `enroll-all:<id>-<n>.<id>-<n>...`

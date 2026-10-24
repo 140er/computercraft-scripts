@@ -318,8 +318,8 @@ The pocket role at 26x20 (26x19 for older clients); `so-mod-panel.lua` draws it 
   `------` in muted grey; `code in use` (amber) when another display holds one. Row 16 holds
   PAIRED (`paired`), which opens the paired devices with their confirmed FORGET. With the enroll
   window on, PAIRED and ENROLL (`enroll`, primary) share the row; ENROLL has no target and is
-  drawn muted while another display holds the window. Both pages draw in the panel's look, and
-  their BACK or CLOSE returns to PAIR.
+  drawn muted while another display holds the window. Both pages are the panel's (section 22)
+  under the pocket's tabs, and their BACK or CLOSE returns to PAIR.
 
 ## 17. System screens
 
@@ -423,3 +423,37 @@ FLEET.
 - **Editor:** `ADD DROP POINT`, chips for kind and side, steppers for dim, x, y and z,
   ADD and BACK. Room monitors draw the plan with the draft as an inverted teal `•`.
   Results show in the row above the actions: `point added` in green, errors as a flag.
+
+## 22. Panel
+
+`so-mod-panel.lua` draws the panel role; `schematic/panel.py` is the twin. Fixtures
+`panel-M/W/L/S/XS/P`, `panelalerts-M`, `panelpair-P/S`, `panelcode-P/S/M`, `paired-P/S/M` and
+`enroll-P/S/M`, from `tests/ui/panel-scene.txt` and the status and system scenes.
+
+- **Header:** `PANEL`, then on the main page with the health module (26x12 and up) a `HEALTH`
+  chip and a `NEEDS 2` chip with the count amber above 0, a hairline, and the time. Pages have
+  no time.
+- **Main:** a `turtles` leader on row 3 (`4 ok · 1 lost`, the lost count coral), or a green `•`
+  and `Paired turtle #2` for 30 s after a pairing. Then the job blocks: MINING and LUMBER as
+  on the pocket's JOBS (section 16), and SHOP on keyboard sessions (`> iron_` and `1 16 64`
+  chips). Blocks sit in as many columns of 16 cells or more as fit, at most 36 wide, with a dim
+  `|` between them. When rows run out, the lowest row of blocks drops its spare row, then its
+  facts (section and START STOP only). A refused start is a flag above the chips (`! home not
+  set`). A job that is not loaded shows its section and grey chips. ALERTS and PAIR are chips
+  on the last row.
+- **ALERTS:** the section with the count in coral, one flag per alert, `◄ 1/2 ►` and BACK on
+  the last row.
+- **PAIR:** the code in line digits from row 3, as large as fit (up to 9 by 11; 3 by 5 at
+  29x12), the teal tick row under it, PAIRED (and ENROLL) on row h-2, NEW CODE and BACK on the
+  last row. Under 12 rows the code is plain text.
+- **PAIRED:** the section with the key count (`save failed` in coral after a failed forget).
+  From 40 columns one row per key: id, kind (muted), fingerprint, age (muted). Narrower, the
+  age goes to a second row. Each other device has `[FORGET]` at the right end, `[CONFIRM]`
+  in coral once armed. `◄ 1/3 ►` and BACK on the last row; on a single page the arrows are muted.
+- **ENROLL:** the section with the time left, the token (split after its third part when too
+  long), `joined ··· 3/20`, then PENDING with the count and one row per request: id, kind
+  (muted, left out when it does not fit whole), fingerprint, `[OK]` in teal and `[NO]` in
+  coral. When an id and kind do not fit beside them, each request takes two rows. APPROVE ALL
+  (primary) and CLOSE on the last row.
+- **List actions:** a row's own action is bracketed text (`[FORGET]`), not a chip, so a list of
+  them never stacks into a slab.

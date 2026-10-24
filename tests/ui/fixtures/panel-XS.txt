@@ -1,0 +1,31 @@
+15x10 Panel, smallest monitor 15x10
+ PANEL  -----  
+               
+ MINING -----  
+ START   STOP  
+               
+ LUMBER -----  
+ START   STOP  
+               
+               
+ ALERTS  PAIR  
+00000000ccccc00
+000000000000000
+08888880ccccc00
+088888000eeeee0
+000000000000000
+08888880ccccc00
+088888000eeeee0
+000000000000000
+000000000000000
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f77777fff77777f
+fffffffffffffff
+fffffffffffffff
+f77777fff77777f
+fffffffffffffff
+fffffffffffffff
+f777777f777777f

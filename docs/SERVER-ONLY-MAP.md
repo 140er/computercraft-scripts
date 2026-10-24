@@ -434,14 +434,17 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
   main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
-  The status PAIR button opens the panel pair page directly. Unavailable NEW CODE
-  controls are grey and have no action target. Main-page inputs forward START
-  and STOP once to the mining or lumber screen.
+  The status PAIR button opens the panel pair page directly. Main-page inputs
+  forward START and STOP once to the mining or lumber screen.
   Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
   Monitor panels drop quick search and quantities and show only the job blocks.
-  ALERTS lists state alerts; PAIR offers NEW CODE.
+  ALERTS lists state alerts; PAIR offers NEW CODE. The panel pages are route A
+  (twin `docs/ui/schematic/panel.py`, SCHEMATIC-SPEC section 22): job blocks with
+  the pocket's facts in columns of 16 to 36 cells, HEALTH and `NEEDS n` chips in
+  row 1, ALERTS and PAIR chips on the last row, and bracketed `[FORGET]`,
+  `[CONFIRM]`, `[OK]` and `[NO]` actions in the PAIRED and ENROLL lists.
   The pocket screen (route A, twin of `docs/ui/schematic/pocket.py`) keeps
   `session.pocket = { page, search, selected, sent, alertPage, invitation,
   pairBusy }`; `display.assign` clears it. Tabs `tab:fleet`, `tab:jobs`,
@@ -462,7 +465,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
   Code frames use the display's own key; other displays never receive them.
-  Larger screens arrange the same controls using the kit grid. No saved panel file.
+  When a pocket opens PAIRED or ENROLL the panel draws them under the pocket's
+  tabs (`P.render(w, h, session, dot)`). No saved panel file.
   See [panel](server-only/PROTOCOL.md#panel).
   Dug-storage requests appear above every role, including status, pocket,
   generic and unassigned.
@@ -988,8 +992,8 @@ persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
 files and client role lists are unchanged.
 
-UI-3b adds `tests/ui/ui3b.lua`. It checks the panel-P fixture
-on all 20 rows, pocket defaults and tabs, per-pocket pages and search,
+UI-3b adds `tests/ui/ui3b.lua`. It checks the typed search on the panel,
+pocket defaults and tabs, per-pocket pages and search,
 action forwarding, real shop orders, monitor layout, session revisions, role
 persistence, alert paging, pairing help, missing modules, contrast, bounds and
 server-only installation.
@@ -1058,7 +1062,11 @@ generator reproduces every shop fixture. `tests/parts/so-mod-shop.lua` runs it w
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
 history work, stale fallbacks and server-only installation.
-`panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
+RA2 adds `tests/ui/panel.lua` and `tests/ui/panel-scene.txt`. It compares the
+panel main page (M, W, L, S, XS, P), ALERTS, PAIR with and without a code, PAIRED
+and ENROLL on the panel and under the pocket tabs with the `panel.py` fixtures,
+and checks route A colours, one-row controls without overlap and whole labels at
+eight sizes. `tests/parts/so-mod-panel.lua` runs it with ui3b and r3pocket.
 
 
 ## Open gaps
