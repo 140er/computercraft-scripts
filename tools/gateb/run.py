@@ -143,6 +143,12 @@ def execute(ctx, check, runtime_dir, prepare=True, reset=True):
     finally:
         try: ctx.command("tick rate 20")
         except (RuntimeError, OSError, ValueError): pass
+    candidates = getattr(ctx, "candidates", None)
+    if getattr(ctx, "collect", None) and candidates:
+        # Candidates are unreviewed: they never earn visual credit, so the check cannot pass.
+        status = "fail" if verdict.status == "fail" else "blocked"
+        verdict = Verdict(status, [f"Candidates collected, pending review: {len(candidates)} photos in {ctx.collect}"] + verdict.findings,
+                          {**verdict.metrics, "candidates": list(candidates)})
     result = Result(check, ctx.commit, verdict.status, started_at, round(time.monotonic()-start, 3),
                     ctx.tick_rate, verdict.findings, verdict.metrics, ctx.evidence, ctx.run)
     ctx.record(f"{check}-result.json", result.to_dict())
@@ -206,6 +212,8 @@ def main(argv=None):
     parser.add_argument("--output", type=Path)
     parser.add_argument("--runtime-dir", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--plan", action="store_true", help="Print selection and effective rates without starting a runtime")
+    parser.add_argument("--collect-photos", type=Path, metavar="DIR",
+                        help="Write every C3 and C13 photo with its camera to DIR as unreviewed candidates; gives no visual credit")
     args = parser.parse_args(argv)
     if not args.full and not args.changed and not args.checks: parser.error("Specify --full, --changed, or --checks")
     if args.worlds < 1 or args.worlds > 4: parser.error("--worlds must be between 1 and 4")
@@ -267,6 +275,7 @@ def main(argv=None):
                         with group_lock:
                             if check in finished: continue
                         ctx = Context(runtime, world, {}, output/check, commit, rates[check])
+                        ctx.collect = args.collect_photos.resolve() if args.collect_photos and check in ("C3", "C13") else None
                         if check == "C3" and "C1" in selected:
                             def linked_install():
                                 linked = Context(runtime, world, ctx.manifest, output/"C1", commit, 20)

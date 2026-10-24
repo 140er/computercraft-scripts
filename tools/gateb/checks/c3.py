@@ -1,5 +1,5 @@
 from .model import Criteria, Blocked, values, pocket_frame
-from .visual import check
+from . import photos as camera
 
 TITLE = "Pocket and physical monitor navigation"
 
@@ -52,6 +52,11 @@ def page(ctx, name, role, want):
     return after, any("back" in i for i in ids(after)) if want == "setup" else "setup" in ids(after)
 
 
+def stocked(frame):
+    """The shop reached its storage room: no "storage room not found" notice."""
+    return not any("storage room not found" in r.get("text", "") for r in rows(frame))
+
+
 def coordinates_of(ctx, name, frame, miners):
     """Each miner's x,y,z on the mining screen: its list row when wide enough, else its details page."""
     found = []
@@ -83,6 +88,8 @@ def evaluate(d):
 
 def run(ctx):
     reached, setups, photos, coordinates = [], [], [], []
+    # The storage room boots while the jobs are set up, so the shop photos show its stock.
+    ctx.power("storage", "on")
     ctx.mining(start=False)
     ctx.lumber(start=False)
     ctx.cli("client", ctx.run, "start", timeout=180)
@@ -103,12 +110,12 @@ def run(ctx):
                     ctx.record(f"C3-{name}-{role}-setup.json", setup)
                     _, returned = page(ctx, name, role, "main")
                     setups.append(opened and returned)
-                if ctx.manifest.get("client_views", {}).get(name):
-                    ctx.command(ctx.manifest["client_views"][name])
-                    photo = f"C3-{name}-{role}.png"
-                    ctx.screenshot(photo)
-                    photos.append(check(ctx, photo))
-        ctx.power("storage", "on")
+                view = ctx.manifest.get("client_views", {}).get(name)
+                if view and role == "shop" and not ctx.wait(lambda: stocked(ctx.frame(name)), 90):
+                    raise Blocked(f"Shop on {name} shows no storage room before its photo")
+                if view:
+                    # The pocket photo shows the pocket's own screen, so it is opened first.
+                    photos.append(camera.take(ctx, f"C3-{name}-{role}.png", view, pocket=name == "pocket"))
         ctx.navigate("wall", "shop")
         ctx.type_text("wall", "diamond")
         ctx.wait(lambda: any(b.get("id") == "item:minecraft:diamond" for b in values(ctx.frame("wall")["buttons"])), 30)
@@ -124,6 +131,6 @@ def run(ctx):
         ctx.screenshot("C3-client-after.png")
         return evaluate(ctx.record("C3-observations.json", {"all_screens_reached": all(reached),
              "setups_and_returns": all(setups), "generic_survives_reboot": bool(survived),
-             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": all(photos) if len(photos) == 14 else None}))
+             "coordinates_fit": bool(coordinates) and all(coordinates), "single_order_delivery": single_order, "real_photos": camera.credit(photos) if len(photos) == 14 else None}))
     finally:
         ctx.cli("client", ctx.run, "stop")
