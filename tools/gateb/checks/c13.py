@@ -1,6 +1,6 @@
 import re
 import time
-from .model import Criteria, Blocked
+from .model import Criteria, Blocked, pocket_frame
 from .visual import check
 
 TITLE = "Real goggles alignment and layer persistence"
@@ -58,6 +58,7 @@ def run(ctx):
         linked = said(output, "GATEB_GOGGLES_LINKED") if goggles.get("native") else "GATEB_GOGGLES_LINKED" in output
         ctx.record("C13-native-goggles-link.json", {"verify_command": verify, "linked": linked,
                                                     "expected_turtles": goggles.get("expected_turtles")})
+        pocket_frame(ctx)
         count = ctx.lua("server", 'local n=0;for _,m in pairs(SO.mods.state.get("machines") or {}) do if m.role=="worker" or m.role=="turtle" then n=n+1 end end;return n')
         ctx.navigate("pocket", "ar")
         before = ctx.read_store("server", "so-data/ar")

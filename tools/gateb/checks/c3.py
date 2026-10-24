@@ -1,4 +1,4 @@
-from .model import Criteria, Blocked, values
+from .model import Criteria, Blocked, values, pocket_frame
 from .visual import check
 
 TITLE = "Pocket and physical monitor navigation"
@@ -87,8 +87,7 @@ def run(ctx):
     ctx.lumber(start=False)
     ctx.cli("client", ctx.run, "start", timeout=180)
     try:
-        if not ctx.wait(lambda: ctx.frame("pocket"), 180):
-            raise Blocked("Pocket did not become available after client login")
+        pocket_frame(ctx)
         ctx.screenshot("C3-client-overview.png")
         if getattr(ctx, "linked_install", None):
             ctx.linked_install()

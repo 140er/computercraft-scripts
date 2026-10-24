@@ -179,6 +179,7 @@ class World:
         return {"output": "[Server] <completion>\n"}
 
     def wait(self, predicate, seconds=30): return predicate()
+    def frame(self, name): return {"role": "pocket", "buttons": [{"id": "x"}]}
     def cli(self, *args, **kwargs): return {}
     def lua(self, name, code): return 3
     def navigate(self, name, role): return {"role": role}
@@ -232,6 +233,25 @@ class GogglesTests(unittest.TestCase):
         # Without reviewed pixel references the check stops at the first photo, not at goggles.
         self.assertIn("pixel reference", str(raised.exception))
         self.assertTrue(world.records["C13-native-goggles-link.json"]["linked"])
+
+
+class PocketReadyTests(unittest.TestCase):
+    def test_waits_through_frames_not_yet_received(self):
+        from checks.model import pocket_frame
+        class Late:
+            calls = 0
+            def frame(self, name):
+                self.calls += 1
+                if self.calls < 3: raise Blocked("Runtime must expose the latest received view.frame as GATEB_FRAME")
+                return {"role": "pocket", "buttons": [{"id": "x"}]}
+            def wait(self, predicate, seconds):
+                for _ in range(5):
+                    if predicate(): return predicate()
+        self.assertEqual(pocket_frame(Late())["role"], "pocket")
+        class Never(Late):
+            def frame(self, name): raise Blocked("no frame")
+        with self.assertRaisesRegex(Blocked, "Pocket did not become available"):
+            pocket_frame(Never())
 
 
 if __name__ == "__main__":
