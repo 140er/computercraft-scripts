@@ -61,6 +61,23 @@ return function(test,equal)
     s.input("ores diamond, unknown") assert(contains(s,"unknown ore"))
     s.input("stop") assert(not contains(s,"unknown ore"))
   end)
+  test("mine renews its standing reservation even when it already owns the cell",function()
+    local s=setup()
+    addLive(s,2) s.net.advance(1)
+    local pose=s.job().turtles["2"].pose
+    equal(s.mods.cells.owner(pose.x,pose.y,pose.z,pose.dim),"mine:2")
+    local reserve=s.mods.cells.reserve
+    local renewed=0
+    s.mods.cells.reserve=function(who,x,y,z,dim)
+      if who=="mine:2" and x==pose.x and y==pose.y and z==pose.z and dim==pose.dim then
+        equal(s.mods.cells.owner(x,y,z,dim),who)
+        renewed=renewed+1
+      end
+      return reserve(who,x,y,z,dim)
+    end
+    s.mods.mine.tick()
+    assert(renewed>0,"owned standing cell was not renewed")
+  end)
   test("mine start fails closed without its disk guard",function()
     local s=setup()
     s.input("home 0 0 0 n")

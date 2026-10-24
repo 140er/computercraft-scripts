@@ -100,7 +100,6 @@ local function cleanupAction(row)
 end
 local function reservePose(id, row)
   local p = row.pose
-  if call("cells","owner",p.x,p.y,p.z,p.dim)==owner(id) then return true end
   local ok, err = call("cells", "reserve", owner(id), p.x, p.y, p.z, p.dim)
   if not ok then row.error = err or "standing cell unavailable" end
   return ok
