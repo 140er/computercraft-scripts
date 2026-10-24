@@ -1,7 +1,7 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "fc276d46ef2e9a23e92e6b1c7b5f4b02d5bd11742db8d72e0b1ec3143e30006b"
+local evidenceSourceHash = "0c0127af7b158fa3e3d20a20d1340cde7d0a632d90f931204d1e65dc1d387ba5"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
@@ -274,6 +274,71 @@ return function(test, equal, read)
       {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next=utc})
     s.send("history.page", {before=utc,limit=2})
     equal(s.worker.env.replies[2].body, {entries={{at=utc-1000,text="sample older"}}})
+  end)
+  test("lease setup handoff commits only with the complete route", function()
+    local s = setup(origin)
+    local pose = {dim="minecraft:overworld",x=0,y=0,z=0}
+    local route = {pose, {dim=pose.dim,x=1,y=0,z=0}}
+    assert(s.cells.reserve("gps:2", 0, 0, 0))
+    assert(s.cells.reserve("mine:3", 1, 0, 0))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    local ok, err = s.cells.reserveMany("setup:2", route)
+    equal(ok, false)
+    equal(err, "held")
+    equal(#s.cells.list("setup:2", 10), 0)
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    assert(s.cells.releaseOwner("mine:3"))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    local open = s.server.env.fs.open
+    s.server.env.fs.open = function(path, mode)
+      if path == "so-data/cells/res.tmp" and mode == "w" then return nil end
+      return open(path, mode)
+    end
+    equal(s.cells.reserveMany("setup:2", route), false)
+    equal(#s.cells.list("setup:2", 10), 0)
+    equal(s.cells.owner(0, 0, 0), "gps:2")
+    s.server.env.fs.open = open
+    -- A failed reservation consumes the pending handoff.
+    equal(s.cells.reserveMany("setup:2", route), false)
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    assert(s.cells.reserveMany("setup:2", route))
+    equal(s.cells.owner(0, 0, 0), "setup:2")
+    equal(s.cells.owner(1, 0, 0), "setup:2")
+    assert(s.lease.clearProbe(2))
+    equal(s.cells.owner(0, 0, 0), "setup:2")
+  end)
+  test("lease setup failure does not claim a free pose or change other planner handoffs", function()
+    local s = setup(origin)
+    local pose = {dim="minecraft:overworld",x=0,y=0,z=0}
+    assert(s.cells.reserve("gps:2", 2, 0, 0))
+    assert(s.cells.reserve("mine:3", 1, 0, 0))
+    assert(s.lease.claimProbe(2, "setup:2", pose))
+    equal(s.cells.reserveMany("setup:2", {pose,{dim=pose.dim,x=1,y=0,z=0}}), false)
+    equal(s.cells.owner(0, 0, 0), nil)
+    equal(#s.cells.list("setup:2", 10), 0)
+    assert(s.lease.claimProbe(2, "mine:2", {dim=pose.dim,x=2,y=0,z=0}))
+    equal(s.cells.owner(2, 0, 0), "mine:2")
+  end)
+  test("lease lost GPS probe explains retry and a fresh hello permits another add", function()
+    local dim = "minecraft:overworld"
+    local s = setup({dim=dim,x=0,y=0,z=0})
+    local function hello()
+      s.send("hello", {role="turtle", gps={dim=dim,x=0,y=0,z=0},
+        journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true}})
+    end
+    hello()
+    local reason
+    s.lease.locate(2, dim, function(_, err) reason = err end)
+    local first = assert(s.lease.status(2).open)
+    s.net.advance(26)
+    equal(reason, "GPS probe lost; retry add")
+    equal(s.lease.status(2).open, nil)
+    hello()
+    s.lease.locate(2, dim, function() error("retry should start a probe") end)
+    local retry = assert(s.lease.status(2).open)
+    assert(retry ~= first)
+    equal(s.lease.status(2).probing, true)
   end)
   test("lease range uses gps or allows positions without a server fix", function()
     local s = setup(nil, origin)

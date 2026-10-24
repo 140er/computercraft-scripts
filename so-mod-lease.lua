@@ -151,6 +151,9 @@ S.claimProbe = function(id, owner, pose)
   local cells = S.module("cells")
   local from = "gps:" .. id
   if not cells or not cells.list or #cells.list(from,1) == 0 then return true end
+  if owner == "setup:" .. id then
+    return cells.prepareHandoff(from, owner, pose.x, pose.y, pose.z, pose.dim)
+  end
   if cells.owner(pose.x,pose.y,pose.z,pose.dim) == from then
     return cells.handoff(from,owner,pose.x,pose.y,pose.z,pose.dim)
   end

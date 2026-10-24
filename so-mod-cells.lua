@@ -1,5 +1,5 @@
 local S = {
-  reservations = {}, pendingReleases = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
+  reservations = {}, pendingReleases = {}, handoffs = {}, sections = {}, sizes = {}, cached = 0, dug = 0,
   clock = 0, work = 0, yielded = SO.now(), events = {}, confirmations = {}, serial = 0,
   root = "so-data/cells/",
   bytes = {}, used = {}, versions = {}, total = 0, migrations = 0, threshold = 1000000, target = 650000,
@@ -167,23 +167,42 @@ S.handoff = function(from, to, x, y, z, dim)
   return S.commit(nextRes)
 end
 
+-- Keep the previous owner until reserveMany saves the complete route.
+S.prepareHandoff = function(from, to, x, y, z, dim)
+  if not S.whoValid(from) or not S.whoValid(to) then return false, "owner" end
+  S.handoffs[to] = nil
+  local key = S.cell(x, y, z, dim)
+  local held = S.reservations[key]
+  if held ~= nil and held ~= from and held ~= to then return false, "held" end
+  S.handoffs[to] = { key = key, from = from }
+  return true
+end
+
 S.reserveMany = function(who, cells)
-  if not S.whoValid(who) or type(cells) ~= "table" then return false, "bad" end
-  local keys = {}
+  if not S.whoValid(who) then return false, "bad" end
+  local handoff = S.handoffs[who]
+  S.handoffs[who] = nil
+  if type(cells) ~= "table" then return false, "bad" end
+  local keys, includesHandoff = {}, false
   for i, cell in ipairs(cells) do
     if type(cell) ~= "table" then return false, "bad" end
     local key = S.cell(cell.x or cell[2], cell.y or cell[3], cell.z or cell[4], cell.dim or cell[1])
-    if S.reservations[key] ~= nil and S.reservations[key] ~= who then return false, "held", cell end
+    local held = S.reservations[key]
+    if held ~= nil and held ~= who and not (handoff and key == handoff.key and held == handoff.from) then
+      return false, "held", cell
+    end
+    if handoff and key == handoff.key then includesHandoff = true end
     keys[i] = key
     S.pause()
   end
+  if handoff and not includesHandoff then return false, "handoff cell missing" end
   local pending = S.pendingReleases[who]
   if pending then
     for _, key in ipairs(keys) do pending[key] = nil S.pause() end
     if next(pending) == nil then S.pendingReleases[who] = nil end
   end
   local changed = false
-  for _, key in ipairs(keys) do if S.reservations[key] == nil then changed = true break end end
+  for _, key in ipairs(keys) do if S.reservations[key] ~= who then changed = true break end end
   if not changed then return true end
   local copy = S.copyReservations()
   for _, key in ipairs(keys) do copy[key] = who S.pause() end
@@ -671,7 +690,7 @@ S.loading = false
 
 return {
   name = "cells", handlers = { ["cells.forget"] = S.onForget }, tick = S.tick,
-  handoff = S.handoff, reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
+  prepareHandoff = S.prepareHandoff, handoff = S.handoff, reserve = S.reserve, reserveMany = S.reserveMany, release = S.release,
   releaseOwner = S.releaseOwner, forgetOwner = S.forgetOwner, owner = S.owner,
   isFree = function(x, y, z, dim) return S.owner(x, y, z, dim) == nil end,
   retirement = S.retirement, decideRetirement = S.decideRetirement, rememberWorker = S.rememberWorker,
