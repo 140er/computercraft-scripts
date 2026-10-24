@@ -177,6 +177,11 @@ S.reserveMany = function(who, cells)
     keys[i] = key
     S.pause()
   end
+  local pending = S.pendingReleases[who]
+  if pending then
+    for _, key in ipairs(keys) do pending[key] = nil S.pause() end
+    if next(pending) == nil then S.pendingReleases[who] = nil end
+  end
   local changed = false
   for _, key in ipairs(keys) do if S.reservations[key] == nil then changed = true break end end
   if not changed then return true end
@@ -201,25 +206,31 @@ S.release = function(who, x, y, z, dim)
   return S.commit(copy)
 end
 
-S.releaseOwner = function(who)
-  if S.whoValid(who) then S.pendingReleases[who] = true end
+S.releaseCells = function(who, keys)
   if S.policyDirty then
     local ok, err = S.savePolicy(S.policy)
     if not ok then return false, err end
   end
   local copy, count = {}, 0
   for key, held in pairs(S.reservations) do
-    if held == who then count = count + 1 else copy[key] = held end
+    if held == who and keys[key] then count = count + 1 else copy[key] = held end
     S.pause()
   end
-  if count == 0 then
-    if S.whoValid(who) then S.pendingReleases[who] = nil end
-    return true, 0
-  end
+  if count == 0 then return true, 0 end
   local ok, err = S.commit(copy)
   if not ok then return false, err end
-  S.pendingReleases[who] = nil
   return true, count
+end
+
+S.releaseOwner = function(who)
+  local keys = {}
+  for key, held in pairs(S.reservations) do
+    if held == who then keys[key] = true end
+    S.pause()
+  end
+  local ok, count = S.releaseCells(who, keys)
+  if S.whoValid(who) then S.pendingReleases[who] = not ok and keys or nil end
+  return ok, count
 end
 
 S.forgetOwner = function(who)
@@ -600,9 +611,10 @@ S.tick = function(now)
     local ok, err = S.savePolicy(S.policy)
     if not ok then return false, err end
   end
-  for who in pairs(S.pendingReleases) do
-    local ok, err = S.releaseOwner(who)
+  for who, keys in pairs(S.pendingReleases) do
+    local ok, err = S.releaseCells(who, keys)
     if not ok then return false, err end
+    S.pendingReleases[who] = nil
     S.pause()
   end
   local saved = 0
