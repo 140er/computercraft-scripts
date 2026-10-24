@@ -6,3 +6,4 @@ woodturtle 7 wait_chest 640 106 65 -342 3
 verified 2
 roompoint 1
 found 121 64 -340 down
+emptymine stopped idle
