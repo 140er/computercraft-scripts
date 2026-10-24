@@ -170,7 +170,7 @@ return function(test,equal)
     ui.input({text="add 2 40 64 9 n"})
     equal(#a.s.env.SO.mods.cells.list("gps:2",10),0)
   end)
-  test("pressure heartbeats update liveness without event churn and resume below pressure",function()
+  test("pressure heartbeats persist fuel changes and resume below pressure",function()
     local s,m,n=state()
     s.handlers.hello({from=2,body={role="turtle",fuel=1000,journal={id="same"}}})
     local count=#s.history.page({count=50}).entries
@@ -180,10 +180,10 @@ return function(test,equal)
       s.handlers.hello({from=2,body={role="turtle",fuel=1000-i,journal={id="same"}}})
       equal(s.get("machines/2").seen,n.time)
     end
-    equal(#s.history.page({count=50}).entries,count)
+    equal(#s.history.page({count=50}).entries,count+5)
     fill(m,0.79);n.time=n.time+60001
     s.handlers.hello({from=2,body={role="turtle",fuel=995,journal={id="same"}}})
-    equal(#s.history.page({count=50}).entries,count+1)
+    equal(#s.history.page({count=50}).entries,count+6)
   end)
   for _,size in ipairs({{26,20},{29,12}}) do
     test("drawn status DISK opens ledger through the real display at "..size[1].."x"..size[2],function()
