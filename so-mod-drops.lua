@@ -213,10 +213,11 @@ end
 S.scan = function(kind, nearPos)
   local want, wantDist, wantId
   local anyPoint, anyDist, anyId
-  local broken, brokenDist
+  local broken, brokenDist, off
   for i = 1, #S.points do
     local p = S.points[i]
-    if (not p.room or S.roomSink) and p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
+    if p.room and not S.roomSink then off = off or p.dim == nearPos.dim and p.kind == kind
+    elseif p.dim == nearPos.dim and (p.kind == kind or p.kind == "any") then
       local dx = p.x - nearPos.x
       local dy = p.y - nearPos.y
       local dz = p.z - nearPos.z
@@ -233,7 +234,7 @@ S.scan = function(kind, nearPos)
       end
     end
   end
-  return want, anyPoint, broken
+  return want, anyPoint, broken, off
 end
 
 S.pick = function(kind, nearPos)
@@ -242,7 +243,7 @@ S.pick = function(kind, nearPos)
     or not S.whole(nearPos.y) or not S.whole(nearPos.z) then
     return nil
   end
-  local want, anyPoint, broken = S.scan(kind, nearPos)
+  local want, anyPoint, broken, off = S.scan(kind, nearPos)
   local chain = { { kind = kind, point = want and S.pub(want) or nil, usable = want ~= nil } }
   if kind ~= "any" then
     chain[2] = { kind = "any", point = anyPoint and S.pub(anyPoint) or nil, usable = anyPoint ~= nil }
@@ -259,7 +260,7 @@ S.pick = function(kind, nearPos)
   if not point then
     reason, failedPoint = broken and "broken" or "none", broken and S.pub(broken) or nil
     alert = broken and (kind .. " #" .. broken.id .. " broken at " .. broken.x .. "," .. broken.y .. "," .. broken.z)
-      or ("no " .. kind .. " chest set")
+      or off and (kind .. " room chests off") or ("no " .. kind .. " chest set")
     S.emit("drops.alert", { kind = kind, text = alert, reason = reason, point = failedPoint })
   end
   return { point = point, chain = chain, alert = alert, reason = reason, failedPoint = failedPoint }
@@ -323,7 +324,7 @@ S.verify = function(id, result)
   end
   local block = result.ok and result.data and result.data.name or "minecraft:air"
   S.points[idx].verified = S.inventory(result) and {at=SO.now(),block=block} or nil
-  if not S.inventory(result) then S.points[idx].fails = math.min(S.strikes,S.points[idx].fails+1) end
+  S.points[idx].fails = S.inventory(result) and 0 or math.min(S.strikes,S.points[idx].fails+1)
   S.message = S.inventory(result) and "chest found" or ("no chest: "..tostring(block))
   return S.commit(previous,"verify",id)
 end
@@ -415,12 +416,12 @@ S.setupReport = function(lid,id,results,lease)
 end
 
 S.beginSetup = function(id, point, facing)
-  if S.task or S.releasing then S.message="setup busy" return end
+  if S.task or S.releasing then S.message="setup busy: #"..(S.task or S.releasing).id return end
   local config=SO.store.read("so-server.cfg") or {}
-  if config.setupMovement ~= true then S.message="setup movement disabled" return end
+  if config.setupMovement ~= true then S.message="setupMovement off" return end
   local pose,err=S.freeTurtle(id, facing)
   if not pose then
-    if err=="facing unknown" then S.compass={id=id,point=point} S.testing=true end
+    S.compass=err=="facing unknown" and {id=id,point=point} or nil
     S.message=err return
   end
   S.compass=nil
@@ -529,7 +530,7 @@ end
 
 S.releaseSetup = function(id)
   local lease=SO.mods.lease
-  if S.releasing or S.task and (S.task.id ~= id or S.task.lease) then S.message="setup busy" return end
+  if S.releasing or S.task and (S.task.id ~= id or S.task.lease) then S.message="setup busy: #"..(S.releasing or S.task).id return end
   local config=SO.store.read("so-server.cfg") or {}
   local pose,err=lease.world(id,config.pos and config.pos.dim)
   if not pose then S.message=err return end
@@ -669,7 +670,7 @@ S.typed = function(text)
   if not S.whole(dim) or not S.whole(x) or not S.whole(y) or not S.whole(z) then
     S.message = "dim/x/y/z: integers only" return
   end
-  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = d.room }
+  S.draft = { dim = dim, x = x, y = y, z = z, kind = kind, side = side, room = (kind == "ore" or kind == "wood") and d.room or nil }
   S.drafted = true
   S.message = nil
   if direct then S.addDraft() end
@@ -747,6 +748,7 @@ S.gather = function(view)
     testing = view.testing or S.compass ~= nil and not view.editing,
     message = S.message, draft = S.draft, roomSink = S.roomSink, turtles = turtles,
     from = view.fromPage or 0, compass = S.compass, found = S.candidates, task = S.task and S.task.id,
+    failed = S.task and S.task.failed,
     server = ctx.server, shaft = ctx.shaft, area = ctx.area }
 end
 S.at = function(p) return p.x .. "," .. p.y .. "," .. p.z end
@@ -774,6 +776,8 @@ S.plan = function(C, m, x0, y0, pw, ph, draft)
   -- North is up, as on the map; the compass sits on the row above the plan.
   if y0 > 2 then C.put(x0 + pw - 2, y0 - 1, "\24N", "8") end
   for _, k in ipairs({ "server", "shaft" }) do if m[k] then items[#items + 1] = { m[k].x, m[k].z } end end
+  -- Both farm corners are in the fit, so the farm edge is never cut.
+  if m.area then items[#items + 1], items[#items + 2] = { m.area.x1, m.area.z1 }, { m.area.x2, m.area.z2 } end
   local bx1, bx2 = span(1)
   local bz1, bz2 = span(2)
   local s = S.scales[#S.scales]
@@ -939,6 +943,7 @@ S.setup = function(C, m)
     C.section(2, y, w - 2, "FACING #" .. m.compass.id)
     local x = 2
     for i, label in ipairs({ "N", "E", "S", "W" }) do x = C.chip(x, y + 1, label, "facing:" .. (i - 1), "primary", 5) + 1 end
+    C.chip(2, y + 3, "cancel", "facing-cancel", "plain")
   else
     local items, section = {}, nil
     local listed = false
@@ -966,7 +971,7 @@ S.setup = function(C, m)
         C.chip(w - 5, y, "add", "candidate:" .. it[2], "plain")
       elseif it[2] then
         local busy = m.task == it[2]
-        C.put(2, y, U.g.bullet, busy and "1" or "d")
+        C.put(2, y, U.g.bullet, busy and (m.failed and "e" or "1") or "d")
         C.put(4, y, "#" .. it[2], "0")
         if busy then C.chip(w - 9, y, "release", "release", "stop") else C.chip(w - 6, y, "scan", "scan:" .. it[2], "primary") end
       else C.put(4, y, "-", "8") end
@@ -1075,7 +1080,12 @@ S.input = function(ev)
     end
     return
   end
-  if ev.id == "list" then view.editing, view.testing = false, false return end
+  -- BACK and CANCEL drop an unanswered FACING prompt.
+  if ev.id == "facing-cancel" then S.compass = nil return end
+  if ev.id == "list" then
+    if not view.editing then S.compass = nil end
+    view.editing, view.testing = false, false return
+  end
   if ev.id == "testing" then view.editing, view.testing = false, true return end
   if ev.id == "room-sink" then
     local ok,err = S.setRoomSink(not S.roomSink)

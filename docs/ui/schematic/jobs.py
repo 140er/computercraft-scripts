@@ -796,7 +796,7 @@ def drops_model(selected=None, editing=False, testing=False):
         selected = next((p["id"] for p in points if p["broken"]), points[0]["id"] if points else None)
     g, a = S["g"], S["area"]
     return dict(points=points, selected=selected, page=1, editing=editing, testing=testing, message=None,
-                roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None,
+                roomSink=False, turtles=[int(a) for a, _ in EXTRA.get("candidate", [])], start=0, compass=None, task=None, failed=None,
                 found=[dict(x=int(x), y=int(y), z=int(z), side=sd) for x, y, z, sd in EXTRA.get("found", [])],
                 server=dict(x=S["server"][0], z=S["server"][2]), shaft=dict(x=g["x"], z=g["z"]),
                 area=dict(x1=a["x1"], z1=a["z1"], x2=a["x2"], z2=a["z2"]),
@@ -829,6 +829,8 @@ def drop_plan(cv, m, x0, y0, pw, ph, draft=None):
         items.append((m["server"]["x"], m["server"]["z"]))
     if m["shaft"]:
         items.append((m["shaft"]["x"], m["shaft"]["z"]))
+    if m["area"]:  # both farm corners are in the fit, so the farm edge is never cut
+        items += [(m["area"]["x1"], m["area"]["z1"]), (m["area"]["x2"], m["area"]["z2"])]
     bx1, bx2 = min(i[0] for i in items), max(i[0] for i in items)
     bz1, bz2 = min(i[1] for i in items), max(i[1] for i in items)
     s = next((v for v in SX if (bx2 - bx1) // v + 1 <= pw - 4 and (bz2 - bz1) // v + 1 <= ph), SX[-1])
@@ -1032,6 +1034,15 @@ def scroll(cv, labels, first, x, y, right):
         chip(cv, x, y, "+", "from-next", "plain")
 
 
+def drops_facing(cv, m, y, w):
+    """A turtle without a facing asks for it first; CANCEL drops the prompt."""
+    section(cv, 2, y, w - 2, "FACING #%d" % m["compass"]["id"])
+    x = 2
+    for i, label in enumerate(("N", "E", "S", "W")):
+        x = chip(cv, x, y + 1, label, "facing:%d" % i, "primary", 5) + 1
+    chip(cv, 2, y + 3, "cancel", "facing-cancel", "plain")
+
+
 def drops_setup(cv, m):
     """Chest setup with an idle turtle: the selected point, the turtles to scan with (RELEASE on the
     one doing setup), the chests the scans found, and TEST, FIX and BACK."""
@@ -1051,12 +1062,16 @@ def drops_setup(cv, m):
                 break
     cv.put(8, 3, text[:max(0, w - 9)], ("e" if sel["broken"] else "0") if sel else "8")
     y = 5
-    items = [("TURTLES", t, None) for t in m["turtles"]]
-    if m["task"] is not None and m["task"] not in m["turtles"]:
-        items.append(("TURTLES", m["task"], None))
-    items = items or [("TURTLES", None, None)]
-    items += [("FOUND", i + 1, p) for i, p in enumerate(m["found"])]
-    k, section_ = m["start"] % len(items), None
+    if m["compass"]:
+        drops_facing(cv, m, y, w)
+        items = []
+    else:
+        items = [("TURTLES", t, None) for t in m["turtles"]]
+        if m["task"] is not None and m["task"] not in m["turtles"]:
+            items.append(("TURTLES", m["task"], None))
+        items = items or [("TURTLES", None, None)]
+        items += [("FOUND", i + 1, p) for i, p in enumerate(m["found"])]
+    k, section_ = m["start"] % max(1, len(items)), None
     while k < len(items) and y <= stop:
         name, n, p = items[k]
         if name != section_:
@@ -1074,7 +1089,7 @@ def drops_setup(cv, m):
             chip(cv, w - 5, y, "add", "candidate:%d" % n, "plain")
         elif n is not None:
             busy = m["task"] == n
-            cv.put(2, y, "•", "1" if busy else "d")
+            cv.put(2, y, "•", ("e" if m["failed"] else "1") if busy else "d")
             cv.put(4, y, "#%d" % n, "0")
             if busy:
                 chip(cv, w - 9, y, "release", "release", "stop")
