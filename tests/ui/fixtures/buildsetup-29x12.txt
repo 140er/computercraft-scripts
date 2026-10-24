@@ -1,18 +1,31 @@
-29x12 Builder setup 29x12
+29x12 Build, setup tab at 29x12
+ BUILD   job   setup  -----  
+ ! out of material           
+ shape     walls             
+ from     10,64,-5           
+ to       20,66,5            
+ material cobblestone        
+ turtle   #8                 
+ home     12,64,-5 E         
                              
- BUILD               stopped 
-                             
- AREA -                      
                              
                              
- MATERIAL -                  
- TURTLE -                    
-                             
-                             
-    FLOOR           BACK     
-                             
+     START         STOP      
+0000000088888000000000ccccc00
+0e000000000000000000000000000
+08888800000000000000000000000
+08888000000000000000000000000
+08800000000000000000000000000
+08888888800000000000000000000
+08888880000000000000000000000
+08888000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+088888888888880eeeeeeeeeeeee0
+ffffffffffffff7777777ffffffff
 fffffffffffffffffffffffffffff
-f777777777777777777777777777f
+ffffffffff7777777ffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
@@ -20,6 +33,5 @@ fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffff
-77777777777777f77777777777777
-77777777777777f77777777777777
-77777777777777f77777777777777
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

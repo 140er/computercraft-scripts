@@ -457,3 +457,64 @@ FLEET.
   (primary) and CLOSE on the last row.
 - **List actions:** a row's own action is bracketed text (`[FORGET]`), not a chip, so a list of
   them never stacks into a slab.
+
+## 23. Build
+
+`so-mod-build.lua` draws it; `schematic/other.py` is the twin. Fixtures `build-26x20/29x12/57x24`
+and `buildsetup-26x20/29x12/57x24`, from the `build` lines of `tests/ui/other-scene.txt`.
+
+- **Header:** `BUILD job setup` (`tab:job`, `tab:setup`). The job's alert follows as a flag,
+  wrapped over at most two rows.
+- **Job:** a section with the shape in capitals and the state word at the right: green while
+  running, muted when stopped, amber for a hold (`material`, `range`), coral when lost. Under
+  it a tick row of the cells placed with `37/120`, then leaders for material, turtle,
+  position, fuel and the two area corners. Leaders are 40 cells wide at most.
+- **Setup:** label column at 2, values at 13 (11 below 36 columns). `shape` is a row of
+  `floor walls box` chips, the active one plain and the others off, or one chip that cycles
+  them where the three do not fit. `from`, `to`, `material`, `turtle` and `home` are values;
+  area, material and turtle are text commands only.
+- **Actions:** START and STOP on the last row of both tabs; the one that does nothing now is
+  muted, STOP is coral while the job runs.
+
+## 24. Health pages
+
+`so-mod-health.lua` draws `health`, `attention`, `alerts`, `events` and `errors`;
+`schematic/other.py` is the twin. Fixtures `health-*`, `attention-*`, `alerts-*`, `events-*`
+and `errors-*` at 26x20 and 29x12, `health-57x24` and `events-57x24`, from the `health` lines
+of `tests/ui/other-scene.txt`.
+
+- **Tabs:** two groups from column 1, ` HEALTH  NEEDS 3 ` and ` EVENTS  ALERTS  ERRORS `,
+  the active one `0` on `7`, the others muted. The NEEDS count is coral while a severe item
+  exists, else amber. The second group moves to row 2 when it does not fit beside the first
+  with four cells to spare, which keep room for the `×` chip of a visited page.
+- **HEALTH:** leaders: uptime, tick and wall tick, tick cost, clock reserve, events, event
+  bytes, snapshot (amber with `due`), disk (coral from 80%), disk free, errors, modems,
+  paired (the lost count coral), leases. A failed error save is a flag; the newest error
+  follows as `last` and its text over at most two rows.
+- **NEEDS:** one row per item: `!` coral for a severe item, amber otherwise, then white text.
+  The whole row opens the item's fix. No items: `all clear` in green.
+- **EVENTS, ALERTS, ERRORS:** `•` in the line's tone, the age muted, the kind muted (ALERTS
+  drops its `.alert`), then white text cut at a word. EVENTS has a `kind` row with the filter
+  chip (`all` or the kind) above the list.
+- **Paging:** the last row holds `1/2` (not on EVENTS and ALERTS, which page by cursor) and the
+  `◄ ►` chips at the right end; a chip with nowhere to go is muted. Screens of 16 rows or more
+  keep a blank row under the tabs and above the last row.
+
+## 25. Turtle details
+
+`U.turtle.render` in `so-ui.lua` draws them (the overlay that `so-mod-display.lua` opens from
+`turtle:<id>`); `schematic/other.py` is the twin. Fixtures `turtle-P/S/M` and `turtlepose-P/S`,
+from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
+`tests/ui/w2screens.lua` builds through the real mining module).
+
+- **Header:** `TURTLE #2` and the state word at the right in its tone; `pose ?` in coral while
+  the pose is uncertain, `unassigned` muted.
+- **Body:** an error flag with its retry countdown muted (two rows at most), then leaders for
+  pose, fuel (amber under 64), inventory (`1/16 · 14`), lease, step, ore and seen, then the
+  progress row: `b1` (the one-based branch) or `spots`, a tick row and `12/48`. Leaders drop
+  from the end when rows run out.
+- **Controls:** PARK ALL (mining) or PARK (lumber), REMOVE in coral, RE-ADD in teal for an
+  uncertain pose; an armed REMOVE or RE-ADD reads CONFIRM in coral. They flow over the last
+  rows from column 2 and BACK sits at the right end of the last row, beside them when it fits.
+- **Pose editor:** `POSE` with the draft at the right, then x, y, z and facing as `-` value `+`
+  (ids `pose:<axis>:-1` and `pose:<axis>:1`), RE-ADD and BACK (`turtle-cancel`) on the last row.

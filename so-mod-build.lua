@@ -282,8 +282,8 @@ local function input(ev)
   local text = ev.text or ev.id
   if type(text) ~= "string" then return end
   local session = ev.session or S.view
-  if text == "setup" then session.buildSetup=true return end
-  if text == "build-back" then session.buildSetup=false return end
+  if text == "setup" or text == "tab:setup" then session.buildSetup=true return end
+  if text == "build-back" or text == "tab:job" then session.buildSetup=false return end
   if text == "shape-next" then
     local order={"floor","walls","box"}
     local nextShape={floor=2,platform=2,wall=3,walls=3,box=1}
@@ -367,36 +367,53 @@ local function input(ev)
   save()
 end
 S.view = {}
+-- Route A (docs/ui/schematic/other.py build): the job tab has the shape with its state, the cells
+-- placed and the job's leaders; setup has the shape chips and the configured values. START and STOP
+-- sit on the last row of both.
 local function render(w,h,session)
   session=session or S.view
   local C=U.canvas(w,h)
+  local gap,lw=h>=16 and 1 or 0,math.min(w-2,40)
   local state=j.blocked or (j.running and "running" or "stopped")
-  C.header("BUILD",state)
-  C.alert(j.alert)
+  local tone=U.tone(state)
+  if j.blocked and tone~="e" then tone="1" end
+  local shape=({platform="floor",wall="walls"})[j.shape] or j.shape or "floor"
+  local b,t=j.blueprint,j.turtle
+  local from=b and (b.x1 .. "," .. b.y1 .. "," .. b.z1)
+  local to=b and (b.x2 .. "," .. b.y2 .. "," .. b.z2)
+  local stuff=j.material and (j.material:gsub("^minecraft:",""))
+  U.roleBar(C,"BUILD",{"job","setup"},{"job","setup"},session.buildSetup and 2 or 1)
+  local y=2+gap
+  if j.alert then y=y+U.flagLines(C,2,y,w-2,j.alert,nil,2)+gap end
   if session.buildSetup then
-    C.put(2,4,j.blueprint and (j.blueprint.x1 .. "," .. j.blueprint.y1 .. "," .. j.blueprint.z1) or "AREA -")
-    C.put(2,5,j.blueprint and (j.blueprint.x2 .. "," .. j.blueprint.y2 .. "," .. j.blueprint.z2) or "")
-    C.put(2,7,j.material or "MATERIAL -")
-    C.put(2,8,"TURTLE " .. (j.turtle and j.turtle.id or "-"))
-    local cols=U.grid(w,h,2)
-    C.button(cols[1].x,h-2,cols[1].w,(j.shape or "floor"):upper(),"shape-next","7",3)
-    C.button(cols[2].x,h-2,cols[2].w,"BACK","build-back","7",3)
+    local cx=w>=36 and 13 or 11
+    C.put(2,y,"shape","8")
+    if cx+20<=w-1 then
+      local x=cx
+      for _,name in ipairs({"floor","walls","box"}) do x=C.chip(x,y,name,"shape " .. name,name==shape and "plain" or "off")+1 end
+    else C.chip(cx,y,shape,"shape-next") end
+    local rows={{"from",from},{"to",to},{"material",stuff},{"turtle",t and ("#" .. t.id)},{"home",j.home and U.turtle.pose(j.home)}}
+    for i,r in ipairs(rows) do
+      local ry=y+i*(h>=16 and 2 or 1)
+      if ry<h-gap then
+        C.put(2,ry,r[1],"8")
+        C.put(cx,ry,(r[2] or "-"):sub(1,math.max(0,w-cx)),r[2] and "0" or "8")
+      end
+    end
   else
     local total=S.targets and #S.targets or 0
-    C.fill(1,4,w,5,"d")
-    C.center(1,w,4,(j.shape or "floor"):upper(),"d")
-    C.big(1,5,w,tostring(math.min(j.cursor-1,total)),"d")
-    C.put(2,9,"OF " .. total)
-    if h>=16 then
-      C.put(2,11,j.material or "MATERIAL -")
-      C.put(2,13,"TURTLE " .. (j.turtle and j.turtle.id or "-"))
-    end
-    local cols=U.grid(w,h,4)
-    local height=h>=16 and 3 or 1
-    for i,b in ipairs({{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"},{"BACK","status","7"}}) do
-      C.button(cols[i].x,h-height+1,cols[i].w,b[1],b[2],b[3],height)
+    local done=math.min(j.cursor-1,total)
+    local frac=done .. "/" .. total
+    C.section(2,y,lw,shape:upper(),state,tone)
+    C.progress(2,y+1,math.max(1,lw-1-#frac),done,total)
+    local facts={{"material",stuff},{"turtle",t and ("#" .. t.id)},{"position",t and U.turtle.pose(t.pose)},
+      {"fuel",j.fuel and tostring(j.fuel)},{"from",from},{"to",to}}
+    for i,f in ipairs(facts) do
+      local ry=y+1+gap+i
+      if ry<h-gap then C.leader(2,ry,lw,f[1],f[2] or "-",f[2] and "0" or "8") end
     end
   end
+  U.actions(C,h,{{"START","start",j.running and "muted" or "primary"},{"STOP","stop",j.running and "stop" or "muted"}})
   return C.frame()
 end
 local function tick()

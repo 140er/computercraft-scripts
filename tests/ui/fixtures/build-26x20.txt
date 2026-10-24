@@ -1,32 +1,46 @@
-26x20 Builder job 26x20
+26x20 Build, job tab at 26x20
+ BUILD   job   setup  --  
                           
- BUILD            stopped 
+ ! out of material        
                           
-          FLOOR           
-           🬖🬋🬏            
-           ▌ ▌            
-           🬈🬋🬀            
+ WALLS -------- material  
+ |||||············ 37/120 
                           
- OF 0                     
-                          
- MATERIAL -               
-                          
- TURTLE -                 
-                          
-                          
+ material ··· cobblestone 
+ turtle ·············· #8 
+ position ···· 12,67,-5 E 
+ fuel ··············· 840 
+ from ·········· 10,64,-5 
+ to ············· 20,66,5 
                           
                           
                           
-START   STOP  SETUP  BACK 
                           
+                          
+                          
+    START       STOP      
+0000000000000088888880cc00
+00000000000000000000000000
+0e000000000000000000000000
+00000000000000000000000000
+0888880cccccccc01111111100
+03333388888888888800000000
+00000000000000000000000000
+0888888880ccc0000000000000
+08888880cccccccccccccc0000
+0888888880cccc000000000000
+088880ccccccccccccccc00000
+088880cccccccccc0000000000
+0880ccccccccccccc000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+0888888888880eeeeeeeeeee00
+ffffffff77777fffffffffffff
 ffffffffffffffffffffffffff
-f777777777777777777777777f
-ffffffffffffffffffffffffff
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
-dddddddddddddddddddddddddd
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -36,6 +50,12 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-999999feeeeeef77777f777777
-999999feeeeeef77777f777777
-999999feeeeeef77777f777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777f77777777777ff

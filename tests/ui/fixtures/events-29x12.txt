@@ -1,25 +1,37 @@
-29x12 EVENTS
-    HEALTH        NEEDS 1    
- EVENTS                      
-          KIND ALL           
- 6s drops                    
- 6s drops                    
- 6s drops                    
- 6s drops                    
- 6s mine.ore                 
- 6s mine.alert ore chest full
- 8s machine                  
-  PREV      BACK      NEXT   
- EVENTS    ALERTS    ERRORS  
-77777777777777f11111111111111
-f777777777777777777777777777f
-77777777777777777777777777777
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-bffffffffffffffffffffffffffff
-777777777f777777777f777777777
-777777777f777777777f777777777
+29x12 Events at 29x12
+ HEALTH  NEEDS 3  ---------- 
+ EVENTS  ALERTS  ERRORS  --- 
+ kind  all                   
+ • 10s mine.alert ore chest  
+ • 40s mine.ore 3 diamond    
+ • 1m lumber.alert out of    
+ • 5m drops.broken chest 3   
+ • 10m mine.alert cleared    
+                             
+                             
+                             
+                      ◄   ►  
+888888888888888e80cccccccccc0
+0000000088888888888888880ccc0
+08888000000000000000000000000
+01088808888888888000000000000
+08088808888888800000000000000
+08088088888888888800000000000
+0e088088888888888800000000000
+08088808888888888000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000088808880
+fffffffffffffffffffffffffffff
+77777777fffffffffffffffffffff
+ffffff77777ffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777f777f

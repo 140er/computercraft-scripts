@@ -176,12 +176,15 @@ and listeners use `listener(sender, message)`.
   `branchProgress(job, row)` returns clamped branch distance and length in constant time.
   Incomplete poses return nil distance; screens show unknown progress as `-`.
   `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
-  `turtle.render(w, h, selection, row, now)` returns a pure detail or pose-editor frame;
+  `turtle.render(w, h, selection, row, now)` returns a pure route A detail or pose-editor frame;
   `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
   `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
   Detail BACK uses the bottom-row coordinates without rendering the editor first.
-  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; only the Big Tiles
-  screens that came from server-only (build, health, turtle detail) still use it.
+  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; no screen uses it since
+  build, health and turtle detail moved to route A. Those screens add `wrap(text, width)`,
+  `fit(text, width)` (cut at a word), `flagLines` (a wrapped `!` flag), `tabRows` (tab groups that
+  wrap to a second row), `pager` (the `prev` and `next` chips) and `controlRows` (chips flowed
+  over the last rows with BACK at the right end of row h); `docs/ui/schematic/other.py` is their twin.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
@@ -425,7 +428,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   and optional `requests` and `fuelAlerts`. The module gathers once per five game seconds.
   Jobs and paired IDs come from read-only generation recovery. An optional
   `SO.pair.requests()` supplies pairing requests; an open invitation also
-  appears. Other job modules may add read-only status APIs later.
+  appears. Other job modules may add read-only status APIs later. The pages draw in route A:
+  tabs HEALTH and NEEDS n, then EVENTS ALERTS ERRORS, leaders or list rows, and the `prev` and
+  `next` chips on the last row ([schematic spec](ui/SCHEMATIC-SPEC.md#23-health-pages)).
   Display inputs receive `event.open(role, actions?)`. Under the role lock it opens
   that screen as a page inside the display's own role (`session.visit`, closed by
   `visit-back`) and sends the listed input IDs to it with the same display session.
@@ -520,7 +525,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   ten seconds on `SO.now`. Builder requires the worker `parkBatch` capability and
   marks every lease for stationary expiry, including after a worker reboot.
   Recovery reads worker pose and inspects the current
-  target before another placement. MORE links to BUILD. See [builder jobs](server-only/BUILD.md).
+  target before another placement. MORE links to BUILD. The screen draws in route A with the
+  tabs `tab:job` and `tab:setup` ([schematic spec](ui/SCHEMATIC-SPEC.md#22-build)).
+  See [builder jobs](server-only/BUILD.md).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
   `assigned(id)` reports whether its job owns that worker.
@@ -1036,6 +1043,14 @@ also checks that each setup control equals its typed command with one save, that
 REMOVE and ADD act on the selected point once per tap, `facts()`, the pocket probe,
 crowded jobs, missing modules, odd sizes, contrast, frames under 16 KB at 164x81 and
 generator parity.
+
+RA2 adds `tests/ui/ra2-other.lua` and `tests/ui/other-scene.txt`. `docs/ui/schematic/other.py`
+writes the build, health and turtle detail fixtures (`build-*`, `buildsetup-*`, `health-*`,
+`attention-*`, `alerts-*`, `events-*`, `errors-*`, `turtle-*`, `turtlepose-*`). The test draws
+the scene with the real build and health modules and `U.turtle`, compares every fixture cell by
+cell with contrast and bounds, and checks the old ids, the row targets, the kind chip, paging,
+CONFIRM and generator parity. The health scene fixes the disk numbers, so no fixture depends on
+the host.
 
 R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
 `view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the
