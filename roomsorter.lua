@@ -982,10 +982,13 @@ local function log(msg, isError)
 end
 local function setState(s) status.state = s os.queueEvent("room_redraw") end
 
+-- Constant tables live in K to keep the main chunk under Cobalt's local limit.
+local K = {}
+
 ---------------------------------------------------------------------------
 -- Items
 ---------------------------------------------------------------------------
-local FUEL_VALUE = { -- items smelted per fuel item in a normal furnace (blast furnace: half)
+K.FUEL_VALUE = { -- items smelted per fuel item in a normal furnace (blast furnace: half)
   ["minecraft:coal"] = 8, ["minecraft:charcoal"] = 8, ["minecraft:coal_block"] = 80,
   ["minecraft:dried_kelp_block"] = 20, ["minecraft:lava_bucket"] = 100, ["minecraft:blaze_rod"] = 12,
 }
@@ -993,9 +996,9 @@ local CHEST_ITEMS = { ["minecraft:chest"] = true, ["minecraft:barrel"] = true }
 local FURNACE_ITEMS = { ["minecraft:furnace"] = "furnace", ["minecraft:blast_furnace"] = "blast",
   ["minecraft:smoker"] = "smoker" }
 -- Raw food that gets cooked (furnaces and smokers)
-local RAW_FOOD = {}
+K.RAW_FOOD = {}
 for _, n in ipairs({ "beef", "porkchop", "chicken", "mutton", "rabbit", "cod", "salmon", "potato", "kelp" }) do
-  RAW_FOOD["minecraft:" .. n] = true
+  K.RAW_FOOD["minecraft:" .. n] = true
 end
 
 local function short(name) return name:match(":(.+)$") or name end
@@ -1005,7 +1008,7 @@ local function smeltKind(name)
   if listHas(cfg.noSmelt, name) then return nil end
   local n = short(name)
   if not n:find("_block$") and (n:find("^raw_") or n:find("_ore$") or n == "ancient_debris") then return "ore" end
-  if RAW_FOOD[name] and cfg.cook ~= false then return "food" end
+  if K.RAW_FOOD[name] and cfg.cook ~= false then return "food" end
   -- Overworld logs and wood, stripped too (nether stems don't make charcoal)
   if cfg.charcoal and (n:find("_log$") or n:find("_wood$")) then return "log" end
   if listHas(cfg.extraSmelt, name) then return "extra" end
@@ -1045,8 +1048,8 @@ local function stackOf(name) return maxStack[name] or 64 end
 ---------------------------------------------------------------------------
 -- Positions are relative to the start: x/z on the floor, heading 0 = facing the input chest
 -- at the start, 1 = right of that, 2 = back, 3 = left.
-local DX = { [0] = 0, 1, 0, -1 }
-local DZ = { [0] = -1, 0, 1, 0 }
+K.DX = { [0] = 0, 1, 0, -1 }
+K.DZ = { [0] = -1, 0, 1, 0 }
 local function key(x, y, z) return x .. "," .. y .. "," .. z end
 local function unkey(k)
   local x, y, z = k:match("^(-?%d+),(-?%d+),(-?%d+)$")
@@ -1056,7 +1059,7 @@ local function step(k, d)
   local x, y, z = unkey(k)
   if d == "up" then return key(x, y + 1, z) end
   if d == "down" then return key(x, y - 1, z) end
-  return key(x + DX[d], y, z + DZ[d])
+  return key(x + K.DX[d], y, z + K.DZ[d])
 end
 local ALL_DIRS = { 0, 1, 2, 3, "up", "down" }
 local function dirBetween(a, b)
@@ -1192,9 +1195,9 @@ local function face(dir)
   turnTo(dir)
   return "front"
 end
-local DROP = { top = turtle.dropUp, bottom = turtle.dropDown, front = turtle.drop }
-local SUCK = { top = turtle.suckUp, bottom = turtle.suckDown, front = turtle.suck }
-local PLACE = { top = turtle.placeUp, bottom = turtle.placeDown, front = turtle.place }
+K.DROP = { top = turtle.dropUp, bottom = turtle.dropDown, front = turtle.drop }
+K.SUCK = { top = turtle.suckUp, bottom = turtle.suckDown, front = turtle.suck }
+K.PLACE = { top = turtle.placeUp, bottom = turtle.placeDown, front = turtle.place }
 
 local function goToInv(e)
   goTo(e.acc)
@@ -1863,12 +1866,12 @@ local function placeAt(s, tslot, kind)
     turnTo(z % 2 == 0 and 3 or 1)
   end
   turtle.select(tslot)
-  local ok = PLACE[side]()
+  local ok = K.PLACE[side]()
   for _ = 1, 3 do -- someone standing there? wait a moment and try again
     if ok or inspectDir(s.dir) then break end
     sleep(1)
     turtle.select(tslot)
-    ok = PLACE[side]()
+    ok = K.PLACE[side]()
   end
   turtle.select(1)
   if not ok then
@@ -2060,18 +2063,18 @@ local function takeFrom(k, side, slot, n, into)
         parked = spareSlot()
         if not parked then return 0 end
         turtle.select(parked)
-        SUCK[side]()
+        K.SUCK[side]()
         if not into then t = emptySlot() end
-        if not t then DROP[side]() turtle.select(1) return 0 end
+        if not t then K.DROP[side]() turtle.select(1) return 0 end
       end
     end
     peripheral.call(side, "pushItems", side, slot, n, 1)
   end
   turtle.select(t)
   local before = turtle.getItemCount(t)
-  SUCK[side](n)
+  K.SUCK[side](n)
   local got = turtle.getItemCount(t) - before
-  if parked then turtle.select(parked) DROP[side]() end
+  if parked then turtle.select(parked) K.DROP[side]() end
   turtle.select(1)
   mergeStacks(side)
   refresh(k, side)
@@ -2168,7 +2171,7 @@ local function storeAll(force, onlySlot) -- force: also what it normally keeps o
         local before = turtle.getItemCount(s)
         if before > 0 then
           turtle.select(s)
-          DROP[side]()
+          K.DROP[side]()
           local m = before - turtle.getItemCount(s)
           moved = moved + m
           stats.stored = stats.stored + m
@@ -2207,7 +2210,7 @@ local function pullInput()
   local n = 0
   while freeSlots() > 1 do
     turtle.select(emptySlot())
-    if not SUCK[side]() then break end
+    if not K.SUCK[side]() then break end
     n = n + 1
   end
   turtle.select(1)
@@ -2234,7 +2237,7 @@ function refuelCarried()
   end
   turtle.select(1)
   if fuelLeft() >= cfg.minFuel then return end
-  for _, c in ipairs(carried(function(n) return FUEL_VALUE[n] ~= nil end)) do
+  for _, c in ipairs(carried(function(n) return K.FUEL_VALUE[n] ~= nil end)) do
     turtle.select(c.slot)
     while fuelLeft() < cfg.minFuel * 4 and turtle.getItemCount(c.slot) > 0 do
       if not turtle.refuel(1) then break end
@@ -2335,7 +2338,7 @@ local function serviceFurnace(k, share, extra) -- extra: also put this item in (
   -- 3. Fuel for what's waiting, through the helper chest into the fuel slot
   local need = st[1] and st[1].count or 0
   local div = (e.blast or e.smoker) and 2 or 1 -- these burn fuel twice as fast
-  local function value(n) return FUEL_VALUE[n] or (smeltKind(n) == "log" and 1.5) end
+  local function value(n) return K.FUEL_VALUE[n] or (smeltKind(n) == "log" and 1.5) end
   local have = 0
   if st[2] then have = value(st[2].name) and value(st[2].name) / div * st[2].count or math.huge end
   if need > have then
@@ -2352,7 +2355,7 @@ local function serviceFurnace(k, share, extra) -- extra: also put this item in (
         local per = (value(f) or 8) / div
         for _, c in ipairs(carried(function(n) return n == f end)) do
           local want = math.min(c.count, math.ceil((need - have) / per))
-          if FUEL_VALUE[f] == nil then want = math.min(want, 4 - logsBurnt) logsBurnt = logsBurnt + want end
+          if K.FUEL_VALUE[f] == nil then want = math.min(want, 4 - logsBurnt) logsBurnt = logsBurnt + want end
           if want > 0 then
             turtle.select(c.slot)
             turtle.dropUp(want)
@@ -2382,7 +2385,7 @@ end
 
 -- Take fuel along for 'items' to smelt in 'nf' furnaces. Returns how much it carries.
 local function takeFuel(items, nf)
-  local fuelCarried = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" end)
+  local fuelCarried = carriedCount(function(n) return K.FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" end)
   local fuelWanted = math.ceil(items / 8) + nf
   if fuelCarried < fuelWanted then
     local t = totals()
@@ -2410,7 +2413,7 @@ local function furnacePass()
   -- No fuel anywhere (coal, charcoal, ... or logs to start with): don't walk the furnaces
   -- for nothing; only go to pick up results or while one still has fuel in it
   local t = totals()
-  local fuel = carriedCount(function(n) return FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" or smeltKind(n) == "log" end)
+  local fuel = carriedCount(function(n) return K.FUEL_VALUE[n] ~= nil and n ~= "minecraft:lava_bucket" or smeltKind(n) == "log" end)
   for _, f in ipairs(cfg.fuels) do fuel = fuel + (t[f] or 0) end
   for name, c in pairs(t) do if smeltKind(name) == "log" then fuel = fuel + smeltable(name, c) end end
   if fuel == 0 then
@@ -2673,7 +2676,7 @@ local function deliver(req)
     for _, c in ipairs(carried(function(n) return n == req.name end)) do
       turtle.select(c.slot)
       local before = turtle.getItemCount(c.slot)
-      DROP[side]()
+      K.DROP[side]()
       local m = before - turtle.getItemCount(c.slot)
       left = left - m
       stats.delivered = stats.delivered + m
@@ -2700,15 +2703,15 @@ end
 -- Crafting (the turtle needs a crafting table: put one in the drop-off chest and it
 -- equips it by itself)
 ---------------------------------------------------------------------------
-local RECIPES_FILE = "room.recipes"
-local learned = loadTable(RECIPES_FILE) or {}
+K.RECIPES_FILE = "room.recipes"
+local learned = loadTable(K.RECIPES_FILE) or {}
 local crafts = {} -- queue of { name =, n = }
 local lastMissing
 
 local function crafty() return peripheral.find("workbench") ~= nil end
 
 -- Ingredient groups: "#planks" = any planks, ...
-local GROUPS = {
+K.GROUPS = {
   ["#planks"] = function(n) return n:find("_planks$") ~= nil end,
   ["#log"] = function(n) return (n:find("_log$") or n:find("_stem$")) ~= nil end,
   ["#coal"] = { "minecraft:coal", "minecraft:charcoal" },
@@ -2718,7 +2721,7 @@ local GROUPS = {
 }
 local function fitsSpec(spec, name)
   if spec:sub(1, 1) ~= "#" then return spec == name end
-  local g = GROUPS[spec]
+  local g = K.GROUPS[spec]
   if type(g) == "function" then return g(name) end
   return listHas(g, name)
 end
@@ -3119,7 +3122,7 @@ local function learn()
   if not out then return { "Crafting didn't give anything." } end
   for i = #learned, 1, -1 do if learned[i].out == out then table.remove(learned, i) end end
   table.insert(learned, 1, { out = out, n = n, grid = grid })
-  saveTable(RECIPES_FILE, learned)
+  saveTable(K.RECIPES_FILE, learned)
   return { "Learned: " .. n .. " " .. pretty(out) .. ". It's on the Craft tab now.", "Type resume to carry on." }
 end
 
