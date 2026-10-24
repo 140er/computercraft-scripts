@@ -204,7 +204,12 @@ W.tool = function(step)
   if not slot then return false, "needs " .. kind end
   local side
   for _, candidate in ipairs({ "left", "right" }) do
-    if tools[candidate] == false or W.isTool(tools[candidate]) then side = candidate break end
+    if tools[candidate] == false then side = candidate break end
+  end
+  if not side then
+    for _, candidate in ipairs({ "left", "right" }) do
+      if W.isTool(tools[candidate]) then side = candidate break end
+    end
   end
   if not side then return false, "no tool side free" end
   local selected = turtle.getSelectedSlot()
@@ -378,16 +383,16 @@ W.paint = function()
   term.write("fuel " .. tostring(W.fuelRaw()))
   term.setCursorPos(1, 4)
   local width = term.getSize()
-  term.write((W.reason or ("seen " .. seen)):sub(1, width))
+  term.write((not W.pair.peer() and "UNPAIRED" or W.reason or ("seen " .. seen)):sub(1, width))
   term.setCursorPos(1, 5)
   term.write(age and age < 60 and ("server " .. W.server .. " ok") or "waiting for server")
   if W.repair then
     term.setCursorPos(1, 6)
-    term.write("Key changed? Old key kept.")
+    term.write("No key on server")
     term.setCursorPos(1, 7)
-    term.write("Press P on server. Code: " .. (W.codeText or ""))
+    term.write("Code: " .. (W.codeText or ""))
     term.setCursorPos(1, 8)
-    term.write(W.pairError or "Type 6 digits, then Enter")
+    term.write(W.pairError or "")
   end
   if W.journal.uncertain then
     term.setCursorPos(1, 5)
@@ -954,7 +959,7 @@ W.readCode = function()
 end
 
 W.showEnroll = function(state, fp)
-  W.stepName = "enroll " .. fp .. " " .. state
+  W.stepName = state == "pending" and ("approve on panel " .. fp) or ("enroll " .. fp .. " " .. state)
   W.paint()
 end
 
@@ -1007,10 +1012,12 @@ W.boot = function()
       W.paint()
       code = code or W.readCode()
       if W.server and code then
-        if W.pair.join(code) then
+        local ok, err = W.pair.join(code)
+        if ok then
           fs.delete("so-code")
           break
         end
+        W.pairError = "Pair failed: " .. tostring(err)
         code = nil
       end
       if code or fs.exists("so-code") then sleep(2) end
