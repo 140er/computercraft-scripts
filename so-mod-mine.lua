@@ -9,6 +9,7 @@ local unloadKeep = {
 local box = SO.store.store("so-data/mine/job", function(v) return type(v) == "table" and type(v.turtles) == "table" end)
 local job = box.value or { homeSet = false, dim = "minecraft:overworld", home = { x = 0, y = 0, z = 0, facing = 0 }, bottom = -58,
   length = 64, branches = 8, continuous = false, mode = "thorough", ores = {}, turtles = {}, progress = { nextBranch = 0, done = 0 }, running = false }
+job.ores = job.ores or {}
 local function branchLine(branch)
   local d = ({[0]={0,-1},{1,0},{0,1},{-1,0}})[job.home.facing]
   local distance = 1 + (branch+1)*(job.mode=="fast" and 2 or 4)
@@ -1196,6 +1197,15 @@ V.tiny = function(C, m)
   V.list(C, m, y, stop, w - 1)
   V.run(C, h, m, 1)
 end
+V.oreRows = function(C, m, x, y, right, stop)
+  local cx = x
+  for _, name in ipairs(V.ores) do
+    if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
+    if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
+    cx = cx + #name + 3
+  end
+  return y
+end
 -- The setup controls from row y, step rows apart, none below row stop. Returns the last row.
 V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   local h = m.home
@@ -1236,16 +1246,7 @@ V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
     C.chip(ex, y, "edit", "ores-edit", editing and "on" or "plain")
   end
   local last = y
-  if editing and C.w < 52 then
-    local cx = x
-    y = y + 1
-    for _, name in ipairs(V.ores) do
-      if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
-      if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
-      cx = cx + #name + 3
-    end
-    return y
-  end
+  if editing and C.w < 52 then return V.oreRows(C, m, x, y + 1, right, stop) end
   y = y + step
   if y <= stop then
     local nx = C.chip(x, y, "SINGLE", "single", m.continuous and "off" or "plain") + 1
@@ -1334,7 +1335,13 @@ V.setupColumn = function(C, m, editing)
   -- READY follows the controls; when it does not fit under them it gets pages of its own after
   -- the controls' page, which ends with the READY row.
   local last = V.setupRows(U.canvas(w, h), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
-  if #V.items(m) <= math.max(0, stop - last - 2) then
+  if editing and last > stop - 1 then
+    if stop >= 3 then
+      C.put(2, 3, "ores", "8")
+      C.chip(w - 7, 3, "BACK", "ores-edit", "plain")
+    end
+    V.oreRows(C, m, 2, 5, w - 1, stop)
+  elseif #V.items(m) <= math.max(0, stop - last - 2) then
     V.setupRows(C, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
     V.ready(C, m, 2, last + 2, w - 1, stop, m.setupPage)
   elseif stop >= 4 then

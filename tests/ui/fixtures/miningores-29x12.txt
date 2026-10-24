@@ -1,0 +1,37 @@
+29x12 Mining ore editor at 29x12
+ MINING   main   setup  ---  
+ fuel ~902                   
+ ores                 BACK   
+                             
+  coal   copper   iron       
+  gold   redstone   lapis    
+  diamond   quartz           
+  nether_gold                
+  ancient_debris             
+                             
+                             
+     START         STOP      
+000000000888888000000000ccc00
+08888888880000000000000000000
+08888000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+088888888888880eeeeeeeeeeeee0
+ffffffffffffffff7777777ffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffff777777ff
+fffffffffffffffffffffffffffff
+f777777f77777777f777777ffffff
+f777777f7777777777f7777777fff
+f777777777f77777777ffffffffff
+f7777777777777fffffffffffffff
+f7777777777777777ffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+f7777777777777f7777777777777f

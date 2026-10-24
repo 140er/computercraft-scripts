@@ -375,6 +375,17 @@ def ore_on(m, name):
     return not m["ores"] or name in m["ores"]
 
 
+def ore_rows(cv, m, x, y, right, stop):
+    cx = x
+    for name in ORES:
+        if cx + len(name) + 2 > right + 1:
+            cx, y = x, y + 1
+        if y <= stop:
+            chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
+        cx += len(name) + 3
+    return y
+
+
 def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
     """The setup controls from row y, step rows apart, none below row stop. Returns the last row."""
     if m["dim"] != "minecraft:overworld":
@@ -406,14 +417,7 @@ def setup_rows(cv, m, x, y, step, vx, vw, right, editing, stop):
         chip(cv, ex, y, "edit", "ores-edit", "on" if editing else "plain")
     last = y
     if editing and cv.w < 52:
-        cx, y = x, y + 1
-        for name in ORES:
-            if cx + len(name) + 2 > right + 1:
-                cx, y = x, y + 1
-            if y <= stop:
-                chip(cv, cx, y, name, "ore-" + name, "plain" if ore_on(m, name) else "off")
-            cx += len(name) + 3
-        return y
+        return ore_rows(cv, m, x, y + 1, right, stop)
     y += step
     if y <= stop:
         nx = chip(cv, x, y, "SINGLE", "single", "off" if m["continuous"] else "plain") + 1
@@ -500,7 +504,12 @@ def setup_column(cv, m, editing):
     # READY follows the controls; when it does not fit under them it gets pages of its own after
     # the controls' page, which ends with the READY row.
     last = setup_rows(Canvas(w, h, ""), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
-    if len(ready_items(m)[0]) <= max(0, stop - last - 2):
+    if editing and last > stop - 1:
+        if stop >= 3:
+            cv.put(2, 3, "ores", "8")
+            chip(cv, w - 7, 3, "BACK", "ores-edit", "plain")
+        ore_rows(cv, m, 2, 5, w - 1, stop)
+    elif len(ready_items(m)[0]) <= max(0, stop - last - 2):
         setup_rows(cv, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
         ready_rows(cv, m, 2, last + 2, w - 1, stop)
     elif stop >= 4:
@@ -1149,6 +1158,8 @@ FIXTURES = [
     ("miningsetup-M", _mining(57, 24, "Mining setup, room monitor 57x24", True)),
     ("miningsetup-L", _mining(39, 19, "Mining setup, wall monitor 4x3", True)),
     ("miningsetup-P", _mining(26, 20, "Mining setup at 26x20", True)),
+    ("miningsetup-29x12", _mining(29, 12, "Mining setup at 29x12", True)),
+    ("miningores-29x12", _mining(29, 12, "Mining ore editor at 29x12", True, True)),
     ("miningores-M", _mining(57, 24, "Mining setup with the ore list open", True, True)),
     ("miningores-P", _mining(26, 20, "Mining setup at 26x20 with the ore list open", True, True)),
     ("lumber-M", _lumber(57, 24, "Lumber, room monitor 57x24")),

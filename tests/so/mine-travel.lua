@@ -1,7 +1,7 @@
 local M = dofile("so-mine-plan.lua")
 local P = dofile("so-plan.lua")
 local S = {}
-local function setupFixture()
+local function setupFixture(oldSave)
   local function copy(v)
     if type(v) ~= "table" then return v end
     local out = {} for k, value in pairs(v) do out[k] = copy(value) end return out
@@ -10,6 +10,7 @@ local function setupFixture()
   s.job = {homeSet=true,home={x=0,y=64,z=0,facing=0},dim="minecraft:overworld",bottom=-58,
     length=64,branches=8,continuous=false,mode="thorough",ores={},turtles={},
     progress={nextBranch=0,done=0},running=false}
+  if oldSave then s.job.ores = nil end
   local mods = {}
   local env = setmetatable({SO={mods=mods,now=function() return s.now end,store={copy=copy,
     store=function(path, valid)
@@ -63,6 +64,18 @@ local function setupFixture()
   return s
 end
 function S.run(test, equal)
+  test("mining loads an old save without ores and keeps setup and filter taps usable",function()
+    local s=setupFixture(true)
+    equal(s.job.ores,{})
+    local text=s.frame(29,12)
+    assert(text:find("fuel ~902",1,true))
+    s.tap("ores-edit")
+    local _,buttons=s.frame(29,12)
+    assert(buttons["ore-coal"] and buttons["ore-ancient_debris"])
+    s.tap("ore-coal") equal(#s.job.ores,9)
+    s.tap("ore-ancient_debris") equal(#s.job.ores,8)
+    equal(s.saved["so-data/mine/job"].ores,s.job.ores)
+  end)
   test("mining fuel estimate sums branch routes and the shaft round trip",function()
     local s=setupFixture()
     equal(M.fuelEstimate(s.job),902)
