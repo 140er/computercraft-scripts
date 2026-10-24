@@ -11,6 +11,75 @@ local function boot(files)
 end
 
 return function(test, equal)
+  test("cells release: retry preserves reservations taken after the failed release", function()
+    local cells, m, net = boot()
+    local lane = { { "minecraft:overworld", 1, 2, 3 }, { "minecraft:overworld", 4, 5, 6 } }
+    assert(cells.reserveMany("mine:9", lane))
+    local open = m.env.fs.open
+    m.env.fs.open = function(path, mode)
+      if path == "so-data/cells/res.tmp" and mode == "w" then return nil end
+      return open(path, mode)
+    end
+    equal(cells.releaseOwner("mine:9"), false)
+    m.env.fs.open = open
+    assert(cells.reserve("mine:9", 7, 8, 9))
+    assert(cells.tick(net.time))
+    assert(cells.reserveMany("next", lane))
+    equal(cells.owner(7, 8, 9), "mine:9")
+    local ok, reason = cells.reserveMany("next", { { "minecraft:overworld", 7, 8, 9 } })
+    equal(ok, false)
+    equal(reason, "held")
+    local reboot = boot(m.files)
+    equal(reboot.owner(7, 8, 9), "mine:9")
+    equal(reboot.owner(4, 5, 6), "next")
+  end)
+
+  test("cells release: retry preserves snapshot cells handed to another owner", function()
+    local cells, m, net = boot()
+    assert(cells.reserve("mine:9", 1, 2, 3))
+    local open = m.env.fs.open
+    m.env.fs.open = function(path, mode)
+      if path == "so-data/cells/res.tmp" and mode == "w" then return nil end
+      return open(path, mode)
+    end
+    equal(cells.releaseOwner("mine:9"), false)
+    m.env.fs.open = open
+    assert(cells.handoff("mine:9", "other", 1, 2, 3))
+    assert(cells.tick(net.time))
+    equal(cells.owner(1, 2, 3), "other")
+  end)
+
+  for _, mode in ipairs({ "reserve", "reserveMany", "mixed" }) do
+    test("cells release: " .. mode .. " renews a cell while its release is pending", function()
+      local cells, m, net = boot()
+      local pose = { "minecraft:overworld", 1, 2, 3 }
+      local lane = { "minecraft:overworld", 4, 5, 6 }
+      assert(cells.reserveMany("mine:9", { pose, lane }))
+      local open = m.env.fs.open
+      m.env.fs.open = function(path, access)
+        if path == "so-data/cells/res.tmp" and access == "w" then return nil end
+        return open(path, access)
+      end
+      equal(cells.releaseOwner("mine:9"), false)
+      if mode == "reserve" then
+        assert(cells.reserve("mine:9", 1, 2, 3))
+      elseif mode == "reserveMany" then
+        assert(cells.reserveMany("mine:9", { pose }))
+      else
+        m.env.fs.open = open
+        assert(cells.reserveMany("mine:9", { pose, { "minecraft:overworld", 7, 8, 9 } }))
+      end
+      m.env.fs.open = open
+      assert(cells.tick(net.time))
+      equal(cells.owner(1, 2, 3), "mine:9")
+      assert(cells.reserveMany("next", { lane }))
+      local ok, reason = cells.reserveMany("next", { pose })
+      equal(ok, false)
+      equal(reason, "held")
+      if mode == "mixed" then equal(cells.owner(7, 8, 9), "mine:9") end
+    end)
+  end
+
   test("cells release: a failed commit stays held until the next tick saves it", function()
     local cells, m, net = boot()
     local route = { { "minecraft:overworld", 1, 2, 3 }, { "minecraft:the_nether", 4, 5, 6 } }
