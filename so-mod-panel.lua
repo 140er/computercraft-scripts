@@ -155,9 +155,12 @@ P.pairedFrame = function(c, w, h, session)
       local age = machine.seen and math.max(0,math.floor((P.now()-machine.seen)/1000))
       c.put(2,y+1,age and (age<60 and age.."s" or math.floor(age/60).."m") or "-")
       if row.id ~= session.id then
+        -- Chips on 7, not dark ink on a fill: CC glyphs start on a cell's top pixel row, so
+        -- ink f under the f row above loses its top stroke on a real screen.
         local confirm = panel.confirm and panel.confirm.id == row.id
-        c.button(w-12,y+1,12,confirm and "CONFIRM" or "FORGET",
-          confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,"e",1)
+        c.chip(w-12,y+1,confirm and "CONFIRM" or "FORGET",
+          confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,
+          confirm and "stop" or "plain",12)
       end
     end
   end
