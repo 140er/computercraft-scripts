@@ -15,15 +15,15 @@ M.call = function(name, method, ...)
   if mod and type(mod[method]) == "function" then return mod[method](...) end
 end
 M.dim = function(dim) return M.dimensions[dim] or dim or "minecraft:overworld" end
-M.gather = function(now)
+M.gather = function(now, selectedDim)
   if not M.config or now >= (M.configAt or 0)+5000 then
     M.config, M.configAt = SO.store.read("so-server.cfg") or {}, now
   end
   local config = M.config
   local mine = M.call("mine", "mapView") or {}
   local lumber = M.call("lumber", "mapView") or {}
-  local dim = M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
-  local scene = {dim=dim, server=config.pos, mine=mine, lumber=lumber, turtles={}, drops={}}
+  local dim = selectedDim or M.dim(config.pos and config.pos.dim or mine.dim or lumber.dim)
+  local scene = {dim=dim, server=config.pos and M.dim(config.pos.dim)==dim and config.pos or nil, mine=mine, lumber=lumber, turtles={}, drops={}}
   local workers = {}
   for id, row in pairs(M.call("state", "get", "machines") or {}) do
     if row.role == nil or row.role == "worker" or row.role == "turtle" then workers[tostring(id)] = row end
@@ -41,7 +41,7 @@ M.gather = function(now)
   end
   for id, row in pairs(workers) do
     local p = row.pose
-    if p and M.dim(p.dim or row.dim or mine.dim) == dim then
+    if p and M.dim(p.dim or row.dim) == dim then
       local status = M.call("lease", "peek", tonumber(id) or id) or {}
       local range = M.call("lease", "inRange", tonumber(id) or id, p)
       local state, color = tostring(row.state or "idle"), "1"
@@ -63,6 +63,8 @@ M.gather = function(now)
     if (a.broken==true)~=(b.broken==true) then return not not a.broken end
     return tostring(a.id or a.kind)<tostring(b.id or b.kind)
   end)
+  M.scenes=M.scenes or {}
+  M.scenes[dim]=scene
   M.scene = scene
 end
 M.view = function(session)
@@ -78,14 +80,18 @@ M.geometry = function(scene)
     rx=-d[2], rz=d[1], gap=j.mode=="fast" and 2 or 4, count=count, length=j.length or 64,
     bottom=j.bottom, top=j.home.y}
 end
+M.selected = function(view)
+  return M.config.remoteDimensions == true and M.scenes and M.scenes[view.dim] or M.scene
+end
 M.render = function(w, h, session)
   session = type(session)=="table" and session or {}
-  local v, s = M.view(session), M.scene
+  local v = M.view(session)
+  local s = M.selected(v)
   local mapTop = M.headerRow+1
   local c, vw, vh = U.canvas(w,h), w, math.max(1,h-3-M.headerRow)
   v.headerRow = M.headerRow
   local g = M.geometry(s)
-  local surface = s.server and s.server.y or s.lumber.ground or g and g.top or 64
+  local surface = s.server and s.server.y or M.dim(s.lumber.dim)==s.dim and s.lumber.ground or g and g.top or 64
   local y = v.level=="surface" and surface or g and g.bottom or surface
   local minx, maxx, minz, maxz
   local function bound(x,z)
@@ -236,7 +242,11 @@ M.render = function(w, h, session)
   for i,b in ipairs({{"^","map-n"},{"<","map-w"},{"v","map-s"},{">","map-e"}}) do
     c.button(cols[i].x,h-1,cols[i].w,b[1],b[2],"7",1)
   end
-  c.button(1,h,w,v.level=="all" and "ALL" or (v.level=="surface" and "SURFACE " or "MINE ")..y,"map-level","7",1)
+  local remote = M.config and M.config.remoteDimensions == true
+  if remote then
+    c.button(w-7,h,8,({["minecraft:overworld"]="WORLD",["minecraft:the_nether"]="NETHER",["minecraft:the_end"]="END"})[s.dim],"map-dim","9",1)
+  end
+  c.button(1,h,remote and w-8 or w,v.level=="all" and "ALL" or (v.level=="surface" and "SURFACE " or "MINE ")..y,"map-level","7",1)
   return c.frame()
 end
 M.input = function(event)
@@ -244,11 +254,14 @@ M.input = function(event)
   local v,id = M.view(event.session), event.id
   local dropId = type(id)=="string" and id:match("^map%-drop:(.+)$")
   if id=="map-broken" or id=="map-focus" or dropId then
-    for _,p in ipairs(M.scene.drops) do if p.broken and (not dropId or p.id==dropId) then
+    for _,p in ipairs(M.selected(v).drops) do if p.broken and (not dropId or p.id==dropId) then
       v.fit,v.x,v.z,v.scale,v.level=false,p.x,p.z,1,"all"
       if id~="map-focus" and event.open then event.open("generic",{"list","focus:"..p.id}) end
       break
     end end
+  elseif id=="map-dim" and M.config and M.config.remoteDimensions == true then
+    v.dim=({["minecraft:overworld"]="minecraft:the_nether",["minecraft:the_nether"]="minecraft:the_end",["minecraft:the_end"]="minecraft:overworld"})[v.dim or M.scene.dim]
+    v.fit,v.scanKey=true,nil
   elseif id=="map-fit" then v.fit=true
   elseif id=="map-level" then v.level=({mine="surface",surface="all",all="mine"})[v.level]
   elseif id=="map-in" or id=="map-out" then
@@ -261,5 +274,10 @@ M.input = function(event)
 end
 return {name="map",handlers={},tick=function(now)
   M.gather(now)
+  if M.config.remoteDimensions == true then
+    local primary=M.scene
+    for _,dim in pairs(M.dimensions) do if dim~=primary.dim then M.gather(now,dim) end end
+    M.scene=primary
+  end
   if not M.wired and SO.mods.display then SO.mods.display.screen("map",M.render,M.input) M.wired=true end
 end}

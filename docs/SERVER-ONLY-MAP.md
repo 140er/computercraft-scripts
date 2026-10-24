@@ -105,6 +105,9 @@ and listeners use `listener(sender, message)`.
   `chestCheck(points, kind, near)`, `toolCheck(tools, kind, id?, autoSwap?)` and `missing(checks)`.
   `toolCheck` returns `{ok,text,blocking}`. Missing tools are informational unless
   `autoSwap` is true; `missing` excludes nonblocking checks. Absent equipment facts are unknown.
+  Dimension helpers are `dimensions`, `dimension(name)`, `dimensionError(dim, config)`
+  and `heightError(dim, y)`. They validate vanilla aliases, remote opt-in and
+  movement bounds. See [remote dimensions](server-only/PROTOCOL.md#remote-dimensions).
   `chestCheck` returns `{ok,text}` without writes. `missing` returns unmet text in order.
   `rangeBatch` returns the longest prefix within range of complete `action.actions`,
   rebuilding its steps, cells and final pose. It returns the original action when
@@ -224,6 +227,9 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   false and a reason. It may send one tool lease when the worker advertises opt-in;
   retries wait 30000 game milliseconds. `describe` sends authenticated worker status
   on change or after 30000 game milliseconds.
+  `remoteReady` requires `remoteDimensions=true`, an updated worker and matching
+  configured dimensions. Ender-modem jobs use it instead of geometric range.
+  Remote movement steps carry destination height and dimension guards.
   `opts` accepts `ms`, `owner`, `recover` and expected world `pose`.
   Reports call `fn(leaseId, turtleId, results, lease)`; expiry passes nil results.
   Unreported single-step `inspectDown` parks retry every game second with the
@@ -598,6 +604,14 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   saves that anchor and clears old move/dug history before confirming it.
   `so-worker.cfg` supplies the explicit GPS dimension as a plain `{ dim = string }`
   table. Missing dimensions disable automatic add and drop coordinates.
+  Remote jobs always use explicit add. The worker advertises `dimensionSafety`,
+  checks remote movement height and inspects immediately before moving. A failed
+  remote move aborts its batch. Remote expiry stays stationary. Journal `dim`
+  changes require re-anchor before retained dug history can be used again.
+  Legacy overworld journals omit `dim` on save. Nether moves carry world poses,
+  then inspect all six neighbours using journaled turns. A successful movement
+  result can carry `hazard`; planners retain its moved pose, hold and report
+  the lava coordinates. See the protocol for the remaining fluid race.
   `discard {side="front"|"up"|"down", n?}` checks for an empty cell and refuses
   adjacent inventories. The default side is down.
   It accepts authenticated server batches, not planner decisions. Keep it small
@@ -972,3 +986,19 @@ Delayed steps may still arrive, so the full route stays protected until the
 existing explicit re-add and `lease.clearProbe(id)` path clears recovery cells.
 A failed handoff keeps the key and the remaining reservations. The call returns
 success and an optional save error. Other devices' setup state stays intact.
+## Remote job scope
+
+`so-server.cfg` `remoteDimensions=true` enables Nether and End mining and
+lumber. It defaults to off. `home` and `area` accept an optional final dimension.
+Dimension changes require a stopped job without assigned workers. Supply chests,
+leases, reservations and dug marks stay in that dimension. The map offers a
+per-display WORLD/NETHER/END control when enabled. AR uses `arDim`, the server
+dimension, or overworld, in that order. It never overlays different dimensions.
+
+Remote movement stays within Nether Y 1..126 and End Y 1..255. End turtles can
+fly through open air above the void. Workers refuse fluid detected before a
+move. Nether post-move scans stop beside observed lava and report its coordinates.
+Fluid can still change between commands; the scan cannot inspect the occupied
+block. Neither ender modems nor this feature load chunks. Silent remote leases
+show `remote silent; unloaded?`, retain reservations and recover in place.
+See [the operator guide](../README-SERVER-ONLY.md#nether-and-end-jobs).

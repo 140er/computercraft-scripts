@@ -130,6 +130,7 @@ local function trip(id, row, kind)
     return false
   end
   local point = SO.store.copy(picked.point)
+  if point.dim ~= near.dim then row.error="drop dimension mismatch" return false end
   point.dim = job.dim
   local route = homeRoute(row)
   if route.reserve == math.huge then row.error = "no known mine route" return false end
@@ -305,7 +306,7 @@ local function report(_, id, results, lease)
   local action, interrupted = S.pending[id], row.inflight
   S.pending[id] = nil
   if not results or not lease.report or not lease.report.pose then
-    row.state, row.error, row.recover = "lost", "lease expired or missing pose", true row.laneWait=nil save() return
+    row.state, row.error, row.recover = "lost", job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lease expired or missing pose", true row.laneWait=nil save() return
   end
   row.inflight = nil
   local facts = lease.report
@@ -339,6 +340,14 @@ local function report(_, id, results, lease)
   if facts.dug then
     S.dugFacts[id]=nextDug
     call("cells", "rememberWorker", id, row.pose, history)
+  end
+  for _, result in ipairs(results) do
+    local hazard=result.hazard or result.err
+    if type(hazard)=="string" and hazard:match("^remote safety:") then
+      row.safety=hazard row.error=hazard:gsub("^remote safety: ","") row.state="hold"
+      emit("mine.alert",{id=id,text=row.error})
+      break
+    end
   end
   if action then
     local batchResults, cursor, batched = results, old, action.actions ~= nil
@@ -542,6 +551,11 @@ plan = function(id,row)
       row.state, row.error = "stopped", nil
     end
   end
+  if job.dim ~= "minecraft:overworld" then
+    local err=P.dimensionError(job.dim,SO.store.read("so-server.cfg")) or P.heightError(job.dim,row.pose.y)
+      or P.heightError(job.dim,job.home.y) or P.heightError(job.dim,job.bottom) or row.safety
+    if err then row.error=err:gsub("^remote safety: ","") row.state="hold" park(id,row,false) return end
+  end
   if row.lane and row.lane.release then return end
   if not row.yield and (row.state=="range" or row.state=="hold")
       and (row.lane or M.inLane(job,row.pose)) then beginYield(id,row) save() end
@@ -728,12 +742,24 @@ plan = function(id,row)
   if action.kind=="hold" then row.error=action.error row.state="hold" park(id,row,false)
   elseif not send(id,row,action) then park(id,row,false) end
 end
+local function dimensionError(y)
+  local config=job.dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+  return P.dimensionError(job.dim, config) or P.heightError(job.dim, y)
+end
 local function readiness()
   local homeSet=job.homeSet ~= false and job.home ~= nil
   local checks = {{ok=homeSet, text=homeSet and ("home "..job.home.x..","..job.home.y..","..job.home.z) or "home not set"}}
   local home=job.home or {x=0,y=0,z=0}
   local near = {dim=({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[job.dim],
     x=home.x,y=home.y,z=home.z}
+  if job.dim ~= "minecraft:overworld" then
+    local err = dimensionError(home.y) or P.heightError(job.dim, job.bottom)
+    checks[#checks+1] = {ok=not err, text=err or job.dim}
+    for id in pairs(job.turtles) do
+      local ok, why = call("lease", "remoteReady", tonumber(id), job.dim)
+      checks[#checks+1] = {ok=ok == true, text=why or "remote worker ready"}
+    end
+  end
   local points = call("drops","list") or {}
   for _, kind in ipairs({"ore","fuel"}) do checks[#checks+1]=P.chestCheck(points,kind,near) end
   local added, ids = false, {}
@@ -817,8 +843,23 @@ local function command(event)
     else S.error="invalid fuel command" return end
     S.error=not ok and (err or "shop unavailable") or nil
     return
-  elseif cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] then job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
-  elseif cmd=="bottom" and num(2) then job.bottom=num(2)
+  elseif cmd=="home" and num(2) and num(3) and num(4) and dirs[a[5]] and #a<=6 then
+    local dim = job.dim
+    if a[6] then dim=P.dimension(a[6]) end
+    local config=dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+    local err = P.dimensionError(dim, config) or P.heightError(dim, num(3))
+    if err then S.error=err return end
+    if dim~=job.dim and (job.running or next(job.turtles)) then S.error="stop and remove turtles before dimension change" return end
+    if dim~=job.dim then
+      job.bottom=P.dimensions[dim].bottom or -58
+      job.progress, S.known, S.trailDone, S.trailOrder = {nextBranch=0,done=0}, {}, {}, {}
+      S.preview, S.previewKey = nil, nil
+    end
+    job.dim=dim job.home={x=num(2),y=num(3),z=num(4),facing=dirs[a[5]]} job.homeSet=true
+  elseif cmd=="bottom" and num(2) then
+    local err=dimensionError(num(2))
+    if err then S.error=err return end
+    job.bottom=num(2)
   elseif cmd=="length" and num(2) and num(2)>0 and num(2)<=4096 then job.length=num(2)
   elseif cmd=="branches" and num(2) and num(2)>0 and num(2)<=4096 then job.branches=num(2) job.continuous=true
   elseif cmd=="continuous" and (a[2]=="on" or a[2]=="off") then job.continuous=a[2]=="on"
@@ -840,6 +881,8 @@ local function command(event)
     local forgotten=job.turtles[tostring(id)] and job.turtles[tostring(id)].forgotten
     if job.turtles[tostring(id)] and not uncertain and not forgotten then S.error="already added" return end
     if forgotten and not SO.pair.key(id) then S.error="turtle is not paired" return end
+    local err=dimensionError(num(4))
+    if err then S.error=err return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
     if uncertain or forgotten then
       if uncertain then
@@ -889,6 +932,7 @@ local function command(event)
     if call("state","get","mine.alert") then emit("mine.alert",false) end
     if not job.running then S.trailDone,S.trailOrder = {},{} end
     job.running=true
+    for _,row in pairs(job.turtles) do row.safety=nil end
     if job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
       for _,row in pairs(job.turtles) do if row.state=="done" then row.state="mining" end end
     end
@@ -908,6 +952,7 @@ local function input(event)
 end
 local function legacyRender(w)
   local rows={{text="        Mining " .. (job.running and "running" or "stopped")},{text="bottom "..job.bottom.." length "..job.length.." "..job.mode}}
+  if job.dim ~= "minecraft:overworld" then rows[#rows+1]={text=job.dim} end
   if S.error then rows[#rows+1]={text=S.error,fg="e"} end
   for id,row in pairs(job.turtles) do
     local p=row.pose
@@ -967,6 +1012,7 @@ local function gather()
     "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
     "branches " .. (job.branches or 8) .. (job.continuous and " continuous" or " single"),
   }
+  if job.dim ~= "minecraft:overworld" then table.insert(m.setup,1,job.dim) end
   m.fuelPolicy = call("shop","fuelConfig")
   m.readiness=readiness()
   return m
@@ -1100,7 +1146,7 @@ local function forgetDug(paths)
   local dim = job.dim:gsub("[^%w_%-]", function(c) return string.format("%%%02x", string.byte(c)) end)
   local prefix, visited = "so-data/cells/" .. dim .. "/", 0
   for key in pairs(S.known) do
-    local x, y, z = key:match("^([^,]+),([^,]+),([^,]+)$")
+    local x, y, z = key:match("([%-0-9]+),([%-0-9]+),([%-0-9]+)$")
     if x then
       local section = prefix .. string.format("%.0f_%.0f_%.0f", math.floor(tonumber(x)/16)+0,
         math.floor(tonumber(y)/16)+0, math.floor(tonumber(z)/16)+0)

@@ -184,7 +184,81 @@ bottom y level. Surface selects the server's y level, or the farm ground when
 there is no server position. All projects the scene and scans dug blocks at the mine bottom, tunnel roof,
 surface, farm ground, and known chest and turtle levels. Dug blocks appear progressively, with at
 most 256 cell reads per frame. At coarse zoom, several blocks share one cell.
-Turtles draw above landmarks and cells. Only the server's dimension is shown.
+Turtles draw above landmarks and cells. The map starts in the server's dimension.
+With remote jobs enabled, the bottom-right button cycles WORLD, NETHER and END.
+Each display keeps its dimension choice. Workers, chests, routes and dug marks
+always use the selected dimension.
+
+## Nether and End jobs
+
+Remote jobs default to off. Set `remoteDimensions = true` in `so-server.cfg`
+to enable them. Keep its existing position and other settings. Use ender modems
+on the server and remote turtles. They work across dimensions with unlimited
+range. This flag leaves overworld radio-range checks unchanged.
+
+Update the workers, then set each remote turtle's `so-worker.cfg` to its actual
+dimension, for example `{ dim = "minecraft:the_nether" }`. Restart the worker.
+The server requires a matching dimension and the updated worker's safety
+capability before it sends remote work. A dimension change in a worker with
+journal history marks its pose uncertain. Explicit add re-anchors it and clears
+that old move and dug history before work resumes.
+
+Set a mining home with `home <x> <y> <z> <n|e|s|w> [dimension]`, or a lumber
+farm with `area <x1> <z1> <x2> <z2> <ground> [dimension]`. Dimensions accept
+`minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`, or the short
+names `overworld`, `nether`, `end`. Omit the dimension to keep the current one.
+Stop the job and remove its workers before changing dimensions. The new home
+or area replaces the old one. Mining starts with bottom 15 in the Nether or
+48 in the End. Set the intended depth before starting.
+
+Use `add <id> <x> <y> <z> <n|e|s|w>` with the turtle's actual coordinates and
+heading. Remote ADD HERE refuses GPS, even if it returns coordinates. GPS
+replies do not identify the hosts' dimension, and ender modems can hear a
+constellation in another dimension. An explicit pose anchors the journal
+without GPS. Interrupted moves with finite fuel use the saved fuel count.
+Unlimited-fuel moves without reliable evidence require an explicit re-add.
+
+Overworld journals keep their existing format. An absent journal dimension
+means overworld in memory, and saves omit the overworld dimension field.
+
+Remote turtle movement stays within Y 1..126 in the Nether and 1..255 in the
+End. The End's void below Y 0 is outside every route. Turtles fly, so a route
+can cross open air above that limit. Lumber also requires room for its ground
+plus four travel level. A worker inspects immediately before every remote move
+and refuses lava, water or an unknown cell. It stops the remaining batch on a
+failed move. After each Nether move it also inspects all six adjacent cells.
+The horizontal scan turns in place and journals each turn, then restores its
+heading. Source or flowing lava stops the batch, parks the turtle and raises
+`lava at x,y,z` with the observed lava's world coordinates. A completed move
+still counts as movement, so recovery retains the turtle's new pose.
+
+Inspection and movement are separate commands. Lava can flow into the destination
+between them, and these checks cannot prevent every entry into liquid. Lava can
+also change during or after the surrounding scan. The post-move check reduces
+silent work beside lava; it does not make movement atomic or inspect the block
+occupied by the turtle. Turtles take no lava damage. Clear the reported hazard
+and check the turtle before restarting. Mining can seal fluids or scoop source
+lava before retrying.
+The ore filter accepts `quartz`, `nether_gold` and `ancient_debris`.
+
+Set ore, wood, fuel and sapling chests in the job's dimension. Drop-point
+numbers are 0 for overworld, -1 for Nether and 1 for End. Jobs never travel
+through portals or use a chest in another dimension. Reservations and dug
+marks remain separate even when coordinates overlap.
+
+These jobs do not load chunks. Keep the turtle, route and service chests loaded
+while it works. Leaving the dimension can unload them and stall the job.
+The screen shows `remote silent; unloaded?` after a missing lease report.
+That is a possible cause, not a measurement of chunk state. Reservations stay
+held, and remote workers beacon in place after expiry. They never reverse an
+old route without inspection. Restore chunk loading, wait for recovery and
+resolve any displayed cause before restarting work.
+
+AR draws only the configured server dimension by default, or overworld when
+there is no position. Set `arDim = "minecraft:the_nether"` or
+`arDim = "minecraft:the_end"` in `so-server.cfg` and restart the server to select
+a remote overlay. Match that setting to the dimension where the goggles are
+used. The controller cannot infer the wearer's dimension.
 
 ## Drop points
 

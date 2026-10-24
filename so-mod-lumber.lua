@@ -129,10 +129,23 @@ S.acceptFuel = function()
   j.service.stage = S.rejectedItem() and "returnFuelItem" or "refuel"
   return true
 end
+S.dimensionError = function(dim, y)
+  local config=dim ~= "minecraft:overworld" and SO.store.read and SO.store.read("so-server.cfg")
+  return P.dimensionError(dim, config) or P.heightError(dim, y)
+end
 S.readiness = function()
   local j = S.job
   local checks = {{ok=j.area ~= nil,text=j.area and "area ready" or "area not set"},{ok=j.ground ~= nil,text=j.ground and ("ground "..j.ground) or "ground not set"}}
   local drops, lease = S.module("drops"), S.module("lease")
+  if j.dim ~= "minecraft:overworld" then
+    local err=S.dimensionError(j.dim,(j.ground or 0)+2) or P.heightError(j.dim,(j.ground or 0)+4)
+    checks[#checks+1]={ok=not err,text=err or j.dim}
+    for _,row in ipairs(S.rows()) do
+      local ok, why
+      if lease.remoteReady then ok,why=lease.remoteReady(row.turtle.id,j.dim) end
+      checks[#checks+1]={ok=ok==true,text=why or "remote worker requires update"}
+    end
+  end
   local points = type(drops.list)=="function" and drops.list() or {}
   local dim = ({["minecraft:overworld"]=0,["minecraft:the_nether"]=-1,["minecraft:the_end"]=1})[j.dim]
   local first = S.rows()[1]
@@ -418,6 +431,16 @@ S.send = function(steps, action, cells, recover, ms)
   if S.row.pending or lease.status(j.turtle.id).open then return false end
   cells = cells or { j.turtle.pose }
   local at = j.turtle.pose
+  if S.job.dim ~= "minecraft:overworld" and not (recover or #steps==1 and steps[1].op=="inspectDown") then
+    local err = S.dimensionError(S.job.dim, at.y)
+    if err then j.blocked="hold" S.alert(err) return false end
+    for _,step in ipairs(steps) do
+      at=P.apply(at,step.op)
+      err=P.heightError(S.job.dim,at.y)
+      if err then j.blocked="hold" S.alert(err) return false end
+    end
+    at=j.turtle.pose
+  end
   local directions = { inspect = "forward", dig = "forward", place = "forward", drop = "forward", suck = "forward",
     inspectUp = "up", digUp = "up", placeUp = "up", inspectDown = "down", digDown = "down",
     placeDown = "down", dropDown = "down", suckDown = "down" }
@@ -623,7 +646,7 @@ S.report = function(id, turtleId, results, lease)
     S.row.recover, j.motion = true, nil
     j.blocked = "lost"
     S.suspendService()
-    S.alert("lost lease")
+    S.alert(S.job.dim ~= "minecraft:overworld" and "remote silent; unloaded?" or "lost lease")
     return
   end
   local report = lease.report or {}
@@ -663,6 +686,13 @@ S.report = function(id, turtleId, results, lease)
   local action, result = pending.action, results[#results]
   local ok = true
   for _, row in ipairs(results) do if not row.ok then ok = false end end
+  for _,r in ipairs(results) do
+    local hazard=r.hazard or r.err
+    if type(hazard)=="string" and hazard:match("^remote safety:") then
+      j.blocked="hold" S.alert(hazard:gsub("^remote safety: ",""))
+      S.prune() S.save() return
+    end
+  end
   local attempted, failed
   for i, step in ipairs(pending.steps) do
     if step.op == "forward" or step.op == "back" or step.op == "up" or step.op == "down"
@@ -698,7 +728,9 @@ S.report = function(id, turtleId, results, lease)
     S.prune()
   elseif type(action) == "table" and action.kind == "path" then
     local block = result.ok and result.data or nil
-    if not block then
+    if S.job.dim ~= "minecraft:overworld" and block and (block.name=="minecraft:lava" or block.name=="minecraft:water") then
+      j.blocked="hold" S.alert("remote safety: "..block.name)
+    elseif not block then
       S.follow({ op = action.move, cell = action.cell })
     elseif j.service and j.service.stage == "travel" and j.service.access
       and S.cellKey(action.cell) == S.cellKey(j.service.access) then
@@ -1090,10 +1122,17 @@ S.input = function(ev)
     local row = id and j.turtles[tostring(id)]
     if not row then S.alert("unknown turtle") return end
     row.paused, row.motion, row.wait = true, nil, nil
-  elseif words[1] == "area" and #words == 6 then
+  elseif words[1] == "area" and (#words == 6 or #words == 7) then
     if j.running or S.anyPending() then S.alert("stop before configuring") return end
     local x1, z1, x2, z2, ground = integer(2), integer(3), integer(4), integer(5), integer(6)
     if not x1 or not z1 or not x2 or not z2 or not ground or math.abs(x2 - x1) > 127 or math.abs(z2 - z1) > 127 then S.alert("invalid area") return end
+    local dim=j.dim
+    if words[7] then dim=P.dimension(words[7]) end
+    local err=S.dimensionError(dim,ground+2) or P.heightError(dim,ground+4)
+    if err then S.alert(err) return end
+    if dim~=j.dim and next(j.turtles) then S.alert("remove turtles before dimension change") return end
+    if dim~=j.dim then j.saplings,j.obstacles=nil,{} end
+    j.dim=dim
     j.area = { x1 = math.min(x1, x2), z1 = math.min(z1, z2), x2 = math.max(x1, x2), z2 = math.max(z1, z2) }
     j.ground, j.visited, j.candidates, j.spots, j.nextRound = ground, {}, {}, {}, nil
     for _, row in pairs(j.turtles) do
@@ -1103,6 +1142,8 @@ S.input = function(ev)
   elseif words[1] == "saplings" and #words == 5 then
     local x, y, z = integer(2), integer(3), integer(4)
     if not x or not y or not z or (words[5] ~= "front" and words[5] ~= "down") then S.alert("invalid sapling chest") return end
+    local err=S.dimensionError(j.dim,y) or P.heightError(j.dim,words[5]=="down" and y+1 or y)
+    if err then S.alert(err) return end
     j.saplings = { x = x, y = y, z = z, side = words[5] }
     for _, row in pairs(j.turtles) do row.noSaplings = false end
   elseif words[1] == "add" and #words == 6 then
@@ -1117,6 +1158,8 @@ S.input = function(ev)
     if row and row.turtle.forgotten and not SO.pair.key(id) then S.alert("turtle is not paired") return end
     if (j.running or row and row.pending) and not reanchor then S.alert("stop before configuring") return end
     if status.open and not reanchor then S.alert("turtle has open lease") return end
+    local err=S.dimensionError(j.dim,y)
+    if err then S.alert(err) return end
     local pose = { dim = j.dim, x = x, y = y, z = z, facing = f }
     if status.uncertain then
       local ok, err = lease.reanchor(id, pose)
@@ -1185,6 +1228,7 @@ S.gather = function()
     "GROUND " .. tostring(job.ground or "-"),
     "SAPLINGS " .. (job.saplings and S.cellKey(job.saplings) .. " " .. job.saplings.side or "-"),
   }
+  if job.dim ~= "minecraft:overworld" then table.insert(details,1,job.dim) end
   for _, row in ipairs(S.rows()) do
     local label = row.blocked or (row.paused and (row.idlePark and "parked" or "parking"))
       or row.wait or (row.recover and "recovering")
@@ -1367,6 +1411,10 @@ S.tickRow = function(row, now)
     local equipped, reason = lease.ensureTool(j.turtle.id,"axe")
     if not equipped then S.alert(reason) S.park() return end
     if j.alert and (j.alert == "needs axe" or j.alert:match("^tool swap failed:")) then j.alert=nil S.save() end
+  end
+  if S.job.dim ~= "minecraft:overworld" then
+    local err=S.dimensionError(S.job.dim,j.turtle.pose.y) or P.heightError(S.job.dim,(S.job.ground or 0)+2)
+    if err then j.blocked="hold" S.alert(err) end
   end
   if j.blocked or j.paused or not S.job.running or not S.job.area or not j.turtle.frame then
     if not j.idlePark or not j.parkAt or now - j.parkAt >= 540000 then S.park() end

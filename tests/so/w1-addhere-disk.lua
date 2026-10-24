@@ -299,7 +299,8 @@ return function(test,equal)
     local a=setup();gps(a)
     local lease=a.s.env.SO.mods.lease
     local body=F.sent(a.t,"hello")[#F.sent(a.t,"hello")].body
-    equal(body.capabilities,{parkBatch=true,setupFence=true})
+    equal(body.capabilities.parkBatch,true)
+    equal(body.capabilities.setupFence,true)
     body.capabilities=nil
     lease.handlers.hello({from=2,body=body})
     local called=false

@@ -1735,3 +1735,84 @@ Visits count every outward and return movement step and compare that cost with
 `lease.status(id).fuel`, the latest authenticated hello or step-report fuel.
 Unknown or insufficient fuel refuses before any lease or reservation change.
 Scans turn in place and require no movement fuel. Unlimited fuel is accepted.
+
+### Remote dimensions
+
+`so-server.cfg` accepts `remoteDimensions = true`. Its default is false.
+Mining `home x y z f [dimension]` and lumber `area x1 z1 x2 z2 ground [dimension]`
+normalize overworld, nether and end aliases to their vanilla dimension IDs.
+Unknown names refuse without changing the job. Dimension changes require a
+stopped job with no assigned workers and reset its dimension-specific route
+state. Remote jobs require explicit worker anchors. `lease.world` refuses
+remote GPS because a fix cannot prove the constellation's dimension.
+
+`so-plan.lua` exports `dimensions`, `dimension(name)`,
+`dimensionError(dim, config)` and `heightError(dim, y)`. The registry contains
+the numeric drop dimension and optional movement bounds and default mining
+bottom. Errors return a cause string; valid values return nil. Overworld
+height handling stays unchanged. Nether movement uses Y 1..126; End uses
+Y 1..255. End turtles can fly through air above the void limit.
+
+Remote worker journals store a non-overworld `dim`. Missing dimensions count as
+overworld in memory. Loading a legacy journal does not add a dimension field,
+and saving omits `minecraft:overworld`. A legacy overworld journal therefore
+keeps the same saved value and normal store-generation behavior with the feature
+off.
+Changing dimension with retained history marks the journal uncertain and blocks
+pending-move inference and new work. Explicit re-anchor adopts the configured
+dimension and clears the old move and dug history. An empty fresh journal can
+adopt its first configured dimension directly.
+
+Worker hello and reports include optional `dim` from `so-worker.cfg` and
+`capabilities.dimensionSafety = true`. `lease.remoteReady(id, dim)` returns
+true, or false and a cause. It requires the feature flag, this capability and
+a matching explicit worker dimension. `lease.inRange` uses that admission
+for Nether and End poses because ender modems have unlimited range across
+dimensions. Overworld keeps its existing range proof.
+
+For remote movement, `lease.send` adds `safety = { dim, x, y, z, facing }` to each
+movement step. It derives the absolute destination pose by reversing movement
+and turns from the final expected pose. Updated workers require a matching local
+dimension and an in-bounds height. Nether movement also requires world coordinates
+and facing for its post-move checks. They inspect the destination immediately
+before movement, refuse lava, water, bubble columns or unknown inspection
+results, and abort the remaining batch after a failed move. Failures return
+`remote safety: <cause>` and raise a job alert. Uninspected reverse movement
+refuses. Remote expiry enters stationary beacons instead of backtracking.
+Stationary recovery inspections remain available with the feature flag off.
+
+After every completed Nether move the worker inspects up, down and all four
+horizontal neighbours. Horizontal checks use journaled turns and restore the
+original heading before reporting. A scan turn interrupted by power loss uses
+the existing uncertain-pose recovery. Lava of any fluid level returns the
+successful movement result with `hazard = "remote safety: lava at x,y,z"`.
+The coordinates identify the observed lava in the world frame. Remaining steps
+return failed results with that cause, the worker saves a stationary park and
+enters slow beacons. Mining and lumber hold with the coordinate alert. They use
+the reported journal pose, including the completed move, without treating it
+as a failed displacement.
+
+This is a mitigation for a remaining race. Inspect and move are separate commands,
+and turtles may enter liquid that arrives between them. Fluid can also change
+between surrounding inspections or after the scan. These commands cannot inspect
+the turtle's occupied block. The checks stop silent continuation beside observed
+lava but do not prove lava-free occupancy or atomic movement. Turtles take no
+lava damage; an operator clears the hazard before restarting.
+
+No module loads chunks. A silent remote lease emits `remote silent; unloaded?`.
+It retains reservations for recovery. This warning does not establish whether
+the chunks are loaded. Worker, travel and service-chest chunks all need to
+remain loaded externally.
+
+Remote drop selection requires the job's numeric dimension. Remote mining cache keys
+include the canonical dimension before coordinates. Overworld keeps its legacy
+coordinate keys. Durable cells already key
+reservations and dug sections by dimension. Nether ore filters additionally
+accept quartz, nether_gold and ancient_debris. Water buckets are never a
+Nether fluid-control strategy; mining uses buckets for lava or solid seals.
+
+When remote jobs are enabled, `map-dim` cycles the current display's map
+between overworld, Nether and End. It filters workers, routes, drops, the
+server marker and dug scans to that dimension. `arDim` in `so-server.cfg`
+selects one AR geometry dimension. Its default is the server dimension or
+overworld. HUD fleet totals remain global. AR does not infer wearer dimension.

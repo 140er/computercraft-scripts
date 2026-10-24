@@ -3,9 +3,9 @@ local M = {}
 local junk, keep = {}, {}
 for name in ("cobblestone cobbled_deepslate stone deepslate granite diorite andesite tuff calcite dirt coarse_dirt rooted_dirt grass_block mud gravel sand red_sand sandstone netherrack basalt smooth_basalt blackstone dripstone_block pointed_dripstone flint clay_ball moss_block mossy_cobblestone soul_sand soul_soil end_stone amethyst_shard infested_stone infested_deepslate"):gmatch("%S+") do junk["minecraft:" .. name] = true end
 for name in ("diamond emerald lapis_lazuli redstone coal charcoal coal_block quartz ancient_debris netherite_scrap gold_nugget bucket lava_bucket water_bucket torch"):gmatch("%S+") do keep["minecraft:" .. name] = true end
-M.ores = { diamond = true, redstone = true, gold = true, lapis = true, iron = true, copper = true, coal = true }
-function M.key(p) return p.x .. "," .. p.y .. "," .. p.z end
-function M.same(a, b) return a.x == b.x and a.y == b.y and a.z == b.z end
+M.ores = { diamond = true, redstone = true, gold = true, lapis = true, iron = true, copper = true, coal = true, quartz = true, nether_gold = true, ancient_debris = true }
+function M.key(p) return (p.dim and p.dim ~= "minecraft:overworld" and (p.dim .. ":") or "") .. p.x .. "," .. p.y .. "," .. p.z end
+function M.same(a, b) return (not a.dim or not b.dim or a.dim == b.dim) and a.x == b.x and a.y == b.y and a.z == b.z end
 function M.ore(d, ores)
   if not d or type(d.name) ~= "string" then return false end
   if ores and #ores > 0 then
@@ -16,6 +16,7 @@ function M.ore(d, ores)
     end
     if not matched then return false end
   end
+  if d.name == "minecraft:ancient_debris" then return true end
   if d.name:match("_ore$") or d.name:find(":raw_", 1, true) or d.name:find(":ore_", 1, true) then return true end
   for tag, yes in pairs(d.tags or {}) do
     if yes and (tag == "c:ores" or tag == "forge:ores" or tag:match("^c:ores/") or tag:match("^forge:ores/")) then return true end
@@ -273,6 +274,8 @@ local function nextOne(job, row, lookup, inv, _fuel)
   local turn = want and M.turn(p, want)
   if turn then out.steps = { turn } out.pose = P.apply(p, turn.op) out.kind = "turn" return out end
   local cell = M.cell(p, dir)
+  local hazard = P.heightError(job.dim or p.dim or "minecraft:overworld", cell.y)
+  if hazard then out.kind, out.error = "hold", hazard return out end
   local known = lookup(cell)
   local suffix = dir == "up" and "Up" or dir == "down" and "Down" or ""
   out.cells, out.cell = { cell }, cell
@@ -289,7 +292,8 @@ local function nextOne(job, row, lookup, inv, _fuel)
         if scoop then out.steps[#out.steps+1] = { op = "refuel", n = 1 } end
         out.kind = "seal" return out
       end
-      out.kind, out.error = "hold", "fluid needs bucket or sealing block"
+      out.kind, out.error = "hold", job.dim == "minecraft:overworld" and "fluid needs bucket or sealing block"
+        or known.name .. " needs bucket or sealing block"
     elseif known.name:find("chest", 1, true) or known.name:find("barrel", 1, true)
         or (known.tags and (known.tags["c:chests"] or known.tags["forge:chests"])) then
       out.kind, out.error = "hold", "container blocks route"

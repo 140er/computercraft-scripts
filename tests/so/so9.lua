@@ -752,9 +752,11 @@ return function(test, equal, read)
     for input, dim in pairs({ [""] = "minecraft:overworld", ["0"] = "minecraft:overworld",
       ["-1"] = "minecraft:the_nether", ["1"] = "minecraft:the_end",
       ["minecraft:overworld"] = "minecraft:overworld", ["minecraft:the_nether"] = "minecraft:the_nether",
-      ["minecraft:the_end"] = "minecraft:the_end" }) do
+      ["minecraft:the_end"] = "minecraft:the_end", overworld="minecraft:overworld",
+      nether="minecraft:the_nether", the_nether="minecraft:the_nether",
+      ["end"]="minecraft:the_end", the_end="minecraft:the_end" }) do
       local m = machine("server")
-      local answers = { "overworld", "minecraft:typo", input, "" }
+      local answers = { "overwrold", "minecraft:typo", input, "" }
       m.env.read = function() return assert(table.remove(answers, 1)) end
       m.run()
       local cfg = m.env.textutils.unserialize(m.files["so-server.cfg"])
