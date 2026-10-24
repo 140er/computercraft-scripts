@@ -151,7 +151,6 @@ S.new = function(opts)
     broadcast = function() end }
   local mods = env.SO.mods
   local values = {}
-  if opts.alert then values[s.sys.alert.key] = { id = s.sys.alert.id, text = s.sys.alert.text } end
   s.values = values
   mods.state = { view = function() return { values = values } end, get = function() return machines end }
   mods.lease = { status = function(id) return { open = leases[id] == 'open' and 'l' or nil, lost = leases[id] == 'lost' or nil } end }
@@ -198,6 +197,11 @@ S.new = function(opts)
     local w, h = row[3]:match('(%d+)x(%d+)')
     d.handlers.hello({ from = row[1], body = { w = tonumber(w), h = tonumber(h) - 1, fullH = tonumber(h), keyboard = row[2] == 'pocket' } })
     D.sessions[row[1]].sent = s.now
+  end
+  -- Raised after the displays opened: alerts standing before a session opened never take over it.
+  if opts.alert then
+    values[s.sys.alert.key] = { id = s.sys.alert.id, text = s.sys.alert.text }
+    if s.panel then s.panel.tick(0) end
   end
   s.d, s.D, s.env = d, D, env
   -- The full server path: gather, compose, fit and compact, as a display would receive it.
