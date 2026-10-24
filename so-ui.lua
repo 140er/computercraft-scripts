@@ -341,17 +341,23 @@ end
 U.st = {}
 U.st.fg = function(tone) return (tone == "1" or tone == "e" or tone == "8") and tone or "0" end
 -- Arrow, id, state, where; rows under 30 cells put where at the right edge. A narrow row with pos
--- puts pos right-aligned before where and cuts the state instead.
-U.st.turtle = function(C, x, y, t, width, pos, pfg)
+-- puts the whole where at the right edge and pos right-aligned before it, and cuts the state instead.
+-- cut moves where left in a wide row and shortens the state by as much.
+U.st.turtle = function(C, x, y, t, width, pos, pfg, cut)
   C.put(x, y, U.arrow(t.facing), t.tone)
   C.put(x + 2, y, tostring(t.id), "0")
   if width >= 30 and not pos then
-    C.put(x + 5, y, t.state:sub(1, 10), U.st.fg(t.tone))
-    C.put(x + 16, y, t.where:sub(1, 5), "8")
+    cut = cut or 0
+    C.put(x + 5, y, t.state:sub(1, 10 - cut), U.st.fg(t.tone))
+    C.put(x + 16 - cut, y, t.where:sub(1, 5), "8")
+  elseif pos then
+    local wx = x + width - #t.where
+    local px = wx - 1 - #pos
+    C.put(x + 5, y, t.state:sub(1, math.max(0, px - x - 7)), U.st.fg(t.tone))
+    C.put(px, y, pos, pfg)
+    C.put(wx, y, t.where, "8")
   else
-    local n = pos and #pos + 1 or 0
-    C.put(x + 5, y, t.state:sub(1, math.max(0, width - 11 - n)), U.st.fg(t.tone))
-    if pos then C.put(x + width - 4 - n, y, pos, pfg) end
+    C.put(x + 5, y, t.state:sub(1, math.max(0, width - 11)), U.st.fg(t.tone))
     C.put(x + width - 4, y, t.where:sub(1, 4), "8")
   end
 end
@@ -511,13 +517,21 @@ U.st.wall = function(C, m)
   -- Caps keep the biggest walls inside the 16 KB frame; tight is the fallback when they do not.
   local tight = m.tight
   local nt = math.min(#ts, math.max(3, math.min(h - top - 27, tight and 5 or 8)))
-  C.section(2, top, lw, "TURTLES", #ts)
-  for _, c in ipairs({ { 24, "position" }, { 40, "fuel" }, { 47, "ore" }, { 52, "seen" } }) do C.put(c[1], top + 1, c[2], "8") end
-  U.st.rows(C, ts, nt, top + 2, function(t, y)
-    U.st.turtle(C, 2, y, t, lw)
-    -- x,y,z when it fits before fuel, else x,z: a cut z would read as a real position.
+  -- x,y,z when it fits in the 15 cells before fuel, else x,z. An x,z over 14 cells moves the position,
+  -- the branch and the end of the state left, so no coordinate is cut and a gap stays before fuel.
+  local function at(t)
     local pos = U.st.at(t, true)
-    C.put(24, y, #pos > 15 and U.st.at(t) or pos, "0")
+    return #pos > 15 and U.st.at(t) or pos
+  end
+  local cut = 0
+  for i = 1, nt do
+    if at(ts[i]) ~= U.st.at(ts[i], true) then cut = math.max(cut, math.min(10, #at(ts[i]) - 14)) end
+  end
+  C.section(2, top, lw, "TURTLES", #ts)
+  for _, c in ipairs({ { 24 - cut, "position" }, { 40, "fuel" }, { 47, "ore" }, { 52, "seen" } }) do C.put(c[1], top + 1, c[2], "8") end
+  U.st.rows(C, ts, nt, top + 2, function(t, y)
+    U.st.turtle(C, 2, y, t, lw, nil, nil, cut)
+    C.put(24 - cut, y, at(t), "0")
     C.put(39, y, string.format("%5s", tostring(t.fuel or "-")), t.fuel and t.fuel < 500 and "1" or "0")
     C.put(46, y, string.format("%4s", tostring(t.ore or "-")), "0")
     C.put(52, y, U.age(t.ago), t.lost and "e" or t.ago >= 120000 and "1" or "8")
@@ -748,13 +762,14 @@ U.actions = function(C, y, items, gap)
   for i, item in ipairs(items) do C.chip(2 + (i - 1) * (bw + gap), y, item[1], item[2], item[3], bw) end
 end
 -- Two-tap controls. state is the caller's table; state.confirm holds the armed key and
--- state.confirmAt when it armed. A tap on key arms it, a second tap within window (5 s) returns true,
--- and any other tap disarms. The caller passes every tap and acts on true.
-U.confirm = function(state, key, tapped, now, window)
+-- state.confirmAt when it armed. The caller passes every tap: tapped is the key of the two-tap
+-- control hit, or nil for any other tap. The first tap on a key arms it, a second within window
+-- (5 s) returns true, and any other tap disarms.
+U.confirm = function(state, tapped, now, window)
   if state.confirm and now - (state.confirmAt or now) > (window or 5000) then state.confirm = nil end
-  if tapped ~= key then state.confirm = nil return false end
-  if state.confirm == key then state.confirm = nil return true end
-  state.confirm, state.confirmAt = key, now
+  if tapped == nil then state.confirm = nil return false end
+  if state.confirm == tapped then state.confirm = nil return true end
+  state.confirm, state.confirmAt = tapped, now
   return false
 end
 -- The chip for a two-tap control: CONFIRM in coral while key is armed, else label as kind.

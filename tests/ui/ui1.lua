@@ -269,7 +269,7 @@ return function(test,equal)
   end
   test('UB-13 room turtle rows keep the branch and the full position at 52x22 and 57x24',function()
     for _,size in ipairs({{52,22},{57,24}}) do
-      local m={turtles={turtleRow(12,-12345,-56789,'b12'),turtleRow(3,4,-2,'lane')}}
+      local m={turtles={turtleRow(12,-12345,-56789,'b12'),turtleRow(3,4,-2,'lane'),turtleRow(7,-12345,-56789,'b1000')}}
       local frame=U.status(m,size[1],size[2])
       capture(frame,size[1],size[2])
       -- Raw rows: one byte per cell. The turtle column ends at w-23.
@@ -278,6 +278,9 @@ return function(test,equal)
       assert(row:find('-12345,-56789',1,true),size[1]..': '..row)
       assert(row:find('-12345,-56789 b12',1,true),size[1]..': '..row)
       assert(frame.rows[5].text:sub(1,size[1]-23):find('4,-2 lane',1,true),size[1]..': '..frame.rows[5].text)
+      -- The whole branch shows: b100 would name another branch.
+      local last=frame.rows[6].text:sub(1,size[1]-23)
+      equal(last:sub(-19),'-12345,-56789 b1000')
     end
   end)
   test('UB-13 wall turtle rows never cut the z coordinate',function()
@@ -285,6 +288,15 @@ return function(test,equal)
     local rows=U.status(m,100,38).rows
     equal(rows[5].text:sub(24,39),'-12345,-56789   ')
     equal(rows[6].text:sub(24,31),'4,64,-2 ')
+    -- x,z alone over 15 cells moves the position left; fuel no longer covers z.
+    m.turtles[3]=turtleRow(5,-1234567,-1234567,'b1000')
+    m.turtles[3].fuel=20000
+    rows=U.status(m,100,38).rows
+    local row=rows[7].text
+    assert(row:find(' -1234567,-1234567 20000',1,true),row)
+    assert(row:find(' b1000 ',1,true),row)
+    assert(rows[4].text:find(' position ',1,true))
+    equal(rows[4].text:find('position',1,true),row:find('-1234567',1,true))
   end)
   test('UB-15 room DROPS row draws broken drops first and ends with +N',function()
     local m={drops={}}
@@ -309,16 +321,17 @@ return function(test,equal)
   end)
   test('U.confirm arms, confirms, expires and disarms on a tap elsewhere',function()
     local s={}
-    equal(U.confirm(s,'remove','remove',0),false) equal(s.confirm,'remove')
+    equal(U.confirm(s,'remove',0),false) equal(s.confirm,'remove')
     equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[1],'CONFIRM')
     equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[3],'stop')
-    equal(U.confirm(s,'remove','remove',1000),true) equal(s.confirm,nil)
+    equal(U.confirm(s,'remove',1000),true) equal(s.confirm,nil)
     equal(U.confirmChip(s,'remove','REMOVE','turtle-remove','plain')[1],'REMOVE')
-    U.confirm(s,'remove','remove',2000)
-    equal(U.confirm(s,'remove','park',2500),false) equal(s.confirm,nil)
-    equal(U.confirm(s,'remove','remove',3000),false) equal(s.confirm,'remove')
-    U.confirm(s,'remove',nil,3100) equal(s.confirm,nil)
-    U.confirm(s,'remove','remove',4000)
-    equal(U.confirm(s,'remove','remove',9001),false) equal(s.confirm,'remove')
+    U.confirm(s,'remove',2000)
+    equal(U.confirm(s,nil,2500),false) equal(s.confirm,nil)
+    equal(U.confirm(s,'remove',3000),false) equal(s.confirm,'remove')
+    -- Another two-tap control re-arms on its own key.
+    equal(U.confirm(s,'add',3100),false) equal(s.confirm,'add')
+    equal(U.confirm(s,'remove',3200),false) equal(s.confirm,'remove')
+    equal(U.confirm(s,'remove',9001),false) equal(s.confirm,'remove')
   end)
 end

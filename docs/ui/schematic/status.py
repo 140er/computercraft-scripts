@@ -63,19 +63,23 @@ def state_fg(t):
     return t if t in ("1", "e", "8") else "0"
 
 
-def turtle(cv, x, y, t, w, pos=None, pfg="8"):
+def turtle(cv, x, y, t, w, pos=None, pfg="8", cut=0):
     """Arrow, id, state, where. w is the row width; narrow rows put where at the right edge. A narrow
-    row with pos puts pos right-aligned before where and cuts the state instead."""
+    row with pos puts the whole where at the right edge and pos right-aligned before it, and cuts the
+    state instead. cut moves where left in a wide row and shortens the state by as much."""
     cv.put(x, y, arrow(t["facing"]), t["tone"])
     cv.put(x + 2, y, str(t["id"]), "0")
     if w >= 30 and pos is None:
-        cv.put(x + 5, y, t["state"][:10], state_fg(t["tone"]))
-        cv.put(x + 16, y, t["where"][:5], "8")
+        cv.put(x + 5, y, t["state"][:10 - cut], state_fg(t["tone"]))
+        cv.put(x + 16 - cut, y, t["where"][:5], "8")
+    elif pos is not None:
+        wx = x + w - len(t["where"])
+        px = wx - 1 - len(pos)
+        cv.put(x + 5, y, t["state"][:max(0, px - x - 7)], state_fg(t["tone"]))
+        cv.put(px, y, pos, pfg)
+        cv.put(wx, y, t["where"], "8")
     else:
-        n = len(pos) + 1 if pos is not None else 0
-        cv.put(x + 5, y, t["state"][:max(0, w - 11 - n)], state_fg(t["tone"]))
-        if pos is not None:
-            cv.put(x + w - 4 - n, y, pos, pfg)
+        cv.put(x + 5, y, t["state"][:max(0, w - 11)], state_fg(t["tone"]))
         cv.put(x + w - 4, y, t["where"][:4], "8")
 
 
@@ -235,8 +239,16 @@ def wall(cv, m):
     # Caps keep the biggest walls inside the 16 KB frame; tight is the fallback when they do not.
     tight = m.get("tight")
     nt = min(len(ts), max(3, min(h - top - 27, 5 if tight else 8)))
+
+    # x,y,z when it fits in the 15 cells before fuel, else x,z. An x,z over 14 cells moves the position,
+    # the branch and the end of the state left, so no coordinate is cut and a gap stays before fuel.
+    def wall_at(t):
+        pos = at(t, True)
+        return at(t) if len(pos) > 15 else pos
+
+    cut = max([0] + [min(10, len(wall_at(t)) - 14) for t in ts[:nt] if wall_at(t) != at(t, True)])
     section(cv, 2, top, lw, "TURTLES", len(ts))
-    for x, label in ((24, "position"), (40, "fuel"), (47, "ore"), (52, "seen")):
+    for x, label in ((24 - cut, "position"), (40, "fuel"), (47, "ore"), (52, "seen")):
         cv.put(x, top + 1, label, "8")
     for i in range(nt):
         y = top + 2 + i
@@ -244,10 +256,8 @@ def wall(cv, m):
             more(cv, 4, y, len(ts) - i)
             break
         t = ts[i]
-        turtle(cv, 2, y, t, lw)
-        # x,y,z when it fits before fuel, else x,z: a cut z would read as a real position.
-        pos = at(t, True)
-        cv.put(24, y, at(t) if len(pos) > 15 else pos, "0")
+        turtle(cv, 2, y, t, lw, cut=cut)
+        cv.put(24 - cut, y, wall_at(t), "0")
         fuel = t.get("fuel")
         cv.put(39, y, "%5s" % ("-" if fuel is None else fuel), "1" if fuel is not None and fuel < 500 else "0")
         cv.put(46, y, "%4s" % t.get("ore", "-"), "0")

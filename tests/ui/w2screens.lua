@@ -330,14 +330,22 @@ return function(test,equal)
     equal(text[3]:sub(1,12),' ! retry 5s ') equal(text[4]:sub(1,17),'   ore chest full')
     assert(not table.concat(text):find('...',1,true))
   end)
-  test('U.confirm draws REMOVE, then CONFIRM on the turtle page',function()
-    local sel={id='8'}
-    local row={role='mining',state='waiting',inv={}}
-    local function chip(frame)
-      for _,b in ipairs(frame.buttons) do if b.id=='turtle-remove' then return b.label end end
+  test('U.confirm drives REMOVE on the turtle page and another tap disarms it',function()
+    local s=setup(29,12)
+    local commands={}
+    s.display.screen('mining').input=function(e) commands[#commands+1]=e.text end
+    local function label()
+      for _,b in ipairs(s.frame().buttons) do if b.id=='turtle-remove' then return b.label end end
     end
-    equal(chip(U.turtle.render(26,20,sel,row,1000)),'REMOVE')
-    U.confirm(sel,'remove','remove',1000)
-    equal(chip(U.turtle.render(26,20,sel,row,1000)),'CONFIRM')
+    s.press('turtle:2')
+    equal(label(),'REMOVE')
+    s.press('turtle-remove') equal(label(),'CONFIRM')
+    s.press('turtle-park') equal(commands,{'stop'}) equal(label(),'REMOVE')
+    s.now=s.now+1000
+    s.press('turtle-remove') equal(commands,{'stop'}) equal(label(),'CONFIRM')
+    s.now=s.now+6000
+    s.press('turtle-remove') equal(commands,{'stop'}) equal(label(),'CONFIRM')
+    s.now=s.now+1000
+    s.press('turtle-remove') equal(commands,{'stop','remove 2'})
   end)
 end
