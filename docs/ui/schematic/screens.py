@@ -23,6 +23,7 @@ import system as SY  # noqa: E402
 import jobs as J  # noqa: E402
 import panel as PN  # noqa: E402
 import other as O  # noqa: E402
+import ar as AR  # noqa: E402
 
 
 def status(w, h, title, wall_map=False):
@@ -122,6 +123,7 @@ FIXTURES += SH.FIXTURES + MS.FIXTURES
 FIXTURES += J.FIXTURES
 FIXTURES += PN.FIXTURES
 FIXTURES += O.FIXTURES
+FIXTURES += AR.FIXTURES
 
 
 def main():

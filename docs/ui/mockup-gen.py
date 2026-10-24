@@ -440,7 +440,7 @@ if args.fixtures:
               "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS",
               "mining-M", "lumber-M", "drops-M",
               "panel-P", "panelpair-P", "panelcode-P", "panelpair-S", "panelcode-S", "paired-P", "paired-S",
-              "build-26x20", "buildsetup-26x20", "build-29x12", "buildsetup-29x12"}
+              "build-26x20", "buildsetup-26x20", "build-29x12", "buildsetup-29x12", "ar-M"}
     for stem, canvas, title in named:
         if stem in ported:
             continue

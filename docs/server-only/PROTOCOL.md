@@ -1676,51 +1676,46 @@ maps, moving turtles, stale fixes and uncertain journals. Saving still needs ADD
 It registers `display.screen("ar", render, input)`. A display gets the `ar`
 role from the server command; it survives restart through `so-display`.
 
-The screen shows the controller count and one tile per layer. Each tile shows
-1 and "layer on" in green, or 0 and "layer off" in grey. Tapping a tile toggles
-its layer once. Tiles use two columns; small screens use compact rows. There is no BACK.
+The screen is route A ([schematic spec](../ui/SCHEMATIC-SPEC.md#26-ar-goggles)):
+the controller count in the header, then LAYERS with one leader row per layer
+ending in `[on]` (green) or `[off]` (muted). Tapping anywhere on a row toggles
+its layer once; the row's button id is the layer name. There is no BACK.
 Gather copies the layer state before the private pure layout renders it.
 All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
-- `turtles` draws a twelve-edge box and heading arrow for each worker with a
-  pose. The arrow lies at mid height in the facing direction. Its shaft runs
-  0.55 to 1.2 blocks from the block centre. Its head runs from 1.2 to the tip at
-  1.65 blocks and is 0.44 blocks wide. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
+- `turtles` draws a twelve-edge box and a heading chevron for each worker with a
+  pose. The chevron stands upright just outside the front face: two lines from
+  wings 0.6 blocks ahead of the block centre and 0.2 above and below mid height, to
+  a tip 0.75 blocks ahead at mid height. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
   `lease.peek`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
   is exempt. Working, mining, running and lumber states use green. Other open
-  leases use teal; idle turtles use white. Last contact uses the newer registry
+  leases use teal; idle turtles use white. These colour the label. The box and
+  chevron keep coral, amber and stale, and are otherwise white, or blue while the
+  turtle's lease holds just its own cell. Last contact uses the newer registry
   or lease timestamp, including work reports.
 - `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
   owner derived from the machine registry using `cells.list(owner, math.huge)`.
-  It includes all that owner's cells in the server dimension. Scene gathering
+  It includes all that owner's cells in the server dimension and sits 0.12 blocks
+  outside them. An owner whose only cell is its turtle's draws no outline of its
+  own; it colours that turtle's box instead, so no turtle has two outlines. Scene gathering
   does not call `cells.counts()`, whose reservation scan can breathe during a burst.
 - `drops` draws a small box per point and a size-0.5 label with the first letter
   of its kind, such as O or F. Broken points use coral; other points use white.
-- cc_ar 3D lines have no width, so strokes are bundles. Shapes are turtles
-  (box and arrow), lease outlines and drop boxes. The nearest 16 shapes,
-  ordered by centre distance from the configured server position, then id, are
-  drawn thick. A thick box edge is a five-strand cross: the edge itself plus
-  four copies offset 0.02 blocks along two perpendicular axes around it. Seen
-  from any side, the projected strands sit at most 0.02 blocks apart, about
-  3 pixels at 3 blocks and less further away, so the default 2.5-pixel lines
-  merge into one band about 0.04 blocks wide. The shaft is bundled the same way.
-  A thick head has two flat edges and two upright edges from the tip, plus 24
-  flat and 24 upright hatches about 0.019 blocks apart that narrow towards the
-  tip, so it reads as a solid cross from any side. Other shapes use one strand
-  per edge and a three-line arrow. A thick turtle has 117 lines, a thin one 15,
-  each plus a label when within the label limit. A thick lease or drop box has
-  60 lines, a thin one 12. A frame with 16 thick and 4 thin turtles has 1932
-  lines. Strand ids are `<edge>:s2` to `<edge>:s5`, the head uses
-  `:heading:1` to `:4`, `:h0` to `:h23` and `:v0` to `:v23`.
+- Every edge is one `drawLine3D` stroke, in the route A palette. Turtle boxes sit
+  0.08 blocks outside the block and lease outlines 0.12, so no edge lies on a block
+  face, where it would fight the block's own edges and look dashed. A turtle has
+  14 lines (12 box edges, ids `:box:1` to `:box:12`, and the chevron, ids
+  `:heading` and `:heading:1`), plus a label when within the label limit. A lease
+  or drop box has 12 lines. A frame with 20 turtles has 280 lines.
 - World labels sit above their blocks and stack 0.25 blocks apart when their
   horizontal positions are within two blocks. Labels use at most eight characters.
   The nearest 16 turtle labels and eight drop labels per kind remain visible,
   ordered by distance from the configured server position, then element id.
-  Without server coordinates, element id determines the order. Boxes and arrows
+  Without server coordinates, element id determines the order. Boxes and chevrons
   remain visible when their labels exceed these limits.
 - Broken drops have a separate four-label budget, ahead of healthy labels.
   Each visible broken label has a coral vertical beam from chest y+1 to y+7.
@@ -1734,26 +1729,30 @@ boolean values. A failed save leaves the current switches unchanged.
 - `so-server.cfg` may set `arLabelScale` from 0.5 to 0.7 for native font trials.
   The default remains 0.5 pending measured C13 captures. Larger scales increase
   the vertical stack gap to half the scale. The HUD stays at its existing size.
-- The HUD starts at `(4,72)` in GUI units, below the Difficulty overlay.
-  Its three 56-unit tiles have eight-unit gaps for TURTLES total, ALERTS count and DISK percent.
-  Each has a translucent backing, white text and a four-pixel state bar.
-  TURTLES uses the same machine registry and role filter as the status screen,
-  including paired idle workers. Its bar uses the status screen's lost-lease
-  check rather than treating an old registry timestamp as a missing turtle.
-  Lost turtles, active alerts and disk use of at least 80 percent use coral;
-  healthy tiles use green. Unknown disk use is stale.
-- `alerts` shows the newest active `.alert` value in a coral banner for five
-  seconds after observation, as the first row inside the HUD. The tile row moves
-  down 14 GUI units while the strip is visible. Retained history detects repeated identical
+- The HUD starts at `(4,72)` in GUI units, below the Difficulty overlay. It is one
+  hairline-ruled panel of three 64-unit cells for TURTLES total, ALERTS count and DISK
+  percent: translucent navy backing 28 units tall, a muted caps label at +5, the value
+  at +16, a one-unit dim divider before the second and third cells and a one-unit dim
+  rule under the panel. Rectangles never overlap, because the controller draws
+  elements in no fixed order. TURTLES uses the same machine registry and role filter
+  as the status screen, including paired idle workers. Its value colour uses the
+  status screen's lost-lease check rather than treating an old registry timestamp as
+  a missing turtle. Lost turtles, active alerts and disk use of at least 80 percent
+  turn the value coral; other values are white. Unknown disk use is muted.
+- `alerts` shows the newest active `.alert` value as a flag for five seconds after
+  observation, as the first row of the HUD: a coral `!` and white text on a 14-unit
+  navy strip over a one-unit coral rule (`alert:backing`, `alert:rule`, `alert:mark`,
+  `alert:<key>`). The panel moves down 16 GUI units while the strip is visible. Retained history detects repeated identical
   alerts; without history a changed serialized value renews the banner.
   Expiry deletes the banner while the HUD keeps the active alert-key count.
   The switch hides the banner without hiding the HUD count. Controllers without
   `drawRect2D` show the same five-second text row. Dug-storage notices sit below the tiles.
-  `drawRect2D` receives opposite corners, including the tile bars.
+  `drawRect2D` receives opposite corners, including the one-unit rules.
 
-World colours are signed ARGB with alpha FF. Green is `FF3DDC84`, amber
-`FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`, stale
-`FF4A5468` and white `FFF2F4F8`. HUD backing is `C00E1626`.
+World colours are signed ARGB from the route A palette, with alpha FF. Green is
+`FF3DDC84`, amber `FFFFC24B`, coral `FFFF6B5E`, blue `FF5AB0FF`, teal `FF2DD4BF`,
+stale and HUD labels muted `FF7886A3`, white `FFE6EAF2` and HUD rules `FF28344D`.
+HUD backing is navy `E00B111C`. Completed trails are `507886A3`.
 Alerts expire five minutes after the event timestamp, or first observation when
 no timestamp is available. Repeated events renew the deadline and the short
 banner. Expired snapshot values stay hidden until a new event arrives.

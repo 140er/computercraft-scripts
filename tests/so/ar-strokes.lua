@@ -10,6 +10,8 @@ local function boot()
   e.SO.mods.state = { get = function() return b.machines end, view = function() return { values = {} } end }
   e.SO.mods.lease = { status = function() return { open = "batch" } end, inRange = function() return true end }
   e.SO.mods.drops = { list = function() return b.points end }
+  b.cells = {}
+  e.SO.mods.cells = { list = function(owner) return b.cells[owner] end }
   local ar = { elements = {} }
   for _, method in ipairs({ "drawLine3D", "drawText3D", "drawText2D", "drawRect2D" }) do
     ar[method] = function(id, ...) ar.elements[id] = { method = method, ... } end
@@ -37,47 +39,32 @@ local function lines(b)
 end
 local function near(a, b) return math.abs(a - b) < 1e-9 end
 return function(test, equal)
-  test("AR draws each near outline as a five-strand cross bundle and the heading as a filled arrow", function()
+  test("AR draws every outline as one stroke per edge and the heading as a small upright chevron at the front", function()
     local b = boot()
     b.machines[2] = turtle(1, 3, 1)
     b.points = { { id = "ore", kind = "ore", dim = 0, x = 5, y = 64, z = 3 } }
     b.tick(1000)
-    equal(#owned(b, "turtle:2"), 118, "label, 60 box strands and 57 arrow lines")
-    equal(#owned(b, "drop:ore"), 61, "label and 60 box strands")
-    for edge = 1, 12 do
-      local base = b.ar.elements["turtle:2:box:" .. edge]
-      local offsets = {}
-      for k = 2, 5 do
-        local strand = b.ar.elements["turtle:2:box:" .. edge .. ":s" .. k]
-        local ox, oy, oz = strand[2] - base[2], strand[3] - base[3], strand[4] - base[4]
-        equal(near(strand[5] - base[5], ox) and near(strand[6] - base[6], oy) and near(strand[7] - base[7], oz), true, "strand is parallel")
-        equal(near(math.sqrt(ox * ox + oy * oy + oz * oz), 0.02), true, "strand offset is the bundle radius")
-        local dx, dy, dz = base[5] - base[2], base[6] - base[3], base[7] - base[4]
-        equal(near(ox * dx + oy * dy + oz * dz, 0), true, "offset is perpendicular to the edge")
-        offsets[k] = { ox, oy, oz }
-      end
-      local a, b2, c, d = offsets[2], offsets[3], offsets[4], offsets[5]
-      equal(near(a[1] * b2[1] + a[2] * b2[2] + a[3] * b2[3], 0), true, "the two cross arms are perpendicular")
-      equal(near(a[1] + c[1], 0) and near(a[2] + c[2], 0) and near(a[3] + c[3], 0), true, "s4 mirrors s2")
-      equal(near(b2[1] + d[1], 0) and near(b2[2] + d[2], 0) and near(b2[3] + d[3], 0), true, "s5 mirrors s3")
+    equal(#owned(b, "turtle:2"), 15, "label, 12 box edges and 2 chevron lines")
+    equal(#owned(b, "drop:ore"), 13, "label and 12 box edges")
+    for _, id in ipairs(owned(b, "turtle:2")) do assert(not id:find(":s%d$"), "no strand " .. id) end
+    for edge = 1, 12 do equal(b.ar.elements["turtle:2:box:" .. edge].method, "drawLine3D") end
+    -- Facing east: an upright > just outside the east face (at 0.55): the tip 0.75 east of the centre
+    -- at mid height, the wings 0.6 east and 0.2 above and below.
+    local upper, lower = b.ar.elements["turtle:2:heading"], b.ar.elements["turtle:2:heading:1"]
+    for _, wing in ipairs({ upper, lower }) do
+      equal(near(wing[5], 2.25) and near(wing[6], 64.5) and near(wing[7], 3.5), true, "both wings meet at the tip")
+      equal(near(wing[2], 2.1) and near(wing[4], 3.5), true, "wings stand in the heading plane")
+      assert(wing[2] > 2.05, "the chevron sits outside the box")
     end
-    local shaft = b.ar.elements["turtle:2:heading"]
-    equal({ shaft[2], shaft[3], shaft[4], shaft[5], shaft[6], shaft[7] }, { 2.05, 64.5, 3.5, 2.7, 64.5, 3.5 })
-    for k = 2, 5 do assert(b.ar.elements["turtle:2:heading:s" .. k]) end
-    for k = 1, 4 do
-      local edge = b.ar.elements["turtle:2:heading:" .. k]
-      equal({ edge[2], edge[3], edge[4] }, { 3.15, 64.5, 3.5 }, "head edges meet at the tip")
-      equal(edge[5], 2.7)
+    equal(near(upper[3], 64.7) and near(lower[3], 64.3), true, "wings 0.2 above and below mid height")
+    equal(b.ar.elements["turtle:2:heading:2"], nil, "no arrow head or hatches")
+    for i, case in ipairs({ { 0, 1.5, 2.75 }, { 2, 1.5, 4.25 }, { 3, 0.75, 3.5 } }) do
+      local facing, tip = case[1], { case[2], case[3] }
+      b.machines[2] = turtle(1, 3, facing)
+      b.tick(1000 + 1000 * i)
+      local wing = b.ar.elements["turtle:2:heading"]
+      equal(near(wing[5], tip[1]) and near(wing[7], tip[2]), true, "tip for facing " .. facing)
     end
-    equal(near(b.ar.elements["turtle:2:heading:1"][7], 3.28), true)
-    equal(near(b.ar.elements["turtle:2:heading:4"][6], 64.72), true)
-    for i = 0, 23 do
-      local h, v = b.ar.elements["turtle:2:heading:h" .. i], b.ar.elements["turtle:2:heading:v" .. i]
-      equal(near(h[7] - h[4], 0.44 * (1 - i / 24)), true, "flat hatch narrows toward the tip")
-      equal(near(v[6] - v[3], 0.44 * (1 - i / 24)), true, "upright hatch narrows toward the tip")
-      equal(h[2], v[2])
-    end
-    equal(b.ar.elements["turtle:2:heading"][1], b.ar.elements["turtle:2:heading:v23"][1])
   end)
   test("AR stroke ids are stable across frames and a removed turtle deletes exactly its ids", function()
     local b = boot()
@@ -94,24 +81,51 @@ return function(test, equal)
     equal(after, before)
     equal(#b.deleted, 0)
     local gone = owned(b, "turtle:3")
-    equal(#gone, 118)
+    equal(#gone, 15)
     b.machines[3] = nil
     b.tick(3000)
     table.sort(b.deleted)
     equal(b.deleted, gone)
     equal(b.frames, 3, "one update per frame")
   end)
-  test("AR bundles only the nearest sixteen shapes and bounds lines per frame", function()
+  test("AR keeps 14 lines per turtle, far under the old 1932-line frame budget", function()
     local b = boot()
     for id = 1, 20 do b.machines[id] = turtle(id * 3, 0, 0) end
     b.tick(1000)
-    for id = 1, 16 do equal(#owned(b, "turtle:" .. id), 118, "near turtle " .. id) end
-    for id = 17, 20 do equal(#owned(b, "turtle:" .. id), 15, "far turtle " .. id .. " keeps a box and simple arrow") end
-    equal(lines(b), 16 * 117 + 4 * 15)
+    for id = 1, 16 do equal(#owned(b, "turtle:" .. id), 15, "labelled turtle " .. id) end
+    for id = 17, 20 do equal(#owned(b, "turtle:" .. id), 14, "turtle " .. id .. " past the label limit keeps its strokes") end
+    equal(lines(b), 20 * 14)
+    assert(lines(b) <= 16 * 117 + 4 * 15)
     b.machines[1] = nil
     b.tick(2000)
-    equal(#owned(b, "turtle:17"), 118, "the next nearest turtle gains a bundle and label")
-    equal(lines(b), 16 * 117 + 3 * 15)
-    assert(lines(b) <= 16 * 117 + 4 * 15)
+    equal(#owned(b, "turtle:17"), 15, "the next nearest turtle gains a label")
+    equal(lines(b), 19 * 14)
+  end)
+  test("AR draws one outline per turtle: a lease of just its cell merges into a blue turtle box", function()
+    local b = boot()
+    b.machines[2], b.machines[3] = turtle(1, 3, 1), turtle(6, 3, 2)
+    b.cells["mine:2"] = { { dim = "minecraft:overworld", x = 1, y = 64, z = 3 } }
+    b.cells["mine:3"] = { { dim = "minecraft:overworld", x = 6, y = 64, z = 3 }, { dim = "minecraft:overworld", x = 6, y = 64, z = 4 } }
+    b.tick(1000)
+    equal(#owned(b, "lease:mine:2"), 0, "the held cell draws no second box")
+    for edge = 1, 12 do equal(b.ar.elements["turtle:2:box:" .. edge][1], 0xFF5AB0FF - 2^32) end
+    equal(b.ar.elements["turtle:2:heading"][1], 0xFF5AB0FF - 2^32)
+    -- A larger reservation keeps its own outline, 0.12 outside the cells; the turtle box is 0.08 out.
+    equal(#owned(b, "lease:mine:3"), 12)
+    for edge = 1, 12 do equal(b.ar.elements["turtle:3:box:" .. edge][1], 0xFFE6EAF2 - 2^32) end
+    local lease, own = b.ar.elements["lease:mine:3:1"], b.ar.elements["turtle:3:box:1"]
+    equal(near(lease[2], 5.88) and near(lease[3], 63.88) and near(lease[4], 2.88), true)
+    equal(near(own[2], 5.92) and near(own[3], 63.92) and near(own[4], 2.92), true)
+    -- No edge lies on a block face, where it would fight the block's own edges.
+    for id, el in pairs(b.ar.elements) do
+      if el.method == "drawLine3D" and (id:find(":box:") or id:find("^lease:")) then
+        for i = 2, 7 do assert(math.abs(el[i] - math.floor(el[i] + 0.5)) > 0.05, id .. " on a block face") end
+      end
+    end
+    -- Ids stay stable across frames and the frame keeps 14 lines per turtle plus one lease box.
+    b.machines[2].fuel = 499
+    b.tick(2000)
+    equal(#b.deleted, 0)
+    equal(lines(b), 2 * 14 + 12)
   end)
 end

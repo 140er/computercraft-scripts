@@ -648,19 +648,24 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
   controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
   Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
-  `drops` and `alerts` toggles. The screen shows controller count and on/off
-  tiles in two columns, with no BACK. Small screens use compact rows. Switches save through
+  `drops` and `alerts` toggles. The screen is route A (twin `docs/ui/schematic/ar.py`,
+  SCHEMATIC-SPEC section 26): the controller count in the header, then one leader row
+  per layer with `[on]` or `[off]`; the whole row is the toggle, with no BACK. Switches save through
   `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
   dimensions filter world elements. Alerts expire after five minutes, renewed
   by new events. First controller attachment clears old elements when supported.
-  World labels use size 0.5 and short text, with nearby labels stacked. Only
-  the nearest 16 turtle labels and eight drop labels per kind are drawn, using
-  the server position. Boxes and arrows remain. The HUD counts all registered
-  workers like status, including paired idle workers; its bar marks lost leases.
-  The HUD starts at GUI `(4,72)`. A five-second alert strip is its first row,
-  and retirement notices sit below the tiles. Rectangle arguments are opposite corners.
+  World strokes are single lines in the route A palette: twelve-edge boxes and a
+  two-line upright heading chevron outside a turtle's front face. A lease of just the
+  turtle's cell merges into its box (blue), so a turtle never has two outlines. World labels use size 0.5 and
+  short text, with nearby labels stacked. Only the nearest 16 turtle labels and
+  eight drop labels per kind are drawn, using the server position. Boxes and
+  chevrons remain. The HUD counts all registered workers like status, including
+  paired idle workers; its value turns coral for lost leases.
+  The HUD starts at GUI `(4,72)`: one hairline-ruled navy panel of three cells
+  with muted caps labels and white values. A five-second alert flag is its first row,
+  and retirement notices sit below the panel. Rectangles never overlap and use opposite corners.
   Dug-storage requests remain visible until a player decides, including with
   the optional event-alert layer off. Decision notices last 30 seconds.
   See [AR](server-only/PROTOCOL.md#ar).
@@ -993,7 +998,7 @@ missing modules, the fleet chips from a real gather, exact-item orders and the
 JOBS page over the real mining and lumber modules. The route A pages moved to S4.
 
 
-UI-2d adds `tests/ui/ui2d.lua`. It checks the ar-M fixture, the route A drop list,
+UI-2d adds `tests/ui/ui2d.lua`. It checks the ar-M fixture (route A since RA3), the route A drop list,
 selected drop actions, draft editing, all 64 points through paging, AR switch
 persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
@@ -1051,6 +1056,14 @@ the scene with the real build and health modules and `U.turtle`, compares every 
 cell with contrast and bounds, and checks the old ids, the row targets, the kind chip, paging,
 CONFIRM and generator parity. The health scene fixes the disk numbers, so no fixture depends on
 the host.
+
+RA3 adds `tests/ui/ra3-ar.lua`. `docs/ui/schematic/ar.py` writes the AR screen fixtures
+(`ar-M/W/L/P/S/XS`); ar-M was the last Big Tiles fixture, so `docs/ui/mockup-gen.py` writes none
+now. The test draws each model with the real module, compares text, fg and bg cell by cell with
+contrast and bounds, and checks the layer ids and full-row targets, one save per tap, reload and
+generator parity. `tests/so/ar-strokes.lua` checks the single-stroke boxes, the front chevron,
+stable ids and the line budget; `tests/ui/ui3c.lua` checks the HUD panel geometry, colours and
+that no rectangles overlap.
 
 R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
 `view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the

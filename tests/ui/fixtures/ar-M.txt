@@ -1,19 +1,15 @@
-57x24 AR layer switches
+57x24 AR layers, room monitor 57x24, drops off
+ AR GOGGLES  ------------------------------ 1 controller 
                                                          
- AR GOGGLES                                 1 controller 
+ LAYERS ------------------------------------------ 3 on  
                                                          
+ turtles ·········································· [on] 
                                                          
-  TURTLES                     LEASES                     
+ leases ··········································· [on] 
                                                          
-             ON                          ON              
+ drops ··········································· [off] 
                                                          
-                                                         
-                                                         
-                                                         
-                                                         
-  DROPS                       ALERTS                     
-                                                         
-             OFF                         ON              
+ alerts ··········································· [on] 
                                                          
                                                          
                                                          
@@ -23,24 +19,52 @@
                                                          
                                                          
                                                          
+                                                         
+                                                         
+                                                         
+                                                         
+0000000000000cccccccccccccccccccccccccccccc08888888888880
+000000000000000000000000000000000000000000000000000000000
+08888880cccccccccccccccccccccccccccccccccccccccccc0888800
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+0888880ccccccccccccccccccccccccccccccccccccccccccc0888880
+000000000000000000000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
-fdddddddddddddddddddddddddddfdddddddddddddddddddddddddddf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
-fcccccccccccccccccccccccccccfdddddddddddddddddddddddddddf
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
