@@ -15,7 +15,12 @@ advances by 50 ms per computer tick, independently of daylight changes.
 returned. Each server start resumes at that reservation and can consume up to one game
 second. Time while the server computer is off does not advance this clock.
 Keep its generations with the rest of `so-data`; never restore jobs without
-their clock. A failed clock save refuses to issue more time.
+their clock.
+A failed clock save freezes the timeline at its last issued time. `SO.clock.refused` is
+true and `SO.clock.error` holds the save error. The server logs one refusal line, keeps
+its event loop and screens running, and shows the refusal in the health metric and
+attention list. Later clock reads retry the save. A successful retry clears the refusal
+and resumes from the frozen time without charging the storage outage.
 
 Lease deadlines, saved retries, planting waits, machine ages, LRU order,
 beacons, discovery, frame throttles and uptime use this timeline. Event `at`,
@@ -79,13 +84,18 @@ and listeners use `listener(sender, message)`.
   `derive` and `session` serve legacy `pair` for one release. `cpace` holds the
   SHA-512, Elligator2 and CPace helpers that tests check against the draft vectors. The hint check only authorizes a prompt;
   it never removes a saved key.
+  `open` loads only stored keys that are strings of exactly 64 hexadecimal characters.
+  It ignores invalid entries and logs one line without key text. The next key save omits
+  ignored entries. `proto.macOk` returns false for malformed keys, allowing dispatch to
+  refuse the frame without stopping the server.
   `open` accepts the role's millisecond clock; omission uses local tick uptime.
   `join` is a client boot call that waits. Omitting `serverId` uses discovery.
   `peer()` returns the lowest saved numeric peer id, or nil. Workers use it
   as their server id when discovery fails.
 - [so-store.lua](../so-store.lua) owns generation-based persistence.
   Calls are `copy(value)`, `read(path)`, `clock()` and `store(path, valid, limit)`.
-  `clock()` returns the server's durable game-millisecond function.
+  `clock()` returns the server's durable game-millisecond function and a status table
+  with `refused` and an optional `error`.
   `store` returns `{ value, bytes, save = function(value) }`; `bytes` is the size
   of the recovered generation and updates after a successful save. `save` returns success
   and an optional error. `read` reads a plain Lua table without generation recovery.
@@ -95,14 +105,15 @@ and listeners use `listener(sender, message)`.
   `status()` returns event availability, sequence, segment count, bytes, snapshot
   number, its saved game time and whether a checkpoint is due.
 - [so-errors.lua](../so-errors.lua) opens with `open(store, now)` and returns
-  `record(text)`, `flush(now?)`, `entries()` and `status()`. It retains at most
+  `record(text, force?)`, `flush(now?, force?)`, `entries()` and `status()`. It retains at most
   128 errors in `so-data/errors`, with 2048 bytes per message. Each generation
   is at most 21000 bytes, so current, backup and temporary files fit within
   65536 bytes together. `status().bytes` counts every generation and is
   included in the disk ledger under `other`. Saves run at most once per 30000
-  game milliseconds. A failed save keeps the pending records for retry.
-  `SO.error(text)` prints and records server errors. `SO.errors` exposes this
-  log. `SO.health` holds startup time and the last tick's game cadence, wall
+  game milliseconds unless forced. A failed save keeps pending records for retry,
+  including forced saves. `SO.error(text, force?)` prints and records server errors.
+  A true force argument bypasses the flush interval. The server forces its final stop line.
+  `SO.errors` exposes this log. `SO.health` holds startup time and the last tick's game cadence, wall
   cadence and cost. Wall cadence is diagnostic only.
 - [so-plan.lua](../so-plan.lua) provides pure geometry and batch helpers.
   Calls are `frame(worldPose, journalPose)`, `toWorld(frame, pose)`,
@@ -288,6 +299,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `isDug(x, y, z, dim)`, `forget(x, y, z, dim)`, `counts()`,
   `list(who, max)` and `tick(now)`. `list` returns up to `max` copied
   `{ dim, x, y, z }` reservations, default 256.
+  If `releaseOwner(who)` cannot save the recovery policy or reservations, it records the
+  exact cells requested for release. `tick(now)` retries only those cells still held by
+  the same owner. `reserve` and `reserveMany` remove their requested cells from that
+  owner's pending release, including renewals that need no save. Pending retries are
+  memory-only; saved reservations still survive a server restart.
   The optional dimension defaults to `minecraft:overworld`.
   Handler `cells.forget` requires a second, confirmed request.
   Sections save a 1024-character hex bitset, with a 2048-byte generation limit.
@@ -481,20 +497,25 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   turtle to the shop screen. Exports `tick(now)`, `order(search, count)`,
   `best(search)` and `matches(search, limit?)`. `matches` is read-only: up to `limit`
   (default 10) `{ name, count, label }` stocked items whose id or display name contains
-  the search, by stock then id. `best` returns a stocked exact id, else the first match,
-  and its count. `order` sends one order of 1, 16 or 64 for that item and returns its
-  id, or nil and a reason; it changes no display.
-  `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)` and
-  `fuelAlerts()` run the fuel policy.
-  `fuelAlerts()`. Fuel auto-order defaults off in `so-data/fuel-policy`.
+  the search, by stock then id. `best` returns an exact id present in totals and
+  its count, including zero; otherwise it returns the first stocked match.
+  `order` refuses zero stock and sends one order of 1, 16 or 64 for a stocked item.
+  It returns the id, or nil and a reason; it changes no display. A failed send
+  marks the order failed immediately.
+  `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)`,
+  `fuelClear()` and `fuelAlerts()` run the fuel policy. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
   saved ten-minute cooldown per physical chest across mining/lumber and restarts.
   Exact charcoal or coal orders require 64 fresh stock. Save precedes send.
   At most one fuel order is outstanding, across cooldowns, flag/output changes
   and restarts. A confirmed refusal, delivery or observed usable fuel ends the
   saved wait. Pickup actions save the expected order id, so old inventory reports
-  cannot complete a later order. Unknown replies and timeouts cannot authorize a second order.
-  Saved waiting orders raise delivery-unconfirmed attention after two minutes.
+  cannot complete a later order. Unknown replies keep waiting until the deadline. With
+  fuel auto enabled, after two minutes a successful policy save clears waiting and keeps
+  `fuel order timed out` attention. A later empty report may order again after the ten-minute physical-chest cooldown, with one outstanding order. Late replies for the
+  timed-out request id are ignored. A failed policy save emits no alert and keeps
+  waiting for retry. `fuelClear()` saves a manual release of waiting and its alert
+  without clearing cooldowns.
   Failure causes appear in `shop.alert` and `fuelAlerts`; usable pickup clears
   them. Lumber saves pickup slots, retains non-fuel items while searching, and
   returns only those items before refueling. Missing fuel and failed returns
@@ -527,6 +548,12 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Recovery reads worker pose and inspects the current
   target before another placement. MORE links to BUILD. The screen draws in route A with the
   tabs `tab:job` and `tab:setup` ([schematic spec](ui/SCHEMATIC-SPEC.md#22-build)).
+  While a running builder is held for fuel, it sends a stationary `inspectDown` probe
+  whenever no lease is pending. The probe reserves only the turtle's current cell. If
+  that reservation conflicts, the fuel hold stays active and later ticks retry. Refuel
+  the turtle to let the next probe refresh its fuel and resume the build. A zero-fuel
+  report keeps the "out of fuel" hold and sends no movement. Failed movement reports
+  "out of fuel" when the worker reports a fuel error or zero fuel.
   See [builder jobs](server-only/BUILD.md).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
@@ -556,8 +583,11 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   job budget of 1..4096 branches, default eight. `continuous` defaults off.
   A returning worker saves its next claim as `{branch,junction}` before retreating
   through the shared lane. Branch claims and counted completions survive restart. Ore
-  filters default to all ores. `ores` accepts spaces around commas. `remove` can retire a stationary recovery or park
-  lease through `lease.cancelPark`, releasing the lane and reservations. Stale
+  filters default to all ores. `ores` accepts spaces around commas. `remove` refuses
+  a reported pose in the shared shaft or bottom spine. Off-lane removal can retire a
+  stationary recovery or park lease through `lease.cancelPark`, releasing its reservations.
+  Unfinished branch claims, including return-trip claims, are reassigned before
+  allocating a new branch, without increasing `nextBranch` again. Stale
   lane waiters lose their place when they leave the queue. Completed routes
   unload remaining ore through the configured drop before parking. Junk cleanup
   uses guarded `discard` into adjacent empty cells, preferring known open tunnel
@@ -602,6 +632,24 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   below the cells burst threshold. Trips wholly on the surface retain normal batching.
   Three failures at one drop emit `mine.alert { id, text }`, show the error,
   and park with one retry per minute. Missing drops use the same delay.
+  Mining refuses `home`, `bottom`, `length`, `branches`, `continuous` and `mode` edits
+  while the job runs or a turtle row still holds a route. STOP waits for outstanding
+  batches to settle and clears route geometry. START rebuilds the routes using existing
+  branch claims. Changes to home, bottom, length or mode start fresh geometry and
+  progress; branch-budget and continuous-mode changes retain progress.
+  A cell that fails three mining digs is skipped, with its failure count saved across
+  server restarts. Mining bypasses skipped cells and continues the branch. Detours avoid
+  known containers and protected cells. If inspection discovers an obstacle on a saved
+  detour, mining discards that path and replans. If no path is found within the bounded
+  search, the unreachable goal is saved as skipped and the job continues without waiting
+  for the player. Recovery counts an interrupted dig attempt unless the worker's dug
+  history confirms success. Skipped cells are never recorded as dug. Mining refreshes
+  its standing-cell reservation even when it already owns the cell, so a pending release
+  cannot free the occupied pose.
+  Mining refuses dig batches when reported equipment has no equipped pickaxe and shows
+  `needs pickaxe`, even when automatic tool swaps are disabled. Automatic swaps remain
+  opt-in. Workers without equipment reports retain the existing unknown-tool behavior.
+  Lumber tool behavior is unchanged.
   See [[server-only/PROTOCOL#mine]] ([mining](server-only/PROTOCOL.md#mine)).
 - [so-mod-lumber.lua](../so-mod-lumber.lua), `lumber`, scans, harvests and replants trees.
   `assigned(id)` reports whether its job owns that worker.
@@ -727,11 +775,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   dismiss the hint and restore the normal screen. Discovery and
   stale-frame hello/subscribe retries use backoff capped at 30 seconds. At boot,
   it prefers the lowest saved paired server ID and retries that ID without DNS.
-  It opens every modem and rescans on attach and detach events. Screens
+  It opens every modem and rescans on attach and detach events. A monitor attach
+  or detach picks the output again, sends a hello if it changed, and redraws. Screens
   at least three rows tall reserve the bottom row for typed input and report
   the remaining height in `hello`. The optional `fullH` advertises physical height
   so Big Tiles can use every row, including the pocket's last row. Kit frames
-  use that full height; kit-free frames retain the input row. Wall displays
+  use that full height; while typing, the line covers their bottom row. Kit-free
+  frames retain the input row. Wall displays
   also echo input on the terminal.
 
 ## Installer roles and files
@@ -754,6 +804,14 @@ See [the operator guide](../README-SERVER-ONLY.md) for setup and commands.
   Current modules are ar, cells, daily, display, drops, lease, lumber, mine, panel, shop and
   state. Only a regular computer with at least 16000000 bytes of capacity can
   install this role.
+
+`install <token>` refuses enrollment if `so-keys`, `so-keys.bak` or `so-keys.tmp`
+exists. It asks you to run `install reset` first and writes no `so-enroll`. Reset
+confirmation shows the number of paired keys from `so-keys`, or from `so-keys.bak` when
+the primary file is missing or unreadable. It never prints key text. Each downloaded
+file is named before its HTTP request. Successful `install update` and `install rollback` commands print `Updated <role> from <old7> to <new7>` and immediately start
+the installed role program. Missing or invalid revision metadata appears as `unknown`. A
+failed update or rollback starts no role program.
 
 Updates fetch and execute the new installer first, so its role list applies in
 that update. The branch API resolves one commit SHA for every download. If it
@@ -840,9 +898,9 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
    Monitor touches queue local input. The one-second timer expires reply-cache
    entries, refreshes pairing state and calls every `tick(now)` in filename order.
    It rearms after the ticks; missed seconds do not produce catch-up ticks.
-   If any event arrives more than 3 s (`os.clock`) after the last tick, the
-   loop logs, ticks and starts a fresh timer, so a lost timer cannot stop
-   planning.
+   If any event arrives more than 3 computer-tick seconds after the last tick, the loop
+   logs, ticks and starts a fresh timer. This watchdog uses `os.clock()` so a frozen
+   durable clock cannot stop timer recovery.
 
 Handlers, listeners and ticks run inside `pcall`; a failure logs and the loop
 continues. Never wait inside them. `sleep(0)`, `sleep(n)`, `rednet.lookup`,
@@ -1165,6 +1223,11 @@ best-effort stationary park after revocation, detaches callbacks and marks the
 pose uncertain. Display forget deletes the session. Possibly occupied reservations
 remain intact. Lumber suspends unused service queues through its existing safe
 path and pauses only the forgotten worker. These are local calls, with no new wire handler.
+
+A forgotten builder frees its active assignment slot. Another paired turtle can take the
+slot with `add` using its known pose or an explicit pose. Reservations owned by the old
+`build:<id>` remain protected after replacement and restart. Re-adding the same
+forgotten turtle still requires an explicit pose.
 
 Panel PAIR has a PAIRED button. Each session pages its own list and confirms
 through a drawn FORGET then CONFIRM button within 15000 ms. Each confirmation

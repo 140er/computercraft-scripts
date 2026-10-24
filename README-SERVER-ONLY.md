@@ -82,7 +82,9 @@ still use hostname discovery, so isolate competing networks while pairing.
 
 Workers report equipped tool names without moving or digging. Mining readiness
 checks for a pickaxe and lumber checks for an axe. Missing tools appear in NEEDS YOU.
-With automatic swaps off, these warnings never block START or interrupt planning.
+With automatic swaps off, these warnings do not block START. Mining refuses dig
+batches without a reported equipped pickaxe and shows `needs pickaxe`. Lumber
+keeps its existing tool behavior.
 Older workers without equipment queries show `tools unknown` and keep working.
 The turtle terminal shows its label, assigned job, current step, fuel and reason.
 
@@ -122,6 +124,8 @@ Its panel and the server terminal show the code and time left. Other displays
 cannot see that invitation. Pressing NEW CODE again keeps the pending code.
 After use or expiry, press NEW CODE for the next client.
 Keep any leading zeros in the code.
+A wrong code stays on the display, so Backspace can fix one digit. Typing a
+seventh digit starts a new code.
 The server terminal shows the ids of computers whose pairing attempts it
 rejected. A computer gets two wrong codes a minute and three per code. Ten
 wrong codes burn the code; press P for a new one. Wrong codes from a machine
@@ -144,6 +148,15 @@ Display text commands appear on the bottom row while you type. Backspace
 edits the line and Enter sends it and clears it. Wall displays also echo the
 line on the computer terminal. Screens at least three rows tall reserve one
 row for input, leaving the remaining rows for server frames and buttons.
+Full-screen kit frames use every row; while you type, the line covers the bottom row.
+
+`install <token>` refuses enrollment if `so-keys`, `so-keys.bak` or `so-keys.tmp`
+exists. It asks you to run `install reset` first and writes no `so-enroll`. Reset
+confirmation shows the number of paired keys from `so-keys`, or from `so-keys.bak` when
+the primary file is missing or unreadable. It never prints key text. Each downloaded
+file is named before its HTTP request. Successful `install update` and `install rollback` commands print `Updated <role> from <old7> to <new7>` and immediately start
+the installed role program. Missing or invalid revision metadata appears as `unknown`. A
+failed update or rollback starts no role program.
 
 Run `install update` to download the saved role again. `update` calls the same
 installer. Updates preserve pairing keys, the worker journal, drop points,
@@ -354,9 +367,23 @@ whole job's branch budget from 1 to 4096. The default budget is eight.
 default for new and saved jobs. `continuous on` uses the saved budget.
 Completed miners unload, count their branch once, return through its junction
 and take the next unassigned branch. They park when the budget is assigned.
-Assignments, return routes and counts survive restarts. `stop` pauses after the
-current batch and preserves the remaining work. Increasing `branches` and
+Assignments, return routes and counts survive restarts. `stop` waits for sent
+batches to settle and clears route geometry. `start` rebuilds routes using the
+existing branch claims. Increasing `branches` and
 starting again lets finished miners continue.
+Mining refuses `home`, `bottom`, `length`, `branches`, `continuous` and `mode` edits
+while the job runs or a turtle row still holds a route. Changes to home, bottom, length
+or mode reset geometry and progress. Branch-budget and continuous-mode changes retain
+progress.
+A cell that fails three mining digs is skipped, with its failure count saved across
+server restarts. Mining bypasses skipped cells and continues the branch. Detours avoid
+known containers and protected cells. If inspection discovers an obstacle on a saved
+detour, mining discards that path and replans. If no path is found within the bounded
+search, the unreachable goal is saved as skipped and the job continues without waiting
+for the player. Recovery counts an interrupted dig attempt unless the worker's dug
+history confirms success. Skipped cells are never recorded as dug. Mining refreshes its
+standing-cell reservation even when it already owns the cell, so a pending release
+cannot free the occupied pose.
 `ores` selects the supported ore names and accepts spaces
 around commas, such as `ores diamond, iron`.
 `add` anchors a paired worker at its world position and facing. `add <id>` and
@@ -376,8 +403,11 @@ atomically to the job owner. Other probe cells stay reserved until the assignmen
 saves. A blocked probe refuses the add.
 Missing GPS or uncertain pose requires the explicit coordinate command. A lost
 probe report keeps its reservations until an explicit add clears them.
-`remove` can cancel a stationary recovery or park inspection and releases the
-worker's lane and reservations. Other open leases must finish first. `stop` allows
+`remove` refuses a turtle whose last reported pose is in the shared shaft or
+bottom spine. Wait for an off-lane pose. It can then cancel a stationary recovery
+or park inspection and release reservations. Other open leases must finish first.
+Unfinished branch claims, including a return-trip claim, are reassigned before
+a new branch is allocated, without increasing `nextBranch` again. `stop` allows
 an already sent batch to finish. The screen shows worker state, pose, fuel, ore
 count and errors.
 
@@ -534,13 +564,20 @@ the physical chest across workers, point aliases and server restarts. The server
 saves the cooldown and outstanding order before sending. Only one fuel order
 can be outstanding. A matching delivery or refusal, or a worker observing usable
 fuel at that output, ends the wait. The cooldown, acknowledgements, configuration
-changes and restarts never replace a waiting order. A power cut before send can
-leave it waiting; `delivery unconfirmed` stays in attention until it is resolved.
+changes and restarts never replace a waiting order. With auto enabled, after
+120000 game milliseconds a successful save clears waiting and leaves
+`fuel order timed out` in attention, including after restart. A later empty report
+can order again after the physical chest's 600000 ms cooldown, with fresh stock
+and only one outstanding order. Late replies for the timed-out request are ignored.
+If saving the timeout fails, waiting remains and tick retries without an alert event.
+`shop.fuelClear()` saves a manual release of waiting and its alert while retaining
+chest cooldowns.
 
 Missing storage, stale stock, low stock, refused orders, failed sends and policy
 save failures appear in NEEDS attention. An acknowledgement is not delivery.
-After two minutes without an explicit delivery reply or a successful worker
-pickup of usable fuel, attention shows `delivery unconfirmed`. Mining retries
+Getting or Crafting replies do not extend the timeout. The timeout alert survives
+restart and cooldown until a new order, usable pickup, manual clear, policy
+change or later fuel failure replaces or clears it. Mining retries
 its fuel trip on its normal schedule. Lumber retries once a minute while this
 policy is on. It temporarily retains non-fuel pickups in tracked slots while
 searching for fuel, then returns them to the output before refueling. Job cargo
