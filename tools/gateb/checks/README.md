@@ -95,10 +95,20 @@ must survive guesses one through nine and burn at ten. A fresh invitation must
 then pair the native probe successfully. Evidence records reply reasons, message
 types and invitation presence; it never records invitation codes or machine keys.
 The two minute-budget waits use the server's game clock at 20 TPS.
+After the burn the server prompt must come back within 10 seconds: the route A
+footer `[P] pair` with `-` in the `pair` leader, or the older `Press P` text.
+The code screen's `[P] new code` footer does not count. Evidence redacts the
+leader's code.
 
 C3 saves a real client overview after login. That image is context and does not
 supply visual pass credit. C3 reads actual received button rectangles and injects native mouse or monitor
-input. Successful queuing alone never establishes navigation success. Optional
+input. Successful queuing alone never establishes navigation success. Roles
+change only through `SO.mods.display.command`. On mining and lumber, C3 opens
+`tab:setup` and returns through `tab:main` or `tab:overview`; a page counts only
+when its tab is drawn on colour 7 afterwards. Builds without tabs use `setup`
+and `mine-back` or `lumber-back`. Each miner's `x,y,z` must appear on its
+mining list row, or else on its `turtle:<id>` details page, left through
+`turtle-back`. Optional
 `client_views.wall` and `client_views.pocket` console commands place the client
 for native photos of each role, such as `C3-pocket-mining.png`. Missing camera
 setup blocks photo credit. `visual_baselines` maps screenshot names to reviewed external
@@ -109,8 +119,10 @@ Pocket reboot uses native `os.reboot()` through the runtime bridge and requires 
 observed uptime reset. Its new Lua environment must receive the generic role;
 a cached frame cannot prove reboot recovery.
 
-C13 additionally needs `fixtures.goggles` with `linked_player_in_template`,
-`verify_command`, and `expected_turtles`. The native verification command must
+C13 wears the template player's goggles: GateBTester carries goggles linked to
+the `ar` controller in hotbar slot 8, and C13 moves them to the head slot once
+the player has joined. A `fixtures.goggles` entry with `linked_player_in_template`,
+`verify_command`, and `expected_turtles` replaces this setup. The native verification command must
 emit `GATEB_GOGGLES_LINKED` only when the player wears goggles linked to the test
 controller. References must cover label alignment, overlap, HUD, layer removal
 and stable frames. The driver never equates taking a screenshot with passing a

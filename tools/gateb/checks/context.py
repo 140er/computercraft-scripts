@@ -39,7 +39,7 @@ def sanitize(value):
     if isinstance(value, (list, tuple)):
         return [sanitize(v) for v in value]
     if isinstance(value, str):
-        value = re.sub(r"(?i)(pair\s*code\s*[:=]?\s*)\d{6}", r"\1[redacted]", value)
+        value = re.sub(r"(?i)(pair(?:\s*code)?\s*[:=]?[\s\u00b7.]*)\d{6}(?!\d)", r"\1[redacted]", value)
         return re.sub(r"(?<![0-9a-fA-F])[0-9a-fA-F]{64}(?![0-9a-fA-F])", "[redacted]", value)
     return value
 

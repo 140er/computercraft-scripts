@@ -3,6 +3,76 @@ from .visual import check
 
 TITLE = "Pocket and physical monitor navigation"
 
+# Route A pages are header tabs; the active tab sits on the panel colour 7.
+# Older builds drew a SETUP button and a mine-back or lumber-back button.
+SETUP = ("tab:setup", "setup")
+MAIN = {"mining": ("tab:main", "tab:overview", "mine-back"), "lumber": ("tab:main", "tab:overview", "lumber-back")}
+
+
+def ids(frame):
+    return [b.get("id", "") for b in values(frame.get("buttons"))]
+
+
+def rows(frame):
+    r = frame.get("rows")
+    return [r[k] for k in sorted(r, key=int)] if isinstance(r, dict) else list(r or [])
+
+
+def background(row, x):
+    if row.get("bg"):
+        return row["bg"][x-1:x]
+    end = 0
+    for run in values(row.get("runs")):
+        end += run[0]
+        if x <= end:
+            return run[2]
+    return ""
+
+
+def active_tab(frame):
+    lines = rows(frame)
+    for b in values(frame.get("buttons")):
+        if b.get("id", "").startswith("tab:") and 1 <= b.get("y", 0) <= len(lines):
+            if all(background(lines[b["y"]-1], x) == "7" for x in range(b["x"], b["x"] + b.get("w", 1))):
+                return b["id"]
+    return None
+
+
+def page(ctx, name, role, want):
+    """Open the setup or main page through its visible tab and report whether it became active."""
+    frame = ctx.frame(name)
+    choices = SETUP if want == "setup" else MAIN[role]
+    target = next((i for i in choices if i in ids(frame)), None)
+    if not target:
+        raise Blocked(f"Visible {want} tab absent on {name} {role}")
+    after = ctx.click(name, target)
+    if target.startswith("tab:"):
+        return after, active_tab(after) == target or want == "main" and active_tab(after) in MAIN[role][:2]
+    # Legacy pages: setup shows a back button, main shows the setup button again.
+    return after, any("back" in i for i in ids(after)) if want == "setup" else "setup" in ids(after)
+
+
+def coordinates_of(ctx, name, frame, miners):
+    """Each miner's x,y,z on the mining screen: its list row when wide enough, else its details page."""
+    found = []
+    text = "\n".join(r.get("text", "") for r in rows(frame))
+    for miner in miners:
+        ident = ctx.computer(miner)
+        pos = ",".join(map(str, ctx.manifest["computers"][str(ident)]["pos"]))
+        if pos in text:
+            found.append(True)
+            continue
+        if f"turtle:{ident}" not in ids(ctx.frame(name)):
+            found.append(False)
+            continue
+        details = ctx.click(name, f"turtle:{ident}")
+        ctx.record(f"C3-{name}-mining-turtle-{ident}.json", details)
+        found.append(pos in "\n".join(r.get("text", "") for r in rows(details)))
+        if "turtle-back" not in ids(details):
+            raise Blocked(f"Visible turtle-back button absent on {name} turtle {ident}")
+        ctx.click(name, "turtle-back")
+    return found
+
 
 def evaluate(d):
     c = Criteria()
@@ -28,12 +98,12 @@ def run(ctx):
                 ctx.record(f"C3-{name}-{role}.json", {"frame": frame, "screen": ctx.request("monitors", computer=ctx.computer(name)) if name == "wall" else ctx.terminal(name)})
                 reached.append(frame.get("role") == role)
                 if role == "mining":
-                    text = "\n".join(r.get("text", "") for r in values(frame["rows"]))
-                    coordinates.extend(",".join(map(str, ctx.manifest["computers"][str(ctx.computer(n))]["pos"])) in text for n in ("miner1", "miner2"))
+                    coordinates.extend(coordinates_of(ctx, name, frame, ("miner1", "miner2")))
                 if role in ("mining", "lumber"):
-                    setup = ctx.click(name, "setup")
-                    setups.append(any("back" in b.get("id", "") for b in values(setup["buttons"])))
-                    ctx.click(name, "mine-back" if role == "mining" else "lumber-back")
+                    setup, opened = page(ctx, name, role, "setup")
+                    ctx.record(f"C3-{name}-{role}-setup.json", setup)
+                    _, returned = page(ctx, name, role, "main")
+                    setups.append(opened and returned)
                 if ctx.manifest.get("client_views", {}).get(name):
                     ctx.command(ctx.manifest["client_views"][name])
                     photo = f"C3-{name}-{role}.png"
