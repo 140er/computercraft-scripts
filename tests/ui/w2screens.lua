@@ -40,6 +40,8 @@ local function setup(w,h)
   s.mine.turtles['2'].state='mining'
   d.tick(s.now)
   d.handlers.hello({from=9,body={w=w,h=h}})
+  -- Roles change only by assignment; a 26x20 display would otherwise start as a pocket.
+  assert(d.assign(9,'mining'))
   s.frame=function(client)
     local frame d.handlers['view.get']({from=client or 9},function(_,body) frame=body end) return frame
   end
@@ -60,7 +62,8 @@ local function lumberWorkers(s)
   s.lumber.running=true
   for _,row in pairs(s.lumber.turtles) do row.recover=false end
   s.display.tick(s.now)
-  s.press('status') s.press('generic') s.press('lumber')
+  -- Roles change only by assignment.
+  assert(s.display.assign(9,'lumber'))
 end
 local function capture(frame,w,h)
   local out=R.capture(w,h)
@@ -100,7 +103,8 @@ return function(test,equal)
     local w,h=unpack(size)
     test('G8a row detail back and live progress at '..w..'x'..h,function()
       local s=setup(w,h)
-      local _,text=capture(s.frame(),w,h) assert(text:find('B0 12/48',1,true))
+      -- Route A rows show the 1-based branch and its live progress: b1 12/48.
+      local _,text=capture(s.frame(),w,h) assert(text:find('b1 12/48',1,true),text)
       s.press('turtle:2')
       local out,detail=capture(s.frame(),w,h)
       for _,value in ipairs({'#2','mining','12,60,-5 E','FUEL 42','INV 1/16','LEASE lease-2','STEP forward','SEEN 3s','B0 12/48','PARK ALL','REMOVE','BACK'}) do
@@ -110,9 +114,25 @@ return function(test,equal)
       assert(#diff==0,table.concat(diff,'\n'))
       equal(out.cells[5][2][3],'1','low fuel')
       s.mine.turtles['2'].pose.x=24 s.display.tick(s.now)
-      local _,updated=capture(s.frame(),w,h) assert(updated:find('B0 24/48',1,true))
       s.press('turtle-back') local _,back=capture(s.frame(),w,h) assert(back:find('MINING',1,true))
-      s.press('map') s.press('turtle:2') capture(s.frame(),w,h)
+      assert(back:find('b1 24/48',1,true),back)
+      -- The route A map draws DETAILS (turtle:2) in a picked turtle's callout: tap cells until it shows.
+      assert(s.display.assign(9,'map'))
+      local function details()
+        for _,b in ipairs(s.frame().buttons) do if b.id=='turtle:2' then return true end end
+      end
+      local picked=details()
+      local cells={}
+      for _,b in ipairs(s.frame().buttons) do
+        if b.id=='map-pick' then for x=b.x,b.x+b.w-1 do for y=b.y,b.y+b.h-1 do cells[#cells+1]={x,y} end end end
+      end
+      for _,c in ipairs(cells) do
+        if picked then break end
+        s.display.handlers.input({from=9,body={id='map-pick',x=c[1],y=c[2]}})
+        picked=details()
+      end
+      assert(picked,'map has no turtle:2 DETAILS')
+      s.press('turtle:2') capture(s.frame(),w,h)
       s.press('turtle-back') local _,map=capture(s.frame(),w,h) assert(map:find('MAP',1,true))
     end)
     test('G8a uncertain pose hides coordinates and re-add edits are isolated at '..w..'x'..h,function()
@@ -131,11 +151,12 @@ return function(test,equal)
       s.press('turtle-park') equal(commands[3],'stop')
     end)
     test('G8a lumber spots and turtle detail at '..w..'x'..h,function()
-      local s=setup(w,h) s.press('status') s.press('generic') s.press('lumber')
-      local _,text=capture(s.frame(),w,h) assert(text:find('SPOTS 1/2',1,true))
+      local s=setup(w,h) assert(s.display.assign(9,'lumber'))
+      -- Route A's ready leader counts the unplanted or grown spots; the detail keeps SPOTS planted/total.
+      local _,text=capture(s.frame(),w,h) assert(text:find('ready ',1,true) and text:find('1/2',1,true),text)
       s.press('turtle:4') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 1/2',1,true))
       s.press('turtle-back') s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
-      local _,updated=capture(s.frame(),w,h) assert(updated:find('SPOTS 2/2',1,true))
+      local _,updated=capture(s.frame(),w,h) assert(updated:find('0/2',1,true),updated)
     end)
   end
   for _,size in ipairs({{26,20},{29,12},{57,24}}) do
@@ -156,7 +177,7 @@ return function(test,equal)
         local _,main=capture(s.frame(),w,h) assert(main:find('LUMBER',1,true))
       end
       s.lumber.spots.b.plantedAt=s.now s.display.tick(s.now)
-      local _,main=capture(s.frame(),w,h) assert(main:find('SPOTS 2/2',1,true))
+      local _,main=capture(s.frame(),w,h) assert(main:find('0/2',1,true),main)
       s.press('turtle:5') local _,detail=capture(s.frame(),w,h) assert(detail:find('SPOTS 2/2',1,true))
     end)
     test('G8a lumber PARK targets only the selected worker at '..w..'x'..h,function()
@@ -195,7 +216,7 @@ return function(test,equal)
       s.now=s.now+6000
       s.display.tick(s.now)
       assert(s.sent[9]>before9 and s.sent[10]>before10,'all displays must refresh')
-      local _,main=capture(s.frame(),w,h) assert(main:find('B0 -/48',1,true))
+      local _,main=capture(s.frame(),w,h) assert(main:find('b1 -/48',1,true),main)
       s.press('turtle:2')
       local _,detail=capture(s.frame(),w,h)
       assert(detail:find('POS -',1,true)) assert(detail:find('B0 -/48',1,true))

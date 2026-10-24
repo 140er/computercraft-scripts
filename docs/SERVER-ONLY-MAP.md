@@ -46,6 +46,7 @@ and listeners use `listener(sender, message)`.
   `{ code, expires }` only for a paired requester. It reuses that requester's
   pending invitation and returns nil while another requester or the terminal
   owns one. New invitations use `pair.invite` and also appear on the terminal.
+  R opens the role prompt; Enter passes its line to `display.command`.
   With `so-server.cfg` `enroll = true` it adds the built-in `enroll` handler and
   `SO.enroll` with `open`, `view`, `close` and `decide`; otherwise `SO.enroll` is nil.
 - [so-proto.lua](../so-proto.lua) builds and checks authenticated envelopes.
@@ -155,22 +156,37 @@ and listeners use `listener(sender, message)`.
   it uses the cell directly above the chest. It returns nil if all candidates
   are blocked. The lumber caller supplies the known-obstacle checks.
 
-- [so-ui.lua](../so-ui.lua) is the server-only Big Tiles kit. Calls are
+- [so-ui.lua](../so-ui.lua) is the server-only UI kit. Route A ("schematic",
+  [spec](ui/SCHEMATIC-SPEC.md)) is the visual system; its canvas methods are `bar`,
+  `section`, `rule`, `leader`, `ticks`, `progress`, `chip`, `flag`, `box` and `digits`,
+  with helpers `tone(word)`, `mark(line)`, `age(ms, long?)`, `arrow(facing)`,
+  `filled(n, part, whole)`, glyph bytes `g`, chip colours `chips`, `palette` and the
+  no-server ramp `stale`. `roleBar(C, name, tabs, short, active, right?, rfg?)`,
+  `stepper(C, x, y, value, id, vw?)` and `actions(C, y, items, gap?)` draw job headers
+  with tabs, `- value +` steppers and equal action chips.
+  `docs/ui/schematic/kit.py` mirrors them call for call.
+  `status(model, w, h)` is route A at every size. The Big Tiles calls below stay
+  for screens not ported yet. Calls are
   `clock(epochMs)`, `size(w, h)`, `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`,
-  `canvas(w, h, bg?)`, `status(model, w, h)` and `alert(model, w, h)`.
+  `canvas(w, h, bg?)`, `status(model, w, h)`, `alert(model, w, h)`,
+  `chipRow(C, y, label, chips, x?, right?)` and `fleetRows(C, model, top, step)`.
+  `chipRow` draws a label and `{ text, bg }` chips right-aligned to `right`
+  (default `w - 1`). `fleetRows` draws status tiles 1-8 as chip rows, using a
+  tile's `chips` when present, and makes the ALERTS row the `alerts` target.
   `branchProgress(job, row)` returns clamped branch distance and length in constant time.
   Incomplete poses return nil distance; screens show unknown progress as `-`.
   `progress(canvas, x, y, width, done, total, color?)` draws a one-row bar.
-  `pocketHeader(canvas, title)` draws MORE and MAP beside the title.
   `turtle.render(w, h, selection, row, now)` returns a pure detail or pose-editor frame;
   `turtle.pose(pose)` formats coordinates and facing, or `-` for an incomplete pose.
   `turtle.draft(pose)` fills missing editor coordinates and facing with zero.
   Detail BACK uses the bottom-row coordinates without rendering the editor first.
+  `pocketHeader(canvas, title)` draws MORE and MAP beside the title; only the Big Tiles
+  screens that came from server-only (build, health, turtle detail) still use it.
   `clock` returns Amsterdam `{ h, m, s, date, hm, hms }` from UTC milliseconds,
   with EU summer time between the last Sundays of March and October at 01:00 UTC.
   Status, stock samples, panel headers and new terminal log lines use this clock.
   Durations keep their elapsed-time formats.
-  `palette` and `font` expose the spec tables. Grid returns one-based `{ x, w }`
+  `palette` (route A values) and `font` expose the spec tables. Grid returns one-based `{ x, w }`
   columns and a tile-row count. Glyph returns three blit rows with inverted cells.
   Tiles accept an optional final height after the background. Six rows omit the sub-line; seven rows retain it. Titles and values have one cell of inner padding.
   Canvas methods are `put`, `fill`, `center`, `big`, `hit`, `header`, `alert`,
@@ -284,6 +300,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   consent policy save to `so-data/dug-policy`. Reservations, running job areas,
   leases and recovery paths protect whole sections. Unknown recovery blocks
   retirement. Bulk work uses `SO.breathe`.
+  The map's read-only calls are `dugVersion()`, `dugColumns(dim, sx1, sz1, sx2,
+  sz2, max)`, `dugBits(dim, sx, sy, sz, memoryOnly)` and `reserved(dim, max)`.
+  They never load, touch or save a section. A section-column index built at
+  boot answers `dugColumns`; `reserved` caches its list until reservations change.
   See [cells](server-only/PROTOCOL.md#cells).
 - [so-mod-drops.lua](../so-mod-drops.lua), `drops`, owns drop points and inspect
   failure counts. Calls are `pick(kind, nearPos)`, `steps(point)`, `add(point)`,
@@ -298,53 +318,72 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `drops.alert` includes the reason and named point with its coordinates.
   Points use the chest's own coordinates. `front` accesses it from beside it
   at the same height; `down` accesses it from directly above.
-  Handler `drops.edit` edits points. Tick registers the generic screen.
-  The Big Tiles list selects the first broken point by default, or the first
-  point when none are broken. Row taps select FIX and REMOVE targets. ADD NEW
-  opens the draft editor. The list links to mining, lumber, shop, AR, panel and build;
-  links wrap into two rows below 41 columns and three below 26. BACK
-  returns the list to status and the editor to the list. Long lists have paging.
-  The kit editor also offers `FROM #N` to copy the chest cell from a fresh,
-  proven turtle pose. DOWN selects the block below the turtle.
+  Handler `drops.edit` edits points. Tick registers the generic screen, which
+  operators assign as `drops`.
+  The route A list selects the first broken point by default, or the first
+  point when none are broken. Row taps and chest taps on the room monitor's plan
+  select FIX and REMOVE targets. ADD opens the draft editor, starting at the
+  selection until the draft is edited. Page, selection and editor are per display;
+  the draft is shared. The editor's BACK returns to the list. Long lists page in
+  the header.
+  The editor also offers `FROM #N` to copy the chest cell from a fresh, proven
+  turtle pose; DOWN selects the block below the turtle. A `setup` tab holds the
+  per-display chest setup (scan, test and feedback from server-only #222).
   Both renderers accept typed coordinates or `add kind x y z [side] [dim]`.
-  The kit-free editor fits below two navigation rows and above local input;
-  its paging is per display.
+  The kit-free editor fits above local input; its paging is per display.
   Drop-point dimensions are integers; cell and world-frame dimensions use strings.
   See [drops](server-only/PROTOCOL.md#drops).
 - [so-mod-display.lua](../so-mod-display.lua), `display`, assigns roles and sends
   clipped frames. Calls are `screen(role, render, input)`, `screen(role)`, `far(id, on)`, `tick(now)`,
-  `terminal(model, view, w, h)` and `monitorTouch(side, x, y)`.
-  `terminal` returns a pure frame. The view supplies `id`, `mode` as normal,
-  code or log, `uptime`, `log`, `offset`, `code`, `expires` and `now`.
+  `terminal(model, view, w, h)`, `monitorTouch(side, x, y)`, `assign(id, role)`,
+  `command(text)`, `drawTerminal(now?)` and `statusModel()`.
+  `statusModel()` returns the status model of the last gather, or nil. The gather
+  builds route A fields (flags, turtles, jobs, today, disk, displays, drops, events
+  from `SO.terminal.log`, and `thumb` from an optional `map.thumb`) beside the
+  tiles the panel role still uses. Every gather also builds `terminal` (counts,
+  disk and alert lines, no `mapView`) for the server terminal. State alerts keep
+  their `id` and `kind` so the takeover can find its subject.
+  Compact rows let a blank cell join the previous run whatever its fg.
+  A display shows one role. `assign` is the only way to change it: role nil or
+  `-` clears, `drops` saves as `generic`, and unknown ids, unknown roles and
+  unregistered screens return `false, reason`. Success returns
+  `true, "display <id>: <role>"`; the next tick sends the new frame, and button
+  taps from the old frame are ignored until then. `command`
+  parses the terminal line `<id> <role>` or `<id> -`. The server terminal's R
+  prompt, tests and the gateb driver use it. See
+  [display roles](server-only/PROTOCOL.md#display-roles).
+  `terminal` returns a pure route A frame: alerts, FLEET, DISK, the log with a
+  coloured mark per line and `[P] pair [R] roles [L] log`. The view supplies
+  `id`, `mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
+  `expires`, `now` and `pending`; role mode adds `displays`, `input` and `notice`.
   `monitorTouch` queues local input for the next tick. Local and remote taps
   use the same drawn-button validation for dug-storage consent. Tick discovers a local
-  monitor at most every five seconds and draws at scale 0.5 with local navigation,
-  without rednet or saved role changes. Tick also draws `SO.terminal` once a second.
+  monitor at most every five seconds and draws at scale 0.5 without rednet. It
+  shows the role saved under the server's own id, or status.
+  Tick also draws `SO.terminal` once a second.
   `screen(role)` returns the registered `{ render, input }` callbacks or nil.
   `far` saves a per-computer flag and returns success plus an optional save error.
   `palette` exposes the Big Tiles RGB table at numeric indices 0 through 15.
   `render(w, h, session?)` returns `{ rows, buttons, palette? }`; `input(event)` receives the drawn role,
   coordinates, button id or text, and the same server-local `session`. Handlers are `hello`, `view.sub`, `view.get`
-  and `input`. Built-in screens are `generic` and `status`. With the map module, every
-  Big Tiles header has a drawn MAP target. `map` and `map-back` navigate on
-  paired displays and the local monitor.
-  Button id `status` returns any screen to status. Generic screens with their
-  own `lumber` and `ar` buttons keep them. The drops list has its own navigation
-  (MINING, LUMBER, SHOP, AR, PANEL) and suppresses header injection; older generic screens retain
-  the fallback buttons. The draft editor keeps its header clear and returns
-  to the list with BACK. Generic screens at least 39 columns wide gain a PANEL
-  header button when the panel screen is loaded and they do not already provide one.
+  and `input`. The built-in screen is `status`. No tap
+  or typed text changes a role, and no screen draws buttons to another role.
   Input includes sender ID `from`. Sessions retain the client ID as `id` and hello `keyboard == true` as `keyboard`.
   Monitor clients send false; older clients omit it and get touch controls.
-  Kit-free callbacks receive that ID instead of the session. Their generic
-  frames reserve two navigation rows and keep a visible return button.
+  Kit-free callbacks receive that ID instead of the session and the full height.
   Render signatures and revisions are isolated by role, size and session. Status also
   isolates paging and alert takeover state per display session. Panel frames also
-  isolate revisions per session. With the kit, a roleless 26x20 display defaults to status. Its
-  glance row pages two tiles at a time with `prev` and `next`; `panel` selects
-  panel mode. MORE opens generic from glance, status and panel. Explicit saved roles,
-  including generic, take precedence and survive restart. The 15x10 status page
-  has separate NEXT and MORE buttons. Gather runs in
+  isolate revisions per session. With the kit, a roleless 26x20 display gets
+  the `pocket` role. Status and pocket share the alert takeover; after it the
+  pocket draws the registered `pocket` screen (so-mod-panel). Without that
+  screen it draws the 26-wide status layout under a FLEET header. The takeover
+  is a coral frame with the alert's title chip, its subject's position, a crop
+  from an optional `map.crop(C, x, y, w, h, focus)` and a coral countdown row.
+  Any other roleless display draws UNASSIGNED with its id in line digits; a
+  role whose screen is missing draws the same page under the role name. Saved
+  roles survive restart.
+  Status has no paging; big walls cap their rows and redraw tight over 15000
+  frame bytes. Gather runs in
   handlers or ticks and reads state, leases, drops, sessions and server disk use.
   Ore and log totals come from `daily.today()`; a missing module uses stale tiles.
   A missing kit retains
@@ -360,16 +399,22 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   requires two taps after editing and forwards the existing `add` command.
 - [so-mod-map.lua](../so-mod-map.lua), `map`, registers the top-down screen
   from `tick(now)`. No wire handlers. Tick gathers `mine.mapView()`,
-  `lumber.mapView()`, registry workers, lease range/state and drop points.
-  `render(w, h, session)` keeps fit, centre, blocks per cell, level and a bounded
-  dug-cell scan in `session.map`. Rendering uses at most 256 `cells.isDug`
-  calls, limited to known tunnel, surface, farm, chest and turtle levels.
-  Scan caches replace on complete passes and reset on view changes.
-  Mine geometry uses screen-cell intersections, independent of route length.
-  MAP appears at the right of each Big Tiles header when this module is loaded.
-  Map and navigation read the kit header row, including the padded row 2.
-  BACK restores `session.mapReturn`, or status after restart. Local monitor
-  navigation uses its own session. No client or saved-file format changes.
+  `lumber.mapView()`, registry workers, lease state, drop points and
+  `cells.reserved`, only within ten seconds of a render.
+  `render(w, h, session)` keeps `level`, `fit`, `sx`, `sz`, `cx`, `cz`, `pick` and
+  its cell and frame caches in `session.map`. Route A text cells: each covers
+  `sx` by `sz` blocks and takes `-` `|` `+` from block adjacency (dots when only
+  planned, blue when held); the branch axis snaps to the gap. North is up at every
+  size and facing; a fixed `↑N` compass ends row 1, outside the map. Markers,
+  greedy labels, branch numbers, tap callouts and a wall roster strip follow
+  `docs/ui/SCHEMATIC-SPEC.md` section 10. Dug planes per section column and level
+  are shared by all displays and the `thumb` and `crop` exports, read at most 16
+  sections per tick, and rechecked with at most 64 memory-only probes per tick after
+  the dug serial changes. An unchanged view returns its cached frame. A frame over
+  15000 bytes draws one zoom step out. Exports `thumb(C, x, y, w, h)` (status wall)
+  and `crop(C, x, y, w, h, focus)` (alert). The map is its own role with no BACK.
+  `docs/ui/schematic/mapdraw.py` and `mapscreen.py` are its Python twins; the
+  `view` lines in `tests/ui/map-scene.txt` feed both them and `tests/so/map.lua`.
   See [map](server-only/PROTOCOL.md#map).
 - [so-mod-health.lua](../so-mod-health.lua), `health`, registers `health`,
   `attention`, `alerts`, `events` and `errors`. `count()` returns the attention
@@ -381,13 +426,13 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Jobs and paired IDs come from read-only generation recovery. An optional
   `SO.pair.requests()` supplies pairing requests; an open invitation also
   appears. Other job modules may add read-only status APIs later.
-  Display inputs receive `event.open(role, actions?)` for navigation and a
-  list of input IDs to send to that screen with the same display session.
+  Display inputs receive `event.open(role, actions?)`. Under the role lock it opens
+  that screen as a page inside the display's own role (`session.visit`, closed by
+  `visit-back`) and sends the listed input IDs to it with the same display session.
   These callbacks stay on the server and do not enter wire frames.
-- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the panel screen from
-  `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
-  main/alerts/pair pages and alert paging in each display session. MORE in its
-  header opens the generic drop-point list. Tick gathers
+- [so-mod-panel.lua](../so-mod-panel.lua), `panel`, registers the `panel` and
+  `pocket` screens from `tick(now)`. No wire handlers or other exported calls. The screen keeps search,
+  main/alerts/pair pages and alert paging in each display session. Tick gathers
   registered screen callbacks and job header states, plus state `.alert` values.
   The status PAIR button opens the panel pair page directly. Unavailable NEW CODE
   controls are grey and have no action target. Main-page inputs forward START
@@ -395,19 +440,43 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Keyboard-equipped panels call `shop.order(search, count)` once. Shop's count/name sort defines
   the best match; ordering leaves shop display state unchanged. Missing screens
   have grey blocks without action targets.
-  Monitor panels replace quick search and quantities with a SHOP button.
-  GLANCE returns to status; ALERTS lists state alerts; PAIR offers NEW CODE.
+  Monitor panels drop quick search and quantities and show only the job blocks.
+  ALERTS lists state alerts; PAIR offers NEW CODE.
+  The pocket screen (route A, twin of `docs/ui/schematic/pocket.py`) keeps
+  `session.pocket = { page, search, selected, sent, alertPage, invitation,
+  pairBusy }`; `display.assign` clears it. Tabs `tab:fleet`, `tab:jobs`,
+  `tab:shop` and `tab:pair` sit on row 1, with a coral dot in FLEET while any
+  flag exists. FLEET is status's column layout from `display.statusModel()`;
+  each alert row is an `alerts` button that opens ALERTS (every flag with its
+  detail, `alert-prev` and `alert-next`). JOBS reads `mine.facts()` and
+  `lumber.facts()` when present, else the status model, else the state the
+  panel's 120x18 probe reads; it forwards `mining:start|stop` and
+  `lumber:start|stop` once. SHOP lists as many `shop.matches` items as fit;
+  `pick:<item>` selects, `clear` empties the search, and `order:<1|16|64>:<item>`
+  under the shown item calls `shop.order(item, count)` once while that item
+  still matches the search. PAIR draws the code in line digits with a teal
+  countdown and uses the same `pair-code` path as the panel. Its PAIRED chip opens
+  the paired devices page (per-device FORGET), and ENROLL the batch enroll window
+  when `enroll` is on. Inputs act only on
+  the page that drew them.
   Authenticated display input calls `SO.pairCode(from)` and keeps its result in
   that session. Big digits and remaining time clear on use, expiry or burn.
   Code frames use the display's own key; other displays never receive them.
   Larger screens arrange the same controls using the kit grid. No saved panel file.
   See [panel](server-only/PROTOCOL.md#panel).
-  Dug-storage requests appear above every role, including status and generic.
+  Dug-storage requests appear above every role, including status, pocket,
+  generic and unassigned.
   The server accepts consent only for a current, fully visible button at its
   drawn coordinates. Decision notices last 30 seconds.
 - [so-mod-shop.lua](../so-mod-shop.lua), `shop`, adapts the legacy Storage Room
-  turtle to the shop screen. Calls are `tick(now)`, `order(search, count)`,
+  turtle to the shop screen. Exports `tick(now)`, `order(search, count)`,
+  `best(search)` and `matches(search, limit?)`. `matches` is read-only: up to `limit`
+  (default 10) `{ name, count, label }` stocked items whose id or display name contains
+  the search, by stock then id. `best` returns a stocked exact id, else the first match,
+  and its count. `order` sends one order of 1, 16 or 64 for that item and returns its
+  id, or nil and a reason; it changes no display.
   `fuelConfig(auto?, outputId?)`, `fuelEmpty(point)`, `fuelAvailable(point, orderRid?)` and
+  `fuelAlerts()` run the fuel policy.
   `fuelAlerts()`. Fuel auto-order defaults off in `so-data/fuel-policy`.
   Bind the room output as a fuel point in mining SETUP. Empty reports share a
   saved ten-minute cooldown per physical chest across mining/lumber and restarts.
@@ -421,18 +490,16 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   them. Lumber saves pickup slots, retains non-fuel items while searching, and
   returns only those items before refueling. Missing fuel and failed returns
   retain their minute retry and recover through the saved service record.
-  `order` sends one order for the match with the highest stock, breaking ties
-  by name. Counts are 1, 16 or 64. Missing matches or storage send nothing.
   No `so` handlers. Listeners are `roomsorter`, `roomsorter_stock` and `dns`.
-  Tick registers the shop screen, discovers storage and polls stock.
-  Render callbacks use `render(w, h, session)`. The Big Tiles list opens an item with
-  `item:<name>`; its order page uses `order:<count>:<name>` and `items` to return.
-  List controls are `category:<name>`, `letters`, `letter:<A-Z|ALL>`,
-  `sort:count`, `sort:name`, `prev`, `next` and `status` for BACK.
-  Small screens use `categories` to open a category picker. No shop search field
-  is drawn. The kit-free renderer retains its item list and direct order buttons.
-  Browse state and order feedback belong to each display. Orders send once and
-  disable quantities until another item selection. Sent does not imply delivery.
+  Tick registers the shop screen, discovers storage, polls stock and samples it once a
+  minute. Stock replies may add `labels`, `stacks` and `tags` (roomsorter.lua sends them);
+  an item's category and sub come from a rule table on its id, then its tags, then its
+  namespace (`S.kind`). The screen is route A at every size, with tabs ITEMS, LOW and
+  FIND, category and sub chips (a picker under 52 cells), a sortable dotted list with
+  hourly changes, and the item as a right-hand pane (its own page under 52 cells) with
+  order chips 1, 16, 64, stack and all and the item's recent orders.
+  `docs/ui/schematic/shop.py` is the layout's twin. Browse state belongs to each display;
+  each order tap sends one order. Sent does not imply delivery.
   Stock goes stale after 30 seconds; five minutes without stock resumes discovery.
   The legacy room has no server-only pairing or selector setting.
   See the [shop exception](server-only/PROTOCOL.md#shop).
@@ -453,20 +520,22 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 
 - [so-mod-mine.lua](../so-mod-mine.lua), `mine`, runs branch mining and ore recovery.
   `assigned(id)` reports whether its job owns that worker.
-  Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)` and `mapView()`;
+  Calls are `tick(now)`, `dugProtection(protect)`, `forgetDug(sectionPaths)`, `mapView()` and `facts()`;
   no wire handlers. Protection covers the running mine and saved worker routes.
   `forgetDug` clears block lookup entries for a set of retired section paths.
   Tick registers `display.screen("mining", render, input)` and
   `lease.onReport("mine", report)`. Cell owner tags are `mine:<id>`.
-  Mining uses Big Tiles with START, STOP, SETUP and BACK. SETUP has a local
-  BACK button; the page belongs to the display session. Kit-free callers share
-  the default page. Typed commands work on both pages. Daily ore totals and the top
-  two ore names come from `daily.today()`, with a stale tile when missing.
+  Mining is route A: an overview tab with the job diagram and a setup tab with
+  steppers and toggles (`set-*`, `mode-*`, `ore-*`) that send the text commands.
+  The tab belongs to the display session. Kit-free callers share the default page.
+  Typed commands work on both tabs. Daily ore totals come from `daily.today()`,
+  with `-` when missing. `facts()` returns the job state for other screens.
   Missing kits retain the legacy renderer.
   Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/mine/job`.
-  `mapView()` returns copied geometry fields, worker poses/states, a cached
-  two-endpoint next-branch `preview` and `trails` for AR. Trails contain two
+  `mapView()` returns copied geometry fields, `running`, `done`, worker
+  poses, states, branches, lane flags and ore counts, a cached two-endpoint
+  next-branch `preview` and `trails` for the map, status and AR.
   endpoints and state per worker, plus at most 64 recently completed branches.
   Completion trails clear when START resumes a stopped job or the server restarts.
   These are display additions and do not change worker routes.
@@ -527,26 +596,26 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   `assigned(id)` reports whether its job owns that worker.
   `turtleView()` returns a copied detail row per worker, including its pose, fuel,
   inventory, state and step, plus shared farm progress.
-  Calls are `tick(now)` and `dugProtection(protect)`; no wire handlers.
+  Calls are `tick(now)`, `dugProtection(protect)`, `mapView()` and `facts()`; no wire handlers.
   Protection covers the running farm at every height, saved service routes and
   worker recovery. Mining and lumber pass world-frame journal cells to cells.
   Tick registers `display.screen("lumber", render, input)` and
   `lease.onReport("lumber", report)`. Cell owner tags are `lumber:<id>`.
-  Screen callbacks are `render(w, h)` and `input(event)`; reports use
+  Screen callbacks are `render(w, h, session)` and `input(event)`; reports use
   `report(leaseId, turtleId, results, lease)`. Jobs save to `so-data/lumber/job`.
-  `mapView()` returns copied dimension, area, ground, sapling chest and a
-  `turtles` map of `{ id, pose, state }` rows for the map. Saved jobs use
-  `turtles[id]` for each worker's journal frame, pose, phase, inventory and trip.
+  `mapView()` returns copied dimension, area, ground, sapling chest, up to 512
+  sorted tree spots `{ x, z, ready }`, `running`, `grow` (ms to the next ready
+  spot) and a `turtles` map of `{ id, pose, state, phase }` rows for the map and status.
   Old single-worker jobs migrate when loaded. Shared scan claims reserve target
   cells until felling and replanting finish. FIFO tickets serialize chest access.
   Workers retain the access column until their return leaves it. Lost workers
   keep their uncertain cells while the others continue.
   The Big Tiles screen gathers job state into a pure layout. START and STOP use
   the text command path. Every turtle appears with its phase and fuel. Three
-  fit 26x20 and 29x12; NEXT pages longer lists. Drawn worker rows open detail
-  pages. `park <id>` saves a per-worker pause; `start` resumes paused workers.
-  SETUP pages configuration; its BACK returns
-  to lumber. Main BACK uses `status`. Missing grow timers use a stale tile.
+  The route A screen draws the farm plan, its facts and every turtle with its
+  phase and fuel; START and STOP use the text command path. `park <id>` saves a
+  per-worker pause; `start` resumes paused workers. The setup tab lists the
+  configuration; tabs belong to the display session. Missing grow timers show `-`.
   Logs are Amsterdam daily delivered totals from `daily.today()`, with a stale
   tile when missing. Calls without a size retain
   the legacy rows for older callers.
@@ -568,8 +637,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
 - [so-mod-ar.lua](../so-mod-ar.lua), `ar`, draws server data on attached cc_ar
   controllers. Only `tick(now)` is exported beyond module metadata. No wire handlers.
   Tick registers `display.screen("ar", render, input)` with `turtles`, `leases`,
-  `drops` and `alerts` toggles. The screen shows controller count, on/off tiles
-  and BACK to status. Small screens use compact tiles. Switches save through
+  `drops` and `alerts` toggles. The screen shows controller count and on/off
+  tiles in two columns, with no BACK. Small screens use compact rows. Switches save through
   `so-store` to `so-data/ar`.
   Discovery runs at most every five seconds; changed scenes redraw at most once
   per second. Failed controllers are dropped until discovery. Known server
@@ -632,8 +701,10 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   Compact text omits trailing spaces, which the client pads to the run width.
   Frames may carry a 0-based RGB palette and monitor scale 0.5 or 1. Missing
   palettes restore stock colours. A changed scale sends one resized hello.
-  Buttons accept optional height `h`, default 1. The client draws the outage
-  tile and timers without a server, preserving inverted digit cells.
+  Buttons accept optional height `h`, default 1. Without a server the client
+  keeps the last picture, swaps to the grey `stale` palette without redrawing it
+  and draws one coral row, `NO SERVER m:ss ... retry in N s`, redrawn alone
+  once a second on palette outputs and on every retry.
   Pairing prompts and digits appear on the display and
   its computer terminal. Failed pairing accepts a new code. A `pair.required`
   hint shows the same prompt without deleting the old key. Authenticated frames
@@ -643,7 +714,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   It opens every modem and rescans on attach and detach events. Screens
   at least three rows tall reserve the bottom row for typed input and report
   the remaining height in `hello`. The optional `fullH` advertises physical height
-  so Big Tiles can use every row, including pocket glance navigation. Kit frames
+  so Big Tiles can use every row, including the pocket's last row. Kit frames
   use that full height; kit-free frames retain the input row. Wall displays
   also echo input on the terminal.
 
@@ -746,7 +817,9 @@ One coroutine waits on an unfiltered `os.pullEvent()`:
    order. `listen.so` cannot bypass authenticated dispatch.
 4. The P key opens or renews pairing. Esc clears the invite. Used or expired
    invites return to the normal terminal. L opens the full log, L or Esc returns,
-   and Up or Down scrolls it. Server prints enter an in-memory log bounded to
+   and Up or Down scrolls it. R opens role mode: chars and paste type into a
+   `<id> <role>` line, Enter applies it, Backspace edits and Esc leaves. Every
+   key goes to the prompt while it is open. Server prints enter an in-memory log bounded to
    200 lines of at most 4096 bytes each. Long lines split without dropping text.
    Monitor touches queue local input. The one-second timer expires reply-cache
    entries, refreshes pairing state and calls every `tick(now)` in filename order.
@@ -815,8 +888,13 @@ Do not save inside tight loops.
 - `so-drops` holds drop points, failure counts and the default-off room-sink flag.
 - `so-data/fuel-policy` holds the default-off fuel auto flag, bound output,
   up to 64 saved cooldowns, waiting delivery and its failure alert.
-- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true } }`.
-  Roles include `panel` and `map`. Old files without `far` remain valid.
+- `so-display` holds `{ roles = { [stringId] = role }, far = { [stringId] = true },
+  locked = { [stringId] = true } }`. `locked` marks roles the command set; a
+  pocket ignores an unlocked saved role from before R1.
+  Roles are `status`, `pocket`, `mining`, `lumber`, `shop`, `generic`, `ar`,
+  `panel` and `map`. Only `display.assign` writes them. The server's own id
+  holds its local monitor role. `pocket` is new in R1; older servers reject a
+  file containing it. Old files without `far` remain valid.
   Far displays use scale 1; others use 0.5.
 - `so-data/daily` holds `{ date, cursor, ore, oreByName, logs, recent }`.
   Recent ore uses game-second buckets `{ total, counts = { [gameMs] = count } }`.
@@ -890,31 +968,96 @@ a fake terminal with CC drawing methods and `picture()` for text/background
 layers. Diff returns up to eight cell differences with row, column, layer,
 expected and actual values. Sextants use the spec ink/background rules to undo
 inverted cells. `sextant(bits)` converts a six-bit pixel value to Unicode.
-`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes all fifteen fixture
-files without changing the normal mockups.md and font.txt output mode.
+`python3 -I docs/ui/mockup-gen.py --fixtures DIR` writes every Big Tiles fixture
+that is not ported to route A, without changing the normal mockups.md and font.txt
+output mode.
 
-UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status fixtures,
-alert takeover timing and dismissal, contrast, clipping, XS paging, role buttons,
-size-specific revisions, source gathering and server-only kit installation.
-`status-T.txt` uses four 12-column tiles and a log, with status navigation on the
-bottom three rows. UI-1 pocket parity covers rows 1 through 19; UI-3b covers all 20 rows.
+UI-1 adds `tests/ui/ui1.lua`. It checks glyph pixel round-trips, status drawing
+from a tiles-only model, alert takeover timing and dismissal, takeover contrast,
+clipping, locked roles, size-specific revisions, source gathering and server-only
+kit installation. UI-3b covers the pocket's 20 rows.
+
+R3 adds `tests/ui/r3pocket.lua`. It checks tab routing after a takeover,
+missing modules, the fleet chips from a real gather, exact-item orders and the
+JOBS page over the real mining and lumber modules. The route A pages moved to S4.
 
 
-UI-2d adds `tests/ui/ui2d.lua`. It checks unchanged drops-M and ar-M fixtures,
+UI-2d adds `tests/ui/ui2d.lua`. It checks the ar-M fixture, the route A drop list,
 selected drop actions, draft editing, all 64 points through paging, AR switch
 persistence, navigation, contrast and bounds at P, L, M, XS and odd sizes.
 Screen gather and pure layout helpers are private; public module APIs, saved
 files and client role lists are unchanged.
 
-UI-3b adds `tests/ui/ui3b.lua`. It checks unchanged status-P and panel-P fixtures
-on all 20 rows, per-pocket paging and search, action forwarding, real shop orders,
-monitor layout, session revisions, role persistence, alert paging, pairing help,
-missing modules, contrast, bounds and server-only installation.
+UI-3b adds `tests/ui/ui3b.lua`. It checks the panel-P fixture
+on all 20 rows, pocket defaults and tabs, per-pocket pages and search,
+action forwarding, real shop orders, monitor layout, session revisions, role
+persistence, alert paging, pairing help, missing modules, contrast, bounds and
+server-only installation.
+
+R1 adds `tests/so/role-lock.lua`. On a real server with every module it taps
+every drawn button on every page of every role at 57x24, 39x19, 26x20 and
+15x10 and checks the saved and drawn role never change. It also checks the
+command's assign, change, clear and rejections, a restart, the terminal R
+prompt through key events, the role list, and the roles-T, unassigned-M and
+unassigned-XS fixtures. Tests that need a role use `display.command`.
+
+S0 adds `tests/ui/s0.lua` and route A. `docs/ui/schematic/screens.py --fixtures`
+writes the route A fixtures (`kit-M`, `status-M/W/XL/T/L/P/XS`, and since S2 the map's);
+the test checks that output equals the committed files (Linux, python3) and renders
+a PNG when a CC font is found. Fixtures gain an fg layer: `WxH title`, H text, H fg
+and H bg rows; `tests/ui/render.lua` still loads two-layer fixtures and compares fg
+only on non-blank cells, and its pictures map control bytes and Latin-1 to Unicode.
+Status data comes from `tests/ui/status-scene.txt` and `tests/ui/map-scene.txt`
+through the real gather. The test also checks every kit primitive, the coloured-glyph
+contrast rule, missing modules, odd sizes, the tight wall fallback, blank-run
+compaction on the 164x81 map fixture under 16 KB, and control glyphs through
+`so-proto`, compact rows and the display client.
+
+S4 adds `tests/ui/s4.lua` and `tests/ui/scene.lua`, a running server fed from
+the status, map and `system-scene.txt` scenes. `docs/ui/schematic/pocket.py` and
+`system.py` write the pocket (`pocket-fleet/alerts/jobs/shop/pair/code-P`),
+takeover (`alert-M/W/T/P/XS`, `alert-nomap-M`), unassigned (`unassigned-M/XS`,
+`unloaded-M`), no-server (`outage-M/P`) and terminal (`server-T`, `pairing-T`,
+`log-T`, `roles-T`) fixtures. The test matches each through the real server
+path (and display.lua for no-server) in text, fg and bg, with contrast and
+bounds. It also checks the JOBS fallbacks, one action per tap, alert paging,
+takeover timing, the crop call and its failure, the grey palette and row-only
+repaint, the R prompt and frame sizes.
+
+S3 adds `tests/ui/s3.lua` and `tests/ui/jobs-scene.txt`. `docs/ui/schematic/jobs.py`
+writes the mining, lumber and drops fixtures (`mining-*`, `miningsetup-*`, `miningores-*`,
+`lumber-*`, `lumbersetup-*`, `drops-*`, `dropsadd-*`). The test builds each job from the
+scene files, draws it with the real module and compares every fixture cell by cell. It
+also checks that each setup control equals its typed command with one save, that FIX,
+REMOVE and ADD act on the selected point once per tap, `facts()`, the pocket probe,
+crowded jobs, missing modules, odd sizes, contrast, frames under 16 KB at 164x81 and
+generator parity.
+
+R5 rewrote `tests/so/map.lua`; S2 moved it to route A. It renders every
+`view` line in `tests/ui/map-scene.txt` (`map-*` and `schematic-map-XL`) through the
+real cells module and compares text, fg and bg, then checks the compass and that north
+stays up for all four mine facings, line glyphs, dots and held colours, pan, zoom, FIT,
+picks and callouts, the level control, per-tick read and probe bounds, an idle map with
+no reads, frames under 16 KB at 164x81, `thumb` against the status-W fixture, `crop`,
+and that the cells map queries write nothing. On Linux it also checks that the
+generator reproduces every map fixture.
+
+S1 rewrites `tests/ui/ui2c.lua` for the route A shop. It loads `tests/ui/shop-stock.tsv`
+(110 real item ids with history, stack and expected category) into the real module, taps
+to every page and compares the `shop-browse`, `-item`, `-low`, `-find` and `-pick` fixtures
+at 57x24, 39x19, 100x38, 29x12 and 26x20 cell by cell, with the contrast rule. The old
+Big Tiles names (`shop-M`, `shoporder-M`, `shop-compact`, `shop-pocket`, `shop-large`)
+hold route A pages too. It also
+checks the category table on real ids and tags, filters and picker counts, every sort and
+paging through every item once, keypad and keyboard search, one order per tap for each
+amount, order replies and timeouts, `matches`, `best` and `order`, bounds at odd sizes,
+stale and missing stock, the optional roomsorter fields, and (Linux, python3) that the
+generator reproduces every shop fixture. `tests/parts/so-mod-shop.lua` runs it with
+`tests/ui/shop-touch.lua`.
 
 UI-5a adds `tests/ui/ui5a.lua`. It checks Amsterdam DST and midnight, screen
 clocks, daily totals, exact ten-minute expiry, saved-cursor restart, bounded
-history work, stale fallbacks and server-only installation. `lumber-M.txt` now
-shows a stale daily tile because its fixture setup has no daily module.
+history work, stale fallbacks and server-only installation.
 `panel-P.txt` shows 22:14 for its existing 21:14 UTC test epoch.
 
 

@@ -287,18 +287,19 @@ return function(test,equal)
       for _,id in ipairs({"test","scan:2","facing:1","mining:start","turtle-park"}) do send(id) end
       equal(#F.sent(a.s,"lease.batch"),packetCount)
       equal(frame().role,f.role)
-      if f.role=="status" then pressVisible("panel") pressVisible("generic") end
+      -- Roles change only by assignment.
+      assert(display.assign(3,"generic"))
       equal(frame().role,"generic")
       for _,id in ipairs({"test","scan:2","facing:1","mining:start","turtle-park"}) do send(id) end
       equal(#F.sent(a.s,"lease.batch"),packetCount)
       assert(not a.s.env.SO.mods.state.get("mine.alert"))
-      pressVisible("panel")
+      assert(display.assign(3,"panel")) frame()
       local before=a.s.env.SO.mods.state.get("mine.alert")
       send("start") send("scan:2") send("test")
       equal(a.s.env.SO.mods.state.get("mine.alert"),before)
       pressVisible("mining:start")
       assert(a.s.env.SO.mods.state.get("mine.alert"))
-      pressVisible("generic") pressVisible("testing")
+      assert(display.assign(3,"generic")) pressVisible("testing")
       pressVisible("scan:2") pressVisible("facing:1")
       a.n.advance(4) F.check(a)
       assert(#F.sent(a.s,"lease.batch")>packetCount)

@@ -81,27 +81,45 @@ return function(test,equal)
     equal(P.chestCheck(points,"ore",near).ok,true)
   end)
   for _,kind in ipairs({"mine","lumber"}) do for _,size in ipairs({{26,20},{29,12}}) do
+    -- Route A: the refused start shows as the alert; the setup tab lists every missing check
+    -- first in READY, behind setup-next when it does not fit under the controls, and the
+    -- overview tab leads back.
     test(kind.." setup shows compact missing rows at "..size[1].."x"..size[2],function()
       local s=fixture(kind) s.input("start")
       local main=s.render(unpack(size))
       local mainRows={}
       for _,row in ipairs(main.rows) do mainRows[#mainRows+1]=row.text end
-      assert(table.concat(mainRows,"\n"):find(kind=="mine" and "home not set" or "area not set",1,true),"missing start reason hidden by compact tiles")
+      assert(table.concat(mainRows,"\n"):find(kind=="mine" and "home not set" or "area not set",1,true),"missing start reason hidden on the compact screen")
       local button
-      for _,b in ipairs(main.buttons) do if b.id=="setup" then button=b end end
-      assert(button)
+      for _,b in ipairs(main.buttons) do if b.id=="tab:setup" then button=b end end
+      assert(button,"no drawn setup tab")
+      assert(main.rows[button.y].text:find("setup",button.x,true),"setup tab not drawn")
       s.tap(button)
       local frame=s.render(unpack(size))
       local all={}
-      for _,row in ipairs(frame.rows) do all[#all+1]=row.text end
+      for _=1,4 do
+        for _,row in ipairs(frame.rows) do all[#all+1]=row.text end
+        local more
+        for _,b in ipairs(frame.buttons) do if b.id=="setup-next" then more=b end end
+        if not more then break end
+        s.tap(more)
+        frame=s.render(unpack(size))
+      end
       local text=table.concat(all,"\n")
       for _,missing in ipairs(kind=="mine" and {"home not set","no ore chest set","no fuel chest set","paired turtle missing","fuel missing"}
           or {"area not set","ground not set","no wood chest set","no fuel chest set","no saplings chest set","paired turtle missing","fuel missing"}) do
         assert(text:find(missing,1,true),missing)
       end
       assert(not text:find("home 0,0,0",1,true))
-      for _,b in ipairs(frame.buttons) do if b.id=="mine-back" or b.id=="lumber-back" then s.tap(b) return end end
-      error("missing setup BACK")
+      assert(text:find("READY",1,true),"no READY list")
+      for _,b in ipairs(frame.buttons) do
+        if b.id=="tab:overview" or b.id=="tab:main" then
+          s.tap(b)
+          assert(not s.render(unpack(size)).rows[3].text:find("READY",1,true),"overview tab did not return")
+          return
+        end
+      end
+      error("missing overview tab")
     end)
   end end
   for _,kind in ipairs({"mine","lumber"}) do for _,size in ipairs({{26,20},{29,12}}) do
@@ -123,7 +141,9 @@ return function(test,equal)
     for _,size in ipairs({{26,20},{29,12}}) do
       local rows={}
       for _,row in ipairs(s.render(unpack(size)).rows) do rows[#rows+1]=row.text end
-      assert(table.concat(rows,"\n"):find("saplings broken 18,63,0",1,true))
+      -- The alert wraps at a space rather than cut the coordinates.
+      local text=table.concat(rows,"\n")
+      assert(text:find("saplings broken",1,true) and text:find("18,63,0",1,true),text)
     end
   end)
 

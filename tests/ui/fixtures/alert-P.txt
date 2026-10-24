@@ -1,0 +1,61 @@
+26x20 Alert takeover, pocket 26x20
++------------------------+
+|                        |
+|  #6 ORE CHEST FULL     |
+| 184,-58,-369           |
+|                        |
+|                        |
+| 8····················  |
+|                        |
+|                        |
+|                        |
+| 7-------------------►  |
+|                        |
+|                        |
+|                        |
+| 6--------------------  |
+|                        |
+|                        |
+| |||||||||||||········· |
+|                        |
++------------------------+
+eeeeeeeeeeeeeeeeeeeeeeeeee
+e000000000000000000000000e
+e0fffffffffffffffffff0000e
+e000000000000000000000000e
+e000000000000000000000000e
+e000000000000000000000000e
+e088888888888888888888800e
+e000000000000000000000000e
+e000000000000000000000000e
+e000000000000000000000000e
+e083333333333333333333f00e
+e000000000000000000000000e
+e000000000000000000000000e
+e000000000000000000000000e
+e083333333333333333333300e
+e000000000000000000000000e
+e000000000000000000000000e
+e0eeeeeeeeeeeee8888888880e
+e000000000000000000000000e
+eeeeeeeeeeeeeeeeeeeeeeeeee
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffeeeeeeeeeeeeeeeeeeefffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffefff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

@@ -1,25 +1,37 @@
-29x12 Shop, compact touch monitor
-                             
- SHOP            stock 21:14 
-  ALL    ORES   WOOD    FOOD 
-BLOCKS  TOOLS   OTHER        
-   A-Z      STOCK     NAME   
-                             
-  IRON INGOT                 
-        🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏         
-         ▌  🬖🬀🬳🬷🬏▌ ▌         
-        🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀         
- Order: sent 16              
-   <     1/18     >     BACK 
+29x12 Shop category browse, compact monitor 29x12
+ SHOP   items   low   find   
+  ores ▼   all ▼             
+ item                stock ▼ 
+ COAL ················· 2104 
+ IRON INGOT ··········· 1240 
+ RAW COPPER ············ 410 
+ LAPIS LAZULI ·········· 388 
+ IRON ORE ·············· 312 
+ COPPER INGOT ·········· 286 
+ GOLD NUGGET ··········· 210 
+ COPPER ORE ············ 140 
+ 1 of 4            ◄     ►   
+00000000000000088888088888800
+00000000000000000000000000000
+08888000000000000000000000000
+000000ccccccccccccccccc000000
+000000000000ccccccccccc000000
+000000000000cccccccccccc00000
+00000000000000cccccccccc00000
+0000000000cccccccccccccc00000
+00000000000000cccccccccc00000
+0000000000000ccccccccccc00000
+000000000000cccccccccccc00000
+08888880000000000888880000000
+fffffff7777777fffffffffffffff
+f77777777f7777777ffffffffffff
+ffffffffffffffffffff777777777
 fffffffffffffffffffffffffffff
-faaaaaaaaaaaaaaaaaaaaaaaaaaaf
-aaaaaaaf777777f7777777f777777
-7777777f777777f7777777fffffff
-777777777faaaaaaaaaf777777777
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffff
-7777777f777777f7777777f777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffff77777f77777f

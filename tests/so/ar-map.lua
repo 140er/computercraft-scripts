@@ -8,7 +8,7 @@ local function setup(config)
   local mods={state={get=function() return {} end,view=function() return {} end},
     drops={list=function() return s.points end},mine={mapView=function() return s.mine end},
     display={screen=function(role,render,input) s.screens[role]={render=render,input=input} end}}
-  m.env.SO={store=m.env.dofile("so-store.lua"),proto={ser=H.encode},mods=mods}
+  m.env.SO={store=m.env.dofile("so-store.lua"),proto={ser=H.encode},mods=mods,now=function() return m.env.os.epoch("utc") end}
   local ar={update=function() end,delete=function(id) s.elements[id]=nil end}
   for _,method in ipairs({"drawLine3D","drawText3D","drawText2D","drawRect2D"}) do
     ar[method]=function(id,...) s.elements[id]={method=method,args={...}} end
@@ -71,9 +71,13 @@ return function(test,equal)
         return id and id<8 and {{dim=farm.dim,x=id*3,y=64,z=0}} or {}
       end}
       s.map.tick(1000) s.ar.tick(1000)
+      -- Route A: a picked turtle gets a callout whose DETAILS chip is turtle:<id>; one in another
+      -- dimension has no marker to pick.
       for _,size in ipairs({{26,20},{29,12}}) do
-        local frame=s.screens.map.render(size[1],size[2],{})
-        for id=2,farm.count+1 do button(frame,"turtle:"..id) end
+        for id=2,farm.count+1 do
+          button(s.screens.map.render(size[1],size[2],{map={fit=true,level="all",pick={k="turtle",id=tostring(id)}}}),"turtle:"..id)
+        end
+        local frame=s.screens.map.render(size[1],size[2],{map={fit=true,level="all",pick={k="turtle",id="8"}}})
         for _,target in ipairs(frame.buttons) do assert(target.id~="turtle:8","other dimension hidden") end
       end
       for id=2,farm.count+1 do
@@ -218,38 +222,46 @@ return function(test,equal)
   for _,size in ipairs({{26,20},{29,12}}) do
     test("map focuses broken chests and draws next branch at "..size[1].."x"..size[2],function()
       local s=setup()
+      local U=s.m.env.dofile("so-ui.lua")
       s.points={{id="far",kind="ore",dim=0,x=100,y=64,z=0,broken=true}}
       s.mine={dim="minecraft:overworld",preview={{x=95,y=60,z=2},{x=105,y=60,z=2}}}
       s.map.tick(0)
       local screen,session=s.screens.map,{}
       local frame=screen.render(size[1],size[2],session)
-      local b=button(frame,"map-focus")
-      screen.input({id=b.id,x=b.x,y=b.y,session=session})
-      equal(session.map.x,100) equal(session.map.z,0) equal(session.map.scale,1) equal(session.map.fit,false)
-      frame=screen.render(size[1],size[2],session)
-      b=button(frame,"map-drop:far")
+      -- The coral broken count chip centres one block per cell on the chest and picks it; the role
+      -- lock keeps the map from opening another role.
       local opened
+      local function open(role,actions) opened={role,actions} end
       local count=button(frame,"map-broken")
-      screen.input({id=count.id,x=count.x,y=count.y,session=session,open=function(role,actions) opened={role,actions} end})
-      equal(opened,{"generic",{"list","focus:far"}})
-      opened=nil
-      screen.input({id=b.id,x=b.x,y=b.y,session=session,open=function(role,actions) opened={role,actions} end})
-      equal(opened,{"generic",{"list","focus:far"}})
+      screen.input({id=count.id,x=count.x,y=count.y,session=session,open=open})
+      local v=session.map
+      equal(v.cx,100) equal(v.cz,0) equal(v.sx,1) equal(v.sz,1) equal(v.fit,false) equal(v.pick,{k="drop",id="far"})
+      v.pick,v.cx,v.fit=nil,0,true
+      screen.input({id="map-focus",session=session,open=open})
+      equal(v.cx,100) equal(v.pick,{k="drop",id="far"})
+      v.pick,v.cx,v.fit=nil,0,true
+      screen.input({id="map-drop:far",session=session,open=open})
+      equal(v.cx,100) equal(v.pick,{k="drop",id="far"})
+      equal(opened,nil)
       s.mine.turtles={[7]={pose={dim="minecraft:overworld",x=100,y=64,z=0},state="mining"}}
       s.points[#s.points+1]={id="healthy",kind="fuel",dim=0,x=101,y=64,z=0}
       s.points[#s.points+1]={id="other",kind="wood",dim=0,x=100,y=64,z=0,broken=true}
-      s.map.tick(1000)
-      session.map.scale=2
+      s.map.tick(s.m.env.SO.now())
+      v.pick,v.sx,v.sz,v.cx,v.cz,v.fit=nil,2,2,100,0,false
       frame=screen.render(size[1],size[2],session)
-      b=button(frame,"map-drop:far")
-      equal(frame.rows[b.y].text:sub(b.x,b.x),"O")
+      -- The cell holding the turtle, a healthy chest and two broken ones shows the beacon.
+      local x=v.L.mx+math.floor((100-v.left)/v.sx)
+      local y=v.L.my+math.floor((0-v.top)/v.sz)
+      equal(frame.rows[y].text:sub(x,x),U.g.cross)
       for _,target in ipairs(frame.buttons) do
-        assert(target.id~="map-drop:other","one target per visible cell")
-        assert(target.id~="turtle:7","covered turtle must not keep a tap target")
+        assert(not target.id:match("^map%-drop:") and target.id~="turtle:7","the map is one tap area")
       end
       local found=false
-      for _,row in ipairs(frame.rows) do for _,run in ipairs(row.runs) do if run[3]=="1" then found=true end end end
+      for i,row in ipairs(frame.rows) do if i>1 then for _,run in ipairs(row.runs) do if run[2]=="1" then found=true end end end end
       assert(found,"preview must be visible in amber")
+      -- A tap on that cell picks the beacon, not the turtle under it.
+      screen.input({id="map-pick",x=x,y=y,session=session})
+      equal(v.pick,{k="drop",id="far"})
     end)
   end
   for _,size in ipairs({{26,20},{29,12},{39,19},{51,19},{57,24}}) do
@@ -272,20 +284,17 @@ return function(test,equal)
         display.handlers["view.get"]({from=22,body={}},function(_,got) value=got end)
         return value
       end
-      if frame().role~="status" then
-        local b=button(frame(),"status")
-        display.handlers.input({from=22,body={id=b.id,x=b.x,y=b.y}})
-      end
+      -- Roles change only by assignment; the broken row opens the drop list as a page of status.
+      assert(display.assign(22,"status"))
       local current=frame()
       local b=button(current,"broken")
-      if size[1]==26 then
-        local more=button(current,"generic")
-        local map=button(current,"map")
-        assert(b.y~=more.y and b.y~=map.y,"broken action must leave pocket header controls clear")
-      end
+      assert(b.y>1,"broken action must leave the header row clear")
       display.handlers.input({from=22,body={id=b.id,x=b.x,y=b.y}})
-      equal(frame().role,"generic")
+      equal(frame().role,"status")
       button(frame(),"select:broken")
+      local back=button(frame(),"visit-back")
+      display.handlers.input({from=22,body={id=back.id,x=back.x,y=back.y}})
+      button(frame(),"broken")
     end)
   end
   test("drop focus opens the page containing a distant selected chest",function()

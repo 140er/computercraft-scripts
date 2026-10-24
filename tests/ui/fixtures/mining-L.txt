@@ -1,0 +1,58 @@
+39x19 Mining, wall monitor 4x3 at scale 1
+ MINING   overview   setup  -- running 
+                                       
+10  +························          
+ 9  +-------►-·3 wait········          
+ 8  +--------------►-·2······          
+   4▼                                  
+    º shaft                            
+                                       
+ TURTLES ----------------------------  
+ ► 2  b8 40/64                         
+ ► 3  wait lane                        
+ ▼ 4  unload                           
+ ► 6  lost                             
+                                       
+ busy ········ 2/4   done ······· 7/10 
+ lane ········· #4   ore ········· 214 
+ depth ······· -58   fuel ········ 412 
+                                       
+       START               STOP        
+0000000000000000000088888880cc0ddddddd0
+000000000000000000000000000000000000000
+8800b8888888888888888888888880000000000
+0800b33333331b8111111888888880000000000
+0800b33333333333333db8d8888880000000000
+000dd0000000000000000000000000000000000
+000090888880000000000000000000000000000
+000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccc00
+0d0000000000000000000000000000000000000
+010000111111111000000000000000000000000
+0d0000000000000000000000000000000000000
+0e0000eeee00000000000000000000000000000
+000000000000000000000000000000000000000
+088880cccccccc000000088880ccccccc000000
+088880ccccccccc0bb0008880ccccccccc00000
+0888880ccccccc000000088880cccccccc01110
+000000000000000000000000000000000000000
+08888888888888888880eeeeeeeeeeeeeeeeee0
+fffffffff7777777777ffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f777777777777777777f777777777777777777f

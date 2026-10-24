@@ -789,25 +789,478 @@ local function view(session)
   session.mining = session.mining or { page = "main" }
   return session.mining
 end
+-- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of V.gather
+-- and the layouts and writes their fixtures.
+local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond" },
+  tabs = { "overview", "setup" }, short = { "main", "setup" }, dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } }
+V.oreOn = function(m, name)
+  if #m.ores == 0 then return true end
+  for _, ore in ipairs(m.ores) do if ore == name then return true end end
+  return false
+end
+-- A tapped control as the text command that makes the same change, or nil.
+V.command = function(id)
+  if id == "set-bottom-" or id == "set-bottom+" then return "bottom " .. (job.bottom + (id == "set-bottom+" and 1 or -1)) end
+  if id == "set-length-" or id == "set-length+" then
+    return "length " .. math.max(1, math.min(4096, job.length + (id == "set-length+" and 8 or -8)))
+  end
+  local mode = id:match("^mode%-(%a+)$")
+  if mode then return "mode " .. mode end
+  local ore = id:match("^ore%-(%a+)$")
+  if not ore or not M.ores[ore] then return end
+  local on = {}
+  for _, name in ipairs(V.ores) do
+    if V.oreOn({ ores = job.ores }, name) ~= (name == ore) then on[#on + 1] = name end
+  end
+  if #on > 0 then return "ores " .. table.concat(on, ",") end
+end
+-- Job facts, one row per turtle placed on the job diagram, and the dug extent of every branch.
+V.gather = function()
+  local h = job.home
+  local d, r = V.dirs[h.facing], V.dirs[(h.facing + 1) % 4]
+  local tx, tz = h.x + d[1], h.z + d[2]
+  local gap, length, bottom = job.mode == "fast" and 2 or 4, job.length, job.bottom
+  local total, ids = job.progress.nextBranch or 0, {}
+  for id, row in pairs(job.turtles) do
+    ids[#ids + 1] = tonumber(id)
+    total = math.max(total, (row.branch or -1) + 1)
+  end
+  table.sort(ids)
+  local started = total
+  if job.continuous then total = math.max(total, job.branches or 8) end
+  local today = call("daily", "today")
+  local m = { state = job.running and "running" or "stopped", alert = S.error, length = length, gap = gap,
+    bottom = bottom, done = job.progress.done or 0, total = total, extents = {}, turtles = {}, busy = 0,
+    workers = 0, ore = today and today.ore, home = h, homeSet = job.homeSet ~= false, mode = job.mode, ores = job.ores,
+    dim = job.dim, branches = job.branches or 8, continuous = job.continuous == true }
+  for b = 1, total do m.extents[b] = b <= started and length or 0 end
+  for _, n in ipairs(ids) do
+    local row = job.turtles[tostring(n)]
+    local p = row.pose or row.anchor or h
+    -- A partial pose (a report without all three coordinates) has no place on the diagram.
+    local whole = type(p.x) == "number" and type(p.y) == "number" and type(p.z) == "number"
+    local status = call("lease", "status", n) or {}
+    local word = status.lost and "lost" or row.laneWait and "wait lane" or tostring(row.state)
+    local t = { id = n, facing = ((p.facing or h.facing) - h.facing) % 4, world = p.facing, state = word, tone = U.tone(word),
+      where = row.lane and "lane" or row.branch and "b" .. (row.branch + 1) or "-", at = whole and p.x .. "," .. p.y .. "," .. p.z or "-",
+      fuel = type(row.fuel) == "number" and row.fuel or nil, ore = row.ores or 0, lost = status.lost and true or false,
+      spine = false, along = 0 }
+    -- Live branch progress: b1 12/48, or b1 -/48 while the pose cannot place it.
+    if row.branch and not row.lane then
+      local done = U.branchProgress and U.branchProgress(job, row)
+      t.prog = t.where .. " " .. (done or "-") .. "/" .. length
+    end
+    local k = whole and (p.x - tx) * d[1] + (p.z - tz) * d[2] or 0
+    local along = whole and (p.x - tx) * r[1] + (p.z - tz) * r[2] or 0
+    local near = math.floor((2 * k + gap) / (2 * gap))
+    if not whole then
+    elseif row.lane then
+      t.spine, t.row = true, p.y == bottom and math.max(0, math.min(total, near)) or 0
+    elseif math.abs(p.y - bottom) <= 1 and k > 0 and along > 0 and near >= 1 and near <= total then
+      t.row, t.along = near, math.min(along, length)
+    end
+    local b = row.branch
+    if b and b >= 0 and b < total and row.state ~= "done" then
+      if t.row == b + 1 and not t.spine then m.extents[b + 1] = t.along
+      elseif row.route and row.index then m.extents[b + 1] = math.max(0, math.min(length, row.index - 3 - (b + 1) * gap))
+      else m.extents[b + 1] = 0 end
+    end
+    m.turtles[#m.turtles + 1] = t
+    m.workers = m.workers + 1
+    if t.tone == "d" then m.busy = m.busy + 1 end
+    if row.lane and not m.lane then m.lane = t end
+    if t.fuel and (not m.fuel or t.fuel < m.fuel.value) then m.fuel = { value = t.fuel, id = n } end
+    if not m.alert and row.error then m.alert = row.error end
+  end
+  return m
+end
+V.fuelPoints = function()
+  local points = {}
+  for _, point in ipairs(call("drops","list") or {}) do
+    if point.kind == "fuel" and not point.broken then points[#points+1] = point end
+  end
+  table.sort(points,function(a,b) return a.id < b.id end)
+  return points
+end
+-- The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
+V.setup = function(m)
+  m.checks, m.available = {}, {}
+  for _, check in ipairs(readiness()) do m.checks[#m.checks + 1] = { text = check.text, ok = check.ok } end
+  for _, id in ipairs(call("lease", "candidates") or {}) do
+    local machine = call("state", "get", "machines/" .. id) or {}
+    m.available[#m.available + 1] = { id = id, fuel = machine.fuel }
+  end
+  local policy = call("shop", "fuelConfig")
+  if type(policy) == "table" then
+    m.policy = { auto = policy.auto == true, out = "-" }
+    for i, point in ipairs(call("drops", "list") or {}) do
+      if policy.output and point.id == policy.output.id then m.policy.out = tostring(i) end
+    end
+  end
+  return m
+end
+V.facts = function(m)
+  local lane, fuel = m.lane, m.fuel
+  return { { "busy", m.busy .. "/" .. m.workers, "0" }, { "lane", lane and "#" .. lane.id or "-", lane and "b" or "8" },
+    { "depth", tostring(m.bottom), "0" }, { "done", m.done .. "/" .. m.total, "0" },
+    { "ore", m.ore and tostring(m.ore) or "-", m.ore and "0" or "8" },
+    { "fuel", fuel and tostring(fuel.value) or "-", fuel and (fuel.value < 500 and "1" or "0") or "8" } }
+end
+V.fg = function(tone) return (tone == "1" or tone == "e" or tone == "8") and tone or "0" end
+V.run = function(C, y, m, gap)
+  local run = m.state == "running"
+  U.actions(C, y, { { "START", "start", run and "muted" or "primary" }, { "STOP", "stop", run and "stop" or "muted" } }, gap)
+end
+-- One row per branch, newest at the top: number, spine, dug '-' and planned dots, the turtles.
+V.diagram = function(C, m, top, avail, right)
+  local sp, total, length = 5, m.total, m.length
+  local cols = math.max(1, math.min(right - sp - 9, length))
+  local shown = math.max(0, math.min(total, avail))
+  local first, fg, marks = total - shown + 1, m.lane and "b" or "3", {}
+  for i = 0, shown - 1 do
+    local b, y = total - i, top + i
+    C.put(math.max(1, sp - 2 - #tostring(b)), y, tostring(b), "8")
+    C.put(sp, y, "+", fg)
+    for k = 1, cols do
+      local dug = k * length <= m.extents[b] * cols
+      C.put(sp + k, y, dug and "-" or U.g.dot, dug and "3" or "8")
+    end
+  end
+  local base = top + shown
+  C.put(sp, base, "|", fg)
+  C.put(sp, base + 1, U.g.shaft, "9")
+  C.put(sp + 2, base + 1, "shaft", "8")
+  for _, t in ipairs(m.turtles) do
+    if t.row then
+      local y = t.row >= first and top + total - t.row or base
+      if t.spine then
+        C.put(sp - #tostring(t.id), y, tostring(t.id), t.tone)
+        marks[#marks + 1] = { sp, y, t, false }
+      elseif t.row >= first then
+        local i = math.max(1, math.min(cols, math.floor(t.along * cols / length)))
+        local held = i < cols and t.tone ~= "e"
+        local label = t.tone == "d" and tostring(t.id) or t.id .. " " .. t.state:match("^%S*")
+        local x = sp + i + 2 + (held and 1 or 0)
+        C.put(x, y, label:sub(1, math.max(0, right - x + 1)), t.tone)
+        marks[#marks + 1] = { sp + i, y, t, held }
+      end
+    end
+  end
+  for _, mk in ipairs(marks) do
+    if mk[4] then C.put(mk[1] + 1, mk[2], "-", "b") end
+    C.put(mk[1], mk[2], U.arrow(mk[3].facing), mk[3].tone)
+  end
+end
+-- TURTLES with fuel and ore from column 2 to right: the section on row top, then nt rows.
+V.turtles = function(C, m, top, nt, right)
+  local ts = m.turtles
+  if #ts == 0 then return end
+  C.section(2, top, right - 1, "TURTLES", "fuel  ore")
+  local per = #ts > nt and math.max(1, nt - 1) or nt
+  local first = ((m.workerPage or 0) % math.ceil(#ts / math.max(1, per))) * per
+  for i = 1, nt do
+    local y, t = top + i, ts[first + i]
+    -- The last page keeps the row, so the pages wrap.
+    if (i == nt or not t) and #ts > nt then
+      C.put(4, y, "+" .. (#ts - math.min(per, #ts - first)) .. " more", "8")
+      C.hit("workers-next", 2, y, right - 1, 1)
+      break
+    end
+    if not t then break end
+    C.hit("turtle:" .. t.id, 2, y, right - 1, 1)
+    C.put(2, y, U.arrow(t.facing), t.tone)
+    C.put(4, y, tostring(t.id), "0")
+    C.put(7, y, t.state:sub(1, 10), V.fg(t.tone))
+    C.put(18, y, (t.prog or t.where):sub(1, 9), "8")
+    C.put(28, y, t.at:sub(1, math.max(0, right - 40)), t.lost and "e" or "8")
+    local fuel = t.fuel and tostring(t.fuel) or "-"
+    C.put(right - 5 - #fuel, y, fuel, not t.fuel and "8" or t.fuel < 500 and "1" or "0")
+    C.put(right - #tostring(t.ore), y, tostring(t.ore), "0")
+  end
+end
+-- Compact turtle rows from top to stop: arrow, id, then the branch progress while working or the
+-- state word. Each row opens the turtle's details; +N more pages. Returns the last row drawn.
+V.list = function(C, m, top, stop, right)
+  local ts, nt = m.turtles, stop - top + 1
+  if #ts == 0 or nt < 1 then return top - 1 end
+  local per = #ts > nt and math.max(1, nt - 1) or nt
+  local first = ((m.workerPage or 0) % math.ceil(#ts / per)) * per
+  for i = 1, nt do
+    local y, t = top + i - 1, ts[first + i]
+    -- The last page keeps the row, so the pages wrap.
+    if (i == nt or not t) and #ts > nt then
+      C.put(4, y, "+" .. (#ts - math.min(per, #ts - first)) .. " more", "8")
+      C.hit("workers-next", 2, y, right - 1, 1)
+      return y
+    end
+    if not t then return y - 1 end
+    local text = t.tone == "d" and t.prog or t.state
+    C.put(2, y, U.arrow(t.facing), t.tone)
+    C.put(4, y, tostring(t.id), "0")
+    C.put(7, y, text:sub(1, math.max(0, right - 6)), text == t.state and V.fg(t.tone) or "0")
+    C.hit("turtle:" .. t.id, 2, y, right - 1, 1)
+  end
+  return stop
+end
+V.room = function(C, m)
+  local w, ya = C.w, C.h - 1
+  U.roleBar(C, "MINING", V.tabs, V.short, 1, m.state, U.tone(m.state))
+  -- The diagram draws at most one cell per block; the facts and the table follow it on wide walls.
+  local lx = math.min(w - 11, math.max(1, math.min(w - 27, m.length)) + 18)
+  for i, f in ipairs(V.facts(m)) do C.leader(lx, 2 + i, 11, f[1], f[2], f[3]) end
+  V.run(C, ya, m, 3)
+  if m.alert then C.flag(2, ya - 2, w - 2, m.alert) end
+  -- Caps keep the biggest walls inside the 16 KB frame: 12 turtle rows, 24 branch rows.
+  local nt = math.min(#m.turtles, math.max(0, ya - 12), 12)
+  local shown = math.min(m.total, ya - 3 - nt - (nt > 0 and 1 or 0) - 5, 24)
+  V.diagram(C, m, 3, shown, lx - 2)
+  V.turtles(C, m, 3 + shown + 3, nt, lx + 10)
+end
+-- The alert ending on row y: one flag row, or two when it is longer than the row and splits at a
+-- space. Returns the rows used.
+V.alert = function(C, y, text)
+  local width = C.w - 4
+  local cut = #text > width and text:sub(1, width + 1):match("^.*() ")
+  if not cut or cut < 2 then C.flag(2, y, C.w - 2, text) return 1 end
+  C.flag(2, y - 1, C.w - 2, text:sub(1, cut - 1))
+  C.put(4, y, text:sub(cut + 1, cut + width), "0")
+  return 2
+end
+V.column = function(C, m)
+  local w, ya = C.w, C.h
+  local shown = U.roleBar(C, "MINING", V.tabs, V.short, 1, m.state, U.tone(m.state))
+  V.run(C, ya, m, 1)
+  local f, last, top = V.facts(m), ya - 2 - (m.alert and V.alert(C, ya - 1, m.alert) or 0)
+  if w < 30 then
+    local rows = { f[1], f[2], f[4], f[6] }
+    if not shown then table.insert(rows, 1, { "state", m.state, V.fg(U.tone(m.state)) }) end
+    top = last - #rows + 1
+    for i, row in ipairs(rows) do C.leader(2, top + i - 1, w - 2, row[1], row[2], row[3]) end
+  else
+    local lw = math.floor((w - 5) / 2)
+    top = last - 2
+    for i = 1, 3 do
+      C.leader(2, top + i - 1, lw, f[i][1], f[i][2], f[i][3])
+      C.leader(lw + 5, top + i - 1, w - lw - 5, f[i + 3][1], f[i + 3][2], f[i + 3][3])
+    end
+  end
+  -- Up to four turtle rows between the diagram and the leaders.
+  local nt = math.max(0, math.min(#m.turtles, 4, top - 5))
+  if nt > 0 then
+    top = top - 2 - nt
+    C.section(2, top, w - 2, "TURTLES")
+    V.list(C, m, top + 1, top + nt, w - 1)
+  end
+  V.diagram(C, m, 3, top - 6, w - 1)
+end
+-- Tabs from 24 columns; below that the role name and the state word when it fits.
+V.tinyBar = function(C, name, m)
+  if C.w >= 24 then return U.roleBar(C, name, V.tabs, V.short, 1, m.state, U.tone(m.state)) end
+  local right = C.w >= 12 + #m.state and m.state or ""
+  C.bar(name, {}, nil, right, U.tone(m.state))
+  return right ~= ""
+end
+-- Leaders from row 3 (2 on very short screens) to h-2, the alert on h-1, the actions on h.
+V.tiny = function(C, m)
+  local w, h = C.w, C.h
+  local f, shown = V.facts(m), V.tinyBar(C, "MINING", m)
+  -- Busy and done, then the turtles; without turtles the other leaders.
+  local rows = #m.turtles > 0 and { f[1], f[4] } or { f[1], f[4], f[2], f[6], f[5] }
+  if not shown then table.insert(rows, 1, { "state", m.state, V.fg(U.tone(m.state)) }) end
+  -- A long alert wraps onto a second row from 8 rows up.
+  local used = 0
+  if m.alert and h >= 4 then
+    if h >= 8 then used = V.alert(C, h - 1, m.alert) else C.flag(2, h - 1, w - 2, m.alert) used = 1 end
+  end
+  local stop = h - 1 - math.max(1, used)
+  local y = h >= 6 and 3 or 2
+  for _, row in ipairs(rows) do
+    if y > stop then break end
+    C.leader(2, y, w - 2, row[1], row[2], row[3])
+    y = y + 1
+  end
+  V.list(C, m, y, stop, w - 1)
+  V.run(C, h, m, 1)
+end
+-- The setup controls from row y, step rows apart, none below row stop. Returns the last row.
+V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
+  local h = m.home
+  if m.dim ~= "minecraft:overworld" then
+    if y <= stop then
+      C.put(x, y, "dim", "8")
+      C.put(vx, y, m.dim:gsub("^minecraft:", ""):sub(1, right - vx + 1), "0")
+    end
+    y = y + step
+  end
+  if y <= stop then
+    local home = m.homeSet and (h.x .. "," .. h.y .. "," .. h.z .. " " .. ("nesw"):sub(h.facing + 1, h.facing + 1)) or "-"
+    C.put(x, y, "home", "8")
+    C.put(vx, y, home:sub(1, right - vx + 1), m.homeSet and "0" or "8")
+  end
+  y = y + step
+  if y <= stop then
+    C.put(x, y, "bottom", "8")
+    U.stepper(C, vx, y, "Y " .. m.bottom, "set-bottom", vw)
+  end
+  y = y + step
+  if y <= stop then
+    C.put(x, y, "length", "8")
+    U.stepper(C, vx, y, m.length, "set-length", vw)
+  end
+  y = y + step
+  if y <= stop then
+    C.put(x, y, "mode", "8")
+    local nx = C.chip(vx, y, "fast", "mode-fast", m.mode == "fast" and "plain" or "off") + 1
+    C.chip(nx, y, "thorough", "mode-thorough", m.mode == "thorough" and "plain" or "off")
+  end
+  y = y + step
+  if y <= stop then
+    local ex = right - 5
+    local ores = #m.ores > 0 and #m.ores < #V.ores and table.concat(m.ores, ",") or "all"
+    C.put(x, y, "ores", "8")
+    C.put(vx, y, ores:sub(1, math.max(0, ex - vx - 1)), "0")
+    C.chip(ex, y, "edit", "ores-edit", editing and "on" or "plain")
+  end
+  local last = y
+  if editing and C.w < 52 then
+    local cx = x
+    y = y + 1
+    for _, name in ipairs(V.ores) do
+      if cx + #name + 2 > right + 1 then cx, y = x, y + 1 end
+      if y <= stop then C.chip(cx, y, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
+      cx = cx + #name + 3
+    end
+    return y
+  end
+  y = y + step
+  if y <= stop then
+    C.put(x, y, vx - x >= 9 and "branches" or "branch", "8")
+    C.put(vx, y, (m.branches .. " " .. (m.continuous and "continuous" or "single")):sub(1, right - vx + 1), "0")
+  end
+  if m.policy then
+    y = y + step
+    if y <= stop then
+      C.put(x, y, "fuel", "8")
+      local nx = C.chip(vx, y, "auto", "fuel-auto", m.policy.auto and "on" or "off") + 1
+      C.chip(nx, y, "out " .. m.policy.out, "fuel-output", "plain")
+    end
+  end
+  y = y + step
+  if y <= stop then
+    local ids = {}
+    for _, t in ipairs(m.turtles) do ids[#ids + 1] = "#" .. t.id end
+    local list = table.concat(ids, " ")
+    C.put(x, y, "turtles", "8")
+    C.put(vx, y, list ~= "" and list:sub(1, right - vx + 1) or "-", "0")
+  end
+  return math.max(last, y)
+end
+-- READY from row y to row stop between x and right: the missing start checks, the unassigned
+-- turtles with an add chip, then the checks that pass. lead pages come before the list (the
+-- narrow setup's controls); returns the last row drawn, or nil on a lead page.
+V.ready = function(C, m, x, y, right, stop, offset, lead)
+  local items, ok = V.items(m)
+  local cap = stop - y
+  if cap < 1 or #items == 0 then return y - 1 end
+  lead = lead or 0
+  local pages = math.ceil(#items / cap) + lead
+  local page = (offset or 0) % pages
+  if page < lead then return nil, pages end
+  if pages > 1 then
+    C.section(x, y, right - x + 1, "READY", (page + 1) .. "/" .. pages)
+    C.hit("setup-next", x, y, right - x + 1, 1)
+  else C.section(x, y, right - x + 1, "READY", ok .. "/" .. #m.checks, ok == #m.checks and "d" or "1") end
+  local last = y
+  for i = (page - lead) * cap + 1, math.min(#items, (page - lead + 1) * cap) do
+    local it = items[i]
+    last = last + 1
+    C.put(x, last, U.g.bullet, it[1])
+    C.put(x + 2, last, it[2]:sub(1, math.max(0, right - x - 1 - (it[3] and 6 or 0))), "0")
+    if it[3] then C.chip(right - 4, last, "add", "here:" .. it[3], "primary") end
+  end
+  return last
+end
+V.items = function(m)
+  local items, ok = {}, 0
+  for _, check in ipairs(m.checks) do if not check.ok then items[#items + 1] = { "e", check.text } end end
+  for _, t in ipairs(m.available) do items[#items + 1] = { "1", "#" .. t.id .. " fuel " .. tostring(t.fuel or "?"), t.id } end
+  for _, check in ipairs(m.checks) do
+    if check.ok then items[#items + 1] = { "d", check.text } ok = ok + 1 end
+  end
+  return items, ok
+end
+V.setupRoom = function(C, m, editing)
+  local w, ya = C.w, C.h - 1
+  U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  local rx = math.max(32, math.floor(w / 2))
+  local left, right = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3), nil
+  if editing then
+    for i, name in ipairs(V.ores) do C.chip(rx + 3, 2 + i, name, "ore-" .. name, V.oreOn(m, name) and "plain" or "off") end
+    right = 2 + #V.ores
+  else right = V.ready(C, m, rx + 2, 3, w - 1, ya - 3, m.setupPage) end
+  for y = 3, math.max(left, right) do C.put(rx, y, "|", "c") end
+  if m.alert then C.flag(2, ya - 2, w - 2, m.alert) end
+  V.run(C, ya, m, 3)
+end
+V.setupColumn = function(C, m, editing)
+  local w, h = C.w, C.h
+  U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  local wide, stop = w >= 36, m.alert and h - 2 or h - 1
+  local vx, vw = wide and 13 or 10, wide and 8 or 6
+  -- READY follows the controls; when it does not fit under them it gets pages of its own after
+  -- the controls' page, which ends with the READY row.
+  local last = V.setupRows(U.canvas(w, h), m, 2, 3, 1, vx, vw, w - 1, editing, stop)
+  if #V.items(m) <= math.max(0, stop - last - 2) then
+    V.setupRows(C, m, 2, 3, 1, vx, vw, w - 1, editing, stop)
+    V.ready(C, m, 2, last + 2, w - 1, stop, m.setupPage)
+  elseif stop >= 4 then
+    local shown, pages = V.ready(C, m, 2, 3, w - 1, stop, m.setupPage, 1)
+    if not shown then
+      V.setupRows(C, m, 2, 3, 1, vx, vw, w - 1, editing, stop - 1)
+      C.section(2, stop, w - 2, "READY", "1/" .. pages)
+      C.hit("setup-next", 2, stop, w - 2, 1)
+    end
+  else V.setupRows(C, m, 2, 3, 1, vx, vw, w - 1, editing, stop) end
+  if m.alert then C.flag(2, h - 1, w - 2, m.alert) end
+  V.run(C, h, m, 1)
+end
+V.layout = function(m, w, h, setup, editing)
+  local C = U.canvas(w, h)
+  local room = w >= 52 and h >= 22
+  if setup and w >= 24 then
+    if room then V.setupRoom(C, m, editing) else V.setupColumn(C, m, editing) end
+  elseif room then V.room(C, m)
+  elseif w >= 24 and h >= 14 then V.column(C, m)
+  else V.tiny(C, m) end
+  return C.frame()
+end
+-- so-mod-panel's pocket probe reads a 120x18 frame from an id-less session: the state on row 2
+-- and LABEL VALUE rows from 3 with their colour. Kept until the panel reads facts().
+V.probe = function(m)
+  local rows = { { text = "" }, { text = "MINING " .. m.state } }
+  for _, f in ipairs({ { "BUSY", m.busy .. "/" .. m.workers, "d" }, { "DEPTH", tostring(m.bottom), "d" },
+      { "BRANCHES", m.done .. "/" .. m.total, "b" }, { "MIN FUEL", m.fuel and tostring(m.fuel.value) or "-", m.fuel and "d" or "c" } }) do
+    rows[#rows + 1] = { text = f[1] .. " " .. f[2], runs = { { #f[1] + #f[2] + 1, "0", f[3] } } }
+  end
+  return { rows = rows, buttons = {} }
+end
 local function command(event)
   if type(event.text) ~= "string" then
-    if event.id == "workers-next" or event.id == "workers-prev" then
-      local v = view(event.session) v.workers = (v.workers or 0)+(event.id == "workers-next" and 1 or -1) return
-    elseif event.id == "setup" then view(event.session).page,view(event.session).offset = "setup",0 return
-    elseif event.id == "setup-next" then local v=view(event.session) v.offset=(v.offset or 0)+1 return
-    elseif type(event.id) == "string" and event.id:match("^here:%d+$") then event = { text = "add " .. event.id:match("%d+$") }
-    elseif event.id == "fuel-auto" then
+    local v, id = view(event.session), tostring(event.id)
+    if id == "setup" or id == "tab:setup" then v.page, v.offset = "setup", 0 return
+    elseif id == "mine-back" or id == "tab:overview" or id == "tab:main" then v.page = "main" return
+    elseif id == "ores-edit" then v.ores = not v.ores return
+    elseif id == "setup-next" then v.offset = (v.offset or 0) + 1 return
+    elseif id == "workers-next" or id == "workers-prev" then v.workers = (v.workers or 0) + (id == "workers-next" and 1 or -1) return
+    elseif id:match("^here:%d+$") then event = { text = "add " .. id:match("%d+$") }
+    elseif id == "fuel-auto" then
       local policy = call("shop","fuelConfig") or {}
       local ok, err = call("shop","fuelConfig",not policy.auto)
       if not ok then S.error = err or "shop unavailable" end
       return
-    elseif event.id == "fuel-output" then
+    elseif id == "fuel-output" then
       local policy = call("shop","fuelConfig") or {}
-      local points = {}
-      for _, point in ipairs(call("drops","list") or {}) do
-        if point.kind == "fuel" and not point.broken then points[#points+1] = point end
-      end
-      table.sort(points,function(a,b) return a.id < b.id end)
+      local points = V.fuelPoints()
       local index = 1
       for i, point in ipairs(points) do if policy.output and point.id == policy.output.id then index = i % #points + 1 break end end
       if points[index] then
@@ -815,8 +1268,8 @@ local function command(event)
         if not ok then S.error = err or "shop unavailable" end
       else S.error = "no fuel output point" end
       return
-    elseif event.id == "mine-back" then view(event.session).page = "main" return
-    elseif event.id == "start" or event.id == "stop" then event = { text = event.id } end
+    elseif id == "start" or id == "stop" then event = { text = id }
+    else event = { text = V.command(id) } end
   end
   if type(event.text)~="string" then return end
   local a={} for word in event.text:gmatch("%S+") do a[#a+1]=word end
@@ -965,171 +1418,24 @@ local function legacyRender(w)
     rows[#rows+1]={text=id.." "..row.state.." "..p.x..","..p.y..","..p.z.." fuel "..tostring(row.fuel or "?").." ores "..(row.ores or 0).." "..tostring(row.error or ""),fg=(row.state=="lost" or row.state=="range") and "e" or "0"}
     end
   end
-  return {rows=rows,buttons={{id="generic",x=1,y=1,w=7,label="generic"}}}
-end
-local function gather()
-  local m = { available = call("lease", "candidates") or {}, running = job.running, alert = S.error, turtles = {}, tiles = {}, setup = {} }
-  local busy, waiting, minimum, fuelId, waitIds = 0, 0, nil, nil, {}
-  for id, row in pairs(job.turtles) do
-    local state = row.laneWait and "wait lane" or row.state
-    local stripe = (state == "lost" or state == "range") and "e" or
-      (state == "wait lane" or state == "hold" or state == "waiting") and "1" or "d"
-    if state == "mining" then busy = busy + 1 end
-    if row.laneWait then waiting = waiting + 1 waitIds[#waitIds + 1] = "#" .. id end
-    if type(row.fuel) == "number" and (not minimum or row.fuel < minimum) then minimum, fuelId = row.fuel, id end
-    if not m.alert and row.error then m.alert = row.error end
-    local p = row.pose or row.anchor or job.home
-    local machine = call("state","get","machines/"..id) or {}
-    m.turtles[#m.turtles + 1] = { label = machine.label, id = tonumber(id), state = state, stripe = stripe,
-      pos = U and U.turtle.pose(p):match("^(%S+) ") or "-", fuel = tostring(row.fuel or "-"), ore = tostring(row.ores or 0),
-      branch = row.branch, done = U and U.branchProgress(job,row), total = job.length }
-  end
-  table.sort(m.turtles, function(a,b) return a.id < b.id end)
-  table.sort(waitIds)
-  local today = call("daily", "today")
-  local names, oreSub = {}, "no daily source"
-  if today then
-    for name, count in pairs(today.oreByName) do names[#names + 1] = { name = name, count = count } end
-    table.sort(names, function(a,b) return a.count > b.count or (a.count == b.count and a.name < b.name) end)
-    local parts = {}
-    for i = 1, math.min(2, #names) do
-      local short = names[i].name:gsub("^.-:", ""):gsub("^deepslate_", ""):gsub("_ore$", "")
-      if short == "diamond" then short = "dia" end
-      parts[#parts + 1] = short .. " " .. names[i].count
-    end
-    oreSub = table.concat(parts, " ")
-  end
-  m.tiles = {
-    {"BUSY", busy .. "/" .. #m.turtles, busy .. " digging", "d"},
-    {"ORE TODAY", today and tostring(today.ore) or "-", oreSub, today and "b" or "c"},
-    {"DEPTH", tostring(job.bottom), "", "d"},
-    {"LANE", tostring(waiting), waiting > 0 and (table.concat(waitIds,",") .. " waiting") or "clear", waiting > 0 and "1" or "d"},
-    {"MIN FUEL", tostring(minimum or "-"), fuelId and ("#" .. fuelId) or "no fuel report", minimum and "d" or "c"},
-    {"BRANCHES", (job.progress.done or 0) .. "/" .. (job.continuous and (job.branches or 8) or (job.progress.nextBranch or 0)), job.length .. " long", "b"},
-  }
-  m.setup = {
-    "bottom " .. job.bottom, "length " .. job.length, "mode " .. job.mode,
-    "ores " .. (#job.ores > 0 and table.concat(job.ores,",") or "all"),
-    "branches " .. (job.branches or 8) .. (job.continuous and " continuous" or " single"),
-  }
-  if job.dim ~= "minecraft:overworld" then table.insert(m.setup,1,job.dim) end
-  m.fuelPolicy = call("shop","fuelConfig")
-  m.readiness=readiness()
-  return m
-end
-local function layout(m, w, h, setup, offset)
-  local c = U.canvas(w,h)
-  c.header(setup and "MINING SETUP" or "MINING", m.running and "running" or "stopped")
-  if setup then
-    local lines={}
-    for _,check in ipairs(m.readiness) do
-      lines[#lines+1]={text=check.text,bg=check.ok and "d" or "e"}
-    end
-    if #m.available > 0 then lines[#lines+1]={text="UNASSIGNED",bg="7"} end
-    for _,id in ipairs(m.available or {}) do
-      local machine=call("state","get","machines/"..id) or {}
-      lines[#lines+1]={text=(machine.label or ("#"..id)).." FUEL "..tostring(machine.fuel or "?"),bg="f"}
-      lines[#lines+1]={id=id}
-    end
-    for _,line in ipairs(m.setup) do
-      for x=1,math.max(1,#line),math.max(1,w-2) do
-        lines[#lines+1]={text=line:sub(x,x+math.max(1,w-2)-1),bg="f"}
-      end
-    end
-    local count=math.max(1,h-(m.fuelPolicy and 6 or 4))
-    local pages=math.max(1,math.ceil(#lines/count))
-    local first=((offset or 0)%pages)*count
-    for i=1,count do
-      local line=lines[first+i]
-      if line and i+3<h then
-        if line.id then c.button(1,i+3,w,"ADD HERE #"..line.id,"here:"..line.id,"9",1)
-        else
-          c.fill(1,i+3,w,1,line.bg)
-          c.put(2,i+3,line.text:sub(1,math.max(0,w-2)),U.ink(line.bg),line.bg)
-        end
-      end
-    end
-    if m.fuelPolicy then
-      c.button(1,h-2,w,"FUEL AUTO "..(m.fuelPolicy.auto and "ON" or "OFF"),"fuel-auto","7",1)
-      local output=m.fuelPolicy.output
-      c.button(1,h-1,w,"OUTPUT "..(output and output.id or "NONE"),"fuel-output","7",1)
-    end
-    local left=1
-    if pages>1 and w>1 then
-      local width=math.max(1,math.floor(w/2))
-      c.button(1,h,width,"NEXT","setup-next","7",1) left=width+1
-    end
-    c.button(left,h,w-left+1,"BACK","mine-back","7",1)
-  else
-    local cols = U.grid(w,h)
-    local tall = h >= 19 and #cols >= 3
-    local buttonHeight = tall and 3 or 1
-    local buttonY = tall and h-3 or w < 26 and h-1 or h
-    local tileRows = math.min(math.ceil(6/#cols), math.max(0,math.floor((buttonY-4)/7)))
-    if tall then
-      for i,t in ipairs(m.tiles) do
-        local col = cols[(i-1)%#cols+1]
-        local row = math.floor((i-1)/#cols)
-        if row < tileRows then c.tile(col.x,4+row*6,col.w,t[1],t[2],t[3],t[4],6) end
-      end
-    else
-      for i,t in ipairs(m.tiles) do
-        if i+2 < math.min(buttonY, h < 19 and 6 or 9) then
-          c.fill(1,i+2,w,1,t[4]); c.put(2,i+2,(t[1] .. " " .. t[2]):sub(1,math.max(0,w-2)))
-        end
-      end
-    end
-    local listY = tall and 4+tileRows*6 or h < 19 and 6 or 9
-    local capacity = math.max(1, math.floor((buttonY-listY-1)/2))
-    local pages = math.max(1, math.ceil(#m.turtles/capacity))
-    local page = (m.page or 0) % pages
-    if listY < buttonY then
-      c.fill(1,listY,w,1,"7"); c.put(2,listY,w < 39 and "TURTLE  POS  STATE" or "TURTLE  STATE      POS          FUEL  ORE")
-      for i=1,capacity do
-        local row = m.turtles[page*capacity+i]
-        local y = listY+1+(i-1)*2
-        if row and y+1 < buttonY then
-          local text = w < 39 and string.format("%s %s %s",row.label or ("#"..row.id),row.pos,row.state)
-            or string.format("%-8s%-11s%-14s%-4s%4s",row.label or ("#"..row.id),row.state,row.pos,row.fuel,row.ore)
-          c.listRow(y,text,row.stripe)
-          c.hit("turtle:"..row.id,1,y,w,2)
-          if row.branch ~= nil and row.done == nil then c.put(2,y+1,"-")
-          else U.progress(c,2,y+1,math.min(12,w-2),row.done or 0,row.total or 0,row.stripe) end
-          c.put(15,y+1,row.branch ~= nil and ("B"..row.branch.." "..(row.done or "-").."/"..(row.total or 0)) or "-")
-        end
-      end
-    end
-    if pages > 1 then
-      c.button(w-9,listY,4,"<","workers-prev","7",1)
-      c.button(w-4,listY,4,">","workers-next","7",1)
-    end
-    local buttons = {{"START","start","9"},{"STOP","stop","e"},{"SETUP","setup","7"},{"BACK","status","7"}}
-    local available, x = math.max(0,w-3), 1
-    for i,b in ipairs(buttons) do
-      local width = math.floor(available/(5-i))
-      local y = buttonY
-      if w < 26 then
-        local cols = U.grid(w,h,2)
-        local col = cols[(i-1)%2+1]
-        x, width, y = col.x, col.w, buttonY+math.floor((i-1)/2)
-      end
-      c.button(x,y,width,b[1],b[2],b[3],buttonHeight)
-      x, available = x+width+1, available-width
-    end
-  end
-  if setup then
-    if m.alert then c.fill(2,3,w-2,1,"e") c.put(2,3,m.alert:sub(1,math.max(0,w-2)),"f","e") end
-  else
-    local count=#c.buttons
-    c.alert(m.alert)
-    if #c.buttons>count then table.insert(c.buttons,1,table.remove(c.buttons)) end
-  end
-  return c.frame()
+  return {rows=rows,buttons={}}
 end
 local function render(w,h,session)
   if not U then return legacyRender(w) end
-  local m = gather() m.page = view(session).workers
-  return layout(m,w or 57,h or 24,view(session).page == "setup",view(session).offset)
+  w, h = w or 57, h or 24
+  if type(session) == "table" and session.id == nil and w == 120 and h == 18 then return V.probe(V.gather()) end
+  local v = view(session)
+  local m = V.gather()
+  m.workerPage, m.setupPage = v.workers, v.offset
+  if v.page == "setup" then V.setup(m) end
+  return V.layout(m, w, h, v.page == "setup", v.ores)
+end
+-- Job facts for other screens (the pocket's JOBS page); pure reads.
+local function facts()
+  local m = V.gather()
+  return { state = m.state, done = m.done, total = m.total, busy = m.busy, workers = m.workers, depth = m.bottom,
+    lane = m.lane and { id = m.lane.id, facing = m.lane.world } or nil,
+    fuel = m.fuel and { value = m.fuel.value, id = m.fuel.id } or nil, alert = m.alert }
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do
@@ -1158,12 +1464,14 @@ local function forgetDug(paths)
 end
 local function mapView()
   local view = {dim=job.dim,home=SO.store.copy(job.home),homeSet=job.homeSet,bottom=job.bottom,
-    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={},trails={}}
+    length=job.length,mode=job.mode,branches=job.progress.nextBranch or 0,turtles={},trails={},
+    running=job.running,done=job.progress.done or 0}
   local branch = job.progress.nextBranch or 0
   local occupied = false
   for id,row in pairs(job.turtles) do
     view.branches=math.max(view.branches,(row.branch or 0)+1)
-    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim}
+    view.turtles[id]={pose=SO.store.copy(row.pose or row.anchor),state=row.state,dim=job.dim,
+      branch=row.branch,lane=row.lane~=nil,ores=row.ores or 0}
     if row.branch==branch or row.returning and row.returning.branch==branch then occupied=true end
     if row.state~="done" and row.branch and row.pose and row.pose.y==job.bottom and job.homeSet~=false then
       local points = branchLine(row.branch)
@@ -1199,7 +1507,7 @@ end
 local function turtleView()
   local out = {}
   for id,row in pairs(job.turtles) do
-    local done,total = U and U.branchProgress(job,row), job.length
+    local done,total = U and U.branchProgress and U.branchProgress(job,row), job.length
     out[id] = {role="mining", pose=SO.store.copy(row.pose), state=row.state, fuel=row.fuel,
       inv=SO.store.copy(row.inv or {}), branch=row.branch, done=done, total=total,
       step=S.pending[tonumber(id)] and S.pending[tonumber(id)].kind, error=row.error or S.error, retry=row.dropRetry and row.dropRetry.after,
@@ -1215,7 +1523,7 @@ local function forget(id)
   S.pending[id], S.dugFacts[id] = nil, nil
   return save()
 end
-return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},turtleView=turtleView,mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},turtleView=turtleView,mapView=mapView,facts=facts,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end

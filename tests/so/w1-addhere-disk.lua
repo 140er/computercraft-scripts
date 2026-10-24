@@ -58,8 +58,9 @@ return function(test,equal)
         gps(a)
         local screen = a.s.env.SO.mods.display.screen(role)
         local session = {}
-        press(screen,size[1],size[2],"setup",session)
-        if role == "lumber" then
+        -- Route A: the setup tab lists unassigned turtles in READY with an add chip; setup-next pages it.
+        press(screen,size[1],size[2],"tab:setup",session)
+        do
           for _=1,3 do
             local found=false
             for _,b in ipairs(screen.render(size[1],size[2],session).buttons) do if b.id=="here:2" then found=true end end
@@ -96,7 +97,8 @@ return function(test,equal)
     local screen=a.s.env.SO.mods.display.screen("mining")
     screen.input({text="add 2"})
     local frame=screen.render(29,12)
-    assert(frame.rows[3].text:find("no fresh GPS",1,true))
+    -- Route A shows the refusal as the alert above the action row, wrapped onto two rows when long.
+    assert((frame.rows[10].text.." "..frame.rows[11].text):find("no fresh GPS",1,true))
     equal(a.t.pos.z,0)
     gps(a)
     local lease=a.s.env.SO.mods.lease
@@ -200,20 +202,24 @@ return function(test,equal)
         end
         error("no display frame")
       end
+      -- Roles change only by assignment; the ledger opens as a page of the status role.
+      assert(a.s.env.SO.mods.display.assign(3,"status"));a.n.advance(1)
       local picture=frame();local button
-      if picture.role ~= "status" then
-        for _,b in ipairs(picture.buttons) do if b.id=="status" then button=b end end
-        assert(button,"no drawn return to status")
-        client.inbox[#client.inbox+1]=table.pack("mouse_click",1,button.x,button.y)
-        a.n.flush();picture=frame();button=nil
-      end
+      equal(picture.role,"status")
       for _,b in ipairs(picture.buttons) do if b.id=="disk" then button=b end end
       assert(button,"status has no DISK control")
-      assert(picture.rows[button.y].text:find("DISK",1,true),"DISK control is not drawn")
+      assert(picture.rows[button.y].text:lower():find("disk",1,true),"DISK control is not drawn")
       client.inbox[#client.inbox+1]=table.pack("mouse_click",1,button.x,button.y)
-      a.n.flush();assert(not client.error,tostring(client.error));equal(frame().role,"disk")
+      a.n.flush();assert(not client.error,tostring(client.error));equal(frame().role,"status")
       local text={};for _,row in ipairs(frame().rows) do text[#text+1]=row.text end
       assert(table.concat(text,"\n"):find("SNAPSHOTS",1,true))
+      -- The ledger draws its own way back to status.
+      button=nil
+      for _,b in ipairs(frame().buttons) do if b.id=="status" or b.id=="visit-back" then button=b end end
+      assert(button,"no drawn return to status")
+      client.inbox[#client.inbox+1]=table.pack("mouse_click",1,button.x,button.y)
+      a.n.flush();text={};for _,row in ipairs(frame().rows) do text[#text+1]=row.text end
+      assert(not table.concat(text,"\n"):find("SNAPSHOTS",1,true),"return did not leave the ledger")
     end)
   end
   test("oversized events refuse explicitly and the next durable event clears the fault",function()
@@ -331,7 +337,8 @@ return function(test,equal)
       equal(p,nil);assert(err:find("dimension",1,true))
       local ui=a.s.env.SO.mods.display.screen("generic")
       ui.input({id="new"});press(ui,29,12,"from:2")
-      assert(ui.render(29,12).rows[3].text:find("dimension",1,true))
+      -- Route A shows the editor's refusal in the row above its actions.
+      assert(ui.render(29,12).rows[11].text:find("dimension",1,true))
       lease.locate(2,"minecraft:overworld",function(pose,why) equal(pose,nil);assert(why:find("dimension",1,true)) end)
       equal(a.t.pos.z,0)
     end

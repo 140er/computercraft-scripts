@@ -1,49 +1,73 @@
-57x24 Mining, room monitor
+57x24 Mining, room monitor 57x24
+ MINING   overview   setup  -------------------- running 
                                                          
- MINING                                          running 
+10  +······························          busy ·· 2/4 
+ 9  +---------►-·3 wait············          lane ··· #4 
+ 8  +-----------------►-·2·········          depth · -58 
+ 7  +-----------------------------► 6 lost   done · 7/10 
+ 6  +------------------------------          ore ··· 214 
+ 5  +------------------------------          fuel ·· 412 
+ 4  +------------------------------                      
+ 3 4▼------------------------------                      
+ 2  +------------------------------                      
+ 1  +------------------------------                      
+    |                                                    
+    º shaft                                              
                                                          
-                                                         
-  BUSY              ORE TODAY           DEPTH            
-     🬖🬋🬏  🬓🬖🬋🬏          🬖🬋🬏🬞🬓  🬵              🬞🬓 🬖🬋🬏     
-      🬖🬀🬞🬅  🬖🬀           🬖🬀 ▌ 🬳🬷🬏          🬋🬋🬃 ▌  🬖🬀     
-     🬍🬋🬃🬄  🬍🬋🬃          🬍🬋🬃🬇🬌  🬉              🬇🬌 🬍🬋🬃     
-                                                         
-                                                         
-  LANE              MIN FUEL            BRANCHES         
-        🬞🬓              🬞🬋  🬵 🬖🬋🬏          🬋🬋🬏  🬓🬖🬋🬏     
-         ▌              🬛🬋🬏🬳🬷🬏▌ ▌          🬇🬋🬐🬞🬅 🬗🬋🬐     
-        🬇🬌              🬈🬋🬀 🬉 🬈🬋🬀          🬋🬋🬀🬄  🬈🬋🬀     
-                                                         
- TURTLE  STATE      POS          FUEL  ORE               
- #2      mining     12,60,-9      812   14               
-              -                                          
- #3      wait lane   0,61,-1      640    9               
-              -                                          
-                                                         
-    START         STOP          SETUP           BACK     
+ TURTLES ------------------------------------ fuel  ore  
+ ► 2  mining     b8 40/64  160,-58,-373        812   14  
+ ► 3  wait lane  b9 22/64  142,-58,-377        640    9  
+ ▼ 4  unload     lane      120,-58,-352        590   31  
+ ► 6  lost       b7 64/64  184,-58,-369        412   22  
                                                          
                                                          
+           START                         STOP            
+                                                         
+0000000000000000000088888880cccccccccccccccccccc0ddddddd0
+000000000000000000000000000000000000000000000000000000000
+8800b888888888888888888888888888888000000000088880cc00000
+0800b3333333331b8111111888888888888000000000088880ccc0bb0
+0800b33333333333333333db8d8888888880000000000888880c00000
+0800b33333333333333333333333333333e0eeeeee00088880c000000
+0800b33333333333333333333333333333300000000008880ccc00000
+0800b333333333333333333333333333333000000000088880cc01110
+0800b3333333333333333333333333333330000000000000000000000
+080dd3333333333333333333333333333330000000000000000000000
+0800b3333333333333333333333333333330000000000000000000000
+0800b3333333333333333333333333333330000000000000000000000
+0000b0000000000000000000000000000000000000000000000000000
+000090888880000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccc088888888800
+0d0000000000000008888888800888888888888000000000000000000
+010000111111111008888888800888888888888000000000000000000
+0d0000000000000008888000000888888888888000000000000000000
+0e0000eeee00000008888888800eeeeeeeeeeee000000001110000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888888888888888888888888000eeeeeeeeeeeeeeeeeeeeeeeeee0
+000000000000000000000000000000000000000000000000000000000
+fffffffff7777777777ffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-fdddddddddddddddddfbbbbbbbbbbbbbbbbbbbfdddddddddddddddddf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-f11111111111111111fdddddddddddddddddddfbbbbbbbbbbbbbbbbbf
-777777777777777777777777777777777777777777777777777777777
-dffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fccccccccccccffffffffffffffffffffffffffffffffffffffffffff
-1ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fccccccccccccffffffffffffffffffffffffffffffffffffffffffff
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
-9999999999999feeeeeeeeeeeeef77777777777777f77777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777fff77777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

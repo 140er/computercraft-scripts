@@ -10,11 +10,11 @@ local function setup()
       return {value=job,save=function() saves=saves+1 return true end} end}}},{__index=_G})
   job.turtles["9"]={pose={x=10,y=64,z=0,facing=0},fuel=4000,state="stopped"}
   local mine=assert(loadfile('so-mod-mine.lua','t',env))();mine.tick()
-  local layout,gather
-  for i=1,20 do local name,value=debug.getupvalue(render,i)
-    if name=='layout' then layout=value elseif name=='gather' then gather=value end
+  local V
+  for i=1,30 do local name,value=debug.getupvalue(render,i)
+    if name=='V' then V=value end
   end
-  return {job=job,render=render,input=input,layout=layout,gather=gather,saves=function() return saves end}
+  return {job=job,render=render,input=input,V=V,saves=function() return saves end}
 end
 local function capture(frame,w,h)
   local out=R.capture(w,h)
@@ -28,32 +28,41 @@ local function capture(frame,w,h)
   for _,b in ipairs(frame.buttons) do assert(b.x>=1 and b.y>=1 and b.x+b.w-1<=w and b.y+b.h-1<=h) end
   return out
 end
+-- The route A rule for coloured glyphs (docs/ui/SCHEMATIC-SPEC.md, section 3).
+local function contrast(out)
+  for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
+    local ch,fg,bg=cell[1],cell[2],cell[3]
+    local ok=ch==' ' or (bg=='f' or bg=='7') and (('0389d1eba2'):find(fg,1,true) or fg=='c' and ('-|+\183\166'):find(ch,1,true))
+      or bg=='c' and (fg=='0' or fg=='3') or not ('f7c'):find(bg,1,true) and fg=='f'
+    assert(ok,'contrast '..fg..'/'..bg..' '..ch)
+  end end
+end
+local function ids(frame) local out={} for _,b in ipairs(frame.buttons) do out[b.id]=b end return out end
 return function(test,equal)
-  test('UI2a mining mockup matches both fixture layers',function()
-    local s=setup();assert(s.layout,'pure layout missing')
-    local m={running=true,tiles={
-      {'BUSY','2/2','both digging','d'},{'ORE TODAY','214','iron 120 dia 3','b'},
-      {'DEPTH','-12','','d'},{'LANE','1','#3 waiting','1'},
-      {'MIN FUEL','640','#3','d'},{'BRANCHES','3/8','48 long','b'}},turtles={
-      {id=2,state='mining',pos='12,60,-9',fuel='812',ore='14',stripe='d'},
-      {id=3,state='wait lane',pos=' 0,61,-1',fuel='640',ore='9',stripe='1'}}}
-    local diff=R.diff('tests/ui/fixtures/mining-M.txt',capture(s.layout(m,57,24),57,24))
-    assert(#diff==0,table.concat(diff,'\n'))
+  test('UI2a mining draws the route A header with its two tabs',function()
+    local s=setup();assert(s.V,'route A layout missing')
+    local frame=s.render(57,24,{id=1})
+    local text=capture(frame,57,24).picture().text[1]
+    assert(text:find('^ MINING   overview   setup') and text:find('stopped $'),text)
+    local found=ids(frame)
+    assert(found['tab:overview'] and found['tab:setup'] and found.start and found.stop)
   end)
-  test('UI2a setup stays on the display that pressed its drawn button',function()
-    local s=setup();local a,b={},{}
+  test('UI2a setup stays on the display that pressed its drawn tab',function()
+    local s=setup();local a,b={id=1},{id=2}
     local main=s.render(57,24,b)
     local function press(session,id)
-      local button
-      for _,v in ipairs(s.render(57,24,session).buttons) do if v.id==id then button=v end end
+      local button=ids(s.render(57,24,session))[id]
       assert(button,'missing mining button '..id)
       s.input({id=id,x=button.x,y=button.y,session=session})
     end
-    press(a,'setup')
-    assert(capture(s.render(57,24,a),57,24).picture().text[2]:find('SETUP',1,true))
+    press(a,'tab:setup')
+    assert(ids(s.render(57,24,a))['set-bottom-'],'setup page')
     equal(s.render(57,24,b),main)
     equal(s.render(57,24),main)
-    press(a,'mine-back');equal(s.render(57,24,a),main)
+    press(a,'tab:overview');equal(s.render(57,24,a),main)
+    -- The Big Tiles ids still switch pages for clients that send them.
+    s.input({id='setup',session=a});assert(ids(s.render(57,24,a))['set-bottom-'],'old setup id')
+    s.input({id='mine-back',session=a});equal(s.render(57,24,a),main)
     equal(s.saves(),0)
   end)
   test('UI2a text commands retain job effects on both pages',function()
@@ -76,20 +85,16 @@ return function(test,equal)
       equal(a.job,b.job);equal(b.saves(),before+1)
     end
   end)
-  test('UI2a setup navigation and every size keep bounds and contrast',function()
+  test('UI2a both tabs keep bounds and contrast at every size',function()
     local s=setup();s.input({text='invalid'})
-    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{1,1}}) do
-      for _,setupPage in ipairs({false,true}) do
-        s.input({id=setupPage and 'setup' or 'mine-back'})
-        local w,h=unpack(size);local f=s.render(w,h);local out=capture(f,w,h)
-        if #f.buttons>0 then equal(f.buttons[#f.buttons].id,setupPage and 'mine-back' or 'status') end
-        if w==57 then assert(out.picture().text[2]:find(setupPage and 'SETUP' or 'MINING',1,true)) end
-        for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
-          local fg,bg=cell[2],cell[3]
-          if cell[1]:byte()>=128 and cell[1]:byte()<=159 and bg=='f' and fg~='0' and fg~='8' then fg,bg=bg,fg end
-          assert((bg=='f' or bg=='7' or bg=='c') and (fg=='0' or fg=='8') or
-            (bg=='d' or bg=='1' or bg=='e' or bg=='b' or bg=='a' or bg=='9') and fg=='f','contrast '..fg..'/'..bg)
-        end end
+    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{29,12},{1,1}}) do
+      for _,tab in ipairs({'tab:overview','tab:setup'}) do
+        local session={id=1};s.input({id=tab,session=session})
+        local w,h=unpack(size);local f=s.render(w,h,session);local out=capture(f,w,h)
+        for _,b in ipairs(f.buttons) do assert(b.id~='status','mining links to status') end
+        if w>=24 and h>=10 then assert(ids(f)[tab] or tab=='tab:overview' and ids(f)['tab:main'],tab..' at '..w..'x'..h) end
+        if w>=24 and h>=10 and tab=='tab:setup' then assert(ids(f)['set-length+'],'steppers at '..w..'x'..h) end
+        contrast(out)
       end
     end
   end)
@@ -97,13 +102,12 @@ return function(test,equal)
     local s=setup();s.job.turtles={['2']={state='mining',pose={x=12,y=60,z=-9},fuel=812,ores=14},
       ['3']={state='hold',pose={x=0,y=61,z=-1},fuel=640,laneWait={},error='ore chest full'},
       ['4']={state='range',pose={x=0,y=0,z=0}}}
-    assert(s.gather,'gather missing');local m=s.gather()
-    equal(m.tiles[1][2],'1/3');equal(m.tiles[2][2],'-');equal(m.tiles[2][4],'c')
-    equal(m.tiles[4][2],'1');equal(m.tiles[5][2],'640');equal(m.tiles[5][3],'#3')
-    equal(m.turtles[2].stripe,'1');equal(m.turtles[3].stripe,'e');equal(m.alert,'ore chest full')
+    local m=s.V.gather();local f=s.V.facts(m)
+    equal(f[1],{'busy','1/3','0'});equal(f[5],{'ore','-','8'});equal(f[6],{'fuel','640','0'});equal(m.fuel.id,3)
+    equal(m.turtles[2].state,'wait lane');equal(m.turtles[2].tone,'1');equal(m.turtles[3].tone,'1');equal(m.alert,'ore chest full')
   end)
-  for _,size in ipairs({{26,20},{29,12}}) do
-    test('UI2a compact mining keeps full worker coordinates at '..size[1]..'x'..size[2],function()
+  for _,size in ipairs({{57,24},{100,38}}) do
+    test('UI2a mining keeps full worker coordinates at '..size[1]..'x'..size[2],function()
       local s=setup()
       s.job.turtles={['2']={state='mining',pose={x=-5,y=64,z=-123},fuel=812,ores=14},
         ['3']={state='wait lane',pose={x=-7,y=64,z=456},fuel=640,ores=9}}

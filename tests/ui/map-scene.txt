@@ -1,0 +1,62 @@
+server 113 64 -336
+mine 120 64 -340 0 -58 64 thorough 10
+dug 120 -58 -341 120 64 -341
+dug 120 -58 -377 120 -58 -342
+dug 121 -58 -345 184 -58 -345
+dug 121 -58 -349 184 -58 -349
+dug 121 -58 -353 184 -58 -353
+dug 121 -58 -357 184 -58 -357
+dug 121 -58 -361 184 -58 -361
+dug 121 -58 -365 184 -58 -365
+dug 121 -58 -369 184 -58 -369
+dug 121 -58 -373 160 -58 -373
+dug 121 -58 -377 142 -58 -377
+dug 136 -58 -351 136 -58 -350
+dug 137 -58 -351 137 -58 -351
+dug 136 -57 -350 136 -57 -350
+dug 170 -58 -360 170 -58 -358
+dug 171 -58 -359 171 -58 -359
+dug 150 -58 -367 150 -58 -366
+dug 151 -58 -366 151 -58 -366
+dug 165 -59 -346 166 -59 -346
+dug 120 64 -340 120 64 -340
+dug 116 64 -339 126 64 -339
+dug 111 64 -340 119 64 -340
+dug 97 65 -349 107 65 -349
+dug 97 65 -346 107 65 -346
+reserve mine:2 161 -58 -373 163 -58 -373
+reserve mine:3 143 -58 -377 144 -58 -377
+reserve mine:4 120 -58 -341 120 64 -341
+reserve mine:4 120 -58 -381 120 -58 -342
+turtle 2 160 -58 -373 1 mining
+turtle 3 142 -58 -377 1 mining
+turtle 4 120 -58 -352 2 unload open
+turtle 5 101 65 -347 1 lumber
+turtle 6 184 -58 -369 1 done
+turtle 7 125 64 -340 3 idle
+drop ore 117 64 -337
+drop fuel 120 64 -337
+drop junk 123 64 -337 broken
+drop wood 110 64 -344
+saplings 110 64 -348
+farm 96 -352 108 -341 63
+spot 98 -350 ready
+spot 98 -347 ready
+spot 98 -344 ready
+spot 101 -350 ready
+spot 101 -347 ready
+spot 101 -344 growing
+spot 104 -350 growing
+spot 104 -347 ready
+spot 104 -344 ready
+spot 107 -350 ready
+spot 107 -347 growing
+spot 107 -344 ready
+view map-57x24 57x24 all fit
+view map-100x38 100x38 all fit
+view map-26x20 26x20 all fit
+view map-sel-57x24 57x24 -58 1x1 158 -367 turtle 6
+view map-39x19 39x19 all fit drop 3
+view map-29x12 29x12 -58 2x2 150 -366 cell 150 -366
+view map-15x10 15x10 all fit
+view schematic-map-XL 164x81 all fit

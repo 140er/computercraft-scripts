@@ -1,0 +1,115 @@
+100x38 Mining, wall 100x38
+ MINING   overview   setup  --------------------------------------------------------------- running 
+                                                                                                    
+10  +································································            busy ·· 2/4        
+ 9  +---------------------►-·3 wait··································            lane ··· #4        
+ 8  +---------------------------------------►-·2·····················            depth · -58        
+ 7  +---------------------------------------------------------------► 6 lost     done · 7/10        
+ 6  +----------------------------------------------------------------            ore ··· 214        
+ 5  +----------------------------------------------------------------            fuel ·· 412        
+ 4  +----------------------------------------------------------------                               
+ 3 4▼----------------------------------------------------------------                               
+ 2  +----------------------------------------------------------------                               
+ 1  +----------------------------------------------------------------                               
+    |                                                                                               
+    º shaft                                                                                         
+                                                                                                    
+ TURTLES ------------------------------------------------------------------------ fuel  ore         
+ ► 2  mining     b8 40/64  160,-58,-373                                            812   14         
+ ► 3  wait lane  b9 22/64  142,-58,-377                                            640    9         
+ ▼ 4  unload     lane      120,-58,-352                                            590   31         
+ ► 6  lost       b7 64/64  184,-58,-369                                            412   22         
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                      START                                             STOP                        
+                                                                                                    
+0000000000000000000088888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0ddddddd0
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+8800b888888888888888888888888888888888888888888888888888888888888888800000000000088880cc000000000000
+0800b3333333333333333333331b8111111888888888888888888888888888888888800000000000088880ccc0bb00000000
+0800b333333333333333333333333333333333333333db8d888888888888888888888000000000000888880c000000000000
+0800b333333333333333333333333333333333333333333333333333333333333333e0eeeeee0000088880c0000000000000
+0800b33333333333333333333333333333333333333333333333333333333333333330000000000008880ccc000000000000
+0800b333333333333333333333333333333333333333333333333333333333333333300000000000088880cc011100000000
+0800b33333333333333333333333333333333333333333333333333333333333333330000000000000000000000000000000
+080dd33333333333333333333333333333333333333333333333333333333333333330000000000000000000000000000000
+0800b33333333333333333333333333333333333333333333333333333333333333330000000000000000000000000000000
+0800b33333333333333333333333333333333333333333333333333333333333333330000000000000000000000000000000
+0000b00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000908888800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0888888888000000000
+0d00000000000000088888888008888888888880000000000000000000000000000000000000000000000000000000000000
+0100001111111110088888888008888888888880000000000000000000000000000000000000000000000000000000000000
+0d00000000000000088880000008888888888880000000000000000000000000000000000000000000000000000000000000
+0e0000eeee00000008888888800eeeeeeeeeeee0000000000000000000000000000000000000000000011100000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+088888888888888888888888888888888888888888888888000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+fffffffff7777777777fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777777777777777777777777fff77777777777777777777777777777777777777777777777ff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

@@ -165,10 +165,22 @@ Run `install reset` and type `yes` to delete everything except `install.lua`
 and `/rom`. This removes pairing keys and saved data. Run `install` again and
 pair the machine again after a reset.
 
+## Display roles
+
+Each display shows one role. Only the server changes it. Press `R` on the
+server terminal, type `<id> <role>` and press Enter, for example `7 mining`.
+`7 -` clears the role. The list above the prompt shows every display's id,
+size and role. Esc closes the prompt.
+
+Roles are `status`, `pocket`, `mining`, `lumber`, `shop`, `drops`, `ar`,
+`panel` and `map`. A new pocket gets `pocket`: its glance page and panel page
+switch with `PANEL` and `GLANCE`. Any other new display shows `UNASSIGNED`
+with its id in big digits. The server's own monitor shows status; assign it
+another role with the server's own id. Roles survive restarts.
+
 ## Map
 
-Tap `MAP` in the header of any display or panel. `BACK` returns to the screen
-that opened it. The map fits the configured mine, farm, drops and turtles on
+Assign the `map` role to a display. The map fits the configured mine, farm, drops and turtles on
 entry with all levels projected. `FIT` restores that view after using `+`, `-` or the four pan buttons.
 Each display keeps its own view until the server restarts.
 
@@ -263,15 +275,14 @@ used. The controller cannot infer the wearer's dimension.
 
 ## Drop points
 
-Open `MORE` from status, pocket glance or the panel header for the generic
-drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
+Assign the `drops` role to a display for the drop-point list. Tap `ADD NEW` to open the editor. Use the kind and side buttons
 to cycle values, the dimension and coordinate buttons to adjust the draft,
 and `ADD` to save it. `FROM #N` copies a paired turtle's fresh, proven world
 position into the draft. `front` selects the cell the turtle faces. `down`
 selects the chest below it. Unknown facing, stale GPS and uncertain journals
 refuse the action. Review the coordinates before `ADD`. Select a point in the list for `FIX` or `REMOVE`. Use
 `PREV` and `NEXT` to page through the list. The editor's `BACK` returns to the
-list, whose `BACK` returns to status. All controls fit a 26x20 pocket or 29x12
+list. All controls fit a 26x20 pocket or 29x12
 monitor. Big Tiles use the full display height; typing opens local input.
 Kinds are `fuel`, `ore`, `junk`, `wood`, `storage` and `any`.
 Sides are `front` and `down`. Drop-point dimensions are integers: 0 overworld,
@@ -295,13 +306,10 @@ requests and field definitions.
 
 ## Mining
 
-The drop-point list has `MINING`, `LUMBER`, `SHOP`, `AR` and `PANEL` buttons.
-Links wrap across rows on small displays. Mining and lumber each have `SETUP`
-and `BACK`. Setup's `BACK` returns to its main page; main-page `BACK` returns
-to status. Shop item tiles open the order page, whose `BACK` returns to the
-list. AR's `BACK` returns to status. Panel has `MORE` for the drop-point list
-and `GLANCE` for status. Every screen is reachable by visible buttons at
-26x20 and 29x12. Compact mining rows show the full x,y,z position before state.
+Mining and lumber each have `START`, `STOP` and `SETUP`. Setup's `BACK`
+returns to its main page. Shop item tiles open the order page, whose `BACK`
+returns to the list. No screen links to another role. Every page fits 26x20
+and 29x12. Compact mining rows show the full x,y,z position before state.
 
 The server stores dug marks in compact 16x16x16 sections. At 1 MB of section
 files, every display shows a request to forget old areas, with `allow` and
@@ -463,7 +471,7 @@ Until discovery the shop screen says `Storage room not found`.
 Tap a category, use `A-Z` to jump to a letter, and sort by `STOCK` or `NAME`.
 Categories come from item IDs. Unknown items appear under `OTHER`.
 Tap an item, then `ORDER 1`, `ORDER 16` or `ORDER 64`. BACK returns to the
-same list page. List BACK returns to status, where MORE opens navigation.
+same list page.
 The whole flow works by touch on monitors and pockets, without a search field.
 Small screens use short quantity labels and a category picker.
 

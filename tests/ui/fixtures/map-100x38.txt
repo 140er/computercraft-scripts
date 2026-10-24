@@ -1,0 +1,115 @@
+100x38 Map, wall 100x38
+ MAP  FIT   -   +    ◄   ▲   ▼   ►   ×1                                               ▼  ALL  ▲  ↑N 
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                       10 ¦································································         
+                          ¦                      3 wait                                             
+                        9 |---------------------►··········································         
+                          |                                        2                                
+                        8 |---------------------------------------►························         
+                          |                                                                6 lost   
+                        7 |---------------------------------------------------------------►         
+                          |                             ··                                          
+                        6 |----------------------------------------------------------------         
+                          |                                                                         
+                        5 |----------------------------------------------------------------         
+                          |                                                 ··                      
+                        4 |----------------------------------------------------------------         
+  farm 9/12               |                                                                         
+  +-----------+       3  4▼----------------------------------------------------------------         
+  | ♠  ♠  ♣  ♠|           |               ··                                                        
+  |     5     | •saplings |----------------------------------------------------------------         
+  | ♠  ►  ♠  ♣|           |                                            ··                           
+  | ♠  ♣  ♠  ♠| •wood   1 |----------------------------------------------------------------         
+  |           |           |                                                                         
+  +-----------+  ---------ºshaft                                                                    
+                      +----------                                                                   
+             server@   •  •  ×junk                                                                  
+                      ore  fuel                                                                     
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+ TURTLES --------------------------------------------------------------------------------------- 5  
+ ► 2  mining     160,-58,-373     ► 3  wait lane  142,-58,-377     ▼ 4  unload     120,-58,-352     
+                                                                                                    
+ ► 5  felling    101,65,-347      ► 6  lost       184,-58,-369                                      
+00000fffff00000000000000000000000000eeee000000000000000000000000000000000000000000000000000000000880
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000880b8888888888888888888888888888888888888888888888888888888888888888000000000
+00000000000000000000000000b0000000000000000000000111111000000000000000000000000000000000000000000000
+00000000000000000000000080b3333333333333333333331bb8888888888888888888888888888888888888888000000000
+00000000000000000000000000b0000000000000000000000000000000000000000d00000000000000000000000000000000
+00000000000000000000000080b333333333333333333333333333333333333333dbbb888888888888888888888000000000
+00000000000000000000000000b0000000000000000000000000000000000000000000000000000000000000000eeeeee000
+00000000000000000000000080b333333333333333333333333333333333333333333333333333333333333333e000000000
+00000000000000000000000000b0000000000000000000000000000033000000000000000000000000000000000000000000
+00000000000000000000000080b3333333333333333333333333333333333333333333333333333333333333333000000000
+00000000000000000000000000b0000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000080b3333333333333333333333333333333333333333333333333333333333333333000000000
+00000000000000000000000000b0000000000000000000000000000000000000000000000000330000000000000000000000
+00000000000000000000000080b3333333333333333333333333333333333333333333333333333333333333333000000000
+00888888888000000000000000b0000000000000000000000000000000000000000000000000000000000000000000000000
+00ccccccccccccc0000000800dd3333333333333333333333333333333333333333333333333333333333333333000000000
+00c0d00d00800dc00000000000b0000000000000003300000000000000000000000000000000000000000000000000000000
+00c00000d00000c00888888880b3333333333333333333333333333333333333333333333333333333333333333000000000
+00c0d00d00d008c00000000000b0000000000000000000000000000000000000000000033000000000000000000000000000
+00c0d00800d00dc00888800080b3333333333333333333333333333333333333333333333333333333333333333000000000
+00c00000000000c00000000000b0000000000000000000000000000000000000000000000000000000000000000000000000
+00ccccccccccccc0033333333398888800000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000333333333330000000000000000000000000000000000000000000000000000000000000000000
+00000000000008888889000000000eeeee000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000888008888000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+088888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0800
+0d00000000000000088888888888800000100001111111110088888888888800000d00000000000000088888888888800000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0d00000000000000088888888888000000e0000eeee000000088888888888800000000000000000000000000000000000000
+fffff99999f777f777ff777f777f777f777f7777fffffffffffffffffffffffffffffffffffffffffffff777fffff777ffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

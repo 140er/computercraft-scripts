@@ -5,7 +5,7 @@ local function setup()
   env.os = setmetatable({epoch=function() return s.now end,getComputerID=function() return 1 end},{__index=os})
   env.fs = {getCapacity=function() return 16000000 end,getFreeSpace=function() return 13900000 end}
   env.SO = { now = function() return env.os.epoch("utc") end,mods={},proto=dofile("so-proto.lua"),store={copy=function(v) local t={} for k,x in pairs(v) do t[k]=x end return t end,store=function()
-    return {value={roles={}},save=function() error("local navigation saved") end}
+    return {value={roles={}},save=function() if not s.allowSave then error("local navigation saved") end return true end}
   end},pair={key=function() error("local monitor used rednet") end}}
   env.peripheral = {find=function() s.finds=s.finds+1; return s.monitor end,getName=function() return "left" end}
   s.display=assert(loadfile("so-mod-display.lua","t",env))()
@@ -64,22 +64,16 @@ local function server()
   return s
 end
 return function(test,equal)
-  test("UI3a normal and pairing match unchanged fixtures",function()
+  test("UI3a terminal modes stay inside every size (fixtures in tests/ui/s4.lua)",function()
     local d=setup().display
     assert(d.terminal,"terminal renderer missing")
-    local m={tiles={},terminalSubs={"ok","fresh","2.1 MB","see log"}}
-    for _,t in ipairs({{1,"TURTLES","3","d"},{7,"DISPLAYS","4","d"},
-      {6,"DISK","13%","d"},{3,"ALERTS","1","e"}}) do
-      m.tiles[t[1]]={label=t[2],value=t[3],bg=t[4]}
-    end
-    local v={id=1,mode="normal",uptime="up 3h12",log={
+    local m={tiles={}}
+    local v={id=1,mode="normal",uptime="up 3h12",code="482915",now=0,expires=292000,log={
       "21:14:02 lease 2-961 reported ok","21:14:05 drops: hold ore (3)",
       "21:14:09 pair: display 7 joined","21:14:11 mine: #3 wait lane"}}
-    local diff=R.diff("tests/ui/fixtures/server-T.txt",capture(d.terminal(m,v,51,19),51,19))
-    assert(#diff==0,table.concat(diff,"\n"))
-    v.mode,v.code,v.now,v.expires="code","482915",0,292000
-    diff=R.diff("tests/ui/fixtures/pairing-T.txt",capture(d.terminal(m,v,51,19),51,19))
-    assert(#diff==0,table.concat(diff,"\n"))
+    local text=capture(d.terminal(m,v,51,19),51,19).picture().text
+    assert(text[1]:find("SO SERVER #1",1,true) and text[1]:find("up 3h12",1,true),text[1])
+    assert(text[19]:find("[P] pair",1,true) and text[19]:find("[R] roles",1,true) and text[19]:find("[L] log",1,true),text[19])
     for _,size in ipairs({{1,1},{15,10},{26,20},{39,19},{100,38}}) do
       for _,mode in ipairs({"normal","code","log"}) do
         v.mode=mode;capture(d.terminal(m,v,size[1],size[2]),size[1],size[2])
@@ -118,7 +112,7 @@ return function(test,equal)
     s.env.SO.terminal={id=1,started=0,mode="normal",log={"retained server message"}}
     s.now=11520000;s.display.tick(s.now)
     local picture=s.env.term.picture()
-    assert(picture.text[2]:find("up 3h12",1,true))
+    assert(picture.text[1]:find("up 3h12",1,true))
     assert(table.concat(picture.text,"\n"):find("retained server message",1,true))
     equal(s.env.term.palette[2^9][1],s.display.palette[9])
   end)
@@ -165,37 +159,31 @@ return function(test,equal)
     notice={id="request-2",status="pending",text="Choose allow or keep"}
     s.display.tick(1);equal(decisions,0)
   end)
-  test("UI3a monitor discovers at most every five seconds and navigates locally",function()
+  test("UI3a monitor discovers at most every five seconds and changes role only by command",function()
     local s=setup()
     s.display.tick(0);equal(s.finds,1)
     s.monitor=R.capture(57,24)
     s.monitor.setTextScale=function(scale) equal(scale,0.5) end
     s.now=4999;s.display.tick(s.now);equal(s.finds,1)
     s.now=5000;s.display.tick(s.now);equal(s.finds,2)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
     local U=dofile("so-ui.lua")
-    local mining
-    local tiles={}
-    for i=1,9 do tiles[i]={label="T",value="0",sub="",bg="d"} end
-    for _,b in ipairs(U.status({time="",tiles=tiles},57,24).buttons) do
-      if b.id=="mining" then mining=b end
-    end
-    assert(mining)
     local inputs=0
     s.display.screen("mining",function(w,h)
       equal(w,57);equal(h,24)
-      local c=U.canvas(w,h);c.header("MINING");c.button(1,h-2,10,"BACK","status")
+      local c=U.canvas(w,h);c.header("MINING");c.button(1,h-2,10,"SETUP","setup")
       return c.frame()
     end,function() inputs=inputs+1 end)
-    s.display.monitorTouch("right",mining.x,mining.y)
-    s.now=5500;s.display.tick(s.now)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
-    s.display.monitorTouch("left",mining.x,mining.y)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true))
+    for y=1,24,3 do for x=1,57,7 do s.display.monitorTouch("left",x,y) end;s.now=s.now+100;s.display.tick(s.now) end
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
+    s.allowSave=true
+    equal({s.display.assign(1,"mining")},{true,"display 1: mining"})
     s.now=6000;s.display.tick(s.now)
     assert(s.monitor.picture().text[2]:find("MINING",1,true))
     s.display.monitorTouch("left",1,22);s.now=7000;s.display.tick(s.now)
-    assert(s.monitor.picture().text[2]:find("STATUS",1,true));equal(inputs,1)
+    assert(s.monitor.picture().text[2]:find("MINING",1,true));equal(inputs,1)
+    assert(s.display.assign(1,"-"));s.now=8000;s.display.tick(s.now)
+    assert(s.monitor.picture().text[1]:find("STATUS",1,true))
     s.monitor=nil;s.now=10000;s.display.tick(s.now)
   end)
 end

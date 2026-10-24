@@ -53,6 +53,8 @@ return function(test,equal)
     for _,path in ipairs({'so-ui.lua','so-mod-display.lua','so-mod-panel.lua','so-mod-ar.lua',
         'so-mod-mine.lua','so-mod-lumber.lua','so-mod-drops.lua','so-mod-shop.lua','so-mod-map.lua'}) do
       local file=assert(io.open(path));local source=file:read('*a');file:close()
+      -- Comments are not screen text, and their apostrophes would pair with real quotes.
+      source=source:gsub('%-%- [^\n]*','')
       for _,text in source:gmatch("(['\"])(.-)%1") do
         text=text:lower()
         for _,verb in ipairs({'press','choose','tap'}) do
@@ -89,26 +91,27 @@ return function(test,equal)
     end
     equal(count,14);assert(inversions>0)
   end)
-  test('UI1 status matches all size fixtures in both layers',function()
-    for _,size in ipairs({'M','L','P','XS','T'}) do
+  test('UI1 status draws a tiles-only model at every fixture size',function()
+    -- Route A status fixtures and their data are in tests/ui/s0.lua.
+    for _,size in ipairs({'M','L','P','XS','T','W','XL'}) do
       local fixture=R.load('tests/ui/fixtures/status-'..size..'.txt')
-      local m=model()
-      if size=='L' then m.alert='ore chest full' end
-      local got=capture(U.status(m,fixture.w,fixture.h),fixture.w,fixture.h).picture()
-      if size=='P' then fixture.h=19;got.h=19 end
-      local diff=R.diff(fixture,got)
-      assert(#diff==0,size..'\n'..table.concat(diff,'\n'))
+      local got=capture(U.status(model(),fixture.w,fixture.h),fixture.w,fixture.h).picture()
+      assert(got.text[1]:find('^ STATUS'),size..' '..got.text[1])
     end
   end)
-  test('UI1 takeover matches alert fixture',function()
-    local m=model();m.takeover=m.alerts[1];m.takeover.count=3
-    local diff=R.diff('tests/ui/fixtures/alert-M.txt',capture(U.alert(m,57,24),57,24))
-    assert(#diff==0,table.concat(diff,'\n'))
+  test('UI1 takeover draws the route A alert (its fixtures are in tests/ui/s4.lua)',function()
+    local _,s,frame=server()
+    s.values['mine.alert']={text='ore chest full'}
+    local got=capture(frame(2),57,24).picture()
+    assert(got.text[3]:find(' ORE CHEST FULL ',1,true),got.text[3])
+    equal(got.bg[3]:sub(5,5),'e')
+    equal(got.fg[1]:sub(1,1),'e')
   end)
   test('UI1 contrast respects ink including inverted glyph cells',function()
+    -- Route A screens follow the coloured-glyph rule in tests/ui/s0.lua and s4.lua; U.alert is the old tiled takeover.
     for _,size in ipairs({'M','L','P','XS','T'}) do
       local fixture=R.load('tests/ui/fixtures/status-'..size..'.txt')
-      local frames={U.status(model(),fixture.w,fixture.h),U.alert(model(),fixture.w,fixture.h)}
+      local frames={U.alert(model(),fixture.w,fixture.h)}
       for _,frame in ipairs(frames) do
         local out=capture(frame,fixture.w,fixture.h)
         for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
@@ -151,10 +154,9 @@ return function(test,equal)
     end
     for _,size in ipairs({{26,20},{29,12},{57,24},{100,38},{164,81}}) do
       local f=U.status(model(),size[1],size[2])
-      assert(f.rows[1].text=='')
+      assert(f.rows[1].text:find('^ STATUS'))
       local text=table.concat((function() local rows={} for _,r in ipairs(f.rows) do rows[#rows+1]=r.text end return rows end)(),'\n')
-      assert(text:find('TURTLES',1,true))
-      if size[2]>=38 then assert(text:find('3 ok, 0 lost',1,true));assert(text:find('PAIR',1,true)) end
+      assert(text:find(size[2]>=14 and 'TURTLES' or 'turtles',1,true))
     end
   end)
   test('UI1 gathering reads real sources and leaves unsupported totals stale',function()
@@ -163,8 +165,11 @@ return function(test,equal)
     local got=frame(2)
     equal(got.palette,U.palette);equal(got.scale,0.5)
     local text=capture(got,57,24).picture().text
-    assert(text[5]:find('TURTLES',1,true));assert(text[12]:find('ORE TODAY',1,true))
-    assert(text[19]:find('BROKEN',1,true));assert(text[12]:find('DISK',1,true))
+    -- Lost #4 and the broken drop flag rows 3 and 4; the sections follow from row 6.
+    assert(text[3]:find('#4 lost now',1,true),text[3]);assert(text[4]:find('drop 1 drop broken',1,true),text[4])
+    assert(text[6]:find('TURTLES',1,true));assert(text[6]:find('TODAY',1,true))
+    assert(text[11]:find('SERVER',1,true));assert(text[12]:find('disk',1,true));assert(text[12]:find('13%',1,true))
+    assert(text[17]:find('DROPS',1,true))
     assert(d.far(2,true));equal(frame(2).scale,1)
   end)
   test('UI1 roleless machine rows count turtles, open leases and lost workers',function()
@@ -174,17 +179,13 @@ return function(test,equal)
       ['4']={id=4,fuel=640,seen=500,pose={dim='minecraft:overworld',x=0,y=61,z=-1,facing=1}},
       ['9']={id=9,role='display',seen=1000},
     }
-    local got=capture(frame(2),57,24)
-    local expectedModel=model()
-    expectedModel.tiles[1].value='2'
-    expectedModel.tiles[1].sub='1 ok, 1 lost'
-    expectedModel.tiles[1].bg='e'
-    expectedModel.tiles[2].value='1'
-    local expected=capture(U.status(expectedModel,57,24),57,24)
-    for y=4,8 do
-      for x=1,38 do equal(got.cells[y][x],expected.cells[y][x]) end
-    end
-    assert(got.picture().text[5]:find('TURTLES',1,true))
+    local got=capture(frame(2),57,24).picture().text
+    -- #4 is lost: flagged first, then the broken drop; TURTLES counts both workers.
+    assert(got[3]:find('#4 lost 0,61,-1 \194\183 now',1,true),got[3])
+    assert(got[4]:find('drop 1 drop broken',1,true),got[4])
+    assert(got[6]:find('TURTLES',1,true) and got[6]:find('2',30,true),got[6])
+    assert(got[7]:find('2  idle',1,true),got[7]);assert(got[8]:find('4  lost',1,true),got[8])
+    assert(got[13]:find('leases',1,true) and got[13]:find(' 1 *$'),got[13])
   end)
   test('UI1 takeover expires at five seconds, dismisses and throttles per session',function()
     local _,s,frame,tap=server()
@@ -224,7 +225,7 @@ return function(test,equal)
     frame(2)
     s.now=30000;s.values['lumber.alert']={text='newest'}
     local got=frame(2)
-    assert(capture(got,57,24).picture().text[12]:find('NEWEST',1,true))
+    assert(capture(got,57,24).picture().text[3]:find('NEWEST',1,true))
     assert(#dofile('so-proto.lua').ser(got)<15000)
     local first=frame(3,15,10)
     frame(2,39,19)
@@ -232,13 +233,14 @@ return function(test,equal)
     s.now=35000
     assert(capture(frame(2),57,24).picture().text[3]:find('newest',1,true))
   end)
-  test('UI1 XS cycles tiles and status buttons select their roles',function()
+  test('UI1 XS shows its leaders without paging and role ids never change the saved role',function()
     local _,_,frame,tap=server()
     local a=capture(frame(2,15,10),15,10).picture();tap(2,'next')
-    local b=capture(frame(2,15,10),15,10).picture();assert(a.text[4]~=b.text[4])
-    for _,role in ipairs({'mining','lumber','shop','generic'}) do
+    local b=capture(frame(2,15,10),15,10).picture();equal(a.text,b.text)
+    assert(a.text[5]:find('turtles',1,true),a.text[5])
+    for _,role in ipairs({'mining','lumber','shop','generic','panel','map','status','pocket'}) do
       local d,s,f,t=server();d.screen(role,function() return {rows={{text=role,fg='0',bg='f'}}} end)
-      f(2);t(2,role);equal(s.saved.roles['2'],role)
+      f(2);t(2,role);equal(s.saved.roles['2'],'status');equal(f(2).role,'status')
     end
   end)
   test('UI1 old renderers receive size and revisions remain independent',function()

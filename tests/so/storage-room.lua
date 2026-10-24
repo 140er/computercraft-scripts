@@ -78,7 +78,8 @@ return function(test,equal)
     s.net.time=120000 s.shop.tick(s.net.time)
     local text=""
     for _,row in ipairs(screen.render(29,12,screen.session).rows) do text=text..row.text end
-    assert(text:find("Order: failed, timed out",1,true),"manual order lost its failure feedback")
+    -- Route A lists the order under the item as failed once its reply times out.
+    assert(text:find("64 failed",1,true),"manual order lost its failure feedback")
   end)
   test("room fuel defaults off and refuses an unbound output",function()
     local s=fixture() s.stock()
@@ -262,13 +263,16 @@ return function(test,equal)
       end
       mods.mine=s.m.env.dofile("so-mod-mine.lua") mods.mine.tick()
       local mining=s.screens.mining
-      tap(mining,"setup",unpack(size))
+      -- Route A: the setup tab holds the fuel chips; the drops editor holds the room chips.
+      tap(mining,"tab:setup",unpack(size))
       tap(mining,"fuel-output",unpack(size))
       equal(s.shop.fuelConfig().output.id,"output")
       tap(mining,"fuel-auto",unpack(size)) equal(s.shop.fuelConfig().auto,true)
       tap(mining,"fuel-auto",unpack(size)) equal(s.shop.fuelConfig().auto,false)
       local drops=s.screens.generic
       tap(drops,"new",unpack(size))
+      -- ADD starts from the selected point (the fuel output); one kind tap makes it ore.
+      tap(drops,"kind",unpack(size))
       tap(drops,"room-point",unpack(size))
       tap(drops,"add",unpack(size))
       local found
@@ -277,13 +281,17 @@ return function(test,equal)
       tap(drops,"room-sink",unpack(size))
       assert(s.drops.pick("ore",{dim=0,x=0,y=64,z=0}).point)
       if size[2]==12 then
-        tap(drops,"from-next",unpack(size))
+        local more
+        for _,b in ipairs(drops.render(size[1],size[2],drops.session).buttons) do if b.id=="from-next" then more=true end end
+        if more then tap(drops,"from-next",unpack(size)) end
         local foundNext
         for _,b in ipairs(drops.render(size[1],size[2],drops.session).buttons) do if b.id=="from:3" then foundNext=true end end
         assert(foundNext,"FROM paging lost after room controls")
       end
       tap(drops,"list",unpack(size))
-      tap(mining,"mine-back",unpack(size))
+      local back="tab:overview"
+      for _,b in ipairs(mining.render(size[1],size[2],mining.session).buttons) do if b.id=="tab:main" then back=b.id end end
+      tap(mining,back,unpack(size))
     end)
   end
   test("mining empty fuel shares the policy without changing standing reservations",function()

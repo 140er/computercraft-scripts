@@ -1,0 +1,115 @@
+100x38 Lumber, wall 100x38
+ LUMBER   overview   setup  --------------------------------------------------------------- running 
+                                                                                                    
+                                                                                   |                
+ +-----------------------------------+                                             | ready ··· 9/12 
+ |                                   |                                             |                
+ |                                   |                                             | growing ···· 3 
+ |                                   |                                             |                
+ |     ♠        ♠        ♣        ♠  |                                             | next grow 6:20 
+ |                                   |                                             |                
+ |                                   |                                             | logs ······ 96 
+ |                                   |                                             |                
+ |                                   |     • saplings                              | saplings ·· 14 
+ |               5                   |                                             |                
+ |     ♠        ►        ♠        ♣  |                                             | fuel ····· 640 
+ |                                   |                                             |                
+ |                                   |                                             |                
+ |                                   |                                             |                
+ |                                   |                                             |                
+ |                                   |                                             |                
+ |     ♠        ♣        ♠        ♠  |     • wood                                  |                
+ |                                   |                                             |                
+ |                                   |                                             |                
+ |                              7    |                                             |                
+ |                             ◄     |                                             |                
+ |                                   |                                             |                
+ +-----------------------------------+                                             |                
+                                                                                   |                
+                                                                                   |                
+ ► 5  felling    101,65,-347                                                       |                
+ ◄ 7  wait chest 106,65,-342                                                       |                
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                      START                                             STOP                        
+                                                                                                    
+0000000000000000000088888880ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc0ddddddd0
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000c0000000000000000
+0ccccccccccccccccccccccccccccccccccccc000000000000000000000000000000000000000000000c0888880ccc0dddd0
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c088888880cccc000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000d00000000d00000000800000000d00c000000000000000000000000000000000000000000000c0888888888000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c088880cccccc0000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000088888888000000000000000000000000000000c0888888880cc0000
+0c000000000000000d0000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000d00000000d00000000d00000000800c000000000000000000000000000000000000000000000c088880ccccc00000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000d00000000800000000d00000000d00c000000088880000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000010000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000100000c000000000000000000000000000000000000000000000c0000000000000000
+0c00000000000000000000000000000000000c000000000000000000000000000000000000000000000c0000000000000000
+0ccccccccccccccccccccccccccccccccccccc000000000000000000000000000000000000000000000c0000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000c0000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000c0000000000000000
+0d000000000000000888888888880000000000000000000000000000000000000000000000000000000c0000000000000000
+01000011111111110888888888880000000000000000000000000000000000000000000000000000000c0000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+088888888888888888888888888888888888888888888888000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+fffffffff7777777777fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777777777777777777777777fff77777777777777777777777777777777777777777777777ff
+ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

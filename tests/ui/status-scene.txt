@@ -1,0 +1,24 @@
+epoch 1792782851000
+server 1 11520000
+disk 16000000 13900000
+today 214 96 12 iron:88 coal:61 copper:41 redstone:24
+mining running 7 10
+lumber running 380000
+turtle 2 mine mining 812 14 0 7
+turtle 3 mine wait_lane 640 9 0 8
+turtle 4 mine unload 590 31 0 lane
+turtle 6 mine done 412 22 180000 6
+turtle 5 lumber climb 1210 0 0 farm
+lease 2 open
+lease 3 open
+lease 4 open
+lease 6 lost
+display 7 status 57x24
+display 8 status 100x38
+display 9 map 57x24
+display 10 pocket 26x20
+event 21:12:30 16 IRON INGOT sent
+event 21:13:40 #6 lease expired, lane released
+event 21:14:02 #2 reported 14 ore
+event 21:14:05 drop 3 junk: chest missing
+event 21:14:11 #3 waits for the lane

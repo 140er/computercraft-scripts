@@ -1,6 +1,6 @@
 26x20 Panel pairing code P
                           
- PANEL 01:00    MORE  MAP 
+ PANEL              01:00 
  PAIR NEW CLIENT          
     🬞🬓 🬖🬋🬏🬋🬋🬏 🬵 🬚🬋🬃🬞🬋     
      ▌  🬖🬀🬇🬋🬐🬳🬷🬏🬂🬂🬓🬛🬋🬏    
@@ -20,7 +20,7 @@
                           
            BACK           
 ffffffffffffffffffffffffff
-f7777777777777777777779999
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 f999999999999999999999999f
 f999999999999999999999999f

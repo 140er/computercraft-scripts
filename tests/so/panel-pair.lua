@@ -83,7 +83,29 @@ end
 
 local U = dofile("so-ui.lua")
 
+-- The pocket's PAIR page draws the code in route A line digits (rows 5-11, 3 cells wide, 1 apart).
+local function readLineCode(s)
+  local code = ""
+  for i=1,6 do
+    local x, found = 2+(i-1)*4
+    for digit=0,9 do
+      local c = U.canvas(3,7)
+      c.digits(1,1,tostring(digit),"0",3,7,1)
+      local rows, matches = c.frame().rows, true
+      for row=1,7 do
+        local want = ((rows[row].text or "") .. "   "):sub(1,3)
+        if (s.client.screen[row+4] or ""):sub(x,x+2) ~= want then matches=false end
+      end
+      if matches then assert(not found,"ambiguous digit");found=tostring(digit) end
+    end
+    assert(found,"missing line digit")
+    code=code..found
+  end
+  return code
+end
+
 local function readCode(s, w)
+  if w == 26 then return readLineCode(s) end
   local code = ""
   local x = 1 + math.floor((w-18)/2)
   for i=1,6 do
@@ -103,6 +125,12 @@ local function readCode(s, w)
   return code
 end
 
+-- The code's countdown: row 14 on the pocket PAIR page, "m:ss left" on row 7 of the panel role.
+local function countdown(s, w)
+  if w == 26 then return (s.frame().rows[14].text or ""):match("%d+:%d%d") end
+  return (s.frame().rows[7].text or ""):match("%d+:%d%d left")
+end
+
 local function newClient(s, id, code)
   local client = s.net.machine({id=id, modem=true, width=26, height=20, capacity=1000000})
   install(client,{"display.lua","so-proto.lua","so-pair.lua","so-store.lua"})
@@ -114,20 +142,27 @@ local function newClient(s, id, code)
   return client
 end
 
+-- A pocket has PAIR in its own tab bar; any other display gets the panel role from the server.
+local function openPanel(s)
+  if s.frame().role=="pocket" then return end
+  assert(s.server.env.SO.mods.display.command(s.client.id.." panel"))
+  s.net.advance(1)
+end
+
 return function(test, equal)
   for _,size in ipairs({{26,20},{29,12}}) do
     local w,h = table.unpack(size)
     test("panel pairing button, big digits and single use at "..w.."x"..h,function()
       local s=setup(w,h,true)
-      if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
       local code=readCode(s,w)
       equal(code,s.server.env.SO.pair.pending())
       equal(s.server.env.SO.terminal.code,code)
       equal(s.server.env.SO.terminal.mode,"code")
       local expires=s.server.env.SO.terminal.expires
       s.net.advance(2)
-      assert(s.frame().rows[7].text:find("4:58 left",1,true))
+      assert((countdown(s,w) or ""):find("4:58",1,true))
       s.press("NEW CODE")
       equal(readCode(s,w),code)
       equal(s.server.env.SO.terminal.expires,expires)
@@ -136,7 +171,7 @@ return function(test, equal)
       for _,packet in ipairs(joined.sent) do assert(packet.payload.t~="pair","NEW CODE client used legacy pair") end
       equal(s.server.env.SO.pair.pending(),nil)
       s.net.advance(2)
-      assert(not s.frame().rows[7].text:find("left",1,true))
+      assert(not countdown(s,w))
       local late=newClient(s,4,code)
       s.net.advance(8)
       equal(s.server.env.SO.pair.key(late.id),nil)
@@ -147,8 +182,8 @@ return function(test, equal)
     end)
     test("panel expiry and code privacy at "..w.."x"..h,function()
       local s=setup(w,h,true)
-      if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+      openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
       local code=readCode(s,w)
       local pair=s.server.env.SO.pair
       equal(s.server.env.SO.pairCode(99),nil)
@@ -156,7 +191,9 @@ return function(test, equal)
       equal(s.server.env.SO.pairCode(5),nil)
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=5,body={w=w,h=h}})
-      for _,id in ipairs({"panel","pair","pair-code"}) do
+      if w~=26 then assert(display.assign(5,"panel")) end
+      -- Taps count only on controls drawn in the frame this display was sent.
+      for _,id in ipairs({w==26 and "tab:pair" or "pair","pair-code"}) do
         local f
         display.handlers["view.get"]({from=5},function(_,body) f=body end)
         local drawn
@@ -166,7 +203,7 @@ return function(test, equal)
       end
       local other
       display.handlers["view.get"]({from=5},function(_,body) other=body end)
-      for row=4,6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
+      for row=w==26 and 5 or 4,w==26 and 7 or 6 do assert(other.rows[row].text~=s.frame().rows[row].text,"code leaked") end
       local proto=s.server.env.SO.proto
       for _,packet in ipairs(s.server.sent) do
         if packet.payload.t=="view.frame" then
@@ -176,7 +213,7 @@ return function(test, equal)
       end
       s.net.advance(300)
       equal(pair.pending(),nil)
-      assert(not s.frame().rows[7].text:find("left",1,true))
+      assert(not countdown(s,w))
       equal(s.server.env.SO.terminal.mode,"normal")
       s.press("NEW CODE")
       assert(pair.pending(),"new invitation after expiry")
@@ -190,7 +227,7 @@ return function(test, equal)
       os={epoch=function() return 0 end}}, {__index=_G})
     local panel=assert(loadfile("so-mod-panel.lua","t",env))()
     local render
-    env.SO.mods.display={screen=function(_,fn) if fn then render=fn end end}
+    env.SO.mods.display={screen=function(role,fn) if role=="panel" and fn then render=fn end end}
     panel.tick(0)
     for _,size in ipairs({
       {26,20,{[false]="tests/ui/fixtures/panelpair-P.txt",[true]="tests/ui/fixtures/panelcode-P.txt"}},
@@ -217,8 +254,8 @@ return function(test, equal)
   end)
   test("repeat panel requests preserve the bad attempt limit",function()
     local s=setup(26,20,true)
-    if s.frame().role=="status" then s.press("MORE") end
-      s.press("PANEL");s.press("PAIR");s.press("NEW CODE")
+    openPanel(s)
+      s.press("PAIR");s.press("NEW CODE")
     for i=1,10 do
       local env=newClient(s,8+i,"abcdef").env
       local proto=assert(env.dofile("so-proto.lua"))

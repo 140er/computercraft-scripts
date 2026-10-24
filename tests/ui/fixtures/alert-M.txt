@@ -1,49 +1,73 @@
-57x24 Alert takeover (5 s), coral background, ink text
-                                                         
-                                                         
-                                                         
-                          ALERT                          
-                                                         
-                                                         
-                           🬋🬋🬏                           
-                           🬇🬋🬐                           
-                           🬋🬋🬀                           
-                                                         
-                                                         
-                     ORE CHEST FULL                      
-                                                         
-                drop point #3 at 10,64,-2                
-                                                         
-          turtle #3 parked until it is emptied           
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
+57x24 Alert takeover, room monitor 57x24, 3 s left
++-------------------------------------------------------+
+|                                                       |
+|    #6 ORE CHEST FULL  184,-58,-369                    |
+|                                                       |
+|                                                       |
+|                                                       |
+|                           2                           |
+|   8----------------------►························    |
+|                                                       |
+|                                                       |
+|                                                       |
+|   7----------------------------------------------►    |
+|                                                       |
+|                ·                                      |
+|                ··                                     |
+|   6-----------------------------------------------    |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|                                                       |
+|   |||||||||||||||||||||||||||||····················   |
+|                                                       |
++-------------------------------------------------------+
 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+e0000000000000000000000000000000000000000000000000000000e
+e000fffffffffffffffffff000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e000000000000000000000000000d000000000000000000000000000e
+e00083333333333333333333333dbbb8888888888888888888880000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e00083333333333333333333333333333333333333333333333f0000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000300000000000000000000000000000000000000e
+e0000000000000000330000000000000000000000000000000000000e
+e0008333333333333333333333333333333333333333333333330000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000000000e
+e000eeeeeeeeeeeeeeeeeeeeeeeeeeeee88888888888888888888000e
+e0000000000000000000000000000000000000000000000000000000e
 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffefffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff

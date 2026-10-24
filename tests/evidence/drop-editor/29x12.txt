@@ -1,13 +1,13 @@
 Mock display client, 29x12; bottom row reserved for input
-01 |mining lumber shop           |
-02 |status ar                    |
-03 |drops                        |
-04 |point19 ore front            |
+01 |drops                        |
+02 |point17 ore front            |
+03 |fix  remove                  |
+04 |point18 ore front            |
 05 |fix  remove                  |
-06 |prev next 19/20              |
+06 |prev next 9/10               |
 07 |draft fuel front dim 1       |
 08 |1300 64 -910                 |
 09 |kind side add dim+ dim-      |
 10 |x+ x- y+ y- z+ z-            |
-11 |point added                  |
+11 |id exists                    |
 12 |>                            |

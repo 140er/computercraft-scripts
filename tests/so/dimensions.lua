@@ -99,7 +99,8 @@ return function(test,equal)
     local a=setup("minecraft:the_nether",false)
     for _,role in ipairs({"mining","lumber"}) do
       a.input(role,role=="mining" and "home 0 64 0 n minecraft:the_nether" or "area 0 0 3 3 62 minecraft:the_nether")
-      assert(text(a.screen(role).render(29,12)):find("remote dimensions disabled",1,true))
+      -- Route A wraps a long alert at a space onto the next row.
+      assert(text(a.screen(role).render(29,12)):find("remote dimensions%s+disabled"))
     end
     equal(a.job("mine"),nil);equal(a.job("lumber").dim,"minecraft:overworld");equal(a.job("lumber").area,nil)
     a.s.files["so-server.cfg"]=H.encode({remoteDimensions=true})
@@ -316,7 +317,9 @@ return function(test,equal)
     a.s.env.SO.mods.drops.add({id="world",dim=0,x=1,y=64,z=0,kind="ore",side="front"})
     a.n.advance(5)
     local dims={}
-    a.s.env.SO.mods.cells.isDug=function(_,_,_,dim) dims[dim]=true return false end
+    local cells=a.s.env.SO.mods.cells
+    local columns=cells.dugColumns
+    cells.dugColumns=function(dim,...) dims[dim]=true return columns(dim,...) end
     for _,size in ipairs({{26,20},{29,12}}) do
       local screen,session=a.screen("map"),{}
       press(screen,size[1],size[2],"map-dim",session)
@@ -358,15 +361,21 @@ return function(test,equal)
     drops.add({id="nether",dim=-1,x=10,y=64,z=10,side="front",kind="ore"})
     for _,id in ipairs({"world","nether"}) do for _=1,3 do drops.note(id,nil) end end
     a.n.advance(5)
-    for _,size in ipairs({{26,20},{29,12}}) do
+    -- At 26 and 29 wide the dimension chip takes the row 1 slot and the broken count yields to it, so
+    -- focus is sent by id there; at 39 the broken count chip is drawn and pressed.
+    for _,size in ipairs({{26,20},{29,12},{39,19}}) do
       local screen,session=a.screen("map"),{}
       press(screen,size[1],size[2],"map-dim",session)
-      press(screen,size[1],size[2],"map-focus",session)
-      equal(session.map.x,10);equal(session.map.z,10)
-      session.map.x,session.map.z=0,0
+      local v=session.map
+      if size[1]>=39 then press(screen,size[1],size[2],"map-broken",session)
+      else screen.input({id="map-focus",session=session}) end
+      equal(v.cx,10);equal(v.cz,10);equal(v.pick.id,"nether")
+      v.cx,v.cz,v.pick=0,0,nil
       press(screen,size[1],size[2],"map-fit",session)
-      press(screen,size[1],size[2],"map-drop:nether",session)
-      equal(session.map.x,10);equal(session.map.z,10)
+      screen.input({id="map-drop:world",session=session})
+      equal(v.pick,nil,"a chest in another dimension is not focused")
+      screen.input({id="map-drop:nether",session=session})
+      equal(v.cx,10);equal(v.cz,10);equal(v.pick.id,"nether")
     end
   end)
   test("AR scopes overlapping geometry to its explicit dimension",function()

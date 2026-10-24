@@ -1,39 +1,58 @@
-51x19 Server terminal, pairing
+51x19 Server terminal, pair code
+ SO SERVER #1  --------------------------- up 3h12 
                                                    
- SO SERVER #1                              pairing 
+ PAIR CODE --------------------------------------  
                                                    
-                     PAIR CODE                     
+     |   |  +---+  ----+  +---+    |    +----      
+     |   |  |   |      |  |   |    |    |          
+     |   |  |   |      |  |   |    |    |          
+     +---+  +---+  +---+  +---+    |    +---+      
+         |  |   |  |          |    |        |      
+         |  |   |  |          |    |        |      
+         |  +---+  +----  ----+    |    ----+      
                                                    
-                                                   
-                🬵 🬖🬋🬏🬖🬋🬏   🬖🬋🬏🬞🬓 🬚🬋🬃               
-               🬳🬷🬏🬗🬋🬐 🬖🬀   🬈🬋▌ ▌ 🬂🬂🬓               
-                🬉 🬈🬋🬀🬍🬋🬃   🬇🬅 🬇🬌 🬈🬋🬀               
-                                                   
-                                                   
-                     4:52 left                     
-                                                   
-                                                   
-                                                   
+     ||||||||||||||||||||||||||||||||||· 4:52      
                                                    
                                                    
                                                    
- [P] new code     [Esc] cancel                     
+                                                   
+                                                   
+ [P] new code  [Esc] cancel                        
+000000000000000ccccccccccccccccccccccccccc088888880
+000000000000000000000000000000000000000000000000000
+08888888880cccccccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000009999999999999999999999999999999999800000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+099900000000000999990000000000000000000000000000000
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777f
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
-999999999999999999999999999999999999999999999999999
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

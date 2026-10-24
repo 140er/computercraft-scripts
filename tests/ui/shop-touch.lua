@@ -38,7 +38,7 @@ end
 T.capture = function(frame,w,h)
   local out=R.capture(w,h)
   assert(#frame.rows==h)
-  assert((frame.rows[1].text.."\n"..frame.rows[2].text):find("SHOP",1,true),"shop header overwritten")
+  assert(frame.rows[1].text:find(" find",1,true),"shop header overwritten")
   for y,row in ipairs(frame.rows) do
     local fg,bg={},{}
     for _,run in ipairs(row.runs) do
@@ -88,45 +88,52 @@ T.run = function(test,equal)
         end
         error("missing button "..id)
       end
-      local other=H.encode(frame(b))
-      press("category:wood")
-      for _,button in ipairs(frame().buttons) do
-        local name=button.id:match("^item:(.*)$")
-        if name then assert(name:find("log") or name:find("planks") or name:find("sapling") or name:find("stick")) end
+      -- Narrow screens choose categories and subs from the picker; wide ones from chip rows.
+      local function choose(id)
+        if w<52 then press(id:match("^cat:") and "pick:cats" or "pick:subs") end
+        press(id)
       end
-      press("category:all");press("sort:name")
-      local names={}
-      for _,button in ipairs(frame().buttons) do
-        if button.id:match("^item:") then names[#names+1]=button.id end
+      local function items()
+        local names={}
+        for _,button in ipairs(frame().buttons) do
+          local name=button.id:match("^item:(.*)$")
+          if name then names[#names+1]=name end
+        end
+        return names
       end
-      equal(names[1],"item:minecraft:acacia_log")
-      press("next")
-      assert(H.encode(frame())~=H.encode(s.render(w,h,{id=4})),"page did not change")
-      press("prev");press("sort:count")
-      press("letters");press("letter:I")
-      for _,button in ipairs(frame().buttons) do
-        local name=button.id:match("^item:minecraft:(.*)$")
-        if name then equal(name:sub(1,1),"i") end
+      local other=T.text(frame(b))
+      choose("cat:wood")
+      for _,name in ipairs(items()) do
+        assert(name:find("log") or name:find("planks") or name:find("sapling") or name:find("stick"),name)
       end
-      press("letters");press("letter:ALL");press("category:ores");press("sort:name")
-      press("letters");press("letter:I")
-      local item
-      for _,button in ipairs(frame().buttons) do if button.id:match("^item:") then item=button.id:sub(6);break end end
-      assert(item)
+      choose("cat:all");press("sort:name")
+      equal(items()[1],"minecraft:acacia_log")
+      if #items()<40 then
+        press("next")
+        assert(T.text(frame())~=T.text(s.render(w,h,{id=4})),"page did not change")
+        press("prev")
+      end
+      press("sort:count")
+      press("tab:find");press("key:I")
+      for _,name in ipairs(items()) do assert(name:find("i",1,true),name) end
+      press("tab:items");choose("cat:ores");choose("sub:ingot");press("sort:name")
+      local item=items()[1]
+      equal(item,"minecraft:gold_ingot")
       press("item:"..item)
       local id="order:16:"..item
       press(id)
-      s.input({id=id,session=a})
       for i=1,3 do frame() end
       equal(#s.sends,1);equal(s.sends[1].body.cmd,"order");equal(s.sends[1].body.text,item)
       equal(s.sends[1].body.n,16);equal(s.sends[1].id,90);equal(s.sends[1].protocol,"roomsorter")
-      assert(T.text(frame()):find("Order: sent",1,true))
-      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Getting 16 iron ingot..."})
-      assert(T.text(frame()):find("Order: sent",1,true))
-      equal(H.encode(frame(b)),other,"another display changed")
-      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Delivered 16 iron ingot"})
-      assert(T.text(frame()):find("Order: delivered",1,true))
-      equal(H.encode(frame(b)),other)
+      assert(T.text(frame()):find("\7 16 sent",1,true))
+      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Getting 16 gold ingot..."})
+      assert(T.text(frame()):find("\7 16 sent",1,true))
+      equal(T.text(frame(b)),other,"another display changed")
+      s.mod.listen.roomsorter(90,{rid=s.sends[1].body.rid,"Delivered 16 gold ingot"})
+      assert(T.text(frame()):find("\7 16 delivered",1,true))
+      equal(T.text(frame(b)),other)
+      press("items")
+      equal(items()[1],"minecraft:gold_ingot")
     end)
   end
   for _,size in ipairs({{26,20},{29,12},{100,38}}) do
@@ -136,25 +143,22 @@ T.run = function(test,equal)
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90,{totals=T.stock()})
       local display=s.server.env.SO.mods.display
       display.handlers.hello({from=3,body={w=size[1],h=size[2],fullH=size[2],keyboard=false}})
-      local function open(id)
-        local frame
-        display.handlers["view.get"]({from=3},function(_,body) frame=body end)
-        local drawn
-        for _,b in ipairs(frame.buttons) do if b.id==id then drawn=b break end end
-        assert(drawn,"missing displayed control "..id)
-        display.handlers.input({from=3,body={id=id,x=drawn.x,y=drawn.y}})
-      end
-      if size[1]==26 then open("generic") end
-      open("shop")
+      assert(display.assign(3,"shop"))
       local function other()
         local frame
         display.handlers["view.get"]({from=3},function(_,body) frame=body end)
         return H.encode(frame)
       end
       local before=other()
-      if size[1]==26 then s.press("MORE") end
-      s.press("SHOP");s.press("ORES");s.press("NAME");s.press("A-Z");s.press("I")
-      s.press("IRON INGOT");s.press("ORDER 16")
+      for _,id in ipairs({"generic","shop","status"}) do display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
+      s.net.flush();equal(s.frame().role,size[1]==26 and "pocket" or "unassigned")
+      assert(display.assign(2,"shop"));s.net.advance(1);equal(s.frame().role,"shop")
+      local wide=size[1]>=52
+      if not wide then s.press("all \31") end
+      s.press("ores")
+      if not wide then s.press("all \31") end
+      s.press("ingot")
+      s.press("IRON INGOT");s.press("16")
       local orders={}
       for _,packet in ipairs(s.server.sent) do
         if packet.protocol=="roomsorter" and packet.payload.cmd=="order" then orders[#orders+1]=packet end
@@ -163,9 +167,9 @@ T.run = function(test,equal)
       equal(orders[1].payload.text,"minecraft:iron_ingot")
       equal(other(),before)
       assert(not T.text(s.frame()):lower():find("search",1,true))
-      s.press("BACK");s.press("BACK")
-      equal(s.frame().role,"status")
-      s.press("MORE");equal(s.frame().role,"generic")
+      s.press(wide and "\215" or "back");equal(s.frame().role,"shop")
+      assert(T.text(s.frame()):find("IRON INGOT",1,true))
+      for _,b in ipairs(s.frame().buttons) do assert(b.id~="status" and b.id~="generic" and b.id~="items") end
       local used=0
       for _,source in pairs(s.client.files) do used=used+#source end
       assert(used<1000000)
@@ -173,26 +177,26 @@ T.run = function(test,equal)
   end
   test("touch shop reports failures missing room and stale stock",function()
     local s=T.setup();local session={id=2}
-    assert(T.text(s.render(29,12,session)):find("Storage room not found",1,true))
+    assert(T.text(s.render(29,12,session)):find("storage room not found",1,true))
     s.mod.listen.roomsorter_stock(90,{totals={['minecraft:iron_ingot']=64}})
-    local function order()
-      s.input({id="item:minecraft:iron_ingot",session=session})
-      s.input({id="order:16:minecraft:iron_ingot",session=session})
-    end
+    s.input({id="item:minecraft:iron_ingot",session=session})
+    local function order() s.input({id="order:16:minecraft:iron_ingot",session=session}) end
     order()
     s.mod.listen.roomsorter(91,{rid=1,"Delivered 16"})
-    assert(T.text(s.render(29,12,session)):find("Order: sent",1,true))
+    assert(T.text(s.render(29,12,session)):find("\7 16 sent",1,true))
     s.mod.listen.roomsorter(90,{rid=1,"Not in storage."})
-    assert(T.text(s.render(29,12,session)):find("Order: failed",1,true))
-    order();s.now=s.now+120001;s.mod.tick(s.now)
-    assert(T.text(s.render(29,12,session)):find("failed, timed out",1,true))
-    assert(T.text(s.render(29,12,session)):find("STALE STOCK",1,true))
+    assert(T.text(s.render(29,12,session)):find("\7 16 failed",1,true))
+    order()
+    assert(T.text(s.render(29,12,session)):find("\7 16 sent",1,true))
+    s.now=s.now+120001;s.mod.tick(s.now)
+    assert(not T.text(s.render(29,12,session)):find("\7 16 sent",1,true),"a timeout fails the order")
+    assert(T.text(s.render(29,12,session)):find("stale",1,true))
     s.input({id="items",session=session})
-    assert(T.text(s.render(29,12,session)):find("STALE STOCK",1,true))
+    assert(T.text(s.render(29,12,session)):find("stale",1,true))
     s.now=s.now+180000;s.mod.tick(s.now)
-    assert(T.text(s.render(29,12,session)):find("Storage room not found",1,true))
+    assert(T.text(s.render(29,12,session)):find("storage room not found",1,true))
     s.mod.listen.roomsorter_stock(91,{totals={['minecraft:iron_ingot']=16}})
-    assert(not T.text(s.render(29,12,session)):find("STALE STOCK",1,true))
+    assert(not T.text(s.render(29,12,session)):find("stale",1,true))
   end)
 end
 return T

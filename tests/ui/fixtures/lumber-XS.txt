@@ -1,0 +1,31 @@
+15x10 Lumber, smallest monitor
+ LUMBER  ----  
+               
+ state running 
+ ready ·· 9/12 
+ grow ··· 6:20 
+ ► 5  felling  
+ ◄ 7  wait che 
+               
+               
+ START   STOP  
+000000000cccc00
+000000000000000
+088888000000000
+0888880cc0dddd0
+088880ccc000000
+0d0000000000000
+010000111111110
+000000000000000
+000000000000000
+08888880eeeeee0
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777777f777777f

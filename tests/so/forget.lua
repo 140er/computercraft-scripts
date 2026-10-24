@@ -50,10 +50,12 @@ local function setup(w,h)
     end
     error("button missing "..name.." role "..tostring(f.role).." buttons "..H.encode(f.buttons))
   end
+  -- Roles change only by assignment: a pocket keeps its tabs and opens PAIRED from PAIR,
+  -- other displays are assigned the panel role.
   s.open=function(id)
     s.frame(id)
-    s.press(id,"panel")
-    s.press(id,"pair")
+    if w==26 then s.press(id,"tab:pair")
+    else assert(d.assign(id,"panel")) s.press(id,"pair") end
     s.press(id,"paired")
   end
   return s
@@ -176,8 +178,8 @@ return function(test,equal)
         deliver(packet("input",{id=b.id,x=b.x,y=b.y}))
       end
       deliver(packet("hello",{role="display",w=size[1],h=size[2]}))
-      if frame().role~="panel" then tap("panel") end
-      tap("pair");tap("paired");tap("forget:3")
+      if size[1]==26 then tap("tab:pair") else assert(s.so.mods.display.assign(2,"panel")) tap("pair") end
+      tap("paired");tap("forget:3")
       local old=button("forget-confirm:3")
       local delayed=packet("input",{id=old.id,x=old.x,y=old.y})
       tap("paired-back")

@@ -19,14 +19,14 @@ return function(test,equal)
     end
   end)
   for _,size in ipairs({{26,20},{29,12}}) do
-    test("builder drawn buttons navigate from MORE at "..size[1].."x"..size[2],function()
+    -- Roles change only by assignment; the Build screen's own controls work through drawn buttons.
+    test("builder drawn buttons work on an assigned build display at "..size[1].."x"..size[2],function()
       local f=fixture(size[1],size[2])
-      if f.frame().role=="generic" then f.press("BACK","status") end
-      equal(f.frame().role,"status") f.press("MORE") equal(f.frame().role,"generic")
-      f.press("BUILD") equal(f.frame().role,"build")
+      assert(f.server.env.SO.mods.display.assign(3,"build")) f.advance(1)
+      equal(f.frame().role,"build")
       f.press("SETUP") f.press("FLOOR","shape-next") equal(f.job().shape,"walls")
       f.press("BACK","build-back") f.press("START") assert(f.job().alert:find("configure",1,true))
-      f.press("STOP") f.press("BACK","status") equal(f.frame().role,"status")
+      f.press("STOP") f.press("BACK","status") equal(f.frame().role,"build")
     end)
   end
 end

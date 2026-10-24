@@ -1,39 +1,58 @@
 39x19 Status, wall monitor 4x3 at scale 1
+ STATUS  ----------------------- 21:14 
                                        
- STATUS                          21:14 
- ! ore chest full                      
+ ! #6 lost 184,-58,-369 · 3 min        
+ ! drop 3 junk broken                  
                                        
-  TURTLES            ALERTS            
-        🬋🬋🬏                🬞🬓          
-        🬇🬋🬐                 ▌          
-        🬋🬋🬀                🬇🬌          
-  3 ok, 0 lost       ore chest full    
+ TURTLES -------------------------- 5  
+ ► 2  mining     b8    160,-373        
+ ► 3  wait lane  b9    142,-377        
+ ▼ 4  unload     lane  120,-352        
+ ► 6  lost       b7    184,-369        
+ ► 5  felling    farm  101,-347        
                                        
+ JOBS -------------------------------  
+ mining  running  |||||||··· 7/10      
+ lumber  running  ♠♠♠♠♠♠♠♠♣♣ 9/12      
                                        
-                                       
-  ORE TODAY          DISK              
-     🬖🬋🬏🬞🬓  🬵           🬞🬓 🬋🬋🬏🬹 🬏      
-      🬖🬀 ▌ 🬳🬷🬏           ▌ 🬇🬋🬐🬞🬅       
-     🬍🬋🬃🬇🬌  🬉           🬇🬌 🬋🬋🬀🬀🬉🬄      
-  +12                2.1 of 16 MB      
-                                       
-   MINING        SHOP          MORE    
+ TODAY ----------    SERVER ---------  
+ ore ········· 214   disk |······  13% 
+ logs ········· 96   leases ········ 3 
+000000000ccccccccccccccccccccccc0888880
+000000000000000000000000000000000000000
+0e0000000008888888888888888888800000000
+0e0000000000000000000000000000000000000
+000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccc0800
+0d0000000000000008800008888888800000000
+010000111111111008800008888888800000000
+0d0000000000000008888008888888800000000
+0e0000eeee0000000880000eeeeeeee00000000
+0d0000000000000008888008888888800000000
+000000000000000000000000000000000000000
+088880ccccccccccccccccccccccccccccccc00
+000000000ddddddd00333333388800000000000
+000000000ddddddd00dddddddd8800000000000
+000000000000000000000000000000000000000
+0888880cccccccccc00008888880ccccccccc00
+08880ccccccccc0000000888803888888000000
+088880ccccccccc0000008888880cccccccc000
 fffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777f
-feeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
-fddddddddddddddddddfeeeeeeeeeeeeeeeeeef
 fffffffffffffffffffffffffffffffffffffff
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-fbbbbbbbbbbbbbbbbbbfddddddddddddddddddf
-777777777777faaaaaaaaaaaaaf777777777777
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff

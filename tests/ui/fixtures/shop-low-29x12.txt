@@ -1,0 +1,37 @@
+29x12 Shop low and empty stock, compact monitor 29x12
+ SHOP   items   low   find   
+  all   low   empty          
+ item                stock ▼ 
+ BASIC CONTROL CIRCUIT ·· 14 
+ BOOK ··················· 12 
+ EMERALD ················ 12 
+ RAW GOLD ··············· 12 
+ REPEATER ··············· 11 
+ INGOT OSMIUM ············ 9 
+ CHEST ··················· 9 
+ PISTON ·················· 8 
+ 1 of 4            ◄     ►   
+00000008888888000000088888800
+00000008888808888888000000000
+08888000000000000000000000000
+00000000000000000000000cc0110
+000000ccccccccccccccccccc0110
+000000000cccccccccccccccc0110
+0000000000ccccccccccccccc0110
+0000000000ccccccccccccccc0110
+00000000000000cccccccccccc010
+0000000ccccccccccccccccccc010
+00000000cccccccccccccccccc010
+08888880000000000888880000000
+fffffffffffffff77777fffffffff
+f77777fffffffffffffffffffffff
+ffffffffffffffffffff777777777
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffff77777f77777f

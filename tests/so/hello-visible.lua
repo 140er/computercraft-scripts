@@ -38,7 +38,7 @@ return function(test, equal)
     local frame
     mods.display.handlers.hello({from=3,body={w=26,h=20}})
     mods.display.handlers["view.get"]({from=3},function(_, f) frame=f end)
-    assert(text(frame):find("1 ok",1,true), text(frame))
+    assert(text(frame):find("TURTLES",1,true) and text(frame):find("2  idle",1,true), text(frame))
     local d
     for i=1,20 do
       local name, value = debug.getupvalue(mods.display.tick,i)

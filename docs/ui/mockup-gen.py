@@ -92,9 +92,9 @@ class Canvas:
 
 M = []
 FIXTURES = []
-def add(c, name, legend=False):
+def add(c, name, legend=False, stem=None):
     M.append(c.dump(name, legend))
-    FIXTURES.append((c, name))
+    FIXTURES.append((c, name, stem))
 
 def grid(w,n):
     available=w-n+1
@@ -105,8 +105,7 @@ status_data = [("TURTLES","3","3 ok, 0 lost","d"),("LEASES","2","","b"),("ALERTS
 def status(w,h,indices,n,title):
     c=Canvas(w,h);c.header("STATUS","21:14");c.alert("! ore chest full (drop 3)" if w!=39 else "! ore chest full")
     cols=grid(w,n);wanted=(len(indices)+n-1)//n
-    navheight=3 if h>=19 and h-7>=wanted*8 else 1
-    nav=h-navheight; height=7 if nav-3>=wanted*8-1 else 6
+    height=7 if h-4>=wanted*8-1 else 6
     for i,index in enumerate(indices):
         x,width=cols[i%n]; y=3+(i//n)*(height+1)
         lab,val,sub,bg=status_data[index]
@@ -116,24 +115,107 @@ def status(w,h,indices,n,title):
         else:c.tile(x,y,width,lab,val,sub,bg,height)
     if w==51:
         c.fill(1,11,w-2,1,"7");c.text(1,11,"LOG")
-    labels=["MINING","SHOP","MORE"] if w==39 else ["MINING","LUMBER","SHOP","MORE"]
-    for (x,width),label in zip(grid(w,len(labels)),labels):c.button(x,nav,width,label,"a" if label=="SHOP" else "7",navheight)
     add(c,title,True)
 status(57,24,list(range(9)),3,"Status, room monitor 3x2 at scale 0.5")
 status(39,19,[0,2,3,5],2,"Status, wall monitor 4x3 at scale 1")
-c=Canvas(26,20);c.header("FLEET","");c.button(16,1,5,"MORE",h=1);c.button(22,1,4,"MAP","9",h=1)
-for i,index in enumerate([0,2]):c.tile(0,3+i*8,26,*status_data[index],h=7)
-c.button(0,19,4,"<",h=1);c.center(4,7,19,"1/5");c.button(11,19,4,">",h=1);c.button(17,19,9,"PANEL",h=1)
-add(c,"Pocket, glance mode",True)
 
-# --- Pocket panel mode (26x20)
-c = Canvas(26, 20); c.header("PANEL", ""); c.button(16,1,5,"MORE",h=1); c.button(22,1,4,"MAP","9",h=1);c.text(7,1,"22:14")
+# --- Pocket role (26x20), so-mod-panel.lua. One-row tab bar, chip rows, one-row controls.
+# K mirrors the kit's one-based coordinates so these blocks read like the Lua.
+class K:
+    def __init__(s, w=26, h=20): s.c, s.w, s.h = Canvas(w, h), w, h
+    def put(s, x, y, text, bg=None): s.c.text(x - 1, y - 1, text, bg)
+    def fill(s, x, y, w, h, bg): s.c.fill(x - 1, y - 1, w, h, bg)
+    def center(s, x, w, y, text, bg=None): s.c.center(x - 1, w, y - 1, text, bg)
+    def big(s, x, y, w, text):
+        for r, row in enumerate(big(text)): s.center(x, w, y + r, row)
+    def button(s, x, y, w, label, bg):
+        s.fill(x, y, w, 1, bg)
+        inset = 1 if len(label) <= w - 2 else 0
+        s.center(x + inset, w - 2 * inset, y, label)
+    def chips(s, y, label, chips, x=2, right=None):
+        right = right or s.w - 1
+        room = right - x - sum(len(t) + 2 for t, _ in chips)
+        s.put(x, y, label[:max(0, room)])
+        for text, bg in reversed(chips):
+            right -= len(text) + 2
+            s.put(right + 1, y, " " + text + " ", bg)
+
+POCKET_FLEET = [("TURTLES", [("3 ok", "d"), ("1 lost", "e")]), ("LEASES", [("2 open", "b")]),
+    ("ALERTS", [("3", "e")]), ("ORE TODAY", [("214", "b")]), ("LOGS TODAY", [("96", "d")]),
+    ("DISK", [("13%", "d")]), ("DISPLAYS", [("4", "d")]), ("DROPS", [("5", "d"), ("1 broken", "1")])]
+POCKET_ALERTS = ["ore chest full", "hold saplings chest; fix drop point and start", "drops: hold fuel"]
+
+def fleet_rows(k, top, step):
+    for i, (label, chips) in enumerate(POCKET_FLEET): k.chips(top + i * step, label, chips)
+
+def tabs(k, page, alerts=3):
+    k.fill(1, 1, k.w, 1, "7")
+    x = 1
+    for tab in ["FLEET", "JOBS", "SHOP", "PAIR"]:
+        active = tab == page or (page == "ALERTS" and tab == "FLEET")
+        k.put(x, 1, " " + tab + " ", "9" if active else "e" if tab == "FLEET" and alerts else "7")
+        x += len(tab) + 2
+
+def wrap(text, width):
+    lines, line = [], ""
+    for word in text.split():
+        if not line: line = word
+        elif len(line) + 1 + len(word) <= width: line += " " + word
+        else: lines.append(line); line = word
+    return lines + ([line] if line else [])
+
+k = K(); k.c.header("FLEET", "21:14"); fleet_rows(k, 4, 2)
+add(k.c, "Status at 26x20 (a pocket assigned status)", True)
+
+k = K(); tabs(k, "FLEET"); fleet_rows(k, 3, 2)
+add(k.c, "Pocket FLEET: chip rows; ALERTS opens the list, FLEET turns coral while alerts exist", True, "pocket-fleet-P")
+
+k = K(); tabs(k, "ALERTS"); k.chips(3, "ALERTS", [("3", "e")])
+y = 5
+for text in POCKET_ALERTS:
+    for line in wrap(text, 22)[:3]: k.fill(2, y, 1, 1, "e"); k.put(4, y, line); y += 1
+    y += 1
+add(k.c, "Pocket ALERTS (a FLEET page), newest first", True, "pocket-alerts-P")
+
+k = K(); tabs(k, "JOBS")
+for y, role, state, sbg, facts in [
+        (3, "MINING", "running", "d", [("BUSY", "2/3", "d"), ("DEPTH", "-58", "d"), ("BRANCHES", "3/8", "b"), ("MIN FUEL", "640", "d")]),
+        (12, "LUMBER", "stopped", "c", [("TREES READY", "2", "d"), ("SAPLINGS", "0", "e"), ("NEXT GROW", "6:20", "b"), ("FUEL", "1210", "d")])]:
+    k.fill(2, y, 24, 1, "7"); k.chips(y, role, [(state, sbg)], 3)
+    for i, (label, value, bg) in enumerate(facts): k.chips(y + 1 + i, label, [(value, bg)], 3)
+    k.button(2, y + 6, 11, "START", "9"); k.button(15, y + 6, 11, "STOP", "e")
+add(k.c, "Pocket JOBS: state chip, facts, one-row START and STOP", True, "pocket-jobs-P")
+
+k = K(); tabs(k, "SHOP")
+k.fill(2, 3, 21, 1, "0"); k.put(2, 3, " iron_"); k.button(23, 3, 3, "x", "7")
+items = [("IRON INGOT", 1240), ("IRON ORE", 312), ("RAW IRON", 48), ("IRON BLOCK", 27),
+    ("IRON NUGGET", 5), ("IRON DOOR", 3), ("IRON PICKAXE", 1), ("IRON BARS", 0)]
+y = 5
+for i, (label, count) in enumerate(items):
+    if i == 0: k.fill(2, y, 24, 1, "7")
+    k.chips(y, label, [(str(count), "e" if count == 0 else "1" if count <= 16 else "b")])
+    y += 1
+    if i == 0:
+        for (x, w), n in zip(grid(24, 3), [1, 16, 64]): k.button(x + 2, y, w, str(n), "a")
+        y += 2
+k.put(2, 19, "sent 16 IRON INGOT")
+add(k.c, "Pocket SHOP: search, matches, one tap orders the shown item", True, "pocket-shop-P")
+
+for code in [None, "482915"]:
+    k = K(); tabs(k, "PAIR")
+    k.fill(2, 3, 24, 5, "9" if code else "c"); k.big(2, 4, 24, code or "------")
+    if code: k.center(2, 24, 7, "4:52 left")
+    k.button(2, 9, 24, "NEW CODE", "9")
+    add(k.c, "Pocket PAIR " + ("with a code" if code else "ready"), True, "pocket-code-P" if code else "pocket-pair-P")
+
+# --- Panel role on a 26x20 screen (monitor panels use the same blocks)
+c = Canvas(26, 20); c.header("PANEL", "22:14")
 c.text(1, 2, "MINING   stopped"); c.button(0, 3, 12, "START", "9"); c.button(13, 3, 13, "STOP", "e")
 c.text(1, 7, "LUMBER   running"); c.button(0, 8, 12, "START", "9"); c.button(13, 8, 13, "STOP", "e")
 c.text(1, 12, "SHOP     search:"); c.fill(1, 13, 24, 1, "0"); c.text(1, 13, " iron_                  ", "0")
 c.button(0, 15, 8, "1", "a"); c.button(9, 15, 8, "16", "a"); c.button(18, 15, 8, "64", "a")
-c.fill(0, 19, 26, 1, "7"); c.text(0, 19, " GLANCE  ALERTS  PAIR    ")
-add(c, "Pocket, panel mode", True)
+c.fill(0, 19, 26, 1, "7"); c.text(0, 19, " ALERTS  PAIR            ")
+add(c, "Panel role at 26x20", True)
 
 # --- Mining, M
 c = Canvas(57, 24); c.header("MINING", "running")
@@ -144,10 +226,9 @@ for (x, w), (lab, val, sub, bg) in zip(cols, [("LANE","1","#3 waiting","1"),("MI
     c.tile(x, 9, w, lab, val, sub, bg,6)
 c.fill(0, 15, 57, 1, "7"); c.text(1, 15, "TURTLE  STATE      POS          FUEL  ORE")
 for i, line in enumerate(["#2      mining     12,60,-9      812   14","#3      wait lane   0,61,-1      640    9"]):
-    c.text(1, 16 + i*2, line)
-    c.fill(1,17+i*2,12,1,"c");c.text(14,17+i*2,"-")
-c.fill(0, 16, 1, 1, "d"); c.fill(0, 18, 1, 1, "1")
-c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
+    c.text(1, 18 + i, line)
+c.fill(0, 18, 1, 1, "d"); c.fill(0, 19, 1, 1, "1")
+for (x, w), (label, bg) in zip(cols, [("START", "9"), ("STOP", "e"), ("SETUP", "7")]): c.button(x, 20, w, label, bg)
 add(c, "Mining, room monitor")
 
 # --- Lumber, M
@@ -159,7 +240,7 @@ c.text(1,12,"NEXT GROW 6:20")
 for i, text in enumerate(["#4 felling F1210", "#5 wait chest F640", "#6 scan F640"]):
     c.fill(0,14+i,1,1,"d"); c.text(1,14+i,text)
 c.alert("! out of saplings: replanting paused")
-c.button(0, 20, 13, "START", "9"); c.button(14, 20, 13, "STOP", "e"); c.button(28, 20, 14, "SETUP"); c.button(43, 20, 14, "BACK")
+for (x, w), (label, bg) in zip(cols, [("START", "9"), ("STOP", "e"), ("SETUP", "7")]): c.button(x, 20, w, label, bg)
 add(c, "Lumber, room monitor")
 
 def grid(w, n):
@@ -208,7 +289,7 @@ def shop(w, h, selected=False):
         x, width = cols[i % len(cols)]
         c.tile(x, top + (i // len(cols)) * (tile + 1), width, label, value, sub, bg, tile)
     c.text(1, bottom - 1, "Order: sent 16")
-    for (x, width), label in zip(grid(w, 4), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">", "BACK"]):
+    for (x, width), label in zip(grid(w, 3), ["<", "1/" + str(max(1, math.ceil(18 / capacity))), ">"]):
         c.button(x, bottom, width, label, h=nav)
     return c
 
@@ -220,11 +301,8 @@ c = Canvas(57, 24); c.header("DROP POINTS", "5 points")
 c.fill(0, 2, 57, 1, "7"); c.text(1, 2, "ID  KIND     WHERE          SIDE   STATE")
 rows = [("1  ore      10,64,-2       front  ok","d"),("2  fuel     12,64,-2       front  ok","d"),("3  wood     -4,64,10       front  ok","d"),("4  saplings -6,64,10       front  ok","d"),("5  any       0,64,4        down   broken","e")]
 for i, (t, bg) in enumerate(rows): c.fill(0, 3+i, 1, 1, bg); c.text(1, 3+i, t)
-c.button(0, 10, 13, "FIX #5", "9"); c.button(14, 10, 13, "REMOVE"); c.button(28, 10, 14, "ADD NEW"); c.button(43, 10, 14, "BACK")
-for (x, width), label in zip(grid(57, 6), ["MINING", "LUMBER", "SHOP", "AR", "PANEL", "BUILD"]):
-    c.button(x, 21, width, label, "a" if label == "SHOP" else "7")
-add(c, "Drop points (generic)")
-M[-1] += "\nThe navigation row was added on Jeffrey's request."
+for (x, w), (label, bg) in zip(cols, [("FIX #5", "9"), ("REMOVE", "7"), ("ADD NEW", "7")]): c.button(x, 21, w, label, bg)
+add(c, "Drop points (drops role)")
 
 # --- Alert takeover and outage
 c = Canvas(57, 24, "e"); c.center(0, 57, 3, "ALERT"); rows = big("3")
@@ -247,7 +325,7 @@ for (x, w), (lab, val, sub, bg) in zip([(0,12),(13,12),(26,12),(39,12)], [("TURT
 c.fill(0, 11, 51, 1, "7"); c.text(1, 11, "LOG")
 for i, l in enumerate(["21:14:02 lease 2-961 reported ok","21:14:05 drops: hold ore (3)","21:14:09 pair: display 7 joined","21:14:11 mine: #3 wait lane"]):
     c.text(1, 12 + i, l)
-c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client     [L] full log")
+c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "[P] pair a client   [R] roles   [L] full log")
 add(c, "Server terminal, normal", True)
 
 c = Canvas(51, 19); c.header("SO SERVER #1", "pairing")
@@ -260,20 +338,16 @@ add(c, "Server terminal, pairing", True)
 
 # --- AR layers screen (M) and tiny 1x1
 c = Canvas(57, 24); c.header("AR GOGGLES", "1 controller")
-for (x, w), (lab, val, sub, bg) in zip(cols, [("TURTLES","ON","","d"),("LEASES","ON","","d"),("DROPS","OFF","","c")]):
-    c.tile(x, 3, w, lab, val, sub, bg)
-c.tile(0, 11, 18, "ALERTS", "ON", "", "d")
-c.button(0, 20, 57, "BACK")
+for i, (lab, val, sub, bg) in enumerate([("TURTLES","ON","","d"),("LEASES","ON","","d"),("DROPS","OFF","","c"),("ALERTS","ON","","d")]):
+    c.tile([0, 29][i % 2], 3 + (i // 2) * 8, 28, lab, val, sub, bg)
 add(c, "AR layer switches")
 
-c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "0 lost", "d"); c.button(0, 8, 15, "NEXT", h=1); c.button(0, 9, 15, "MORE", h=1)
+c = Canvas(15, 10); c.header("FLEET", "ok"); c.tile(0, 2, 15, "TURTLES", "3", "3 ok, 0 lost", "d", 7); c.button(0, 9, 15, "NEXT", h=1)
 add(c, "Smallest monitor 1x1 at scale 0.5")
 
 for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
     for pending in [False, True]:
-        c = Canvas(w, h); c.header("PANEL", "" if w==26 else "01:00")
-        if w==26:
-            c.header("PANEL", "");c.text(7,1,"01:00");c.button(16,1,5,"MORE",h=1);c.button(22,1,4,"MAP","9",h=1)
+        c = Canvas(w, h); c.header("PANEL", "01:00")
         c.text(1, 2, "PAIR NEW CLIENT")
         if pending:
             c.fill(1, 3, w-2, 4, "9")
@@ -290,6 +364,27 @@ add(shop(26, 20), "Shop, pocket touch flow", True)
 add(shop(100, 38), "Shop, large touch monitor")
 status(51,19,[0,6,5,2],4,"Status, terminal")
 
+# --- Displays without a role show their id; the operator assigns one on the server
+def unassigned(w, h, ident):
+    c = Canvas(w, h); c.header("UNASSIGNED", "")
+    top = 3 if h >= 10 else 2
+    height = h - top - 1
+    c.fill(1, top, w - 2, height, "9")
+    if height >= 7: c.text(2, top + 1, "DISPLAY")
+    rows = big(ident)
+    for r in range(3): c.center(1, w - 2, top + max(0, (height - 3) // 2) + r, rows[r])
+    return c
+add(unassigned(57, 24, "6"), "Unassigned display, room monitor", True)
+add(unassigned(15, 10, "6"), "Unassigned display, smallest monitor", True)
+
+c = Canvas(51, 19); c.header("SO SERVER #1", "roles")
+c.fill(0, 3, 51, 1, "7"); c.text(1, 3, "ID    SIZE    ROLE")
+for i, (ident, size, role) in enumerate([("1", "57x24", "status"), ("2", "26x20", "pocket"), ("5", "57x24", "mining"),
+        ("6", "57x24", "unassigned"), ("7", "15x10", "status"), ("9", "-", "drops")]):
+    c.text(1, 4 + i, f"{ident:<6}{size:<8}{role}")
+c.text(1, 17, "display 7: status")
+c.fill(0, 18, 51, 1, "7"); c.text(1, 18, "> 6 shop_"); c.text(26, 18, "[Enter] set  [Esc] back")
+add(c, "Server terminal, role command (R)", True)
 
 for w, h in [(26, 20), (29, 12)]:
     for setup in [False, True]:
@@ -327,9 +422,6 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
 
 import argparse
 from pathlib import Path
-import runpy
-
-map_mockup = runpy.run_path(str(Path(__file__).with_name("map-mockup.py")))
 
 # Turtle details use the same data at pocket, compact and monitor sizes.
 def turtle_detail(w,h):
@@ -353,8 +445,19 @@ args = parser.parse_args()
 
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T build-26x20 buildsetup-26x20 build-29x12 buildsetup-29x12 paired-P paired-S".split()
-    for stem, (canvas, title) in zip(names, FIXTURES):
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T unassigned-M unassigned-XS roles-T build-26x20 buildsetup-26x20 build-29x12 buildsetup-29x12 paired-P paired-S".split()
+    named = [(stem, canvas, title) for canvas, title, stem in FIXTURES if stem]
+    named += [(stem, canvas, title) for stem, (canvas, title, _) in zip(names, [f for f in FIXTURES if not f[2]])]
+    # Screens ported to route A get their fixtures from docs/ui/schematic/screens.py instead,
+    # including the five shop names, which now hold route A pages.
+    ported = {"status-M", "status-L", "status-P", "status-T", "status-XS",
+              "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large",
+              "pocket-fleet-P", "pocket-alerts-P", "pocket-jobs-P", "pocket-shop-P", "pocket-pair-P", "pocket-code-P",
+              "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS",
+              "mining-M", "lumber-M", "drops-M"}
+    for stem, canvas, title in named:
+        if stem in ported:
+            continue
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
@@ -363,7 +466,6 @@ if args.fixtures:
         c=turtle_detail(w,h)
         layers=[f"{w}x{h} Turtle detail"]+["".join(row) for row in c.t]+["".join(row) for row in c.b]
         (args.fixtures/(stem+".txt")).write_text("\n".join(layers)+"\n",encoding="utf-8")
-    map_mockup["write"](Canvas, args.fixtures, fixtures=True)
     import shutil
     import subprocess
     root = Path(__file__).resolve().parents[2]
@@ -373,7 +475,6 @@ if args.fixtures:
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")
-map_mockup["write"](Canvas, Path("."))
 # font table
 ft = []
 for ch in "0123456789%-:/":

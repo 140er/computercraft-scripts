@@ -16,6 +16,7 @@ return function(test, equal)
     end, function() end)
     for id=2,3 do
       d.handlers.hello({from=id, body={w=id==2 and 26 or 29, h=id==2 and 19 or 11}})
+      assert(d.assign(id, "drops"))
       d.handlers["view.sub"]({from=id})
     end
     local count = #m.sent
@@ -33,7 +34,7 @@ return function(test, equal)
     test("shop search clears through drawn controls at " .. size[1] .. "x" .. size[2], function()
       local s = setup(size[1], size[2])
       s.server.env.SO.mods.shop.listen.roomsorter_stock(90, {totals={stone=40, dirt=10}})
-      s.press("shop")
+      s.assign("shop")
       s.typeText("stone")
       assert(table.concat((function() local t={} for _,r in ipairs(s.frame().rows) do t[#t+1]=r.text end return t end)(),"\n"):find("stone",1,true))
       s.press("clear")

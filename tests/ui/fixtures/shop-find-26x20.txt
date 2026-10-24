@@ -1,0 +1,61 @@
+26x20 Shop search keypad, pocket 26x20
+ items   low   find  ---  
+                          
+ > IRON_      del   clr   
+                          
+  A   B   C   D   E   F   
+  G   H   I   J   K   L   
+  M   N   O   P   Q   R   
+  S   T   U   V   W   X   
+  Y   Z                   
+                          
+ item             stock ▼ 
+ IRON INGOT ········ 1240 
+ IRON ORE ··········· 312 
+ DEEPSLATE IRON ORE ·· 96 
+ RAW IRON ············ 48 
+ DUST IRON ··········· 32 
+ IRON BLOCK ·········· 27 
+ IRON NUGGET ·········· 5 
+                          
+ 1 of 2         ◄     ►   
+888888808888800000000ccc00
+00000000000000000000000000
+08000008000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888000000000000000000000
+000000000000cccccccc000000
+0000000000ccccccccccc00000
+00000000000000000000cc0000
+0000000000cccccccccccc0000
+00000000000ccccccccccc0000
+000000000000cccccccccc0000
+0000000000000cccccccccc010
+00000000000000000000000000
+08888880000000888880000000
+ffffffffffffff777777ffffff
+ffffffffffffffffffffffffff
+fffffffffffff77777f77777ff
+ffffffffffffffffffffffffff
+f777f777f777f777f777f777ff
+f777f777f777f777f777f777ff
+f777f777f777f777f777f777ff
+f777f777f777f777f777f777ff
+f777f777ffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffff777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffff77777f77777f

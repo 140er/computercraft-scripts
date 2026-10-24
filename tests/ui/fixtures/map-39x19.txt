@@ -1,0 +1,58 @@
+39x19 Map, 39x19, broken drop 3 tapped
+ MAP  FIT   ×1           ▼  ALL  ▲  ↑N 
+                                       
+                                       
+         ········3·············        
+         +------►······2·······        
+         +------------►········6       
+         +--------------------►        
+         +---------------------        
+         ++-----------------+--        
+         +| drop 3 junk     |--        
+ ♠♠5♠+  4▼| 123,64,-337     |--        
+ ♠►♠♣•   +| state ·· broken |--        
+ ♠♣♠♠•   ++-----------------+--        
+ +---+---º|-                           
+server@ ••×                            
+                                       
+                                       
+                                       
+        ◄   ▲   ▼   ►    -   +         
+00000fffff0eeee000000000000000000000880
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000b88888881888888888888800000000
+000000000b3333331b88888d888888800000000
+000000000b333333333333db8888888e0000000
+000000000b33333333333333333333e00000000
+000000000b33333333333333333333300000000
+000000000beeeeeeeeeeeeeeeeeee3300000000
+000000000be00000000000000000e3300000000
+0ddddc00dde08888888888800000e3300000000
+0ddd80000be0888880cc0eeeeee0e3300000000
+0d8dd0000beeeeeeeeeeeeeeeeeee3300000000
+0ccccc3339e3000000000000000000000000000
+8888889000f0000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+fffff99999f7777fffffffff777fffff777ffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+ffffffffffeffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffff777f777f777f777ff777f777ffffffff

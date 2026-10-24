@@ -1,49 +1,73 @@
-57x24 Shop order page
+57x24 Shop item with an order sent, room monitor 57x24
+ SHOP   items   low   find  ---------------- stock 21:14 
                                                          
- SHOP > IRON INGOT                                       
- stock 21:14                                             
+  all   ores   wood   stone   plants   food   tools      
+  redstone   mobs   mods   other                         
                                                          
-  IN STOCK                                               
-                      🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏                       
-                       ▌  🬖🬀🬳🬷🬏▌ ▌                       
-                      🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀                       
-  ^ +60 per hour                                         
+  all   ore   raw   ingot   nugget   block   gem   dust  
                                                          
+ COAL ·················· 2104 | IRON INGOT             × 
+ IRON INGOT ············ 1240 |                          
+ RAW COPPER ············· 410 | stock ············· 1240 
+ LAPIS LAZULI ··········· 388 | stacks ··········· 19+24 
+ IRON ORE ··············· 312 | last hour ·········· ↑60 
+ COPPER INGOT ··········· 286 | ores ············· ingot 
+ GOLD NUGGET ············ 210 | craftable ············ 3 
+ COPPER ORE ············· 140 |                          
+ GOLD INGOT ············· 131 | ORDER -----------------  
+ DEEPSLATE IRON ORE ······ 96 |    1      16      64     
+ ZINC INGOT ·············· 75 |    stack        all      
+ ZINC ORE ················ 58 |                          
+ RAW IRON ················ 48 | • 16 sent          21:14 
+ DIAMOND ················· 47 | • 64 delivered     20:52 
+ DUST IRON ··············· 32 | • 16 delivered     20:31 
                                                          
-                                                         
-                                                         
-     ORDER 1            ORDER 16            ORDER 64     
-                                                         
-                                                         
-                                                         
-                                                         
-                                                         
- stock 21:14                                             
- Order: delivered                                        
-                                                         
-                          BACK                           
-                                                         
+ 1 of 2                                        ◄     ►   
+0000000000000008888808888880cccccccccccccccc0888888888880
+000000000000000000000000000000000000000000000000000000000
+088888000000008888880888888808888888808888880888888800000
+088888888880888888088888808888888000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000088888088888088888880888888880888888808888808888880
+000000000000000000000000000000000000000000000000000000000
+000000cccccccccccccccccc000000c00000000000000000000000080
+000000000000cccccccccccc000000c00000000000000000000000000
+000000000000ccccccccccccc00000c0888880ccccccccccccc000000
+00000000000000ccccccccccc00000c08888880ccccccccccc0000000
+0000000000ccccccccccccccc00000c08888888880cccccccccc00000
+00000000000000ccccccccccc00000c088880ccccccccccccc0000000
+0000000000000cccccccccccc00000c08888888880cccccccccccc000
+000000000000ccccccccccccc00000c00000000000000000000000000
+000000000000ccccccccccccc00000c0888880ccccccccccccccccc00
+00000000000000000000cccccc0000c00000000000000000000000000
+000000000000cccccccccccccc0000c00000000000000000000000000
+0000000000cccccccccccccccc0000c00000000000000000000000000
+0000000000cccccccccccccccc0000c0d000000000000000000888880
+000000000ccccccccccccccccc0000c08000000000000000000888880
+00000000000ccccccccccccccc0000c08000000000000000000888880
+000000000000000000000000000000000000000000000000000000000
+088888800000000000000000000000000000000000000888880000000
+fffffff7777777fffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-faaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf
+fffffff777777ffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
-aaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaaa
+f77777fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+777777777777777777777777777777fffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-777777777777777777777777777777777777777777777777777777777
-777777777777777777777777777777777777777777777777777777777
-777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffffffffffffffff7777777f7777777f7777777ff
+ffffffffffffffffffffffffffffffff77777777777f77777777777ff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffff77777f77777f

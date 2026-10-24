@@ -1,0 +1,61 @@
+26x20 Pocket JOBS
+ FLEET• JOBS  SHOP  PAIR  
+                          
+ MINING -------- running  
+ |||||||··· 7/10          
+ busy ··············· 2/4 
+ lane ················ ▼4 
+ min fuel ········ 412 #6 
+                          
+    START        STOP     
+                          
+                          
+ LUMBER -------- running  
+ ♠♠♠♠♠♠♠♠♠♣♣♣ 9/12        
+ next grow ········· 6:20 
+ saplings ············ 14 
+ fuel ·············· 1210 
+                          
+    START        STOP     
+                          
+                          
+888888e0000008888888888880
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+03333333888000000000000000
+088880ccccccccccccccc00000
+088880cccccccccccccccc0bb0
+0888888880cccccccc01111110
+00000000000000000000000000
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+00000000000000000000000000
+08888880cccccccc0ddddddd00
+0ddddddddd8880000000000000
+08888888880ccccccccc000000
+0888888880cccccccccccc0000
+088880cccccccccccccc000000
+00000000000000000000000000
+08888888888800eeeeeeeeeee0
+00000000000000000000000000
+00000000000000000000000000
+fffffff777777fffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f77777777777ff77777777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

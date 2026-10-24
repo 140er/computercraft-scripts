@@ -43,57 +43,96 @@ local function capture(frame,w,h)
   end
   return out
 end
+-- The route A rule for coloured glyphs (docs/ui/SCHEMATIC-SPEC.md, section 3).
+local function contrast(out)
+  for _,row in ipairs(out.cells) do for _,cell in ipairs(row) do
+    local ch,fg,bg=cell[1],cell[2],cell[3]
+    local ok=ch==' ' or (bg=='f' or bg=='7') and (('0389d1eba2'):find(fg,1,true) or fg=='c' and ('-|+\183\166'):find(ch,1,true))
+      or bg=='c' and (fg=='0' or fg=='3') or not ('f7c'):find(bg,1,true) and fg=='f'
+    assert(ok,'contrast '..fg..'/'..bg..' '..ch)
+  end end
+end
+local function ids(frame) local out={} for _,b in ipairs(frame.buttons) do out[b.id]=b end return out end
+return function(test,equal)
+  test('UI2b lumber draws the route A header, its facts and its alert',function()
+    local s=screen(job())
+    s.state.recover=false
+    local frame=s.render(57,24,{id=1})
+    local text=capture(frame,57,24).picture().text
+    assert(text[1]:find('^ LUMBER   overview   setup') and text[1]:find('running $'),text[1])
+    assert(text[4]:find('ready',1,true) and text[4]:find('2/4',1,true),text[4])
+    assert(text[21]:find('! out of saplings: replanting paused',1,true),text[21])
+    local found=ids(frame)
+    assert(found['tab:setup'] and found.start and found.stop)
+  end)
+  test('UI2b both tabs render within every size with spec contrast',function()
+    local s=screen(job())
+    for _,size in ipairs({{26,20},{39,19},{57,24},{15,10},{100,38},{36,10},{29,12},{1,1}}) do
+      for _,tab in ipairs({'tab:overview','tab:setup'}) do
+        local session={id=1};s.input({id=tab,session=session})
+        contrast(capture(s.render(size[1],size[2],session),unpack(size)))
+      end
+    end
+    local session={id=2}
+    s.input({id='tab:setup',session=session});local frame=s.render(57,24,session)
+    local text=table.concat(capture(frame,57,24).picture().text,'\n')
+    for _,part in ipairs({'area       0,0 4,4','ground     64','saplings   1,65,1'}) do assert(text:find(part,1,true),part) end
+    equal(s.render(57,24,{id=3}).buttons[1].id,'tab:overview')
+    s.input({id='lumber-back',session=session});assert(capture(s.render(57,24,session),57,24).picture().text[4]:find('ready',1,true))
+    s.input({id='setup',session=session});assert(capture(s.render(57,24,session),57,24).picture().text[3]:find('area',1,true))
+    s.input({id='setup-next',session=session});s.input({id='tab:main',session=session})
+    assert(capture(s.render(57,24,session),57,24).picture().text[4]:find('ready',1,true))
+    equal(s.saved,0)
+  end)
 local function press(s, frame, id)
   for _, b in ipairs(frame.buttons) do
-    if b.id==id then s.input({id=b.id,x=b.x,y=b.y}) return end
+    if b.id==id then s.input({id=b.id,x=b.x,y=b.y,session=s.session}) return end
   end
   error('button not drawn ' .. id)
 end
-return function(test,equal)
-  test('UI2b lumber fleet matches the M fixture',function()
-    local s=screen(job())
-    local diff=R.diff('tests/ui/fixtures/lumber-M.txt',capture(s.render(57,24),57,24))
-    assert(#diff==0,table.concat(diff,'\n'))
-  end)
+-- A worker shows as its id beside its arrow, or behind a drawn turtle:<id> control.
+local function shows(frame, text, id)
+  return ids(frame)['turtle:'..id] or text:find('%f[%d]'..id..'%f[%D]')
+end
   test('UI2b every turtle and drawn action fits pocket and compact monitors',function()
     for _,size in ipairs({{26,20},{29,12},{39,19},{57,24},{15,10},{100,38},{36,10},{1,1}}) do
-      local j=job();local s=screen(j)
-      local frame=s.render(unpack(size))
+      local j=job();local s=screen(j);s.session={id=1}
+      local frame=s.render(size[1],size[2],s.session)
       local picture=capture(frame,unpack(size)).picture()
       if size[1]>=26 and size[2]>=12 then
         local text=table.concat(picture.text,'\n')
-        for id=4,6 do assert(text:find('#'..id,1,true), 'worker missing #'..id) end
+        for id=4,6 do assert(shows(frame,text,id), 'worker missing #'..id) end
         for _, id in ipairs({'start','stop'}) do
           press(s,frame,id)
           equal(j.running,id=='start')
         end
-        press(s,frame,'setup')
-        frame=s.render(unpack(size))
+        press(s,frame,'tab:setup')
+        frame=s.render(size[1],size[2],s.session)
         capture(frame,unpack(size))
-        press(s,frame,'lumber-back')
+        -- Narrow headers use the short tab labels, so the overview tab is tab:main there.
+        press(s,frame,ids(frame)['tab:overview'] and 'tab:overview' or 'tab:main')
       end
     end
   end)
   test('UI2b drawn next button reaches every worker without changing the job',function()
-    local j=job(8);local s=screen(j)
+    local j=job(8);local s=screen(j);s.session={id=1}
     local seen={}
     for _=1,3 do
-      local frame=s.render(29,12)
+      local frame=s.render(29,12,s.session)
       local text=table.concat(capture(frame,29,12).picture().text,'\n')
-      for _,b in ipairs(frame.buttons) do
-        local id=b.id:match('^turtle:(%d+)$')
-        if id then assert(text:find('#'..id..' ',1,true)) seen[tonumber(id)]=true end
-      end
-      press(s,frame,'turtles-next')
+      for id=4,11 do if shows(frame,text,id) then seen[id]=true end end
+      if ids(frame)['turtles-next'] then press(s,frame,'turtles-next') end
     end
     for id=4,11 do assert(seen[id],'unreachable worker '..id) end
     equal(s.saved,0)
   end)
   test('UI2b setup shows only configuration and every assigned turtle',function()
-    local s=screen(job())
-    press(s,s.render(57,24),'setup')
-    local text=table.concat(capture(s.render(57,24),57,24).picture().text,'\n')
-    for _,part in ipairs({'AREA 0,0 to 4,4','GROUND 64','SAPLINGS 1,65,1','TURTLE 4','TURTLE 5','TURTLE 6'}) do assert(text:find(part,1,true),part) end
+    local s=screen(job());s.session={id=1}
+    press(s,s.render(57,24,s.session),'tab:setup')
+    local frame=s.render(57,24,s.session)
+    local text=table.concat(capture(frame,57,24).picture().text,'\n')
+    for _,part in ipairs({'area       0,0 4,4','ground     64','1,65,1'}) do assert(text:find(part,1,true),part) end
+    for id=4,6 do assert(shows(frame,text,id),'turtle '..id) end
     assert(not text:find('add id',1,true))
     equal(s.saved,0)
   end)
@@ -172,9 +211,10 @@ return function(test,equal)
       local bad=job();bad[missing]=missing=="turtles" and {} or nil;local x=screen(bad);x.input({text='start'});equal(bad.alert,missing=='area' and 'area not set' or missing=='ground' and 'ground not set' or 'paired turtle missing; fuel missing')
     end
   end)
-  test('UI2b missing daily source and grow timer show a dash',function()
-    local j=job();j.nextRound=nil;local s=screen(j,true)
-    local text=table.concat(capture(s.render(29,12),29,12).picture().text,'\n')
-    assert(text:find('LOGS -',1,true) and text:find('GROW -',1,true))
+  test('UI2b gather keeps missing timers and daily counters stale',function()
+    local j=job();j.nextRound=nil;local s=screen(j,true);s.render(57,24)
+    local A=s.state.screen;local f=A.facts(A.gather())
+    equal(f[4],{'logs','-','8'});equal(f[3],{'next grow','-','8'})
+    j.nextRound=999000;equal(A.facts(A.gather())[3],{'next grow','0:00','0'})
   end)
 end

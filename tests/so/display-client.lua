@@ -141,13 +141,13 @@ return function(test,equal)
     t.s.co,t.s.inbox,t.s.timers=nil,{},{}
     t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
     equal(t.c.co,co)
-    assert(not t.face.text():find("stale",1,true),t.face.text())
+    assert(not t.face.text():find("NO SERVER",1,true),t.face.text())
     t.s.env.os.queueEvent("terminate"); t.n.flush(); t.n.hosts.so=nil
     t.c.co,t.c.inbox,t.c.timers=nil,{},{}
     t.c.boot("display.lua"); t.n.advance(40)
     t.s.co,t.s.inbox,t.s.timers=nil,{},{}
     t.s.boot("so-server.lua"); t.n.flush(); t.n.advance(31)
-    assert(not t.face.text():find("stale",1,true),t.face.text())
+    assert(not t.face.text():find("NO SERVER",1,true),t.face.text())
     assert(t.c.alive(),tostring(t.c.error))
   end)
   test("display clears a no-server code and accepts another after discovery",function()
@@ -179,6 +179,7 @@ return function(test,equal)
           {id="go",label="go",x=1,y=size[2]-3,w=2}}}
       end,function(e) received[#received+1]=e end)
       pair(t)
+      assert(t.s.env.SO.mods.display.command(t.c.id.." drops")) t.n.advance(1)
       equal(last(t,"hello").body.h,size[2]-1)
       for _,text in ipairs({"home 1 64 2 n","area 0 0 8 8 63","diamond"}) do
         typeText(t,text.."x"); event(t,"key",259)
@@ -187,7 +188,7 @@ return function(test,equal)
         equal(t.own.line(ownH):sub(1,#text+2),"> "..text)
         t.n.advance(2)
         equal(t.face.line(size[2]):sub(1,#text+2),"> "..text)
-        equal(t.face.line(size[2]-1):sub(1,2),"go")
+        equal(t.face.line(size[2]-3):sub(1,2),"go")
         event(t,"key",257)
         equal(last(t,"input").body.text,text)
         equal(t.face.line(size[2]):sub(1,3),">  ")

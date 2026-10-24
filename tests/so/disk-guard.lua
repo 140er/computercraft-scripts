@@ -73,7 +73,11 @@ local function setup(w, h, existing)
     client.inbox[#client.inbox+1] = table.pack("key", 28)
     net.flush()
   end
-  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText}
+  local function assign(role)
+    assert(server.env.SO.mods.display.command(client.id .. " " .. role))
+    net.advance(1)
+  end
+  return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText, assign=assign}
 end
 
 return function(test)
@@ -81,7 +85,7 @@ return function(test)
     for _, role in ipairs({"mining", "lumber"}) do
       test(role .. " refuses start at 80% and resumes below it on " .. size[1] .. "x" .. size[2], function()
         local s = setup(size[1], size[2])
-        s.press(role)
+        s.assign(role)
         if role == "mining" then
           s.typeText("home 0 64 0 n")
         else

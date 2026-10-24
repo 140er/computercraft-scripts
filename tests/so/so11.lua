@@ -200,16 +200,10 @@ S.run = function(rate)
     assert(server.env.SO.mods.drops.add({id=kind,dim=0,x=c.x,y=c.y,z=c.z,side="down",kind=kind=="saplings" and "storage" or kind}))
   end
   n.advance(2)
-  local inputSeq=0
-  local function input(id, body)
-    local d=g.displays[id]
-    local proto=d.env.dofile("so-proto.lua")
-    local key=server.env.SO.pair.key(id)
-    inputSeq=inputSeq+1
-    body.x,body.y=1,1
-    d.env.rednet.send(1,assert(proto.encode(proto.build(key,"input",body,"so11-"..inputSeq))),"so") n.flush()
+  local function role(id,name)
+    local ok,why=g.server.env.SO.mods.display.command(id.." "..name)
+    assert(ok,why) n.flush()
   end
-  local function role(id,name) input(id,{id="generic"}) input(id,{id=name}) end
   local function text(id,value)
     if value=="start" then n.advance(2) end
     local d=g.displays[id]
@@ -272,7 +266,9 @@ S.run = function(rate)
   for second=1,720 do
     n.advance(1)
     if second%60==0 then io.stderr:write("SO11 time "..second.."s\n") end
-    if second==360 and not g.killAt then record(7,false,"no active server call at minute 6") end
+    -- The cut lands on the first clock read inside a server call from 360 s on; allow it
+    -- through the next second, because the route A display tick makes no clock read at 360 s.
+    if second==361 and not g.killAt then record(7,false,"no active server call at minute 6") end
     if g.killAt and not g.bootAt and n.time-g.killAt>=120000 then
       record(5,not S.diff(g.disk,server.files),"disk changed while powered off")
       for id,w in pairs(g.workers) do
@@ -293,8 +289,8 @@ S.run = function(rate)
     for id,d in pairs(g.displays) do
       record(7,d.alive(),"display "..id.." error "..tostring(d.error))
       local pic=picture(d)
-      if g.killAt and not g.bootAt and pic:find("stale",1,true) then g.stale[id]=true end
-      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("stale",1,true) and #pic>0 then
+      if g.killAt and not g.bootAt and pic:find("NO SERVER",1,true) then g.stale[id]=true end
+      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("NO SERVER",1,true) and #pic>0 then
         g.pictures[id]=(n.time-g.bootAt)/1000
       end
     end
@@ -591,16 +587,10 @@ S.runBusy = function(rate)
     assert(server.env.SO.mods.drops.add({id=kind,dim=0,x=c.x,y=c.y,z=c.z,side="down",kind=kind=="saplings" and "storage" or kind}))
   end
   n.advance(2)
-  local inputSeq=0
-  local function input(id, body)
-    local d=g.displays[id]
-    local proto=d.env.dofile("so-proto.lua")
-    local key=server.env.SO.pair.key(id)
-    inputSeq=inputSeq+1
-    body.x,body.y=1,1
-    d.env.rednet.send(1,assert(proto.encode(proto.build(key,"input",body,"so11-"..inputSeq))),"so") n.flush()
+  local function role(id,name)
+    local ok,why=g.server.env.SO.mods.display.command(id.." "..name)
+    assert(ok,why) n.flush()
   end
-  local function role(id,name) input(id,{id="generic"}) input(id,{id=name}) end
   local function text(id,value)
     if value=="start" then n.advance(2) end
     local d=g.displays[id]
@@ -745,8 +735,8 @@ S.runBusy = function(rate)
     for id,d in pairs(g.displays) do
       record(7,d.alive(),"display "..id.." error "..tostring(d.error))
       local pic=picture(d)
-      if g.killAt and not g.bootAt and pic:find("stale",1,true) then g.stale[id]=true end
-      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("stale",1,true) and #pic>0 then
+      if g.killAt and not g.bootAt and pic:find("NO SERVER",1,true) then g.stale[id]=true end
+      if g.bootAt and g.frameAt[id] and not g.pictures[id] and not pic:find("NO SERVER",1,true) and #pic>0 then
         g.pictures[id]=(n.time-g.bootAt)/1000
       end
     end

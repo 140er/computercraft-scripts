@@ -234,7 +234,7 @@ A paired computer sends `hello` to the server.
 `getSize` and reserves the bottom row for local input on screens at least
 three rows tall, so `body.h` is one less than the physical height there.
 Optional `body.fullH` advertises the physical height. The Big Tiles server uses
-that height and kit frames fill every row, including pocket glance navigation.
+that height and kit frames fill every row, including the pocket's last row.
 Kit-free frames retain the local input row. `body.keyboard` is true only when the
 client draws on its own terminal. Every monitor client reports false. Missing
 flags use touch panel controls. The display module reads these sizes.
@@ -368,7 +368,7 @@ A display sends `view.get` to the server.
 
 A display sends `view.sub` to the server.
 
-`body` is `{}`. `body.role` is ignored. The server uses the role stored for that computer. A computer with no stored role is `generic`.
+`body` is `{}`. `body.role` is ignored. The server uses the role stored for that computer. A 26x20 computer with no stored role is `pocket`; any other is `unassigned`.
 
 SO5 sends the current `view.frame` when the display subscribes, and again every 4 seconds while the subscription lasts. It also sends a frame when the picture changes. A repeat may keep the same `rev`.
 
@@ -382,13 +382,16 @@ Frame signatures and revisions are tracked per role and client. Unchanged
 frames wait for the four-second keepalive even when other displays have different
 sizes or pages.
 
-`body.role` is `shop`, `mining`, `lumber`, `status`, `ar`, or `generic`. It is the screen that was drawn.
+`body.role` is `status`, `pocket`, `mining`, `lumber`, `shop`, `generic` (the drop-point list), `ar`, `panel`, `map` or `unassigned`. It is the screen that was drawn.
 
 `body.rows` is the draw list. Each row is `{ text = string, fg = string, bg = string }`
 or `{ text = string, runs = { { n, fg, bg }, ... } }`. Each run paints `n` cells
 with one blit colour each for `fg` and `bg`. Runs cover the row width. Compact
 rows may omit trailing spaces from `text`; the client pads them to the run width.
 The server chooses compact rows only when their `so-proto.ser` output is smaller.
+A space joins the previous run whatever its fg, because a blank cell's fg never
+shows. Text may hold any byte, including the control glyphs 1-31 (the turtle
+triangles 16, 17, 30 and 31); `so-proto` and the client's `term.blit` pass them unchanged.
 
 `body.palette` is optional. It maps numeric indices 0 through 15 to packed RGB
 numbers, corresponding to blit slots `0` through `f`. A frame without a palette
@@ -409,7 +412,7 @@ A display sends `input` to the server. It does not wait.
 
 `body.id` is the button id, or absent when the player submitted text. `body.text` is that text, or absent for a button. `body.x` and `body.y` are 1-based character coordinates.
 
-`body.role` is ignored. The server uses the role stored for that computer.
+`body.role` is ignored. The server uses the role stored for that computer. No input changes that role.
 
 ### drops.edit
 
@@ -460,36 +463,50 @@ Built-in `pair` and `hello` run first. Module handlers for that same type run ne
 
 `so-mod-shop.lua` registers the `shop` display role through `display.screen` from its first tick. It keeps stock, per-display search text, order replies and trend samples in memory. Restarting the server clears them.
 
-The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `Storage room not found, still looking`. After five minutes without a stock reply or stock broadcast from the selected turtle, it clears stale stock and resumes discovery. DNS replies and order replies do not extend that deadline. The legacy room has no server-only configuration or pairing record to select a preferred turtle; discovery uses the first DNS or stock responder.
+The module finds the existing, unpaired Storage Room turtle through DNS or the sender of a `roomsorter_stock` broadcast. Until found, its tick broadcasts `{ sType = "lookup", sProtocol = "roomsorter" }` on `dns` every 10 seconds without waiting. Its `dns` listener selects the sender of `{ sType = "lookup response", sProtocol = "roomsorter" }` only while no turtle is known. Before discovery the screen shows `storage room not found` (the legacy list: `Storage room not found, still looking`). After five minutes without a stock reply or stock broadcast from the selected turtle, it clears stale stock and resumes discovery. DNS replies and order replies do not extend that deadline. The legacy room has no server-only configuration or pairing record to select a preferred turtle; discovery uses the first DNS or stock responder.
 
-The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
+The legacy turtle uses plain rednet. This is an exception to the `so-proto` envelope. The shop sends `{ cmd = "stock", rid = number }` on `roomsorter` every 10 seconds after discovery. Replies carry that `rid` and `{ version, totals, state, crafty, cutoff, recipes, orders }`, plus three optional fields that newer rooms add: `labels` (item id to display name), `stacks` (item id to stack size) and `tags` (item id to up to 8 `c:`, `forge:` or `minecraft:` tags). The shop accepts replies without them. Broadcasts on `roomsorter_stock` carry `{ totals, used, size, chests, furnaces, state, full }`. Only the selected turtle updates the stock.
 
-The Big Tiles screen uses `render(w, h, session)`. Stock is shared; category,
-letter, sort, page, selection and order feedback belong to the display session.
-It draws category tabs derived from item IDs, an A-Z letter picker, STOCK and
-NAME sort buttons, item tiles and paging. Small screens open a category picker.
-No shop search field is drawn. Submitted text remains a compatible name filter;
-spaces match underscores, and a lone space or `*` clears it. Category taps clear
-that filter. Count sort descends by stock and breaks ties by item ID. Name sort
-uses the displayed name and then item ID. The stock time uses Amsterdam time.
-Stock older than 30 seconds shows STALE STOCK.
+The screen is route A ([SCHEMATIC-SPEC.md](../ui/SCHEMATIC-SPEC.md#15-shop)) and uses
+`render(w, h, session)`. Stock is shared; tab, category, sub, low filter, sort, page, search,
+keypad and selection belong to the display session.
 
-Tapping `item:<itemName>` opens an IN STOCK tile and quantity buttons
-`order:1:<itemName>`, `order:16:<itemName>` and `order:64:<itemName>`.
-`items` returns to the same list page; `status` returns from the list to status.
-Tiles keep the existing blue, amber, empty and trend states. Stale tiles use gray.
-Without `so-ui.lua`, the legacy list and its direct order buttons remain available.
+The header tabs are `tab:items`, `tab:low` and `tab:find`. Every item has a category and a sub,
+taken from its id by a rule table, then from its learned tags, then from its namespace: ores (ore,
+raw, ingot, nugget, block, gem, dust), wood, stone, plants, food, tools, redstone, mobs, mods (one
+sub per namespace) and other. ITEMS filters with `cat:<id>` and `sub:<id>`; screens 52 cells wide
+or more draw both as chip rows, narrower ones open a picker with `pick:cats` or `pick:subs`
+(`back` closes it). Subs that need more than two chip rows (many mod namespaces) use the
+`pick:subs` picker at every width. A `sub:` that is not a sub of the open category is ignored. LOW lists items under `min(16, stack)` and empty ones, filtered by `low:all`,
+`low:low` or `low:empty`. An item stocked within the sampled hour stays listed at 0. FIND draws
+the search, `key:A` to `key:Z`, `key:DEL`, `key:CLR`, and `keys`, which shows or hides the keypad.
+Submitted text becomes the search and opens FIND; spaces match underscores, a lone space or `*`
+clears it, and it matches the id or the display name. The column head sorts with `sort:name`,
+`sort:count` and `sort:trend`. Count sort descends by stock and breaks ties by item id; name sort
+uses the display name, then the id; trend sort uses the size of the hourly change. `prev` and
+`next` page. Tabs, categories, subs, filters, sorts and keys go back to page 1 and close the item.
+The stock time uses Amsterdam time. Stock older than 30 seconds shows `stale`, and no storage
+room shows `missing`.
 
-An order sends `{ cmd = "order", text = itemName, n = count, rid = number }`
-on `roomsorter` once. Quantity buttons then become inactive until the user
-returns to the list and selects an item again. Replies match sender and request
-ID. Each reply updates only the initiating display's latest order. The status is
-sent after dispatch and on a Getting or Crafting reply, delivered only after an
-explicit Delivered or sent-to-output-chest reply, and failed on refusal or a
-two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is
-the final observable state there. The screen never infers delivery from stock
-changes and never retries orders. `shop.order(search, count)` remains a direct
-one-order API for keyboard panel quick orders and leaves shop displays unchanged.
+`item:<itemName>` opens the item, beside the list on wide screens and as its own page on narrow
+ones; tapping the open row, `items` (the × or `back`) closes it. Its order chips are
+`order:1:<itemName>`, `order:16:<itemName>`, `order:64:<itemName>`, `order:stack:<itemName>` (one
+stack) and `order:all:<itemName>` (the whole stock; muted at 0). Without a storage room every
+order chip is muted. Without `so-ui.lua`, the legacy list and its direct order buttons remain.
+
+Each tap on an order chip of the open item sends one `{ cmd = "order", text = itemName, n = count,
+rid = number }` on `roomsorter`; drawing sends nothing, and another display's tap needs its own
+open item. Replies match sender and request ID. Each order from a shop display is listed under
+the item, newest first, up to 8, with its time and state: sent after dispatch and on a Getting or Crafting reply,
+delivered only after an explicit Delivered or sent-to-output-chest reply, and failed on refusal
+or a two-minute timeout. Legacy rooms currently acknowledge queued work, so sent is the final
+observable state there. The screen never infers delivery from stock changes and never retries
+orders. `shop.order(search, count)` remains a direct one-order API for keyboard panel and pocket
+quick orders and leaves shop displays unchanged. An exact stocked item id wins over a
+better-stocked partial match; the call returns the id it sent, or nil and a reason.
+`shop.best(search)` returns that id and its count without ordering. `shop.matches(search,
+limit?)` is read-only and returns up to `limit` (default 10) `{ name, count, label }` stocked
+items whose id or display name contains the search, most stock first, then by id.
 
 `shop.fuelConfig()` returns a copy of the saved policy.
 `shop.fuelConfig(auto?, outputId?)` sets the boolean auto flag or binds a
@@ -538,7 +555,7 @@ action carries `fuelOrder` for interrupted-report recovery.
 Retries require a running job and auto on. Leases and reservations continue
 through the existing job recovery path.
 
-Each item keeps at most 60 samples, one per minute. Its `^`, `v` or `-` compares current stock with the oldest retained sample, about an hour ago once the history fills. Before an hour of history exists, it compares with the earliest available sample.
+Each item keeps at most 60 samples, one per minute. Its hourly change compares current stock with the oldest retained sample, about an hour ago once the history fills, scaled to an hour. Before an hour of history exists, it compares with the earliest available sample. An item absent for every retained sample is forgotten.
 
 ### state
 
@@ -753,12 +770,23 @@ the shaft. The shaft is one block forward from it. Each turtle gets a branch at 
 and two blocks apart in `fast` mode. Branch length defaults to 64 blocks.
 New jobs default to `ores = {}`, so they accept all ores. Saved ore filters stay unchanged.
 
-The module registers `display.screen("mining", render, input)`. `render(w, h)`
-returns a Big Tiles frame. Input ids `start` and `stop` use the text commands
-below. `setup` opens the settings page and `mine-back` returns to mining.
-`status` is the main BACK navigation id. Both pages accept text commands.
-Daily ore totals have no source and show a stale `-` tile. A missing UI kit
-retains the legacy renderer. Send these text
+The module registers `display.screen("mining", render, input)`. `render(w, h, session)`
+returns a route A frame (the mining section of the [spec](../ui/SCHEMATIC-SPEC.md)). The header has
+the tabs `tab:overview` (`tab:main` where the short labels are drawn) and `tab:setup`;
+the tab belongs to the display session, and the Big Tiles ids `setup` and
+`mine-back` still switch it. Input ids `start` and `stop` use the text commands
+below. On the setup tab `set-bottom-` and `set-bottom+` send `bottom` one block
+lower or higher, `set-length-` and `set-length+` send `length` 8 shorter or longer
+(1 to 4096), `mode-fast` and `mode-thorough` send `mode`, `ores-edit` opens the ore
+list and `ore-<name>` sends `ores` with that ore switched; the last selected ore
+cannot be switched off. Each tap is exactly its text command and saves once.
+Both tabs accept text commands. Without a daily module the ore leader shows `-`.
+A missing UI kit retains the legacy renderer.
+`facts()` returns `{ state, done, total, busy, workers, depth, lane?, fuel?, alert? }`
+with `lane = { id, facing }` (the world facing of the turtle holding the lane) and
+`fuel = { value, id }` (the lowest reported fuel), for the pocket's JOBS page.
+A 120x18 render for a session without `id` keeps the Big Tiles rows `so-mod-panel`
+probes until it reads `facts()`. Send these text
 commands through that screen's `input.text`:
 
 - `home <x> <y> <z> <n|e|s|w>` sets the chest-side position.
@@ -946,6 +974,23 @@ SO4 owns this API on `SO.mods.cells`. Coordinates are integer block positions. A
 
 `cells.counts()` returns `{ reserved = { [who] = n }, dug = n }`. Tick registers a `cells` state view returning these counts when `state.view` is callable.
 
+The map reads dug marks and reservations through four read-only calls. They
+never load a section into the cache, refresh its use time or write a file.
+`cells.dugVersion()` returns the section index version and a serial that
+changes with every dug mark, forget or retirement.
+`cells.dugColumns(dim, sx1, sz1, sx2, sz2, max)` returns up to `max` (default
+1024) known section columns in that section box as `{ sx, sz, sy = {...} }`,
+with each `sy` list sorted. An index answers it without disk reads. It holds
+sections with at least one mark since boot; sections that were only probed stay out.
+`cells.dugBits(dim, sx, sy, sz, memoryOnly)` returns the section's 1024-character
+`bits`, or nil when the section is unknown or empty, and a change stamp. The
+stamp rises with every mark, forget or retirement in that section and survives
+eviction. An evicted section is read from its newest valid generation on disk
+without caching it, or returns false when `memoryOnly` is set.
+`cells.reserved(dim, max)` returns up to `max` (default 4096) reservations in that
+dimension as `{ x, y, z, who }`, and a version. The list and version stay the
+same until the reservations change. Callers must not edit the list.
+
 Reservations save through `so-store` to `so-data/cells/res` on each change and reload on boot. Dug marks save per 16x16x16 section to `so-data/cells/<dim>/<sx>_<sy>_<sz>`. Dimension names replace `:` for valid paths. The cache holds at most 256 sections. Eviction saves a changed section before removing it. Tick saves at most eight changed sections. Bulk work calls `SO.breathe`, never `sleep`.
 
 A section value is `{ format = "hex4096", bits = string, used = gameMs }`.
@@ -1027,20 +1072,80 @@ Lumber exposes PARK and RE-ADD; its command interface also accepts `remove <id>`
 SO5 owns this API on `SO.mods.display`.
 
 The server terminal uses `display.terminal(model, view, w, h)` to return a
-Big Tiles frame. The model is the status model. The view supplies `id`,
-`mode` as normal, code or log, `uptime`, `log`, `offset`, `code`,
-`expires` and `now`. Times use game milliseconds and the log offset counts
+route A frame ([schematic spec](../ui/SCHEMATIC-SPEC.md#17-server-terminal)).
+It reads `model.terminal`. The view supplies `id`,
+`mode` as normal, code, log or role, `uptime`, `log`, `offset`, `code`,
+`expires`, `now` and `pending` (the pending pair code, shown on the normal
+page). Role mode also reads `displays`, `input` and `notice`.
+Times use game milliseconds and the log offset counts
 back from the newest line. `SO.terminal` holds the runtime view. Display tick
-draws it once per second. Prints enter a volatile 200-line log, with long lines
+draws it once per second; `display.drawTerminal(now?)` draws it at once.
+Prints enter a volatile 200-line log, with long lines
 split into pieces of at most 4096 bytes. L opens the full log, L or Esc returns,
 and Up or Down scrolls. P opens or renews the existing five-minute invite.
 Esc clears it. Used or expired invites return to the normal page.
 
+#### Display roles
+
+A display shows one role. Only the server changes it:
+
+- R on the server terminal opens role mode. It lists every known display as
+  `ID  SIZE  ROLE` and reads one line: `<id> <role>` assigns, `<id> -` clears.
+  Enter applies it with `display.command`, prints `role: <result>` to the log
+  and shows the result above the prompt, wrapped to two rows when long. A list
+  longer than the screen ends with `+N more`. Backspace edits, Esc leaves. Keys
+  such as P and L type into the prompt instead of acting, and a panel's NEW
+  CODE request does not close it. Kit-free servers draw the same prompt as
+  plain rows.
+- `display.command(text)` parses that line and calls `display.assign`.
+- `display.assign(id, role)` returns `true, "display <id>: <role>"` or
+  `false, <reason>`. Role nil or `-` clears the saved role. Roles are
+  `status`, `pocket`, `mining`, `lumber`, `shop`, `drops`, `ar`, `panel` and
+  `map`; `drops` is saved as `generic`, which also stays accepted. Reasons are
+  `bad display id`, `no display <id>`, `roles: <list>`, `<role> not loaded`,
+  `pocket needs so-ui.lua`, `save failed: <error>` and
+  `use <id> <role> or <id> -`. An id is a display when it has a session size,
+  a saved role or a `display` registry row, or is the server's own id.
+  Assignment saves through `so-store`, resets the display's status paging and
+  pocket page, and the next tick sends the new frame. It never renders. Until
+  that frame is sent, button taps from the display are ignored, so a tap on
+  the old role's frame cannot reach the new role. Typed text still arrives. The local monitor does the same.
+
+Tests and the gateb driver use the same calls, for example
+`SO.mods.display.command("7 mining")`.
+
+A 26x20 display with no saved role gets `pocket`; so does 26x19, which older
+pocket clients report without `fullH`. Before R1 every navigation tap was
+saved, so a pocket keeps a saved role only when the command set it; other
+displays keep any saved role. Any other display with no
+saved role draws `unassigned`: an UNASSIGNED header and its id in line
+digits as large as fit, without buttons. A saved role whose screen is not
+registered, or whose renderer fails, draws the same page under the role name.
+Kit-free servers draw `display <id>` and the role name as text.
+
+The pocket role has its own pages in the display session, drawn by the
+`pocket` screen that so-mod-panel registers. A new alert takes over first, as
+on status. The pages are route A ([schematic spec](../ui/SCHEMATIC-SPEC.md#15-pocket)).
+Row 1 holds the tabs `tab:fleet`, `tab:jobs`, `tab:shop` and `tab:pair`. FLEET
+is status's one-column layout from the status model; each of its alert rows is
+an `alerts` button that opens ALERTS, every flag with its detail, paged with
+`alert-prev` and `alert-next`. JOBS reads `mine.facts()` and `lumber.facts()`
+when the modules have them, else the status model's `mining`, `lumber` and
+turtle rows, and forwards `mining:start`, `mining:stop`, `lumber:start` and
+`lumber:stop` once each. SHOP takes typed text as its search; `pick:<item>`
+selects a match, `clear` empties the search and `order:<count>:<item>` (1, 16
+or 64) under the shown item calls `shop.order(item, count)` once while that
+item still matches. PAIR draws `pair-code` (NEW CODE) and the session's own
+code in line digits. No page changes the saved role. Without the `pocket`
+screen the role draws the 26-wide status layout. `display.statusModel()`
+returns the status model of the last gather for these pages.
+
 `display.monitorTouch(side, x, y)` queues a touch on the server's own monitor.
-The next display tick routes it to the drawn screen and handles navigation.
-Discovery runs at most every five seconds. The monitor uses its real size,
-text scale 0.5 and the spec palette. Its status session and role are volatile,
-separate from paired displays, and require no rednet traffic or saved files.
+The next display tick routes it to the drawn screen. Discovery runs at most
+every five seconds. The monitor uses its real size, text scale 0.5 and the
+spec palette. It draws the role saved under the server's own id, or status
+when there is none. Its session is volatile and
+separate from paired displays and needs no rednet traffic.
 `display.screen(role, render, input)` registers one screen. `role` is a string.
 A second call for the same role replaces the first. `screen(role)` with no
 callbacks returns the registered `{ render, input }` or nil.
@@ -1052,12 +1157,10 @@ passed to render; it is never sent on the wire. `role` is the screen that was
 showing. Local monitor input receives its own session through the same field.
 The session includes client `id` and `keyboard`, true only when hello reports
 `body.keyboard == true`. Monitor clients report false. A missing flag uses touch
-controls. Monitor panels open the shop with a SHOP button; keyboard panels retain
-typed quick search and quantities. Kit-free render callbacks receive the client
-ID as their third argument. Their generic content height excludes two navigation
-rows for mining, lumber, shop, status and AR. Every kit-free destination has a
-visible generic return button on 26x20 pockets and 29x12 monitors.
-Existing callbacks can ignore the added session argument and field.
+controls. Monitor panels run jobs only; keyboard panels retain typed quick
+search and quantities. Kit-free render callbacks receive the client ID as their
+third argument and the full content height. No screen draws buttons to another
+role. Existing callbacks can ignore the added session argument and field.
 Dug-storage requests occupy the top of every role, including `status` and
 `generic`. The server wraps their text and shifts the role below it. Buttons
 `dug.allow/<request-id>` and `dug.keep/<request-id>` carry labels `allow` and
@@ -1074,15 +1177,26 @@ the legacy status renderer.
 
 The server-only `so-ui.lua` kit exports `palette`, `font`, `clock(epochMs)`, `size(w, h)`,
 `grid(w, h, columns?)`, `ink(bg)`, `glyph(ch, ink, bg)`, `canvas(w, h, bg?)`,
-`status(model, w, h)` and `alert(model, w, h)`. Sizes are P, T, M, L, XS or
+`status(model, w, h)`, `alert(model, w, h)`, `chipRow(C, y, label, chips, x?, right?)`
+and `fleetRows(C, model, top, step)`. Sizes are P, T, M, L, XS or
 `generic`. Grid returns one-based `{ x, w }` columns and the tile-row count.
 Glyph returns three `{ text, fg, bg }` rows with inverted sextant cells.
 Canvas coordinates are one-based. Its methods are `put(x,y,text,fg?,bg?)`,
 `fill(x,y,w,h,bg)`, `center(x,w,y,text,bg?)`, `big(x,y,w,text,bg)`,
-`hit(id,x,y,w,h)`, `header(name,right?,bg?)`, `alert(text)`,
+`hit(id,x,y,w,h,label?)`, `header(name,right?,bg?)`, `alert(text)`,
 `tile(x,y,w,label,value,sub,bg)`, `button(x,y,w,label,id,bg?,h?)`,
 `listRow(y,text,state)`, `search(x,y,w,text,id?)` and `frame()`.
+Route A adds `bar`, `section`, `rule`, `leader`, `ticks`, `progress`, `chip`,
+`flag`, `box` and `digits`, plus `U.tone`, `U.mark`, `U.age`, `U.arrow`,
+`U.filled`, `U.g`, `U.chips` and `U.stale`; [the schematic spec](../ui/SCHEMATIC-SPEC.md)
+lists their arguments. Tab chips use ids `tab:<name>`.
 Frame returns compact runs, buttons with height and the palette.
+`chipRow` draws a label at `x` (default 2) and `{ text, bg }` chips, each padded
+by one space, right-aligned to `right` (default `w - 1`); the label is cut to
+leave one blank column. `fleetRows` draws status tiles 1-8 as chip rows from
+`top`, `step` rows apart, using each tile's optional `chips`, and makes the
+ALERTS row an `alerts` target. Gathered TURTLES, LEASES, DISPLAYS and DROPS
+tiles carry `chips`; a second chip (lost, stale, broken) appears only above zero.
 
 `so-ui.clock(epochMs)` returns `{ h, m, s, date, hm, hms }` in Amsterdam time.
 `date` is `YYYY-MM-DD`; `hm` and `hms` are zero-padded. UTC+1 becomes UTC+2
@@ -1092,12 +1206,46 @@ does not depend on the host time zone. Status and panel headers, shop stock
 sample times, and new terminal log timestamps use this clock. Every new log
 line starts with `hh:mm:ss ` before the message. Durations are unchanged.
 
-The pure status layout takes `model.tiles`, ordered turtles, leases, alerts,
-ore, logs, disk, displays, drops and pairing. Each tile is
-`{ label, value, sub, bg }`. The model also has `time`, optional `alert`,
-`alerts`, `log`, `terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
-Takeover layout takes `takeover = { text, count?, detail?, sub? }` and defaults
-the count to the length of `alerts`. Gathering stays in display handler and tick
+The pure status layout is route A ([schematic spec](../ui/SCHEMATIC-SPEC.md#13-status)).
+Its model fields, all built by the gather:
+
+- `time` (`hh:mm`), `name` (`FLEET` for the pocket fallback, else `STATUS`),
+  `server = { id, up }` with uptime `3h12` from `SO.terminal.started`.
+- `alerts`: state alerts `{ key, sequence, text, detail?, sub?, id?, kind? }`, oldest
+  first; `id` (a turtle) and `kind` (a drop kind) come from the alert value and
+  name the takeover's subject.
+- `terminal = { flags, ok, lost, leases, displays, disk? }` for the server
+  terminal, built on every gather without a `mapView`: `flags` are `{ text }`
+  for lost turtles by id, state alerts newest first and broken drops.
+- `flags`: alert rows `{ text, detail?, short?, brief? }`. Lost turtles come first
+  (`#6 lost`, `x,y,z · 3 min`, `3m`), then state alerts newest first, then broken
+  drops (`drop 3 junk broken`, brief `drop 3 broken`).
+- `turtles`: `{ id, facing, state, tone, where, x, y, z, fuel, ore, ago, lost }` for
+  every worker machine, mining first, then lumber, then the rest, each by id.
+  `state` is the mining row state, the lumber phase (`felling`, `scanning`,
+  `planting`) or `lost` when the lease is lost. `where` is `b<branch>`, `lane`,
+  `farm` or `-`. `ago` is milliseconds since the machine was seen.
+- `mining = { state, done, total, busy, workers, lane }` from `mine.mapView()`;
+  `busy` counts mining turtles whose state is green, `lane` is the turtle holding it.
+- `lumber = { state, ready, spots, grow }` from `lumber.mapView()`, `grow` as `m:ss`.
+- `today = { ore, logs, recent, names = { { short name, count }, ... } }` from
+  `daily.today()`, names by count then name.
+- `disk = { used, cap }`, `leases` (open lease count), `displays` (`{ id, role,
+  size, ago }` for every connected display, lowest id first), `drops` (`{ id, kind,
+  x, y, z, broken }`), `events` (the last ten terminal log lines, newest first, as
+  `{ time, text, tone }`, never a `Pair code` line) and `thumb`, the map module's
+  `thumb` when present.
+
+A missing module leaves its field nil and the screen draws `-` in muted grey.
+The gather builds these fields only while a connected display or the server's
+monitor draws status or pocket.
+The tile model fields stay for the panel role and older callers:
+`tiles` (`{ label, value, sub, bg, chips? }`), `alert`, `log`,
+`terminalSubs`, `okShort`, `lostShort`, `oreShort` and `page`.
+The takeover ([schematic spec](../ui/SCHEMATIC-SPEC.md#16-system-screens)) draws a coral
+frame, the alert in a coral title chip with its subject's position, the detail
+or sub, a map crop around the subject from `map.crop` and a coral tick row for
+the time left; it is one `dismiss` button. Gathering stays in display handler and tick
 paths. It reads state view `.alert` keys, registered worker machines, lease
 status, drop points, display sessions and the server root disk. Ore and log
 totals come from `daily.today()`, with `-` on stale tiles when unavailable.
@@ -1109,55 +1257,44 @@ Alert identity is the state key plus its serialized value. Each display sees
 at most one takeover for each identity and at most one in 30 seconds. The
 coral takeover ends after 5000 milliseconds or any tap. Suppressed identities
 stay in the alert bar and do not trigger a delayed takeover. The alert bar
-opens the latest alert until tapped. XS `next` cycles the tiles. Status buttons
-select mining, lumber, shop or generic. At 26x20, glance row 20 shows
-`<  glance n/m  >  PANEL`. Its `prev` and `next` inputs wrap three pages of
-three tiles independently per pocket. The first page shows turtles, alerts and
-ore; later pages show leases, logs, disk, displays, drops and pairing. The `panel`
-input selects panel mode.
-No saved data or wire type changes are required.
-
-Button id `generic` returns that display to the generic screen. Button id
-`status` returns to status from any screen. Generic buttons can select `shop`,
-`mining`, `status`, `lumber`, `ar` and `panel`. Missing lumber and AR buttons are injected
-for legacy generic screens. The drops list has `new` and `status` buttons, so
-it suppresses that injection and reaches the other roles through ADD NEW.
-Generic screens at least 39 columns wide also gain a PANEL header button
-when the panel screen is loaded, unless they already have one.
-This keeps panel mode reachable on monitors
-when the drops module supplies the generic screen.
+opens the latest alert until tapped. The alert rows are the `alerts` input
+while a state alert exists; status has no other buttons and no paging.
 
 The module stores `{ roles = { [computerId] = role }, far = { [computerId] = true } }`
-in `so-display`, with string computer ids. Old files without `far` remain valid.
-The default role is `generic`, except a 26x20 display without a saved role
-uses `status` when the kit is installed. Saved roles, including `panel` and `map`, take precedence. Both settings
-survive a restart.
+in `so-display`, with string computer ids, plus `locked = { [computerId] = true }`
+for roles set by the command. Old files without `far` or `locked` remain valid.
+Roles saved before R1 keep working on every display except pockets, which
+return to `pocket` until the operator assigns them. `pocket` is a new saved
+value; a server older than R1 rejects a file that contains it and ignores
+`locked`. All settings survive a restart.
 `display.far(id, on)` sets or clears the far flag through `so-store`. It returns
 success and an optional save error. A successful change sends the new scale on
 the next tick for a subscribed display. A failed save keeps the previous setting.
-`display.palette` is the Big Tiles palette as RGB numbers at indices 0 through 15.
+`display.palette` is the route A palette as RGB numbers at indices 0 through 15.
 Renderers opt into it by returning `palette = SO.mods.display.palette`.
 
-After ten seconds without a frame, the client keeps the last picture with stale
-backgrounds and preserves inverted big digits. It draws a centred coral 21x7
-NO SERVER tile, elapsed time in big digits and a retry countdown. Palette-capable
-outputs repaint the timer once a second. Outputs without palette support retain
-the legacy bottom-right stale marker and repaint on retries. The retry schedule
-still uses jittered exponential backoff capped at 30 seconds.
+After ten seconds without a frame, the client keeps the last picture as it is
+and swaps its palette to the grey ramp `U.stale` (display.lua carries a copy).
+It then draws one coral row over row 1: `NO SERVER m:ss` (time since the last
+frame) and `retry in N s` at the right, shortened to `Ns` or dropped on narrow
+screens. Palette-capable outputs redraw that row alone once a second; retries
+redraw it too. Outputs without palette support keep their colours, draw the row
+in `e` and update it on retries. The next
+frame restores the frame's palette. The retry schedule still uses jittered
+exponential backoff capped at 30 seconds.
 
 ### map
 
 `so-mod-map.lua` is installed only on the server. It registers
 `display.screen("map", render, input)` during tick. It adds no wire type.
 The saved display role may be `map`; older role and far settings remain valid.
-The display composer draws a teal `MAP` button at the right of every Big Tiles
-header while the map screen is registered. Input `map` remembers the drawn role
-in `session.mapReturn`. Input `map-back` restores that role, or status after a
-restart. This also works on the server's local monitor.
+The map is a role of its own. No other screen links to it and it has no BACK.
 
 `mine.mapView()` returns copied `{ dim, home, homeSet, bottom, length, mode,
-branches, turtles, preview?, trails }`. `branches` covers assigned branches, progress and the visible preview.
-`turtles[id]` has `{ pose, state, dim }` in world coordinates.
+branches, turtles, running, done, preview?, trails }`. `branches` covers assigned branches,
+progress and the visible preview; `done` counts finished branches.
+`turtles[id]` has `{ pose, state, dim, branch, lane, ores }` in world coordinates;
+`branch` is zero-based, `lane` is true while the turtle holds the lane.
 `preview` has two branch endpoints, excluding the shaft and spine. It appears
 only while running, below the continuous branch limit, and when no worker has
 that branch assigned or reserved for its return. Geometry is cached by home,
@@ -1166,8 +1303,11 @@ dimension, bottom, length, mode and next branch. A frame never computes a route.
 project the worker pose onto its branch and clamp to the configured length.
 Up to 64 recent completed branches remain as faint trails until START resumes
 a stopped job or the server restarts. Trail history is display-only memory.
-`lumber.mapView()` returns copied `{ dim, area, ground, saplings, turtles }`.
-The turtle map is keyed by id, with `{ id, pose, state }` for every assigned worker.
+`lumber.mapView()` returns copied `{ dim, area, ground, saplings, spots, turtles,
+running, grow }`. `turtles` is keyed by id, with `{ id, pose, state, phase }` for every
+assigned worker. `spots` lists up to 512 tree spots as `{ x, z, ready }`, sorted by x then z.
+A spot is ready when it was never planted or was planted ten minutes ago.
+`grow` is the milliseconds until the next listed spot is ready, or nil.
 These getters do not save or advance jobs. The map calls them from tick,
 together with registry, lease and drop APIs. AR merges every lumber worker's
 planner pose and state with registry freshness and fuel. Both views use the
@@ -1175,48 +1315,117 @@ farm dimension when a lumber pose has no dimension of its own. Registry
 workers without a job also appear when their pose is known.
 Numeric drop dimensions are normalized to world dimension strings.
 
-A running mine's next branch is an amber `1` line above planned grey geometry.
-The map header replaces the scale with drawn FOCUS and BROKEN count buttons
-when broken chests exist. FOCUS centres the first broken chest at one block per
-cell and selects ALL levels. BROKEN also opens the drop list at that chest.
-Tapping a broken chest glyph opens that exact chest, on its list page. These
-controls also work on the server's monitor. The status BROKEN button and tile open the
-first broken chest. The pocket places BROKEN below its MAP/MORE header.
-A broken chest glyph replaces any covered turtle tap target. Drop-list input `focus:<id>` exits the editor, selects that
-chest and reveals its page at the next render.
+`so-mod-map` exports two drawing calls for other screens. Both draw into a
+route A canvas `C`, return true when they drew, never wait, and leave the area
+blank on an error (callers use `pcall`):
 
-`render(w, h, session)` stores its state under `session.map`. `fit` starts true.
-`x` and `z` hold the centre, and `scale` is integer blocks per colour cell.
-`level` starts as `all` and cycles through `mine`, `surface`, `all`.
-Mine selects the job bottom; surface selects server y, farm ground or mine home.
-All projects every scene marker. Dug scans sample the mine bottom and its next
-block, mine home, surface, farm ground, and known chest and turtle y levels.
-The map is north-up with x horizontal and z vertical. It filters to the server
-dimension, or the configured job dimension when the server position is absent.
+- `map.thumb(C, x, y, w, h)` draws the compass `↑N` at the right end of row `y`
+  and, under it, the fitted map of all levels, top-aligned, in `w` by `h - 1`
+  cells. The status wall calls it with at most 48x30 cells (40x26 on a 100x38
+  wall). It returns false below 3x2.
+- `map.crop(C, x, y, w, h, focus)` draws one block per cell around
+  `focus = { x, y, z, id?, drop? }`, centred on it but shifted along x so the
+  scene fills the crop, at the mine level when `focus.y` is at or
+  under it and at ALL otherwise. Turtle `id` or drop `drop` is inverted, with no
+  label and no callout. It returns false without a focus position.
 
-Geometry tests intersections per screen cell. Route length and branch count do
-not increase frame work. Dug scans call `cells.isDug` at most 256 times per
-render and retain a viewport-sized raster. A completed scan replaces old marks.
-View changes reset the scan. Changing tracked levels restarts the scan while
-retaining its visible raster until a new pass completes. Empty shaft heights
-are skipped. At coarse zoom, any found dug block marks its
-projected cell. New dug blocks appear as the scan advances. Rendering never
-calls sleep. Existing cell reads may use `SO.breathe` during bulk work.
+Both keep their own view per size and share the dug planes and read budget
+with the map screen.
 
-Planned passages use panel grey `7`; dug cells use light grey `8`; the farm
-outline uses green `d`. `H` marks the shaft in teal `9`. Chest letters use
-purple `a` or coral `e` when broken. `@` marks the server in teal. Turtles draw
-last as `^ > v <`, with an id to the right at one block per cell when it fits.
-Busy uses green `d`, idle amber `1`, lost/range/stale coral `e`, and done blue `b`.
-Markers at the same projected cell overlap; turtles take precedence.
+The alert takeover draws a crop around its subject through an optional
+`map.crop(C, x, y, w, h, focus)` with `focus = { x, y, z, id?, drop? }`; the map
+section documents the call. The takeover uses `pcall`; without it, on an error or
+when it returns false, the subject's facts (state, where, fuel, ore and seen, or
+a drop's kind and state) fill those rows instead.
+The optional turtle has `{ id, pose, state }`. These getters do not save or
+advance jobs. Registry workers without a job also appear when their pose is
+known. Numeric drop dimensions are normalized to world dimension strings.
+The map filters everything to the server dimension, or to the job dimension
+when the server position is absent.
 
-Drawn inputs are `map-fit`, `map-in`, `map-out`, `map-n`, `map-w`, `map-s`,
-`map-e` and `map-level`. Zoom ranges from 1 to 4096 blocks per cell. Panning
-moves three displayed cells. Header placement follows the row drawn by the loaded kit, including row 2 in
-the padded kit. Controls occupy the bottom three rows at every
-size, including 26x20 and 29x12. The header shows north and blocks per cell.
-The remaining rows expand with the display. All view and scan state clears on
-server restart and remains independent per paired display or local monitor.
+The map is drawn in route A text cells ([SCHEMATIC-SPEC.md section
+10](../ui/SCHEMATIC-SPEC.md#10-the-map)). North is up at every size and for every
+mine facing: x to the right, z down. A text cell covers `sx` by `sz` blocks and
+takes `-`, `|` or `+` from the block adjacencies inside it: steel `3` when dug,
+muted dots `·` `¦` when only planned, blue `b` when held. Planned passages are the
+spine and every assigned branch at the mine level. Dug pieces off the mine
+geometry of six blocks or fewer draw as one dot. The farm shows as a hairline
+outline with `♠` ready and `♣` growing trees at ALL and at levels from its
+ground to 8 blocks above; there, dug marks inside the farm are not drawn,
+because they are lumber travel marks.
+
+The map draws a running mine's next branch as an amber dotted row. When broken chests
+exist, the map controls gain a coral `×N` chip (`map-broken`): it centres the first broken
+chest at one block per cell and picks it; `map-focus` and `map-drop:<id>` do the same for
+that chest. A broken chest glyph wins its cell over a covered turtle. With
+`remoteDimensions` on, a `map-dim` chip cycles the shown dimension and reads that
+dimension's dug data. These taps stay inside the map role. A turtle callout has a
+DETAILS chip (`turtle:<id>`) that opens the turtle details overlay.
+
+Markers: turtles `▲ ► ▼ ◄` (`•` without a facing) in the colour of their state
+word (`U.tone`), `º` shaft and `@` server in teal, `•` chests and `×` broken
+chests. Turtles show within one block of the level, like drops and the server.
+A turtle's word is its job state, the lumber phase (`felling`, `planting`,
+`scanning`), `lost` for a lost lease or `range` when the lease says it is out of
+range. Labels are placed greedily beside markers (see the spec); branch numbers
+sit on the side of the spine away from the branches.
+
+`render(w, h, session)` keeps its view under `session.map`: `level` (`all` or
+a y), `fit`, the scales `sx` and `sz`, the centre `cx`, `cz` and an optional
+`pick`: `{ k = "turtle" | "drop", id }`, `{ k = "server" }`, `{ k = "shaft" }` or
+`{ k = "cell", x, z }`. A new view starts with `level = "all"` and `fit = true`;
+a saved view without scales fits again. FIT picks the smallest scales that show
+the mine geometry, farm, drops, server and turtles at the level, with 8 spare
+columns for labels. The scale on the axis the branches step along is 1, 2, 4,
+... 64 and its view edge aligns so each branch starts a cell; the other axis
+steps 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64.
+
+Sizes: from 80x30 a wall (controls in row 1, map from row 3, a `TURTLES` roster
+at the bottom); from 52 wide a room (controls in row 1, map below); from 25 wide
+a pocket (`MAP`, `FIT` and the level on top, `◄ ▲ ▼ ► - +` on the last row);
+smaller screens put the level on top and the arrows and `- FIT +` on the last two
+rows. Row 1 ends with `▼`, the level (`ALL`, `Y-58`, `Y64`), `▲` and the compass
+`↑N`. Input ids are `map-fit`, `map-in`, `map-out`, `map-n`, `map-s`, `map-w`,
+`map-e`, `map-up`, `map-down`, `map-level` and `map-pick`, which covers the map
+area.
+
+`-` and `+` step both scales one rung and keep the picked thing in place.
+Arrows move a third of the view. UP and DN step one block; from ALL they start
+at the mine level, or the surface without a mine. The level button cycles ALL,
+the mine level, the surface (server y, farm ground or mine home) and back to
+ALL. ALL ORs every level together. A tap on a marker picks it: the marker is
+inverted and a callout box opens beside it (turtle: id, state, age, position,
+fuel, ore, lease; drop: id, kind, position, state; server and shaft: position,
+and the shaft's lane holder). A tap on empty ground picks the cell and shows its
+position and `dug`, `planned` or `held #id`. A second tap on the same marker or
+cell, or a tap on the box, closes it. A turtle pick follows the turtle. Taps
+under a retirement banner subtract its rows.
+
+Dug marks come from `cells.dugColumns`, `cells.dugBits` and `cells.dugVersion`.
+The map keeps one plane per section column and level (or ALL), shared by
+all displays: the list of dug x, z in that column. Building a plane reads
+one section per level, and reads count against a budget of 16 per server
+tick. A plane larger than the rest of the budget waits for the next tick,
+where it may use more than 16 reads alone. A view that is still loading
+draws what it has and keeps loading on the next ticks. When the dug serial
+changes, tick probes the planes under each turtle and the cell ahead of it,
+then sweeps the other planes, at most 64 memory-only section probes per
+tick. A probe compares the section's change stamp, so a section that left the
+cells cache is still checked. A changed section marks its plane stale; the next render rebuilds it
+within the budget. Planes unused for 300 ticks drop during a sweep. Above 2048
+planes, planes not drawn in the last five ticks drop. An idle map reads and probes nothing.
+
+Each display session caches its cells and its frame. Turtle and drop moves
+redraw markers and labels over the cached cells. View, terrain or plane changes
+rebuild the cells; the work is one pass over the planes and plan lines inside
+the view plus 7 blocks, clipped to it (a plan line adds at most two blocks per
+cell, and one branch per cell row), then a component pass over the dug blocks
+off the mine geometry, then labels (markers times 8 candidates).
+Gathering runs on ticks within ten seconds of a render. A frame must fit one
+16 KB message: the map packs its runs as `D.compact` does, and a frame over
+15000 serialized bytes redraws one zoom step out, at most four times. All view
+and cache state clears on server restart and stays independent per paired
+display or local monitor.
 
 ### panel
 
@@ -1239,7 +1448,8 @@ one `order:<count>:<name>`. Shop sorts by descending stock count and then name,
 which defines the best match. A search with no match sends no order. This uses
 the existing shop search and selection state, shared with full shop screens.
 
-`status` is GLANCE. `alerts` opens the paged alert list, with `alert-prev` and
+The pocket role does not use the panel screen. Monitor panels without a keyboard show only the job
+blocks and use two columns. `alerts` opens the paged alert list, with `alert-prev` and
 `alert-next` wrapping pages. `pair` opens PAIR NEW CLIENT. Its `pair-code`
 button is NEW CODE. Only a paired display with a matching session ID can
 request it through authenticated `input`. The server-local `SO.pairCode(id)`
@@ -1378,14 +1588,17 @@ A broken point or failed registration holds the turtle and asks for `start` afte
 the drop point is fixed. Changing the sapling coordinates leaves old points in
 the editor, where the operator can remove them.
 
-The screen callback accepts `render(w, h)` and draws eligible spots, daily delivered
-logs, carried saplings, the grow countdown and every turtle's id, phase and fuel.
-Missing daily data or timers show a dash. Three turtles fit both 26x20 and 29x12.
-Longer lists have a drawn NEXT button. START and STOP use the text commands
-above. SETUP lists the area, ground, sapling chest and assigned turtles, with
-NEXT on small screens. Its BACK button returns
-to lumber; the main BACK has
-id `status`. Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
+The screen callback accepts `render(w, h, session)` and draws route A from job
+state (the lumber section of the [spec](../ui/SCHEMATIC-SPEC.md)): the farm plan with its trees, the
+sapling chest and nearby `wood` drop points, the turtle, and leaders for ready
+trees, growing trees, the next grow, today's logs and carried saplings, then every assigned
+turtle's id, phase and fuel. A missing countdown or daily module shows `-`. START and STOP use the text commands
+above. The tabs `tab:overview` (or `tab:main`) and `tab:setup` belong to the display
+session; the old ids `setup` and `lumber-back` still switch them and `setup-next`
+does nothing. The setup tab lists the area, ground, sapling chest and turtle.
+`facts()` returns `{ state, ready, spots, grow?, saplings, fuel?, alert? }`. A 120x18
+render for a session without `id` keeps the Big Tiles rows `so-mod-panel` probes.
+Calls without dimensions retain the legacy rows. Successful deliveries emit `lumber.logs` with `{ id, count }`. Alerts emit `lumber.alert` with `{ text }`.
 
 ### drops
 
@@ -1421,22 +1634,23 @@ is added. The operator verifies an outside access cell before enabling sinks.
 
 `drops.note(id, blockName)` records one inspect while the failure count is below 3. A non-empty string clears that count. Nil counts one failure. The third failure makes `pick` skip the point. Further notes leave it skipped. `fix` clears it. A successful inspect does not clear a point that is already at 3.
 
-The generic Big Tiles screen shows short row numbers, kind, coordinates, side
-and state, with green or coral state stripes. A row tap selects the point for
-FIX and REMOVE. The default is the first broken point, or the first point if
-none are broken. Long lists have PREV and NEXT controls. ADD NEW opens the
-existing draft editor with kind, side, dimension and coordinate controls.
-The list offers MINING, LUMBER, SHOP, AR and PANEL on its bottom row. SHOP uses purple;
-the other buttons use slate. At 57x24 they occupy rows 22 through 24 with
-widths 11, 11, 11, 10 and 10 and one-column gaps. Other sizes use the grid rule,
-with one-row navigation in compact layouts. The editor keeps ADD and BACK.
-The display module still injects its legacy LUMBER and AR header buttons
-into the editor, plus PANEL on screens at least 39 columns wide when that
-role is registered. The editor's BACK returns to the list. The list's BACK returns to status. Gather copies module state
-before the private pure layout builds the requested display size.
+The generic screen is route A (the drop points section of the [spec](../ui/SCHEMATIC-SPEC.md)): a
+table of row numbers, kind, coordinates and side, the broken points as flags, and
+on room monitors a plan of the chests around home with the server (from
+`so-server.cfg`), the shaft and the farm edge. A row tap or a chest tap on the plan
+(`select:<id>`) selects the point. The default is the first broken point, or the
+first point if none are broken. FIX (`fix`), REMOVE (`remove`) and ADD (`new`) sit
+on the last row and act on the selected point once per tap. ADD opens the draft
+editor; until the draft has been edited it starts at the selected point. The
+editor has `kind` and `side` chips, `dim-`/`dim+`, `x-`/`x+`, `y-`/`y+`, `z-`/`z+`
+steppers, ADD (`add`) and BACK (`list`); on room monitors a plan marks the draft.
+Tapping ADD for a point that already exists says `id exists`; typed `add` replies as
+before. A second REMOVE before the next frame does nothing. The plan shows the points
+in the selected point's dimension. Long lists page with `prev`
+and `next` in the header. Page, selection and the editor belong to the display
+session; the draft and its feedback are shared. There is no link to another role.
 The kit-free generic editor pages the point list with `prev` and `next`. Its draft and
-buttons fit 26x20 pockets and 29x12 monitors below navigation and above the
-bottom input row. Draft and feedback are shared between displays; paging is per display.
+buttons fit 26x20 pockets and 29x12 monitors above the bottom input row.
 Existing `input.body.text` accepts `x y z` or `dim x y z` to set the draft,
 and `add <kind> <x> <y> <z> [front|down] [dim]` to set and save it.
 Omitted side and dimension keep the draft values. Dimension may be supplied
@@ -1457,20 +1671,21 @@ maps, moving turtles, stale fixes and uncertain journals. Saving still needs ADD
 
 `so-mod-ar.lua` uses attached cc_ar `ar_controller` peripherals. It exports
 `tick(now)` and has no wire handlers. Without a controller it does not draw.
-It registers `display.screen("ar", render, input)`. The generic screen reaches
-AR through its fallback button or the drops draft editor. The `ar` role
-survives restart through `so-display`.
+It registers `display.screen("ar", render, input)`. A display gets the `ar`
+role from the server command; it survives restart through `so-display`.
 
 The screen shows the controller count and one tile per layer. Each tile shows
 1 and "layer on" in green, or 0 and "layer off" in grey. Tapping a tile toggles
-its layer once. Small screens use compact tiles. BACK returns to status.
+its layer once. Tiles use two columns; small screens use compact rows. There is no BACK.
 Gather copies the layer state before the private pure layout renders it.
 All layers are enabled initially. Switches save
 through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
 - `turtles` draws a twelve-edge box and heading arrow for each worker with a
-  pose. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
+  pose. The arrow lies at mid height in the facing direction. Its shaft runs
+  0.55 to 1.2 blocks from the block centre. Its head runs from 1.2 to the tip at
+  1.65 blocks and is 0.44 blocks wide. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
   `lease.peek`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
@@ -1483,6 +1698,22 @@ boolean values. A failed save leaves the current switches unchanged.
   does not call `cells.counts()`, whose reservation scan can breathe during a burst.
 - `drops` draws a small box per point and a size-0.5 label with the first letter
   of its kind, such as O or F. Broken points use coral; other points use white.
+- cc_ar 3D lines have no width, so strokes are bundles. Shapes are turtles
+  (box and arrow), lease outlines and drop boxes. The nearest 16 shapes,
+  ordered by centre distance from the configured server position, then id, are
+  drawn thick. A thick box edge is a five-strand cross: the edge itself plus
+  four copies offset 0.02 blocks along two perpendicular axes around it. Seen
+  from any side, the projected strands sit at most 0.02 blocks apart, about
+  3 pixels at 3 blocks and less further away, so the default 2.5-pixel lines
+  merge into one band about 0.04 blocks wide. The shaft is bundled the same way.
+  A thick head has two flat edges and two upright edges from the tip, plus 24
+  flat and 24 upright hatches about 0.019 blocks apart that narrow towards the
+  tip, so it reads as a solid cross from any side. Other shapes use one strand
+  per edge and a three-line arrow. A thick turtle has 117 lines, a thin one 15,
+  each plus a label when within the label limit. A thick lease or drop box has
+  60 lines, a thin one 12. A frame with 16 thick and 4 thin turtles has 1932
+  lines. Strand ids are `<edge>:s2` to `<edge>:s5`, the head uses
+  `:heading:1` to `:4`, `:h0` to `:h23` and `:v0` to `:v23`.
 - World labels sit above their blocks and stack 0.25 blocks apart when their
   horizontal positions are within two blocks. Labels use at most eight characters.
   The nearest 16 turtle labels and eight drop labels per kind remain visible,

@@ -1,0 +1,58 @@
+39x19 Shop category browse, wall monitor 4x3 at scale 1 39x19
+ SHOP   items   low   find  ---- 21:14 
+                                       
+  ores ▼   all ▼                       
+                                       
+ item                   stock ▼  /h    
+ COAL ···················· 2104  ↓128  
+ IRON INGOT ·············· 1240  ↑60   
+ RAW COPPER ··············· 410  ↑31   
+ LAPIS LAZULI ············· 388        
+ IRON ORE ················· 312        
+ COPPER INGOT ············· 286        
+ GOLD NUGGET ·············· 210        
+ COPPER ORE ··············· 140        
+ GOLD INGOT ··············· 131  ↓9    
+ DEEPSLATE IRON ORE ········ 96  ↑16   
+ ZINC INGOT ················ 75  ↑15   
+ ZINC ORE ·················· 58        
+                                       
+ 1 of 3                      ◄     ►   
+0000000000000008888808888880cccc0888880
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+088880000000000000000000000000000880000
+000000cccccccccccccccccccc0000000111100
+000000000000cccccccccccccc0000000888000
+000000000000ccccccccccccccc000000888000
+00000000000000ccccccccccccc000000000000
+0000000000ccccccccccccccccc000000000000
+00000000000000ccccccccccccc000000000000
+0000000000000cccccccccccccc000000000000
+000000000000ccccccccccccccc000000000000
+000000000000ccccccccccccccc000000110000
+00000000000000000000cccccccc00000888000
+000000000000cccccccccccccccc00000888000
+0000000000cccccccccccccccccc00000000000
+000000000000000000000000000000000000000
+088888800000000000000000000888880000000
+fffffff7777777fffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f77777777f7777777ffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffff777777777fffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffff77777f77777f

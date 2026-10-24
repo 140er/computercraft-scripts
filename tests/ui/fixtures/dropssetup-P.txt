@@ -1,0 +1,61 @@
+26x20 Chest setup at 26x20
+ SETUP  ----------------  
+                          
+ point 3 123,64,-337      
+                          
+ TURTLES ---------------  
+ • #12              scan  
+ FOUND -----------------  
+ • 121,64,-340 down  add  
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+  TEST     FIX    BACK    
+00000000cccccccccccccccc00
+00000000000000000000000000
+0888880eeeeeeeeeeeee000000
+00000000000000000000000000
+088888880ccccccccccccccc00
+0d000000000000000009999990
+0888880ccccccccccccccccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+09999999099999990000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffffff777777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffff77777f
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777f7777777f7777777ff

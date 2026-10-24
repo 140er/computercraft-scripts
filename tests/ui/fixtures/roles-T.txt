@@ -1,0 +1,58 @@
+51x19 Server terminal, role command (R)
+ SO SERVER #1  --------------------------- up 3h12 
+                                                   
+ DISPLAYS ------------------------------------- 6  
+   1  57x24     status                             
+   2  26x20     pocket                             
+   5  57x24     mining                             
+   6  57x24     unassigned                         
+   7  15x10     status                             
+   9  -         drops                              
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+                                                   
+ display 7: status                                 
+ > 6 shop_                 [Enter] set  [Esc] back 
+000000000000000ccccccccccccccccccccccccccc088888880
+000000000000000000000000000000000000000000000000000
+0888888880ccccccccccccccccccccccccccccccccccccc0800
+000000888880000000000000000000000000000000000000000
+000000888880000000000000000000000000000000000000000
+000000888880000000000000000000000000000000000000000
+000000888880000088888888880000000000000000000000000
+000000888880000000000000000000000000000000000000000
+000000800000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000
+088888888888888888000000000000000000000000000000000
+090000000900000000000000000999999900000099999000000
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

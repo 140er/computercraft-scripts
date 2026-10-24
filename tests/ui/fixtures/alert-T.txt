@@ -1,0 +1,58 @@
+51x19 Alert takeover, 51x19
++-------------------------------------------------+
+|                                                 |
+|    #6 ORE CHEST FULL  184,-58,-369              |
+|                                                 |
+|                     2                           |
+|   8----------------►························    |
+|                                                 |
+|                                                 |
+|                                                 |
+|   7----------------------------------------►    |
+|                                                 |
+|          ·                                      |
+|          ··                                     |
+|   6-----------------------------------------    |
+|                                                 |
+|                                                 |
+|   ||||||||||||||||||||||||||·················   |
+|                                                 |
++-------------------------------------------------+
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+e0000000000000000000000000000000000000000000000000e
+e000fffffffffffffffffff000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000e
+e000000000000000000000d000000000000000000000000000e
+e00083333333333333333dbbb8888888888888888888880000e
+e0000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000e
+e00083333333333333333333333333333333333333333f0000e
+e0000000000000000000000000000000000000000000000000e
+e0000000000300000000000000000000000000000000000000e
+e0000000000330000000000000000000000000000000000000e
+e0008333333333333333333333333333333333333333330000e
+e0000000000000000000000000000000000000000000000000e
+e0000000000000000000000000000000000000000000000000e
+e000eeeeeeeeeeeeeeeeeeeeeeeeee88888888888888888000e
+e0000000000000000000000000000000000000000000000000e
+eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffeeeeeeeeeeeeeeeeeeeffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffefffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffff

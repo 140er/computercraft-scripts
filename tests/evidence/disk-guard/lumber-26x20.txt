@@ -4,8 +4,8 @@ Saplings 0
 Spots 0 planted 0
 Fuel 4000
 disk >=80%; free space
+#3 stopped F4000
 
-generic
 
 
 

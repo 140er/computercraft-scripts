@@ -86,6 +86,12 @@ local function screen(t, w, h)
     local b = assert(s.button(id, name), "button missing " .. name)
     d.handlers.input({ from = id, body = { id = b.id, x = b.x, y = b.y } })
   end
+  -- Roles change only by assignment: a pocket opens its PAIR tab, other displays are assigned the panel.
+  s.openPair = function(id)
+    s.frame(id)
+    if w == 26 then s.press(id, "tab:pair")
+    else assert(d.assign(id, "panel")); s.press(id, "pair") end
+  end
   s.text = function(id)
     local out = {}
     for y, row in ipairs(s.frame(id).rows) do out[y] = row.text end
@@ -458,11 +464,10 @@ return function(test, equal)
     local t = boot(nil)
     equal(t.so.enroll, nil)
     local s = screen(t, 26, 20)
-    s.frame(OWNER)
-    s.press(OWNER, "panel")
-    s.press(OWNER, "pair")
+    s.openPair(OWNER)
     equal(s.button(OWNER, "enroll"), nil)
-    assert(s.button(OWNER, "paired").w == 26)
+    -- Without the enroll window PAIRED takes the whole chip row.
+    assert(s.button(OWNER, "paired").w >= 24)
     t.so.mods.display.handlers.input({ from = OWNER, body = { id = "enroll", x = 14, y = 16 } })
     equal(s.button(OWNER, "enroll-close"), nil)
     local w = turtle(t, 10, "1-K7QP-3MXA-9WTD-HR2E")
@@ -482,12 +487,8 @@ return function(test, equal)
       local w, h = size[1], size[2]
       local t = boot(true)
       local s = screen(t, w, h)
-      s.frame(OWNER)
-      s.press(OWNER, "panel")
-      s.press(OWNER, "pair")
-      s.frame(3)
-      s.press(3, "panel")
-      s.press(3, "pair")
+      s.openPair(OWNER)
+      s.openPair(3)
       s.press(OWNER, "enroll")
       local token = t.so.enroll.view(OWNER).token
       assert(token, "ENROLL did not open a window")
@@ -533,9 +534,7 @@ return function(test, equal)
   test("enroll APPROVE ALL approves only rows the owner was shown", function()
     local t = boot(true)
     local s = screen(t, 26, 20)
-    s.frame(OWNER)
-    s.press(OWNER, "panel")
-    s.press(OWNER, "pair")
+    s.openPair(OWNER)
     s.press(OWNER, "enroll")
     local token = t.so.enroll.view(OWNER).token
     t.so.pair.enrollAnswer(10, (t.request(token, 10, string.rep("\10", 32))))
@@ -547,6 +546,9 @@ return function(test, equal)
     equal(#t.so.enroll.view(OWNER).rows, 1)
     -- Rows below the bottom of a 29x12 screen are not approved.
     local small = screen(t, 29, 12)
+    -- A 29x12 display is no pocket; the panel role shows the same window.
+    small.frame(OWNER)
+    assert(t.so.mods.display.assign(OWNER, "panel"))
     for id = 20, 25 do t.so.pair.enrollAnswer(id, (t.request(token, id, string.rep(string.char(id), 32)))) end
     t.net.advance(61)
     small.press(OWNER, "enroll-all")

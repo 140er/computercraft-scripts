@@ -1,41 +1,61 @@
-26x20 Pocket, glance mode
+26x20 Status at 26x20 (a pocket assigned status)
+ STATUS  ---------- 21:14 
                           
- FLEET          MORE  MAP 
+ ! #6 lost 3m             
+ ! drop 3 junk broken     
                           
+ TURTLES ------------- 5  
+ ► 2  mining         b8   
+ ► 3  wait lane      b9   
+ ▼ 4  unload         lane 
+ ► 6  lost           b7   
+ ► 5  felling        farm 
                           
-  TURTLES                 
-           🬋🬋🬏            
-           🬇🬋🬐            
-           🬋🬋🬀            
-  3 ok, 0 lost            
+ TODAY -----------------  
+ ore ················ 214 
+ logs ················ 96 
                           
+ SERVER ----------------  
+ disk ||············  13% 
+ 4 displays · 3 leases    
                           
-                          
-  ALERTS                  
-           🬞🬓             
-            ▌             
-           🬇🬌             
-  ore chest full          
-                          
-                          
- <    1/5   >      PANEL  
+000000000cccccccccc0888880
+00000000000000000000000000
+0e000000000880000000000000
+0e000000000000000000000000
+00000000000000000000000000
+088888880ccccccccccccc0800
+0d000000000000000000088000
+01000011111111100000088000
+0d000000000000000000088880
+0e0000eeee0000000000088000
+0d000000000000000000088880
+00000000000000000000000000
+0888880ccccccccccccccccc00
+08880cccccccccccccccc00000
+088880cccccccccccccccc0000
+00000000000000000000000000
+08888880cccccccccccccccc00
+08888033888888888888000000
+08888888888888888888880000
+00000000000000000000000000
 ffffffffffffffffffffffffff
-f7777777777777777777779999
 ffffffffffffffffffffffffff
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
-fddddddddddddddddddddddddf
 ffffffffffffffffffffffffff
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
-feeeeeeeeeeeeeeeeeeeeeeeef
 ffffffffffffffffffffffffff
-7777fffffff7777ff777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

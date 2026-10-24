@@ -1,41 +1,61 @@
-26x20 Shop, pocket touch flow
+26x20 Shop category browse, pocket 26x20
+ items   low   find  ---  
                           
- SHOP         stock 21:14 
-  ALL      ORES     WOOD  
-  FOOD    BLOCKS   TOOLS  
- OTHER                    
-  A-Z     STOCK     NAME  
+  ores ▼   all ▼          
                           
-  IRON INGOT              
-       🬞🬓 🬖🬋🬏 🬵 🬖🬋🬏       
-        ▌  🬖🬀🬳🬷🬏▌ ▌       
-       🬇🬌 🬍🬋🬃 🬉 🬈🬋🬀       
+ item             stock ▼ 
+ COAL ·············· 2104 
+ IRON INGOT ········ 1240 
+ RAW COPPER ········· 410 
+ LAPIS LAZULI ······· 388 
+ IRON ORE ··········· 312 
+ COPPER INGOT ······· 286 
+ GOLD NUGGET ········ 210 
+ COPPER ORE ········· 140 
+ GOLD INGOT ········· 131 
+ DEEPSLATE IRON ORE ·· 96 
+ ZINC INGOT ·········· 75 
+ ZINC ORE ············ 58 
+ RAW IRON ············ 48 
                           
-                          
-                          
-                          
-                          
- Order: sent 16           
-                          
-  <     1/18    >    BACK 
-                          
+ 1 of 2         ◄     ►   
+000000008888808888880ccc00
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+08888000000000000000000000
+000000cccccccccccccc000000
+000000000000cccccccc000000
+000000000000ccccccccc00000
+00000000000000ccccccc00000
+0000000000ccccccccccc00000
+00000000000000ccccccc00000
+0000000000000cccccccc00000
+000000000000ccccccccc00000
+000000000000ccccccccc00000
+00000000000000000000cc0000
+000000000000cccccccccc0000
+0000000000cccccccccccc0000
+0000000000cccccccccccc0000
+00000000000000000000000000
+08888880000000888880000000
+7777777fffffffffffffffffff
 ffffffffffffffffffffffffff
-faaaaaaaaaaaaaaaaaaaaaaaaf
-aaaaaaaaf77777777f77777777
-77777777f77777777f77777777
-77777777ffffffffffffffffff
-77777777faaaaaaaaf77777777
-fbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbf
-fbbbbbbbbbbbbbbbbbbbbbbbbf
+f77777777f7777777fffffffff
+ffffffffffffffffffffffffff
+fffffffffffffffff777777777
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-777777f777777f77777f777777
-777777f777777f77777f777777
-777777f777777f77777f777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffff77777f77777f

@@ -1,0 +1,58 @@
+39x19 Shop low and empty stock, wall monitor 4x3 at scale 1 39x19
+ SHOP   items   low   find  ---- 21:14 
+                                       
+  all   low   empty                    
+                                       
+ item                   stock ▼  /h    
+ BASIC CONTROL CIRCUIT ····· 14        
+ BOOK ······················ 12        
+ EMERALD ··················· 12        
+ RAW GOLD ·················· 12        
+ REPEATER ·················· 11        
+ INGOT OSMIUM ··············· 9  ↓6    
+ CHEST ······················ 9        
+ PISTON ····················· 8        
+ WHITE DYE ·················· 8        
+ DANDELION ·················· 7        
+ DISK ······················· 6        
+ BUCKET ····················· 6        
+                                       
+ 1 of 3                      ◄     ►   
+0000000888888800000008888880cccc0888880
+000000000000000000000000000000000000000
+000000088888088888880000000000000000000
+000000000000000000000000000000000000000
+088880000000000000000000000000000880000
+00000000000000000000000ccccc01100000000
+000000cccccccccccccccccccccc01100000000
+000000000ccccccccccccccccccc01100000000
+0000000000cccccccccccccccccc01100000000
+0000000000cccccccccccccccccc01100000000
+00000000000000ccccccccccccccc0100110000
+0000000cccccccccccccccccccccc0100000000
+00000000ccccccccccccccccccccc0100000000
+00000000000cccccccccccccccccc0100000000
+00000000000cccccccccccccccccc0100000000
+000000ccccccccccccccccccccccc0100000000
+00000000ccccccccccccccccccccc0100000000
+000000000000000000000000000000000000000
+088888800000000000000000000888880000000
+fffffffffffffff77777fffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+f77777fffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffff777777777fffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffff77777f77777f

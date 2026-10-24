@@ -1,0 +1,31 @@
+15x10 Mining, smallest monitor
+ MINING  ----  
+               
+ state running 
+ busy ···· 2/4 
+ done ··· 7/10 
+ ► 2  b8 40/64 
+ ► 3  wait lan 
+   +2 more     
+               
+ START   STOP  
+000000000cccc00
+000000000000000
+088888000000000
+088880cccc00000
+088880ccc000000
+0d0000000000000
+010000111111110
+000888888800000
+000000000000000
+08888880eeeeee0
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+f777777f777777f

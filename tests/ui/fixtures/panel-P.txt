@@ -1,6 +1,6 @@
-26x20 Pocket, panel mode
+26x20 Panel role at 26x20
                           
- PANEL 22:14    MORE  MAP 
+ PANEL              22:14 
  MINING   stopped         
                           
    START         STOP     
@@ -18,9 +18,9 @@
    1        16       64   
                           
                           
- GLANCE  ALERTS  PAIR     
+ ALERTS  PAIR             
 ffffffffffffffffffffffffff
-f7777777777777777777779999
+f777777777777777777777777f
 ffffffffffffffffffffffffff
 999999999999feeeeeeeeeeeee
 999999999999feeeeeeeeeeeee

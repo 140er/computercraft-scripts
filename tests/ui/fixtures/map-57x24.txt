@@ -1,49 +1,73 @@
-57x24 Map, projected levels 57x24
-                                                         
- MAP                                             N ^ 1:1 
-                                                         
-                                                         
-                                                         
-                                                         
-                                v3                       
-                                                         
-                                                         
-                                                         
-                              >2 O                       
-                                                         
-                                                         
-                                                         
-                            H                            
-                                                         
-                                                         
-                       F W S@                            
-                                                         
-                                                         
-                                                         
-     BACK           FIT            +              -      
-      ^              <             v              >      
-                           ALL                           
+57x24 Map, room monitor 57x24
+ MAP  FIT   -   +    ◄   ▲   ▼   ►   ×1    ▼  ALL  ▲  ↑N 
+            10 ·································         
+               ¦           3 wait                        
+             9 +----------►·····················         
+               |                    2                    
+             8 +-------------------►············         
+               |                                6 lost   
+             7 +-------------------------------►         
+               |              ·                          
+             6 +--------------------------------         
+               |                                         
+             5 +--------------------------------         
+               |                        ·                
+             4 +--------------------------------         
+   farm 9/12   |                                         
+   +-----+    4▼--------------------------------         
+   |♠♠ ♣♠|     |       ·                                 
+   |  5  |•    +--------------------------------         
+   |♠► ♠♣| saplings                  ··                  
+   |♠♣ ♠♠|•wood+--------------------------------         
+   |     |     |                                         
+   +-----+-----ºshaft                                    
+          ore+--fuel                                     
+     server@ • •×junk                                    
+00000fffff00000000000000000000000000eeee00000000000000880
+000000000000880b88888888888888888888888888888888000000000
+000000000000000b00000000000111111000000000000000000000000
+000000000000080b33333333331b88888888888888888888000000000
+000000000000000b00000000000000000000d00000000000000000000
+000000000000080b3333333333333333333db88888888888000000000
+000000000000000b00000000000000000000000000000000eeeeee000
+000000000000080b3333333333333333333333333333333e000000000
+000000000000000b00000000000000300000000000000000000000000
+000000000000080b33333333333333333333333333333333000000000
+000000000000000b00000000000000000000000000000000000000000
+000000000000080b33333333333333333333333333333333000000000
+000000000000000b00000000000000000000000030000000000000000
+000000000000080b33333333333333333333333333333333000000000
+000888888888000b00000000000000000000000000000000000000000
+000ccccccc0000dd33333333333333333333333333333333000000000
+000cdd08dc00000b00000003000000000000000000000000000000000
+000c00d00c00000b33333333333333333333333333333333000000000
+000cdd0d8c08888888800000000000000000033000000000000000000
+000cd80ddc08888b33333333333333333333333333333333000000000
+000c00000c00000b00000000000000000000000000000000000000000
+000ccccccc33333988888000000000000000000000000000000000000
+000000000088833388880000000000000000000000000000000000000
+0000088888890000eeeee000000000000000000000000000000000000
+fffff99999f777f777ff777f777f777f777f7777ff777fffff777ffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-f7777777777777777777777777777777777777777777777777777777f
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff7777bbfffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff78fffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-ffffffffffffffffffffffffffff77dd7afffffffffffffffffffffff
-ffffffffffffffffffffffffffff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdddff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdfdff7ffffffffffffffffffffffffffff
-fffffffffffffffffffffffdddff9ffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-fffffffffffffffffffffffafafa9ffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-77777777777777f9999999999999f77777777777777f7777777777777
-77777777777777f7777777777777f77777777777777f7777777777777
-777777777777777777777777777777777777777777777777777777777
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
