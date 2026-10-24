@@ -80,10 +80,12 @@ return function(test, equal)
       if path=="so-data/clock.tmp" and mode=="w" then error("disk failure") end
       return open(path,mode)
     end
-    assert(not pcall(m.env.now),"clock issued time after failed save")
-    assert(not pcall(m.env.now),"failed reservation was cached")
+    equal(m.env.now(),m.env.initial)
+    equal(m.env.now(),m.env.initial)
     m.env.fs.open=open
-    equal(m.env.now(),m.env.initial+2000)
+    equal(m.env.now(),m.env.initial)
+    n.advance(1)
+    equal(m.env.now(),m.env.initial+1000)
   end)
   test("clock lease expiry, fast beacons, backtracking and parks match at 1x and 4x",function()
     equal(trace(4,false),trace(1,false))

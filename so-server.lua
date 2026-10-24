@@ -25,9 +25,9 @@ print = function(...)
   end
 end
 
-S.error = function(line)
+S.error = function(line, force)
   print(line)
-  if S.errors then pcall(S.errors.record, line) end
+  if S.errors then pcall(S.errors.record, line, force) end
 end
 
 S.need = function(name)
@@ -48,7 +48,17 @@ S.run = function()
   local store = S.need("so-store.lua")
   local pair = S.need("so-pair.lua")
   if not proto or not store or not pair then return end
-  SO = { mods = {}, proto = proto, pair = pair, store = store, now = store.clock() }
+  local now, clockStatus = store.clock()
+  clockStatus = clockStatus or { refused = false }
+  SO = { mods = {}, proto = proto, pair = pair, store = store, clock = clockStatus }
+  SO.now = function()
+    local refused = clockStatus.refused
+    local at = now()
+    if clockStatus.refused and not refused then
+      S.error("so-server: clock checkpoint refused; time frozen: " .. tostring(clockStatus.error))
+    end
+    return at
+  end
   SO.error = S.error
   if fs.exists("so-errors.lua") then
     local errors = S.need("so-errors.lua")
@@ -428,9 +438,9 @@ S.run = function()
     end
     SO.health.tickMs = math.floor((os.clock()-began)*1000+0.5)
     if S.errors then S.errors.flush(now) end
-    timer, ticked = os.startTimer(1), SO.now()
+    timer, ticked = os.startTimer(1), os.clock()
   end
-  timer, ticked = os.startTimer(1), SO.now()
+  timer, ticked = os.startTimer(1), os.clock()
   while true do
     local ev, a, b, c = os.pullEvent()
     if ev == "timer" and a == timer then
@@ -479,9 +489,8 @@ S.run = function()
       end
     end
     -- A lost tick timer would stop planning for good while messages still
-    -- arrive. SO.now counts game ticks like timers do, so server lag
-    -- does not trip this.
-    if SO.now() - ticked > 3000 then
+    -- arrive. Use computer ticks so a refused clock cannot stop recovery.
+    if os.clock() - ticked > 3 then
       S.error("so-server: no tick for 3 s; rearming the tick timer")
       tick()
     end
@@ -490,4 +499,4 @@ end
 
 local ok, err = pcall(S.run)
 print = S.output
-if not ok then S.error("so-server: stopped: " .. tostring(err)); error(err,0) end
+if not ok then S.error("so-server: stopped: " .. tostring(err), true); error(err,0) end

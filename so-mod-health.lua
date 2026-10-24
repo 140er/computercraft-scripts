@@ -68,6 +68,7 @@ local function attention(facts)
     add("dug",2,"Dug marks consent","status")
   end
   if (facts.disk.ratio or 0) >= 0.8 then add("disk",1,"Disk "..math.floor(facts.disk.ratio*100).."% full","health") end
+  if facts.clockRefused then add("clock",1,"Clock frozen; checkpoint refused","health") end
   if facts.forgotten then
     add("forgotten",2,facts.forgotten.text,"panel",{"pair"})
   end
@@ -105,6 +106,7 @@ H.gather = function(now)
   local diskFrame = state and state.view and state.view.get({name="status"})
   local disk = diskFrame and diskFrame.data or {}
   H.items = attention({now=now,machines=machines,leases=leases,jobs=H.jobs,disk=disk,
+    clockRefused=SO.clock and SO.clock.refused,
     points=call("drops","list") or {},fuelAlerts=call("shop","fuelAlerts") or {},retirement=call("cells","retirement"),
     forgotten=call("state","get","pair.forgotten"),
     pairing=SO.pair and SO.pair.pending and SO.pair.pending() ~= nil,
@@ -123,7 +125,8 @@ H.gather = function(now)
     {"uptime", duration(now-(runtime.started or now))},
     {"tick", ms(runtime.cadence)..dot.."wall "..ms(runtime.wallCadence)},
     {"tick cost", ms(runtime.tickMs)},
-    {"clock reserve", clock and duration(clock.ceiling-now) or "unavailable", not clock and "8"},
+    {"clock reserve", SO.clock and SO.clock.refused and "refused" or clock and duration(clock.ceiling-now) or "unavailable",
+      SO.clock and SO.clock.refused and "e" or not clock and "8"},
     {"events", log.available and ("#"..log.seq..dot..log.segments.." seg") or "unavailable", not log.available and "8"},
     {"event bytes", tostring(log.bytes or "-")},
     {"snapshot", (snapshot or "none")..(log.due and " due" or ""), log.due and "1" or not snapshot and "8"},
@@ -256,7 +259,10 @@ end
 
 H.tick = function(now)
   H.now = now
-  if not H.last or now-H.last>=5000 then H.gather(now);H.last=now end
+  local clock, refused = os.clock(), SO.clock and SO.clock.refused
+  if not H.last or clock-H.last>=5 or refused~=H.refused then
+    H.gather(now);H.last=clock;H.refused=refused
+  end
   local display = SO.mods.display
   if display and not H.registered then
     for _, role in ipairs({"health","attention","alerts","events","errors"}) do

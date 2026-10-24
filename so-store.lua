@@ -102,17 +102,27 @@ function M.clock()
       and v.format == "ticks-v1" and v.ceiling % 1 == 0 and v.ceiling >= 0 and v.ceiling < math.huge
   end, 1024)
   local origin = box.value and box.value.ceiling or os.epoch("utc")
-  local started, ceiling = os.clock(), origin
-  return function()
-    local now = origin + math.floor((os.clock() - started) * 1000 + 0.5)
-    if now >= ceiling then
-      local reserved = now + 1000
+  local started, ceiling, last = os.clock(), origin, origin
+  local status = { refused = false }
+  local function now()
+    local clock = os.clock()
+    local at = status.refused and last or origin + math.floor((clock - started) * 1000 + 0.5)
+    if at >= ceiling or status.refused then
+      local reserved = at + 1000
       local ok, err = box.save({ format = "ticks-v1", ceiling = reserved })
-      assert(ok, "clock checkpoint: " .. tostring(err))
+      if not ok then
+        status.refused, status.error = true, tostring(err)
+        return last
+      end
+      -- Resume at the frozen time without charging the storage outage.
+      if status.refused then origin, started = last, clock end
+      status.refused, status.error = false, nil
       ceiling = reserved
     end
-    return now
+    last = at
+    return at
   end
+  return now, status
 end
 
 return M
