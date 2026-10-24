@@ -80,13 +80,14 @@ W.load = function()
   if type(saved) ~= "table" then
     W.journal = {
       id = tostring(os.getComputerID()) .. "-0",
-      seq = 0,
+      seq = 0, dim = W.dimension() or "minecraft:overworld",
       pose = { x = 0, y = 0, z = 0, f = 0 },
       moves = {},
       dug = {},
     }
   else
     W.journal = saved
+    W.journal.dim = W.journal.dim or "minecraft:overworld"
     if type(W.journal.moves) ~= "table" then W.journal.moves = {} end
     if type(W.journal.dug) ~= "table" then W.journal.dug = {} end
     if type(W.journal.id) ~= "string" then
@@ -210,6 +211,20 @@ W.counts = function()
   return counts
 end
 
+W.dimension = function()
+  local config = W.store.read("so-worker.cfg")
+  return type(config) == "table" and config.dim or nil
+end
+
+W.checkDimension = function()
+  local j, dim = W.journal, W.dimension() or "minecraft:overworld"
+  if j.dim == dim or j.dimensionChanged then return end
+  if j.seq == 0 and #j.moves == 0 and #j.dug == 0 and not j.pending then j.dim=dim return end
+  j.uncertain, j.dimensionChanged = true, true
+  j.recovery = {outcome="dimension changed"}
+  W.save()
+end
+
 W.gpsFix = function()
   if W.locating or type(gps) ~= "table" or type(gps.locate) ~= "function" then return nil end
   W.locating = true
@@ -235,6 +250,7 @@ W.gpsFix = function()
 end
 
 W.resolvePending = function()
+  if W.journal.dimensionChanged then return end
   local pending = W.journal.pending
   if not pending or not C.moves[pending.op] then return end
   local moved
@@ -245,7 +261,7 @@ W.resolvePending = function()
       elseif fuel == pending.fuel - 1 then moved = true end
     elseif type(pending.gps) == "table" then
       local fix, before = W.gpsFix(), pending.gps
-      if fix then
+      if fix and (fix.dim == before.dim) and (fix.dim == "minecraft:overworld" or fix.dim == nil) then
         local dx, dy, dz = fix.x-before.x, fix.y-before.y, fix.z-before.z
         if dx == 0 and dy == 0 and dz == 0 then moved = false
         elseif pending.op == "up" and dx == 0 and dy == 1 and dz == 0 then moved = true
@@ -266,13 +282,15 @@ W.resolvePending = function()
 end
 
 W.hello = function()
+  W.checkDimension()
   local key = W.pair.key(W.server)
   if not key then return end
   local where = W.gpsFix()
   local body = {
     role = "turtle",
-    capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap or nil },
+    capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
     tools = W.tools(),
+    dim = W.dimension(),
     fuel = W.fuelBody(),
     free = W.free(),
     inv = W.inv(),
@@ -298,11 +316,13 @@ W.beacon = function()
 end
 
 W.report = function(results)
+  W.checkDimension()
   local key = W.pair.key(W.server)
   if not key then return end
   local msg = W.proto.build(key, "step.report", {
-    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, autoToolSwap = W.autoToolSwap or nil },
+    lease = W.lease, results = results, capabilities = { parkBatch = true, setupFence = true, dimensionSafety = true, autoToolSwap = W.autoToolSwap or nil },
     tools = W.tools(),
+    dim = W.dimension(),
     pose = not W.journal.uncertain and { x = W.pose.x, y = W.pose.y, z = W.pose.z, f = W.pose.f } or nil,
     uncertain = W.journal.uncertain,
     journal = W.journal.id, fuel = W.fuelBeacon(), inv = W.inv(), dug = W.journal.dug,
@@ -373,7 +393,7 @@ W.reanchor = function(body)
   if p.f < 0 or p.f > 3 then return end
   local old, pose = W.journal, W.pose
   W.pose = { x = p.x, y = p.y, z = p.z, f = p.f }
-  W.journal = { seq = old.seq, moves = {}, dug = {}, park = true,
+  W.journal = { seq = old.seq, dim = W.dimension() or "minecraft:overworld", moves = {}, dug = {}, park = true,
     recovery = { outcome = "anchored", journal = old.id } }
   W.bump()
   if not W.save() then W.journal, W.pose = old, pose return end
@@ -465,6 +485,28 @@ W.discard = function(step)
   return turtle[side[3]](step.n)
 end
 
+W.safeMove = function(step)
+  local dim, guard = W.dimension(), step.safety
+  if not guard and (dim == nil or dim == "minecraft:overworld") then return end
+  if type(guard) ~= "table" or guard.dim ~= dim then return "remote safety: dimension mismatch" end
+  local bounds = ({["minecraft:the_nether"]={1,126}, ["minecraft:the_end"]={1,255}})[dim]
+  if not bounds or type(guard.y) ~= "number" or guard.y ~= guard.y or guard.y%1 ~= 0 then
+    return "remote safety: invalid height"
+  end
+  if guard.y < bounds[1] or guard.y > bounds[2] then
+    return dim == "minecraft:the_nether" and "remote safety: Nether bedrock boundary" or "remote safety: End void boundary"
+  end
+  local inspect = ({forward="inspect",up="inspectUp",down="inspectDown"})[step.op]
+  if not inspect then return "remote safety: reverse move requires inspection" end
+  local exists, block = turtle[inspect]()
+  if exists then
+    if type(block) ~= "table" or type(block.name) ~= "string" then return "remote safety: cell unknown" end
+    if block.name == "minecraft:lava" or block.name == "minecraft:water" or block.name == "minecraft:bubble_column" then
+      return "remote safety: " .. block.name:gsub("^minecraft:", "")
+    end
+  elseif exists ~= false or block ~= "No block to inspect" then return "remote safety: cell unknown" end
+end
+
 W.exec = function(step)
   local result = { ok = false, counts = W.counts() }
   if type(step) ~= "table" or type(step.op) ~= "string" then
@@ -472,6 +514,10 @@ W.exec = function(step)
     return result
   end
   local op = step.op
+  if op == "forward" or op == "back" or op == "up" or op == "down" then
+    local hazard = W.safeMove(step)
+    if hazard then result.err=hazard return result end
+  end
   if op == "gps" then
     local fix = W.gpsFix()
     result.ok, result.data, result.err = fix ~= nil, fix, not fix and "no GPS" or nil
@@ -552,6 +598,7 @@ W.refuse = function(results, from, n)
 end
 
 W.startBatch = function(msg)
+  W.checkDimension()
   local body = msg.body
   if type(body) ~= "table" or type(body.lease) ~= "string" then return end
   if type(body.expires) ~= "number" or type(body.steps) ~= "table" then return end
@@ -608,6 +655,13 @@ W.startBatch = function(msg)
       break
     end
     results[i] = W.exec(step)
+    if not results[i].ok and (type(results[i].err)=="string" and results[i].err:match("^remote safety:")
+      or step.safety and C.moves[op]) then
+      if not results[i].err:match("^remote safety:") then results[i].err="remote safety: "..results[i].err end
+      for j=i+1,n do results[j]={ok=false,err=results[i].err,counts=W.counts()} end
+      W.journal.pending=nil W.save()
+      break
+    end
     W.journal.pending = nil
     W.save()
   end
@@ -628,7 +682,7 @@ W.startBatch = function(msg)
 end
 
 W.enterFast = function()
-  if W.journal.park or W.journal.uncertain then
+  if W.journal.park or W.journal.uncertain or W.dimension() and W.dimension() ~= "minecraft:overworld" then
     W.enterSlow()
     W.beacon()
     return
@@ -682,6 +736,7 @@ W.reverse = function(entry)
 end
 
 W.backOne = function()
+  if W.dimension() and W.dimension() ~= "minecraft:overworld" then W.enterSlow() return end
   local moves = W.journal.moves
   if #moves == 0 then
     W.enterSlow()
@@ -823,6 +878,7 @@ W.boot = function()
   W.pair.open(W.proto, store, W.now)
   W.box = store.store("so-journal", W.valid, 16000)
   W.load()
+  W.checkDimension()
   W.resolvePending()
   W.mode = "idle"
   W.stepName = "idle"

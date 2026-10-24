@@ -101,7 +101,9 @@ local function position()
       and x % 1 == 0 and y % 1 == 0 and z % 1 == 0
   end
   local dimensions = { [""] = "minecraft:overworld", ["0"] = "minecraft:overworld",
-    ["-1"] = "minecraft:the_nether", ["1"] = "minecraft:the_end" }
+    ["-1"] = "minecraft:the_nether", ["1"] = "minecraft:the_end",
+    overworld="minecraft:overworld", nether="minecraft:the_nether", the_nether="minecraft:the_nether",
+    ["end"]="minecraft:the_end", the_end="minecraft:the_end" }
   for _, dim in ipairs({ "minecraft:overworld", "minecraft:the_nether", "minecraft:the_end" }) do
     dimensions[dim] = dim
   end

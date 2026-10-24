@@ -1,4 +1,8 @@
 local S = { turtles = {}, callbacks = {}, seq = 0 }
+S.rules = function()
+  if not S.plan then S.plan=dofile("so-plan.lua") end
+  return S.plan
+end
 
 S.number = function(n)
   return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge
@@ -86,7 +90,11 @@ S.world = function(id, dim)
   local serverDim = S.pos and S.pos.dim or config and config.pos and config.pos.dim
   if not serverDim then return nil, "GPS dimension unknown; use explicit add" end
   if not fix.dim then return nil, "GPS dimension unknown; set so-worker.cfg" end
-  if dim ~= serverDim or dim ~= fix.dim then return nil, "GPS dimension mismatch" end
+  if dim ~= fix.dim or dim ~= serverDim and dim == "minecraft:overworld" then return nil, "GPS dimension mismatch" end
+  if dim ~= "minecraft:overworld" then
+    local err = S.rules().dimensionError(dim, config)
+    return nil, err or "remote GPS untrusted; use explicit add"
+  end
   local pose = { dim = dim, x = fix.x, y = fix.y, z = fix.z }
   if row.rotation and row.pose then
     pose.facing = (row.pose.f + row.rotation.rot) % 4
@@ -262,6 +270,15 @@ S.encodeLease = function(key, lease)
   }))
 end
 
+S.remoteReady = function(id, dim)
+  local err = S.rules().dimensionError(dim, SO.store.read("so-server.cfg"))
+  if err then return false, err end
+  local row = S.turtles[id]
+  if not row or not row.dimensionSafety then return false, "update remote worker" end
+  if row.dim ~= dim then return false, "worker dimension mismatch; set so-worker.cfg" end
+  return true
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
@@ -283,6 +300,11 @@ S.send = function(id, steps, opts)
   if not S.number(ms) or ms <= 0 then return nil, "ms" end
   if opts.owner ~= nil and type(opts.owner) ~= "string" then return nil, "owner" end
   if opts.pose ~= nil and not S.position(opts.pose) then return nil, "pose" end
+  local remote = opts.pose and (opts.pose.dim == "minecraft:the_nether" or opts.pose.dim == "minecraft:the_end")
+  if remote and not (#steps == 1 and steps[1].op == "inspectDown") then
+    local ready, why = S.remoteReady(id, opts.pose.dim)
+    if not ready then return nil, why end
+  end
   local state = S.module("state")
   if state and state.canWork and not state.canWork() and not opts.recover
     and not (#steps == 1 and steps[1].op == "inspectDown") then return nil, "DISK events pending" end
@@ -300,6 +322,18 @@ S.send = function(id, steps, opts)
     id = tostring(id) .. "-" .. string.format("%.0f", SO.now()) .. "-" .. S.seq, turtleId = id, steps = SO.store.copy(steps),
     owner = opts.owner, journal = opts.journal, pose = S.copyPose(opts.pose), expires = SO.now() + ms, status = "open",
   }
+  if remote then
+    local y = opts.pose.y
+    for i=#lease.steps,1,-1 do
+      local step = lease.steps[i]
+      if step.op=="forward" or step.op=="back" or step.op=="up" or step.op=="down" then
+        local err = S.rules().heightError(opts.pose.dim,y)
+        if err then return nil, err end
+        step.safety={dim=opts.pose.dim,y=y}
+        y=y-(step.op=="up" and 1 or step.op=="down" and -1 or 0)
+      end
+    end
+  end
   if #steps == 1 and steps[1].op == "inspectDown" then
     lease.retryAt = SO.now() + 1000
   end
@@ -352,6 +386,9 @@ S.forget = function(id, key)
 end
 
 S.inRange = function(id, pos)
+  if pos and (pos.dim == "minecraft:the_nether" or pos.dim == "minecraft:the_end") then
+    return S.remoteReady(id, pos.dim)
+  end
   if not S.pos then return true end
   local distance = S.distance(pos)
   return distance ~= nil and distance <= (S.turtles[id] and S.turtles[id].range or 16) + 8
@@ -455,6 +492,8 @@ S.hello = function(msg)
   row.fuel = (S.number(msg.body.fuel) or msg.body.fuel == "unlimited") and msg.body.fuel or nil
   S.tools(row, msg.body.tools)
   row.autoToolSwap = type(msg.body.capabilities) == "table" and msg.body.capabilities.autoToolSwap == true
+  row.dimensionSafety = type(msg.body.capabilities) == "table" and msg.body.capabilities.dimensionSafety == true
+  row.dim = msg.body.dim
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
   row.setupFence = type(msg.body.capabilities) == "table" and msg.body.capabilities.setupFence == true
   row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true
@@ -555,5 +594,6 @@ return {
   cancelPark = S.cancelPark,
   forget = S.forget,
   inRange = S.inRange,
+  remoteReady = S.remoteReady,
   dugProtection = S.dugProtection,
 }

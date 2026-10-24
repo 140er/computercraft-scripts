@@ -1,4 +1,26 @@
 local P = {}
+P.dimensions = {
+  ["minecraft:overworld"] = { drop = 0 },
+  ["minecraft:the_nether"] = { drop = -1, min = 1, max = 126, bottom = 15 },
+  ["minecraft:the_end"] = { drop = 1, min = 1, max = 255, bottom = 48 },
+}
+function P.dimension(name)
+  return ({overworld="minecraft:overworld", nether="minecraft:the_nether", the_nether="minecraft:the_nether",
+    ["end"]="minecraft:the_end", the_end="minecraft:the_end"})[name] or (P.dimensions[name] and name)
+end
+function P.dimensionError(dim, config)
+  if not P.dimensions[dim] then return "invalid dimension" end
+  if dim ~= "minecraft:overworld" and not (type(config) == "table" and config.remoteDimensions == true) then
+    return "remote dimensions disabled"
+  end
+end
+function P.heightError(dim, y)
+  local rule = P.dimensions[dim]
+  if not rule then return "invalid dimension" end
+  if rule.min and (y < rule.min or y > rule.max) then
+    return dim == "minecraft:the_nether" and "Nether bedrock boundary" or "End void or height boundary"
+  end
+end
 local dx = { [0] = 0, 1, 0, -1 }
 local dz = { [0] = -1, 0, 1, 0 }
 

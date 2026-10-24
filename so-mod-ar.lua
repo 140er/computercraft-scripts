@@ -21,13 +21,13 @@ end
 A.box = SO.store.store("so-data/ar", A.valid)
 if A.box.value then A.layers = SO.store.copy(A.box.value) end
 A.config = SO.store.read("so-server.cfg") or {}
-A.dim = A.config.pos and A.config.pos.dim
+A.dim = A.config.arDim or A.config.pos and A.config.pos.dim or "minecraft:overworld"
 if type(A.config.arLabelScale)=="number" then
   A.labelScale=math.max(0.5,math.min(0.7,A.config.arLabelScale))
   A.labelGap=math.max(A.labelGap,A.labelScale*0.5)
 end
 A.sameDim = function(dim)
-  return A.dim == nil or (A.dimensions[dim] or dim) == (A.dimensions[A.dim] or A.dim)
+  return (A.dimensions[dim] or dim or "minecraft:overworld") == (A.dimensions[A.dim] or A.dim)
 end
 A.call = function(name, method, ...)
   local mod = SO.mods[name]
@@ -107,7 +107,7 @@ A.scene = function(now)
   local function line(id, color, x, y, z, u, v, w) put(id, "drawLine3D", color, x, y, z, u, v, w) end
   local function label(id, color, p, text, kind, group)
     local origin, distance = A.config.pos, 0
-    if origin and origin.x and origin.y and origin.z then
+    if origin and A.sameDim(origin.dim) and origin.x and origin.y and origin.z then
       distance = (p.x - origin.x)^2 + (p.y - origin.y)^2 + (p.z - origin.z)^2
     end
     labels[#labels + 1] = { id = id, color = color, x = p.x + 0.5, y = p.y + 1.25,
