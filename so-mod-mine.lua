@@ -1006,15 +1006,16 @@ V.room = function(C, m)
   local w, ya = C.w, C.h - 1
   U.roleBar(C, "MINING", V.tabs, V.short, 1, m.state, U.tone(m.state))
   -- The diagram draws at most one cell per block; the facts and the table follow it on wide walls.
-  local lx = math.min(w - 11, math.max(1, math.min(w - 27, m.length)) + 18)
-  for i, f in ipairs(V.facts(m)) do C.leader(lx, 2 + i, 11, f[1], f[2], f[3]) end
+  local lx, f = math.min(w - 11, math.max(1, math.min(w - 27, m.length)) + 18), V.facts(m)
+  for i, row in ipairs(f) do C.leader(lx, 2 + i, 11, row[1], row[2], row[3]) end
   V.run(C, ya, m, 3)
   if m.alert then C.flag(2, ya - 2, w - 2, m.alert) end
   -- Caps keep the biggest walls inside the 16 KB frame: 12 turtle rows, 24 branch rows.
-  local nt = math.min(#m.turtles, math.max(0, ya - 12), 12)
+  local nt = math.min(#m.turtles, math.max(0, ya - 7 - #f), 12)
   local shown = math.min(m.total, ya - 3 - nt - (nt > 0 and 1 or 0) - 5, 24)
   V.diagram(C, m, 3, shown, lx - 2)
-  V.turtles(C, m, 3 + shown + 3, nt, lx + 10)
+  -- The table runs under the facts, so a short diagram leaves it below them.
+  V.turtles(C, m, math.max(3 + shown + 3, 4 + #f), nt, lx + 10)
 end
 -- The alert ending on row y: one flag row, or two when it is longer than the row and splits at a
 -- space. Returns the rows used.

@@ -363,7 +363,7 @@ FLEET.
 ## 19. Mining
 
 `so-mod-mine.lua` draws it; `schematic/jobs.py` is the twin. Fixtures `mining-M/W/L/P/XS`,
-`miningsetup-M/L/P` and `miningores-M/P`.
+`miningempty-M/W` (before the first branch), `miningsetup-M/L/P` and `miningores-M/P`.
 
 - **Header:** `MINING overview setup`, the state word at the right in its tone. Narrow
   screens use the short tabs `main setup` and drop the state word into the first leader.
@@ -379,7 +379,8 @@ FLEET.
   ore today, lowest fuel (amber under 500). TURTLES lists arrow, id, state, branch,
   position (coral when lost), fuel and ore. START and STOP on the last row; the one
   that does nothing now is muted. Walls cap the diagram at 24 rows and the table at
-  12 (`+N more`); the facts and the table follow the diagram instead of the far edge.
+  12 (`+N more`); the facts and the table follow the diagram instead of the far edge. The
+  table runs under the facts, so it starts below them when the diagram is shorter.
 - **Overview, column (24 to 51 columns, 14 rows and up):** the diagram over the
   leaders, in two columns from 30 columns wide and one below.
 - **Overview, tiny:** leaders only.

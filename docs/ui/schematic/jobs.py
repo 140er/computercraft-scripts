@@ -38,9 +38,11 @@ def last_row(h, wide):
 
 # ================================================================ mining
 
-def mining_model():
-    """What so-mod-mine's gather builds: job facts, one row per turtle, the dug extent per branch."""
+def mining_model(empty=False):
+    """What so-mod-mine's gather builds: job facts, one row per turtle, the dug extent per branch.
+    empty: the job before its first branch (jobs-scene's emptymine line), no turtle on a branch."""
     g = S["g"]
+    fresh = EXTRA["emptymine"][0] if empty else None
     hf = facing_of(g["dx"], g["dz"])
     lanes = {int(a): int(b) for a, b in EXTRA["branch"]}
     rows = []
@@ -52,9 +54,13 @@ def mining_model():
         rows.append(dict(id=t["id"], pose=dict(x=p["x"], y=p["y"], z=p["z"], facing=p["f"]), state=t["state"],
                          lost=ST["leases"].get(t["id"]) == "lost", fuel=t["fuel"], ores=t["ore"], lane=lane,
                          branch=lanes.get(t["id"]) if lane else int(t["at"])))
+        if fresh:
+            rows[-1].update(state=fresh[1], lane=False, branch=None)
     job = dict(home=dict(x=g["home"][0], y=g["home"][1], z=g["home"][2], facing=hf), homeSet=True,
                bottom=g["bottom"], length=g["length"], mode=g["mode"], ores=[],
                running=ST["mining"]["running"], done=ST["mining"]["done"], total=ST["mining"]["total"])
+    if fresh:
+        job.update(running=fresh[0] == "running", done=0, total=0)
     m = mining_gather(job, rows, ST["today"]["ore"], None)
     mining_setup(m, rows)
     return m
@@ -229,16 +235,18 @@ def mine_room(cv, m):
     ya = last_row(h, True)
     # The diagram draws at most one cell per block; the facts and the table follow it on wide walls.
     lx = min(w - 11, max(1, min(w - 27, m["length"])) + 18)
-    for i, (a, b, c) in enumerate(mining_facts(m)):
+    facts = mining_facts(m)
+    for i, (a, b, c) in enumerate(facts):
         leader(cv, lx, 3 + i, 11, a, b, c)
     run_chips(cv, ya, m, 3)
     if m["alert"]:
         flag(cv, 2, ya - 2, w - 2, m["alert"])
     # Caps keep the biggest walls inside the 16 KB frame: 12 turtle rows, 24 branch rows.
-    nt = min(len(m["turtles"]), max(0, ya - 12), 12)
+    nt = min(len(m["turtles"]), max(0, ya - 7 - len(facts)), 12)
     shown = min(m["total"], ya - 3 - nt - (1 if nt else 0) - 6 + 1, 24)
     diagram(cv, m, 3, shown, lx - 2)
-    turtle_rows(cv, m, 3 + shown + 3, nt, lx + 10)
+    # The table runs under the facts, so a short diagram leaves it below them.
+    turtle_rows(cv, m, max(3 + shown + 3, 4 + len(facts)), nt, lx + 10)
 
 
 def alert_rows(cv, y, text):
@@ -1094,8 +1102,8 @@ def drops(m, w, h, title=""):
 
 # ================================================================ fixtures
 
-def _mining(w, h, title, setup=False, editing=False):
-    return lambda: mining(mining_model(), w, h, setup, editing, title)
+def _mining(w, h, title, setup=False, editing=False, empty=False):
+    return lambda: mining(mining_model(empty), w, h, setup, editing, title)
 
 
 def _lumber(w, h, title, setup=False):
@@ -1112,6 +1120,8 @@ FIXTURES = [
     ("mining-L", _mining(39, 19, "Mining, wall monitor 4x3 at scale 1")),
     ("mining-P", _mining(26, 20, "Mining at 26x20")),
     ("mining-XS", _mining(15, 10, "Mining, smallest monitor")),
+    ("miningempty-M", _mining(57, 24, "Mining before the first branch, room monitor 57x24", empty=True)),
+    ("miningempty-W", _mining(100, 38, "Mining before the first branch, wall 100x38", empty=True)),
     ("miningsetup-M", _mining(57, 24, "Mining setup, room monitor 57x24", True)),
     ("miningsetup-L", _mining(39, 19, "Mining setup, wall monitor 4x3", True)),
     ("miningsetup-P", _mining(26, 20, "Mining setup at 26x20", True)),

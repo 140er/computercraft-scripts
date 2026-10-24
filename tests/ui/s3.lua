@@ -41,6 +41,7 @@ local function scene()
       elseif k == 'today' then s.today = { ore = n(2), logs = n(3) }
       elseif k == 'lease' then s.leases[n(2)] = p[3]
       elseif k == 'branch' then s.branch[n(2)] = n(3)
+      elseif k == 'emptymine' then s.emptymine = { running = p[2] == 'running', state = p[3] }
       elseif k == 'fuelpolicy' then s.policy = { auto = p[2] == 'on', output = { id = p[3] } }
       elseif k == 'verified' then s.verified = s.verified or {} s.verified[n(2)] = true
       elseif k == 'roompoint' then s.roompoint = s.roompoint or {} s.roompoint[n(2)] = true
@@ -94,6 +95,7 @@ local FIXTURE = {
   ['mining-M'] = 'tests/ui/fixtures/mining-M.txt', ['mining-W'] = 'tests/ui/fixtures/mining-W.txt',
   ['mining-L'] = 'tests/ui/fixtures/mining-L.txt', ['mining-P'] = 'tests/ui/fixtures/mining-P.txt',
   ['mining-XS'] = 'tests/ui/fixtures/mining-XS.txt', ['miningsetup-M'] = 'tests/ui/fixtures/miningsetup-M.txt',
+  ['miningempty-M'] = 'tests/ui/fixtures/miningempty-M.txt', ['miningempty-W'] = 'tests/ui/fixtures/miningempty-W.txt',
   ['miningsetup-L'] = 'tests/ui/fixtures/miningsetup-L.txt', ['miningsetup-P'] = 'tests/ui/fixtures/miningsetup-P.txt',
   ['miningores-M'] = 'tests/ui/fixtures/miningores-M.txt', ['miningores-P'] = 'tests/ui/fixtures/miningores-P.txt',
   ['lumber-M'] = 'tests/ui/fixtures/lumber-M.txt', ['lumber-W'] = 'tests/ui/fixtures/lumber-W.txt',
@@ -140,15 +142,25 @@ local function ids(frame)
   return out
 end
 
--- The real mining module with the scene's job: four turtles, ten branches, seven done.
+-- The real mining module with the scene's job: four turtles, ten branches, seven done. opts.empty
+-- is the job before its first branch (the scene's emptymine line); opts.canvas sees every canvas.
 local function mining(opts)
   opts = opts or {}
   local s, t = scene(), { saves = 0, states = {} }
-  local g = s.mine
+  local g, fresh = s.mine, opts.empty and s.emptymine
   local job = { home = { x = g.x, y = g.y, z = g.z, facing = g.facing }, homeSet = true, dim = 'minecraft:overworld',
     bottom = g.bottom, length = g.length, mode = g.mode, ores = {}, turtles = {},
     progress = { done = s.mining.done, nextBranch = s.mining.total }, running = s.mining.running }
+  if fresh then job.progress, job.running = { done = 0, nextBranch = 0 }, fresh.running end
   local env = setmetatable({}, { __index = _G })
+  env.dofile = function(path)
+    local lib = dofile(path)
+    if path == 'so-ui.lua' and opts.canvas then
+      local canvas = lib.canvas
+      lib.canvas = function(...) return opts.canvas(canvas(...)) end
+    end
+    return lib
+  end
   env.os = setmetatable({ epoch = function() return 0 end }, { __index = os })
   env.SO = { now = function() return 0 end, mods = {}, store = { store = function()
     return { value = job, save = function() t.saves = t.saves + 1 return true end } end, copy = function(v) return v end } }
@@ -185,9 +197,10 @@ local function mining(opts)
       local lane = row.at == 'lane'
       local r = { pose = s.poses[tostring(row.id)], state = row.state, fuel = row.fuel, ores = row.ore,
         branch = lane and s.branch[row.id] or tonumber(row.at) }
+      if fresh then lane, r.state, r.branch = false, fresh.state, nil end
       if lane then r.lane = { cells = {}, entered = 0 } end
-      if row.state == 'wait lane' then r.laneWait = { at = 0, passes = 0 } end
-      if row.state == 'done' then r.counted = r.branch end
+      if r.state == 'wait lane' then r.laneWait = { at = 0, passes = 0 } end
+      if r.state == 'done' then r.counted = r.branch end
       job.turtles[tostring(row.id)] = r
     end
   end
@@ -315,6 +328,63 @@ return function(test, equal)
       match(size[1], t.render(size[2], size[3], session))
     end
     equal(t.saves, 0)
+  end)
+
+  test('S3 mining before the first branch matches the empty fixtures', function()
+    local t = mining({ empty = true })
+    for _, size in ipairs({ { 'miningempty-M', 57, 24 }, { 'miningempty-W', 100, 38 } }) do
+      match(size[1], t.render(size[2], size[3], { id = 7 }))
+    end
+  end)
+
+  -- The facts are the only leaders on the overview: no other drawing may touch a cell a leader drew.
+  test('S3 mining facts never share a cell with the diagram or the turtles', function()
+    local C
+    local function canvas(c)
+      C = c
+      local put, leader, inLeader = c.put, c.leader, false
+      c.owner = {}
+      c.put = function(x, y, text, ...)
+        for i = 1, #text do
+          local col = x + i - 1
+          if y >= 1 and y <= c.h and col >= 1 and col <= c.w then
+            local k, who = y * 1000 + col, inLeader and 'facts' or 'other'
+            local was = c.owner[k]
+            if was and was ~= who then c.clash = c.clash or string.format('%d,%d %q', col, y, text) end
+            c.owner[k] = who
+          end
+        end
+        return put(x, y, text, ...)
+      end
+      c.leader = function(...)
+        inLeader = true
+        leader(...)
+        inLeader = false
+      end
+      return c
+    end
+    local sizes = { { 52, 22 }, { 57, 24 }, { 64, 30 }, { 80, 26 }, { 100, 38 }, { 121, 50 }, { 24, 14 }, { 26, 20 },
+      { 30, 19 }, { 39, 19 }, { 51, 21 }, { 15, 10 }, { 23, 13 }, { 20, 6 } }
+    local checked = 0
+    for _, total in ipairs({ 0, 1, 2, 3, 4, 6, 10, 40 }) do
+      for _, length in ipairs({ 8, 16, 32, 64 }) do
+        for _, crew in ipairs({ 'all', 'none' }) do
+          local t = mining({ empty = total == 0, canvas = canvas })
+          t.job.length, t.job.progress.nextBranch, t.job.progress.done = length, total, math.min(total, 7)
+          for id, row in pairs(t.job.turtles) do
+            if crew == 'none' then t.job.turtles[id] = nil
+            elseif row.branch and row.branch >= total then row.branch, row.lane, row.laneWait, row.counted = nil, nil, nil, nil end
+          end
+          for _, size in ipairs(sizes) do
+            t.render(size[1], size[2], { id = 7 })
+            assert(not C.clash, string.format('%dx%d, %d branches, length %d, turtles %s: %s', size[1], size[2], total,
+              length, crew, tostring(C.clash)))
+            checked = checked + 1
+          end
+        end
+      end
+    end
+    equal(checked, 8 * 4 * 2 * 14)
   end)
 
   test('S3 lumber overview and setup match every size fixture', function()
@@ -480,7 +550,7 @@ return function(test, equal)
       equal(read(dir .. '/' .. name .. '.txt'), read(assert(FIXTURE[name], name)))
       count = count + 1
     end
-    equal(count, 26)
+    equal(count, 28)
     assert(os.execute("rm -r '" .. dir .. "'"))
   end)
 

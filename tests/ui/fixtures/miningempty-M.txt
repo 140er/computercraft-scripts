@@ -1,0 +1,73 @@
+57x24 Mining before the first branch, room monitor 57x24
+ MINING   overview   setup  -------------------- stopped 
+                                                         
+    |                                        busy ·· 0/4 
+    º shaft                                  lane ···· - 
+                                             depth · -58 
+                                             done ·· 0/0 
+                                             ore ··· 214 
+                                             fuel ·· 412 
+                                                         
+ TURTLES ------------------------------------ fuel  ore  
+ ► 2  idle       -         160,-58,-373        812   14  
+ ► 3  idle       -         142,-58,-377        640    9  
+ ▼ 4  idle       -         120,-58,-352        590   31  
+ ► 6  lost       -         184,-58,-369        412   22  
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+           START                         STOP            
+                                                         
+0000000000000000000088888880cccccccccccccccccccc088888880
+000000000000000000000000000000000000000000000000000000000
+00003000000000000000000000000000000000000000088880cc00000
+00009088888000000000000000000000000000000000088880cccc080
+000000000000000000000000000000000000000000000888880c00000
+00000000000000000000000000000000000000000000088880cc00000
+0000000000000000000000000000000000000000000008880ccc00000
+00000000000000000000000000000000000000000000088880cc01110
+000000000000000000000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccccccccccccccc088888888800
+080000888800000008000000000888888888888000000000000000000
+080000888800000008000000000888888888888000000000000000000
+080000888800000008000000000888888888888000000000000000000
+0e0000eeee00000008000000000eeeeeeeeeeee000000001110000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+099999999999999999999999999000888888888888888888888888880
+000000000000000000000000000000000000000000000000000000000
+fffffffff7777777777ffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f77777777777777777777777777fff77777777777777777777777777f
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
