@@ -33,7 +33,7 @@ local function boot()
   return b
 end
 return function(test, equal)
-  test("UI3c turtle labels and twelve box edges use known state colours", function()
+  test("UI3c turtle labels use known state colours; box edges are white when ok, else the state colour", function()
     local b = boot()
     local cases = { { "mining", C.green, "MINING" }, { "waiting", C.amber, "WAITING" },
       { "hold", C.amber, "HOLD" }, { "idle", C.coral, "LOST" }, { "idle", C.stale, "STALE" },
@@ -49,9 +49,10 @@ return function(test, equal)
       local key = "turtle:" .. id
       equal(b.ar.elements[key][1], row[2]); assert(b.ar.elements[key][7] <= 0.5)
       equal(b.ar.elements[key][8], "#" .. id)
+      local edgeColor = (row[2] == C.green or row[2] == C.teal) and C.white or row[2]
       for edge = 1, 12 do
         equal(b.ar.methods[key .. ":box:" .. edge], "drawLine3D")
-        equal(b.ar.elements[key .. ":box:" .. edge][1], row[2])
+        equal(b.ar.elements[key .. ":box:" .. edge][1], edgeColor)
       end
     end
   end)
@@ -65,7 +66,7 @@ return function(test, equal)
     local n = 0
     for id, args in pairs(b.ar.elements) do if id:match("^lease:") then n = n + 1; equal(args[1], C.blue) end end
     equal(n, 24, "two owners with one stroke per edge")
-    equal(b.ar.elements["lease:mine:2:2"][2], 9)
+    equal(b.ar.elements["lease:mine:2:2"][2], 9.12, "lease outlines sit 0.12 outside the cells")
     for _, row in ipairs({ { 3, C.white, "O" }, { 4, C.coral, "F" } }) do
       equal(b.ar.elements["drop:" .. row[1]][8], row[3])
       for i = 1, 12 do equal(b.ar.elements["drop:" .. row[1] .. ":box:" .. i][1], row[2]) end
@@ -89,7 +90,7 @@ return function(test, equal)
     equal(sleeps, 0)
     equal(b.ar.frames, 1)
     for edge = 1, 12 do equal(b.ar.elements["lease:mine:2:" .. edge][1], C.blue) end
-    equal(b.ar.elements["lease:mine:2:2"][2], 201)
+    equal(b.ar.elements["lease:mine:2:2"][2], 201.12)
   end)
   test("UI3c HUD is one hairline-ruled panel on navy with muted labels and coral only for trouble", function()
     local b = boot(); b.machine(2, "working"); b.machine(3, "lost"); b.status[3] = {lost=true}

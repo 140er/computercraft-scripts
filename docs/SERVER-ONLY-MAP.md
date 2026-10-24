@@ -657,7 +657,8 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   dimensions filter world elements. Alerts expire after five minutes, renewed
   by new events. First controller attachment clears old elements when supported.
   World strokes are single lines in the route A palette: twelve-edge boxes and a
-  two-line upright heading chevron outside a turtle's front face. World labels use size 0.5 and
+  two-line upright heading chevron outside a turtle's front face. A lease of just the
+  turtle's cell merges into its box (blue), so a turtle never has two outlines. World labels use size 0.5 and
   short text, with nearby labels stacked. Only the nearest 16 turtle labels and
   eight drop labels per kind are drawn, using the server position. Boxes and
   chevrons remain. The HUD counts all registered workers like status, including

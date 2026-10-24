@@ -10,6 +10,8 @@ local function boot()
   e.SO.mods.state = { get = function() return b.machines end, view = function() return { values = {} } end }
   e.SO.mods.lease = { status = function() return { open = "batch" } end, inRange = function() return true end }
   e.SO.mods.drops = { list = function() return b.points end }
+  b.cells = {}
+  e.SO.mods.cells = { list = function(owner) return b.cells[owner] end }
   local ar = { elements = {} }
   for _, method in ipairs({ "drawLine3D", "drawText3D", "drawText2D", "drawRect2D" }) do
     ar[method] = function(id, ...) ar.elements[id] = { method = method, ... } end
@@ -98,5 +100,32 @@ return function(test, equal)
     b.tick(2000)
     equal(#owned(b, "turtle:17"), 15, "the next nearest turtle gains a label")
     equal(lines(b), 19 * 14)
+  end)
+  test("AR draws one outline per turtle: a lease of just its cell merges into a blue turtle box", function()
+    local b = boot()
+    b.machines[2], b.machines[3] = turtle(1, 3, 1), turtle(6, 3, 2)
+    b.cells["mine:2"] = { { dim = "minecraft:overworld", x = 1, y = 64, z = 3 } }
+    b.cells["mine:3"] = { { dim = "minecraft:overworld", x = 6, y = 64, z = 3 }, { dim = "minecraft:overworld", x = 6, y = 64, z = 4 } }
+    b.tick(1000)
+    equal(#owned(b, "lease:mine:2"), 0, "the held cell draws no second box")
+    for edge = 1, 12 do equal(b.ar.elements["turtle:2:box:" .. edge][1], 0xFF5AB0FF - 2^32) end
+    equal(b.ar.elements["turtle:2:heading"][1], 0xFF5AB0FF - 2^32)
+    -- A larger reservation keeps its own outline, 0.12 outside the cells; the turtle box is 0.08 out.
+    equal(#owned(b, "lease:mine:3"), 12)
+    for edge = 1, 12 do equal(b.ar.elements["turtle:3:box:" .. edge][1], 0xFFE6EAF2 - 2^32) end
+    local lease, own = b.ar.elements["lease:mine:3:1"], b.ar.elements["turtle:3:box:1"]
+    equal(near(lease[2], 5.88) and near(lease[3], 63.88) and near(lease[4], 2.88), true)
+    equal(near(own[2], 5.92) and near(own[3], 63.92) and near(own[4], 2.92), true)
+    -- No edge lies on a block face, where it would fight the block's own edges.
+    for id, el in pairs(b.ar.elements) do
+      if el.method == "drawLine3D" and (id:find(":box:") or id:find("^lease:")) then
+        for i = 2, 7 do assert(math.abs(el[i] - math.floor(el[i] + 0.5)) > 0.05, id .. " on a block face") end
+      end
+    end
+    -- Ids stay stable across frames and the frame keeps 14 lines per turtle plus one lease box.
+    b.machines[2].fuel = 499
+    b.tick(2000)
+    equal(#b.deleted, 0)
+    equal(lines(b), 2 * 14 + 12)
   end)
 end

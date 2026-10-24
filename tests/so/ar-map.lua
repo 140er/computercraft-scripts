@@ -82,9 +82,11 @@ return function(test,equal)
       end
       for id=2,farm.count+1 do
         equal(s.elements["turtle:"..id].args[8],"#"..id)
-        equal(s.elements["turtle:"..id..":box:1"].args[2],id*3-0.05)
+        equal(s.elements["turtle:"..id..":box:1"].args[2],id*3-0.08)
         assert(s.elements["turtle:"..id..":heading"])
-        assert(s.elements["lease:lumber:"..id..":1"],"each worker's reservations visible")
+        -- Each worker reserves just its own cell, so the reservation merges into its box: blue or a trouble colour.
+        equal(s.elements["lease:lumber:"..id..":1"],nil,"one outline per worker")
+        assert(s.elements["turtle:"..id..":box:1"].args[1]~=0xFFE6EAF2-2^32,"each worker's reservation visible")
       end
       equal(s.elements["turtle:2"].args[1],0xFFFFC24B-2^32,"registry fuel retained")
       equal(s.elements["turtle:8"],nil)

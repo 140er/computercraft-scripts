@@ -5,7 +5,7 @@ local A = {
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000, hudX = 4, hudY = 72, hudWidth = 192, hudCell = 64,
   labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
-  chevron = { tip = 0.75, back = 0.6, half = 0.2 },
+  chevron = { tip = 0.75, back = 0.6, half = 0.2 }, pad = { turtle = 0.08, lease = 0.12 },
   -- Route A palette as ARGB (docs/ui/SCHEMATIC-SPEC.md section 3): 0 white, 8 grey, c hair, f backing.
   white = 0xFFE6EAF2 - 2^32, grey = 0xFF7886A3 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
@@ -140,6 +140,26 @@ A.scene = function(now)
     if machine.pose and machine.pose.dim == nil then machine.pose.dim = lumber.dim end
     machines[tonumber(id)], machines[id] = nil, machine
   end
+  local leases, merged = {}, {}
+  if A.layers.leases then
+    local owners = {}
+    for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
+    for owner in pairs(owners) do
+      local bounds
+      for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do
+        if A.sameDim(cell.dim) then
+          if not bounds then bounds = { cell.x, cell.y, cell.z, cell.x + 1, cell.y + 1, cell.z + 1 }
+          else
+            for i, axis in ipairs({ "x", "y", "z" }) do
+              bounds[i] = math.min(bounds[i], cell[axis])
+              bounds[i + 3] = math.max(bounds[i + 3], cell[axis] + 1)
+            end
+          end
+        end
+      end
+      leases[owner] = bounds
+    end
+  end
   local lostCount, turtleCount = 0, 0
   for id, machine in pairs(machines) do
     local p = machine.pose
@@ -152,8 +172,19 @@ A.scene = function(now)
         local key = "turtle:" .. id
         label(key, color, p, machine.label or ("#" .. id), "turtle", "turtle")
         local d = A.dirs[p.facing or p.f or 0]
-        box(key .. ":box", color, p.x - 0.05, p.y - 0.05, p.z - 0.05, p.x + 1.05, p.y + 1.05, p.z + 1.05)
-        if d then chevron(key .. ":heading", color, p, d) end
+        -- One outline per turtle: blue while it holds just its own cell, white when ok, the state
+        -- colour for trouble (coral, amber, stale grey); the label always carries the state colour.
+        local edge = (color == A.green or color == A.teal) and A.white or color
+        for _, owner in ipairs({ "mine:" .. id, "lumber:" .. id }) do
+          local b = leases[owner]
+          if b and b[1] == p.x and b[2] == p.y and b[3] == p.z and b[4] == p.x + 1 and b[5] == p.y + 1 and b[6] == p.z + 1 then
+            merged[owner] = true
+            if edge == A.white then edge = A.blue end
+          end
+        end
+        local q = A.pad.turtle
+        box(key .. ":box", edge, p.x - q, p.y - q, p.z - q, p.x + 1 + q, p.y + 1 + q, p.z + 1 + q)
+        if d then chevron(key .. ":heading", edge, p, d) end
       end
     end
   end
@@ -176,25 +207,12 @@ A.scene = function(now)
     local a,b = mine.preview[1],mine.preview[2]
     line("preview:branch", A.blue, a.x+0.5,a.y+0.5,a.z+0.5,b.x+0.5,b.y+0.5,b.z+0.5)
   end
-  if A.layers.leases then
-    local owners = {}
-    for id in pairs(machines) do owners["mine:" .. id], owners["lumber:" .. id] = true, true end
-    for owner in pairs(owners) do
-      local bounds
-      for _, cell in ipairs(A.call("cells", "list", owner, math.huge) or {}) do
-        if A.sameDim(cell.dim) then
-          if not bounds then bounds = { cell.x, cell.y, cell.z, cell.x + 1, cell.y + 1, cell.z + 1 }
-          else
-            for i, axis in ipairs({ "x", "y", "z" }) do
-              bounds[i] = math.min(bounds[i], cell[axis])
-              bounds[i + 3] = math.max(bounds[i + 3], cell[axis] + 1)
-            end
-          end
-        end
-      end
-      if bounds then
-        box("lease:" .. owner, A.blue, unpack(bounds))
-      end
+  -- Lease outlines sit outside the turtle boxes, and a lease of just its turtle's cell merges
+  -- into that turtle's box, so no edge lies on a block face or doubles another.
+  for owner, bounds in pairs(leases) do
+    if not merged[owner] then
+      local q = A.pad.lease
+      box("lease:" .. owner, A.blue, bounds[1] - q, bounds[2] - q, bounds[3] - q, bounds[4] + q, bounds[5] + q, bounds[6] + q)
     end
   end
   local drops = A.call("drops", "list") or {}

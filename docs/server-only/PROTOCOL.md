@@ -1693,15 +1693,21 @@ boolean values. A failed save leaves the current switches unchanged.
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel
   is exempt. Working, mining, running and lumber states use green. Other open
-  leases use teal; idle turtles use white. Last contact uses the newer registry
+  leases use teal; idle turtles use white. These colour the label. The box and
+  chevron keep coral, amber and stale, and are otherwise white, or blue while the
+  turtle's lease holds just its own cell. Last contact uses the newer registry
   or lease timestamp, including work reports.
 - `leases` draws one blue bounding outline per `mine:<id>` or `lumber:<id>`
   owner derived from the machine registry using `cells.list(owner, math.huge)`.
-  It includes all that owner's cells in the server dimension. Scene gathering
+  It includes all that owner's cells in the server dimension and sits 0.12 blocks
+  outside them. An owner whose only cell is its turtle's draws no outline of its
+  own; it colours that turtle's box instead, so no turtle has two outlines. Scene gathering
   does not call `cells.counts()`, whose reservation scan can breathe during a burst.
 - `drops` draws a small box per point and a size-0.5 label with the first letter
   of its kind, such as O or F. Broken points use coral; other points use white.
-- Every edge is one `drawLine3D` stroke, in the route A palette. A turtle has
+- Every edge is one `drawLine3D` stroke, in the route A palette. Turtle boxes sit
+  0.08 blocks outside the block and lease outlines 0.12, so no edge lies on a block
+  face, where it would fight the block's own edges and look dashed. A turtle has
   14 lines (12 box edges, ids `:box:1` to `:box:12`, and the chevron, ids
   `:heading` and `:heading:1`), plus a label when within the label limit. A lease
   or drop box has 12 lines. A frame with 20 turtles has 280 lines.

@@ -50,8 +50,11 @@ return function(test, equal)
     equal(b.ar.elements["drop:ore"][8], "O")
     equal(b.ar.elements["turtle:2"][1], 0xFF2DD4BF - 2^32)
     equal(b.ar.elements["turtle:3"][1], 0xFFFF6B5E - 2^32)
-    for _, owner in ipairs({ "mine:2", "lumber:3" }) do
-      for i = 1, 12 do assert(b.ar.elements["lease:" .. owner .. ":" .. i]) end
+    for i = 1, 12 do assert(b.ar.elements["lease:mine:2:" .. i]) end
+    -- lumber:3 holds just turtle 3's cell, so it merges into that box, which stays coral while lost.
+    for i = 1, 12 do
+      equal(b.ar.elements["lease:lumber:3:" .. i], nil)
+      equal(b.ar.elements["turtle:3:box:" .. i][1], 0xFFFF6B5E - 2^32)
     end
     assert(b.ar.elements["alert:drops.alert"])
     equal(b.ar.clears, 1)
