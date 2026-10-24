@@ -426,7 +426,8 @@ return function(test, equal)
   end)
 
   test('S0 fixtures load with and without the fg layer', function()
-    local old = R.load('tests/ui/fixtures/ar-M.txt')
+    -- ar-M was the last Big Tiles fixture; this sample keeps the two-layer format loading.
+    local old = R.load('tests/ui/two-layer-sample.txt')
     assert(old.fg == nil and #old.bg == old.h)
     local new = R.load('tests/ui/fixtures/status-M.txt')
     equal(#new.fg, new.h)

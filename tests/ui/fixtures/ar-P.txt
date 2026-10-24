@@ -1,0 +1,61 @@
+26x20 AR layers on a pocket 26x20
+ AR GOGGLES  1 controller 
+                          
+ LAYERS ----------- 4 on  
+                          
+ turtles ··········· [on] 
+                          
+ leases ············ [on] 
+                          
+ drops ············· [on] 
+                          
+ alerts ············ [on] 
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+                          
+00000000000008888888888880
+00000000000000000000000000
+08888880ccccccccccc0888800
+00000000000000000000000000
+088888880ccccccccccc08dd80
+00000000000000000000000000
+08888880cccccccccccc08dd80
+00000000000000000000000000
+0888880ccccccccccccc08dd80
+00000000000000000000000000
+08888880cccccccccccc08dd80
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff

@@ -519,3 +519,25 @@ from the `detail` and `draft` lines of `tests/ui/other-scene.txt` (the turtle
   rows from column 2 and BACK sits at the right end of the last row, beside them when it fits.
 - **Pose editor:** `POSE` with the draft at the right, then x, y, z and facing as `-` value `+`
   (ids `pose:<axis>:-1` and `pose:<axis>:1`), RE-ADD and BACK (`turtle-cancel`) on the last row.
+
+## 26. AR goggles
+
+`so-mod-ar.lua` draws the `ar` screen and the goggles canvas; `schematic/ar.py` is the screen's
+twin. Fixtures `ar-M/W/L/P/S/XS`, from the models in `tests/ui/ra3-ar.lua`.
+
+- **Header:** `AR GOGGLES` and the controller count at the right (`1 controller`, `2
+  controllers`), the number alone when the words do not fit.
+- **Layers:** a `LAYERS` section with the count switched on, then one leader row per layer:
+  `turtles`, `leases`, `drops`, `alerts`, each ending in `[on]` (green) or `[off]` (muted).
+  The whole row is the toggle, with the layer name as its id. Leaders are 55 cells wide at
+  most. Screens of 16 rows or more keep a blank row between rows; under 7 rows the section
+  goes.
+- **HUD:** one hairline-ruled panel at GUI `(4,72)` on translucent navy `f` (alpha E0): cells
+  of 64 units for TURTLES, ALERTS and DISK (BROKEN while a chest is broken), muted caps labels,
+  white values, coral when a turtle is lost, an alert is active or the disk is at 80% or more.
+  Dim `c` rules split the cells and close the panel. An alert is a flag above it: a coral `!`,
+  white text and a coral hairline. No filled colour bars, and no rectangles overlap.
+- **World:** single strokes in the state colours of section 4. A turtle is a twelve-edge box
+  with a two-line chevron on its top face pointing where it faces, and its `#id` above it.
+  Lease outlines are blue boxes; drops are small white boxes (coral when broken) with the
+  kind's first letter.

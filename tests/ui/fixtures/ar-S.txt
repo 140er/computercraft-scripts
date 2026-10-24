@@ -1,0 +1,37 @@
+29x12 AR layers at 29x12, no controller, leases and alerts off
+ AR GOGGLES  - 0 controllers 
+                             
+ LAYERS -------------- 2 on  
+ turtles ·············· [on] 
+ leases ·············· [off] 
+ drops ················ [on] 
+ alerts ·············· [off] 
+                             
+                             
+                             
+                             
+                             
+0000000000000c088888888888880
+00000000000000000000000000000
+08888880cccccccccccccc0888800
+088888880cccccccccccccc08dd80
+08888880cccccccccccccc0888880
+0888880cccccccccccccccc08dd80
+08888880cccccccccccccc0888880
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+00000000000000000000000000000
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffff

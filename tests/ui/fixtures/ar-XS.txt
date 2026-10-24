@@ -1,0 +1,31 @@
+15x10 AR layers, smallest monitor 15x10, turtles off
+ AR GOGGLES  1 
+               
+ LAYERS  3 on  
+ turtles [off] 
+ leases · [on] 
+ drops ·· [on] 
+ alerts · [on] 
+               
+               
+               
+000000000000080
+000000000000000
+088888800888800
+088888880888880
+08888880c08dd80
+0888880cc08dd80
+08888880c08dd80
+000000000000000
+000000000000000
+000000000000000
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff
+fffffffffffffff

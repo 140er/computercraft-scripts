@@ -84,8 +84,8 @@ return function(test,equal)
     equal(model(b.mods.display).tiles[1].value,"3")
     equal(model(b.mods.display).okShort,"3 ok")
     equal(b.ar.elements["hud:turtles:value"][4],model(b.mods.display).tiles[1].value)
-    equal(b.ar.elements["hud:turtles:bar"][1],0xFF3DDC84-2^32)
-    for id=2,4 do assert(b.ar.elements["turtle:"..id][1]~=0xFF4A5468-2^32,"working turtle marked stale") end
+    equal(b.ar.elements["hud:turtles:value"][1],0xFFE6EAF2-2^32)
+    for id=2,4 do assert(b.ar.elements["turtle:"..id][1]~=0xFF7886A3-2^32,"working turtle marked stale") end
     b.mods.state.handlers.hello({from=5,body={role="worker",fuel=1000}})
     b.mods.display.tick(131000);b.tick(131000)
     equal(model(b.mods.display).tiles[1].value,"4")
@@ -98,7 +98,7 @@ return function(test,equal)
     b.status[2].lost=true
     b.mods.display.tick(132000);b.tick(132000)
     equal(b.ar.elements["hud:turtles:value"][4],model(b.mods.display).tiles[1].value)
-    equal(b.ar.elements["hud:turtles:bar"][1],0xFFFF6B5E-2^32)
+    equal(b.ar.elements["hud:turtles:value"][1],0xFFFF6B5E-2^32)
   end)
   test("AR counts two mining leases, one lumber lease and a paired idle worker after real reports",function()
     local F=dofile("tests/so/worker-fixture.lua")
@@ -136,7 +136,7 @@ return function(test,equal)
     mods.display.tick(a.n.time);mods.ar.tick(a.n.time)
     equal(model(mods.display).tiles[1].value,"4")
     equal(elements["hud:turtles:value"][4],"4")
-    equal(elements["hud:turtles:bar"][1],0xFF3DDC84-2^32)
+    equal(elements["hud:turtles:value"][1],0xFFE6EAF2-2^32)
     equal(mods.lease.status(5).open,nil)
     for id=2,4 do assert(mods.lease.status(id).open) end
     for _,w in pairs(workers) do assert(w.alive(),tostring(w.error)) end

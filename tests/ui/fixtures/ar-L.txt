@@ -1,0 +1,58 @@
+39x19 AR layers, wall monitor 39x19, drops off
+ AR GOGGLES  ------------ 1 controller 
+                                       
+ LAYERS ------------------------ 3 on  
+                                       
+ turtles ························ [on] 
+                                       
+ leases ························· [on] 
+                                       
+ drops ························· [off] 
+                                       
+ alerts ························· [on] 
+                                       
+                                       
+                                       
+                                       
+                                       
+                                       
+                                       
+                                       
+0000000000000cccccccccccc08888888888880
+000000000000000000000000000000000000000
+08888880cccccccccccccccccccccccc0888800
+000000000000000000000000000000000000000
+088888880cccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000
+0888880ccccccccccccccccccccccccc0888880
+000000000000000000000000000000000000000
+08888880ccccccccccccccccccccccccc08dd80
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+000000000000000000000000000000000000000
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffff

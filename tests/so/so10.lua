@@ -134,7 +134,7 @@ return function(test, equal)
     b.machines[3].pose.dim = "minecraft:the_nether"
     b.mods.ar = b.env.dofile("so-mod-ar.lua")
     b.mods.ar.tick(121001)
-    equal(b.ar.elements["turtle:2"][1], 0xFF4A5468 - 2^32)
+    equal(b.ar.elements["turtle:2"][1], 0xFF7886A3 - 2^32)
     equal(b.ar.elements["turtle:3"], nil)
     assert(b.ar.elements["drop:ore"])
     equal(b.ar.elements["lease:lumber:3:1"] ~= nil, true)
