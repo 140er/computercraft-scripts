@@ -1,35 +1,45 @@
-26x20 Turtle detail
+26x20 Turtle detail at 26x20
+ TURTLE #2  ------ mining 
                           
- #2                       
- mining                   
- POS 12,60,-5 E           
- FUEL 42                  
- INV 1/16 14 items        
- LEASE lease-2            
- STEP forward  ORE 14     
- SEEN 3s                  
+ pose ········ 12,60,-5 E 
+ fuel ················ 42 
+ inventory ···· 1/16 · 14 
+ lease ·········· lease-2 
+ step ··········· forward 
+ ore ················· 14 
+ seen ················ 3s 
                           
-              B0 12/48    
-                          
-                          
+ b1 |||········· 12/48    
                           
                           
                           
                           
                           
-  PARK ALL       REMOVE   
-           BACK           
+                          
+                          
+  PARK ALL   REMOVE       
+                    BACK  
+000000000000cccccc0dddddd0
+00000000000000000000000000
+088880cccccccc000000000000
+088880cccccccccccccccc0110
+08888888880cccc00000000000
+0888880cccccccccc000000000
+088880ccccccccccc000000000
+08880ccccccccccccccccc0000
+088880cccccccccccccccc0000
+00000000000000000000000000
+08803338888888880000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+000000000000eeeeeeee000000
+00000000000000000000000000
 ffffffffffffffffffffffffff
-f777777777777777777777777f
-dddddddddddddddddddddddddd
-77777777777777777777777777
-11111111111111111111111111
-bbbbbbbbbbbbbbbbbbbbbbbbbb
-77777777777777777777777777
-77777777777777777777777777
-77777777777777777777777777
-ffffffffffffffffffffffffff
-fbbbcccccccccfffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
@@ -37,5 +47,15 @@ ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-1111111111111f777777777777
-77777777777777777777777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+f7777777777f77777777ffffff
+fffffffffffffffffff777777f

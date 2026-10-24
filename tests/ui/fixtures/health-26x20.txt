@@ -1,41 +1,61 @@
-26x20 HEALTH
-   HEALTH       NEEDS 1   
- HEALTH                   
+26x20 Health at 26x20
+ HEALTH  NEEDS 3  ------- 
+ EVENTS  ALERTS  ERRORS   
                           
- Uptime 6s                
- Tick 1000ms / wall 1000ms
- Tick cost 0ms            
- Events #7 / 1 seg        
- Event bytes 1080         
- Snapshot none            
- Disk 3% / 15496447B free 
- Modems 1                 
- Paired 1 online / 0 lost 
- Leases 0 open            
- Clock reserve 1s         
- Errors 1 / 115B          
- Last: tick fixture failed
+ uptime ············· 50m 
+ tick ·· 50ms · wall 50ms 
+ tick cost ·········· 4ms 
+ clock reserve ··· 12h00m 
+ events ··· #1234 · 4 seg 
+ event bytes ······ 81920 
+ snapshot ········· #7 2m 
+ disk ··············· 42% 
+ disk free ····· 524288 B 
+ errors ······· 2 · 340 B 
+ modems ··············· 1 
+ paired 2 online · 1 lost 
+ leases ·········· 1 open 
+ last lease 7 report      
+      rejected            
                           
-                          
-  PREV     BACK     NEXT  
- EVENTS   ALERTS   ERRORS 
-7777777777777f111111111111
-f777777777777777777777777f
+              1/1  ◄   ►  
+000000008888888e80ccccccc0
+88888888888888888888888800
+00000000000000000000000000
+08888880ccccccccccccc00000
+088880cc000000000000000000
+08888888880cccccccccc00000
+088888888888880ccc00000000
+08888880ccc000000000000000
+0888888888880cccccc0000000
+0888888880ccccccccc0000000
+088880ccccccccccccccc00000
+08888888880ccccc0000000000
+08888880ccccccc00000000000
+08888880ccccccccccccccc000
+0888888000000000000eeeeee0
+08888880cccccccccc00000000
+08888000000000000000000000
+00000000000000000000000000
+00000000000000000000000000
+00000000000000888088808880
+77777777ffffffffffffffffff
 ffffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
-bfffffffffffffffffffffffff
 ffffffffffffffffffffffffff
 ffffffffffffffffffffffffff
-77777777f77777777f77777777
-77777777f77777777f77777777
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffffffffffff
+ffffffffffffffffff777f777f

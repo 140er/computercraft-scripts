@@ -423,22 +423,6 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
 import argparse
 from pathlib import Path
 
-# Turtle details use the same data at pocket, compact and monitor sizes.
-def turtle_detail(w,h):
-    c=Canvas(w,h);c.header("#2","");c.fill(0,2,w,1,"d");c.text(1,2,"mining")
-    lines=[("POS 12,60,-5 E","7"),("FUEL 42","1"),("INV 1/16 14 items","b"),
-           ("LEASE lease-2","7"),("STEP forward  ORE 14","7"),("SEEN 3s","7")]
-    if h<19:
-        lines[1]=("FUEL 42  INV 1/16","1");del lines[2]
-    for i,(text,bg) in enumerate(lines):
-        c.fill(0,i+3,w,1,bg);c.text(1,i+3,text[:w-2])
-    y=10 if h>=19 else 8
-    c.fill(1,y,12,1,"c");c.fill(1,y,3,1,"b");c.text(14,y,"B0 12/48")
-    for (x,width),(label,bg) in zip(grid(w,2),[("PARK ALL","1"),("REMOVE","7")]):
-        c.button(x,h-2,width,label,bg,h=1)
-    c.button(0,h-1,w,"BACK",h=1)
-    return c
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--fixtures", type=Path, nargs="?", const=Path(__file__).resolve().parents[2] / "tests/ui/fixtures")
 args = parser.parse_args()
@@ -454,7 +438,8 @@ if args.fixtures:
               "shop-M", "shoporder-M", "shop-compact", "shop-pocket", "shop-large",
               "pocket-fleet-P", "pocket-alerts-P", "pocket-jobs-P", "pocket-shop-P", "pocket-pair-P", "pocket-code-P",
               "alert-M", "outage-M", "server-T", "pairing-T", "roles-T", "unassigned-M", "unassigned-XS",
-              "mining-M", "lumber-M", "drops-M"}
+              "mining-M", "lumber-M", "drops-M",
+              "build-26x20", "buildsetup-26x20", "build-29x12", "buildsetup-29x12"}
     for stem, canvas, title in named:
         if stem in ported:
             continue
@@ -462,16 +447,6 @@ if args.fixtures:
         layers += ["".join(row) for row in canvas.t]
         layers += ["".join(row) for row in canvas.b]
         (args.fixtures / (stem + ".txt")).write_text("\n".join(layers) + "\n", encoding="utf-8")
-    for stem,w,h in [("turtle-P",26,20),("turtle-S",29,12),("turtle-M",57,24)]:
-        c=turtle_detail(w,h)
-        layers=[f"{w}x{h} Turtle detail"]+["".join(row) for row in c.t]+["".join(row) for row in c.b]
-        (args.fixtures/(stem+".txt")).write_text("\n".join(layers)+"\n",encoding="utf-8")
-    import shutil
-    import subprocess
-    root = Path(__file__).resolve().parents[2]
-    lua = shutil.which("lua5.2") or shutil.which("lua52") or "C:/Tools/lua52/lua52.exe"
-    subprocess.run([lua, str(Path(__file__).with_name("visibility-fixtures.lua")),
-                    str(args.fixtures.resolve())], cwd=root, check=True)
     raise SystemExit(0)
 
 open("./mockups.md", "w").write("\n\n".join(M) + "\n")

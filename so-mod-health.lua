@@ -114,24 +114,29 @@ H.gather = function(now)
   local runtime = SO.health or {}
   local modems = peripheral and peripheral.find and {peripheral.find("modem")} or {}
   local errors = SO.errors and SO.errors.status() or {}
+  -- Leaders { label, value, fg?, tail? } for the health page: a value of "-" is muted, a tail is the
+  -- value's coral end.
+  local dot, ratio = " "..U.g.dot.." ", disk.ratio or 0
+  local function ms(v) return v and (v.."ms") or "-" end
+  local snapshot = log.snapshot and log.snapshot>0 and ("#"..log.snapshot.." "..(log.snapshotAt and duration(now-log.snapshotAt) or "age unknown"))
   H.metrics = {
-    "Uptime "..duration(now-(runtime.started or now)),
-    "Tick "..tostring(runtime.cadence or "-").."ms / wall "..tostring(runtime.wallCadence or "-").."ms",
-    "Tick cost "..tostring(runtime.tickMs or "-").."ms",
-    log.available and ("Events #"..log.seq.." / "..log.segments.." seg") or "Events unavailable",
-    "Event bytes "..tostring(log.bytes or "-"),
-    log.snapshot and log.snapshot>0 and ("Snapshot #"..log.snapshot.." "..(log.snapshotAt and duration(now-log.snapshotAt) or "age unknown")) or "Snapshot none",
-    "Disk "..math.floor((disk.ratio or 0)*100).."% / "..tostring(disk.free or "-").."B free",
-    "Modems "..#modems,
-    "Paired "..online.." online / "..lost.." lost",
-    "Leases "..open.." open",
-    "Clock reserve "..(clock and duration(clock.ceiling-now) or "unavailable"),
-    "Errors "..tostring(errors.count or 0).." / "..tostring(errors.bytes or 0).."B",
+    {"uptime", duration(now-(runtime.started or now))},
+    {"tick", ms(runtime.cadence)..dot.."wall "..ms(runtime.wallCadence)},
+    {"tick cost", ms(runtime.tickMs)},
+    {"clock reserve", clock and duration(clock.ceiling-now) or "unavailable", not clock and "8"},
+    {"events", log.available and ("#"..log.seq..dot..log.segments.." seg") or "unavailable", not log.available and "8"},
+    {"event bytes", tostring(log.bytes or "-")},
+    {"snapshot", (snapshot or "none")..(log.due and " due" or ""), log.due and "1" or not snapshot and "8"},
+    {"disk", math.floor(ratio*100).."%", ratio >= 0.8 and "e"},
+    {"disk free", disk.free and (disk.free.." B") or "-"},
+    {"errors", tostring(errors.count or 0)..dot..tostring(errors.bytes or 0).." B"},
+    {"modems", tostring(#modems)},
+    {"paired", online.." online"..dot..lost.." lost", nil, lost > 0 and (lost.." lost")},
+    {"leases", open.." open"},
   }
-  if log.due then H.metrics[#H.metrics+1] = "Snapshot due" end
-  if errors.error then H.metrics[#H.metrics+1] = "Error save: "..errors.error end
+  if errors.error then H.metrics[#H.metrics+1] = {flag="error save "..errors.error} end
   local entries = SO.errors and SO.errors.entries() or {}
-  if entries[#entries] then H.metrics[#H.metrics+1] = "Last: "..entries[#entries].text end
+  if entries[#entries] then H.metrics[#H.metrics+1] = {last=entries[#entries].text} end
 end
 
 local function sessionView(session, role)
@@ -140,23 +145,37 @@ local function sessionView(session, role)
   return session.visibility[role]
 end
 
+-- Route A (docs/ui/schematic/other.py health): HEALTH and NEEDS, then EVENTS ALERTS ERRORS as tabs,
+-- the page's rows, and the paging chips on the last row.
 H.render = function(role,w,h,session)
   session = session or {}
   local v = sessionView(session,role)
   local c = U.canvas(w,h)
-  if h < 5 then c.button(1,h,w,"BACK","generic","7",1);return c.frame() end
-  local halves = U.grid(w,h,2)
-  c.button(halves[1].x,1,halves[1].w,"HEALTH","health","7",1)
-  c.button(halves[2].x,1,halves[2].w,"NEEDS "..#H.items,"attention","1",1)
-  c.header(role:upper(),"")
-  local capacity = math.max(0,h-5)
+  if h < 5 then c.chip(2,h,"BACK","generic");return c.frame() end
+  local first = H.items[1]
+  local last = U.tabRows(c,{{{"HEALTH","health"},{"NEEDS "..#H.items,"attention",first and (first.severity==1 and "e" or "1")}},
+    {{"EVENTS","events"},{"ALERTS","alerts"},{"ERRORS","errors"}}},role,4)
+  local gap, lw = h >= 16 and 1 or 0, math.min(w-2,40)
+  local top = last+1+gap
+  if role == "events" then
+    c.put(2,top,"kind","8")
+    c.chip(7,top,v.kind or "all","kind")
+    top = top+1+gap
+  end
+  local capacity = math.max(0,h-1-gap-top+1)
   local rows, page = {}, nil
   if role == "health" then
-    for _, text in ipairs(H.metrics) do rows[#rows+1] = {text=text} end
+    for _, m in ipairs(H.metrics) do
+      if m.last then
+        for i, line in ipairs(U.wrap(m.last,lw-5)) do
+          if i <= 2 then rows[#rows+1] = {label=i==1 and "last" or "",text=line} end
+        end
+      else rows[#rows+1] = m end
+    end
   elseif role == "attention" then rows=H.items
   elseif role == "errors" then
     local entries = SO.errors and SO.errors.entries() or {}
-    for i=#entries,1,-1 do rows[#rows+1] = {text=duration(H.now-entries[i].at).." "..entries[i].text,severity=1} end
+    for i=#entries,1,-1 do rows[#rows+1] = {time=duration(H.now-entries[i].at),text=entries[i].text,fg="e"} end
   else
     local state = SO.mods.state
     if state and state.history then
@@ -164,11 +183,12 @@ H.render = function(role,w,h,session)
       for _, e in ipairs(page.entries) do
         local data = e.data
         local text = type(data)=="table" and (data.text or data.reason) or type(data)=="string" and data or data==false and "cleared"
-        rows[#rows+1] = {text=duration(H.now-(e.gameAt or H.now)).." "..e.kind..(text and " "..text or ""),severity=role=="alerts" and 1 or nil}
+        local kind = role == "alerts" and (e.kind:gsub("%.alert$","")) or e.kind
+        rows[#rows+1] = {time=duration(H.now-(e.gameAt or H.now)),kind=kind,text=text and tostring(text) or "",
+          fg=role=="alerts" and "e" or U.mark(e.kind..(text and " "..tostring(text) or ""))}
         H.kinds[e.kind] = true
       end
     end
-    if role == "events" then c.button(1,3,w,"KIND "..(v.kind or "ALL"),"kind","7",1) end
     v.next = page and page.next
   end
   if not page then
@@ -176,24 +196,37 @@ H.render = function(role,w,h,session)
     v.next = v.page*capacity < #rows and v.page+1 or nil
   end
   v.targets = {}
-  if #rows == 0 then c.put(2,4,role=="attention" and "All clear" or "No entries") end
-  local first = page and 1 or (v.page-1)*capacity+1
+  if #rows == 0 then
+    if role == "attention" then c.put(2,top,"all clear","d") else c.put(2,top,"no entries","8") end
+  end
+  local start = page and 1 or (v.page-1)*capacity+1
   for i=1,capacity do
-    local row = rows[first+i-1]
-    if row then
-      local text = row.text:gsub("[%c]"," ")
-      c.listRow(i+3,text,row.severity==1 and "e" or row.severity==2 and "1" or "b")
+    local row, y = rows[start+i-1], top+i-1
+    if row and role == "health" then
+      if row.flag then c.flag(2,y,lw,row.flag)
+      elseif row.text then c.put(2,y,row.label,"8") c.put(7,y,row.text,"0")
+      else
+        c.leader(2,y,lw,row[1],row[2],row[3] or (row[2]=="-" and "8" or "0"))
+        if row[4] then c.put(2+lw-#row[4],y,row[4],"e") end
+      end
+    elseif row and role == "attention" then
+      c.put(2,y,"!",row.severity==1 and "e" or "1")
+      c.put(4,y,U.fit((row.text:gsub("[%c]"," ")),w-4),"0")
       if row.target then
         local id = "item:"..row.key
-        c.hit(id,1,i+3,w,1)
+        c.hit(id,1,y,w,1)
         v.targets[id] = row
       end
+    elseif row then
+      c.put(2,y,U.g.bullet,row.fg)
+      c.put(4,y,row.time,"8")
+      local x = 5+#row.time
+      if row.kind then c.put(x,y,row.kind:sub(1,math.max(0,w-x)),"8") x = x+#row.kind+1 end
+      c.put(x,y,U.fit((row.text:gsub("[%c]"," ")),w-x),"0")
     end
   end
-  for i,col in ipairs(U.grid(w,h,3)) do
-    c.button(col.x,h-1,col.w,({"PREV","BACK","NEXT"})[i],({"prev","generic","next"})[i],"7",1)
-    c.button(col.x,h,col.w,({"EVENTS","ALERTS","ERRORS"})[i],({"events","alerts","errors"})[i],"7",1)
-  end
+  local pages = math.max(1,math.ceil(#rows/math.max(1,capacity)))
+  U.pager(c,h,not page and (v.page.."/"..pages) or "",v.page>1,v.next~=nil)
   return c.frame()
 end
 

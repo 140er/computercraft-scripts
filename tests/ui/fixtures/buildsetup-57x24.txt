@@ -1,0 +1,73 @@
+57x24 Build, setup tab, room monitor 57x24
+ BUILD   job   setup  ---------------------------------  
+                                                         
+ ! out of material                                       
+                                                         
+ shape       floor   walls   box                         
+                                                         
+ from       10,64,-5                                     
+                                                         
+ to         20,66,5                                      
+                                                         
+ material   cobblestone                                  
+                                                         
+ turtle     #8                                           
+                                                         
+ home       12,64,-5 E                                   
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+                                                         
+            START                       STOP             
+0000000088888000000000ccccccccccccccccccccccccccccccccc00
+000000000000000000000000000000000000000000000000000000000
+0e0000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888000000888888800000000088888000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088880000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888888000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088888800000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+088880000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+000000000000000000000000000000000000000000000000000000000
+08888888888888888888888888880eeeeeeeeeeeeeeeeeeeeeeeeeee0
+ffffffffffffff7777777ffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ffffffffffffffffffff7777777ffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+f777777777777777777777777777f777777777777777777777777777f
