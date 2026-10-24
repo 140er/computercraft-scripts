@@ -541,6 +541,28 @@ S.releaseSetup = function(id)
   S.message="confirming release"
 end
 
+S.forget = function(id)
+  local task = S.task and S.task.id == id and S.task
+  local releasing = S.releasing and S.releasing.id == id and S.releasing
+  if task then task.failed, task.lease = true, nil end
+  if releasing then releasing.lease = nil end
+  local cells = SO.mods.cells
+  if not cells or not cells.list or not cells.handoff then return false, "cells unavailable" end
+  local owner = "setup:" .. id
+  -- A forgotten worker may still receive a delayed visit step. Keep the route
+  -- protected until explicit re-add claims its actual pose and clears GPS holds.
+  for _, cell in ipairs(cells.list(owner, math.huge)) do
+    local ok, err = cells.handoff(owner, "gps:" .. id, cell.x, cell.y, cell.z, cell.dim)
+    if not ok then return false, err end
+  end
+  local ok, err = cells.releaseOwner(owner)
+  if not ok then return false, err end
+  if task then S.task, S.candidates = nil, {} end
+  if releasing then S.releasing = nil end
+  if S.compass and S.compass.id == id then S.compass = nil end
+  return true
+end
+
 S.row = function(text)
   return { text = text or "", fg = "0", bg = "f" }
 end
@@ -942,5 +964,6 @@ return {
   note = S.note,
   roomMark = S.roomMark,
   roomSink = S.setRoomSink,
+  forget = S.forget,
   busy = function(id) return S.task and S.task.id == id or S.releasing and S.releasing.id == id end,
 }

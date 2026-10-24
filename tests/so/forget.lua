@@ -2,7 +2,7 @@ local H = dofile("tests/so/harness.lua")
 local R = dofile("tests/ui/render.lua")
 local FILES = {"so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua", "so-log.lua", "so-errors.lua",
   "so-mod-state.lua", "so-mod-display.lua", "so-mod-panel.lua", "so-mod-health.lua", "so-mod-lease.lua",
-  "so-mod-cells.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-build.lua",
+  "so-mod-cells.lua", "so-mod-drops.lua", "so-mod-mine.lua", "so-mod-lumber.lua", "so-mod-build.lua",
   "so-plan.lua", "so-ui.lua", "so-mine-plan.lua", "so-lumber-plan.lua",
   "lib/ccryptolib/x25519.lua", "lib/ccryptolib/random.lua", "lib/ccryptolib/blake3.lua",
   "lib/ccryptolib/chacha20.lua", "lib/ccryptolib/config.lua", "lib/ccryptolib/internal/util.lua",
@@ -239,6 +239,64 @@ return function(test,equal)
       if sent.id==3 and type(sent.payload)=="table" and sent.payload.t=="pair.required" then found=true end
     end
     assert(found,"forgotten hello needs pair.required")
+  end)
+  test("forget clears setup and visit state while preserving possible occupied cells",function()
+    for _,visit in ipairs({false,true}) do
+      local s=setup(26,20)
+      local drops,cells=s.so.mods.drops,s.so.mods.cells
+      local state=private(drops.busy,"S")
+      state.task={id=3,lease="old-step",point=visit and {id="ore"} or nil}
+      state.releasing={id=3,lease="old-release"}
+      state.compass={id=3}
+      state.candidates={{x=1,y=64,z=0}}
+      assert(cells.reserveMany("setup:3",{{dim="minecraft:overworld",x=0,y=64,z=0},
+        {dim="minecraft:overworld",x=1,y=64,z=0}}))
+      s.open(2);s.press(2,"forget:3");s.press(2,"forget-confirm:3")
+      equal(s.so.pair.key(3),nil)
+      assert(not drops.busy(3))
+      equal(cells.list("setup:3",100),{})
+      equal(state.task,nil);equal(state.releasing,nil);equal(state.compass,nil);equal(state.candidates,{})
+      for x=0,1 do
+        equal(cells.owner(x,64,0,"minecraft:overworld"),"gps:3")
+        assert(not cells.reserve("other",x,64,0,"minecraft:overworld"))
+      end
+      local before=#s.m.sent
+      state.setupReport("old-step",3,{{ok=true}},{report={}})
+      state.setupReport("old-release",3,{{ok=true}},{report={}})
+      equal(#s.m.sent,before)
+      local replacement=assert(loadfile("so-mod-drops.lua","t",s.m.env))()
+      assert(not replacement.busy(3))
+      equal(cells.owner(1,64,0,"minecraft:overworld"),"gps:3")
+    end
+  end)
+  test("forget recovers orphan setup reservations without cancelling another device",function()
+    local s=setup(26,20)
+    local drops,cells=s.so.mods.drops,s.so.mods.cells
+    local state=private(drops.busy,"S")
+    state.task={id=4,lease="other"}
+    state.compass={id=4}
+    assert(cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
+    assert(s.so.forgetDevice(3,2))
+    equal(cells.list("setup:3",100),{})
+    equal(cells.owner(5,64,0,"minecraft:overworld"),"gps:3")
+    assert(drops.busy(4));equal(state.task.lease,"other");equal(state.compass.id,4)
+  end)
+  test("forget keeps the key when setup reservation handoff cannot save",function()
+    local s=setup(26,20)
+    local drops,cells=s.so.mods.drops,s.so.mods.cells
+    local state=private(drops.busy,"S")
+    state.task={id=3,lease="old-step"}
+    assert(cells.reserve("setup:3",5,64,0,"minecraft:overworld"))
+    local handoff=cells.handoff
+    cells.handoff=function() return false,"disk" end
+    equal(s.so.forgetDevice(3,2),false)
+    assert(s.so.pair.key(3) and drops.busy(3))
+    equal(state.task.lease,nil)
+    equal(cells.owner(5,64,0,"minecraft:overworld"),"setup:3")
+    cells.handoff=handoff
+    assert(s.so.forgetDevice(3,2))
+    equal(s.so.pair.key(3),nil);assert(not drops.busy(3))
+    equal(cells.owner(5,64,0,"minecraft:overworld"),"gps:3")
   end)
   test("forget parks one lumber worker while the rest of its fleet continues",function()
     local F=dofile("tests/so/lumber-farm-fixture.lua")

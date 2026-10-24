@@ -1527,6 +1527,12 @@ Before removing the key, the server saves parked assignments in mine, lumber
 and build. Their `forgotten` flag prevents planning and late reports from
 releasing reservations. Lease retries, pending anchors and GPS callbacks are
 detached. An invitation owned by the forgotten display is closed.
+Setup scans, chest visits, release probes and facing selection for the forgotten
+id are cancelled. `drops.forget(id)` hands its complete `setup:<id>` route to
+`gps:<id>` before releasing the setup owner. This also handles orphaned routes
+after restart. Delayed signed visit steps may still arrive, so recovery cells
+remain protected until explicit re-add claims the actual pose and clears the
+remaining GPS holds. A failed handoff retains the key and reservations.
 Reservations for every possible position stay in place because an unreported
 move may still occupy them. Lumber suspends service through its existing safe
 path, releasing unused queue holds only outside those possible positions. Parked assignments survive restart and prevent dug

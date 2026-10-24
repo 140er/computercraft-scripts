@@ -135,7 +135,7 @@ S.run = function()
   end
 
   SO.forgetDevice = function(id, actor)
-    for _, name in ipairs({"mine", "lumber", "build"}) do
+    for _, name in ipairs({"mine", "lumber", "build", "drops"}) do
       local mod = SO.mods[name]
       if mod and mod.forget then
         local ok, err = mod.forget(id)

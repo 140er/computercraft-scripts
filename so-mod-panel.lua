@@ -102,7 +102,7 @@ P.shop = function(c, session, x, y, w, height, compact)
   end
 end
 
-P.paired = function(c, w, h, session)
+P.pairedFrame = function(c, w, h, session)
   local panel = session.panel
   local rows = SO.pair.list and SO.pair.list() or {}
   local machines = SO.mods.state and SO.mods.state.get("machines") or {}
@@ -150,7 +150,7 @@ P.render = function(w, h, session)
   if w == 26 and page ~= "paired" then U.pocketHeader(c,"PANEL") c.put(8,2,P.time()) end
   if page ~= "paired" then session.panel.confirm = nil end
   if page == "paired" then
-    P.paired(c,w,h,session)
+    P.pairedFrame(c,w,h,session)
   elseif page == "pair" then
     c.put(2,3,"PAIR NEW CLIENT")
     local invitation = session.panel.invitation
