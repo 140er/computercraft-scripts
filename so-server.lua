@@ -49,6 +49,7 @@ S.run = function()
   local pair = S.need("so-pair.lua")
   if not proto or not store or not pair then return end
   local now, clockStatus = store.clock()
+  clockStatus = clockStatus or { refused = false }
   SO = { mods = {}, proto = proto, pair = pair, store = store, clock = clockStatus }
   SO.now = function()
     local refused = clockStatus.refused
