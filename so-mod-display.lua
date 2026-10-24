@@ -375,13 +375,20 @@ D.sendFrame = function(id, now, force)
   if slot then session.revSent = slot.rev end
 end
 
--- BACK and nav controls outlive the rest when an oversize frame sheds buttons.
-D.keep = { status = true, generic = true, ["visit-back"] = true, dismiss = true, back = true,
-  prev = true, next = true }
+-- BACK and nav controls outlive the rest when an oversize frame sheds buttons: the role and
+-- page returns, tabs, pagers and every *-back, *-cancel, *-close, *-prev and *-next.
+D.keep = { status = true, generic = true, dismiss = true, back = true, cancel = true, close = true,
+  items = true, prev = true, next = true }
+
+D.nav = function(id)
+  if type(id) ~= "string" then return false end
+  return D.keep[id] or id:match("^tab:") ~= nil or id:match("%-back$") ~= nil or id:match("%-cancel$") ~= nil
+    or id:match("%-close$") ~= nil or id:match("%-prev$") ~= nil or id:match("%-next$") ~= nil
+end
 
 D.dropButton = function(buttons)
   for i = #buttons, 1, -1 do
-    if not D.keep[buttons[i].id] then table.remove(buttons, i); return true end
+    if not D.nav(buttons[i].id) then table.remove(buttons, i); return true end
   end
   return false
 end
@@ -427,11 +434,10 @@ D.alertVersion = function(key, value)
   return version
 end
 
--- The newest alert sequence. The first call after boot numbers the alerts already
--- standing, so a session opened before the first gather still knows them as old.
+-- The newest alert sequence, after numbering the alerts standing now: a session opened
+-- between gathers, or before the first one after boot, still knows them as old.
 D.since = function()
-  if not D.seeded and SO.mods.state then
-    D.seeded = true
+  if SO.mods.state then
     local view = D.stateView()
     for _, key in ipairs(D.alertKeys(view)) do D.alertVersion(key, view.values[key]) end
   end
@@ -453,7 +459,6 @@ D.gather = function()
       if status.open then leases = leases + 1 end
     end
   end
-  D.seeded = true
   for _, key in ipairs(D.alertKeys(view)) do
     local value = view.values[key]
     local text = type(value) == "table" and tostring(value.text or value.reason or key) or tostring(value)

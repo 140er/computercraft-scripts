@@ -17,26 +17,27 @@ local function boot(values, opts)
   if opts.peripheral then m.env.peripheral = opts.peripheral end
   local d = m.env.dofile("so-mod-display.lua")
   s.d = d
-  s.open = function(role, w, h)
-    d.handlers.hello({from=2, body={w=w or 39, h=h or 13}})
-    assert(d.assign(2, role or "status"))
-    d.handlers["view.sub"]({from=2})
+  s.open = function(role, w, h, id)
+    id = id or 2
+    d.handlers.hello({from=id, body={w=w or 39, h=h or 13}})
+    assert(d.assign(id, role or "status"))
+    d.handlers["view.sub"]({from=id})
   end
   s.at = function(ms) s.clock = ms; d.tick(ms) end
-  s.frame = function()
+  s.frame = function(id)
     for i = #m.sent, 1, -1 do
-      if m.sent[i].id == 2 then return m.sent[i].payload end
+      if m.sent[i].id == (id or 2) then return m.sent[i].payload end
     end
   end
-  s.text = function()
+  s.text = function(id)
     local lines = {}
-    for _, row in ipairs(s.frame().rows) do lines[#lines + 1] = row.text end
+    for _, row in ipairs(s.frame(id).rows) do lines[#lines + 1] = row.text end
     return table.concat(lines, "\n")
   end
-  s.takeover = function()
-    local frame = s.frame()
+  s.takeover = function(id)
+    local frame = s.frame(id)
     for _, b in ipairs(frame and frame.buttons or {}) do
-      if b.id == "dismiss" then return s.text() end
+      if b.id == "dismiss" then return s.text(id) end
     end
   end
   return s
@@ -70,6 +71,17 @@ return function(test, equal)
     s.values["lumber.alert"] = { text = "out of saplings" }
     s.at(7000)
     assert((s.takeover() or ""):find("OUT OF SAPLINGS", 1, true), "a new alert takes over")
+  end)
+
+  test("a display opened between gathers knows the alert raised since as standing", function()
+    local s = boot({})
+    s.open()
+    s.at(1000)
+    s.values["a.alert"] = { text = "alpha" }
+    s.open("status", 39, 13, 3)
+    s.at(2000)
+    assert((s.takeover(2) or ""):find("ALPHA", 1, true), "the open display takes over")
+    equal(s.takeover(3), nil, "the new display already found it standing")
   end)
 
   test("a cleared alert leaves alertSeen and takes over again when it returns", function()
@@ -117,21 +129,58 @@ return function(test, equal)
     equal(#s.errors, 1, "the same error is logged once")
   end)
 
-  test("an oversize frame keeps BACK while it sheds buttons", function()
+  -- The frame only fits once a single row and the BACK and nav controls are left.
+  local NAV = { "status", "turtle-back", "turtle-cancel", "panel-back", "paired-back", "items",
+    "tab:fleet", "tab:jobs", "alert-prev", "alert-next" }
+  local function trimmed(page)
+    local nav = {}
+    for _, id in ipairs(NAV) do nav[id] = true end
     local s = boot({}, { encode = function(body)
-      if #body.rows > 1 or #body.buttons > 1 then return nil end
+      if #body.rows > 1 then return nil end
+      for _, b in ipairs(body.buttons) do if not nav[b.id] then return nil end end
       return body
     end })
-    s.d.screen("generic", function()
+    s.d.screen("generic", page, function() end)
+    s.open("drops", 26, 20)
+    s.at(1000)
+    local ids = {}
+    for _, b in ipairs(assert(s.frame(), "a trimmed frame is sent").buttons) do ids[#ids + 1] = b.id end
+    return ids
+  end
+
+  test("an oversize frame keeps BACK while it sheds buttons", function()
+    equal(table.concat(trimmed(function()
       return { rows = { { text = "a" }, { text = "b" }, { text = "c" } },
         buttons = { { id = "one", x = 1, y = 1, w = 3 }, { id = "two", x = 1, y = 2, w = 3 },
           { id = "status", label = "BACK", x = 1, y = 3, w = 4 } } }
-    end, function() end)
-    s.open("drops")
-    s.at(1000)
-    local frame = assert(s.frame(), "a trimmed frame is sent")
-    equal(#frame.buttons, 1)
-    equal(frame.buttons[1].id, "status")
+    end), ","), "status")
+  end)
+
+  test("an oversize turtle page keeps turtle-back", function()
+    local U = dofile("so-ui.lua")
+    local ids = trimmed(function(w, h)
+      return U.turtle.render(w, h, { id = 5 }, { role = "mining", state = "mining", pose = { x = 1, y = 2, z = 3, facing = 0 } }, 0)
+    end)
+    equal(ids[#ids], "turtle-back")
+    for _, id in ipairs(ids) do assert(id == "turtle-back", "only BACK is left, got " .. id) end
+    ids = trimmed(function(w, h)
+      return U.turtle.render(w, h, { id = 5, draft = { x = 1, y = 2, z = 3, facing = 0 } }, {}, 0)
+    end)
+    equal(table.concat(ids, ","), "turtle-cancel")
+  end)
+
+  test("an oversize pocket tab page keeps its tabs, pager and BACK", function()
+    local U = dofile("so-ui.lua")
+    local ids = trimmed(function(w, h)
+      local c = U.canvas(w, h)
+      c.bar("FLEET", { "FLEET", "JOBS" }, "FLEET")
+      for y = 2, 6 do c.hit("row:" .. y, 1, y, w, 1) end
+      c.hit("alert-prev", 1, 7, 3, 1); c.hit("alert-next", 5, 7, 3, 1)
+      c.hit("items", 1, 8, 5, 1); c.hit("paired-back", 1, 9, 4, 1); c.hit("panel-back", 1, 10, 4, 1)
+      return c.frame()
+    end)
+    table.sort(ids)
+    equal(table.concat(ids, ","), "alert-next,alert-prev,items,paired-back,panel-back,tab:fleet,tab:jobs")
   end)
 
   test("the status model has no undrawn PAIR tile", function()
