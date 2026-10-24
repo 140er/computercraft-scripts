@@ -60,7 +60,45 @@ local function setup(w,h)
   end
   return s
 end
+-- Per-cell fg and bg strings of a frame row.
+local function layers(row,w)
+  if not row.runs then
+    return #row.fg==1 and string.rep(row.fg,w) or row.fg,#row.bg==1 and string.rep(row.bg,w) or row.bg
+  end
+  local fg,bg={},{}
+  for _,run in ipairs(row.runs) do
+    fg[#fg+1]=string.rep(run[2],run[1]);bg[#bg+1]=string.rep(run[3],run[1])
+  end
+  return table.concat(fg),table.concat(bg)
+end
+-- CC glyphs start on a cell's top pixel row, so a label inked in the colour of the cell above
+-- loses its top stroke on a real screen.
+local function strokesShow(f,w,prefix)
+  local n=0
+  for _,b in ipairs(f.buttons) do
+    if b.id:sub(1,#prefix)==prefix then
+      local fg=layers(f.rows[b.y],w)
+      local _,above=layers(f.rows[b.y-1],w)
+      for x=b.x,b.x+b.w-1 do
+        if f.rows[b.y].text:sub(x,x)~=" " then
+          n=n+1
+          assert(fg:sub(x,x)~=above:sub(x,x),prefix.." ink matches the row above at column "..x)
+        end
+      end
+    end
+  end
+  assert(n>0,"no "..prefix.." label drawn")
+end
 return function(test,equal)
+  test("forget and confirm labels keep their top stroke on the panel and pocket",function()
+    for _,size in ipairs({{26,20},{29,12},{57,24}}) do
+      local s=setup(unpack(size))
+      s.open(2)
+      strokesShow(s.frame(2),size[1],"forget:")
+      s.press(2,"forget:3")
+      strokesShow(s.frame(2),size[1],"forget-confirm:")
+    end
+  end)
   test("forget drawn flow fits compact displays, pages keys and refuses self",function()
     for _,size in ipairs({{26,20},{29,12}}) do
       local s=setup(unpack(size))
