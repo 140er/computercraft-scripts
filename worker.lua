@@ -656,7 +656,7 @@ W.startBatch = function(msg)
     end
     results[i] = W.exec(step)
     if not results[i].ok and (type(results[i].err)=="string" and results[i].err:match("^remote safety:")
-      or step.safety and C.moves[op]) then
+      or type(step)=="table" and step.safety and C.moves[op]) then
       if not results[i].err:match("^remote safety:") then results[i].err="remote safety: "..results[i].err end
       for j=i+1,n do results[j]={ok=false,err=results[i].err,counts=W.counts()} end
       W.journal.pending=nil W.save()

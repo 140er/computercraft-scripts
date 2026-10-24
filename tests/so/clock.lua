@@ -125,7 +125,7 @@ return function(test, equal)
   test("clock a delayed retry cannot extend a batch queued behind other work",function()
     local n=H.new({tickRate=4})
     local m=n.machine({id=2,turtle=true})
-    m.install({"worker.lua","so-proto.lua","so-pair.lua"})
+    m.install({"worker.lua","so-proto.lua","so-pair.lua","so-store.lua"})
     local f=assert(io.open("worker.lua","rb"));local source=f:read("*a");f:close()
     local code,count=source:gsub("W.boot%(%)%s*$","return W")
     equal(count,1)
@@ -142,7 +142,8 @@ return function(test, equal)
     end
     accept(1000);n.advance(0.2);accept(900);n.advance(0.85)
     local results
-    w.journal={};w.pose={x=0,y=0,z=0,f=0}
+    w.store=m.env.dofile("so-store.lua")
+    w.journal={dim="minecraft:overworld"};w.pose={x=0,y=0,z=0,f=0}
     w.paint=function() end;w.save=function() return true end;w.counts=function() return {} end
     w.report=function(value) results=value end;w.enterFast=function() end
     w.startBatch(w.queued)
