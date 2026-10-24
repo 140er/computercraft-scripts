@@ -21,6 +21,7 @@ import status as ST  # noqa: E402
 import pocket as PK  # noqa: E402
 import system as SY  # noqa: E402
 import jobs as J  # noqa: E402
+import panel as PN  # noqa: E402
 
 
 def status(w, h, title, wall_map=False):
@@ -118,6 +119,7 @@ FIXTURES = [
 ]
 FIXTURES += SH.FIXTURES + MS.FIXTURES
 FIXTURES += J.FIXTURES
+FIXTURES += PN.FIXTURES
 
 
 def main():

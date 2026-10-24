@@ -29,7 +29,7 @@ P.refresh = function()
       if status.lost then lost = lost + 1 end
     end
   end
-  if count > 0 then P.fleet = "TURTLES " .. (count-lost) .. " ok, " .. lost .. " lost" end
+  if count > 0 then P.fleet, P.lost = (count-lost) .. " ok \183 " .. lost .. " lost", lost end
   P.reasons = {}
   for role,key in pairs({mining="mine.alert",lumber="lumber.alert"}) do
     local reason=state and state.get and state.get(key)
@@ -74,45 +74,6 @@ P.probe = function(role, screen)
   if found[P.jobFacts[role][1]] or not P.facts[role] then P.facts[role] = found end
 end
 
-P.block = function(c, role, x, y, w, height, compact)
-  local loaded = P.states[role] ~= "not loaded"
-  c.put(x+1,y,role:upper():sub(1,w-2))
-  local offset = loaded and 10 or math.min(10,math.max(1,w-10))
-  local reason=P.reasons and P.reasons[role]
-  if reason then
-    c.fill(x,y,w,1,"e") c.put(x+1,y,reason:sub(1,math.max(0,w-2)),"f","e")
-  else c.put(x+offset,y,P.states[role]:sub(1,math.max(0,w-offset))) end
-  local halves = U.grid(w, height, 2)
-  if w == 26 then halves = {{x=1,w=12},{x=14,w=13}} end
-  for i,cmd in ipairs({"start","stop"}) do
-    local col = halves[i]
-    if loaded then c.button(x+col.x-1,y+1,col.w,cmd:upper(),role..":"..cmd,i==1 and "9" or "e",compact and 1 or 3)
-    else
-      c.fill(x+col.x-1,y+1,col.w,compact and 1 or 3,"c")
-      c.center(x+col.x-1,col.w,y+(compact and 1 or 2),cmd:upper())
-    end
-  end
-end
-
-P.shop = function(c, session, x, y, w, height, compact)
-  local loaded = P.states.shop ~= "not loaded"
-  c.put(x+1,y,"SHOP")
-  c.put(x+(loaded and 10 or math.min(10,math.max(1,w-10))),y,loaded and "search:" or "not loaded")
-  if loaded then c.search(x+1,y+1,w-2," " .. (session.panel.search or "") .. "_","search")
-  else c.fill(x+1,y+1,w-2,1,"c") end
-  local stacked = w < 26 and height >= 19 and not compact
-  local cols = U.grid(w,height,3)
-  for i,n in ipairs({1,16,64}) do
-    local col = stacked and {x=1,w=w} or cols[i]
-    local top = y + (compact and 2 or 3) + (stacked and (i-1)*4 or 0)
-    if loaded then c.button(x+col.x-1,top,col.w,tostring(n),"order:"..n,"a",compact and 1 or 3)
-    else
-      c.fill(x+col.x-1,top,col.w,compact and 1 or 3,"c")
-      c.center(x+col.x-1,col.w,top+(compact and 0 or 1),tostring(n))
-    end
-  end
-end
-
 -- The session's own invitation while it is still pending; clears it otherwise.
 P.invitation = function(state)
   local invitation = state.invitation
@@ -121,10 +82,6 @@ P.invitation = function(state)
   end
   if state.pairBusy and not SO.pair.pending() then state.pairBusy = nil end
   return invitation
-end
-P.left = function(invitation)
-  local left = math.max(0,math.ceil((invitation.expires-P.now())/1000))
-  return string.format("%d:%02d left",math.floor(left/60),left%60)
 end
 P.paired = function(session)
   return session.id and SO.pair.key(session.id) and type(SO.pairCode) == "function"
@@ -135,72 +92,6 @@ P.requestCode = function(state, event, session)
   state.pairBusy = state.invitation == nil
 end
 
-P.pairedFrame = function(c, w, h, session)
-  local panel = session.panel
-  local rows = SO.pair.list and SO.pair.list() or {}
-  local machines = SO.mods.state and SO.mods.state.get("machines") or {}
-  local capacity = math.max(1, math.floor((h-4)/3))
-  local pages = math.max(1, math.ceil(#rows/capacity))
-  panel.pairedPage = (panel.pairedPage or 0) % pages
-  if panel.forgetFailed then c.put(2,2,"SAVE FAILED","e") end
-  if panel.confirm and P.now() >= panel.confirm.expires then panel.confirm = nil end
-  for i=1,capacity do
-    local row = rows[panel.pairedPage*capacity+i]
-    if row then
-      local y = 3+(i-1)*3
-      local machine = machines[tostring(row.id)] or {}
-      local kind = tostring(machine.role or machine.kind or "?"):gsub("[%c]", " ")
-      c.put(2,y,("#"..row.id.." "..kind):sub(1,w-7))
-      c.put(w-4,y,row.fingerprint)
-      local age = machine.seen and math.max(0,math.floor((P.now()-machine.seen)/1000))
-      c.put(2,y+1,age and (age<60 and age.."s" or math.floor(age/60).."m") or "-")
-      if row.id ~= session.id then
-        -- Chips on 7, not dark ink on a fill: CC glyphs start on a cell's top pixel row, so
-        -- ink f under the f row above loses its top stroke on a real screen.
-        local confirm = panel.confirm and panel.confirm.id == row.id
-        c.chip(w-12,y+1,confirm and "CONFIRM" or "FORGET",
-          confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,
-          confirm and "stop" or "plain",12)
-      end
-    end
-  end
-  for i,col in ipairs(U.grid(w,h,3)) do
-    c.button(col.x,h,col.w,({"PREV","BACK","NEXT"})[i],({"paired-prev","paired-back","paired-next"})[i],"7",1)
-  end
-end
-
-P.enrollFrame = function(c, w, h, session, view)
-  local panel = session.panel
-  local left = math.max(0,math.ceil(view.left/1000))
-  c.header("ENROLL",string.format("%d:%02d",math.floor(left/60),left%60))
-  if panel.enrollFailed then c.put(2,1,"SAVE FAILED","e") end
-  local token, top = view.token, 3
-  if #token <= w-2 then c.put(2,3,token)
-  else
-    local cut = select(2,token:find("^%d+%-%w+%-%w+"))
-    c.put(2,3,token:sub(1,cut)); c.put(2,4,token:sub(cut+2)); top = 4
-  end
-  c.fill(2,top+1,w-2,3,"9")
-  c.big(2,top+1,w-2,view.joined.."/"..view.cap,"9")
-  local step = h >= 16 and 2 or 1
-  local y = top+4+step-1
-  -- APPROVE ALL names the drawn rows, and the display only accepts ids
-  -- from the frame it was sent, so it approves what the owner saw.
-  local shown = {}
-  for _,row in ipairs(view.rows) do
-    if y <= h-2 then
-      shown[#shown+1] = row.id.."-"..row.n
-      c.put(2,y,("#"..row.id.." "..row.kind:upper()):sub(1,w-16))
-      c.put(w-13,y,row.fp)
-      c.button(w-8,y,4,"OK","enroll-ok:"..row.id..":"..row.n,"9",1)
-      c.button(w-3,y,4,"NO","enroll-no:"..row.id..":"..row.n,"e",1)
-    end
-    y = y+step
-  end
-  c.button(1,h-1,w,"APPROVE ALL","enroll-all:"..table.concat(shown,"."),"9",1)
-  c.button(1,h,w,"CLOSE","enroll-close","7",1)
-end
-
 P.drawn = function(event)
   local panel = event.session.panel
   local b = panel.drawn and panel.drawn[event.id]
@@ -208,7 +99,235 @@ P.drawn = function(event)
     and event.x >= b.x and event.x < b.x+b.w and event.y >= b.y and event.y < b.y+(b.h or 1)
 end
 
-P.render = function(w, h, session)
+-- The panel role in route A; docs/ui/schematic/panel.py is its twin. Row 1 is the PANEL header (the
+-- pocket's tabs when a pocket opens PAIRED or ENROLL), pages have a section on row 3 and their
+-- actions on the last row. Every control is a one-row chip.
+P.header = function(c, w, h, main)
+  c.put(2,1,"PANEL","0")
+  local x,right = 9,main and P.time() or ""
+  if main and SO.mods.health and w >= 26 and h >= 12 then
+    x = c.chip(x,1,"HEALTH","health")+1
+    local n = tostring(SO.mods.health.count())
+    c.chip(x,1,"NEEDS "..n,"attention")
+    if n ~= "0" then c.put(x+7,1,n,"1","7") end
+    x = x+#n+9
+  end
+  if x+#right+2 > w then right = "" end
+  if right ~= "" then c.put(w-#right,1,right,"8") end
+  c.rule(x,1,w-#right-2)
+end
+
+-- Chips from column 2 at their own width, or shared equally when they do not fit.
+P.nav = function(c, y, items)
+  local need = -1
+  for _,item in ipairs(items) do need = need+#item[1]+3 end
+  if need > c.w-2 then U.actions(c,y,items);return end
+  local x = 2
+  for _,item in ipairs(items) do x = c.chip(x,y,item[1],item[2],item[3])+1 end
+end
+P.back = function(c, y, id) c.chip(c.w-6,y,"BACK",id) end
+-- A list row's own action as bracketed text ending at column right (w-1), so stacked rows never form a slab.
+P.act = function(c, y, label, id, fg, right)
+  local x = (right or c.w-1)-#label-1
+  c.put(x,y,"[","8");c.put(x+1,y,label,fg);c.put(x+#label+1,y,"]","8")
+  c.hit(id,x,y,#label+2,1,label)
+end
+-- Paging chips stay drawn on a single page (muted), as the old PREV and NEXT were. Left of BACK
+-- there is room up to column w-8; narrower, the arrows are one cell each and the page count goes.
+P.pager = function(c, y, page, pages, prev, nxt)
+  local n,kind = (page+1).."/"..pages,pages > 1 and "plain" or "muted"
+  if 9+#n > c.w-8 then c.chip(2,y,U.g.left,prev,kind,1);c.chip(4,y,U.g.right,nxt,kind,1);return end
+  local x = c.chip(2,y,U.g.left,prev,kind)+1
+  c.put(x,y,n,"8")
+  c.chip(x+#n+1,y,U.g.right,nxt,kind)
+end
+
+-- What the main page shows of a job: its facts, with the probed state unless the module reported it.
+P.liveJob = function(role)
+  if P.states[role] == "not loaded" then return nil end
+  local f,own = P.jobData(role,P.model())
+  if not own then f.state = P.states[role] or f.state end
+  return f
+end
+
+-- The quick order: the typed search and 1, 16 and 64 for its best match (keyboards only).
+P.shopBlock = function(c, session, x, y, cw)
+  local loaded = P.states.shop ~= "not loaded"
+  c.section(x,y,cw,"SHOP",loaded and "" or "not loaded")
+  if loaded then
+    local typed = (session.panel.search or ""):sub(-(cw-3))
+    c.put(x,y+1,">","8");c.put(x+2,y+1,typed,"0");c.put(x+2+#typed,y+1,"_","9")
+    c.hit("search",x,y+1,cw,1)
+  end
+  local third = math.floor((cw-2)/3)
+  for i,n in ipairs({1,16,64}) do
+    local cx = x+(i-1)*(third+1)
+    if loaded then c.chip(cx,y+2,tostring(n),"order:"..n,"plain",third) else P.dead(c,cx,y+2,tostring(n),third) end
+  end
+end
+
+-- Job blocks in as many columns of 16 cells or more as fit (at most 36 wide), split by a dim rule.
+-- When rows run out the lowest row of blocks gives up its spare row, then its facts.
+P.main = function(c, session, w, h)
+  local blocks,top = {"mining","lumber",session.keyboard and "shop" or nil},3
+  if (P.pairedNote or P.fleet) and h >= 12 then
+    if P.pairedNote then
+      c.put(2,3,U.g.bullet,"d");c.put(4,3,P.wrap(P.pairedNote,w-4)[1] or "","0")
+    else
+      local lw = math.min(w-2,36)
+      c.leader(2,3,lw,"turtles",P.fleet)
+      if P.lost > 0 then c.put(2+lw-#(P.lost.." lost"),3,P.lost.." lost","e") end
+    end
+    top = 5
+  end
+  local n = #blocks
+  local cw = math.floor((w-2-(n-1)*3)/n)
+  while n > 1 and cw < 16 do n = n-1;cw = math.floor((w-2-(n-1)*3)/n) end
+  cw = math.min(cw,36)
+  local grid,modes,reasons,jobs = {},{"full","tight","compact"},P.reasons or {},{}
+  for i,role in ipairs(blocks) do
+    local r = math.ceil(i/n)
+    grid[r] = grid[r] or {mode=1}
+    grid[r][#grid[r]+1] = role
+    if role ~= "shop" then jobs[role] = P.liveJob(role) end
+  end
+  -- A job that is not loaded has no facts to show.
+  local function mode(row, role) return jobs[role] and modes[row.mode] or "compact" end
+  local function rows(row)
+    local most = 0
+    for _,role in ipairs(row) do most = math.max(most,role == "shop" and 3 or P.jobRows(mode(row,role),reasons[role])) end
+    return most
+  end
+  local function total()
+    local t = -1
+    for _,row in ipairs(grid) do t = t+rows(row)+1 end
+    return t
+  end
+  local r = #grid
+  while r > 0 and total() > h-1-top do
+    if grid[r].mode < 3 then grid[r].mode = grid[r].mode+1 else r = r-1 end
+  end
+  local y = top
+  for _,row in ipairs(grid) do
+    local rh = rows(row)
+    if y+rh-1 > h-2 then break end
+    for i,role in ipairs(row) do
+      local x = 2+(i-1)*(cw+3)
+      if i > 1 then for j = y,y+rh-1 do c.put(x-2,j,"|","c") end end
+      if role == "shop" then P.shopBlock(c,session,x,y,cw)
+      else P.job(c,x,y,cw,role,jobs[role],mode(row,role),reasons[role]) end
+    end
+    y = y+rh+1
+  end
+  P.nav(c,h,{{"ALERTS","alerts","plain"},{"PAIR","pair","plain"}})
+end
+
+P.alertsFrame = function(c, session, w, h)
+  local panel = session.panel
+  c.section(2,3,w-2,"ALERTS",#P.alerts,#P.alerts > 0 and "e" or "8")
+  local capacity = math.max(1,h-5)
+  local pages = math.max(1,math.ceil(#P.alerts/capacity))
+  panel.alertPage = (panel.alertPage or 0) % pages
+  if #P.alerts == 0 then c.put(2,4,"no alerts","8") end
+  for i = 1,capacity do
+    local alert = P.alerts[panel.alertPage*capacity+i]
+    if alert then c.flag(2,3+i,w-2,P.wrap(alert.text,w-4)[1] or "") end
+  end
+  P.pager(c,h,panel.alertPage,pages,"alert-prev","alert-next")
+  P.back(c,h,"panel-back")
+end
+
+-- Line digits as large as fit between the header and the chips; nil when they do not fit.
+P.codeFit = function(w, h)
+  local dh = math.min(11,h-7)
+  dh = dh-(1-dh%2)
+  local gap = w >= 40 and 2 or 1
+  local dw = math.min(9,math.floor((w-2-5*gap)/6))
+  dh = math.min(dh,2*dw+1)
+  if dh >= 5 and dw >= 3 then return {dw=dw,dh=dh,gap=gap} end
+end
+P.panelPair = function(c, session, w, h)
+  local fit,g = P.codeFit(w,h),{y=3,ty=4,list=h-2,new=h,back=h}
+  if fit then g.dw,g.dh,g.gap,g.ty = fit.dw,fit.dh,fit.gap,3+fit.dh+(4+fit.dh < h-2 and 1 or 0) end
+  if w < 19 then g.list,g.new = h-4,h-2 end
+  P.pairPage(c,session,session.panel,w,h,g)
+end
+
+-- The paired keys: one row each from 40 columns, else the age and the chip on a second row.
+P.pairedFrame = function(c, w, h, session)
+  local panel = session.panel
+  local rows = SO.pair.list and SO.pair.list() or {}
+  local machines = SO.mods.state and SO.mods.state.get("machines") or {}
+  local step = w >= 40 and 1 or 2
+  local capacity = math.max(1,math.floor((h-5)/step))
+  local pages = math.max(1,math.ceil(#rows/capacity))
+  panel.pairedPage = (panel.pairedPage or 0) % pages
+  c.section(2,3,w-2,"PAIRED",panel.forgetFailed and "save failed" or #rows,panel.forgetFailed and "e" or "8")
+  if panel.confirm and P.now() >= panel.confirm.expires then panel.confirm = nil end
+  for i=1,capacity do
+    local row = rows[panel.pairedPage*capacity+i]
+    if row then
+      local y,id = 4+(i-1)*step,"#"..row.id
+      local machine = machines[tostring(row.id)] or {}
+      local kind = tostring(machine.role or machine.kind or ""):gsub("[%c]", " ")
+      local age = machine.seen and math.max(0,math.floor((P.now()-machine.seen)/1000))
+      age = age and (age < 60 and age.."s" or math.floor(age/60).."m") or "-"
+      c.put(2,y,id,"0")
+      if step == 1 then
+        if #kind <= 9 then c.put(8,y,kind,"8") end
+        c.put(18,y,row.fingerprint,"0");c.put(24,y,age,"8")
+      else
+        if 2+#id+#kind <= w-6 then c.put(3+#id,y,kind,"8") end
+        c.put(w-4,y,row.fingerprint,"0");c.put(2,y+1,age,"8")
+      end
+      if row.id ~= session.id then
+        local confirm = panel.confirm and panel.confirm.id == row.id
+        P.act(c,y+step-1,confirm and "CONFIRM" or "FORGET",
+          confirm and ("forget-confirm:"..row.id..":"..panel.confirm.token) or "forget:"..row.id,confirm and "e" or "0")
+      end
+    end
+  end
+  P.pager(c,h,panel.pairedPage,pages,"paired-prev","paired-next")
+  P.back(c,h,"paired-back")
+end
+
+-- The enroll window: token, joined count, then one row per request with OK and NO, or two rows
+-- when an id and kind do not fit beside the fingerprint and chips.
+P.enrollFrame = function(c, w, h, session, view)
+  local panel = session.panel
+  local left = math.max(0,math.ceil(view.left/1000))
+  c.section(2,3,w-2,"ENROLL",string.format("%d:%02d",math.floor(left/60),left%60),"0")
+  local token,y = view.token,4
+  if #token <= w-2 then c.put(2,4,token,"0")
+  else
+    local cut = select(2,token:find("^%d+%-%w+%-%w+"))
+    c.put(2,4,token:sub(1,cut),"0");c.put(2,5,token:sub(cut+2),"0");y = 5
+  end
+  c.leader(2,y+1,w-2,"joined",view.joined.."/"..view.cap)
+  c.section(2,y+2,w-2,"PENDING",panel.enrollFailed and "save failed" or #view.rows,panel.enrollFailed and "e" or "8")
+  local two,foot = false,w < 23 and h-1 or h
+  for _,row in ipairs(view.rows) do if #("#"..row.id.." "..row.kind) > w-17 then two = true end end
+  -- APPROVE ALL names the drawn rows, and the display only accepts ids
+  -- from the frame it was sent, so it approves what the owner saw.
+  local shown,ry = {},y+3
+  for _,row in ipairs(view.rows) do
+    local cy,fx,id = two and ry+1 or ry,two and w-4 or w-14,"#"..row.id
+    if cy <= foot-2 then
+      shown[#shown+1] = row.id.."-"..row.n
+      c.put(2,ry,id,"0")
+      if 2+#id+#row.kind <= fx-2 then c.put(3+#id,ry,row.kind,"8") end
+      c.put(fx,ry,row.fp,"0")
+      P.act(c,cy,"OK","enroll-ok:"..row.id..":"..row.n,"9",w-6)
+      P.act(c,cy,"NO","enroll-no:"..row.id..":"..row.n,"e")
+    end
+    ry = cy+1
+  end
+  c.chip(2,foot,"APPROVE ALL","enroll-all:"..table.concat(shown,"."),"primary")
+  c.chip(w-7,h,"CLOSE","enroll-close")
+end
+
+-- dot is the pocket's FLEET dot when a pocket draws PAIRED or ENROLL under its own tabs.
+P.render = function(w, h, session, dot)
   if not U then return {rows={{text="panel needs so-ui.lua",fg="0",bg="f"}},buttons={}} end
   session = session or {}
   session.panel = session.panel or {search="",page="main"}
@@ -216,102 +335,17 @@ P.render = function(w, h, session)
   local enroll = SO.enroll and SO.enroll.view(session.id)
   if session.panel.page == "enroll" and not (enroll and enroll.token) then session.panel.page = "pair" end
   local page = session.panel.page
-  local inner = page == "paired" or page == "enroll"
-  c.header(page == "paired" and "PAIRED" or "PANEL",inner and "" or P.time())
   if page ~= "paired" then session.panel.confirm = nil end
-  if page == "paired" then
-    P.pairedFrame(c,w,h,session)
-  elseif page == "enroll" then
-    P.enrollFrame(c,w,h,session,enroll)
-  elseif page == "pair" then
-    c.put(2,3,"PAIR NEW CLIENT")
-    local invitation = P.invitation(session.panel)
-    if session.panel.pairBusy then c.center(1,w,5,"CODE IN USE") end
-    if invitation then
-      c.fill(2,4,w-2,4,"9")
-      c.big(2,4,w-2,invitation.code,"9")
-      c.center(2,w-2,7,P.left(invitation),"9")
-    end
-    if P.paired(session) then
-      c.button(1,h < 12 and h-1 or h-3,w,"NEW CODE","pair-code","9",h < 12 and 1 or 3)
-    else
-      c.fill(1,h < 12 and h-1 or h-3,w,h < 12 and 1 or 3,"c")
-      c.center(1,w,h < 12 and h-1 or h-2,"NEW CODE")
-    end
-    if SO.enroll then
-      local cols = U.grid(w,h,2)
-      c.button(cols[1].x,h-4,cols[1].w,"PAIRED","paired","7",1)
-      if P.trusted(session) and (not enroll or enroll.token) then
-        c.button(cols[2].x,h-4,cols[2].w,"ENROLL","enroll","9",1)
-      else
-        c.fill(cols[2].x,h-4,cols[2].w,1,"c")
-        c.center(cols[2].x,cols[2].w,h-4,"ENROLL")
-      end
-    else
-      c.button(1,h-4,w,"PAIRED","paired","7",1)
-    end
-    c.button(1,h,w,"BACK","panel-back","7",1)
-  elseif page == "alerts" then
-    c.put(2,3,"ALERTS")
-    local capacity = math.max(1,h-5)
-    local pages = math.max(1,math.ceil(#P.alerts/capacity))
-    session.panel.alertPage = (session.panel.alertPage or 0) % pages
-    if #P.alerts == 0 then c.put(2,5,"No alerts") end
-    for i=1,capacity do
-      local alert = P.alerts[session.panel.alertPage*capacity+i]
-      if alert then c.listRow(4+i,alert.text,"e") end
-    end
-    local cols = U.grid(w,h,3)
-    for i,label in ipairs({"<","BACK",">"}) do
-      c.button(cols[i].x,h,cols[i].w,label,({"alert-prev","panel-back","alert-next"})[i],"7",1)
-    end
-  else
-    local top = P.fleet and h >= 12 and 4 or 3
-    if top == 4 then c.put(2,3,(P.pairedNote or P.fleet):sub(1,w-2)) end
-    -- Typed quick orders need a keyboard; monitor panels only run jobs.
-    local shop = session.keyboard
-    local cols = U.grid(w,h)
-    if not shop and #cols > 2 then cols = U.grid(w,h,2) end
-    if h < 19 and #cols == 1 then
-      P.block(c,"mining",1,top,w,h,true)
-      P.block(c,"lumber",1,top+2,w,h,true)
-      if shop then P.shop(c,session,1,top+4,w,h,true) end
-    elseif #cols >= 3 then
-      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
-      P.shop(c,session,cols[3].x,top,cols[3].w,h)
-    elseif #cols == 2 then
-      P.block(c,"mining",cols[1].x,top,cols[1].w,h)
-      P.block(c,"lumber",cols[2].x,top,cols[2].w,h)
-      if shop then P.shop(c,session,1,top+6,w,h) end
-    else
-      P.block(c,"mining",1,top,w,h)
-      P.block(c,"lumber",1,top+5,w,h)
-      if shop then P.shop(c,session,1,top+10,w,h) end
-    end
-    local labels, ids = {"ALERTS","PAIR"}, {"alerts","pair"}
-    c.fill(1,h,w,1,"7")
-    if w >= 26 then
-      local x = 1
-      for i,label in ipairs(labels) do
-        c.put(x+1,h,label)
-        c.hit(ids[i],x,h,i == #labels and w-x+1 or #label+2,1)
-        x = x+#label+2
-      end
-    else
-      for i,col in ipairs(U.grid(w,h,#labels)) do c.button(col.x,h,col.w,labels[i],ids[i],"7",1) end
-    end
-  end
-  if page == "main" and SO.mods.health and w >= 26 and h >= 12 then
-    local cols = U.grid(w,h,2)
-    c.button(cols[1].x,1,cols[1].w,"HEALTH","health","7",1)
-    c.button(cols[2].x,1,cols[2].w,"NEEDS "..SO.mods.health.count(),"attention","1",1)
-  end
+  if dot ~= nil then P.tabBar(c,"pair",dot) else P.header(c,w,h,page ~= "paired" and page ~= "enroll" and page ~= "pair" and page ~= "alerts") end
+  if page == "paired" then P.pairedFrame(c,w,h,session)
+  elseif page == "enroll" then P.enrollFrame(c,w,h,session,enroll)
+  elseif page == "pair" then P.panelPair(c,session,w,h)
+  elseif page == "alerts" then P.alertsFrame(c,session,w,h)
+  else P.main(c,session,w,h) end
   local frame = c.frame()
   session.panel.drawn = {}
   for _, b in ipairs(frame.buttons) do
-    local saved = {x=b.x,y=b.y,w=b.w,h=b.h,page=page}
-    session.panel.drawn[b.id] = saved
+    session.panel.drawn[b.id] = {x=b.x,y=b.y,w=b.w,h=b.h,page=page}
   end
   return frame
 end
@@ -503,11 +537,12 @@ P.alertPage = function(c, state, m, w, h)
 end
 
 -- A job's facts: the module's facts() when it has one, else the status model, else the probed state.
+-- The second value is true when the module itself answered.
 P.jobData = function(role, m)
   local mod = SO.mods[role == "mining" and "mine" or "lumber"]
   if mod and type(mod.facts) == "function" then
     local ok,f = pcall(mod.facts)
-    if ok and type(f) == "table" then return f end
+    if ok and type(f) == "table" then return f,true end
   end
   if role == "mining" and m.mining then
     local mi,low = m.mining,nil
@@ -524,47 +559,63 @@ P.jobData = function(role, m)
   return {state=P.states[role] or "-"}
 end
 
--- A long hold reason reads as its first word; ALERTS has the rest.
+-- A long hold reason reads as its first word; ALERTS has the rest. A word that does not fit is left out.
 P.word = function(state, room)
   if #state <= room then return state end
-  return (state:match("^[^ :;,]*") or state):sub(1,room)
+  local word = state:match("^[^ :;,]*") or state
+  return #word <= room and word or ""
 end
 
--- START and STOP; the one that does nothing now is muted. Missing jobs get grey chips without targets.
-P.jobChips = function(c, y, w, role, running, loaded)
-  local half = math.floor((w-4)/2)
+-- A grey chip without a target, for a control whose module is missing.
+P.dead = function(c, x, y, label, width)
+  c.put(x,y,string.rep(" ",width),"8","7")
+  c.put(x+math.floor((width-#label)/2),y,label,"8","7")
+end
+
+-- START and STOP in cw cells from x; the one that does nothing now is muted. Missing jobs get grey chips.
+P.jobChips = function(c, x, y, cw, role, running, loaded)
+  local half = math.floor((cw-2)/2)
   for i,cmd in ipairs({"start","stop"}) do
-    local x,label = i == 1 and 2 or w-half,cmd:upper()
+    local cx,label = i == 1 and x or x+cw-half,cmd:upper()
     if loaded then
       local kind = i == 1 and (running and "muted" or "primary") or (running and "stop" or "muted")
-      c.chip(x,y,label,role..":"..cmd,kind,half)
-    else
-      c.put(x,y,string.rep(" ",half),"8","7")
-      c.put(x+math.floor((half-#label)/2),y,label,"8","7")
-    end
+      c.chip(cx,y,label,role..":"..cmd,kind,half)
+    else P.dead(c,cx,y,label,half) end
   end
 end
 
-P.job = function(c, y, w, role, f)
-  local title,loaded,lw = role:upper(),f ~= nil,w-2
+-- Rows of a job block: full 7, tight 6 (no spare row unless a flag needs it), compact 2 (3 with a flag).
+P.jobRows = function(mode, reason)
+  if mode == "compact" then return reason and 3 or 2 end
+  return (mode == "full" or reason) and 7 or 6
+end
+
+-- A job block cw cells wide: the section with the state word, the facts, a refused start as a flag
+-- on the row above START and STOP.
+P.job = function(c, x, y, cw, role, f, mode, reason)
+  local title,loaded = role:upper(),f ~= nil
   local state = loaded and tostring(f.state or "-") or "not loaded"
-  local word = P.word(state,w-2-#title-3)
-  c.section(2,y,lw,title,word,loaded and U.tone(word) or "8")
-  if loaded and role == "mining" then
-    c.progress(2,y+1,10,f.done or 0,f.total or 0)
-    c.leader(2,y+2,lw,"busy",f.busy and f.workers and (f.busy.."/"..f.workers) or "-",f.busy and f.workers and "0" or "8")
+  local word = P.word(state,cw-#title-3)
+  local last = y+P.jobRows(mode or "full",reason)-1
+  c.section(x,y,cw,title,word,loaded and U.tone(word) or "8")
+  if reason then c.flag(x,last-1,cw,P.wrap(reason,cw-2)[1] or "") end
+  if loaded and mode ~= "compact" and role == "mining" then
+    local frac = (f.done or 0).."/"..(f.total or 0)
+    c.progress(x,y+1,math.min(10,cw-#frac-1),f.done or 0,f.total or 0)
+    c.leader(x,y+2,cw,"busy",f.busy and f.workers and (f.busy.."/"..f.workers) or "-",f.busy and f.workers and "0" or "8")
     local lane,fuel = f.lane,f.fuel
-    c.leader(2,y+3,lw,"lane",lane and (U.arrow(lane.facing)..lane.id) or "-",lane and "b" or "8")
-    c.leader(2,y+4,lw,"min fuel",fuel and (fuel.value.." #"..fuel.id) or "-",fuel and (fuel.value < 500 and "1" or "0") or "8")
-  elseif loaded then
+    c.leader(x,y+3,cw,"lane",lane and (U.arrow(lane.facing)..lane.id) or "-",lane and "b" or "8")
+    c.leader(x,y+4,cw,"min fuel",fuel and (fuel.value.." #"..fuel.id) or "-",fuel and (fuel.value < 500 and "1" or "0") or "8")
+  elseif loaded and mode ~= "compact" then
     local spots = f.spots or 0
-    c.progress(2,y+1,spots > 0 and math.min(12,spots) or 12,f.ready or 0,spots,"d",U.g.spade,"8",U.g.club)
+    local frac = (f.ready or 0).."/"..spots
+    c.progress(x,y+1,math.min(spots > 0 and spots or 12,12,cw-#frac-1),f.ready or 0,spots,"d",U.g.spade,"8",U.g.club)
     for i,row in ipairs({{"next grow","grow"},{"saplings","saplings"},{"fuel","fuel"}}) do
       local v = f[row[2]]
-      c.leader(2,y+1+i,lw,row[1],v == nil and "-" or tostring(v),v == nil and "8" or "0")
+      c.leader(x,y+1+i,cw,row[1],v == nil and "-" or tostring(v),v == nil and "8" or "0")
     end
   end
-  P.jobChips(c,y+6,w,role,loaded and state ~= "stopped",loaded)
+  P.jobChips(c,x,last,cw,role,loaded and state ~= "stopped",loaded)
 end
 
 -- The item the order chips act on: the tapped one while it still matches, else the best match.
@@ -608,28 +659,41 @@ P.shopPage = function(c, state, keyboard, w, h)
   if state.sent then c.put(2,h-1,state.sent[1]:sub(1,w-2),state.sent[2]) end
 end
 
--- The code in six line digits, a teal tick row counting its five minutes down, then NEW CODE.
-P.pairPage = function(c, session, state, w, h)
+-- The code in six line digits, a teal tick row counting its five minutes down, then PAIRED (and ENROLL)
+-- and NEW CODE. g places them: the pocket's PAIR tab by default, the panel's PAIR page from P.panelPair.
+P.pairPage = function(c, session, state, w, h, g)
+  g = g or {y=5,dw=3,dh=7,gap=1,ty=14,list=h-4,new=h-2}
   local invitation = P.invitation(state)
   local code = invitation and tostring(invitation.code) or "------"
-  c.digits(math.floor((w-(#code*4-1))/2)+1,5,code,invitation and "0" or "8",3,7,1)
+  local width = g.dw and #code*(g.dw+g.gap)-g.gap or w-2
+  local x = math.floor((w-width)/2)+1
+  if g.dw then c.digits(x,g.y,code,invitation and "0" or "8",g.dw,g.dh,g.gap)
+  else c.put(x,g.y,code,invitation and "0" or "8") end
   if invitation then
     local left = math.max(0,invitation.expires-P.now())
     local secs = math.ceil(left/1000)
-    c.ticks(2,14,18,U.filled(18,left,P.codeLife),"9")
-    c.put(21,14,string.format("%d:%02d",math.floor(secs/60),secs%60),"0")
-  elseif state.pairBusy then c.put(2,14,"code in use","1") end
-  if P.paired(session) then c.chip(2,h-2,"NEW CODE","pair-code","plain",w-2) end
-  -- The paired devices and the enroll window open as pages of the PAIR tab.
-  if not SO.enroll then c.chip(2,h-4,"PAIRED","paired","plain",w-2);return end
+    c.ticks(x,g.ty,width-5,U.filled(width-5,left,P.codeLife),"9")
+    c.put(x+width-4,g.ty,string.format("%d:%02d",math.floor(secs/60),secs%60),"0")
+  elseif state.pairBusy then c.put(x,g.ty,"code in use","1") end
+  if P.paired(session) then
+    if g.back == g.new then c.chip(2,g.new,"NEW CODE","pair-code") else c.chip(2,g.new,"NEW CODE","pair-code","plain",w-2) end
+  end
+  if g.back then P.back(c,g.back,"panel-back") end
+  -- The paired devices and the enroll window open as pages of PAIR; the panel's chips keep their own width.
+  if g.back then
+    local x = c.chip(2,g.list,"PAIRED","paired")+1
+    if not SO.enroll then return end
+    local enroll = SO.enroll.view(session.id)
+    if P.trusted(session) and (not enroll or enroll.token) then c.chip(x,g.list,"ENROLL","enroll","primary")
+    else P.dead(c,x,g.list,"ENROLL",8) end
+    return
+  end
+  if not SO.enroll then c.chip(2,g.list,"PAIRED","paired","plain",w-2);return end
   -- ENROLL has no target while another display holds the window.
   local enroll,bw = SO.enroll.view(session.id),math.floor((w-3)/2)
-  c.chip(2,h-4,"PAIRED","paired","plain",bw)
-  if P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,h-4,"ENROLL","enroll","primary",bw)
-  else
-    c.put(3+bw,h-4,string.rep(" ",bw),"8","7")
-    c.put(3+bw+math.floor((bw-6)/2),h-4,"ENROLL","8","7")
-  end
+  c.chip(2,g.list,"PAIRED","paired","plain",bw)
+  if P.trusted(session) and (not enroll or enroll.token) then c.chip(3+bw,g.list,"ENROLL","enroll","primary",bw)
+  else P.dead(c,3+bw,g.list,"ENROLL",bw) end
 end
 
 P.pocketState = function(session)
@@ -643,7 +707,7 @@ P.pocket = function(w, h, session)
   local page = state.page
   local panel = session.panel
   if page == "panel" then
-    if panel and (panel.page == "paired" or panel.page == "enroll") then return P.render(w,h,session) end
+    if panel and (panel.page == "paired" or panel.page == "enroll") then return P.render(w,h,session,#m.flags > 0) end
     state.page,page = "pair","pair"
   end
   if page == "fleet" or not page then P.fleetPage(c,m,w,h);return c.frame() end
@@ -653,7 +717,7 @@ P.pocket = function(w, h, session)
     for i,role in ipairs({"mining","lumber"}) do
       local screen = P.screens[role]
       local loaded = screen and type(screen.render) == "function" and type(screen.input) == "function"
-      P.job(c,i == 1 and 3 or 12,w,role,loaded and P.jobData(role,m) or nil)
+      P.job(c,2,i == 1 and 3 or 12,w-2,role,loaded and P.jobData(role,m) or nil)
     end
   elseif page == "shop" then P.shopPage(c,state,session.keyboard,w,h)
   elseif page == "pair" then P.pairPage(c,session,state,w,h) end

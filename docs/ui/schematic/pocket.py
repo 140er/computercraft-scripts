@@ -2,7 +2,7 @@
 in so-mod-panel.lua. The data comes from the status model (status.py) and tests/ui/system-scene.txt.
 """
 from cc import Canvas
-from kit import actions, chip, digits, filled, leader, progress, rule, section, ticks, tone
+from kit import chip, digits, filled, flag, leader, progress, rule, section, ticks, tone
 import status as ST
 from scene import lines
 
@@ -135,7 +135,8 @@ def facts(m):
 
 
 def state_word(state, room):
-    """A long hold reason reads as its first word; the alert list has the rest."""
+    """A long hold reason reads as its first word; the alert list has the rest. A word that does not
+    fit is left out."""
     if len(state) <= room:
         return state
     word = state
@@ -143,55 +144,72 @@ def state_word(state, room):
         if ch in " :;,":
             word = state[:i]
             break
-    return word[:room]
+    return word if len(word) <= room else ""
 
 
-def job_chips(cv, y, w, role, running, loaded):
-    half = (w - 4) // 2
+def dead(cv, x, y, label, width):
+    """A grey chip without a target, for a control whose module is missing."""
+    cv.put(x, y, " " * width, "8", "7")
+    cv.put(x + (width - len(label)) // 2, y, label, "8", "7")
+
+
+def job_chips(cv, x, y, cw, role, running, loaded):
+    half = (cw - 2) // 2
     for i, cmd in enumerate(("start", "stop")):
-        x = 2 if i == 0 else w - half
+        cx = x if i == 0 else x + cw - half
         label = cmd.upper()
         if not loaded:
-            cv.put(x, y, " " * half, "8", "7")
-            cv.put(x + (half - len(label)) // 2, y, label, "8", "7")
+            dead(cv, cx, y, label, half)
             continue
         kind = ("muted" if running else "primary") if cmd == "start" else ("stop" if running else "muted")
-        chip(cv, x, y, label, role + ":" + cmd, kind, half)
+        chip(cv, cx, y, label, role + ":" + cmd, kind, half)
 
 
-def job(cv, y, w, role, f):
+def job_rows(mode, reason=None):
+    """full 7 rows, tight 6 (7 with a flag), compact the section and the chips (3 with a flag)."""
+    if mode == "compact":
+        return 3 if reason else 2
+    return 7 if mode == "full" or reason else 6
+
+
+def job(cv, x, y, cw, role, f, mode="full", reason=None):
     title = role.upper()
     loaded = f is not None
     state = f["state"] if loaded else "not loaded"
-    word = state_word(state, w - 2 - len(title) - 3)
-    section(cv, 2, y, w - 2, title, word, tone(word) if loaded else "8")
-    if loaded:
-        lw = w - 2
+    word = state_word(state, cw - len(title) - 3)
+    last = y + job_rows(mode, reason) - 1
+    section(cv, x, y, cw, title, word, tone(word) if loaded else "8")
+    if reason:
+        flag(cv, x, last - 1, cw, (wrap(reason, cw - 2) or [""])[0])
+    if loaded and mode != "compact":
         if role == "mining":
-            progress(cv, 2, y + 1, 10, f.get("done", 0), f.get("total", 0))
+            frac = "%d/%d" % (f.get("done", 0), f.get("total", 0))
+            progress(cv, x, y + 1, min(10, cw - len(frac) - 1), f.get("done", 0), f.get("total", 0))
             busy = f.get("busy") is not None and f.get("workers") is not None
-            leader(cv, 2, y + 2, lw, "busy", "%d/%d" % (f["busy"], f["workers"]) if busy else "-", "0" if busy else "8")
+            leader(cv, x, y + 2, cw, "busy", "%d/%d" % (f["busy"], f["workers"]) if busy else "-", "0" if busy else "8")
             lane = f.get("lane")
-            leader(cv, 2, y + 3, lw, "lane", ("▲►▼◄"[lane["facing"]] if lane.get("facing") in (0, 1, 2, 3) else "•")
+            leader(cv, x, y + 3, cw, "lane", ("▲►▼◄"[lane["facing"]] if lane.get("facing") in (0, 1, 2, 3) else "•")
                    + str(lane["id"]) if lane else "-", "b" if lane else "8")
             fuel = f.get("fuel")
-            leader(cv, 2, y + 4, lw, "min fuel", "%d #%d" % (fuel["value"], fuel["id"]) if fuel else "-",
+            leader(cv, x, y + 4, cw, "min fuel", "%d #%d" % (fuel["value"], fuel["id"]) if fuel else "-",
                    ("1" if fuel["value"] < 500 else "0") if fuel else "8")
         else:
             spots = f.get("spots", 0)
-            progress(cv, 2, y + 1, min(12, spots) if spots > 0 else 12, f.get("ready", 0), spots, "d", "♠", "8", "♣")
+            frac = "%d/%d" % (f.get("ready", 0), spots)
+            progress(cv, x, y + 1, min(spots if spots > 0 else 12, 12, cw - len(frac) - 1), f.get("ready", 0), spots,
+                     "d", "♠", "8", "♣")
             for i, (label, key) in enumerate((("next grow", "grow"), ("saplings", "saplings"), ("fuel", "fuel"))):
                 v = f.get(key)
-                leader(cv, 2, y + 2 + i, lw, label, "-" if v is None else str(v), "8" if v is None else "0")
-    job_chips(cv, y + 6, w, role, loaded and state not in ("stopped", "not loaded"), loaded)
+                leader(cv, x, y + 2 + i, cw, label, "-" if v is None else str(v), "8" if v is None else "0")
+    job_chips(cv, x, last, cw, role, loaded and state not in ("stopped", "not loaded"), loaded)
 
 
 def jobs(m, w=26, h=20, f=None, title="Pocket JOBS"):
     cv = Canvas(w, h, title)
     tabs(cv, "jobs", len(m["flags"]) > 0)
     f = f or facts(m)
-    job(cv, 3, w, "mining", f.get("mining"))
-    job(cv, 12, w, "lumber", f.get("lumber"))
+    job(cv, 2, 3, w - 2, "mining", f.get("mining"))
+    job(cv, 2, 12, w - 2, "lumber", f.get("lumber"))
     return cv
 
 
@@ -254,28 +272,48 @@ def shop_sent():
 CODE_LIFE = 300000
 
 
-def code_digits(cv, y, w, text, fg):
-    """Six line digits, three cells wide, across a 26-cell pocket."""
-    width = len(text) * 4 - 1
-    digits(cv, (w - width) // 2 + 1, y, text, fg, 3, 7, 1)
-
-
-def pair(m, w=26, h=20, code=None, left=0, busy=False, paired=True, enroll=None):
-    """enroll is None without the enroll window module, else whether ENROLL can open now."""
-    cv = Canvas(w, h, "Pocket PAIR " + ("with a code" if code else "ready"))
-    tabs(cv, "pair", len(m["flags"]) > 0)
-    code_digits(cv, 5, w, code or "------", "0" if code else "8")
+def pair(m, w=26, h=20, code=None, left=0, busy=False, paired=True, enroll=None, title=None, g=None, cv=None):
+    """enroll is None without the enroll window module, else whether ENROLL can open now. g places the
+    code, ticks and chips: the pocket's PAIR tab by default, the panel's PAIR page from panel.py."""
+    if cv is None:
+        cv = Canvas(w, h, title or "Pocket PAIR " + ("with a code" if code else "ready"))
+        tabs(cv, "pair", len(m["flags"]) > 0)
+    g = g or dict(y=5, dw=3, dh=7, gap=1, ty=14, list=h - 4, new=h - 2)
+    text = code or "------"
+    width = len(text) * (g["dw"] + g["gap"]) - g["gap"] if g.get("dw") else w - 2
+    x = (w - width) // 2 + 1
+    if g.get("dw"):
+        digits(cv, x, g["y"], text, "0" if code else "8", g["dw"], g["dh"], g["gap"])
+    else:
+        cv.put(x, g["y"], text, "0" if code else "8")
     if code:
         secs = -(-left // 1000)
-        ticks(cv, 2, 14, 18, filled(18, left, CODE_LIFE), "9")
-        cv.put(21, 14, "%d:%02d" % (secs // 60, secs % 60), "0")
+        ticks(cv, x, g["ty"], width - 5, filled(width - 5, left, CODE_LIFE), "9")
+        cv.put(x + width - 4, g["ty"], "%d:%02d" % (secs // 60, secs % 60), "0")
     elif busy:
-        cv.put(2, 14, "code in use", "1")
+        cv.put(x, g["ty"], "code in use", "1")
     if paired:
-        chip(cv, 2, h - 2, "NEW CODE", "pair-code", "plain", w - 2)
-    # The paired devices and the enroll window open as pages of the PAIR tab.
+        if g.get("back") == g["new"]:
+            chip(cv, 2, g["new"], "NEW CODE", "pair-code")
+        else:
+            chip(cv, 2, g["new"], "NEW CODE", "pair-code", "plain", w - 2)
+    if g.get("back"):
+        chip(cv, w - 6, g["back"], "BACK", "panel-back")
+    # The paired devices and the enroll window open as pages of PAIR; the panel's chips keep their own width.
+    if g.get("back"):
+        x = chip(cv, 2, g["list"], "PAIRED", "paired") + 1
+        if enroll:
+            chip(cv, x, g["list"], "ENROLL", "enroll", "primary")
+        elif enroll is not None:
+            dead(cv, x, g["list"], "ENROLL", 8)
+        return cv
     if enroll is None:
-        chip(cv, 2, h - 4, "PAIRED", "paired", "plain", w - 2)
+        chip(cv, 2, g["list"], "PAIRED", "paired", "plain", w - 2)
+        return cv
+    bw = (w - 3) // 2
+    chip(cv, 2, g["list"], "PAIRED", "paired", "plain", bw)
+    if enroll:
+        chip(cv, 3 + bw, g["list"], "ENROLL", "enroll", "primary", bw)
     else:
-        actions(cv, h - 4, [("PAIRED", "paired", "plain"), ("ENROLL", "enroll", "primary" if enroll else "muted")])
+        dead(cv, 3 + bw, g["list"], "ENROLL", bw)
     return cv

@@ -83,18 +83,19 @@ end
 
 local U = dofile("so-ui.lua")
 
--- The pocket's PAIR page draws the code in route A line digits (rows 5-11, 3 cells wide, 1 apart).
-local function readLineCode(s)
+-- Both PAIR pages draw the code in route A line digits: the pocket's rows 5-11 from column 2, 3 cells
+-- wide and 1 apart; the 29x12 panel's rows 3-7 from column 4, 3 cells wide and 1 apart.
+local function readLineCode(s, x0, y0, dh)
   local code = ""
   for i=1,6 do
-    local x, found = 2+(i-1)*4
+    local x, found = x0+(i-1)*4
     for digit=0,9 do
-      local c = U.canvas(3,7)
-      c.digits(1,1,tostring(digit),"0",3,7,1)
+      local c = U.canvas(3,dh)
+      c.digits(1,1,tostring(digit),"0",3,dh,1)
       local rows, matches = c.frame().rows, true
-      for row=1,7 do
+      for row=1,dh do
         local want = ((rows[row].text or "") .. "   "):sub(1,3)
-        if (s.client.screen[row+4] or ""):sub(x,x+2) ~= want then matches=false end
+        if (s.client.screen[row+y0-1] or ""):sub(x,x+2) ~= want then matches=false end
       end
       if matches then assert(not found,"ambiguous digit");found=tostring(digit) end
     end
@@ -105,30 +106,16 @@ local function readLineCode(s)
 end
 
 local function readCode(s, w)
-  if w == 26 then return readLineCode(s) end
-  local code = ""
-  local x = 1 + math.floor((w-18)/2)
-  for i=1,6 do
-    local found
-    for digit=0,9 do
-      local glyph = U.glyph(tostring(digit), "f", "9")
-      local matches = true
-      for row=1,3 do
-        if (s.client.screen[row+3] or ""):sub(x,x+2) ~= glyph[row].text then matches=false end
-      end
-      if matches then assert(not found,"ambiguous digit");found=tostring(digit) end
-    end
-    assert(found,"missing big digit")
-    code=code..found
-    x=x+3
-  end
-  return code
+  if w == 26 then return readLineCode(s, 2, 5, 7) end
+  return readLineCode(s, 4, 3, 5)
 end
 
--- The code's countdown: row 14 on the pocket PAIR page, "m:ss left" on row 7 of the panel role.
-local function countdown(s, w)
-  if w == 26 then return (s.frame().rows[14].text or ""):match("%d+:%d%d") end
-  return (s.frame().rows[7].text or ""):match("%d+:%d%d left")
+-- The code's countdown: the m:ss after the teal tick row, on either PAIR page.
+local function countdown(s)
+  for _, row in ipairs(s.frame().rows) do
+    local left = (row.text or ""):match("[|\183]+ (%d+:%d%d)")
+    if left then return left end
+  end
 end
 
 local function newClient(s, id, code)
@@ -222,8 +209,9 @@ return function(test, equal)
   end
   test("panel pairing fixtures",function()
     local R=dofile("tests/ui/render.lua")
+    local sys=dofile("tests/ui/scene.lua").system()
     local env=setmetatable({SO={now=function() return 0 end,mods={},pair={key=function() return true end,
-      pending=function() return "123456" end},pairCode=function() end},
+      pending=function() return sys.code end},pairCode=function() end},
       os={epoch=function() return 0 end}}, {__index=_G})
     local panel=assert(loadfile("so-mod-panel.lua","t",env))()
     local render
@@ -236,7 +224,7 @@ return function(test, equal)
       local w,h,fixtures=table.unpack(size)
       for _,pending in ipairs({false,true}) do
         local session={id=2,panel={page="pair"}}
-        if pending then session.panel.invitation={code="123456",expires=292000} end
+        if pending then session.panel.invitation={code=sys.code,expires=sys.left} end
         local frame=render(w,h,session)
         local out=R.capture(w,h)
         for y,row in ipairs(frame.rows) do
@@ -264,6 +252,6 @@ return function(test, equal)
     end
     equal(s.server.env.SO.pair.pending(),nil)
     s.net.advance(2)
-    assert(not s.frame().rows[7].text:find("left",1,true))
+    assert(not countdown(s))
   end)
 end
