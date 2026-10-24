@@ -188,7 +188,7 @@ return function(test,equal)
     equal(f.job().turtle.id,3) equal(f.job().alert,nil) equal(f.mod().assigned(3),true)
     f.mod().handlers.hello({from=3,body={capabilities={parkBatch=true}}})
     f.tick() f.report() f.restart() f.tick() f.report()
-    equal(f.mods.cells.list("build:2"),old)
+    equal(#f.mods.cells.list("build:2"),#old)
     for _,p in ipairs(old) do
       equal(f.held[p.x..","..p.y..","..p.z],"build:2")
       equal(f.mods.cells.reserveMany("build:3",{p}),false)
