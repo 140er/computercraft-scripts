@@ -657,7 +657,7 @@ See [module APIs](server-only/PROTOCOL.md#module-apis).
   dimensions filter world elements. Alerts expire after five minutes, renewed
   by new events. First controller attachment clears old elements when supported.
   World strokes are single lines in the route A palette: twelve-edge boxes and a
-  two-line heading chevron on a turtle's top face. World labels use size 0.5 and
+  two-line upright heading chevron outside a turtle's front face. World labels use size 0.5 and
   short text, with nearby labels stacked. Only the nearest 16 turtle labels and
   eight drop labels per kind are drawn, using the server position. Boxes and
   chevrons remain. The HUD counts all registered workers like status, including
@@ -1060,7 +1060,7 @@ RA3 adds `tests/ui/ra3-ar.lua`. `docs/ui/schematic/ar.py` writes the AR screen f
 (`ar-M/W/L/P/S/XS`); ar-M was the last Big Tiles fixture, so `docs/ui/mockup-gen.py` writes none
 now. The test draws each model with the real module, compares text, fg and bg cell by cell with
 contrast and bounds, and checks the layer ids and full-row targets, one save per tap, reload and
-generator parity. `tests/so/ar-strokes.lua` checks the single-stroke boxes, the top-face chevron,
+generator parity. `tests/so/ar-strokes.lua` checks the single-stroke boxes, the front chevron,
 stable ids and the line budget; `tests/ui/ui3c.lua` checks the HUD panel geometry, colours and
 that no rectangles overlap.
 

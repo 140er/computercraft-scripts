@@ -538,6 +538,7 @@ twin. Fixtures `ar-M/W/L/P/S/XS`, from the models in `tests/ui/ra3-ar.lua`.
   Dim `c` rules split the cells and close the panel. An alert is a flag above it: a coral `!`,
   white text and a coral hairline. No filled colour bars, and no rectangles overlap.
 - **World:** single strokes in the state colours of section 4. A turtle is a twelve-edge box
-  with a two-line chevron on its top face pointing where it faces, and its `#id` above it.
+  with a two-line upright chevron just outside the face it faces (a `>` from the side, a tick
+  from the front), and its `#id` above it.
   Lease outlines are blue boxes; drops are small white boxes (coral when broken) with the
   kind's first letter.

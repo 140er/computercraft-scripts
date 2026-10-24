@@ -1686,9 +1686,9 @@ through `so-store` to `so-data/ar` as `{ turtles, leases, drops, alerts }`, with
 boolean values. A failed save leaves the current switches unchanged.
 
 - `turtles` draws a twelve-edge box and a heading chevron for each worker with a
-  pose. The chevron lies on the box's top face: two lines from wings 0.1 blocks
-  behind the face centre and 0.25 to either side, to a tip 0.3 blocks ahead in the
-  facing direction. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
+  pose. The chevron stands upright just outside the front face: two lines from
+  wings 0.6 blocks ahead of the block centre and 0.2 above and below mid height, to
+  a tip 0.75 blocks ahead at mid height. Its short `#<id>` label defaults to size 0.5. State comes from the machine registry and
   `lease.peek`, with `lease.inRange` checked when available. Two minutes
   unseen takes precedence and uses stale. Lost or out-of-range turtles use
   coral. Waiting, holding and numeric fuel below 64 use amber. Unlimited fuel

@@ -37,7 +37,7 @@ local function lines(b)
 end
 local function near(a, b) return math.abs(a - b) < 1e-9 end
 return function(test, equal)
-  test("AR draws every outline as one stroke per edge and the heading as a small chevron on the top face", function()
+  test("AR draws every outline as one stroke per edge and the heading as a small upright chevron at the front", function()
     local b = boot()
     b.machines[2] = turtle(1, 3, 1)
     b.points = { { id = "ore", kind = "ore", dim = 0, x = 5, y = 64, z = 3 } }
@@ -46,19 +46,17 @@ return function(test, equal)
     equal(#owned(b, "drop:ore"), 13, "label and 12 box edges")
     for _, id in ipairs(owned(b, "turtle:2")) do assert(not id:find(":s%d$"), "no strand " .. id) end
     for edge = 1, 12 do equal(b.ar.elements["turtle:2:box:" .. edge].method, "drawLine3D") end
-    local top = b.ar.elements["turtle:2:box:5"]
-    equal(near(top[3], 65.05) and near(top[6], 65.05), true, "edges 5 to 8 are the top face")
-    -- Facing east: the tip sits 0.3 east of the top centre, the wings 0.1 behind it and 0.25 aside.
-    local left, right = b.ar.elements["turtle:2:heading"], b.ar.elements["turtle:2:heading:1"]
-    for _, wing in ipairs({ left, right }) do
-      equal(near(wing[5], 1.8) and near(wing[6], 65.05) and near(wing[7], 3.5), true, "both wings meet at the tip")
-      equal(near(wing[2], 1.4) and near(wing[3], 65.05), true, "wings start behind the centre on the top face")
-      assert(wing[2] > 0.95 and wing[5] < 2.05, "the chevron stays inside the box")
+    -- Facing east: an upright > just outside the east face (at 0.55): the tip 0.75 east of the centre
+    -- at mid height, the wings 0.6 east and 0.2 above and below.
+    local upper, lower = b.ar.elements["turtle:2:heading"], b.ar.elements["turtle:2:heading:1"]
+    for _, wing in ipairs({ upper, lower }) do
+      equal(near(wing[5], 2.25) and near(wing[6], 64.5) and near(wing[7], 3.5), true, "both wings meet at the tip")
+      equal(near(wing[2], 2.1) and near(wing[4], 3.5), true, "wings stand in the heading plane")
+      assert(wing[2] > 2.05, "the chevron sits outside the box")
     end
-    equal(near(left[4], 3.75) and near(right[4], 3.25), true, "wings sit 0.25 either side")
+    equal(near(upper[3], 64.7) and near(lower[3], 64.3), true, "wings 0.2 above and below mid height")
     equal(b.ar.elements["turtle:2:heading:2"], nil, "no arrow head or hatches")
-    assert(b.ar.elements["turtle:2"][3] > 65.05, "the label sits above the chevron")
-    for i, case in ipairs({ { 0, 1.5, 3.2 }, { 2, 1.5, 3.8 }, { 3, 1.2, 3.5 } }) do
+    for i, case in ipairs({ { 0, 1.5, 2.75 }, { 2, 1.5, 4.25 }, { 3, 0.75, 3.5 } }) do
       local facing, tip = case[1], { case[2], case[3] }
       b.machines[2] = turtle(1, 3, facing)
       b.tick(1000 + 1000 * i)

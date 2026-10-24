@@ -5,7 +5,7 @@ local A = {
   order = { "turtles", "leases", "drops", "alerts" }, controllers = {},
   alertMs = 300000, hudX = 4, hudY = 72, hudWidth = 192, hudCell = 64,
   labelScale = 0.5, labelGap = 0.25, labelLimits = { turtle = 16, drop = 8 },
-  chevron = { tip = 0.3, back = 0.1, half = 0.25 },
+  chevron = { tip = 0.75, back = 0.6, half = 0.2 },
   -- Route A palette as ARGB (docs/ui/SCHEMATIC-SPEC.md section 3): 0 white, 8 grey, c hair, f backing.
   white = 0xFFE6EAF2 - 2^32, grey = 0xFF7886A3 - 2^32, red = 0xFFFF6B5E - 2^32,
   green = 0xFF3DDC84 - 2^32, amber = 0xFFFFC24B - 2^32, blue = 0xFF5AB0FF - 2^32,
@@ -114,7 +114,8 @@ A.scene = function(now)
     labels[#labels + 1] = { id = id, color = color, x = p.x + 0.5, y = p.y + 1.25,
       z = p.z + 0.5, text = text:sub(1, 8), kind = kind, group = group, distance = far(p.x, p.y, p.z) }
   end
-  -- Route A strokes: one line per box edge and a small chevron on the turtle's top face.
+  -- Route A strokes: one line per box edge and a small upright chevron just outside the front face,
+  -- a > from the side and a tick from the front.
   local function box(id, color, x, y, z, u, v, w)
     local corners = { { x, z }, { u, z }, { u, w }, { x, w } }
     for k, p in ipairs(corners) do
@@ -125,11 +126,10 @@ A.scene = function(now)
     end
   end
   local function chevron(id, color, p, d)
-    local c, x, y, z = A.chevron, p.x + 0.5, p.y + 1.05, p.z + 0.5
-    local tx, tz, bx, bz = x + d[1] * c.tip, z + d[2] * c.tip, x - d[1] * c.back, z - d[2] * c.back
-    local sx, sz = -d[2] * c.half, d[1] * c.half
-    line(id, color, bx + sx, y, bz + sz, tx, y, tz)
-    line(id .. ":1", color, bx - sx, y, bz - sz, tx, y, tz)
+    local c, x, y, z = A.chevron, p.x + 0.5, p.y + 0.5, p.z + 0.5
+    local tx, tz, bx, bz = x + d[1] * c.tip, z + d[2] * c.tip, x + d[1] * c.back, z + d[2] * c.back
+    line(id, color, bx, y + c.half, bz, tx, y, tz)
+    line(id .. ":1", color, bx, y - c.half, bz, tx, y, tz)
   end
   local machines = SO.store.copy(A.call("state", "get", "machines") or {})
   local lumber = A.call("lumber", "mapView") or {}
