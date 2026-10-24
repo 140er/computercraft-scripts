@@ -234,6 +234,7 @@ end
 
 local function initRandom()
   if S.rnd.isInit() then return true end
+  if S.randomRetry and S.now() < S.randomRetry then return nil, "random source unavailable" end
   local material = table.concat({
     tostring(os.epoch("utc")),
     tostring(os.clock()),
@@ -245,6 +246,7 @@ local function initRandom()
     local ok = pcall(S.rnd.initWithTiming)
     if ok and S.rnd.isInit() then
       S.rnd.mix(material)
+      S.randomRetry = nil
       return true
     end
     if attempt < 3 then
@@ -257,6 +259,7 @@ local function initRandom()
       end
     end
   end
+  S.randomRetry = S.now() + 30000
   return nil, "random source unavailable"
 end
 

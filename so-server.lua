@@ -115,6 +115,7 @@ S.run = function()
 
   local function showPrompt()
     view.mode, view.offset = "normal", 0
+    view.codeError = nil
     if term and not term.blit then
       term.clear()
       term.setCursorPos(1, 1)
@@ -129,9 +130,17 @@ S.run = function()
     view.rejected = nil
     -- A panel can request a code while the operator types a role command.
     if view.mode ~= "role" then view.mode = "code" end
-    view.code = pair.invite(not term.blit and term or nil)
-    view.expires = SO.now()+300000
+    local code, err = pair.invite(not term.blit and term or nil)
+    view.codeError = not code and (err or "random source unavailable") or nil
+    view.code = code or view.codeError
+    view.expires = SO.now() + (code and 300000 or 0)
+    if view.codeError and not term.blit then
+      term.clear()
+      term.setCursorPos(1, 1)
+      term.write(view.codeError)
+    end
     if not term.blit then showHostError() end
+    return code ~= nil
   end
 
   SO.pairCode = function(id)
@@ -139,30 +148,41 @@ S.run = function()
     if pair.pending() then
       if codeOwner ~= id then return nil end
     else
-      showCode()
+      if not showCode() then return nil end
       codeOwner = id
     end
     return { code = view.code, expires = view.expires }
   end
 
   SO.forgetDevice = function(id, actor)
+    local previousKey = pair.key(id)
+    local ok, err = pair.forget(id)
+    if not ok then return false, err end
+    local failure
     for _, name in ipairs({"mine", "lumber", "build", "drops"}) do
       local mod = SO.mods[name]
       if mod and mod.forget then
         local ok, err = mod.forget(id)
-        if not ok then return false, err or "assignment save failed" end
+        if not ok then failure = failure or err or "assignment save failed" end
       end
     end
-    local previousKey = pair.key(id)
-    local ok, err = pair.forget(id)
-    if not ok then return false, err end
     sent[id] = nil
     if codeOwner == id then pair.clear(); codeOwner = nil; showPrompt() end
     if SO.mods.lease then SO.mods.lease.forget(id, previousKey) end
     if SO.mods.display then SO.mods.display.forget(id) end
     local state = SO.mods.state
     if state and state.emit then state.emit("pair.forgotten", {id=id, actor=actor, text="Forgot device "..id}) end
+    -- Keep a partially parked device revoked. Retrying completes its cleanup.
+    if failure then return false, failure end
     return true
+  end
+
+  local function pairDone(id)
+    local state = SO.mods.state
+    if state and state.emit then
+      state.emit("pair.done", {id=id,at=SO.now()})
+      state.emit("pair.forgotten", nil)
+    end
   end
 
   local function recall(msg)
@@ -215,6 +235,7 @@ S.run = function()
       end
       reply("ack", body, open)
       pair.clear()
+      pairDone(msg.from)
       showPrompt()
     end,
     pair = function(msg, reply)
@@ -234,8 +255,7 @@ S.run = function()
       end
       reply("ack", body, hs)
       pair.clear()
-      local state = SO.mods.state
-      if state and state.emit then state.emit("pair.done", {id=msg.from,at=SO.now()}) end
+      pairDone(msg.from)
       showPrompt()
     end,
     hello = function(_msg, reply)
@@ -254,8 +274,7 @@ S.run = function()
         local ok, err = pair.enrollDecide(id, n, approve)
         if not ok then return nil, err end
         print("so-server: enroll " .. (approve and "approved " or "denied ") .. tostring(id))
-        local state = SO.mods.state
-        if approve and state and state.emit then state.emit("pair.done", {id=id,at=SO.now()}) end
+        if approve then pairDone(id) end
         return true
       end,
     }
@@ -292,7 +311,7 @@ S.run = function()
     rednet.send(msg.from, wire, "so")
   end
 
-  local function deliver(msg)
+  local function deliver(msg, key)
     local replied = false
     local function reply(t, body, key)
       if replied then return end
@@ -304,14 +323,22 @@ S.run = function()
     if built then
       found = true
       local ok, err = pcall(built, msg, reply)
-      if not ok then S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
+      if not ok then
+        S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err))
+        reply("err", { code = "handler" }, key)
+        return
+      end
     end
     for i = 1, #mods do
       local handler = mods[i].handlers[msg.t]
       if handler then
         found = true
         local ok, err = pcall(handler, msg, reply)
-        if not ok then S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err)) end
+        if not ok then
+          S.error("so-server: handler " .. msg.t .. " failed: " .. tostring(err))
+          reply("err", { code = "handler" }, key)
+          return
+        end
       end
     end
     if not found then reply("err", { code = "unknown", text = "unknown type" }) end
@@ -365,7 +392,7 @@ S.run = function()
       print("so-server: replay from " .. tostring(sender))
       return
     end
-    deliver(msg)
+    deliver(msg, key)
   end
 
   local function openModems()
@@ -416,7 +443,7 @@ S.run = function()
   end
   local timer, ticked
   local function tick()
-    if view.mode == "code" and not pair.pending() then showPrompt() end
+    if view.mode == "code" and not view.codeError and not pair.pending() then showPrompt() end
     local began, now = os.clock(), SO.now()
     local wall = os.epoch("utc")
     local health = SO.health
