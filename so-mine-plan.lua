@@ -59,6 +59,14 @@ function M.route(job, branch)
   for _ = 1, job.length do p = P.apply(p, "forward") out[#out+1] = p end
   return out
 end
+function M.fuelEstimate(job)
+  local branches = job.branches or 8
+  local gap = job.mode == "fast" and 2 or 4
+  -- Route lengths include each branch's spine access; the shaft trip includes the return.
+  return branches * job.length + gap * branches * (branches + 1) / 2
+    + 2 * (1 + math.abs(job.home.y - job.bottom))
+end
+
 local function laneShape(job)
   local top=P.apply({dim=job.dim,x=job.home.x,y=job.home.y,z=job.home.z,facing=job.home.facing},"forward")
   local last=0

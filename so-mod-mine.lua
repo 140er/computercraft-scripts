@@ -473,13 +473,18 @@ local function report(_, id, results, lease)
         end
         local enough = action.kind == "refuel" and type(row.fuel) == "number"
           and (row.fuel < 0 or row.fuel >= tripReserve(row.trip))
-        if failed and inspected and row.trip.kind == "fuel" and reason == "empty" then
-          call("shop", "fuelEmpty", row.trip.point)
-        end
+        local fuelWaiting = failed and inspected and row.trip.kind == "fuel" and reason == "empty"
+          and call("shop", "fuelEmpty", row.trip.point)
         if failed and enough and inspected and reason=="empty" then
           row.trip.stage = "back"
           row.state, row.dropRetry, row.error = "fuel", nil, nil
-        elseif failed then dropFailure(id, row, row.trip.kind, row.trip.point, not inspected and "broken" or reason)
+        elseif failed then
+          dropFailure(id, row, row.trip.kind, row.trip.point, not inspected and "broken" or reason)
+          if fuelWaiting then
+            -- Recheck the chest and shared policy after a minute, including after an order times out.
+            row.dropRetry.after = SO.now() + 60000
+            row.state = "hold"
+          end
         else row.dropRetry, row.error = nil, nil end
         if action.kind == "unload" then row.trip.stage = "out"
         elseif type(row.fuel) == "number" and row.fuel >= math.max(2000,tripReserve(row.trip)) then row.trip.stage = "back" end
@@ -885,7 +890,7 @@ local function view(session)
 end
 -- Route A screen (docs/ui/SCHEMATIC-SPEC.md); docs/ui/schematic/jobs.py is the twin of V.gather
 -- and the layouts and writes their fixtures.
-local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond" },
+local V = { ores = { "coal", "copper", "iron", "gold", "redstone", "lapis", "diamond", "quartz", "nether_gold", "ancient_debris" },
   tabs = { "overview", "setup" }, short = { "main", "setup" }, dirs = { [0] = { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } } }
 V.oreOn = function(m, name)
   if #m.ores == 0 then return true end
@@ -898,14 +903,27 @@ V.command = function(id)
   if id == "set-length-" or id == "set-length+" then
     return "length " .. math.max(1, math.min(4096, job.length + (id == "set-length+" and 8 or -8)))
   end
+  if id == "set-branches-" or id == "set-branches+" then
+    return "branches " .. math.max(1, math.min(4096, (job.branches or 8) + (id == "set-branches+" and 1 or -1)))
+  end
+  if id == "single" then return "continuous off" end
+  if id == "continuous" then return "continuous on" end
   local mode = id:match("^mode%-(%a+)$")
   if mode then return "mode " .. mode end
-  local ore = id:match("^ore%-(%a+)$")
+  local ore = id:match("^ore%-([%a_]+)$")
   if not ore or not M.ores[ore] then return end
+  local selected = {}
+  if #job.ores == 0 then
+    for name in pairs(M.ores) do selected[name] = true end
+  else
+    for _, name in ipairs(job.ores) do selected[name] = true end
+  end
+  selected[ore] = not selected[ore]
   local on = {}
   for _, name in ipairs(V.ores) do
-    if V.oreOn({ ores = job.ores }, name) ~= (name == ore) then on[#on + 1] = name end
+    if selected[name] then on[#on + 1] = name selected[name] = nil end
   end
+  for name, yes in pairs(selected) do if yes then on[#on + 1] = name end end
   if #on > 0 then return "ores " .. table.concat(on, ",") end
 end
 -- Job facts, one row per turtle placed on the job diagram, and the dug extent of every branch.
@@ -979,6 +997,7 @@ end
 -- The setup tab's extra facts: start checks, unassigned turtles and the shop's fuel policy.
 V.setup = function(m)
   m.checks, m.available = {}, {}
+  m.fuelNeed = M.fuelEstimate(job)
   for _, check in ipairs(readiness()) do m.checks[#m.checks + 1] = { text = check.text, ok = check.ok } end
   for _, id in ipairs(call("lease", "candidates") or {}) do
     local machine = call("state", "get", "machines/" .. id) or {}
@@ -1229,8 +1248,15 @@ V.setupRows = function(C, m, x, y, step, vx, vw, right, editing, stop)
   end
   y = y + step
   if y <= stop then
-    C.put(x, y, vx - x >= 9 and "branches" or "branch", "8")
-    C.put(vx, y, (m.branches .. " " .. (m.continuous and "continuous" or "single")):sub(1, right - vx + 1), "0")
+    local nx = C.chip(x, y, "SINGLE", "single", m.continuous and "off" or "plain") + 1
+    C.chip(nx, y, "CONTINUOUS", "continuous", m.continuous and "plain" or "off")
+  end
+  if m.continuous then
+    y = y + step
+    if y <= stop then
+      C.put(x, y, vx - x >= 9 and "branches" or "branch", "8")
+      U.stepper(C, vx, y, m.branches, "set-branches", vw)
+    end
   end
   if m.policy then
     y = y + step
@@ -1287,6 +1313,7 @@ end
 V.setupRoom = function(C, m, editing)
   local w, ya = C.w, C.h - 1
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  C.put(2, 2, "fuel ~" .. m.fuelNeed, "8")
   local rx = math.max(32, math.floor(w / 2))
   local left = V.setupRows(C, m, 2, 3, 2, 13, 8, rx - 3, editing, ya - 3)
   local right
@@ -1301,6 +1328,7 @@ end
 V.setupColumn = function(C, m, editing)
   local w, h = C.w, C.h
   U.roleBar(C, "MINING", V.tabs, V.short, 2, m.state, U.tone(m.state))
+  C.put(2, 2, "fuel ~" .. m.fuelNeed, "8")
   local wide, stop = w >= 36, m.alert and h - 2 or h - 1
   local vx, vw = wide and 13 or 10, wide and 8 or 6
   -- READY follows the controls; when it does not fit under them it gets pages of its own after
