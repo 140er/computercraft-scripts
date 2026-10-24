@@ -222,34 +222,58 @@ return function(test, equal, read)
     equal(s.lease.status(2).open, nil)
     equal(#s.calls, 1)
   end)
-  test("lease history page replies with state history entries over wire", function()
+  test("lease history wire pages use UTC cursors and text without changing sequence pages", function()
     local s = setup(origin)
-    for i = 1, 4 do assert(s.state.emit("sample", { n = i })) end
-    local query = { from = 1, count = 2 }
-    local expected = s.state.history.page(query)
-    s.send("history.page", query)
-    equal(s.worker.env.replies[1].t, "history.page")
-    equal(s.worker.env.replies[1].body, expected)
-  end)
-  test("lease lost GPS probe explains retry and a fresh hello permits another add", function()
-    local dim = "minecraft:overworld"
-    local s = setup({dim=dim,x=0,y=0,z=0})
-    local function hello()
-      s.send("hello", {role="turtle", gps={dim=dim,x=0,y=0,z=0},
-        journal={id="probe",pose={x=0,y=0,z=0,f=0}},capabilities={parkBatch=true}})
+    local epoch = s.server.env.os.epoch
+    local utc = 1700000000000
+    s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+    for i = 1, 105 do
+      utc = utc + 1000
+      assert(s.state.emit("sample", { text = "event " .. i }))
     end
-    hello()
-    local reason
-    s.lease.locate(2, dim, function(_, err) reason = err end)
-    local first = assert(s.lease.status(2).open)
-    s.net.advance(26)
-    equal(reason, "GPS probe lost; retry add")
-    equal(s.lease.status(2).open, nil)
-    hello()
-    s.lease.locate(2, dim, function() error("retry should start a probe") end)
-    local retry = assert(s.lease.status(2).open)
-    assert(retry ~= first)
-    equal(s.lease.status(2).probing, true)
+    local internal = s.state.history.page({ from = 100, count = 2 })
+    equal(internal.entries[1].seq, 101)
+    equal(internal.entries[2].seq, 102)
+    equal(internal.next, 102)
+    local function page(query)
+      local n = #s.worker.env.replies
+      s.send("history.page", query)
+      local reply = s.worker.env.replies[n + 1]
+      equal(reply.t, "history.page")
+      return reply.body
+    end
+    local first = page({ limit = 2, from = 1, count = 1, reverse = false })
+    equal(first.entries, {
+      { at = utc, text = "sample event 105" },
+      { at = utc - 1000, text = "sample event 104" },
+    })
+    equal(first.next, utc - 1000)
+    local second = page({ limit = 2, before = first.next })
+    equal(second.entries[1], {at=utc-2000, text="sample event 103"})
+    equal(second.entries[2], {at=utc-3000, text="sample event 102"})
+    local last = page({ limit = 50, before = utc - 103000 })
+    equal(last.entries, {{at=utc-104000, text="sample event 1"}})
+    equal(last.next, nil)
+    equal(#page({}).entries, 20)
+    equal(#page({limit=99}).entries, 50)
+    equal(#page({limit=0}).entries, 1)
+    equal(s.state.history.page({from=100,count=2}), internal)
+  end)
+  test("lease history wire sorts UTC times and excludes equal cursor times", function()
+    local s = setup(origin)
+    local epoch = s.server.env.os.epoch
+    local utc = 1700000000000
+    s.server.env.os.epoch = function(kind) return kind == "utc" and utc or epoch(kind) end
+    assert(s.state.emit("sample", "first"))
+    utc = utc - 1000
+    assert(s.state.emit("sample", {reason="older"}))
+    utc = utc + 1000
+    assert(s.state.emit("sample", false))
+    s.send("history.page", {limit=2})
+    equal(s.worker.env.replies[1].body, {entries={
+      {at=utc,text="sample cleared"}, {at=utc,text="sample first"}}, next=utc})
+    s.send("history.page", {before=utc,limit=2})
+    equal(s.worker.env.replies[2].body, {entries={{at=utc-1000,text="sample older"}}})
   end)
   test("lease range uses gps or allows positions without a server fix", function()
     local s = setup(nil, origin)

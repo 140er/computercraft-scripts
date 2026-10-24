@@ -542,6 +542,36 @@ S.tick = function(now)
   end
 end
 
+S.historyPage = function(query, history)
+  query = type(query) == "table" and query or {}
+  local limit = S.number(query.limit) and math.floor(query.limit) or 20
+  limit = math.max(1, math.min(50, limit))
+  local before = S.number(query.before) and query.before or math.huge
+  local entries, cursor = {}, nil
+  repeat
+    local page = history.page({ reverse = true, before = cursor, count = 50 })
+    for _, entry in ipairs(page.entries) do
+      if entry.at < before then entries[#entries + 1] = entry end
+    end
+    table.sort(entries, function(a, b)
+      if a.at == b.at then return a.seq > b.seq end
+      return a.at > b.at
+    end)
+    while #entries > limit + 1 do entries[#entries] = nil end
+    cursor = page.next
+  until not cursor
+  local more = #entries > limit
+  if more then entries[#entries] = nil end
+  local out = {}
+  for _, entry in ipairs(entries) do
+    local data = entry.data
+    local detail = type(data) == "table" and (data.text or data.reason)
+      or type(data) == "string" and data or data == false and "cleared"
+    out[#out + 1] = { at = entry.at, text = entry.kind .. (detail and " " .. tostring(detail) or "") }
+  end
+  return { entries = out, next = more and out[#out].at or nil }
+end
+
 S.dugProtection = function(protect)
   for _, row in pairs(S.turtles) do
     if row.uncertain or row.anchor then return false end
@@ -570,7 +600,7 @@ return {
     ["history.page"] = function(msg, reply)
       local state = S.module("state")
       if type(state) == "table" and type(state.history) == "table" and type(state.history.page) == "function" then
-        reply("history.page", state.history.page(msg.body))
+        reply("history.page", S.historyPage(msg.body, state.history))
       end
     end,
   },
