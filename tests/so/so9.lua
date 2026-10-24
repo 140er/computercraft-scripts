@@ -161,6 +161,116 @@ return function(test, equal, read)
     equal(m.env.fs.exists("/.so-new"), false)
     equal(m.env.fs.exists("/.so-old"), false)
   end
+  test("SO9 enroll refuses every saved key file before downloading or writing a token", function()
+    local token = "1-ABCD-EFGH-JKLM-NPQR"
+    for _, path in ipairs({ "so-keys", "so-keys.bak", "so-keys.tmp" }) do
+      local m = machine("worker")
+      m.files[path] = "saved pairing"
+      local before = snapshot(m)
+      m.run(token)
+      unchanged(m, before)
+      equal(m.files["so-enroll"], nil)
+      equal(#m.urls, 0)
+      equal(#m.runs, 0)
+      equal(m.log[1], "This turtle has paired keys. Run install reset first.")
+      assert(not table.concat(m.log):find(token, 1, true))
+    end
+    local m = machine("worker")
+    m.files["so-keys.bak"] = "saved pairing"
+    m.env.read = function() return "yes" end
+    m.run("reset")
+    m.run(token)
+    equal(m.env.textutils.unserialize(m.files["so-enroll"]), { token = token })
+    equal(#m.runs, 1)
+    equal(m.runs[1][1], "/worker.lua")
+    assert(not table.concat(m.log):find(token, 1, true))
+  end)
+  test("SO9 update and rollback print both revisions and start each role once", function()
+    for _, role in ipairs({ "worker", "display", "server" }) do
+      local m = installed(role)
+      m.files[".so-revision"] = "  " .. string.rep("b", 40) .. "\n"
+      m.run("update")
+      equal(m.log[#m.log], "Updated " .. role .. " from bbbbbbb to aaaaaaa")
+      equal(m.runs, { { "/" .. roles[role].program } })
+      m.runs = {}
+      m.source = m.files["install.lua"]
+      m.run("rollback")
+      equal(m.log[#m.log], "Updated " .. role .. " from aaaaaaa to bbbbbbb")
+      equal(m.runs, { { "/" .. roles[role].program } })
+    end
+  end)
+  test("SO9 updates without valid revision metadata report unknown", function()
+    for _, revision in ipairs({ false, "corrupt revision" }) do
+      local m = installed("worker")
+      m.files[".so-revision"] = revision or nil
+      m.run("update")
+      equal(m.log[#m.log], "Updated worker from unknown to aaaaaaa")
+      m.run("rollback")
+      equal(m.log[#m.log], "Updated worker from aaaaaaa to unknown")
+    end
+  end)
+  test("SO9 failed downloads and swaps never start a role or report success", function()
+    for _, mode in ipairs({ "download", "update swap", "rollback swap", "rollback missing" }) do
+      local m = installed("worker")
+      if mode == "rollback swap" then m.run("update"); m.runs, m.log = {}, {} end
+      if mode == "download" then m.failAt = 5
+      elseif mode ~= "rollback missing" then
+        local move = m.env.fs.move
+        m.env.fs.move = function(a, b)
+          move(a, b)
+          if a == "/.so-new/worker.lua" then error("disk fault") end
+        end
+      end
+      local command = mode:find("rollback", 1, true) and "rollback" or "update"
+      local ok = pcall(m.run, command)
+      equal(ok, mode ~= "rollback missing")
+      equal(#m.runs, 0)
+      assert(not table.concat(m.log):find("Updated ", 1, true))
+    end
+  end)
+  test("SO9 reset counts primary or backup keys before asking without printing key text", function()
+    local function saved(n)
+      local keys = {}
+      for i = 1, n do keys[tostring(i)] = "private pairing key " .. i end
+      return { schema = 1, generation = 1, value = { keys = keys } }
+    end
+    for _, mode in ipairs({ "primary", "backup", "corrupt", "empty", "none" }) do
+      local m = machine("server")
+      if mode ~= "none" then
+        m.files["so-keys.bak"] = m.env.textutils.serialize(saved(3))
+      end
+      if mode == "primary" or mode == "empty" then
+        m.files["so-keys"] = m.env.textutils.serialize(saved(mode == "empty" and 0 or 2))
+      elseif mode == "corrupt" then m.files["so-keys"] = "invalid data" end
+      local expected = mode == "primary" and 2 or (mode == "empty" or mode == "none") and 0 or 3
+      local before = snapshot(m)
+      m.env.read = function()
+        equal(m.log[#m.log], 'Delete this machine\'s files and ' .. expected .. ' paired keys? Type "yes" to confirm.')
+        return "no"
+      end
+      m.run("reset")
+      unchanged(m, before)
+      assert(not table.concat(m.log):find("private pairing key", 1, true))
+    end
+  end)
+  test("SO9 every staged download is named before its HTTP request", function()
+    for _, role in ipairs({ "worker", "display", "server" }) do
+      for _, updating in ipairs({ false, true }) do
+        local m = updating and installed(role) or machine(role)
+        local names = {}
+        m.onRaw = function(url)
+          local path = assert(url:match("/" .. m.sha .. "/(.*)$"))
+          equal(m.log[#m.log], path)
+          names[#names + 1] = path
+        end
+        m.run(updating and "update" or nil)
+        equal(names, files(role))
+        if not updating then
+          assert(table.concat(m.log, "\n"):find("Installed " .. role .. ". Use install update to update.", 1, true))
+        end
+      end
+    end
+  end)
   test("SO9 server manifest covers every root so file and crypto file", function()
     assert(roles, "installer needs the role table")
     local set = {}
@@ -731,6 +841,7 @@ return function(test, equal, read)
         assert(ok, err)
         local cut = coroutine.status(co) == "suspended"
         for name, original in pairs(originals) do m.env.fs[name] = original end
+        m.runs = {}
         m.boot()
         assert(#m.runs > 0, "role did not boot at step " .. stop)
         local expected = m.files[".so-revision"] == string.rep("b", 40) and previous or current
