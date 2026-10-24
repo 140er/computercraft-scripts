@@ -143,7 +143,7 @@ end
 D.session = function(id)
   local found = D.sessions[id]
   if found then return found end
-  found = { id = id, sub = false, sent = 0 }
+  found = { id = id, sub = false, sent = 0, since = D.since() }
   D.sessions[id] = found
   return found
 end
@@ -363,8 +363,7 @@ D.sendFrame = function(id, now, force)
   local wire = SO.proto.encode(msg)
   while not wire do
     if #body.rows > 1 then body.rows[#body.rows] = nil
-    elseif #body.buttons > 0 then body.buttons[#body.buttons] = nil
-    else break end
+    elseif not D.dropButton(body.buttons) then break end
     msg = SO.proto.build(key, "view.frame", body)
     wire = SO.proto.encode(msg)
   end
@@ -376,6 +375,17 @@ D.sendFrame = function(id, now, force)
   if slot then session.revSent = slot.rev end
 end
 
+-- BACK and nav controls outlive the rest when an oversize frame sheds buttons.
+D.keep = { status = true, generic = true, ["visit-back"] = true, dismiss = true, back = true,
+  prev = true, next = true }
+
+D.dropButton = function(buttons)
+  for i = #buttons, 1, -1 do
+    if not D.keep[buttons[i].id] then table.remove(buttons, i); return true end
+  end
+  return false
+end
+
 D.register = function(role, render, input)
   if render == nil and input == nil then return D.screens[role] end
   if type(role) ~= "string" or role == "" then return end
@@ -384,18 +394,55 @@ D.register = function(role, render, input)
   D.screens[role] = { render = render, input = input }
 end
 
-D.gather = function()
-  local model = { time = U and U.clock(os.epoch("utc")).hm or "",
-    alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
-  local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
-  local view = {}
+D.stateView = function()
+  local state = SO.mods.state
   if state then
     local fn, meta = state.view, type(state.view) == "table" and getmetatable(state.view)
     if type(fn) == "function" or (meta and type(meta.__call) == "function") then
       local ok, got = pcall(fn)
-      if ok and type(got) == "table" then view = got end
+      if ok and type(got) == "table" then return got end
     end
   end
+  return {}
+end
+
+D.alertKeys = function(view)
+  local keys = {}
+  for key, value in pairs(view.values or {}) do
+    if type(key) == "string" and key:match("%.alert$") and value then keys[#keys + 1] = key end
+  end
+  table.sort(keys)
+  return keys
+end
+
+-- Each alert value gets a sequence number; a changed value is a new alert.
+D.alertVersion = function(key, value)
+  local identity = key .. ":" .. SO.proto.ser(value)
+  local version = D.alertVersions[key]
+  if not version or version.key ~= identity then
+    D.alertSequence = D.alertSequence + 1
+    version = {key = identity, sequence = D.alertSequence}
+    D.alertVersions[key] = version
+  end
+  return version
+end
+
+-- The newest alert sequence. The first call after boot numbers the alerts already
+-- standing, so a session opened before the first gather still knows them as old.
+D.since = function()
+  if not D.seeded and SO.mods.state then
+    D.seeded = true
+    local view = D.stateView()
+    for _, key in ipairs(D.alertKeys(view)) do D.alertVersion(key, view.values[key]) end
+  end
+  return D.alertSequence
+end
+
+D.gather = function()
+  local model = { time = U and U.clock(os.epoch("utc")).hm or "",
+    alerts = {}, log = {}, tiles = {}, oreShort = "no source", terminalSubs = {} }
+  local state, lease, drops = SO.mods.state, SO.mods.lease, SO.mods.drops
+  local view = D.stateView()
   local machines = state and type(state.get) == "function" and state.get("machines") or {}
   local turtles, lost, leases, lostIds = 0, 0, 0, {}
   for id, machine in pairs(machines or {}) do
@@ -406,24 +453,15 @@ D.gather = function()
       if status.open then leases = leases + 1 end
     end
   end
-  local keys = {}
-  for key, value in pairs(view.values or {}) do
-    if type(key) == "string" and key:match("%.alert$") and value then keys[#keys + 1] = key end
-  end
-  table.sort(keys)
-  for _, key in ipairs(keys) do
+  D.seeded = true
+  for _, key in ipairs(D.alertKeys(view)) do
     local value = view.values[key]
     local text = type(value) == "table" and tostring(value.text or value.reason or key) or tostring(value)
-    local identity = key .. ":" .. SO.proto.ser(value)
-    local version = D.alertVersions[key]
-    if not version or version.key ~= identity then
-      D.alertSequence = D.alertSequence + 1
-      version = {key = identity, sequence = D.alertSequence}
-      D.alertVersions[key] = version
-    end
+    local version = D.alertVersion(key, value)
     local fields = type(value) == "table" and value or {}
-    model.alerts[#model.alerts + 1] = { key = identity, sequence = version.sequence, text = text,
-      detail = fields.detail, sub = fields.sub, id = fields.id, kind = fields.kind }
+    model.alerts[#model.alerts + 1] = { key = version.key, sequence = version.sequence, text = text,
+      detail = fields.detail, sub = fields.sub, id = fields.id, kind = fields.kind,
+      point = type(fields.point) == "table" and fields.point or nil }
   end
   table.sort(model.alerts, function(a, b) return a.sequence < b.sequence end)
   model.alert = model.alerts[#model.alerts] and model.alerts[#model.alerts].text
@@ -461,7 +499,6 @@ D.gather = function()
       chips=chips(tostring(displays),"d",stale,"stale","1")},
     {label=broken>0 and "BROKEN" or "DROPS",value=tostring(broken>0 and broken or #points),sub="",bg=broken > 0 and "e" or "d",
       id=broken>0 and "broken" or nil,chips=chips(tostring(#points),"d",broken,"broken","1")},
-    {label="PAIR",value="",sub="",bg="9"},
   }
   if D.drawsStatus() then D.facts(model, machines, points, today, capacity, free) end
   local shown = 0
@@ -669,18 +706,25 @@ D.statusRender = function(w, h)
   return U.status(D.model or { tiles = {}, time = "" }, w, h)
 end
 
--- Shows each new alert once, at most every 30 s, for five seconds or until a tap.
+-- Shows each new alert once, oldest first, at most every 30 s, for five seconds or until a tap.
+-- An alert counts as seen only once shown. On a session's first sight, the alerts standing
+-- before it opened are seen already. Cleared alerts leave alertSeen, so it stays bounded.
 D.takeover = function(session, model, w, h, now)
-  session.alertSeen = session.alertSeen or {}
-  local newest
+  local first, seen, live = not session.alertSeen, session.alertSeen or {}, {}
   for _, alert in ipairs(model.alerts) do
-    if not session.alertSeen[alert.key] then
-      session.alertSeen[alert.key] = true
-      newest = alert
-    end
+    live[alert.key] = true
+    if first and alert.sequence <= (session.since or 0) then seen[alert.key] = true end
   end
-  if newest and (not session.alertAt or now - session.alertAt >= 30000) then
-    session.alertAt, session.alertUntil, session.takeover = now, now + 5000, newest
+  for key in pairs(seen) do if not live[key] then seen[key] = nil end end
+  session.alertSeen = seen
+  if not session.alertAt or now - session.alertAt >= 30000 then
+    for _, alert in ipairs(model.alerts) do
+      if not seen[alert.key] then
+        seen[alert.key] = true
+        session.alertAt, session.alertUntil, session.takeover = now, now + 5000, alert
+        break
+      end
+    end
   end
   if session.takeover and (session.showAlerts or now < (session.alertUntil or 0)) then
     return D.alertFrame(model, session.takeover, w, h, not session.showAlerts and session.alertUntil - now or nil)
@@ -703,12 +747,16 @@ D.wrap = function(text, width)
   return lines
 end
 
--- The takeover's subject: the alert's turtle (id) or drop (kind), from the status model.
+-- The takeover's subject: the alert's turtle (id) or drop (point id, then kind), from the status model.
 D.subject = function(model, a)
   if a.id ~= nil then
     for _, t in ipairs(model.turtles or {}) do
       if tostring(t.id) == tostring(a.id) and t.x then return { label = "#" .. t.id, x = t.x, y = t.y, z = t.z, id = t.id, row = t } end
     end
+  end
+  local point = a.point and a.point.id
+  for _, d in ipairs(point ~= nil and model.drops or {}) do
+    if tostring(d.id) == tostring(point) then return { label = "drop " .. d.id, x = d.x, y = d.y, z = d.z, drop = d.id, row = d } end
   end
   if a.kind then
     for _, d in ipairs(model.drops or {}) do
@@ -778,7 +826,6 @@ D.statusFrame = function(session, w, h, now, pocket)
   if pocket and D.screens.pocket then return D.screens.pocket.render(w, h, session) end
   local copy = {}
   for k, v in pairs(model) do copy[k] = v end
-  copy.page = session.page or 0
   copy.name = pocket and "FLEET" or nil
   local frame = U.status(copy, w, pocket and w == 26 and 20 or h)
   -- Big walls with many rows can pass the 16 KB frame limit; redraw them with fewer rows.
@@ -866,8 +913,7 @@ D.handle = function(role, session, event, now)
       if event.id == "alerts" then
         session.takeover = D.model and D.model.alerts[#D.model.alerts]
         session.showAlerts = session.takeover ~= nil
-      elseif event.id == "next" then session.page = (session.page or 0) + 1
-      elseif event.id == "prev" then session.page = (session.page or 0) - 1 end
+      end
     end
     if role == "pocket" and (event.id == "dismiss" or not screen) then return end
   end
@@ -1193,13 +1239,13 @@ D.localTick = function(now)
     if target then
       local name = peripheral.getName(target)
       if not D.monitor or D.monitor.name ~= name then
-        D.monitor = {target=target,name=name,session={id=D.self()}}
+        D.monitor = {target=target,name=name,session={id=D.self(),since=D.since()}}
       else D.monitor.target=target end
     else D.monitor=nil end
   end
   local m = D.monitor
   if m then
-    local ok = pcall(function()
+    local ok, err = pcall(function()
       m.target.setTextScale(0.5)
       local w,h = m.target.getSize()
       m.session.w, m.session.h = w, h
@@ -1218,7 +1264,12 @@ D.localTick = function(now)
       D.paint(m.target,m.frame,w,h)
       D.rememberFrame(m.session,m.frame)
     end)
-    if not ok then D.monitor=nil end
+    -- Log each new error, then rebuild the monitor on the next tick.
+    if not ok then
+      local line = "display: monitor " .. tostring(m.name) .. " failed: " .. tostring(err)
+      if line ~= D.monitorError then D.monitorError = line; (SO.error or print)(line) end
+      D.monitor, D.scanAt = nil, 0
+    else D.monitorError = nil end
   end
 end
 

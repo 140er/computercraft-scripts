@@ -1,0 +1,143 @@
+-- Status takeovers: the 30 s queue, standing alerts after a restart, the drop subject,
+-- the server monitor's render errors and the oversize frame trim.
+local H = dofile("tests/so/harness.lua")
+
+local function boot(values, opts)
+  opts = opts or {}
+  local net = H.new()
+  local m = net.machine({id=1})
+  m.install({"so-store.lua", "so-ui.lua", "so-mod-display.lua"})
+  local s = { clock = 0, errors = {}, values = values, m = m }
+  m.env.SO = { now = function() return s.clock end,
+    mods = { state = { view = function() return { values = s.values } end, get = function() return {} end },
+      drops = opts.drops },
+    store = m.env.dofile("so-store.lua"), pair = { key = function() return "key" end },
+    proto = { ser = H.encode, build = function(_, _, body) return body end, encode = opts.encode or function(body) return body end },
+    error = function(line) s.errors[#s.errors + 1] = line end }
+  if opts.peripheral then m.env.peripheral = opts.peripheral end
+  local d = m.env.dofile("so-mod-display.lua")
+  s.d = d
+  s.open = function(role, w, h)
+    d.handlers.hello({from=2, body={w=w or 39, h=h or 13}})
+    assert(d.assign(2, role or "status"))
+    d.handlers["view.sub"]({from=2})
+  end
+  s.at = function(ms) s.clock = ms; d.tick(ms) end
+  s.frame = function()
+    for i = #m.sent, 1, -1 do
+      if m.sent[i].id == 2 then return m.sent[i].payload end
+    end
+  end
+  s.text = function()
+    local lines = {}
+    for _, row in ipairs(s.frame().rows) do lines[#lines + 1] = row.text end
+    return table.concat(lines, "\n")
+  end
+  s.takeover = function()
+    local frame = s.frame()
+    for _, b in ipairs(frame and frame.buttons or {}) do
+      if b.id == "dismiss" then return s.text() end
+    end
+  end
+  return s
+end
+
+return function(test, equal)
+  test("a second alert within 30 s takes over once the gate opens", function()
+    local s = boot({})
+    s.open()
+    s.at(0)
+    equal(s.takeover(), nil)
+    s.values["a.alert"] = { text = "alpha" }
+    s.at(1000)
+    assert((s.takeover() or ""):find("ALPHA", 1, true), "A takes over")
+    s.values["b.alert"] = { text = "beta" }
+    s.at(11000)
+    equal(s.takeover(), nil, "B waits for the 30 s gate")
+    s.at(21000)
+    equal(s.takeover(), nil)
+    s.at(31000)
+    assert((s.takeover() or ""):find("BETA", 1, true), "B takes over at 30 s")
+  end)
+
+  test("standing alerts do not take over after a restart, new ones still do", function()
+    local s = boot({ ["mine.alert"] = { text = "standing hold" } })
+    s.open()
+    s.at(1000)
+    equal(s.takeover(), nil, "a standing alert must not take over")
+    s.at(6000)
+    equal(s.takeover(), nil)
+    s.values["lumber.alert"] = { text = "out of saplings" }
+    s.at(7000)
+    assert((s.takeover() or ""):find("OUT OF SAPLINGS", 1, true), "a new alert takes over")
+  end)
+
+  test("a cleared alert leaves alertSeen and takes over again when it returns", function()
+    local s = boot({})
+    s.open()
+    s.at(0)
+    s.values["a.alert"] = { text = "alpha" }
+    s.at(1000)
+    assert(s.takeover())
+    s.values["a.alert"] = nil
+    s.at(10000)
+    equal(s.takeover(), nil)
+    s.values["a.alert"] = { text = "alpha" }
+    s.at(40000)
+    assert((s.takeover() or ""):find("ALPHA", 1, true), "the returning alert is new again")
+  end)
+
+  test("a drop-break takeover names the broken drop by point id", function()
+    local points = {
+      { id = "1", kind = "ore", x = 10, y = 64, z = 10 },
+      { id = "2", kind = "ore", x = 20, y = 65, z = 20, broken = true },
+    }
+    local s = boot({}, { drops = { list = function() return points end } })
+    s.open()
+    s.at(0)
+    s.values["drops.alert"] = { kind = "ore", text = "ore #2 broken", reason = "broken",
+      point = { id = "2", kind = "ore", x = 20, y = 65, z = 20 } }
+    s.at(1000)
+    local text = assert(s.takeover(), "the drop alert takes over")
+    assert(text:find("20,65,20", 1, true), "takeover shows drop 2: " .. text)
+    assert(not text:find("10,64,10", 1, true), "takeover must not show drop 1")
+  end)
+
+  test("a server monitor render error is logged once and the monitor rebuilt next tick", function()
+    local finds = 0
+    local monitor = { setTextScale = function() error("boom") end, getSize = function() return 39, 13 end }
+    local s = boot({}, { peripheral = {
+      find = function(kind) if kind == "monitor" then finds = finds + 1; return monitor end end,
+      getName = function() return "top" end } })
+    s.at(1000)
+    equal(#s.errors, 1)
+    assert(s.errors[1]:find("monitor top", 1, true) and s.errors[1]:find("boom", 1, true), s.errors[1])
+    s.at(1050)
+    equal(finds, 2, "the next tick rebuilds the monitor")
+    equal(#s.errors, 1, "the same error is logged once")
+  end)
+
+  test("an oversize frame keeps BACK while it sheds buttons", function()
+    local s = boot({}, { encode = function(body)
+      if #body.rows > 1 or #body.buttons > 1 then return nil end
+      return body
+    end })
+    s.d.screen("generic", function()
+      return { rows = { { text = "a" }, { text = "b" }, { text = "c" } },
+        buttons = { { id = "one", x = 1, y = 1, w = 3 }, { id = "two", x = 1, y = 2, w = 3 },
+          { id = "status", label = "BACK", x = 1, y = 3, w = 4 } } }
+    end, function() end)
+    s.open("drops")
+    s.at(1000)
+    local frame = assert(s.frame(), "a trimmed frame is sent")
+    equal(#frame.buttons, 1)
+    equal(frame.buttons[1].id, "status")
+  end)
+
+  test("the status model has no undrawn PAIR tile", function()
+    local s = boot({})
+    s.open()
+    s.at(1000)
+    for _, tile in ipairs(s.d.statusModel().tiles) do assert(tile.label ~= "PAIR") end
+  end)
+end
