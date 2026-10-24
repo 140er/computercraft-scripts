@@ -13,23 +13,23 @@ M.open = function(store, now)
   local box = store.store(path, valid, budget)
   local entries = box.value and box.value.entries or {}
   local dirty, last, failure = false, -math.huge, nil
-  local function flush(at)
+  local function flush(at, force)
     at = at or now()
-    if not dirty or at-last < 30000 then return failure == nil, failure end
+    if not dirty or not force and at-last < 30000 then return failure == nil, failure end
     last = at
     local ok, err = box.save({entries=entries})
     failure = not ok and tostring(err) or nil
     if ok then dirty = false end
     return ok, err
   end
-  local function record(text)
+  local function record(text, force)
     entries[#entries+1] = {at=now(),text=tostring(text):sub(1,2048)}
     -- Reserve envelope space even at large generation numbers.
     while #entries > 128 or #textutils.serialize({entries=entries},{compact=true}) > budget-256 do
       table.remove(entries,1)
     end
     dirty = true
-    return flush()
+    return flush(nil, force)
   end
   return {
     record=record, flush=flush,
