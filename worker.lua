@@ -117,14 +117,23 @@ W.bump = function()
 end
 
 -- Saved before the turtle call so a reboot still shows this step.
-W.markPending = function(op)
+W.markPending = function(op, reverse)
   W.bump()
-  W.journal.pending = { n = W.journal.seq, op = op, lease = W.lease }
+  W.journal.pending = { n = W.journal.seq, op = op, lease = W.lease, reverse = reverse or nil }
   if C.moves[op] and op ~= "turnLeft" and op ~= "turnRight" then
     W.journal.pending.fuel = W.fuelRaw()
     if W.journal.pending.fuel == "unlimited" then W.journal.pending.gps = W.gpsFix() end
   end
   return W.save()
+end
+
+W.finishPending = function()
+  local pending = W.journal.pending
+  W.journal.pending = nil
+  if W.save() then return true end
+  W.journal.pending, W.journal.uncertain = pending, true
+  W.save()
+  return false
 end
 
 W.pushMove = function(op)
@@ -252,7 +261,7 @@ W.gpsFix = function()
 end
 
 W.resolvePending = function()
-  if W.journal.dimensionChanged then return end
+  if W.journal.dimensionChanged or W.journal.uncertain then return end
   local pending = W.journal.pending
   if not pending or not C.moves[pending.op] then return end
   local moved
@@ -277,10 +286,16 @@ W.resolvePending = function()
     outcome = moved == nil and "uncertain" or moved and "applied" or "not applied" }
   W.journal.uncertain = moved == nil or nil
   if moved ~= nil then
-    if moved then W.apply(pending.op) W.pushMove(pending.op) end
+    if moved then
+      W.apply(pending.op)
+      if pending.reverse then table.remove(W.journal.moves) else W.pushMove(pending.op) end
+    end
     W.journal.pending = nil
   end
-  W.save()
+  if not W.save() then
+    W.journal.uncertain = true
+    W.save()
+  end
 end
 
 W.hello = function()
@@ -543,8 +558,7 @@ W.scanNether = function(guard)
     end
     local result=W.exec({op="turnRight"})
     if not result.ok then W.journal.uncertain=true return "remote safety: surroundings turn failed" end
-    W.journal.pending=nil
-    if not W.save() then W.journal.uncertain=true return "remote safety: surroundings journal failed" end
+    if not W.finishPending() then return "remote safety: surroundings journal failed" end
   end
   return hazard
 end
@@ -619,8 +633,7 @@ W.exec = function(step)
       W.apply(op)
       W.pushMove(op)
       if step.safety and step.safety.dim=="minecraft:the_nether" then
-        W.journal.pending=nil
-        if W.save() then result.hazard=W.scanNether(step.safety)
+        if W.finishPending() then result.hazard=W.scanNether(step.safety)
         else
           W.journal.uncertain=true
           result.hazard="remote safety: movement journal failed"
@@ -695,7 +708,7 @@ W.startBatch = function(msg)
       W.journal.pending = nil
       break
     end
-    if body.journal ~= nil and not saved then
+    if not saved then
       W.refuse(results,i,n)
       break
     end
@@ -715,8 +728,11 @@ W.startBatch = function(msg)
       W.save()
       break
     end
-    W.journal.pending = nil
-    W.save()
+    if not W.finishPending() then
+      for j = i+1, n do results[j] = {ok=false,err="journal save failed",counts=W.counts()} end
+      safetyStop = true
+      break
+    end
   end
   W.report(results)
   if safetyStop then W.queued=nil W.enterSlow() return end
@@ -759,37 +775,52 @@ W.enterSlow = function()
   W.paint()
 end
 
+-- Temporary digging turns stay uncertain until the original facing is saved.
+W.recoveryMove = function(op, reverse)
+  if not W.markPending(op, reverse) then return nil end
+  local ok = turtle[op]()
+  if ok then
+    W.apply(op)
+    if reverse then table.remove(W.journal.moves) else W.journal.uncertain = true end
+  end
+  if not W.finishPending() then return nil end
+  return ok
+end
+
 W.digToward = function(dir)
   if dir == "up" then return turtle.digUp() end
   if dir == "down" then return turtle.digDown() end
   if dir == "forward" then return turtle.dig() end
   if dir ~= "back" then return false end
-  turtle.turnLeft()
-  turtle.turnLeft()
+  for _ = 1, 2 do
+    if not W.recoveryMove("turnLeft") then return nil end
+  end
   local ok = turtle.dig()
-  turtle.turnLeft()
-  turtle.turnLeft()
+  for _ = 1, 2 do
+    if not W.recoveryMove("turnLeft") then return nil end
+  end
+  W.journal.uncertain = nil
+  if not W.save() then
+    W.journal.uncertain = true
+    W.save()
+    return nil
+  end
   return ok
 end
 
 W.reverse = function(entry)
   local rev = C.rev[entry.op]
   if not rev then return true end
-  local ok = turtle[rev]()
-  if ok then
-    W.apply(rev)
-    return true
-  end
+  local ok = W.recoveryMove(rev, true)
+  if ok ~= false then return ok end
   local x, y, z = W.cell(rev)
   if not W.dug[W.key(x, y, z)] then return false end
-  W.digToward(rev)
-  ok = turtle[rev]()
-  if not ok then return false end
-  W.apply(rev)
-  return true
+  if W.digToward(rev) == nil then return false end
+  return W.recoveryMove(rev, true)
 end
 
 W.backOne = function()
+  if W.journal.uncertain then W.enterSlow() return end
   if W.dimension() and W.dimension() ~= "minecraft:overworld" then W.enterSlow() return end
   local moves = W.journal.moves
   if #moves == 0 then
@@ -801,9 +832,6 @@ W.backOne = function()
     W.enterSlow()
     return
   end
-  table.remove(moves, #moves)
-  W.bump()
-  W.save()
 end
 
 W.arm = function()
