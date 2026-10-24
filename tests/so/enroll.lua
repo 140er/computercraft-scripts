@@ -556,7 +556,7 @@ return function(test, equal)
     -- writes so-enroll after the swap and never prints the token.
     local H2 = H.new()
     local m = H2.machine({ id = 9, capacity = 1000000 })
-    local e, written, handed = m.env, {}, nil
+    local e, written = m.env, {}
     e.turtle = {}
     e.fs = { exists = function() return false end, delete = function() end, makeDir = function() end,
       getDir = function(p) return p:match("^(.*)/[^/]*$") or "" end,
@@ -577,7 +577,7 @@ return function(test, equal)
     e.shell = { run = function() return true end }
     main = assert(load(inner, "@install.lua", "t", e))("prepare")
     main(nil, { revision = string.rep("a", 40), previous = {}, role = "worker", enroll = "12-k7qp-3mxa-9wtd-hr2e" })
-    handed = e.textutils.unserialize(written["/so-enroll"])
+    local handed = e.textutils.unserialize(written["/so-enroll"])
     equal(handed.token, "12-K7QP-3MXA-9WTD-HR2E")
     log = table.concat(m.log, "\n")
     assert(not log:find("K7QP", 1, true), log)
