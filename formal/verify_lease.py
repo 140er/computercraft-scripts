@@ -23,7 +23,7 @@ MUTATIONS = {
     ),
     "reservation_retention": (
         'lease.status = "expired"',
-        'lease.status = "expired"\n      SO.mods.cells.releaseOwner(lease.id)',
+        'lease.status = "expired"\n      SO.mods.cells.releaseOwner("mine:" .. lease.turtleId)',
     ),
     "uncertainty": (
         'if row.uncertain or row.anchor then return nil, "pose uncertain" end',

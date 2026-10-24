@@ -1,13 +1,13 @@
 local H = dofile("tests/so/harness.lua")
 -- Generated with formal/evidence/lease-orderings.json by formal/verify_lease.py.
 -- Part tests carry this hash because their input set excludes formal evidence.
-local evidenceSourceHash = "314bc6ac21b553c5a72ce02cd3bc6c4946754c5b3472ac48a30b7eba0e970103"
+local evidenceSourceHash = "fc276d46ef2e9a23e92e6b1c7b5f4b02d5bd11742db8d72e0b1ec3143e30006b"
 local key = string.rep("a", 64)
 local function setup(position, gpsPos)
   local net = H.new()
   local server = net.machine({ id = 1, modem = true })
   server.install({ "so-server.lua", "so-proto.lua", "so-pair.lua", "so-store.lua",
-    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua" })
+    "so-mod-state.lua", "so-log.lua", "so-mod-lease.lua", "so-mod-cells.lua" })
   local libs = {
     "x25519", "random", "blake3", "chacha20", "config", "internal/util",
     "internal/hw", "internal/curve25519", "internal/fp", "internal/edwards25519", "internal/packing",
@@ -28,7 +28,12 @@ local function setup(position, gpsPos)
   assert(server.alive(), tostring(server.error))
   local lease = assert(server.env.SO.mods.lease, table.concat(server.log, "\n"))
   local calls, released = {}, {}
-  server.env.SO.mods.cells = { releaseOwner = function(id) released[#released + 1] = id end }
+  local cells = server.env.SO.mods.cells
+  local releaseOwner = cells.releaseOwner
+  cells.releaseOwner = function(owner)
+    released[#released + 1] = owner
+    return releaseOwner(owner)
+  end
   lease.onReport("mine", function(id, turtleId, results, record)
     calls[#calls + 1] = { id = id, turtleId = turtleId, results = results, lease = record }
   end)
@@ -67,7 +72,7 @@ local function setup(position, gpsPos)
     assert(not worker.error, tostring(worker.error))
   end
   return { net = net, server = server, worker = worker, lease = lease,
-    calls = calls, released = released, send = send, state = server.env.SO.mods.state }
+    calls = calls, released = released, cells = cells, send = send, state = server.env.SO.mods.state }
 end
 local origin = { dim = 0, x = 0, y = 0, z = 0 }
 local steps = { { op = "forward" }, { op = "up" } }
@@ -90,14 +95,20 @@ return function(test, equal, read)
     equal(s.worker.env.batches[1].expires, s.net.time + 60000)
     equal(s.lease.status(2).open, id)
   end)
-  test("lease full worker report releases cells emits pose and calls once", function()
+  test("lease full worker report keeps planner cells emits pose and calls once", function()
     local s = setup(origin)
     s.worker.env.auto = true
+    for i, owner in ipairs({ "mine:2", "lumber:2", "build:2", "setup:2" }) do
+      assert(s.cells.reserve(owner, i, 0, 0))
+    end
     local pose = { dim = 0, x = 0, y = 1, z = -1, facing = 0 }
     local id = assert(s.lease.send(2, steps, { owner = "mine", pose = pose }))
     s.net.flush()
     equal(s.lease.status(2).open, nil)
-    equal(s.released, { id })
+    equal(s.released, {})
+    for i, owner in ipairs({ "mine:2", "lumber:2", "build:2", "setup:2" }) do
+      equal(s.cells.owner(i, 0, 0), owner)
+    end
     equal(#s.calls, 1)
     equal(s.calls[1].id, id)
     equal(s.calls[1].turtleId, 2)
@@ -120,11 +131,22 @@ return function(test, equal, read)
       s.send("step.report", { lease = "unknown", results = results })
     end
     equal(#s.calls, 1)
-    equal(#s.released, 1)
+    equal(#s.released, 0)
     equal(s.state.view().rev, before)
+  end)
+  test("lease park cancellation leaves real planner owners intact", function()
+    local s = setup(origin)
+    assert(s.cells.reserve("mine:2", 1, 0, 0))
+    assert(s.lease.send(2, {{op="inspectDown"}}, {owner="mine"}))
+    assert(s.lease.cancelPark(2, "mine"))
+    equal(s.lease.status(2).open, nil)
+    equal(s.cells.owner(1, 0, 0), "mine:2")
+    equal(s.released, {})
+    equal(#s.calls, 0)
   end)
   test("lease silence expires after grace and keeps reservations", function()
     local s = setup(origin)
+    assert(s.cells.reserve("mine:2", 1, 0, 0))
     local id = assert(s.lease.send(2, steps, { owner = "mine", ms = 1000 }))
     s.net.advance(11)
     equal(#s.calls, 0)
@@ -133,6 +155,7 @@ return function(test, equal, read)
     equal(#s.calls, 1)
     equal(s.calls[1].results, nil)
     equal(s.calls[1].lease.status, "expired")
+    equal(s.cells.owner(1, 0, 0), "mine:2")
     equal(#s.released, 0)
     s.send("step.report", { lease = id, results = { { ok = true }, { ok = true } } })
     s.net.advance(1)

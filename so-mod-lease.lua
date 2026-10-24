@@ -365,8 +365,6 @@ S.cancelPark = function(id, owner)
     or lease.steps[1].op ~= "inspectDown" then return false, "turtle has open lease" end
   row.open = nil
   lease.status = "cancelled"
-  local cells = S.module("cells")
-  if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
   return true
 end
 
@@ -426,8 +424,6 @@ S.report = function(msg)
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
   lease.status = "reported"
-  local cells = S.module("cells")
-  if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
   if allOk and lease.pose and not row.uncertain then
     local pose = S.copyPose(lease.pose)
     pose.id = msg.from
