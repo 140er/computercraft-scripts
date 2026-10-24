@@ -80,7 +80,155 @@ local function setup(w, h, existing)
   return {net=net, server=server, client=client, frame=frame, button=button, press=press, typeText=typeText, assign=assign}
 end
 
+local function stateFixture()
+  local net = H.new()
+  local m = net.machine({id=1, directories=true})
+  m.install({"so-store.lua", "so-log.lua", "so-mod-state.lua"})
+  m.env.SO = {mods={}, now=function() return net.time end, breathe=function() end,
+    store=m.env.dofile("so-store.lua")}
+  return m.env.dofile("so-mod-state.lua"), m, net
+end
+
+local function fill(m, ratio)
+  m.files.ballast = nil
+  local used = 0
+  for _, bytes in pairs(m.files) do used = used + #bytes end
+  m.files.ballast = string.rep("x", math.max(0, math.floor(m.capacity * ratio) - used))
+end
+
 return function(test)
+  test("disk refusal names the largest measured store", function()
+    for _, store in ipairs({{"log", "so-data/log/ballast"}, {"cells", "so-data/cells/ballast"}}) do
+      local s, m = stateFixture()
+      m.capacity = 8000000
+      m.files[store[2]] = string.rep("x", 6100000)
+      fill(m, 0.83)
+      local ok, text = s.canStart()
+      assert(not ok and text == "disk >=80%; free space", tostring(text))
+      s.tick()
+      ok, text = s.canStart()
+      assert(not ok and text == "disk 83%: " .. store[1] .. " 6.1 MB", tostring(text))
+    end
+  end)
+  test("unreadable disk capacity names the cause and alerts after a ledger scan", function()
+    for _, capacity in ipairs({false, 0, -1, "unknown"}) do
+      local s, m = stateFixture()
+      s.tick()
+      assert(s.disk().scanned ~= nil)
+      local getCapacity = m.env.fs.getCapacity
+      m.env.fs.getCapacity = function() return capacity or nil end
+      assert(not s.disk().accepting)
+      local ok, reason = s.canStart()
+      assert(not ok and reason == "disk size unknown", tostring(reason))
+      s.tick()
+      assert(s.get("disk.alert").text == "DISK size unknown")
+      assert(not s.job({name="blocked"}))
+      assert(#s.history.page({}).entries == 0)
+      m.env.fs.getCapacity = getCapacity
+      s.tick()
+      assert(s.canStart())
+      assert(s.get("disk.alert") == nil)
+    end
+  end)
+  test("disk reuses the ledger for thirty seconds when stores exceed capacity", function()
+    local s, m, net = stateFixture()
+    m.files["so-data/log/ballast"] = string.rep("x", 200000)
+    s.tick()
+    m.capacity = 100000
+    local list, scans = m.env.fs.list, 0
+    m.env.fs.list = function(path)
+      if path == "/" then
+        scans = scans + 1
+        assert(scans <= 2, "disk ledger rescanned more than once per interval")
+      end
+      return list(path)
+    end
+    local function pressure()
+      local disk = s.disk()
+      assert(disk.pressure and not disk.accepting and disk.ratio >= 1)
+      assert(disk.stores.log == 200000 and disk.stores.other == 0)
+    end
+    pressure()
+    assert(scans == 0)
+    net.time = net.time + 30000
+    pressure()
+    assert(scans == 1)
+    for i = 1, 5 do
+      pressure()
+      assert(not s.canStart())
+      assert(s.emit("probe", i))
+      s.handlers.hello({from=2, body={role="worker", journal="same", fuel=1000}})
+    end
+    assert(scans == 1)
+    net.time = net.time + 29999
+    pressure()
+    assert(scans == 1)
+    net.time = net.time + 1
+    pressure()
+    assert(scans == 2)
+  end)
+  test("oversize refusal alerts without blocking healthy writes", function()
+    local s, m = stateFixture()
+    local ok, err = s.emit("huge", string.rep("x", 70000))
+    assert(not ok and err:find("refused", 1, true))
+    assert(s.get("huge") == nil and #s.history.page({}).entries == 0)
+    assert(s.get("disk.alert").error == "event exceeds log budget")
+    assert(m.log[#m.log]:find("DISK event refused", 1, true))
+    assert(s.disk().pending == 0 and s.disk().error == nil)
+    assert(s.canStart() and s.canWork())
+  end)
+  test("oversize refusal preserves an existing write failure", function()
+    local s, m = stateFixture()
+    m.capacity = 50000
+    fill(m, 0.99)
+    assert(s.emit("queued", 1))
+    local err = s.disk().error
+    assert(err and not s.canWork())
+    assert(not s.emit("huge", string.rep("x", 70000)))
+    assert(s.disk().error == err and s.disk().pending == 1)
+    assert(not s.canStart() and not s.canWork())
+  end)
+  test("pressure preserves label and significant fuel changes", function()
+    local s, m, net = stateFixture()
+    local function hello(label, fuel)
+      s.handlers.hello({from=2, body={role="worker", journal="j", label=label, fuel=fuel}})
+    end
+    hello("before", 1000)
+    fill(m, 0.9)
+    local count = #s.history.page({}).entries
+    net.time = net.time + 1000
+    hello("before", 1000)
+    assert(#s.history.page({}).entries == count)
+    assert(s.get("machines/2/seen") == net.time)
+    hello("after", 1000)
+    assert(s.get("machines/2/label") == "after")
+    assert(#s.history.page({}).entries == count + 1)
+    for _, fuel in ipairs({1500, 0}) do
+      hello("after", fuel)
+      count = count + 1
+      assert(s.get("machines/2/fuel") == fuel)
+      assert(#s.history.page({}).entries == count + 1)
+    end
+  end)
+  test("history device filter combines with cursors and kind filters", function()
+    local s = stateFixture()
+    for _, event in ipairs({
+      {"machine", {id=2}}, {"note", false}, {"mine.alert", {id=3}},
+      {"mine.alert", {id=2}}, {"mine.alert", {id=3}}, {"machine", {id=2}},
+      {"mine.alert", {id=2}}, {"note", "plain"}, {"note", {id=0}},
+    }) do assert(s.emit(event[1], event[2])) end
+    local page = s.history.page({id=2, count=2})
+    assert(#page.entries == 2 and page.entries[1].seq == 1 and page.entries[2].seq == 4 and page.next == 4)
+    page = s.history.page({id=2, from=page.next, count=2})
+    assert(#page.entries == 2 and page.entries[1].seq == 6 and page.entries[2].seq == 7 and page.next == nil)
+    page = s.history.page({id=2, alerts=true, reverse=true, limit=1})
+    assert(#page.entries == 1 and page.entries[1].seq == 7 and page.next == 7)
+    page = s.history.page({id=2, kind="mine.alert", reverse=true, before=page.next, count=1})
+    assert(#page.entries == 1 and page.entries[1].seq == 4 and page.next == nil)
+    assert(#s.history.page({id=99}).entries == 0)
+    assert(#s.history.page({id=0}).entries == 1)
+    assert(#s.history.page({}).entries == 9)
+  end)
   for _, size in ipairs({{26,20}, {29,12}}) do
     for _, role in ipairs({"mining", "lumber"}) do
       test(role .. " refuses start at 80% and resumes below it on " .. size[1] .. "x" .. size[2], function()
@@ -121,7 +269,7 @@ return function(test)
           s.typeText("start")
           s.net.advance(2)
           assert(not job() or not job().running, "started above disk threshold")
-          assert(screenHas("disk >=80%; free space"), "disk refusal is not visible")
+          assert(screenHas("disk " .. math.floor(ratio * 100) .. "%: other"), "disk refusal is not visible")
           assert(not s.server.env.SO.mods.state.canStart())
           assert(not s.server.env.SO.mods.state.job({name="blocked"}))
         end
@@ -133,7 +281,7 @@ return function(test)
         s.typeText("start")
         s.net.advance(2)
         assert(job().running, "did not resume below disk threshold")
-        assert(not screenHas("disk >=80%; free space"), "stale disk warning")
+        assert(not screenHas("%: other"), "stale disk warning")
         assert(s.server.env.SO.mods.state.job({name="accepted"}))
         fill(0.9)
         s.typeText("stop")

@@ -55,21 +55,27 @@ H.ledger = function()
   H.stores, H.scanned = stores, SO.now()
 end
 
-H.disk = function()
+H.disk = function(rescanned)
   local cap, free = fs.getCapacity("/"), fs.getFreeSpace("/")
-  local info = { capacity=0, used=0, free=0, ratio=0, alerts={}, accepting=true,
+  local info = { capacity=0, used=0, free=0, ratio=0, alerts={"disk"}, accepting=false,
     pressure=false, pending=#H.backlog, pendingBytes=H.backlogBytes, error=H.writeError }
-  if type(cap) ~= "number" or cap <= 0 then return info end
+  if type(cap) ~= "number" or cap <= 0 then info.pressure = true return info end
   if type(free) ~= "number" or free < 0 then free = 0 end
   info.capacity, info.free, info.used = cap, free, math.max(0, cap-free)
   info.ratio = info.used / cap
   info.pressure = info.ratio >= 0.85
   info.accepting = info.ratio < 0.8 and #H.backlog == 0 and not H.writeError
-  if not info.accepting then info.alerts = { "disk" } end
+  if info.accepting then info.alerts = {} end
   info.stores = H.copy(H.stores or {log=0,snapshots=0,cells=0,jobs=0,keys=0})
   local total = 0
   for key, bytes in pairs(info.stores) do if key ~= "other" then total = total + bytes end end
-  if total > info.used then H.ledger() return H.disk() end
+  if total > info.used then
+    if not rescanned and (not H.scanned or SO.now() - H.scanned >= 30000) then
+      H.ledger() return H.disk(true)
+    end
+    info.used, info.free, info.ratio = total, 0, math.max(1, total / cap)
+    info.pressure, info.accepting, info.alerts = true, false, {"disk"}
+  end
   info.stores.other = info.used-total
   info.scanned = H.scanned
   return info
@@ -79,7 +85,7 @@ H.diskAlert = function(S)
   local disk = H.disk()
   S.values["disk.alert"] = (disk.pressure or disk.error or disk.pending > 0) and {
     text = disk.pending > 0 and ("DISK " .. disk.pending .. " events pending")
-      or disk.error and "DISK event refused" or "DISK pressure",
+      or disk.error and "DISK event refused" or disk.capacity == 0 and "DISK size unknown" or "DISK pressure",
     error = disk.error,
   } or nil
 end
@@ -293,8 +299,26 @@ end
 
 local function canStart()
   if #H.backlog > 0 then return false, "DISK events pending; free space" end
-  if not H.disk().accepting then return false, "disk >=80%; free space" end
+  local disk = H.disk()
+  if not disk.accepting then
+    if disk.capacity == 0 then return false, "disk size unknown" end
+    if H.stores then
+      local largest, bytes = "log", 0
+      for _, name in ipairs({"log", "snapshots", "cells", "jobs", "keys", "other"}) do
+        if (disk.stores and disk.stores[name] or 0) > bytes then largest, bytes = name, disk.stores[name] end
+      end
+      return false, string.format("disk %.0f%%: %s %.1f MB", disk.ratio * 100, largest, bytes / 1000000)
+    end
+    return false, "disk >=80%; free space"
+  end
   return true
+end
+
+H.refuse = function(kind)
+  S.values["disk.alert"] = { text="DISK event refused", error="event exceeds log budget" }
+  H.touch()
+  print("DISK event refused: event exceeds log budget (" .. kind .. ")")
+  return false, "event exceeds log budget; refused"
 end
 
 local function emit(kind, data)
@@ -309,10 +333,7 @@ local function emit(kind, data)
   if disklog then
     ev.seq = S.seq + 1
     if not disklog.fits(ev) then
-      H.writeError = "event exceeds log budget"
-      H.diskAlert(S)
-      print("DISK event refused: " .. H.writeError .. " (" .. kind .. ")")
-      return false, "event exceeds log budget; refused"
+      return H.refuse(kind)
     end
     local ok, err
     if #H.backlog == 0 then ok, err = disklog.append(ev) end
@@ -321,12 +342,10 @@ local function emit(kind, data)
       ev.seg = nil
       ev.seq = S.seq + 1
       local bytes = #textutils.serialize(ev)
-      H.writeError = tostring(err or H.writeError or "events pending")
       if err and tostring(err):find("budget",1,true) then
-        H.diskAlert(S)
-        print("DISK event refused: " .. H.writeError .. " (" .. kind .. ")")
-        return false, "event exceeds log budget; refused"
+        return H.refuse(kind)
       end
+      H.writeError = tostring(err or H.writeError or "events pending")
       if #H.backlog >= 256 or H.backlogBytes + bytes > 262144 then
         H.diskAlert(S)
         print("DISK event refused: backlog full (" .. kind .. ")")
@@ -416,6 +435,7 @@ local history = {
     local function matches(ev)
       return (not query.kind or query.kind == ev.kind)
         and (not query.alerts or ev.kind:match("%.alert$") ~= nil)
+        and (query.id == nil or type(ev.data) == "table" and ev.data.id == query.id)
     end
     while i >= 1 and i <= #evs and #entries < count do
       local ev = evs[i]
@@ -463,7 +483,8 @@ local function hello(msg)
     end
     return
   end
-  if row and H.disk().pressure and role == row.role and journal == row.journal then
+  if row and H.disk().pressure and role == row.role and journal == row.journal
+    and (label == nil or label == row.label) and (fuel == nil or fuel == row.fuel) then
     row.seen, row.fuel = now, fuel or row.fuel return
   end
   if not row or role ~= nil and role ~= row.role or journal ~= nil and journal ~= row.journal
