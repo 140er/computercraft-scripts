@@ -13,12 +13,13 @@ from checks.context import Context, sanitize
 from checks.lua_data import parse
 from checks.mining import analyze
 from checks.model import Result, own_path
+from test_c2_pair2 import observations as pair2_observations
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PROOF = {k: True for k in ("zero_forced_chunks", "native_unloaded", "helpers_disabled", "pending_inputs_absent", "no_input_after_return")}
 PASS = {
     "C1": {"normal_http_install": True, "install_errors": [], "exact_files": True, "rebooted_roles": 6},
-    "C2": {"paired_clients": 5, "bad_attempts": 5, "invitation_burned": True, "probe_unpaired": True, "server_prompt_restored": True},
+    "C2": pair2_observations(),
     "C3": {k: True for k in ("all_screens_reached", "setups_and_returns", "coordinates_fit", "generic_survives_reboot", "single_order_delivery", "real_photos")},
     "C4": {"settled_seconds": 10, "verified_before_anchor": True, "server_poses_match": True, "display_poses_match": True},
     "C5": {"range_samples": 0, "collisions": 0, "errors": [], "completed_miners": ["4", "5"], "handoff_game_seconds": 29},
@@ -127,7 +128,11 @@ class CriterionTests(unittest.TestCase):
         recorded = json.loads((FIXTURES/"recorded-criteria.json").read_text())
         for row in recorded["checks"]:
             with self.subTest(check=row["check"]):
-                self.assertEqual(load(row["check"]).evaluate(row["observations"]).status, row["expected"])
+                if row["check"] == "C2":
+                    # Pre-pair2 evidence lacks the current rejection/budget proof.
+                    self.assertNotEqual(load("C2").evaluate(row["observations"]).status, "pass")
+                else:
+                    self.assertEqual(load(row["check"]).evaluate(row["observations"]).status, row["expected"])
 
     def test_recorded_results(self):
         for check in ("C6","C9","C12"):

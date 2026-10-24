@@ -18,6 +18,18 @@ HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local request
   if not ok then error(ran) end
   return {ran=ran,requests=requests,failures=failures}'''
 
+
+def pinned_http_update(commit):
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ValueError("Update requires a full commit SHA")
+    resolver = "https://api.github.com/repos/140er/computercraft-scripts/branches/server-only"
+    pin = f'''if url == {json.dumps(resolver)} then
+      return {{getResponseCode=function() return 200 end,
+        readAll=function() return '{{"commit":{{"sha":"{commit}"}}}}' end, close=function() end}} end
+    '''
+    return HTTP_UPDATE.replace("http.get=function(...)", "http.get=function(url,...)").replace(
+        "local r,e,f=original(...)", pin + "local r,e,f=original(url,...)")
+
 SECRET_FIELD = re.compile(r"^(?:keys?|secret|token|pair(?:ing)?_?code|private.*)$", re.I)
 
 
