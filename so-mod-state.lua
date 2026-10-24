@@ -59,7 +59,7 @@ H.disk = function(rescanned)
   local cap, free = fs.getCapacity("/"), fs.getFreeSpace("/")
   local info = { capacity=0, used=0, free=0, ratio=0, alerts={"disk"}, accepting=false,
     pressure=false, pending=#H.backlog, pendingBytes=H.backlogBytes, error=H.writeError }
-  if type(cap) ~= "number" or cap <= 0 then return info end
+  if type(cap) ~= "number" or cap <= 0 then info.pressure = true return info end
   if type(free) ~= "number" or free < 0 then free = 0 end
   info.capacity, info.free, info.used = cap, free, math.max(0, cap-free)
   info.ratio = info.used / cap
@@ -70,7 +70,9 @@ H.disk = function(rescanned)
   local total = 0
   for key, bytes in pairs(info.stores) do if key ~= "other" then total = total + bytes end end
   if total > info.used then
-    if not rescanned then H.ledger() return H.disk(true) end
+    if not rescanned and (not H.scanned or SO.now() - H.scanned >= 30000) then
+      H.ledger() return H.disk(true)
+    end
     info.used, info.free, info.ratio = total, 0, math.max(1, total / cap)
     info.pressure, info.accepting, info.alerts = true, false, {"disk"}
   end
@@ -83,7 +85,7 @@ H.diskAlert = function(S)
   local disk = H.disk()
   S.values["disk.alert"] = (disk.pressure or disk.error or disk.pending > 0) and {
     text = disk.pending > 0 and ("DISK " .. disk.pending .. " events pending")
-      or disk.error and "DISK event refused" or "DISK pressure",
+      or disk.error and "DISK event refused" or disk.capacity == 0 and "DISK size unknown" or "DISK pressure",
     error = disk.error,
   } or nil
 end
@@ -299,6 +301,7 @@ local function canStart()
   if #H.backlog > 0 then return false, "DISK events pending; free space" end
   local disk = H.disk()
   if not disk.accepting then
+    if disk.capacity == 0 then return false, "disk size unknown" end
     if H.stores then
       local largest, bytes = "log", 0
       for _, name in ipairs({"log", "snapshots", "cells", "jobs", "keys", "other"}) do

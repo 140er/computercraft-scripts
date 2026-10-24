@@ -110,18 +110,28 @@ return function(test)
       assert(not ok and text == "disk 83%: " .. store[1] .. " 6.1 MB", tostring(text))
     end
   end)
-  test("unreadable disk capacity refuses jobs", function()
+  test("unreadable disk capacity names the cause and alerts after a ledger scan", function()
     for _, capacity in ipairs({false, 0, -1, "unknown"}) do
       local s, m = stateFixture()
+      s.tick()
+      assert(s.disk().scanned ~= nil)
+      local getCapacity = m.env.fs.getCapacity
       m.env.fs.getCapacity = function() return capacity or nil end
       assert(not s.disk().accepting)
-      assert(not s.canStart())
+      local ok, reason = s.canStart()
+      assert(not ok and reason == "disk size unknown", tostring(reason))
+      s.tick()
+      assert(s.get("disk.alert").text == "DISK size unknown")
       assert(not s.job({name="blocked"}))
       assert(#s.history.page({}).entries == 0)
+      m.env.fs.getCapacity = getCapacity
+      s.tick()
+      assert(s.canStart())
+      assert(s.get("disk.alert") == nil)
     end
   end)
-  test("disk rescans once when categorized stores exceed capacity", function()
-    local s, m = stateFixture()
+  test("disk reuses the ledger for thirty seconds when stores exceed capacity", function()
+    local s, m, net = stateFixture()
     m.files["so-data/log/ballast"] = string.rep("x", 200000)
     s.tick()
     m.capacity = 100000
@@ -129,14 +139,33 @@ return function(test)
     m.env.fs.list = function(path)
       if path == "/" then
         scans = scans + 1
-        assert(scans == 1, "disk ledger rescanned more than once")
+        assert(scans <= 2, "disk ledger rescanned more than once per interval")
       end
       return list(path)
     end
-    local disk = s.disk()
+    local function pressure()
+      local disk = s.disk()
+      assert(disk.pressure and not disk.accepting and disk.ratio >= 1)
+      assert(disk.stores.log == 200000 and disk.stores.other == 0)
+    end
+    pressure()
+    assert(scans == 0)
+    net.time = net.time + 30000
+    pressure()
     assert(scans == 1)
-    assert(disk.pressure and not disk.accepting and disk.ratio >= 1)
-    assert(disk.stores.log == 200000 and disk.stores.other == 0)
+    for i = 1, 5 do
+      pressure()
+      assert(not s.canStart())
+      assert(s.emit("probe", i))
+      s.handlers.hello({from=2, body={role="worker", journal="same", fuel=1000}})
+    end
+    assert(scans == 1)
+    net.time = net.time + 29999
+    pressure()
+    assert(scans == 1)
+    net.time = net.time + 1
+    pressure()
+    assert(scans == 2)
   end)
   test("oversize refusal alerts without blocking healthy writes", function()
     local s, m = stateFixture()
