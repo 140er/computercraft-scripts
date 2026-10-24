@@ -566,13 +566,15 @@ HELLO = reply
       store = dofile("so-store.lua")
       pair = dofile("so-pair.lua")
       pair.open(proto, store)
-      local raw = pair.invite()
-      assert(type(raw) == "string" and #raw == 6, tostring(raw))
+      local raw, err = pair.invite()
+      assert(raw == nil and err == "random source unavailable", tostring(err))
+      assert(pair.pending() == nil, "invite created after timing error")
       DONE = true
     ]])
     net.flush()
     assert(not noisy.error, tostring(noisy.error))
-    assert(noisy.env.DONE == true, "invite failed after timing error")
+    assert(noisy.env.DONE == true, "invite did not refuse after timing error")
+    equal(#noisy.randomOut, 0, "secret generated after timing error")
     local saw = false
     for i = 1, #noisy.randomLog do
       if noisy.randomLog[i] == "initWithTiming" then saw = true end
