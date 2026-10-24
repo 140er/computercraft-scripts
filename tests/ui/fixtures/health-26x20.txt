@@ -8,7 +8,7 @@
  Events #7 / 1 seg        
  Event bytes 1080         
  Snapshot none            
- Disk 3% / 15510509B free 
+ Disk 3% / 15496447B free 
  Modems 1                 
  Paired 1 online / 0 lost 
  Leases 0 open            

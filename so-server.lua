@@ -134,6 +134,26 @@ S.run = function()
     return { code = view.code, expires = view.expires }
   end
 
+  SO.forgetDevice = function(id, actor)
+    for _, name in ipairs({"mine", "lumber", "build", "drops"}) do
+      local mod = SO.mods[name]
+      if mod and mod.forget then
+        local ok, err = mod.forget(id)
+        if not ok then return false, err or "assignment save failed" end
+      end
+    end
+    local previousKey = pair.key(id)
+    local ok, err = pair.forget(id)
+    if not ok then return false, err end
+    sent[id] = nil
+    if codeOwner == id then pair.clear(); codeOwner = nil; showPrompt() end
+    if SO.mods.lease then SO.mods.lease.forget(id, previousKey) end
+    if SO.mods.display then SO.mods.display.forget(id) end
+    local state = SO.mods.state
+    if state and state.emit then state.emit("pair.forgotten", {id=id, actor=actor, text="Forgot device "..id}) end
+    return true
+  end
+
   local function recall(msg)
     local by = sent[msg.from]
     local slot = by and by[msg.rid]

@@ -554,3 +554,18 @@ The refusal shows the needed and available fuel. After setup, the turtle's
 standing cell remains reserved until its next setup or assignment takes it.
 Display button presses must belong to the last delivered screen; stale controls
 need a fresh frame before they can be used.
+
+### Forget a paired device
+
+Open PANEL, PAIR, PAIRED. Find the id and tap FORGET, then CONFIRM within
+15 seconds. The panel lists the role or kind, time since last seen and a
+four-character key fingerprint. A display cannot forget itself.
+
+The server removes the key and parks mine, lumber and build assignments. It
+keeps possibly occupied cell reservations because the turtle may still be
+moving, and sends a best-effort stationary park. Other lumber workers continue.
+Setup scans and chest visits are cancelled. Their route moves from setup
+ownership to GPS recovery holds until the turtle is explicitly re-added. Re-pair and
+explicitly re-add the turtle at its actual pose before resuming it. The next
+hello shows the normal pairing prompt. NEEDS includes the most recent forget
+event.

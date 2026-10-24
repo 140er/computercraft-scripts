@@ -254,6 +254,14 @@ S.reanchor = function(id, pose)
   return true
 end
 
+S.encodeLease = function(key, lease)
+  return SO.proto.encode(SO.proto.build(key, "lease.batch", {
+    lease = lease.id, ttl = math.max(0, lease.expires - SO.now()),
+    expires = os.epoch("utc") + math.max(0, lease.expires - SO.now()), steps = lease.steps,
+    journal = lease.journal,
+  }))
+end
+
 S.send = function(id, steps, opts)
   if not S.number(id) or id < 0 or id % 1 ~= 0 then return nil, "id" end
   local row = S.row(id)
@@ -295,11 +303,7 @@ S.send = function(id, steps, opts)
   if #steps == 1 and steps[1].op == "inspectDown" then
     lease.retryAt = SO.now() + 1000
   end
-  local wire, err = SO.proto.encode(SO.proto.build(key, "lease.batch", {
-    lease = lease.id, ttl = math.max(0, lease.expires - SO.now()),
-    expires = os.epoch("utc") + math.max(0, lease.expires - SO.now()), steps = lease.steps,
-    journal = lease.journal,
-  }))
+  local wire, err = S.encodeLease(key, lease)
   if not wire then return nil, err end
   row.open = lease
   local ok, sent = pcall(rednet.send, id, wire, "so")
@@ -329,6 +333,22 @@ S.cancelPark = function(id, owner)
   local cells = S.module("cells")
   if type(cells) == "table" and type(cells.releaseOwner) == "function" then cells.releaseOwner(lease.id) end
   return true
+end
+
+S.forget = function(id, key)
+  local row = S.turtles[id]
+  if not row then return end
+  if key then
+    S.seq = S.seq + 1
+    local wire = S.encodeLease(key, {
+      id = "forget-" .. id .. "-" .. S.seq, expires = SO.now() + 600000, steps = {{op="inspectDown"}},
+    })
+    if wire then pcall(rednet.send, id, wire, "so") end
+  end
+  -- Without a final report, every reserved cell may still be occupied.
+  row.open, row.probe, row.anchor = nil, nil, nil
+  row.uncertain, row.lost = true, true
+  row.pose, row.poseAt = nil, nil
 end
 
 S.inRange = function(id, pos)
@@ -533,6 +553,7 @@ return {
   describe = S.describe,
   ensureTool = S.ensureTool,
   cancelPark = S.cancelPark,
+  forget = S.forget,
   inRange = S.inRange,
   dugProtection = S.dugProtection,
 }

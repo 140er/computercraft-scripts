@@ -301,7 +301,7 @@ local function confirmFuel(row, orderRid)
 end
 local function report(_, id, results, lease)
   local row = job.turtles[tostring(id)]
-  if not row then return end
+  if not row or row.forgotten then return end
   local action, interrupted = S.pending[id], row.inflight
   S.pending[id] = nil
   if not results or not lease.report or not lease.report.pose then
@@ -514,6 +514,7 @@ local function scanAction(row)
   return { kind = "scan", cell = c, cells = {c}, steps = { {op = n == 5 and "inspectUp" or n == 6 and "inspectDown" or "inspect"} } }
 end
 plan = function(id,row)
+  if row.forgotten then return end
   local status = call("lease", "status", id)
   if not status then return end
   local tool = P.toolCheck(status.tools,"pickaxe")
@@ -836,11 +837,15 @@ local function command(event)
     local status=call("lease","status",id)
     local uncertain=status and status.uncertain
     if status and status.probing then S.error="GPS probe pending" return end
-    if job.turtles[tostring(id)] and not uncertain then S.error="already added" return end
+    local forgotten=job.turtles[tostring(id)] and job.turtles[tostring(id)].forgotten
+    if job.turtles[tostring(id)] and not uncertain and not forgotten then S.error="already added" return end
+    if forgotten and not SO.pair.key(id) then S.error="turtle is not paired" return end
     local pose={dim=job.dim,x=num(3),y=num(4),z=num(5),facing=dirs[a[6]]}
-    if uncertain then
-      local ok,err=call("lease","reanchor",id,pose)
-      if not ok then S.error=err return end
+    if uncertain or forgotten then
+      if uncertain then
+        local ok,err=call("lease","reanchor",id,pose)
+        if not ok then S.error=err return end
+      end
       call("cells","releaseOwner",owner(id))
       S.pending[id],S.dugFacts[id]=nil,nil
     end
@@ -860,6 +865,9 @@ local function command(event)
     return
   elseif cmd=="remove" and num(2) then
     local status=call("lease","status",num(2))
+    if job.turtles[tostring(num(2))] and job.turtles[tostring(num(2))].forgotten then
+      S.error="device forgotten; re-pair and re-add turtle" return
+    end
     if status and status.open then
       local ok = call("lease","cancelPark",num(2),"mine")
       if not ok then S.error="turtle has open lease" return end
@@ -1079,7 +1087,7 @@ local function render(w,h,session)
 end
 local function dugProtection(protect)
   for _, row in pairs(job.turtles) do
-    if not S.wired or row.recover or not row.frame then return false end
+    if row.forgotten or not S.wired or row.recover or not row.frame then return false end
     protect(job.dim, row, 48)
   end
   if job.running then
@@ -1153,7 +1161,15 @@ local function turtleView()
   end
   return out
 end
-return {name="mine",assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},turtleView=turtleView,mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
+local function forget(id)
+  local row = job.turtles[tostring(id)]
+  if not row then return true end
+  row.forgotten, row.state, row.error, row.recover = true, "hold", "device forgotten", true
+  row.laneWait = nil
+  S.pending[id], S.dugFacts[id] = nil, nil
+  return save()
+end
+return {name="mine",forget=forget,assigned=function(id) return job.turtles[tostring(id)] ~= nil end,handlers={},turtleView=turtleView,mapView=mapView,dugProtection=dugProtection,forgetDug=forgetDug,tick=function()
   if not S.wired then
     local lease,display=mod("lease"),mod("display")
     if not lease or type(lease.onReport)~="function" or not display or type(display.screen)~="function" then return end
@@ -1161,13 +1177,13 @@ return {name="mine",assigned=function(id) return job.turtles[tostring(id)] ~= ni
     for _,row in pairs(job.turtles) do
       -- Rows saved before counted existed were counted when they finished.
       if row.state=="done" and row.counted==nil then row.counted=row.branch end
-      row.recover=true row.state="recovering"
+      if not row.forgotten then row.recover=true row.state="recovering" end
     end
   end
   for id,row in pairs(job.turtles) do
     if row.state ~= "wait lane" or row.recover or not job.running
       or (row.dropRetry and row.dropRetry.after and SO.now() < row.dropRetry.after) then row.laneWait=nil end
-    if row.lane and row.lane.release and not row.recover then
+    if not row.forgotten and row.lane and row.lane.release and not row.recover then
       local status=call("lease","status",tonumber(id))
       if status and not status.open then
         call("cells","releaseOwner",owner(tonumber(id)))

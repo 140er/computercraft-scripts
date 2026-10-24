@@ -280,6 +280,7 @@ for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
             for r, row in enumerate(big("123456")):
                 c.center(1, w-2, 3+r, row)
             c.center(1, w-2, 6, "4:52 left", "9")
+        c.button(0, h-5, w, "PAIRED", h=1)
         c.button(0, h-4, w, "NEW CODE", "9")
         c.button(0, h-1, w, "BACK", h=1)
         add(c, "Panel pairing " + ("code" if pending else "ready") + " " + size, True)
@@ -307,6 +308,22 @@ for w, h in [(26, 20), (29, 12)]:
             for (x, width), label, bg in zip(grid(w, 4), ["START", "STOP", "SETUP", "BACK"], ["9", "e", "7", "7"]):
                 c.button(x, h-height, width, label, bg, height)
         add(c, "Builder " + ("setup" if setup else "job") + f" {w}x{h}", True)
+
+import hashlib
+for w, h, size in [(26, 20, "P"), (29, 12, "S")]:
+    c = Canvas(w, h); c.header("PAIRED", "")
+    for i in range((h-4)//3):
+        device = i+2
+        y = 2+i*3
+        c.text(1, y, f"#{device} ?")
+        fingerprint = hashlib.sha256((f"{device:02x}"*32).encode()).hexdigest()[:4].upper()
+        c.text(w-5, y, fingerprint)
+        c.text(1, y+1, "-")
+        if device != 2:
+            c.button(w-13, y+1, 12, "FORGET", "e", h=1)
+    for (x, width), label in zip(grid(w, 3), ["PREV", "BACK", "NEXT"]):
+        c.button(x, h-1, width, label, h=1)
+    add(c, "Paired devices " + size, True)
 
 import argparse
 from pathlib import Path
@@ -336,7 +353,7 @@ args = parser.parse_args()
 
 if args.fixtures:
     args.fixtures.mkdir(parents=True, exist_ok=True)
-    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T build-26x20 buildsetup-26x20 build-29x12 buildsetup-29x12".split()
+    names = "status-M status-L status-P panel-P mining-M lumber-M shop-M shoporder-M drops-M alert-M outage-M server-T pairing-T ar-M status-XS panelpair-P panelcode-P panelpair-S panelcode-S shop-compact shop-pocket shop-large status-T build-26x20 buildsetup-26x20 build-29x12 buildsetup-29x12 paired-P paired-S".split()
     for stem, (canvas, title) in zip(names, FIXTURES):
         layers = [f"{canvas.w}x{canvas.h} {title}"]
         layers += ["".join(row) for row in canvas.t]

@@ -336,6 +336,22 @@ M.clear = function()
   S.sessions = {}
 end
 M.key = function(id) return S.keys[tostring(id)] end
+M.list = function()
+  local out = {}
+  for id, key in pairs(S.keys) do
+    out[#out + 1] = { id = tonumber(id), fingerprint = S.proto.hex(S.proto.sha256(key)):sub(1, 4):upper() }
+  end
+  table.sort(out, function(a, b) return a.id < b.id end)
+  return out
+end
+M.forget = function(id)
+  local name, copy = tostring(id), {}
+  for k, v in pairs(S.keys) do if k ~= name then copy[k] = v end end
+  local ok, err = S.box.save({ keys = copy })
+  if not ok then return false, err end
+  S.keys[name], S.sessions[name] = nil, nil
+  return true
+end
 M.repairHint = function(sender, payload, server)
   return server ~= nil and sender == server and M.key(server) ~= nil
     and type(payload) == "table" and payload.from == server
