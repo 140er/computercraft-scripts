@@ -32,6 +32,114 @@ local function failSave(a, first, persistent)
   return function() a.t.env.fs.open = open end
 end
 return function(test,equal)
+  test("expiry cannot backtrack after a refused batch and persistent journal failure", function()
+    local a = F.setup()
+    F.send(a, {{op="forward"}}); a.n.advance(0.2)
+    equal(a.t.pos.z, -1)
+    local restore = failSave(a, 1, true)
+    local back, calls = a.t.env.turtle.back, 0
+    a.t.env.turtle.back = function() calls = calls + 1 return back() end
+    F.send(a, {{op="forward"}}, 1000)
+    a.n.advance(70); F.check(a)
+    local reports = F.sent(a.t, "step.report")
+    equal(reports[#reports].body.results[1].err, "expired")
+    equal(calls, 0); equal(a.t.pos.z, -1)
+    restore()
+    local j = reboot(a)
+    equal(j.pose.z, a.t.pos.z); equal(#j.moves, 1)
+  end)
+  for _, op in ipairs({"forward", "up", "turnRight"}) do
+    test("failed expiry outcome save keeps " .. op .. " reversal uncertain", function()
+      local a = F.setup()
+      F.send(a, {{op=op}}, 1000); a.n.advance(0.2)
+      local restore = failSave(a, 2, false)
+      a.n.advance(100); F.check(a)
+      equal(a.t.pos, {x=0, y=0, z=0}); equal(a.t.heading, 0)
+      local beacons = F.sent(a.t, "beacon")
+      equal(beacons[#beacons].body.pose, nil)
+      equal(beacons[#beacons].body.uncertain, true)
+      restore()
+      local j = reboot(a)
+      equal(j.uncertain, true); equal(#j.moves, 0)
+      equal(j.pose, {x=0, y=0, z=0, f=0})
+    end)
+  end
+  for _, happened in ipairs({false, true}) do
+    test("reboot resolves an expiry reverse that " .. (happened and "ran" or "did not run"), function()
+      local a = F.setup()
+      F.send(a, {{op="forward"}}, 1000); a.n.advance(0.2)
+      local back = a.t.env.turtle.back
+      a.t.env.turtle.back = function()
+        if happened then back() end
+        a.n.kill(a.t); error("power loss")
+      end
+      a.n.advance(70)
+      equal(F.journal(a.t).pending.reverse, true)
+      a.t.env.turtle.back = back
+      local j = reboot(a)
+      equal(j.pose.z, a.t.pos.z); equal(j.pose.z, happened and 0 or -1)
+      equal(#j.moves, happened and 0 or 1)
+      equal(j.pending, nil)
+      j = reboot(a)
+      equal(j.pose.z, a.t.pos.z); equal(#j.moves, happened and 0 or 1)
+    end)
+  end
+  local function blockedReturn()
+    local a = F.setup()
+    a.n.world["0,0,-1"] = "minecraft:stone"
+    F.send(a, {{op="dig"}, {op="forward"}, {op="forward"}}, 1000)
+    a.n.advance(0.2)
+    equal(a.t.pos.z, -2)
+    a.n.world["0,0,-1"] = "minecraft:stone"
+    return a
+  end
+  test("expiry clears a known dug cell behind and restores its facing and history", function()
+    local a = blockedReturn()
+    a.n.advance(70); F.check(a)
+    equal(a.t.pos.z, 0); equal(a.t.heading, 0)
+    local j = reboot(a)
+    equal(j.pose.z, 0); equal(j.pose.f, 0)
+    equal(#j.moves, 0); equal(j.uncertain, nil)
+  end)
+  for _, failure in ipairs({
+    {at=11, persistent=false, z=-2, moves=2, uncertain=true, name="restored facing save"},
+    {at=12, persistent=true, z=-2, moves=2, name="retry pending save"},
+    {at=13, persistent=false, z=-1, moves=1, uncertain=true, name="retry outcome save"},
+  }) do
+    test("expiry clearing stops after a failed " .. failure.name, function()
+      local a = blockedReturn()
+      local restore = failSave(a, failure.at, failure.persistent)
+      a.n.advance(70); F.check(a)
+      equal(a.t.pos.z, failure.z); equal(a.t.heading, 0)
+      restore()
+      local j = reboot(a)
+      equal(j.pose.z, failure.z); equal(j.pose.f, 0)
+      equal(j.uncertain, failure.uncertain); equal(#j.moves, failure.moves)
+    end)
+  end
+  for turn = 1, 4 do
+    test("expiry clearing turn " .. turn .. " requires a pending save", function()
+      local a = blockedReturn()
+      local restore = failSave(a, 3 + (turn-1)*2, true)
+      a.n.advance(70); F.check(a)
+      equal(a.t.pos.z, -2); equal(a.t.heading, (4-(turn-1))%4)
+      restore()
+      local j = reboot(a)
+      if turn > 1 then equal(j.uncertain, true) end
+      equal(j.pose.z, -2); equal(j.pose.f, a.t.heading)
+      equal(#j.moves, 2)
+    end)
+    test("failed expiry clearing turn " .. turn .. " outcome survives reboot as uncertain", function()
+      local a = blockedReturn()
+      local restore = failSave(a, 4 + (turn-1)*2, false)
+      a.n.advance(70); F.check(a)
+      equal(a.t.pos.z, -2); equal(a.t.heading, (4-turn)%4)
+      restore()
+      local j = reboot(a)
+      equal(j.uncertain, true); equal(#j.moves, 2)
+      equal(j.pose.z, -2); equal(j.pose.f, a.t.heading)
+    end)
+  end
   for _, supplied in ipairs({false, true}) do
     test("failed pending save refuses movement with journal " .. tostring(supplied), function()
       local a = F.setup()
