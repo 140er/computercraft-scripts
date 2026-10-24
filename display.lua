@@ -216,7 +216,8 @@ C.drawInput = function()
     text = text:sub(1, room)
     if out.write then out.write(text .. string.rep(" ", width - #text)) end
   end
-  if C.h > C.viewH then
+  -- A kit frame fills every row; the typed line covers its last row only while there is one.
+  if C.h > C.viewH or C.typed ~= "" then
     local room = C.phase == "stale" and math.max(0, C.w - 6) or C.w
     draw(C.out, C.w, C.h, room)
   end
@@ -286,7 +287,7 @@ C.drawPair = function()
     if out.clear then out.clear() end
     local lines = {
       C.repair and "Old key kept. Pair again?" or "Pair a new client",
-      "Pair: press P on the server, then type the 6-digit code here",
+      "",
       C.pairError or (C.server and "Ready for code" or "Looking for server..."),
       "Code: " .. C.digits,
     }
@@ -329,9 +330,9 @@ C.join = function()
   C.pairError = "Pairing..."
   C.drawPair()
   local ok, reason = C.pair.join(C.digits, C.server)
-  C.digits = ""
   C.attempt = 0
   if ok then
+    C.digits = ""
     C.pairError = nil
     C.repair = nil
     C.retry()
@@ -365,7 +366,8 @@ C.loop = function()
       local key = C.pair.key(C.server)
       if msg and msg.t == "view.frame" and key and C.proto.macOk(key, msg) then C.onFrame(msg) end
     elseif ev == "char" and C.phase == "pairing" and type(a) == "string" and a:match("^%d$") then
-      C.digits = C.digits .. a
+      -- A failed code stays for Backspace; a seventh digit starts a new code.
+      C.digits = #C.digits < 6 and C.digits .. a or a
       C.drawPair()
       if #C.digits == 6 then C.join() end
     elseif ev == "key" and C.phase == "pairing" and (a == 259 or a == 14) then
@@ -390,9 +392,8 @@ C.loop = function()
       C.typed = ""
       C.send("input", { text = text, x = 1, y = 1 })
       C.clipDraw()
-    elseif ev == "peripheral" or ev == "peripheral_detach" then
-      C.openModems()
-    elseif ev == "monitor_resize" or ev == "term_resize" then
+    elseif ev == "monitor_resize" or ev == "term_resize" or ev == "peripheral" or ev == "peripheral_detach" then
+      if ev == "peripheral" or ev == "peripheral_detach" then C.openModems() end
       local outputKey, w, h = C.outputKey, C.w, C.h
       C.output()
       if C.phase == "pairing" then C.drawPair() else
