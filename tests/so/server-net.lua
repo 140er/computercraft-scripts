@@ -118,6 +118,49 @@ local function last(m, kind)
 end
 
 return function(test, equal)
+  test("server drops invalid stored keys and refuses their frames without crashing", function()
+    local n, machine = network()
+    local s = machine(1, true, true)
+    local good = string.rep("AB", 32)
+    local keys = { ["2"] = "zz", ["3"] = string.rep("g", 64), ["4"] = "aa",
+      ["5"] = string.rep("a", 63), ["6"] = string.rep("a", 66), ["7"] = false,
+      ["8"] = 123, ["9"] = {}, ["10"] = good }
+    s.files["so-keys"] = H.encode({schema = 1, generation = 1, value = {keys = keys}})
+    boot(n, s, "so-server.lua")
+    for id = 2, 9 do equal(s.env.SO.pair.key(id), nil) end
+    equal(s.env.SO.pair.key(10), good)
+    local notices = 0
+    for _, line in ipairs(s.env.SO.terminal.log) do
+      if line:find("ignored invalid stored keys", 1, true) then notices = notices + 1 end
+      assert(not line:find("zz", 1, true), "log exposed an invalid key")
+      assert(not line:find(good, 1, true), "log exposed a valid key")
+    end
+    equal(notices, 1)
+    s.env.os.queueEvent("rednet_message", 2, {v = 1, t = "hello", rid = "bad-stored-key",
+      from = 2, at = s.env.os.epoch("utc"), body = {}, mac = string.rep("0", 64)}, "so")
+    n.flush(); alive(s)
+    equal(last(s, "pair.required").id, 2)
+    s.env.os.queueEvent("key", 25, false); n.flush()
+    assert(s.env.SO.pair.pending(), "server stopped handling events after refusal")
+  end)
+
+  test("server refuses a malformed key at the MAC check without crashing", function()
+    local n, machine = network()
+    local s = machine(1, true, true)
+    boot(n, s, "so-server.lua")
+    local proto = s.env.dofile("so-proto.lua")
+    local msg = {v = 1, t = "hello", rid = "bad-memory-key", from = 2,
+      at = s.env.os.epoch("utc"), body = {}, mac = string.rep("0", 64)}
+    for _, key in ipairs({"zz", string.rep("g", 64), "aa", string.rep("a", 63),
+      string.rep("a", 66), false, 123, {}}) do
+      equal(proto.macOk(key, msg), false)
+    end
+    assert(s.env.SO.pair.remember(2, "zz"))
+    s.env.os.queueEvent("rednet_message", 2, msg, "so")
+    n.flush(); alive(s)
+    equal(last(s, "pair.required").id, 2)
+  end)
+
   test("server and display pair with a wired modem before wireless", function()
     local n, machine = network()
     local s, c = machine(1, true, true), machine(2, false, true)

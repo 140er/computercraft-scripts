@@ -307,7 +307,15 @@ M.open = function(proto, store, now)
   end, 200000)
   S.keys = {}
   if S.box.value and type(S.box.value.keys) == "table" then
-    for id, key in pairs(S.box.value.keys) do S.keys[tostring(id)] = key end
+    local invalid = false
+    for id, key in pairs(S.box.value.keys) do
+      if type(key) == "string" and #key == 64 and key:match("^%x+$") then
+        S.keys[tostring(id)] = key
+      else
+        invalid = true
+      end
+    end
+    if invalid then print("so-pair: ignored invalid stored keys") end
   end
   proto.bind(function(id) return S.keys[tostring(id)] end)
   S.envelope = proto.hex(proto.sha256("so-pair2 envelope\0"))

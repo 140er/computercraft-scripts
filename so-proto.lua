@@ -221,6 +221,7 @@ M.sign = function(key, msg)
 end
 
 M.macOk = function(key, msg)
+  if type(key) ~= "string" or #key ~= 64 or not key:match("^%x+$") then return false end
   if type(msg) ~= "table" or type(msg.mac) ~= "string" or #msg.mac ~= 64 then return false end
   local expect = M.sign(key, msg)
   local diff = 0
