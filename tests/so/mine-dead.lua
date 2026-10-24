@@ -61,6 +61,23 @@ return function(test,equal)
     s.input("ores diamond, unknown") assert(contains(s,"unknown ore"))
     s.input("stop") assert(not contains(s,"unknown ore"))
   end)
+  test("mine renews its standing reservation even when it already owns the cell",function()
+    local s=setup()
+    addLive(s,2) s.net.advance(1)
+    local pose=s.job().turtles["2"].pose
+    equal(s.mods.cells.owner(pose.x,pose.y,pose.z,pose.dim),"mine:2")
+    local reserve=s.mods.cells.reserve
+    local renewed=0
+    s.mods.cells.reserve=function(who,x,y,z,dim)
+      if who=="mine:2" and x==pose.x and y==pose.y and z==pose.z and dim==pose.dim then
+        equal(s.mods.cells.owner(x,y,z,dim),who)
+        renewed=renewed+1
+      end
+      return reserve(who,x,y,z,dim)
+    end
+    s.mods.mine.tick()
+    assert(renewed>0,"owned standing cell was not renewed")
+  end)
   test("mine start fails closed without its disk guard",function()
     local s=setup()
     s.input("home 0 0 0 n")
@@ -72,7 +89,7 @@ return function(test,equal)
     end
   end)
   test("mine removes an unloaded recovery holder and releases reservations",function()
-    local pose={dim="minecraft:overworld",x=0,y=-1,z=-1,facing=0}
+    local pose={dim="minecraft:overworld",x=-2,y=-1,z=-1,facing=0}
     local lane={{dim=pose.dim,x=0,y=0,z=-1},{dim=pose.dim,x=0,y=-1,z=-1},
       {dim=pose.dim,x=0,y=-2,z=-1}}
     local s=setup({home={x=0,y=0,z=0,facing=0},dim=pose.dim,bottom=-2,length=3,mode="thorough",ores={},
@@ -98,6 +115,51 @@ return function(test,equal)
     assert(not s.server.error,tostring(s.server.error))
     assert(not turtle.error,tostring(turtle.error))
     equal(s.job().turtles["3"].state,"done")
+  end)
+  test("mine refuses removal in the shared lane without releasing its park or cells",function()
+    local pose={dim="minecraft:overworld",x=0,y=-1,z=-1,facing=0}
+    local s=setup({home={x=0,y=0,z=0,facing=0},dim=pose.dim,bottom=-2,length=3,mode="fast",ores={},
+      progress={nextBranch=1,done=0},running=true,turtles={["2"]={pose=pose,anchor=pose,
+      state="lost",branch=0,route={},index=1,inv={}}}})
+    assert(s.server.env.SO.pair.remember(2,string.rep("a",64)))
+    s.mods.mine.tick()
+    local lease=assert(s.mods.lease.status(2).open)
+    assert(s.mods.cells.reserve("mine:2",pose.x,pose.y,pose.z,pose.dim))
+    s.input("remove 2")
+    assert(contains(s,"turtle in shared lane"))
+    equal(s.mods.lease.status(2).open,lease)
+    equal(s.mods.cells.owner(pose.x,pose.y,pose.z,pose.dim),"mine:2")
+    assert(s.job().turtles["2"])
+    equal(s.job().unfinished,nil)
+  end)
+  test("mining refuses geometry edits while running or a route is settling",function()
+    local s=setup()
+    s.input("home 0 0 0 n")
+    addLive(s,2) s.net.advance(1)
+    s.input("start")
+    local before=s.job()
+    for _,command in ipairs({"home 1 0 0 n","bottom -10","length 5","branches 2","continuous on","mode fast"}) do
+      s.input(command)
+      local after=s.job()
+      equal(after.home,before.home) equal(after.bottom,before.bottom) equal(after.length,before.length)
+      equal(after.branches,before.branches) equal(after.continuous,before.continuous) equal(after.mode,before.mode)
+      assert(contains(s,"stop mining before geometry changes"))
+    end
+    s.input("stop") s.net.advance(2)
+    equal(s.job().turtles["2"].route,nil)
+    s.input("length 5") equal(s.job().length,5)
+    s.input("start") s.net.advance(1)
+    equal(s.job().turtles["2"].route[#s.job().turtles["2"].route].x,5)
+  end)
+  test("stopped mining refuses geometry edits while a saved row still holds a route",function()
+    local pose={dim="minecraft:overworld",x=2,y=-2,z=-3,facing=1}
+    local s=setup({home={x=0,y=0,z=0,facing=0},dim=pose.dim,bottom=-2,length=3,mode="fast",ores={},
+      progress={nextBranch=1,done=0},running=false,turtles={["2"]={pose=pose,anchor=pose,
+      state="stopped",branch=0,route={pose},index=1,inv={}}}})
+    s.input("length 5") equal(s.job().length,3)
+    assert(contains(s,"wait for mining routes to stop"))
+    s.input("stop") s.input("length 5") equal(s.job().length,5)
+    equal(s.job().turtles["2"].route,nil)
   end)
   test("mine refuses removal with actual movement or another owner's lease",function()
     local s=setup()

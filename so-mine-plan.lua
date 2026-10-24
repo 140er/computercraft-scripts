@@ -255,18 +255,61 @@ function M.travel(from, goal, point, job, row)
     end
   end
 end
-local function nextOne(job, row, lookup, inv, _fuel)
+local function blocked(job, cell)
+  return (job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
+end
+local function bypass(job, from, cell, target)
+  local dx,dy,dz = cell.x-from.x,cell.y-from.y,cell.z-from.z
+  target = target or {dim=from.dim,x=cell.x+dx,y=cell.y+dy,z=cell.z+dz}
+  for _=1,16 do
+    if not blocked(job,target) then break end
+    target = {dim=from.dim,x=target.x+dx,y=target.y+dy,z=target.z+dz}
+  end
+  local queue, head, seen, parents = {from}, 1, {[M.key(from)]=0}, {}
+  while queue[head] and head<=512 do
+    local best, score, distance = head, math.huge, math.huge
+    for i=head,#queue do
+      local d=M.distance(queue[i],target)
+      local cost=seen[M.key(queue[i])]+d
+      if cost<score or cost==score and d<distance then best,score,distance=i,cost,d end
+    end
+    queue[head],queue[best]=queue[best],queue[head]
+    local p=queue[head] head=head+1
+    if M.same(p,target) then
+      local path={}
+      while parents[M.key(p)] do table.insert(path,1,p) p=parents[M.key(p)] end
+      return path
+    end
+    for _, offset in ipairs({{1,0,0},{-1,0,0},{0,0,1},{0,0,-1},{0,1,0},{0,-1,0}}) do
+      local nextCell={dim=from.dim,x=p.x+offset[1],y=p.y+offset[2],z=p.z+offset[3]}
+      local key=M.key(nextCell)
+      if not seen[key] and not blocked(job,nextCell) and not P.heightError(job.dim or from.dim or "minecraft:overworld",nextCell.y) then
+        seen[key],parents[key]=seen[M.key(p)]+1,p queue[#queue+1]=nextCell
+      end
+    end
+  end
+end
+local function detourGoal(path, pose)
+  if not path or #path==0 then return nil end
+  for i, cell in ipairs(path) do if M.same(cell,pose) then return path[i+1] end end
+  return path[1]
+end
+local nextOne
+nextOne = function(job, row, lookup, inv, fuel)
   local p, goal = row.pose, row.goal
   local out = { steps = {}, cells = {}, pose = p }
   if not goal or M.same(p, goal) then out.kind = "arrived" return out end
-  if row.trip then
-    local route = M.travel(p, goal, row.trip.point, job, row)
-    if not route or not route[1] then out.kind, out.error = "hold", "no route around drop" return out end
-    goal = route[1]
+  local detour=detourGoal(row.detour,p)
+  local tripRoute
+  if detour then goal=detour
+  elseif row.trip then
+    tripRoute = M.travel(p, goal, row.trip.point, job, row)
+    if not tripRoute or not tripRoute[1] then out.kind, out.error = "hold", "no route around drop" return out end
+    goal = tripRoute[1]
   end
   local dir, want
   if p.y ~= goal.y then dir = goal.y > p.y and "up" or "down"
-  elseif not row.trip and not (row.veins and #row.veins>0) and job.home
+  elseif not detour and not row.trip and not (row.veins and #row.veins>0) and job.home
       and job.home.facing%2==0 and p.z~=goal.z and not M.inLane(job,goal) then
     dir,want="forward",goal.z>p.z and 2 or 0
   elseif p.x ~= goal.x then dir, want = "forward", goal.x > p.x and 1 or 3
@@ -274,6 +317,21 @@ local function nextOne(job, row, lookup, inv, _fuel)
   local turn = want and M.turn(p, want)
   if turn then out.steps = { turn } out.pose = P.apply(p, turn.op) out.kind = "turn" return out end
   local cell = M.cell(p, dir)
+  if blocked(job,cell) then
+    local target = not row.trip and M.distance(p,goal)<=32 and goal or nil
+    for i=2,#(tripRoute or {}) do
+      if not blocked(job,tripRoute[i]) then target=tripRoute[i] break end
+    end
+    local path=bypass(job,p,cell,target)
+    if path then
+      local cursor={pose=p,goal=row.goal,trip=row.trip,veins=row.veins,detour=path}
+      local action=nextOne(job,cursor,lookup,inv,fuel)
+      action.detour=path
+      return action
+    end
+    out.kind,out.error="hold","no route around skipped cell"
+    return out
+  end
   local hazard = P.heightError(job.dim or p.dim or "minecraft:overworld", cell.y)
   if hazard then out.kind, out.error = "hold", hazard return out end
   local known = lookup(cell)
@@ -303,7 +361,7 @@ local function nextOne(job, row, lookup, inv, _fuel)
 end
 function M.next(job, row, lookup, inv, fuel)
   local out = { kind = "batch", steps = {}, cells = {}, actions = {}, pose = row.pose }
-  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip, veins = row.veins, branch = row.branch, route = row.route, index = row.index }
+  local cursor = { pose = row.pose, goal = row.goal, trip = row.trip, veins = row.veins, branch = row.branch, route = row.route, index = row.index, detour = row.detour }
   while #out.steps < 16 do
     local action = nextOne(job, cursor, lookup, inv, fuel)
     if #action.steps == 0 or #out.steps + #action.steps > 16 then
@@ -323,6 +381,7 @@ function M.next(job, row, lookup, inv, fuel)
     out.pose = action.pose
     if action.kind ~= "move" and action.kind ~= "turn" then break end
     cursor.pose = action.pose
+    if action.detour then cursor.detour = action.detour end
     if action.kind == "move" and (not row.trip and row.pose.y == row.goal.y
         or row.trip and row.trip.shared~=false and not M.inLane(job,action.pose)) then break end
   end

@@ -27,6 +27,44 @@ local function save()
 end
 local function emit(kind, data) call("state", "emit", kind, data) end
 local function owner(id) return "mine:" .. id end
+local function skipped(cell)
+  return cell and (job.digFailures and job.digFailures[M.key(cell)] or 0) >= 3
+end
+local function failedDig(id, row, cell, reason)
+  local key = M.key(cell)
+  job.digFailures = job.digFailures or {}
+  job.digFailures[key] = math.min(3, (job.digFailures[key] or 0) + 1)
+  S.known[key] = nil row.error = reason
+  if skipped(cell) then
+    row.detour = nil row.error = nil
+    emit("mine.alert", {id=id,text="skipped undiggable cell "..key})
+  end
+end
+local function claimBranch()
+  if job.unfinished and #job.unfinished > 0 then return table.remove(job.unfinished, 1), true end
+  local branch = job.progress.nextBranch or 0
+  if job.continuous and branch >= (job.branches or 8) then return nil end
+  job.progress.nextBranch = branch + 1
+  return branch
+end
+local function keepBranch(branch)
+  if branch == nil then return end
+  job.unfinished = job.unfinished or {}
+  for _, old in ipairs(job.unfinished) do if old == branch then return end end
+  job.unfinished[#job.unfinished+1] = branch
+end
+local function returnJunction(row)
+  local route = row.route or M.route(job,row.branch)
+  for i=#route,1,-1 do
+    if M.inLane(job,route[i]) and not skipped(route[i]) then return SO.store.copy(route[i]) end
+  end
+  local home = SO.store.copy(job.home) home.dim=job.dim
+  return home
+end
+local function clearRoute(row)
+  if row.route then row.rebuild = row.branch end
+  row.route, row.goal, row.detour, row.stopRoute = nil, nil, nil, nil
+end
 local function lookup(cell)
   return S.known[M.key(cell)]
 end
@@ -62,7 +100,6 @@ local function cleanupAction(row)
 end
 local function reservePose(id, row)
   local p = row.pose
-  if call("cells","owner",p.x,p.y,p.z,p.dim)==owner(id) then return true end
   local ok, err = call("cells", "reserve", owner(id), p.x, p.y, p.z, p.dim)
   if not ok then row.error = err or "standing cell unavailable" end
   return ok
@@ -331,11 +368,16 @@ local function report(_, id, results, lease)
         row.scanAfter = true
         if row.veinCount >= 64 then row.veins = { world } end
       end
+      if job.digFailures then job.digFailures[M.key(world)] = nil end
       interrupted = nil
     end
     local key=M.key(world)
     if not priorDug[key] then mark(world) end
     nextDug[key]=true
+  end
+  -- An interrupted dig consumes a retry unless recovery confirms success.
+  if action and action.kind == "recover" and interrupted and interrupted.kind == "dig" then
+    failedDig(id,row,interrupted.cell,"dig outcome missing after recovery")
   end
   if facts.dug then
     S.dugFacts[id]=nextDug
@@ -380,10 +422,13 @@ local function report(_, id, results, lease)
       elseif action.kind == "dig" then
         if results[1].ok then
           mark(action.cell) row.dug = (row.dug or 0) + 1
+          if job.digFailures then job.digFailures[M.key(action.cell)] = nil end
           if action.ore then row.ores = (row.ores or 0)+1 row.veinCount = (row.veinCount or 0)+1 emit("mine.ore", { id = id, name = action.ore, count = 1 }) row.scanAfter = true
             if row.veinCount >= 64 then row.veins = { action.cell } end
           end
-        else S.known[M.key(action.cell)] = nil row.error = results[1].err end
+        else
+          failedDig(id,row,action.cell,results[1].err)
+        end
       elseif action.kind == "seal" then S.known[M.key(action.cell)] = nil
       elseif action.kind == "move" then
         if results[1].ok then
@@ -449,6 +494,21 @@ local function report(_, id, results, lease)
 end
 local function send(id, row, action)
   if #action.steps == 0 then return false end
+  for _, step in ipairs(action.steps) do
+    if step.op == "dig" or step.op == "digUp" or step.op == "digDown" then
+      local status = call("lease", "status", id)
+      if not P.toolCheck(status and status.tools, "pickaxe").ok then
+        if row.error ~= "needs pickaxe" then emit("mine.alert", {id=id,text="needs pickaxe"}) end
+        row.state, row.error = "hold", "needs pickaxe"
+        call("lease", "describe", id, "mine", row.error)
+        save()
+        return false
+      end
+    end
+  end
+  for _, part in ipairs(action.actions or {action}) do
+    if part.detour then row.detour = part.detour end
+  end
   local proposed=action
   action = P.rangeBatch(mod("lease"), id, action)
   if not action then
@@ -539,6 +599,7 @@ plan = function(id,row)
     row.state = "lost" row.recover = true park(id,row,true) return
   end
   if not row.frame then row.recover = true park(id,row,true) return end
+  if row.stopRoute or not job.running and row.route then clearRoute(row) save() end
   if type(mod("lease").ensureTool) == "function" then
     local equipped, reason = call("lease", "ensureTool", id, "pickaxe")
     if not equipped then
@@ -547,7 +608,7 @@ plan = function(id,row)
       if not current or not current.open then park(id,row,false) end
       return
     end
-    if row.error and (row.error == "needs pickaxe" or row.error:match("^tool swap failed:")) then
+    if tool.ok and row.error and (row.error == "needs pickaxe" or row.error:match("^tool swap failed:")) then
       row.state, row.error = "stopped", nil
     end
   end
@@ -661,9 +722,18 @@ plan = function(id,row)
       return
     end
   end
+  if row.detour then
+    for i, cell in ipairs(row.detour) do
+      if M.same(row.pose, cell) then
+        for _=1,i do table.remove(row.detour,1) end
+        break
+      end
+    end
+    if #row.detour == 0 then row.detour = nil end
+  end
   while row.veins and row.veins[#row.veins] do
     local cell=row.veins[#row.veins]
-    if row.goal and M.same(cell,row.goal) or not call("cells","isDug",cell.x,cell.y,cell.z,job.dim) then break end
+    if not skipped(cell) and (row.goal and M.same(cell,row.goal) or not call("cells","isDug",cell.x,cell.y,cell.z,job.dim)) then break end
     table.remove(row.veins)
   end
   local vein=row.veins and #row.veins>0 and (not M.inLane(job,row.pose) or row.lane and row.lane.target)
@@ -673,27 +743,34 @@ plan = function(id,row)
   elseif not row.returning then
     row.veinCount = 0
     if not row.route then
-      local branch=job.progress.nextBranch or 0
-      if job.continuous and branch >= (job.branches or 8) then row.state="done" save() park(id,row,false) return end
-      job.progress.nextBranch=branch+1
-      row.branch, row.route, row.index=branch,M.route(job,branch),1
+      local branch, reclaimed = row.rebuild, row.reclaimed
+      if branch == nil then branch, reclaimed = claimBranch() end
+      if branch == nil then row.state="done" save() park(id,row,false) return end
+      row.branch, row.route, row.index=branch,M.route(job,branch),row.rebuild ~= nil and row.index or 1
+      row.rebuild, row.reclaimed = nil, reclaimed
       row.veinCount = 0
     end
     -- A worker added below the surface joins its route at the nearest tunnel
     -- cell rather than climbing a new column to the shaft top.
     if row.index==1 and row.pose.y<row.route[1].y then
       row.index=2
-      for i=3,#row.route do
-        if M.distance(row.pose,row.route[i])<M.distance(row.pose,row.route[row.index]) then row.index=i end
+      if not row.reclaimed then
+        for i=3,#row.route do
+          if M.distance(row.pose,row.route[i])<M.distance(row.pose,row.route[row.index]) then row.index=i end
+        end
       end
     end
-    while row.route[row.index] and M.same(row.pose,row.route[row.index]) do row.index=row.index+1 end
+    while row.route[row.index] and (M.same(row.pose,row.route[row.index]) or skipped(row.route[row.index])) do row.index=row.index+1 end
     row.goal=row.route[row.index]
     -- A finished worker recovered elsewhere (moved by hand, or backed along
     -- its path by a worker from before #146) returns to its branch end, so it
     -- does not park in a column or lane that other workers travel through.
     local last=row.route[#row.route]
-    if not row.goal and last and not M.same(row.pose,last) then row.goal=last end
+    if not row.goal and last and not skipped(last) and not M.same(row.pose,last) then row.goal=last end
+    if not row.goal and last and skipped(last) and M.inLane(job,row.pose) then
+      local endPose=SO.store.copy(last) endPose.facing=(job.home.facing+1)%4
+      row.goal=M.cell(endPose,"forward")
+    end
     if not row.goal then
       for _, item in ipairs(row.inv) do
         if not M.junk(item) and not unloadKeep[item.name] and not item.name:match("_pickaxe$") and not item.name:match("_axe$")
@@ -714,25 +791,23 @@ plan = function(id,row)
         if #S.trailOrder>64 then S.trailDone[table.remove(S.trailOrder,1)]=nil end
         emit("mine.progress",{level=job.bottom,branch=row.branch,done=job.progress.done})
       end
-      if job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
-        local branch=job.progress.nextBranch or 0
-        job.progress.nextBranch=branch+1
-        local junction
-        for i=#row.route,1,-1 do if M.inLane(job,row.route[i]) then junction=row.route[i] break end end
-        row.returning = {branch=branch,junction=SO.store.copy(junction)}
+      if #(job.unfinished or {}) > 0 or job.continuous and (job.progress.nextBranch or 0) < (job.branches or 8) then
+        local branch=claimBranch()
+        row.returning = {branch=branch,junction=returnJunction(row)}
         row.state = "mining"
       else save() park(id,row,false) return end
       save()
     end
   end
   if row.returning and not vein then
+    if skipped(row.returning.junction) then row.returning.junction=returnJunction(row) end
     local junction = row.returning.junction
     if M.same(row.pose,junction) then
       local branch=row.returning.branch
       row.branch,row.route=branch,M.route(job,branch)
       row.index=2
       for i=2,#row.route do if M.same(row.route[i],junction) then row.index=i+1 break end end
-      row.returning=nil
+      row.returning,row.rebuild=nil,nil
       row.goal=row.route[row.index]
     else row.goal=junction end
     save()
@@ -1291,6 +1366,13 @@ local function command(event)
     end)
     return
   end
+  local geometry = cmd=="home" or cmd=="bottom" or cmd=="length" or cmd=="branches" or cmd=="continuous" or cmd=="mode"
+  if geometry then
+    if job.running then S.error="stop mining before geometry changes" return end
+    for _, row in pairs(job.turtles) do
+      if row.route or row.stopRoute then S.error="wait for mining routes to stop" return end
+    end
+  end
   if cmd=="fuel" then
     local ok, err
     if a[2]=="auto" and (a[3]=="on" or a[3]=="off") and #a==3 then ok,err=call("shop","fuelConfig",a[3]=="on")
@@ -1362,6 +1444,8 @@ local function command(event)
     park(id,job.turtles[tostring(id)],true)
     return
   elseif cmd=="remove" and num(2) then
+    local row = job.turtles[tostring(num(2))]
+    if row and M.inLane(job,row.pose) then S.error="turtle in shared lane; wait for off-lane pose" return end
     local status=call("lease","status",num(2))
     if job.turtles[tostring(num(2))] and job.turtles[tostring(num(2))].forgotten then
       S.error="device forgotten; re-pair and re-add turtle" return
@@ -1372,7 +1456,14 @@ local function command(event)
     end
     local released, err = call("cells","releaseOwner",owner(num(2)))
     if released == false then S.error=tostring(err) return end
+    if row then
+      if row.counted ~= row.branch then keepBranch(row.branch or row.rebuild) end
+      if row.returning then keepBranch(row.returning.branch) end
+    end
     job.turtles[tostring(num(2))]=nil
+    for _, peer in pairs(job.turtles) do
+      if peer.state == "done" and job.running and #(job.unfinished or {}) > 0 then peer.state = "mining" end
+    end
     S.pending[num(2)],S.dugFacts[num(2)] = nil,nil
   elseif cmd=="start" then
     local ok, err = call("state", "canStart")
@@ -1388,11 +1479,29 @@ local function command(event)
     if not job.running then S.trailDone,S.trailOrder = {},{} end
     job.running=true
     for _,row in pairs(job.turtles) do row.safety=nil end
-    if job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
+    if #(job.unfinished or {})>0 or job.continuous and (job.progress.nextBranch or 0)<(job.branches or 8) then
       for _,row in pairs(job.turtles) do if row.state=="done" then row.state="mining" end end
     end
-  elseif cmd=="stop" then job.running=false
+  elseif cmd=="stop" then
+    job.running=false
+    for id, row in pairs(job.turtles) do
+      local status=call("lease","status",tonumber(id))
+      if row.route then
+        if status and status.open and not call("lease","cancelPark",tonumber(id),"mine") then row.stopRoute=true
+        else clearRoute(row) end
+      end
+    end
   else S.error="invalid mining command" return end
+  if geometry and cmd ~= "branches" and cmd ~= "continuous" then
+    job.progress, job.unfinished, job.digFailures = {nextBranch=0,done=0}, {}, {}
+    S.known, S.trailDone, S.trailOrder = {}, {}, {}
+    for id, row in pairs(job.turtles) do
+      row.branch, row.rebuild, row.index, row.counted, row.reclaimed = nil, nil, nil, nil, nil
+      row.returning, row.trip, row.resumeTrip, row.veins, row.scan, row.fluid, row.yield = nil, nil, nil, nil, nil, nil, nil
+      row.state = "stopped"
+      releaseLane(tonumber(id),row)
+    end
+  end
   S.error=nil
   save()
 end

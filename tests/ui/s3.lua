@@ -424,6 +424,8 @@ return function(test, equal)
         { 'set-length+', 'length 72' }, { 'mode-fast', 'mode fast' }, { 'mode-thorough', 'mode thorough' },
         { 'ore-coal', 'ores copper,iron,gold,redstone,lapis,diamond' } }) do
       local a, b, session = mining(), mining(), { id = 7 }
+      a.type('stop') b.type('stop')
+      a.saves, b.saves = 0, 0
       a.tap(session, 'tab:setup')
       if case[1]:find('^ore') then a.tap(session, 'ores-edit') end
       assert(ids(a.render(57, 24, session))[case[1]], 'no drawn ' .. case[1])
@@ -433,6 +435,7 @@ return function(test, equal)
       equal({ a.saves, b.saves }, { 1, 1 })
     end
     local t, session = mining(), { id = 7 }
+    t.type('stop')
     t.tap(session, 'tab:setup')
     t.tap(session, 'ore-coal')
     equal(#t.job.ores, 6)
