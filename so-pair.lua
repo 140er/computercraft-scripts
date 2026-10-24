@@ -512,6 +512,7 @@ end
 local E = {
   alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
   life = 600000,
+  -- A device keeps asking this long after the window could have ended.
   linger = 60000,
   cap = 20,
   poll = 3,
@@ -558,7 +559,7 @@ end
 E.window = function()
   local now = S.now()
   for name, row in pairs(E.done) do
-    if now - row.at > E.linger then E.done[name] = nil end
+    if now - row.at > E.life then E.done[name] = nil end
   end
   if S.win and now >= S.win.exp then M.enrollClose() end
   return S.win

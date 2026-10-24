@@ -174,8 +174,9 @@ The server answers:
   joins) or `share` (`Xd` equals `Xs` or gives an all-zero `K`).
 
 A repeat of a known request, matched on `pub`, `kind` and tag1, gets the same
-answer and costs nothing. Answers to approved and denied rows stay for 60000 ms
-after the decision, also after the window closes. A new request first spends a
+answer and costs nothing. Answers to approved and denied rows stay for 600000 ms
+after the decision, also after the window closes, so a device that reboots
+after approval still collects its key. A new request first spends a
 `pair.charge(id, "start")`; a wrong tag1 or a malformed body also spends a
 `reject`. Enroll and `pair2` share that budget.
 
