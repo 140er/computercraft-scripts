@@ -358,9 +358,8 @@ S.setupSend = function()
   local task=S.task
   local step=task.steps[task.next]
   if not step then
-    local ok,err=SO.mods.cells.releaseOwner(task.owner)
-    S.message=ok == false and tostring(err) or task.message or "scan complete"
-    if ok ~= false then S.task=nil end
+    local message=task.message or "scan complete"
+    if S.finishRelease(task.id,task.pose) then S.message=message end
     return
   end
   step.park=true
@@ -478,8 +477,18 @@ S.beginSetup = function(id, point, facing)
       steps[#steps+1]={op="turnRight"} at=P.apply(at,"turnRight")
     end
   end
-  local cells,at={pose},pose
-  for _,step in ipairs(steps) do at=P.apply(at,step.op) cells[#cells+1]=at end
+  local cells,at,moves={pose},pose,0
+  for _,step in ipairs(steps) do
+    at=P.apply(at,step.op) cells[#cells+1]=at
+    if step.op=="forward" or step.op=="back" or step.op=="up" or step.op=="down" then moves=moves+1 end
+  end
+  if moves>0 then
+    local fuel=SO.mods.lease.status(id).fuel
+    if fuel ~= "unlimited" and fuel ~= -1 then
+      if not S.whole(fuel) or fuel<0 then S.message="fuel #"..id.." unknown" return end
+      if fuel<moves then S.message="fuel #"..id..": need "..moves..", have "..fuel return end
+    end
+  end
   if not P.inRange(SO.mods.lease,id,cells) then S.message="test route out of range" return end
   for _,cell in ipairs(cells) do if S.inLane(cell) then S.message="mining lane" return end end
   local owner="setup:"..id
@@ -515,6 +524,7 @@ S.finishRelease = function(id,pose)
   ok,why=cells.releaseOwner(owner)
   if ok == false then S.message=why return end
   S.task=nil S.message="setup released"
+  return true
 end
 
 S.releaseSetup = function(id)

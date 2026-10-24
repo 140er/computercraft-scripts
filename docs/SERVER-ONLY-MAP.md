@@ -926,3 +926,9 @@ Machine registry rows and views include an optional sanitized 16-character
 `label`. State retains `pair.done={id,at,role?,label?}` for panel notices.
 Mining publishes command refusals through its existing `mine.alert` state key
 and clears the key after accepted commands.
+
+Setup completion retains the occupied cell as `gps:<id>` before freeing its
+route. `lease.status(id).fuel` reports the latest hello or accepted step-report
+fuel for round-trip admission. The display dispatcher keeps a per-session map
+of the last delivered frame's button ids and rejects hidden or stale ids before
+any screen action. Local monitor input uses its last painted frame.

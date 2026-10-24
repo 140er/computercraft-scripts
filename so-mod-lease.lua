@@ -310,7 +310,7 @@ end
 S.snapshot = function(row)
   if not row then return nil end
   return { open = row.open and row.open.id or nil, lost = row.lost, range = row.range, seen = row.seen,
-    parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
+    fuel = row.fuel, parkBatch = row.parkBatch, setupFence = row.setupFence, probing = row.probe ~= nil, fix = SO.store.copy(row.fix), rotation = SO.store.copy(row.rotation),
     pose = S.journalPose(row.pose), journal = row.journal, poseAt = row.poseAt, uncertain = row.uncertain or row.anchor and true or nil }
 end
 
@@ -361,6 +361,7 @@ S.report = function(msg)
   row.seen = SO.now()
   row.lost = false
   lease.report = S.facts(body)
+  row.fuel = lease.report.fuel
   row.uncertain = lease.report.uncertain
   if row.uncertain then row.pose, row.poseAt = nil, nil end
   S.journalSeen(row, lease.report.pose, lease.report.journal)
@@ -391,6 +392,7 @@ S.hello = function(msg)
   local row = S.row(msg.from)
   row.lost = false
   row.seen = SO.now()
+  row.fuel = (S.number(msg.body.fuel) or msg.body.fuel == "unlimited") and msg.body.fuel or nil
   row.worker = msg.body.role == "turtle" or msg.body.role == "worker"
   row.setupFence = type(msg.body.capabilities) == "table" and msg.body.capabilities.setupFence == true
   row.parkBatch = type(msg.body.capabilities) == "table" and msg.body.capabilities.parkBatch == true

@@ -9,12 +9,13 @@ local function setup(enabled)
   a.s.files["so-server.cfg"]=H.encode({setupMovement=enabled,pos={dim="minecraft:overworld",x=40,y=64,z=10}})
   a.n.advance(3)
   a.t.env.gps={locate=function() return a.t.pos.x+40,a.t.pos.y+64,a.t.pos.z+10 end}
-  local function hello()
+  local function hello(fuel)
     local seen=F.sent(a.t,"hello")[#F.sent(a.t,"hello")].body
     local body={role="turtle",label="setup-turtle\n123456789",journal=a.t.files["so-journal"] and F.journal(a.t) or seen.journal,capabilities=seen.capabilities,
-      fuel=1000,gps={dim="minecraft:overworld",x=a.t.pos.x+40,y=a.t.pos.y+64,z=a.t.pos.z+10}}
+      fuel=fuel==nil and a.t.env.turtle.getFuelLevel() or fuel,gps={dim="minecraft:overworld",x=a.t.pos.x+40,y=a.t.pos.y+64,z=a.t.pos.z+10}}
     local proto=a.t.env.dofile("so-proto.lua")
-    a.t.env.rednet.send(1,proto.encode(proto.build(string.rep("a",64),"hello",body)),"so")
+    a.helloSeq=(a.helloSeq or 0)+1
+    a.t.env.rednet.send(1,proto.encode(proto.build(string.rep("a",64),"hello",body,"setup-hello-"..a.helloSeq)),"so")
     a.n.flush()
   end
   hello()
@@ -61,9 +62,57 @@ return function(test,equal)
       local point=a.s.env.SO.mods.drops.list()[1]
       equal({point.x,point.y,point.z,point.kind,point.side},{40,63,10,"ore","down"})
       for _,packet in ipairs(F.sent(a.s,"lease.batch")) do assert(packet.body.steps[1].park) end
-      equal(a.s.env.SO.mods.cells.list("setup:2",100),{})
+      local cells=a.s.env.SO.mods.cells
+      equal(cells.list("setup:2",100),{})
+      equal(cells.owner(40,64,10,"minecraft:overworld"),"gps:2")
+      assert(not cells.reserve("other",40,64,10,"minecraft:overworld"))
     end)
   end
+  for _,fuel in ipairs({3,6,"unlimited"}) do
+    test("setup visit budgets the complete return trip with fuel "..fuel,function()
+      local a=setup(true)
+      a.t.fuel=fuel a.hello()
+      local cells=a.s.env.SO.mods.cells
+      assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+      a.n.world["3,-1,0"]="minecraft:chest"
+      a.ui.input({text="test ore"})
+      press(a.ui,29,12,"facing:1",{})
+      a.n.advance(5) F.check(a)
+      equal({a.t.pos.x,a.t.pos.y,a.t.pos.z},{0,0,0})
+      equal(cells.list("setup:2",100),{})
+      if fuel==3 then
+        equal(#F.sent(a.s,"lease.batch"),0)
+        assert(text(a.ui.render(29,12)):find("fuel #2: need 6, have 3",1,true))
+        equal(a.s.env.SO.mods.drops.list()[1].verified,nil)
+      else
+        assert(a.s.env.SO.mods.drops.list()[1].verified)
+        equal(cells.owner(40,64,10,"minecraft:overworld"),"gps:2")
+        assert(not cells.reserve("other",40,64,10,"minecraft:overworld"))
+        a.n.kill(a.s) a.s=a.n.boot(a.s) a.n.flush()
+        equal(a.s.env.SO.mods.cells.owner(40,64,10,"minecraft:overworld"),"gps:2")
+      end
+    end)
+  end
+  test("setup refuses a visit with an unknown fuel report",function()
+    local a=setup(true) a.hello(false)
+    assert(a.s.env.SO.mods.drops.add({id="ore",dim=0,x=43,y=63,z=10,side="down",kind="ore"}))
+    a.ui.input({text="test ore"}) press(a.ui,29,12,"facing:1",{})
+    equal(#F.sent(a.s,"lease.batch"),0)
+    assert(text(a.ui.render(29,12)):find("fuel #2 unknown",1,true))
+  end)
+  test("setup keeps its route when the occupied-cell handoff cannot save",function()
+    local a=setup(true)
+    local cells=a.s.env.SO.mods.cells
+    local handoff=cells.handoff
+    cells.handoff=function() return false,"disk full" end
+    a.ui.input({text="scan 2"}) press(a.ui,29,12,"facing:1",{})
+    a.n.advance(4) F.check(a)
+    equal(cells.owner(40,64,10,"minecraft:overworld"),"setup:2")
+    assert(not cells.reserve("other",40,64,10,"minecraft:overworld"))
+    cells.handoff=handoff
+    a.hello() a.ui.input({text="release 2"}) a.n.advance(1)
+    equal(cells.owner(40,64,10,"minecraft:overworld"),"gps:2")
+  end)
   test("setup movement defaults off and never sends a lease",function()
     local a=setup()
     a.ui.input({text="scan 2"})
@@ -213,6 +262,52 @@ return function(test,equal)
     state.handlers.hello({from=2,body={role="turtle",label="renamed"}})
     equal(state.get("machines/2").label,"renamed")
   end)
+  for _,size in ipairs({{26,20},{29,12}}) do
+    test("display rejects hidden setup and job controls at "..size[1].."x"..size[2],function()
+      local a=setup(true)
+      local display=a.s.env.SO.mods.display
+      display.handlers.hello({from=3,body={w=size[1],h=size[2],keyboard=true}})
+      local function frame()
+        local f
+        display.handlers["view.get"]({from=3},function(_,body) f=body end)
+        return f
+      end
+      local function send(id)
+        display.handlers.input({from=3,body={id=id,x=1,y=1}})
+      end
+      local function pressVisible(id)
+        local f=frame()
+        for _,b in ipairs(f.buttons) do if b.id==id then
+          display.handlers.input({from=3,body={id=id,x=b.x,y=b.y}}) return
+        end end
+        error("missing displayed control "..id)
+      end
+      local f=frame()
+      local packetCount=#F.sent(a.s,"lease.batch")
+      for _,id in ipairs({"test","scan:2","facing:1","mining:start","turtle-park"}) do send(id) end
+      equal(#F.sent(a.s,"lease.batch"),packetCount)
+      equal(frame().role,f.role)
+      if f.role=="status" then pressVisible("panel") pressVisible("generic") end
+      equal(frame().role,"generic")
+      for _,id in ipairs({"test","scan:2","facing:1","mining:start","turtle-park"}) do send(id) end
+      equal(#F.sent(a.s,"lease.batch"),packetCount)
+      assert(not a.s.env.SO.mods.state.get("mine.alert"))
+      pressVisible("panel")
+      local before=a.s.env.SO.mods.state.get("mine.alert")
+      send("start") send("scan:2") send("test")
+      equal(a.s.env.SO.mods.state.get("mine.alert"),before)
+      pressVisible("mining:start")
+      assert(a.s.env.SO.mods.state.get("mine.alert"))
+      pressVisible("generic") pressVisible("testing")
+      pressVisible("scan:2") pressVisible("facing:1")
+      a.n.advance(4) F.check(a)
+      assert(#F.sent(a.s,"lease.batch")>packetCount)
+      frame()
+      packetCount=#F.sent(a.s,"lease.batch")
+      send("facing:1")
+      equal(#F.sent(a.s,"lease.batch"),packetCount)
+    end)
+  end
   test("panel shows refused start and clears reason on stop; picker uses clipped labels",function()
     local a=setup(false)
     local mods=a.s.env.SO.mods

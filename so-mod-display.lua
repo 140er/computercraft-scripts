@@ -331,6 +331,18 @@ D.drawn = function(id)
   return "generic"
 end
 
+D.rememberFrame = function(session, frame)
+  local ids={}
+  for _,button in ipairs(frame.buttons or {}) do
+    if type(button.id)=="string" then ids[button.id]=true end
+  end
+  session.inputRole,session.inputIds=frame.role,ids
+end
+
+D.visibleInput = function(session, role, id)
+  return session and session.inputRole==role and session.inputIds and session.inputIds[id]==true
+end
+
 D.sendFrame = function(id, now, force)
   local session = D.sessions[id]
   if not session or not session.w or not session.h then return end
@@ -354,7 +366,8 @@ D.sendFrame = function(id, now, force)
     wire = SO.proto.encode(msg)
   end
   if type(wire) ~= "table" then return end
-  rednet.send(id, wire, "so")
+  if rednet.send(id, wire, "so") == false then return end
+  D.rememberFrame(session,body)
   session.sent = now
   session.roleSent = body.role
   if slot then session.revSent = slot.rev end
@@ -582,7 +595,7 @@ D.once = function(msg, reply)
   if U and role == "status" then D.model = D.gather() end
   local body = D.compose(role, w, h, session)
   body.scale = D.saved.far[tostring(msg.from)] and 1 or 0.5
-  reply("view.frame", body)
+  if reply("view.frame", body) ~= false then D.rememberFrame(session,body) end
 end
 
 D.consent = function(event, role, w, h, session)
@@ -700,6 +713,7 @@ D.onInput = function(msg)
   else
     return
   end
+  if id and not D.visibleInput(D.sessions[msg.from],D.drawn(msg.from),id) then return end
   if id and id:match("^dug%.") then
     local session = D.sessions[msg.from]
     if not session or not session.w then return end
@@ -857,6 +871,7 @@ D.localTick = function(now)
       local w,h = m.target.getSize()
       local event = m.pending
       m.pending = nil
+      if event and not D.visibleInput(m.session,m.role,event.id) then event=nil end
       if event and event.id:match("^dug%.") then
         D.consent(event, m.role, w, h, m.session)
       elseif event and not D.turtleInput({id=event.id,x=event.x,y=event.y,session=m.session,role=m.role},w,h) then
@@ -890,6 +905,7 @@ D.localTick = function(now)
       end
       m.frame = D.compose(m.role,w,h,m.session)
       D.paint(m.target,m.frame,w,h)
+      D.rememberFrame(m.session,m.frame)
     end)
     if not ok then D.monitor=nil end
   end

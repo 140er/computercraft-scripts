@@ -1654,3 +1654,18 @@ uses a fenced GPS step. Its report proves the worker advanced its journal, so a
 delayed setup batch with the previous id cannot move after reservations are
 released, including across a server restart. Older workers remain compatible
 with ordinary leases but cannot run chest setup.
+
+The display dispatcher accepts a button id only when it appeared in that
+sender's last delivered frame for the current role. It records controls after
+wire-size fitting and successful frame delivery, including one-off `view.get`
+replies. Unknown, hidden and stale ids stop before screen handlers, navigation,
+turtle controls or consent handling. Local monitors use the same rule against
+the frame they painted. Typed commands retain their existing screen routing.
+
+Successful chest setup hands the occupied cell from `setup:<id>` to `gps:<id>`
+before releasing the route. A failed handoff keeps the setup reservations.
+Later setup or assignment claims that standing cell through `lease.claimProbe`.
+Visits count every outward and return movement step and compare that cost with
+`lease.status(id).fuel`, the latest authenticated hello or step-report fuel.
+Unknown or insufficient fuel refuses before any lease or reservation change.
+Scans turn in place and require no movement fuel. Unlimited fuel is accepted.

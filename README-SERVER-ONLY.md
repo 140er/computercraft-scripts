@@ -531,3 +531,9 @@ Pairing shows a panel notice for 30 game seconds. Mining and lumber setup list
 unassigned turtles with labels, ids on ADD HERE, and fuel. Labels use at most
 16 characters. Refused mining commands appear in the panel's mining block;
 an accepted command clears the reason.
+
+Chest visits refuse unknown fuel or a fuel level below the complete round trip.
+The refusal shows the needed and available fuel. After setup, the turtle's
+standing cell remains reserved until its next setup or assignment takes it.
+Display button presses must belong to the last delivered screen; stale controls
+need a fresh frame before they can be used.

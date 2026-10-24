@@ -98,11 +98,16 @@ return function(test,equal)
   end)
   test('UI2d status returns from every role and generic keeps header clear',function()
     local _,_,screens,_,_,e=boot();local display=e.dofile('so-mod-display.lua');e.SO.mods.display=display
+    local U=e.dofile('so-ui.lua')
     for _,role in ipairs({'mining','lumber','shop','ar','generic'}) do
-      display.screen(role,screens[role] and screens[role].render or function() return {rows={},buttons={}} end,screens[role] and screens[role].input)
+      display.screen(role,screens[role] and screens[role].render or function(w,h) local c=U.canvas(w,h);c.button(1,h,w,'BACK','status','7',1);return c.frame() end,screens[role] and screens[role].input)
     end
     local function frame() local f;display.handlers['view.get']({from=2},function(_,v) f=v end);return f end
-    local function tap(id) display.handlers.input({from=2,body={id=id,x=1,y=1}}) end
+    local function tap(id)
+      local f=frame();local x,y=1,1
+      for _,b in ipairs(f.buttons) do if b.id==id then x,y=b.x,b.y break end end
+      display.handlers.input({from=2,body={id=id,x=x,y=y}})
+    end
     display.handlers.hello({from=2,body={w=57,h=24}})
     for _,role in ipairs({'mining','lumber','shop','ar'}) do tap('generic');local nav={};for _,b in ipairs(frame().buttons) do nav[b.id]=true end;assert(nav[role],role);tap(role);equal(frame().role,role);tap('status');equal(frame().role,'status') end
     tap('generic');tap('list');local f=frame();assert(f.rows[2].text:find('DROP POINTS',1,true))
