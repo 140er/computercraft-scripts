@@ -54,12 +54,13 @@ class UpdatePinTests(unittest.TestCase):
             def record(self, name, value): return value
             def power(self, *args): pass
             def frame(self, name): return {"role": "generic"}
+            def lua(self, name, code): return {"requests": 1, "failures": 0, "program": "/display.lua", "running": True}
             def wait(self, predicate, seconds): return predicate()
             def request(self, op, **kwargs):
                 if op == "lua_async":
                     self.jobs.append(kwargs["code"]); return {"job": str(len(self.jobs))}
                 if op == "files": return {"content": self.commit}
-                if op == "lua_job": return {"state": "done", "error": "Terminated", "values": [{"requests": 1, "failures": 0}]}
+                if op == "lua_job": return {"state": "failed", "error": "Terminated"} if kwargs["job"] == "1" else {"state": "running"}
                 return {}
         ctx = Context()
         self.assertEqual(c14.run(ctx).status, "pass")

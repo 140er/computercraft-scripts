@@ -9,15 +9,36 @@ from .model import Blocked, values, lumber_workers
 from .admission import admit
 from .readiness import start_job
 
-HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local requests,failures=0,0
+HTTP_UPDATE = '''local original=http.get;local originalPrint=print;local originalRun=shell.run
+  local observation={requests=0,failures=0,running=false};GATEB_HTTP_UPDATE=observation
+  local function restore() http.get=original;print=originalPrint;shell.run=originalRun end
   print=function(...) local parts={};for i=1,select('#',...) do parts[i]=tostring(select(i,...)) end
-    local line=table.concat(parts,' ');if line:match('Download failed') or line:match('Install failed') or line:match('Install rolled back') then failures=failures+1 end
+    local line=table.concat(parts,' ');if line:match('Download failed') or line:match('Install failed') or line:match('Install rolled back') then observation.failures=observation.failures+1 end
     originalPrint(...) end
-  http.get=function(...) requests=requests+1;local r,e,f=original(...)
-    if not r or r.getResponseCode()~=200 then failures=failures+1 end;return r,e,f end
-  local ok,ran=pcall(shell.run,"install","update");http.get=original;print=originalPrint
+  http.get=function(...) observation.requests=observation.requests+1;local r,e,f=original(...)
+    if not r or r.getResponseCode()~=200 then observation.failures=observation.failures+1 end;return r,e,f end
+  shell.run=function(program,...)
+    if program=="/display.lua" or program=="/worker.lua" or program=="/so-server.lua" then
+      observation.program=program;observation.running=true;GATEB_FRAME=nil;restore()
+      local ran=originalRun(program,...);observation.running=false;return ran
+    end
+    return originalRun(program,...)
+  end
+  local ok,ran=pcall(shell.run,"install","update");observation.running=false;restore()
   if not ok then error(ran) end
-  return {ran=ran,requests=requests,failures=failures}'''
+  observation.ran=ran;return observation'''
+
+
+def wait_http_update(ctx, name, job, program, seconds):
+    """Observe the updated role without waiting for its event loop to exit."""
+    def ready():
+        status = ctx.request("lua_job", computer=ctx.computer(name), job=job["job"])
+        transport = ctx.lua(name, "return GATEB_HTTP_UPDATE") or {}
+        running = status.get("state") == "running" and transport.get("running") is True and transport.get("program") == program
+        if running or status.get("state") in ("done", "failed"):
+            return {"job": status, "transport": transport, "role_running": running}
+        return None
+    return ctx.wait(ready, seconds)
 
 
 def pinned_http_update(commit):

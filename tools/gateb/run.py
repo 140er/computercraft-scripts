@@ -284,7 +284,7 @@ def main(argv=None):
                                     results.append(result)
                                     finished.add("C1")
                             ctx.linked_install = linked_install
-                        if check in ("C3", "C13"):
+                        if check in ("C1", "C3", "C13"):
                             with client_lock: result = execute(ctx, check, args.runtime_dir.resolve(), reset=not first)
                         else: result = execute_repeated(ctx, check, args.runtime_dir.resolve(), reset=not first)
                         first = False
